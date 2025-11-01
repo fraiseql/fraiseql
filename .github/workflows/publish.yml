@@ -57,7 +57,7 @@ jobs:
         python --version
 
         # Build the wheel with maturin first
-        maturin build --release --out dist
+        maturin build -m fraiseql_rs/Cargo.toml --release --out dist
 
         # Install the built wheel with dependencies
         uv pip install dist/*.whl[dev,all] --no-cache
@@ -97,28 +97,28 @@ jobs:
         FRAISEQL_LOG_LEVEL: INFO
 
   lint:
-    name: Lint (Required for Release)
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-    - name: Install maturin
-      run: pip install maturin
-    - name: Create virtual environment and install dependencies
-      run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        maturin build --release --out dist
-        uv pip install dist/*.whl[dev] --no-cache
+     name: Lint (Required for Release)
+     runs-on: ubuntu-latest
+     steps:
+     - uses: actions/checkout@v4
+     - name: Set up Python
+       uses: actions/setup-python@v5
+       with:
+         python-version: '3.13'
+     - name: Install uv
+       uses: astral-sh/setup-uv@v7
+     - name: Setup Rust toolchain
+       uses: dtolnay/rust-toolchain@stable
+       with:
+         toolchain: stable
+     - name: Install maturin
+       run: pip install maturin
+     - name: Create virtual environment and install dependencies
+       run: |
+         python -m venv .venv
+         source .venv/bin/activate
+         maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+         uv pip install dist/*.whl[dev] --no-cache
     - name: Run ruff
       run: |
         source .venv/bin/activate
@@ -129,28 +129,28 @@ jobs:
         ruff format --check .
 
   security:
-    name: Security (Required for Release)
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-    - name: Install maturin
-      run: pip install maturin
-    - name: Create virtual environment and install dependencies
-      run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        maturin build --release --out dist
-        uv pip install dist/*.whl[dev] --no-cache
+     name: Security (Required for Release)
+     runs-on: ubuntu-latest
+     steps:
+     - uses: actions/checkout@v4
+     - name: Set up Python
+       uses: actions/setup-python@v5
+       with:
+         python-version: '3.13'
+     - name: Install uv
+       uses: astral-sh/setup-uv@v7
+     - name: Setup Rust toolchain
+       uses: dtolnay/rust-toolchain@stable
+       with:
+         toolchain: stable
+     - name: Install maturin
+       run: pip install maturin
+     - name: Create virtual environment and install dependencies
+       run: |
+         python -m venv .venv
+         source .venv/bin/activate
+         maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+         uv pip install dist/*.whl[dev] --no-cache
     - name: Run bandit
       run: |
         source .venv/bin/activate
