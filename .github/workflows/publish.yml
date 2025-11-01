@@ -60,7 +60,7 @@ jobs:
         cd fraiseql_rs && maturin build --release --out ../dist
 
         # Install the built wheel with dependencies
-        uv pip install dist/*.whl[dev,all] --no-cache
+        uv pip install ../dist/*.whl[dev,all] --no-cache
 
         # Verify bundled Rust extension installed correctly
         python -c "import fraiseql_rs; print(f'fraiseql_rs version: {fraiseql_rs.__version__}')"
@@ -118,7 +118,7 @@ jobs:
         python -m venv .venv
         source .venv/bin/activate
           cd fraiseql_rs && maturin build --release --out ../dist
-        uv pip install dist/*.whl[dev] --no-cache
+          uv pip install ../dist/*.whl[dev] --no-cache
     - name: Run ruff
       run: |
         source .venv/bin/activate
@@ -150,7 +150,7 @@ jobs:
         python -m venv .venv
         source .venv/bin/activate
           cd fraiseql_rs && maturin build --release --out ../dist
-        uv pip install dist/*.whl[dev] --no-cache
+          uv pip install ../dist/*.whl[dev] --no-cache
     - name: Run bandit
       run: |
         source .venv/bin/activate
