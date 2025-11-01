@@ -208,6 +208,9 @@ jobs:
         echo "=== Built wheels ==="
         ls -lh dist/
 
+        echo "=== Inspecting wheel contents ==="
+        python -m zipfile -l dist/fraiseql-*.whl | grep "\.so\|__init__"
+
     - name: Run tox for Python 3.13
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
