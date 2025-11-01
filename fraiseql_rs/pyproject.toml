@@ -42,10 +42,9 @@ dependencies = [
   "typer>=0.12.0",
   "rich>=13.7.0",
   "pyyaml>=6.0.1",
-  "sqlparse>=0.5.0",
-  "fraiseql-confiture>=0.1.0",
-  "jinja2>=3.1.0",
+   "sqlparse>=0.5.0",
+   "jinja2>=3.1.0",
 ]
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "../src"
+python-source = "."
