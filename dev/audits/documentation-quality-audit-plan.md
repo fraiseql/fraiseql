@@ -54,6 +54,15 @@ Based on production PrintOptim codebase analysis:
 - ❌ Not using domain modules pattern
 - ❌ Filters not centralized
 
+**GraphQL Client Payload Violations**:
+- ❌ Inline values instead of variables
+- ❌ Not checking `__typename` for union types
+- ❌ Not handling `errors` in response
+- ❌ Using empty strings instead of `null` to clear fields
+- ❌ Including all fields when only subset changed (updates)
+- ❌ Not requesting `errors` array in error fragments
+- ❌ Not requesting `conflictEntity` for duplicate detection
+
 ### 2. Structural Issues
 - ❌ **Missing headers**: files without proper title (# Title)
 - ❌ **Inconsistent heading hierarchy**: skipping levels (# to ###)
