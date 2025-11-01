@@ -135,7 +135,7 @@ uvicorn app:app --reload
 ## 📖 Documentation Links
 
 - **[Main Documentation](../docs/)** - Complete FraiseQL reference
-- **[Quick Start](../docs/quickstart.md)** - Getting started guide
+- **[Quick Start](../docs/getting-started/quickstart.md)** - Getting started guide
 - **[Core Concepts](../docs/core/)** - Fundamental patterns
 - **[Performance Guide](../docs/performance/)** - Optimization techniques
 - **[Production Deployment](../docs/production/)** - Production setup

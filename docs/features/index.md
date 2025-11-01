@@ -180,7 +180,7 @@ We prioritize features based on:
 
 ## Quick Links
 
-- **[Getting Started](../quickstart.md)** - Build your first API in 5 minutes
+- **[Getting Started](../getting-started/quickstart.md)** - Build your first API in 5 minutes
 - **[Core Concepts](../core/concepts-glossary.md)** - Understand FraiseQL's mental model
 - **[Examples](../../examples/)** - Learn by example
 - **[Production Deployment](../production/)** - Deploy to production

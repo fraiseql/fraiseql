@@ -38,9 +38,9 @@ This release includes a major documentation restructure for better discoverabili
 - 🗺️ **Improved navigation** with clear learning paths
 
 ### Learning Resources
-- 📖 **[First Hour Guide](docs/FIRST_HOUR.md)** - Progressive 60-minute tutorial from zero to production
-- ⚡ **[5-Minute Quickstart](docs/quickstart.md)** - Get a working API instantly
-- 🧠 **[Understanding FraiseQL](docs/UNDERSTANDING.md)** - Conceptual overview with diagrams
+- 📖 **[First Hour Guide](docs/getting-started/first-hour.md)** - Progressive 60-minute tutorial from zero to production
+- ⚡ **[5-Minute Quickstart](docs/getting-started/quickstart.md)** - Get a working API instantly
+- 🧠 **[Understanding FraiseQL](docs/guides/understanding-fraiseql.md)** - Conceptual overview with diagrams
 - 📚 **[Full Documentation](docs/)** - Comprehensive guides and API reference
 - 💡 **[20+ Examples](examples/)** - Production-ready application patterns
 
@@ -139,7 +139,7 @@ Perfect for learning FraiseQL thoroughly - builds a complete blog API in 60 minu
 
 ```bash
 # Follow the progressive tutorial
-open docs/FIRST_HOUR.md
+open docs/getting-started/first-hour.md
 ```
 
 ### Option 2: 5-Minute Quickstart
@@ -179,10 +179,10 @@ python run.py
 ## 📖 Documentation Links
 
 ### Getting Started
-- **[First Hour Guide](docs/FIRST_HOUR.md)** - Progressive 60-minute tutorial
-- **[5-Minute Quickstart](docs/quickstart.md)** - Instant working API
-- **[Understanding FraiseQL](docs/UNDERSTANDING.md)** - Conceptual overview
-- **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
+- **[First Hour Guide](docs/getting-started/first-hour.md)** - Progressive 60-minute tutorial
+- **[5-Minute Quickstart](docs/getting-started/quickstart.md)** - Instant working API
+- **[Understanding FraiseQL](docs/guides/understanding-fraiseql.md)** - Conceptual overview
+- **[Installation Guide](docs/getting-started/installation.md)** - Detailed setup instructions
 
 ### Core Documentation
 - **[Types & Schema](docs/core/types-and-schema.md)** - GraphQL type system
@@ -206,13 +206,13 @@ python run.py
 - **[Quick Reference](docs/reference/quick-reference.md)** - Copy-paste code patterns
 - **[API Reference](docs/api-reference/)** - Complete API documentation
 - **[Examples](examples/)** - 20+ production-ready patterns
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Troubleshooting](docs/guides/troubleshooting.md)** - Common issues and solutions
 
 ## 🤝 Contributing
 
 We welcome contributions! See our guides:
 
-- **[Contributing Guide](docs/CONTRIBUTING.md)** - Development setup and guidelines
+- **[Contributing Guide](CONTRIBUTING.md)** - Development setup and guidelines
 - **[Development Docs](docs/development/)** - Architecture and design decisions
 - **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** - Report bugs or request features
 - **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community help
@@ -250,7 +250,7 @@ FraiseQL v1.0.0 includes enterprise security features:
 
 ### Getting Help
 - 📖 **[Documentation](docs/)** - Comprehensive guides
-- 🔧 **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues
+- 🔧 **[Troubleshooting](docs/guides/troubleshooting.md)** - Common issues
 - 💬 **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** - Bug reports
 - 💡 **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community support
 
@@ -293,11 +293,11 @@ By using FraiseQL v1.0.0, you should achieve:
 ## 🚀 Ready to Get Started?
 
 1. **Install FraiseQL**: `pip install fraiseql`
-2. **Follow the tutorial**: Open [docs/FIRST_HOUR.md](docs/FIRST_HOUR.md)
+2. **Follow the tutorial**: Open [docs/getting-started/first-hour.md](docs/getting-started/first-hour.md)
 3. **Explore examples**: Browse [examples/](examples/)
 4. **Build amazing APIs**: With sub-millisecond performance
 
-**Questions?** Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) or open a [GitHub Discussion](https://github.com/fraiseql/fraiseql/discussions).
+**Questions?** Check [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md) or open a [GitHub Discussion](https://github.com/fraiseql/fraiseql/discussions).
 
 ---
 

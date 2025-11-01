@@ -150,7 +150,7 @@ FROM tb_user;
 
 **Prevention:**
 - Run migrations: `psql -f schema.sql`
-- Check [DDL Organization Guide](core/ddl-organization.md)
+- Check [DDL Organization Guide](../core/ddl-organization.md)
 
 ---
 
@@ -465,7 +465,7 @@ SELECT * FROM tb_post;
 
 1. **Search existing issues**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
 2. **Check discussions**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-3. **Review documentation**: [Complete Docs](README.md)
+3. **Review documentation**: [Complete Docs](../../README.md)
 
 ### Opening a Good Issue
 
@@ -521,6 +521,6 @@ Full error message
 
 ## 📖 Related Resources
 
-- **[Detailed Troubleshooting Guide](TROUBLESHOOTING.md)** - Specific error messages with step-by-step solutions
+- **[Detailed Troubleshooting Guide](troubleshooting.md)** - Specific error messages with step-by-step solutions
 - **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** - Report bugs and search existing issues
 - **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Ask questions and get help from the community

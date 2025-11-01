@@ -1,7 +1,7 @@
 name: Python Version Matrix Tests
 
-# Test across Python 3.11, 3.12, and 3.13 to ensure compatibility
-# This complements the quality-gate workflow by testing multiple Python versions
+# Test Python 3.13+ compatibility
+# This complements the quality-gate workflow
 on:
   push:
     branches: [ main, dev ]
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false  # Continue testing other versions even if one fails
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.13']
 
     services:
       postgres:
@@ -57,41 +57,45 @@ jobs:
         toolchain: stable
 
     - name: Install maturin
-      run: pip install maturin
+      run: uv tool install maturin
 
-    - name: Create virtual environment and install dependencies
+    - name: Setup environment and install dependencies
       run: |
-        python -m venv .venv
-        source .venv/bin/activate
-
         echo "=== Python Version Info ==="
         python --version
-        which python
 
-        echo "=== Installing FraiseQL with dependencies ==="
-        uv pip install -e ".[dev,all]" --no-cache
+        # Create virtual environment with uv
+        uv venv
+
+        echo "=== Installing build dependencies ==="
+        uv pip install setuptools wheel
+
+        echo "=== Installing FraiseQL dependencies ==="
+        uv pip install ".[dev,all]"
+
+        echo "=== Building Rust extension with maturin ==="
+        uv run maturin develop --uv
 
         echo "=== Verifying Installation ==="
-        python -c "import fraiseql; print(f'FraiseQL version: {fraiseql.__version__}')"
-        python -c "import fraiseql_rs; print(f'fraiseql_rs loaded successfully')"
+        uv run python -c "import fraiseql; print(f'FraiseQL version: {fraiseql.__version__}')"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'fraiseql_rs loaded successfully')"
 
     - name: Verify Environment
       run: |
-        source .venv/bin/activate
         echo "=== Environment Verification ==="
-        python --version
+        uv run python --version
         uv --version
-        pytest --version
+        uv run pytest --version
         rustc --version
 
         echo "=== PostgreSQL Health Check ==="
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
 
         echo "=== Database Connection Test ==="
-        python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()"
+        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()"
 
         echo "=== Rust Extension Verification ==="
-        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs imported'); print(f'Available functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs imported'); print(f'Available functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Run tests with pytest
       env:
@@ -103,10 +107,9 @@ jobs:
         DB_PASSWORD: fraiseql
         PYTEST_CURRENT_TEST: ""
       run: |
-        source .venv/bin/activate
         echo "=== Running Tests on Python ${{ matrix.python-version }} ==="
 
-        python -m pytest tests/ \
+        uv run pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
@@ -143,11 +146,11 @@ jobs:
           echo "=== Python Version Matrix Test Results ==="
 
           if [[ "${{ needs.test-matrix.result }}" == "success" ]]; then
-            echo "✅ All Python versions (3.11, 3.12, 3.13) passed!"
-            echo "🎉 Code is compatible across all supported Python versions"
+            echo "✅ Python 3.13+ tests passed!"
+            echo "🎉 Code is compatible with Python 3.13+"
             exit 0
           else
-            echo "❌ Some Python versions failed testing"
+            echo "❌ Python 3.13 testing failed"
             echo "⚠️  Check the individual job results above for details"
             exit 1
           fi
@@ -202,7 +205,8 @@ jobs:
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
       run: |
         echo "=== Running Tox Tests ==="
-        # Run tox for Python 3.13 (the only version we can guarantee in CI)
+        # Run tox for Python 3.13
+        # Tox will install dependencies and run maturin develop to build the Rust extension
         tox -e py313 || {
           echo "❌ Tox tests failed"
           exit 1

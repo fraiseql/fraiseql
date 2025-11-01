@@ -7,6 +7,7 @@ This directory contains historical documentation that has been superseded or is 
 - `temp-work-files/` - Temporary planning and review documents from development
 - `debug-sessions/` - CI/CD debugging session notes
 - `migration-guides/` - Legacy migration guides (pre-v1.0.0)
+- `releases/` - Historical release execution notes and old release documentation
 
 ## Why Archive?
 

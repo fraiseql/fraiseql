@@ -170,4 +170,4 @@ fraiseql_rs/
 └── tests/              # Rust tests
 ```
 
-See [Contributing Guide](../CONTRIBUTING.md) for Rust development setup.
+See [Contributing Guide](../../CONTRIBUTING.md) for Rust development setup.

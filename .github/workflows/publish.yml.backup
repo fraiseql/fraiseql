@@ -131,35 +131,10 @@ jobs:
     - name: Run bandit
       run: uv run bandit -r src/ -f json || true
 
-  build-sdist:
-    name: Build source distribution
-    runs-on: ubuntu-latest
-    needs: [test, lint, security]
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Build sdist
-      uses: PyO3/maturin-action@v1
-      with:
-        maturin-version: "1.9.6"
-        command: sdist
-        args: --out dist
-
-    - name: Upload sdist
-      uses: actions/upload-artifact@v4
-      with:
-        name: sdist
-        path: dist/*.tar.gz
-
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # 🚨 CRITICAL: Build ONLY runs if ALL quality checks pass
     needs: [test, lint, security]
     strategy:
       matrix:
@@ -177,11 +152,13 @@ jobs:
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
 
     - name: Build wheels
       uses: PyO3/maturin-action@v1
       with:
-        maturin-version: "1.9.6"
+        maturin-version: latest
         command: build
         args: --release --out dist --find-interpreter
 
@@ -189,97 +166,27 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: wheels-${{ matrix.os }}
-        path: dist/*.whl
-
-  validate:
-    name: Validate built artifacts
-    runs-on: ubuntu-latest
-    needs: [build-wheels, build-sdist]
-
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: '{wheels-*,sdist}'
-        merge-multiple: true
         path: dist
-
-    - name: Install validation tools
-      run: pip install twine
-
-    - name: Validate with twine
-      run: twine check --strict dist/*
-
-    - name: Verify wheel contents (Linux wheels only)
-      run: |
-        for whl in dist/*manylinux*.whl dist/*linux*.whl; do
-          if [ -f "$whl" ]; then
-            echo "=== Checking $whl ==="
-            unzip -l "$whl" | grep "_fraiseql_rs.*\.so" || {
-              echo "ERROR: Missing Rust extension in $whl"
-              exit 1
-            }
-            echo "✓ Rust extension found in $whl"
-          fi
-        done
-
-    - name: List all artifacts
-      run: |
-        echo "=== Built Artifacts ==="
-        ls -lh dist/
-        echo ""
-        echo "=== File Count ==="
-        echo "Wheels: $(ls dist/*.whl 2>/dev/null | wc -l)"
-        echo "Source distributions: $(ls dist/*.tar.gz 2>/dev/null | wc -l)"
 
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: [validate]
     environment: release
     permissions:
-      id-token: write  # Required for trusted publishing
-
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: '{wheels-*,sdist}'
-        merge-multiple: true
-        path: dist
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: List artifacts to publish
-      run: |
-        echo "=== Publishing to PyPI ==="
-        ls -lh dist/
-
-    - name: Publish to PyPI
-      run: uv publish --trusted-publishing always
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [publish]
-    permissions:
-      contents: write
+      id-token: write
+    needs: [build-wheels]
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download artifacts for release
+    - name: Download all wheels
       uses: actions/download-artifact@v4
       with:
-        pattern: '{wheels-*,sdist}'
+        pattern: wheels-*
         merge-multiple: true
         path: dist
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        generate_release_notes: true
-        files: dist/*
-        draft: false
-        prerelease: false
+        password: ${{ secrets.PYPI_TOKEN }}

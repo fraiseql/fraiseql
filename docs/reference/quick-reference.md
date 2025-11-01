@@ -543,7 +543,7 @@ from datetime import datetime
 
 ## Need More Help?
 
-- [First Hour Guide](../FIRST_HOUR.md) - Progressive tutorial
-- [Troubleshooting](../TROUBLESHOOTING.md) - Common issues
-- [Understanding FraiseQL](../UNDERSTANDING.md) - Architecture overview
+- [First Hour Guide](../getting-started/first-hour.md) - Progressive tutorial
+- [Troubleshooting](../guides/troubleshooting.md) - Common issues
+- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Architecture overview
 - [Examples](../../examples/) - Working applications

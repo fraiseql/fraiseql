@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📚 Documentation
+
+**Documentation Reorganization**
+- Reorganized documentation structure for better discoverability
+- Moved internal developer docs to `dev/` directory
+  - Architecture planning → `dev/architecture/`
+  - Release processes → `dev/releases/`
+  - Code audits → `dev/audits/`
+  - Rust extension docs → `dev/rust/`
+- Organized user-facing docs into subdirectories
+  - Getting started guides → `docs/getting-started/`
+  - User guides → `docs/guides/`
+  - Advanced topics → `docs/advanced/`
+  - Reference material → `docs/reference/`
+- Moved CI/CD documentation to `.github/docs/`
+- Archived historical release notes to `archive/releases/`
+- Removed duplicate documentation files
+- Updated all cross-references and links
+- Fixed Python version badge to 3.13+ (reflects current requirement)
+
 ## [1.1.1] - 2025-11-01
 
 ### 🐛 Critical Bug Fixes
@@ -95,7 +115,7 @@ pip install --upgrade fraiseql==1.1.1
 
 - Documentation integration across codebase
   - Updated `README.md`: Added "Advanced filtering" to feature highlights
-  - Updated `docs/FIRST_HOUR.md`: Added callout box for advanced filtering capabilities
+  - Updated `docs/getting-started/first-hour.md`: Added callout box for advanced filtering capabilities
   - Updated `docs/advanced/where_input_types.md`: Added comprehensive advanced operators section
   - Updated `docs/core/database-api.md`: Added prominent link to filter operators reference
   - Fixed nested array filtering documentation to match actual working API
@@ -279,7 +299,7 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
   - Each feature includes status (Stable/Beta), documentation link, and working example
   - Quick reference for discovering framework capabilities
 
-- **Troubleshooting Decision Tree** (`docs/TROUBLESHOOTING_DECISION_TREE.md`)
+- **Troubleshooting Decision Tree** (`docs/guides/troubleshooting-decision-tree.md`)
   - 6 problem categories with diagnostic decision trees
   - Installation & Setup, Database Connection, GraphQL Queries, Performance, Deployment, Authentication
   - Step-by-step diagnosis and fixes for top 10 user issues
@@ -347,8 +367,8 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
 ### 📚 Documentation
 
 **Quick Start**
-- [5-Minute Quickstart](docs/quickstart.md)
-- [First Hour Guide](docs/FIRST_HOUR.md)
+- [5-Minute Quickstart](docs/getting-started/quickstart.md)
+- [First Hour Guide](docs/getting-started/first-hour.md)
 - [Feature Matrix](docs/features/index.md)
 
 **Production Deployment**
@@ -358,8 +378,8 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
 - [Production Checklist](docs/production/README.md#production-checklist)
 
 **Troubleshooting**
-- [Decision Tree](docs/TROUBLESHOOTING_DECISION_TREE.md) (diagnostic guide)
-- [Detailed Guide](docs/TROUBLESHOOTING.md) (error-specific solutions)
+- [Decision Tree](docs/guides/troubleshooting-decision-tree.md) (diagnostic guide)
+- [Detailed Guide](docs/guides/troubleshooting.md) (error-specific solutions)
 
 **Performance**
 - [Benchmark Methodology](docs/benchmarks/methodology.md)
@@ -473,10 +493,10 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 📚 Documentation
 
-- **Quick Start**: [docs/quickstart.md](docs/quickstart.md)
-- **Installation**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
-- **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
-- **First Hour Guide**: [docs/FIRST_HOUR.md](docs/FIRST_HOUR.md)
+- **Quick Start**: [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md)
+- **Installation**: [docs/getting-started/installation.md](docs/getting-started/installation.md)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **First Hour Guide**: [docs/getting-started/first-hour.md](docs/getting-started/first-hour.md)
 - **Full Docs**: [docs/](docs/)
 - **Examples**: [examples/](examples/)
 

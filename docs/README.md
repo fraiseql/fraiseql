@@ -2,10 +2,10 @@
 
 ## Getting Started
 
-- **[5-Minute Quickstart](quickstart.md)** - Fastest way to get running
-- **[First Hour Guide](FIRST_HOUR.md)** - Progressive tutorial
-- **[Understanding FraiseQL](UNDERSTANDING.md)** - Conceptual overview
-- **[Installation](INSTALLATION.md)** - Detailed setup instructions
+- **[5-Minute Quickstart](getting-started/quickstart.md)** - Fastest way to get running
+- **[First Hour Guide](getting-started/first-hour.md)** - Progressive tutorial
+- **[Understanding FraiseQL](guides/understanding-fraiseql.md)** - Conceptual overview
+- **[Installation](getting-started/installation.md)** - Detailed setup instructions
 
 ## 🎯 Feature Discovery
 
@@ -31,6 +31,7 @@
 
 ## Advanced Features
 
+- [Advanced Patterns](advanced/advanced-patterns.md)
 - [Authentication](advanced/authentication.md)
 - [Multi-Tenancy](advanced/multi-tenancy.md)
 - [Database Patterns](advanced/database-patterns.md)
@@ -47,13 +48,21 @@
 - [Type Operator Architecture](architecture/type-operator-architecture.md)
 - [Configuration Reference](reference/config.md)
 
+## Guides
+
+- [Nested Array Filtering](guides/nested-array-filtering.md)
+- [Troubleshooting](guides/troubleshooting.md)
+- [Troubleshooting Decision Tree](guides/troubleshooting-decision-tree.md)
+
+## Reference
+
+- [Testing Checklist](reference/testing-checklist.md)
+- [Quick Reference](reference/quick-reference.md)
+- [Type Operator Architecture](architecture/type-operator-architecture.md)
+- [Configuration Reference](reference/config.md)
+
 ## Development
 
-- [Contributing](CONTRIBUTING.md)
+- [Contributing](../CONTRIBUTING.md)
 - [Style Guide](development/style-guide.md)
 - [Architecture Decisions](architecture/README.md)
-
-## Troubleshooting
-
-- [Common Issues](TROUBLESHOOTING.md)
-- [Quick Reference](reference/quick-reference.md)

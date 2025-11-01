@@ -11,7 +11,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
 | **v1.1.1** | Production Stable | All users | ✅ Stable |
-| v1.1.0 | Stable | All users | ✅ Stable |
+| v1.1.0 | Superseded | Legacy | ⚠️ Use v1.1.1 |
 | v1.0.3 | Stable | All users | ✅ Stable |
 | v1.0.2 | Stable | All users | ✅ Stable |
 | v1.0.1 | Stable | All users | ✅ Stable |
@@ -48,7 +48,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 - ✅ +34 new tests added
 - ✅ All operators validated with comprehensive test coverage
 
-**See [CHANGELOG.md](CHANGELOG.md#110---2025-10-29) for complete details.**
+**See [CHANGELOG.md](../../CHANGELOG.md#110---2025-10-29) for complete details.**
 
 ## What's New in v1.0.3
 
@@ -57,7 +57,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 - ✅ Direct HTTP response path now working as designed
 - ✅ WHERE clause generation for JSONB tables enhanced
 
-**See [CHANGELOG.md](CHANGELOG.md#103---2025-10-27) for complete details.**
+**See [CHANGELOG.md](../../CHANGELOG.md#103---2025-10-27) for complete details.**
 
 ## What's New in v1.0.2
 
@@ -68,7 +68,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 - ✅ Modernized type hints (Python 3.10+ syntax: `T | None`, `UUID`)
 - ✅ Added Coordinate geospatial type to specialized types list
 
-**See [CHANGELOG.md](CHANGELOG.md#102---2025-10-25) for complete details.**
+**See [CHANGELOG.md](../../CHANGELOG.md#102---2025-10-25) for complete details.**
 
 ## What's New in v1.0.1
 
@@ -91,7 +91,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 - ✅ Improved navigation and discoverability
 - ✅ Repository cleanup (18 backup files removed)
 
-**See [CHANGELOG.md](CHANGELOG.md#101---2025-10-24) for complete details.**
+**See [CHANGELOG.md](../../CHANGELOG.md#101---2025-10-24) for complete details.**
 
 ## What's in v1.0.0
 
@@ -139,7 +139,7 @@ curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.1/deployment/do
 curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.1/deployment/.env.example
 ```
 
-See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.
+See [MIGRATION_GUIDE.md](../../docs/migration/v0-to-v1.md) for upgrade instructions.
 
 ## Version Support Policy
 
@@ -175,7 +175,7 @@ None currently. All features in v1.0.0 are production-stable.
 ## Reporting Issues
 
 If you encounter issues with v1.0.0, please:
-1. Check [CHANGELOG.md](CHANGELOG.md) for known issues
+1. Check [CHANGELOG.md](../../CHANGELOG.md) for known issues
 2. Search existing [GitHub issues](https://github.com/fraiseql/fraiseql/issues)
 3. Create a new issue with:
    - FraiseQL version (`pip show fraiseql`)
