@@ -56,12 +56,15 @@ jobs:
         which python
         python --version
 
-        # Install dependencies with uv (this will build fraiseql_rs automatically)
-        uv pip install -e ".[dev,all]" --no-cache
+        # Build the wheel with maturin first
+        maturin build --release --out dist
 
-        # Verify Rust extension installed correctly
-        python -c "import fraiseql_rs; print(f'fraiseql_rs version: {getattr(fraiseql_rs, \"__version__\", \"no version\")}')"
-        python -c "import fraiseql_rs; print(f'fraiseql_rs functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
+        # Install the built wheel with dependencies
+        uv pip install dist/*.whl[dev,all] --no-cache
+
+        # Verify bundled Rust extension installed correctly
+        python -c "from fraiseql import _fraiseql_rs; print(f'_fraiseql_rs version: {_fraiseql_rs.__version__}')"
+        python -c "from fraiseql import _fraiseql_rs; print(f'_fraiseql_rs functions: {[f for f in dir(_fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Run core tests with coverage
       run: |
@@ -114,7 +117,8 @@ jobs:
       run: |
         python -m venv .venv
         source .venv/bin/activate
-        uv pip install -e ".[dev]" --no-cache
+        maturin build --release --out dist
+        uv pip install dist/*.whl[dev] --no-cache
     - name: Run ruff
       run: |
         source .venv/bin/activate
@@ -145,7 +149,8 @@ jobs:
       run: |
         python -m venv .venv
         source .venv/bin/activate
-        uv pip install -e ".[dev]" --no-cache
+        maturin build --release --out dist
+        uv pip install dist/*.whl[dev] --no-cache
     - name: Run bandit
       run: |
         source .venv/bin/activate
