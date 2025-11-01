@@ -59,11 +59,11 @@ jobs:
         # Create virtual environment with uv
         uv venv
 
-        # Install Python dependencies (excluding the project itself)
-        uv pip install --no-build-isolation psycopg[pool] psycopg-pool pytest pytest-asyncio pytest-cov pytest-timeout pytest-xdist faker testcontainers docker ruff
+        # Install build dependencies first (required for some packages like thrift)
+        uv pip install setuptools wheel
 
-        # Install optional dependencies
-        uv pip install --no-build-isolation ".[dev,all]"
+        # Install all dependencies
+        uv pip install ".[dev,all]"
 
         # Build and install Rust extension with modern maturin+uv integration
         uv run maturin develop --uv

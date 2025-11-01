@@ -67,8 +67,11 @@ jobs:
         # Create virtual environment with uv
         uv venv
 
+        echo "=== Installing build dependencies ==="
+        uv pip install setuptools wheel
+
         echo "=== Installing FraiseQL dependencies ==="
-        uv pip install --no-build-isolation ".[dev,all]"
+        uv pip install ".[dev,all]"
 
         echo "=== Building Rust extension with maturin ==="
         uv run maturin develop --uv
