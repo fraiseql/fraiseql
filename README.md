@@ -3,9 +3,9 @@
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)
+[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
 **📍 You are here: Main FraiseQL Framework (v1.1.1) - Production Stable**
 
@@ -64,7 +64,7 @@ app = create_fraiseql_app(
 - Are building your first GraphQL API (start with simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
 
-*See [detailed audience guide](docs/strategic/AUDIENCES.md) for complete user profiles.*
+*See [detailed audience guide](dev/architecture/audiences.md) for complete user profiles.*
 
 ---
 
@@ -403,7 +403,7 @@ class CreateUser:
 
 **Quick links:**
 
-- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
+- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md) - 10-minute architecture overview
 - [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
 - [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
 - [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
@@ -673,7 +673,7 @@ FraiseQL implements Command Query Responsibility Segregation:
 - `fn_*` - Business logic, validation, side effects
 - `tb_*` - Base tables for data storage
 
-**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)**
+**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)**
 
 ### Key Innovations
 
@@ -823,7 +823,7 @@ query {
 - **Standard:** EmailAddress, UUID, JSON with validation
 - **Nested Arrays:** Complete AND/OR/NOT logical operators
 
-**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/nested-array-filtering.md)**
+**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/nested-array-filtering.md)**
 
 ### Enterprise Security
 
@@ -900,9 +900,9 @@ fraiseql dev
 
 ### Next Steps
 
-**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** - Build a complete blog API (60 minutes, hands-on)
-**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)** - Architecture deep dive (10 minute read)
-**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/quickstart.md)** - Copy, paste, run
+**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
+**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
+**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
 **📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
 
 ### Prerequisites
@@ -962,7 +962,7 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 - **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
   - **[Benchmark Methodology](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
   - **[Reproduction Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
-- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/troubleshooting.md)** - Common issues and solutions
 
 ---
 
@@ -1047,14 +1047,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
 | **v1.1.0** | Superseded | Legacy | Use v1.1.1 | ⚠️ Migrate |
 
-**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
+**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
 **Migration Guides:**
 
 - [v1 to v2 Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/migration/v1-to-v2.md) - Unified Rust-first architecture
 - [Monitoring Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/production/monitoring.md) - From Redis and Sentry
 
-**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)**
+**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)**
 
 ---
 

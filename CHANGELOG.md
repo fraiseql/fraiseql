@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📚 Documentation
+
+**Documentation Reorganization**
+- Reorganized documentation structure for better discoverability
+- Moved internal developer docs to `dev/` directory
+  - Architecture planning → `dev/architecture/`
+  - Release processes → `dev/releases/`
+  - Code audits → `dev/audits/`
+  - Rust extension docs → `dev/rust/`
+- Organized user-facing docs into subdirectories
+  - Getting started guides → `docs/getting-started/`
+  - User guides → `docs/guides/`
+  - Advanced topics → `docs/advanced/`
+  - Reference material → `docs/reference/`
+- Moved CI/CD documentation to `.github/docs/`
+- Archived historical release notes to `archive/releases/`
+- Removed duplicate documentation files
+- Updated all cross-references and links
+- Fixed Python version badge to 3.13+ (reflects current requirement)
+
 ## [1.1.1] - 2025-11-01
 
 ### 🐛 Critical Bug Fixes
