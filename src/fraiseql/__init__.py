@@ -75,11 +75,15 @@ except ImportError:
 
 __version__ = "1.1.1"
 
-# Import bundled Rust extension
+# Import bundled Rust extension and expose it as fraiseql_rs for compatibility
 try:
     from . import _fraiseql_rs
+
+    # Re-export as fraiseql_rs for backward compatibility with tests and existing code
+    fraiseql_rs = _fraiseql_rs
 except ImportError:
     _fraiseql_rs = None  # Rust extension not available
+    fraiseql_rs = None
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
@@ -116,6 +120,7 @@ __all__ = [
     "fraise_input",
     "fraise_interface",
     "fraise_type",
+    "fraiseql_rs",
     "input",
     "interface",
     "mutation",
