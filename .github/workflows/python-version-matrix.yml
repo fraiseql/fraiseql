@@ -1,7 +1,7 @@
 name: Python Version Matrix Tests
 
-# Test across Python 3.11, 3.12, and 3.13 to ensure compatibility
-# This complements the quality-gate workflow by testing multiple Python versions
+# Test Python 3.13+ compatibility
+# This complements the quality-gate workflow
 on:
   push:
     branches: [ main, dev ]
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false  # Continue testing other versions even if one fails
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.13']
 
     services:
       postgres:
@@ -146,11 +146,11 @@ jobs:
           echo "=== Python Version Matrix Test Results ==="
 
           if [[ "${{ needs.test-matrix.result }}" == "success" ]]; then
-            echo "✅ All Python versions (3.11, 3.12, 3.13) passed!"
-            echo "🎉 Code is compatible across all supported Python versions"
+            echo "✅ Python 3.13+ tests passed!"
+            echo "🎉 Code is compatible with Python 3.13+"
             exit 0
           else
-            echo "❌ Some Python versions failed testing"
+            echo "❌ Python 3.13 testing failed"
             echo "⚠️  Check the individual job results above for details"
             exit 1
           fi
