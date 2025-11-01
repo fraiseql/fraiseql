@@ -14,7 +14,7 @@ def test_transform_json_simple():
     RED: This should fail with AttributeError (function doesn't exist)
     GREEN: After implementing transform_json(), this should pass
     """
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = '{"user_id": 1, "user_name": "John", "email_address": "john@example.com"}'
     result_json = fraiseql_rs.transform_json(input_json)
@@ -29,7 +29,7 @@ def test_transform_json_simple():
 
 def test_transform_json_nested():
     """Test nested JSON object transformation."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = json.dumps(
         {
@@ -63,7 +63,7 @@ def test_transform_json_nested():
 
 def test_transform_json_with_array():
     """Test JSON with arrays of objects."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = json.dumps(
         {
@@ -89,7 +89,7 @@ def test_transform_json_with_array():
 
 def test_transform_json_complex():
     """Test complex nested structure (like FraiseQL User with posts)."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     # Simulate FraiseQL query result from database
     input_json = json.dumps(
@@ -136,7 +136,7 @@ def test_transform_json_complex():
 
 def test_transform_json_preserves_types():
     """Test that JSON types are preserved (int, str, bool, null)."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = json.dumps(
         {
@@ -162,7 +162,7 @@ def test_transform_json_preserves_types():
 
 def test_transform_json_empty():
     """Test edge case: empty object."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = "{}"
     result_json = fraiseql_rs.transform_json(input_json)
@@ -173,7 +173,7 @@ def test_transform_json_empty():
 
 def test_transform_json_invalid():
     """Test error handling for invalid JSON."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     with pytest.raises((ValueError, Exception)):
         fraiseql_rs.transform_json("not valid json")
@@ -181,7 +181,7 @@ def test_transform_json_invalid():
 
 def test_transform_json_array_root():
     """Test transformation when root is an array."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_json = json.dumps(
         [

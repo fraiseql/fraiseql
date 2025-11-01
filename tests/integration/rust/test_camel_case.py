@@ -13,7 +13,7 @@ def test_transform_keys():
     RED: This should fail with AttributeError (function doesn't exist)
     GREEN: After implementing transform_keys(), this should pass
     """
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_dict = {
         "user_id": 1,
@@ -35,7 +35,7 @@ def test_transform_keys():
 
 def test_transform_keys_nested():
     """Test transformation of nested dictionaries."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_dict = {
         "user_id": 1,
@@ -67,7 +67,7 @@ def test_transform_keys_nested():
 
 def test_transform_keys_with_lists():
     """Test transformation with lists of dictionaries."""
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 
     input_dict = {
         "user_id": 1,

@@ -8,10 +8,11 @@ import logging
 from typing import Optional, Type
 
 try:
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 except ImportError as e:
     raise ImportError(
-        "fraiseql-rs is required but not installed. Install it with: pip install fraiseql-rs"
+        "fraiseql Rust extension is not available. "
+        "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
     ) from e
 
 logger = logging.getLogger(__name__)

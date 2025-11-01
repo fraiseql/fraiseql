@@ -3,7 +3,7 @@
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
-[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)
 
@@ -907,7 +907,7 @@ fraiseql dev
 
 ### Prerequisites
 
-- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
+- **Python 3.11+** (for `typing.Self` and modern type syntax: `list[Type]`, `Type | None`)
 - **PostgreSQL 13+**
 
 **[📖 Detailed Installation Guide](INSTALLATION.md)** - Platform-specific instructions, troubleshooting
