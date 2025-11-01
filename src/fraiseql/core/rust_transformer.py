@@ -9,10 +9,12 @@ from typing import Optional, Type
 
 try:
     # Direct import to avoid circular import during package initialization
-    from fraiseql._fraiseql_rs import (
+    # Use relative import within the package
+
+    from .._fraiseql_rs import (
         to_camel_case as _to_camel_case,
     )
-    from fraiseql._fraiseql_rs import (
+    from .._fraiseql_rs import (
         transform_json as _transform_json,
     )
 

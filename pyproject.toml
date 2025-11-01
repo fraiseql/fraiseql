@@ -380,6 +380,12 @@ ignore = [
 "rename_examples.py" = [
   "ALL",     # One-off utility script
 ]
+"src/fraiseql/core/rust_pipeline.py" = [
+  "TID252",  # Relative imports necessary to avoid circular imports with bundled Rust extension
+]
+"src/fraiseql/core/rust_transformer.py" = [
+  "TID252",  # Relative imports necessary to avoid circular imports with bundled Rust extension
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

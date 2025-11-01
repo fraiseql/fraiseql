@@ -16,7 +16,9 @@ from psycopg.sql import SQL, Composed
 
 try:
     # Direct import to avoid circular import during package initialization
-    from fraiseql._fraiseql_rs import (
+    # Use relative import within the package
+
+    from .._fraiseql_rs import (
         build_graphql_response as _build_graphql_response,
     )
 
