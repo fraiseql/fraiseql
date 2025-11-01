@@ -397,7 +397,7 @@ You've completed your first hour with FraiseQL! You now know how to:
 ### Immediate Next Steps (2-3 hours)
 
 - **[Beginner Learning Path](../tutorials/beginner-path.md)** - Deep dive into all core concepts
-- **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete application
+- **[Blog API Tutorial](../tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
 

@@ -522,6 +522,6 @@ WHERE fk_parent IS NULL;
 
 ## See Also
 
-- [Quickstart](../quickstart.md) - 5-minute intro
+- [Quickstart](../getting-started/quickstart.md) - 5-minute intro
 - [Database API](../core/database-api.md) - Repository methods
 - [Production Deployment](./production-deployment.md) - Deploy to production

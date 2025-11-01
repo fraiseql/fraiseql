@@ -11,7 +11,7 @@ Complete pathway from zero to building production GraphQL APIs with FraiseQL.
 
 ### Phase 1: Quick Start (15 minutes)
 
-1. **[5-Minute Quickstart](../quickstart.md)**
+1. **[5-Minute Quickstart](../getting-started/quickstart.md)**
    - Build working API immediately
    - Understand basic pattern
    - Test in GraphQL Playground
