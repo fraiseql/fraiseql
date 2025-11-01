@@ -4,7 +4,7 @@ try:
 
     if hasattr(_installed, "build_graphql_response"):
         # Installed version has functions, use it
-        from fraiseql_rs import *
+        from ._fraiseql_rs import *
     else:
         raise ImportError("Installed version missing functions")
 except ImportError:

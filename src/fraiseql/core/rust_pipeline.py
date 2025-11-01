@@ -15,7 +15,7 @@ from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
 try:
-    import _fraiseql_rs as fraiseql_rs
+    import fraiseql_rs
 except ImportError as e:
     raise ImportError(
         "fraiseql Rust extension is not available. "
