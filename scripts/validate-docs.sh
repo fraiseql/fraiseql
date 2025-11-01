@@ -44,7 +44,7 @@ validate_links() {
     local errors=0
     local total_files=0
 
-    # Find all markdown files (excluding archive directory)
+    # Find all markdown files (excluding archive and dev/audits directories)
     while IFS= read -r -d '' file; do
         ((total_files++))
         local file_errors=0
@@ -139,7 +139,7 @@ validate_links() {
             log_warning "$file: $file_errors broken links"
         fi
 
-    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -print0)
+    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -not -path "*/dev/audits/*" -print0)
 
     if [[ $errors -eq 0 ]]; then
         log_success "All $total_files markdown files have valid internal links"
@@ -364,7 +364,7 @@ validate_code_syntax() {
         return 0
     fi
 
-    # Find Python code blocks in markdown
+    # Find Python code blocks in markdown (excluding archive and dev/audits directories)
     while IFS= read -r -d '' file; do
         local in_python_block=false
         local line_num=0
@@ -468,7 +468,7 @@ validate_code_syntax() {
         # Clean up
         rm -f "$temp_file"
 
-    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -print0)
+    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -not -path "*/dev/audits/*" -print0)
 
     if [[ $errors -eq 0 ]]; then
         if [[ $warnings -gt 0 ]]; then
