@@ -87,9 +87,9 @@ These features are used extensively and work from Python 3.10+:
 These features are NOT found in the codebase:
 
 1. **PEP 695 Type Parameter Syntax** - Python 3.12+
-   <pre><code class="language-python"># NOT FOUND in codebase
-   type Point[T] = tuple[T, T]
-   def func[T](value: T) -&gt; T: ...</code></pre>
+   - New syntax for type parameters
+   - Example: `def func[TypeVar](param)` notation
+   - NOT FOUND in codebase
 
 2. **PEP 702 `@deprecated` decorator** - Python 3.13+
    ```python
