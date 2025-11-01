@@ -39,6 +39,12 @@ class _FraiseQLRs:
             _FraiseQLRs._module = _get_fraiseql_rs()
         return _FraiseQLRs._module.transform_json(*args, **kwargs)
 
+    @staticmethod
+    def build_graphql_response(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)
+
 
 fraiseql_rs = _FraiseQLRs()
 
