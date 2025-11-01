@@ -4,12 +4,48 @@ build-backend = "maturin"
 
 [project]
 name = "fraiseql_rs"
-requires-python = ">=3.8"
+version = "1.1.1"
+requires-python = ">=3.11"
 classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
 ]
-dynamic = ["version"]
+dependencies = [
+  "fastapi>=0.115.12",
+  "starlette>=0.47.2",
+  "graphql-core>=3.2.6",
+  "psycopg[pool]>=3.2.6",
+  "psycopg-pool>=3.2.6",
+  "uvicorn>=0.34.3",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+  "httpx>=0.25.0",
+  "pyjwt[crypto]>=2.8.0",
+  "python-dateutil>=2.8.0",
+  "click>=8.1.0",
+  "python-dotenv>=1.0.0",
+  "structlog>=23.0.0",
+  "passlib[argon2]>=1.7.4",
+  "aiosqlite>=0.21.0",
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0.1",
+  "sqlparse>=0.5.0",
+  "fraiseql-confiture>=0.1.0",
+  "jinja2>=3.1.0",
+]
 [tool.maturin]
 features = ["pyo3/extension-module"]
+python-source = "../src"

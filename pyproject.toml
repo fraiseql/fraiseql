@@ -413,13 +413,7 @@ include = [
     "src/fraiseql/py.typed"
 ]
 
-[tool.uv.workspace]
-members = [
-    "fraiseql_rs",
-]
 
-[tool.uv.sources]
-fraiseql-rs = { workspace = true }
 
 # Development: Use local fraiseql-confiture for development
 # Production/CI: Comment out for releases to use PyPI version
