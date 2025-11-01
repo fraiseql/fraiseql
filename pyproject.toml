@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling", "setuptools_scm"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "fraiseql"
@@ -414,6 +414,10 @@ include = [
 ]
 
 
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "src"
 
 # Development: Use local fraiseql-confiture for development
 # Production/CI: Comment out for releases to use PyPI version
