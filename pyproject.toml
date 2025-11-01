@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "fraiseql"
@@ -391,33 +391,16 @@ max-args = 8  # Increased from default 5
 version_scheme = "python-simplified-semver"
 local_scheme = "node-and-date"
 
-[tool.hatch.build]
-include = [
-    "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi",
-    "src/fraiseql/py.typed"
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/fraiseql"]
-include = [
-    "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi",
-    "src/fraiseql/py.typed"
-]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi",
-    "src/fraiseql/py.typed"
-]
-
-
-
 [tool.maturin]
-features = ["pyo3/extension-module"]
+# Include Python source code from src/
 python-source = "src"
+# Python packages to include (our main package)
+python-packages = ["fraiseql"]
+# Module name for the Rust extension (will be installed as fraiseql/_fraiseql_rs.so)
+module-name = "fraiseql._fraiseql_rs"
+# Also include typed marker
+include = ["src/fraiseql/py.typed"]
+features = ["pyo3/extension-module"]
 
 # Development: Use local fraiseql-confiture for development
 # Production/CI: Comment out for releases to use PyPI version
