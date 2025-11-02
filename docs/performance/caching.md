@@ -69,7 +69,8 @@ cached_repo = CachedRepository(
 )
 
 # Use cached repository - automatic caching!
-users = await cached_repo.find("users", status="active")
+# View name: "v_user" (singular, as defined in schema)
+users = await cached_repo.find("v_user", status="active")
 ```
 
 ### FastAPI Integration
@@ -160,6 +161,7 @@ CREATE INDEX fraiseql_cache_expires_idx
 PostgresCache automatically detects the `pg_fraiseql_cache` extension:
 
 ```python
+# In an async function or startup handler
 cache = PostgresCache(pool)
 await cache._ensure_initialized()
 
@@ -232,17 +234,27 @@ users = await cached_repo.find(
 Set up periodic cleanup to remove expired entries:
 
 ```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-scheduler = AsyncIOScheduler()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize scheduler
+    scheduler = AsyncIOScheduler()
 
-# Clean expired entries every 5 minutes
-@scheduler.scheduled_job("interval", minutes=5)
-async def cleanup_cache():
-    cleaned = await postgres_cache.cleanup_expired()
-    print(f"Cleaned {cleaned} expired cache entries")
+    # Clean expired entries every 5 minutes
+    @scheduler.scheduled_job("interval", minutes=5)
+    async def cleanup_cache():
+        cleaned = await app.state.postgres_cache.cleanup_expired()
+        print(f"Cleaned {cleaned} expired cache entries")
 
-scheduler.start()
+    scheduler.start()
+    yield
+    # Shutdown: Stop scheduler
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
 ```
 
 ## Multi-Tenant Security
@@ -261,7 +273,7 @@ base_repo = FraiseQLRepository(
 cached_repo = CachedRepository(base_repo, result_cache)
 
 # Automatically generates tenant-scoped cache key
-users = await cached_repo.find("users", status="active")
+users = await cached_repo.find("v_user", status="active")
 # Cache key: "fraiseql:tenant-123:users:status:active"
 ```
 
@@ -275,7 +287,7 @@ users = await cached_repo.find("users", status="active")
 base_repo = FraiseQLRepository(pool, context={})
 
 cached_repo = CachedRepository(base_repo, result_cache)
-users = await cached_repo.find("users", status="active")
+users = await cached_repo.find("v_user", status="active")
 # Cache key: "fraiseql:users:status:active"
 # ⚠️ This cache key is SHARED ACROSS ALL TENANTS - SECURITY VIOLATION!
 
@@ -285,7 +297,7 @@ base_repo = FraiseQLRepository(
     context={"tenant_id": tenant_id}  # REQUIRED for multi-tenant apps
 )
 cached_repo = CachedRepository(base_repo, result_cache)
-users = await cached_repo.find("users", status="active")
+users = await cached_repo.find("v_user", status="active")
 # Cache key: "fraiseql:tenant_123:users:status:active"  ✅ Isolated per tenant
 ```
 
@@ -347,14 +359,14 @@ The `pg_fraiseql_cache` extension provides automatic domain-based cache invalida
 **Without Extension** (TTL-only):
 ```python
 # Cache entry valid for 5 minutes, even if data changes
-users = await cached_repo.find("users", cache_ttl=300)
+users = await cached_repo.find("v_user", cache_ttl=300)
 # ❌ If user data changes, cache remains stale until TTL expires
 ```
 
 **With Extension** (Domain-based):
 ```python
 # Cache automatically invalidated when 'user' domain data changes
-users = await cached_repo.find("users", cache_ttl=300)
+users = await cached_repo.find("v_user", cache_ttl=300)
 # ✅ If user data changes, cache immediately invalidated (via triggers)
 ```
 
@@ -461,8 +473,9 @@ from fraiseql.caching import CachedRepository
 cached_repo = CachedRepository(base_repo, result_cache)
 
 # All find() calls automatically cached
-users = await cached_repo.find("users", status="active")
-user = await cached_repo.find_one("users", id=user_id)
+# Note: View name is "v_user" (singular, as defined in schema)
+users = await cached_repo.find("v_user", status="active")  # Returns list
+user = await cached_repo.find_one("v_user", id=user_id)   # Returns single item
 
 # Mutations automatically invalidate related cache
 await cached_repo.execute_function("create_user", user_data)
@@ -491,7 +504,7 @@ if cached_result:
     return cached_result
 
 # Fetch from database
-result = await base_repo.find("users", status="active", limit=10)
+result = await base_repo.find("v_user", status="active", limit=10)
 
 # Cache result
 await result_cache.set(cache_key, result, ttl=300)
@@ -1001,12 +1014,13 @@ GRANT USAGE ON SCHEMA fraiseql_cache TO app_user;
 ```
 
 ```python
-# Check detection
-cache = PostgresCache(pool)
-await cache._ensure_initialized()
+# Check detection (in async function)
+async def check_cache_extension():
+    cache = PostgresCache(pool)
+    await cache._ensure_initialized()
 
-print(f"Extension detected: {cache.has_domain_versioning}")
-print(f"Extension version: {cache.extension_version}")
+    print(f"Extension detected: {cache.has_domain_versioning}")
+    print(f"Extension version: {cache.extension_version}")
 ```
 
 ## Next Steps

@@ -635,8 +635,14 @@ revocation_service = TokenRevocationService(
     )
 )
 
-# Start cleanup task
-await revocation_service.start()
+# Start cleanup task in application lifecycle
+@app.on_event("startup")
+async def startup():
+    await revocation_service.start()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await revocation_service.stop()
 ```
 
 ### Redis Store (Production)
@@ -677,11 +683,13 @@ auth_provider = Auth0ProviderWithRevocation(
     revocation_service=revocation_service
 )
 
-# Revoke specific token
-await auth_provider.logout(token_payload)
+# Usage in resolver or endpoint:
+async def logout_user(token_payload, user_id: str):
+    # Revoke specific token
+    await auth_provider.logout(token_payload)
 
-# Revoke all user tokens (logout all sessions)
-await auth_provider.logout_all_sessions(user_id)
+    # Or revoke all user tokens (logout all sessions)
+    await auth_provider.logout_all_sessions(user_id)
 ```
 
 ### Logout Endpoint
