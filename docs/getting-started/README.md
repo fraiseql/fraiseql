@@ -70,13 +70,13 @@ Once you've completed these guides, continue your learning journey:
 
 ## Quick Reference
 
-**Prerequisites**: Python 3.11+, PostgreSQL 13+
+**Prerequisites**: Python 3.13+, PostgreSQL 13+
 
 **Installation**: `pip install fraiseql`
 
 **Documentation Hub**: [docs/README.md](../README.md)
 
-**Need help?**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
+**Need help?**: [GitHub Discussions](../discussions)
 
 ---
 

@@ -166,7 +166,7 @@ Complete overview of all FraiseQL capabilities.
 
 ## Feature Request?
 
-Don't see a feature you need? [Open a GitHub issue](https://github.com/fraiseql/fraiseql/issues/new) with:
+Don't see a feature you need? [Open a GitHub issue](../issues/new) with:
 - **Use case**: What are you trying to achieve?
 - **Current workaround**: How are you solving it today?
 - **Proposed solution**: How should FraiseQL support this?

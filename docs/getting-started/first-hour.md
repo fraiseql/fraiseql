@@ -15,7 +15,7 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.sql import create_graphql_where_input
 ```
 
-**Note**: This tutorial uses Python 3.10+ type syntax (`list[str]`, `str | None`) instead of the older `typing` module imports.
+**Note**: This tutorial requires Python 3.13+ and uses modern type syntax (`list[str]`, `str | None`) instead of the older `typing` module imports.
 
 ## Minute 0-5: Quickstart Recap
 
@@ -415,7 +415,7 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 - **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
 - **[Quick Reference](../reference/quick-reference.md)** - Copy-paste code patterns
-- **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community support
+- **[GitHub Discussions](../discussions)** - Community support
 
 ---
 

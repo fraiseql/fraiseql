@@ -468,4 +468,4 @@ See **[Production Deployment Guide](../production/deployment.md#scaling-strategi
 - **[Health Checks](../production/health-checks.md)** - Liveness/readiness probes
 - **[Troubleshooting](../guides/troubleshooting.md)** - Common deployment issues
 
-**Need help?** Open an issue at [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
+**Need help?** Open an issue at [GitHub Issues](../issues)

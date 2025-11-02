@@ -6,7 +6,7 @@ Common issues and solutions for FraiseQL beginners.
 - **[Troubleshooting Decision Tree](troubleshooting-decision-tree.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - **This guide** - Specific error messages and detailed solutions
 
-Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
+Can't find your issue? Check the [GitHub Issues](../issues) or ask in [Discussions](../discussions).
 
 ## "View not found" error
 
@@ -304,9 +304,9 @@ lsof -i :8000
 
 ### Getting Help
 - 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
-- 🔍 Search [existing issues](https://github.com/fraiseql/fraiseql/issues)
-- 💬 Ask in [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
+- 🔍 Search [existing issues](../issues)
+- 💬 Ask in [GitHub Discussions](../discussions)
+- 📧 File a [new issue](../issues/new) with your error message
 
 ### Common Next Steps
 - [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns

@@ -907,7 +907,7 @@ fraiseql dev
 
 ### Prerequisites
 
-- **Python 3.11+** (for `typing.Self` and modern type syntax: `list[Type]`, `Type | None`)
+- **Python 3.13+** (required for Rust pipeline integration and advanced type features)
 - **PostgreSQL 13+**
 
 **[📖 Detailed Installation Guide](INSTALLATION.md)** - Platform-specific instructions, troubleshooting

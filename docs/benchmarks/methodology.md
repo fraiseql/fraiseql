@@ -333,7 +333,7 @@ Have a benchmark to add? Submit a PR with:
 
 ## References
 
-- **[Benchmark Scripts](https://github.com/fraiseql/fraiseql/tree/main/benchmarks)** - Complete reproduction code
+- **[Benchmark Scripts](../../benchmarks)** - Complete reproduction code
 - **[Performance Guide](../performance/index.md)** - Optimization strategies
 - **[Rust Pipeline](../performance/rust-pipeline-optimization.md)** - How Rust acceleration works
 - **[N+1 Prevention](../performance/index.md#n-plus-one-prevention)** - JSONB view composition

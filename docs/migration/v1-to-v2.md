@@ -16,8 +16,8 @@ The following features are under consideration for v2.0:
 
 ## Stay Updated
 
-- Watch the [GitHub repository](https://github.com/fraiseql/fraiseql) for updates
-- Join [discussions](https://github.com/fraiseql/fraiseql/discussions)
+- Watch the [GitHub repository](../..) for updates
+- Join [discussions](../discussions)
 
 ---
 

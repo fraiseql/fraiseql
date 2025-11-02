@@ -40,7 +40,7 @@ pip install fraiseql
 
 **Diagnosis:**
 - Check Python version: `python --version`
-- **Required**: Python 3.10+
+- **Required**: Python 3.13+
 
 **Fix:**
 ```bash
@@ -463,8 +463,8 @@ SELECT * FROM tb_post;
 
 ### Before Opening an Issue
 
-1. **Search existing issues**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
-2. **Check discussions**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
+1. **Search existing issues**: [GitHub Issues](../issues)
+2. **Check discussions**: [GitHub Discussions](../discussions)
 3. **Review documentation**: [Complete Docs](../../README.md)
 
 ### Opening a Good Issue
@@ -509,7 +509,7 @@ Full error message
 
 | Issue | Frequency | Quick Fix |
 |-------|-----------|-----------|
-| Wrong Python version | 40% | Use Python 3.10+ |
+| Wrong Python version | 40% | Use Python 3.13+ |
 | DATABASE_URL format | 25% | Check postgresql://user:pass@host/db |
 | Missing PostgreSQL view | 15% | Run schema.sql migrations |
 | Connection pool exhausted | 10% | Use PgBouncer |
@@ -522,5 +522,5 @@ Full error message
 ## 📖 Related Resources
 
 - **[Detailed Troubleshooting Guide](troubleshooting.md)** - Specific error messages with step-by-step solutions
-- **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** - Report bugs and search existing issues
-- **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Ask questions and get help from the community
+- **[GitHub Issues](../issues)** - Report bugs and search existing issues
+- **[GitHub Discussions](../discussions)** - Ask questions and get help from the community

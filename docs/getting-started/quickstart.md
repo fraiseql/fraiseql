@@ -4,7 +4,7 @@ Get started with FraiseQL in 5 minutes! This guide will walk you through creatin
 
 ## Prerequisites
 
-- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
+- **Python 3.13+** (required for FraiseQL's Rust pipeline and advanced features)
 - **PostgreSQL 13+**
 
 ## Step 1: Install FraiseQL
@@ -263,7 +263,7 @@ mutation {
 
 ## Need Help?
 
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
+- [GitHub Discussions](../discussions)
 - [Documentation](https://docs.fraiseql.com)
 - [Troubleshooting Guide](../guides/troubleshooting.md)
 

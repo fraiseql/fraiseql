@@ -296,7 +296,7 @@ FraiseQL works without the PostgreSQL extensions, but with reduced performance:
 
 All FraiseQL ecosystem projects welcome contributions:
 
-- **FraiseQL Core**: https://github.com/fraiseql/fraiseql
+- **FraiseQL Core**: ../..
 - **confiture**: https://github.com/fraiseql/confiture
 - **jsonb_ivm**: https://github.com/fraiseql/jsonb_ivm
 - **pg_fraiseql_cache**: https://github.com/fraiseql/pg_fraiseql_cache
