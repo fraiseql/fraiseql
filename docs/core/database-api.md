@@ -566,7 +566,7 @@ results = await db.find("v_allocation", where=where)
 Filter on nested JSONB objects using dot notation:
 
 ```python
-# Dictionary-based filtering
+# Dictionary-based filtering (see "Dict-Based vs Typed Filters" above for typed alternative)
 where = {
     "machine": {
         "name": {"eq": "Server-01"}
@@ -579,6 +579,7 @@ results = await db.find("allocations", where=where)
 ### Multiple Nesting Levels
 
 ```python
+# Dict-based (for typed alternative, see "Dict-Based vs Typed Filters" above)
 where = {
     "location": {
         "address": {
@@ -594,6 +595,7 @@ where = {
 Mix flat and nested filters:
 
 ```python
+# Dict-based (for typed alternative, see "Dict-Based vs Typed Filters" above)
 where = {
     "status": {"eq": "active"},
     "machine": {
@@ -681,7 +683,8 @@ FraiseQL v1.0.0+ supports geographic coordinate filtering with PostgreSQL POINT 
 Filter by exact coordinate match:
 
 ```python
-# Dictionary-based filtering
+# Dict-based filtering (simple but no type safety)
+# For type-safe alternative, use CoordinateFilter with CoordinateInput
 where = {
     "coordinates": {"eq": (45.5, -122.6)}  # (latitude, longitude)
 }
@@ -694,6 +697,7 @@ results = await db.find("locations", where=where)
 Check if coordinates are in a list:
 
 ```python
+# Dict-based (simple but no type safety for coordinate ordering)
 where = {
     "coordinates": {"in": [
         (45.5, -122.6),  # Seattle
@@ -709,6 +713,7 @@ where = {
 Find locations within distance:
 
 ```python
+# Dict-based (simple but no type safety)
 where = {
     "coordinates": {
         "distance_within": ((45.5, -122.6), 5000)  # Center point, radius in meters
