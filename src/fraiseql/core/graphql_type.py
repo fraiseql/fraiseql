@@ -178,6 +178,10 @@ def convert_type_to_graphql_input(
     if is_optional_type(typ):
         typ = get_non_optional_type(typ)
 
+    # Handle typing.Any - treat as JSON scalar (can hold any JSON-serializable value)
+    if typ is Any:
+        return JSONScalar
+
     # Handle generic types like PaginationInput[T]
     origin = get_origin(typ)
     args = get_args(typ)

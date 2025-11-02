@@ -1,5 +1,5 @@
 import time
-from typing import Annotated, Union
+from typing import Any, Annotated, Union
 from uuid import UUID
 
 import pytest
@@ -19,7 +19,7 @@ from fraiseql.core.graphql_type import convert_type_to_graphql_input, convert_ty
 from fraiseql.fields import fraise_field
 from fraiseql.types.fraise_input import fraise_input
 from fraiseql.types.fraise_type import fraise_type
-from fraiseql.types.scalars.json import JSONField, parse_json_literal
+from fraiseql.types.scalars.json import JSONScalar, JSONField, parse_json_literal
 
 
 @pytest.mark.unit
@@ -32,6 +32,13 @@ class TestConvertTypeToGraphQLInput:
         assert convert_type_to_graphql_input(int) == GraphQLInt
         assert convert_type_to_graphql_input(float) == GraphQLFloat
         assert convert_type_to_graphql_input(bool) == GraphQLBoolean
+
+    def test_any_type_converts_to_json_scalar(self) -> None:
+        """Test that typing.Any converts to JSONScalar."""
+        result = convert_type_to_graphql_input(Any)
+        assert result == JSONScalar
+        assert isinstance(result, GraphQLScalarType)
+        assert result.name == "JSON"
 
     def test_list_types(self) -> None:
         """Test conversion of list types."""
@@ -102,6 +109,23 @@ class TestConvertTypeToGraphQLInput:
         assert fields["tags"].type.of_type == GraphQLString
         assert isinstance(fields["scores"].type, GraphQLList)
         assert fields["scores"].type.of_type == GraphQLInt
+
+    def test_fraise_input_with_any_field(self) -> None:
+        """Test conversion of FraiseQL input class with Any field."""
+
+        @fraise_input
+        class InputWithAny:
+            name: str
+            metadata: Any  # Should convert to JSON scalar
+
+        result = convert_type_to_graphql_input(InputWithAny)
+        assert isinstance(result, GraphQLInputObjectType)
+
+        fields = result.fields
+        assert fields["name"].type == GraphQLString
+        assert fields["metadata"].type == JSONScalar
+        assert isinstance(fields["metadata"].type, GraphQLScalarType)
+        assert fields["metadata"].type.name == "JSON"
 
     def test_fraise_input_with_fraise_field_annotation(self) -> None:
         """Test conversion of FraiseQL input class with fraise_field annotations."""
