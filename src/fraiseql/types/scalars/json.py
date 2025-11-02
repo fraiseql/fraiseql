@@ -45,7 +45,7 @@ def parse_json_value(
 ) -> str | dict[str, Any] | list[Any] | int | float | bool | None:
     """Parse value that must conform to JSON structure."""
     # If value is one of the expected types, return it
-    if isinstance(value, dict | list | str | int | float | bool | type(None)):
+    if isinstance(value, (dict, list, str, int, float, bool, type(None))):
         return value  # type: ignore[return-value]
 
     # If it's an unsupported type, raise an error

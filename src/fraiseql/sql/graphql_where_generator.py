@@ -316,8 +316,8 @@ class JSONBFilter:
     """
 
     # Basic comparison operators
-    eq: dict | list | None = None  # Exact equality
-    neq: dict | list | None = None  # Not equal
+    eq: Any | None = None  # Exact equality (accepts dict or list)
+    neq: Any | None = None  # Not equal (accepts dict or list)
     isnull: bool | None = None  # Null check
 
     # Key existence operators
@@ -326,8 +326,8 @@ class JSONBFilter:
     has_all_keys: list[str] | None = None  # ?& operator
 
     # Containment operators
-    contains: dict | list | None = None  # @> operator
-    contained_by: dict | list | None = None  # <@ operator
+    contains: Any | None = None  # @> operator (accepts dict or list)
+    contained_by: Any | None = None  # <@ operator (accepts dict or list)
 
     # JSONPath operators
     path_exists: str | None = None  # @? operator
