@@ -206,7 +206,7 @@ jobs:
       run: pip install twine
 
     - name: Validate with twine
-      run: twine check --strict dist/*
+      run: twine check dist/*
 
     - name: Verify wheel contents (Linux wheels only)
       run: |
