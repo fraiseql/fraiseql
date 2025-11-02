@@ -90,19 +90,33 @@ async def startup():
     )
 
 # Provide cached repository in GraphQL context
-def get_graphql_context(request: Request) -> dict:
+async def get_graphql_context(request: Request) -> dict:
+    """Build complete GraphQL context with all required keys."""
+    # Extract tenant and user from request state
+    tenant_id = request.state.tenant_id
+    user = request.state.user  # UserContext instance (or None)
+
+    # Create repository with tenant context
     base_repo = FraiseQLRepository(
         pool=app.state.pool,
         context={
-            "tenant_id": request.state.tenant_id,
-            "user_id": request.state.user_id
+            "tenant_id": tenant_id,
+            "user_id": user.user_id if user else None
         }
     )
 
+    # Wrap with caching layer
+    cached_db = CachedRepository(
+        base_repository=base_repo,
+        cache=app.state.result_cache
+    )
+
+    # Return complete context structure
     return {
-        "request": request,
-        "db": CachedRepository(base_repo, app.state.result_cache),
-        "tenant_id": request.state.tenant_id
+        "request": request,          # FastAPI/Starlette request
+        "db": cached_db,              # Repository with caching
+        "tenant_id": tenant_id,       # Required for multi-tenancy
+        "user": user                  # UserContext for auth decorators
     }
 
 fraiseql_app = create_fraiseql_app(
@@ -253,12 +267,26 @@ users = await cached_repo.find("users", status="active")
 
 **Without tenant_id**:
 ```python
-# ⚠️ SECURITY ISSUE: Missing tenant_id
+# 🚨 CRITICAL SECURITY VIOLATION - DO NOT USE IN PRODUCTION
+# This example shows what happens when tenant_id is missing.
+# Missing tenant_id causes CROSS-TENANT DATA LEAKAGE!
+
+# ❌ WRONG: No tenant_id in context
 base_repo = FraiseQLRepository(pool, context={})
 
 cached_repo = CachedRepository(base_repo, result_cache)
 users = await cached_repo.find("users", status="active")
-# Cache key: "fraiseql:users:status:active"  ← SHARED ACROSS TENANTS!
+# Cache key: "fraiseql:users:status:active"
+# ⚠️ This cache key is SHARED ACROSS ALL TENANTS - SECURITY VIOLATION!
+
+# ✅ CORRECT: Always include tenant_id
+base_repo = FraiseQLRepository(
+    pool,
+    context={"tenant_id": tenant_id}  # REQUIRED for multi-tenant apps
+)
+cached_repo = CachedRepository(base_repo, result_cache)
+users = await cached_repo.find("users", status="active")
+# Cache key: "fraiseql:tenant_123:users:status:active"  ✅ Isolated per tenant
 ```
 
 ### Cache Key Structure

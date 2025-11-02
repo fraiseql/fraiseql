@@ -130,12 +130,16 @@ from graphql import GraphQLResolveInfo
 @query
 async def get_my_profile(info: GraphQLResolveInfo) -> User:
     """Get current user's profile."""
-    user_context = info.context["user"]
-    if not user_context:
+    # Extract context early (standard pattern)
+    user = info.context["user"]
+    db = info.context["db"]
+    tenant_id = info.context["tenant_id"]
+
+    if not user:
         raise AuthenticationError("Not authenticated")
 
-    # user_context is UserContext instance
-    return await fetch_user_by_id(user_context.user_id)
+    # Use repository to fetch user data
+    return await db.find_one("v_user", id=user.user_id)
 ```
 
 ## Auth0 Provider
