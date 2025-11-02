@@ -114,6 +114,7 @@ unsafe fn snake_to_camel_avx2<'a>(input: &[u8], arena: &'a crate::core::Arena) -
     &output[..write_pos]
 }
 
+#[cfg(target_arch = "x86_64")]
 /// Find all underscores using AVX2 SIMD (256 bits at a time)
 ///
 /// Returns: Bitmask of underscore positions
