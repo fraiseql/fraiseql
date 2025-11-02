@@ -74,6 +74,37 @@ fn test_function() -> PyResult<&'static str> {
     Ok("Hello from Rust!")
 }
 
+//----------------------------------------------------------------------------
+// Internal testing exports (for unit tests)
+//----------------------------------------------------------------------------
+
+/// Python wrapper for Arena (for testing)
+///
+/// This is NOT thread-safe and should only be used for testing!
+#[pyclass(unsendable)]
+struct Arena {
+    inner: core::Arena,
+}
+
+#[pymethods]
+impl Arena {
+    #[new]
+    fn new() -> Self {
+        Arena {
+            inner: core::Arena::with_capacity(8192),
+        }
+    }
+}
+
+/// Multi-architecture snake_to_camel (for testing)
+///
+/// This automatically dispatches to the best implementation for the current CPU.
+#[pyfunction]
+fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
+    let result = core::camel::snake_to_camel(input, &arena.inner);
+    result.to_vec()
+}
+
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
 /// This is the unified API for building GraphQL responses from database JSON.
@@ -152,6 +183,10 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add zero-copy pipeline exports
     m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
+
+    // Add internal testing exports (not in __all__)
+    m.add_class::<Arena>()?;
+    m.add_function(wrap_pyfunction!(test_snake_to_camel, m)?)?;
 
     Ok(())
 }

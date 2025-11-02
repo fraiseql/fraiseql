@@ -6,7 +6,7 @@
 
 use pyo3::PyErr;
 use crate::core::arena::Arena;
-use crate::core::camel::snake_to_camel_simd;
+use crate::core::camel::snake_to_camel;
 use crate::json::escape;
 use crate::pipeline::projection::FieldSet;
 
@@ -147,8 +147,8 @@ impl<'a> ZeroCopyTransformer<'a> {
 
             // Transform key (camelCase if needed)
             if self.config.camel_case {
-                // SIMD-optimized snake_to_camel
-                let camel_key = unsafe { snake_to_camel_simd(key_bytes, self.arena) };
+                // Multi-architecture optimized snake_to_camel (safe API)
+                let camel_key = snake_to_camel(key_bytes, self.arena);
                 writer.write_key(camel_key)?;
             } else {
                 writer.write_key(key_bytes)?;

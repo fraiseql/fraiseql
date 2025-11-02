@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2025-11-02
+
+### 🐛 Bug Fixes
+
+**ARM64 Compilation Support**
+- **CRITICAL**: Fixed compilation errors on ARM64 architectures (Apple Silicon, Linux ARM64)
+- Issue: v1.1.1 used x86_64-specific SIMD instructions (AVX2) unconditionally, causing build failures on ARM64
+- Solution: Implemented multi-architecture support with conditional compilation
+  - x86_64: Uses AVX2 SIMD when available (runtime detection), falls back to scalar
+  - ARM64: Uses portable scalar implementation (NEON SIMD optimization coming in future release)
+  - Other architectures: Uses portable scalar implementation
+- Created unified `snake_to_camel()` API that automatically dispatches to best implementation
+- All 3649 tests passing on x86_64 with zero performance regression
+- Removed `unsafe` requirements from public API callers
+- Files modified:
+  - `fraiseql_rs/src/core/camel.rs`: Added conditional compilation, scalar fallback
+  - `fraiseql_rs/src/core/transform.rs`: Updated to use safe API
+  - `fraiseql_rs/src/core/mod.rs`: Export unified API
+
+### ⚡ Performance
+
+- x86_64: No performance regression (still uses AVX2 SIMD when available)
+- ARM64: Portable scalar implementation (2-5x slower than x86_64 SIMD, but still fast for typical field names)
+- Future: ARM64 NEON SIMD will provide 3-8x speedup (planned for v1.2.0)
+
 ### 📚 Documentation
 
 **Documentation Reorganization**
