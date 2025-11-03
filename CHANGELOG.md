@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2025-11-04
+
+### 🐛 Bug Fixes
+
+**Fixed Mutation Return Object Resolution (Issue #110)**
+- **Issue**: Mutations returning complex objects failed with `"missing a required argument: 'entity'"` error in both Python and Rust execution modes
+- **Root Cause**: Metadata field hints (like `{'entity': 'entity'}`) were incorrectly treated as field data values in `_extract_field_value()`
+- **Fix**: Enhanced `_extract_field_value()` to distinguish between entity field mapping hints and actual field data
+  - Entity hints in metadata (e.g., `'entity': 'machine'`) are now skipped as data values
+  - Only non-hint metadata values (e.g., `'child_count': 5`) are used as field data
+  - Preserves backward compatibility with all existing mutation patterns
+- **Impact**:
+  - ✅ Mutations with entity fields in Success types now work correctly
+  - ✅ Works in both Python (`mode: 'normal'`) and Rust (`mode: 'unified_rust'`) execution modes
+  - ✅ All 221 integration tests and 58 unit tests pass
+  - ✅ No breaking changes to existing code
+- **Related**: `src/fraiseql/mutations/parser.py:_extract_field_value()` lines 432-450
+- **Test Coverage**: `tests/regression/test_issue_110_rust_mutation_object_return.py`
+
 ## [1.2.0] - 2025-11-03
 
 ### 🚀 Major Features

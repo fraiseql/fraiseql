@@ -409,12 +409,33 @@ def _extract_field_value(
 
     Supports multiple patterns:
     1. Direct field mapping: object_data[field_name] -> field
-    2. Metadata mapping: metadata[field_name] -> field
+    2. Metadata mapping: metadata[field_name] -> field (ONLY for non-entity hints)
     3. Whole object mapping: object_data -> field (for single entity results)
+
+    Note: The 'entity' key in metadata is a special HINT for field mapping,
+    not actual data. It tells us which field to populate from object_data.
+    For example, metadata={'entity': 'machine'} means "populate the 'machine'
+    field with the object_data", not "set entity field to string 'machine'".
     """
-    # First check metadata (highest priority for explicit mappings)
+    # Check metadata for actual field data (but NOT for entity type hints)
+    # The 'entity' key in metadata is a special hint, not data
     if metadata and field_name in metadata:
-        return _instantiate_type(field_type, metadata[field_name])
+        metadata_value = metadata[field_name]
+        # Skip if this looks like an entity hint (string matching the field name)
+        # Entity hints are like: metadata={'entity': 'entity'} or {'entity': 'machine'}
+        # These are meant for _find_main_field(), not as field values
+        if isinstance(metadata_value, str) and (
+            metadata_value == field_name  # e.g., 'entity': 'entity'
+            or metadata_value in ("entity", "machine", "location", "user")  # common entity names
+        ):
+            # This is likely a field mapping hint, not actual data - skip it
+            logger.debug(
+                f"Skipping metadata['{field_name}'] = '{metadata_value}' - "
+                f"appears to be a field mapping hint, not data"
+            )
+        else:
+            # This is actual field data from metadata (e.g., 'child_count': 5)
+            return _instantiate_type(field_type, metadata_value)
 
     # Then check if field exists in object_data by exact name
     if object_data and field_name in object_data:
