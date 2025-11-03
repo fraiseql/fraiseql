@@ -591,6 +591,10 @@ class FraiseQLRepository:
         Returns:
             RustResponseBytes ready for HTTP response
         """
+        # Auto-extract info from context if not explicitly provided
+        if info is None and "graphql_info" in self.context:
+            info = self.context["graphql_info"]
+
         # 1. Extract field paths from GraphQL info
         field_paths = None
         if info:
@@ -666,6 +670,10 @@ class FraiseQLRepository:
             When no record is found, Rust returns {"data":{"field":[]}}. This method
             detects that pattern and returns None to match Python/GraphQL semantics.
         """
+        # Auto-extract info from context if not explicitly provided
+        if info is None and "graphql_info" in self.context:
+            info = self.context["graphql_info"]
+
         # 1. Extract field paths from GraphQL info
         field_paths = None
         if info:

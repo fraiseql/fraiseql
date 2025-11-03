@@ -211,6 +211,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zero breaking changes (seamless for existing users)
 - Foundation for future 100% Rust pipeline adoption
 
+### 🐛 Bug Fixes
+
+**Field Name Resolution in db.find() and db.find_one()**
+- **Issue**: When `db.find()` or `db.find_one()` was called without explicitly passing the `info` parameter, the GraphQL response field name would incorrectly use `view_name` (e.g., `"tv_location"`) instead of the resolver's field name (e.g., `"locations"`)
+- **Root Cause**: The methods couldn't extract `field_name` from `info.field_name` when `info` wasn't passed, falling back to `view_name`
+- **Fix**: Auto-extract `info` from repository context (`self.context["graphql_info"]`) when not explicitly provided
+- **Impact**:
+  - ✅ Response field names now correctly match GraphQL query field names
+  - ✅ No code changes required in user applications
+  - ✅ Backwards compatible (explicit `info` parameter still works)
+  - ✅ Transparent fix - works automatically via context
+- **Field Name Priority**:
+  1. Explicit `field_name` parameter
+  2. Resolver's GraphQL field name from `info.field_name` (auto-extracted from context)
+  3. View name (fallback for non-GraphQL usage)
+- **Files Modified**:
+  - `src/fraiseql/db.py`: Added auto-extraction in `find()` and `find_one()`
+  - `tests/unit/db/test_field_name_auto_extract.py`: Added 4 comprehensive tests
+- **Tests**: All tests passing (4 new unit tests + all existing tests)
+- **Credit**: Thanks to PrintOptim team for the excellent bug report and investigation
+
 ### 🔮 Future Enhancements
 
 **Short Term** (v1.2.x):
