@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.1.7) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.1.8) - Production Stable**
 
 ---
 

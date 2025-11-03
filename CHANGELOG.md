@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2025-11-03
+
+### 🐛 Bug Fixes
+
+**JSONB Execution Path Restoration**
+- **CRITICAL**: Removed incorrect workaround that disabled Rust pipeline for JSONB `find_one()` queries
+- Issue: An unnecessary workaround was blocking all JSONB single-object queries from using the Rust execution path, causing them to always return `None`
+- Impact: PrintOptim JSONB entities (router, DNS server, gateway, etc.) were broken
+- Root cause: Misunderstanding of v1.1.7 RustResponseBytes null detection fix - the workaround was added after the issue was already solved
+- Solution: Removed the blocking workaround (`_has_jsonb_data()` check in `find_one()`)
+- The Rust pipeline correctly handles JSONB entities:
+  - Null results: `{"data":{"field":[]}}` detected by `_is_rust_response_null()` → returns `None`
+  - Non-null results: RustResponseBytes passed through → GraphQL response
+- Files modified:
+  - `src/fraiseql/db.py`: Removed `_has_jsonb_data()` method and workaround (lines 174-194, 728-742)
+  - Restored unified Rust execution path for all entities (JSONB and non-JSONB)
+- Performance restored: PostgreSQL → Rust → HTTP (< 0.5ms overhead vs broken path)
+
+### 🧹 Repository Cleanup
+
+- Archived 18 analysis documents (308KB) to `/tmp/fraiseql_analysis_archive_2025-11-03/`
+- Cleaned repository structure for release readiness
+- Kept only essential documentation (README, CHANGELOG, CONTRIBUTING, SECURITY)
+
+### 📚 Documentation
+
+- Created comprehensive analysis archive with detailed investigation findings
+- Documented Rust pipeline architecture and optimization status
+- Preserved PrintOptim production patterns analysis
+
 ## [1.1.7] - 2025-01-03
 
 ### 🐛 Bug Fixes
