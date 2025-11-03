@@ -10,7 +10,66 @@ from graphql import (
     parse,
 )
 
+from fraiseql.core.rust_pipeline import RustResponseBytes
+
 logger = logging.getLogger(__name__)
+
+
+def _rust_response_bytes_middleware(next: Any, root: Any, info: Any, **kwargs: Any) -> Any:
+    """Middleware to detect and capture RustResponseBytes from resolvers.
+
+    This middleware wraps resolver execution and checks if the result is RustResponseBytes.
+    If it is, we store it in the context so execute_graphql() can return it directly,
+    bypassing GraphQL's type coercion and serialization.
+
+    This is the key to the pass-through architecture: detect RustResponseBytes BEFORE
+    GraphQL-core tries to serialize it. Without this, GraphQL would reject RustResponseBytes
+    as a type error (e.g., "Expected Iterable but got RustResponseBytes").
+
+    Args:
+        next: Next resolver in the middleware chain
+        root: Root value passed to resolver
+        info: GraphQL resolve info containing context
+        **kwargs: Additional resolver arguments
+
+    Returns:
+        The resolver result (unchanged) - RustResponseBytes is captured in context
+    """
+    result = next(root, info, **kwargs)
+
+    # Handle async resolvers
+    if asyncio.iscoroutine(result):
+
+        async def async_wrapper():
+            resolved = await result
+            # Check if resolved value is RustResponseBytes
+            if (
+                isinstance(resolved, RustResponseBytes)
+                and hasattr(info, "context")
+                and isinstance(info.context, dict)
+            ):
+                # Store it in context for execute_graphql() to find
+                marker = info.context.get("__rust_response_bytes_marker__")
+                if marker is not None:
+                    marker["rust_response"] = resolved
+                    logger.debug("Middleware captured RustResponseBytes from async resolver")
+            return resolved
+
+        return async_wrapper()
+
+    # Check sync result
+    if (
+        isinstance(result, RustResponseBytes)
+        and hasattr(info, "context")
+        and isinstance(info.context, dict)
+    ):
+        # Store it in context for execute_graphql() to find
+        marker = info.context.get("__rust_response_bytes_marker__")
+        if marker is not None:
+            marker["rust_response"] = result
+            logger.debug("Middleware captured RustResponseBytes from sync resolver")
+
+    return result
 
 
 def _should_block_introspection(enable_introspection: bool, context_value: Any) -> tuple[bool, str]:
@@ -61,10 +120,15 @@ async def execute_graphql(
     variable_values: Optional[dict[str, Any]] = None,
     operation_name: Optional[str] = None,
     enable_introspection: bool = True,
-) -> ExecutionResult:
+) -> ExecutionResult | RustResponseBytes:
     """Execute GraphQL with unified Rust-first architecture and introspection control.
 
     All queries now use the unified Rust pipeline for optimal performance.
+
+    This function implements the RustResponseBytes pass-through architecture:
+    - Middleware detects when resolvers return RustResponseBytes
+    - If detected, returns RustResponseBytes directly (bypassing GraphQL serialization)
+    - Otherwise, returns standard ExecutionResult
 
     Args:
         schema: GraphQL schema to execute against
@@ -76,10 +140,9 @@ async def execute_graphql(
         enable_introspection: Whether to allow introspection queries (default: True)
 
     Returns:
-        ExecutionResult containing the query result or validation errors
+        ExecutionResult containing the query result or validation errors, OR
+        RustResponseBytes if the resolver returned it (direct pass-through for zero-copy)
     """
-    logger.info("execute_graphql called")
-
     # Parse the query
     try:
         document = parse(source)
@@ -120,9 +183,16 @@ async def execute_graphql(
             )
         return ExecutionResult(data=None, errors=validation_errors)
 
-    # Disable type coercion for query operations to allow RustResponseBytes passthrough
-    # This is a workaround - we execute, and if there are type errors with RustResponseBytes,
-    # we know to bypass GraphQL serialization
+    # 🚀 RUST RESPONSE BYTES DETECTION:
+    # Create a context wrapper that will capture RustResponseBytes if returned by resolvers
+    # This allows us to detect it even if GraphQL-core rejects it due to type mismatch
+    if context_value is None:
+        context_value = {}
+
+    # Add a special key to track if any resolver returns RustResponseBytes
+    rust_response_marker = {"rust_response": None}
+    if isinstance(context_value, dict):
+        context_value["__rust_response_bytes_marker__"] = rust_response_marker
 
     result = execute(
         schema,
@@ -131,6 +201,7 @@ async def execute_graphql(
         context_value,
         variable_values,
         operation_name,
+        middleware=[_rust_response_bytes_middleware],
     )
 
     # Handle async result if needed
@@ -141,19 +212,19 @@ async def execute_graphql(
     if not isinstance(result, ExecutionResult):
         raise TypeError(f"Expected ExecutionResult, got {type(result)}")
 
-    # 🚀 DIRECT PATH: Check if we got type errors due to RustResponseBytes
-    # If the error is about RustResponseBytes, it means the resolver returned it
-    # In that case, we should NOT serialize - just return it as-is
-    if result.errors:
-        for error in result.errors:
-            if "RustResponseBytes" in str(error.message):
-                # The resolver returned RustResponseBytes but GraphQL rejected it
-                # This is the DIRECT PATH - return RustResponseBytes as-is
-                logger.info(
-                    "Detected RustResponseBytes type error - this is expected for direct path"
-                )
-                # Return the result with errors, the router will detect and handle RustResponseBytes
-                return result
+    # 🚀 RUST RESPONSE BYTES PASS-THROUGH:
+    # Check if middleware captured RustResponseBytes from any resolver
+    # If so, return it directly to bypass GraphQL serialization (zero-copy path)
+    if rust_response_marker["rust_response"] is not None:
+        logger.debug("Detected RustResponseBytes via middleware - returning directly")
+        return rust_response_marker["rust_response"]
+
+    # Fallback: Check if result.data contains RustResponseBytes (for cases without type mismatch)
+    if isinstance(result.data, dict):
+        for value in result.data.values():
+            if isinstance(value, RustResponseBytes):
+                logger.debug("Detected RustResponseBytes in result.data - returning directly")
+                return value
 
     # Clean @fraise_type objects before returning to prevent JSON serialization issues
     cleaned_result = _serialize_fraise_types_in_result(result)

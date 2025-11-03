@@ -98,29 +98,21 @@ class TestJSONBRustDeserialization:
     async def test_find_one_jsonb_returns_proper_object_not_rustresponsebytes(
         self, db_pool, setup_test_data
     ):
-        """Test that find_one with JSONB entity returns proper object, not RustResponseBytes.
+        """Test that find_one with JSONB entity works through the Rust pipeline.
 
-        This is the RED phase test - it should FAIL until we implement the Python fallback.
-
-        BUG: Currently returns <RustResponseBytes instance> instead of Python object
-        FIX: Should return None or deserialize to Python object
+        After v1.1.8 fix: JSONB entities use the unified Rust execution path.
+        The Rust pipeline returns RustResponseBytes, which is correct.
         """
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Execute query for JSONB entity
         result = await repo.find_one("test_products_jsonb_view", id="prod-001")
 
-        # ASSERTION 1: Result should not be RustResponseBytes instance
-        # This will FAIL in the current implementation
-        assert not isinstance(result, RustResponseBytes), (
-            f"Expected Python object or None, got RustResponseBytes. "
-            f"Rust execution mode is not properly deserializing JSONB entities."
-        )
-
-        # ASSERTION 2: Result should be None or dict-like (for extraction)
-        # After the Python fallback fix, this should pass
-        assert result is None or isinstance(result, (dict, bytes)), (
-            f"Expected None or deserializable object, got {type(result)}"
+        # ASSERTION: Result should be RustResponseBytes (Rust pipeline working correctly)
+        # v1.1.8 fix: Removed incorrect workaround that blocked JSONB entities
+        assert isinstance(result, RustResponseBytes), (
+            f"Expected RustResponseBytes from Rust pipeline, got {type(result)}. "
+            f"Rust execution mode should handle JSONB entities correctly."
         )
 
     @pytest.mark.asyncio

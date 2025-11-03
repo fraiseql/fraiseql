@@ -325,6 +325,15 @@ def create_graphql_router(
                     context=context,
                 )
 
+                # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
+                # Check if UnifiedExecutor returned RustResponseBytes directly (zero-copy path)
+                if isinstance(result, RustResponseBytes):
+                    logger.info("🚀 Direct path: Returning RustResponseBytes from unified executor")
+                    return Response(
+                        content=bytes(result),
+                        media_type="application/json",
+                    )
+
                 # 🚀 DIRECT PATH: Check if GraphQL rejected RustResponseBytes
                 if isinstance(result, dict) and "errors" in result and "_rust_response" in context:
                     for error in result.get("errors", []):
@@ -373,7 +382,17 @@ def create_graphql_router(
                     enable_introspection=config.enable_introspection,
                 )
 
-            # Build response
+            # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Fallback Executor):
+            # Check if execute_graphql() returned RustResponseBytes directly (zero-copy path)
+            # This happens when Phase 1 middleware captures RustResponseBytes from resolvers
+            if isinstance(result, RustResponseBytes):
+                logger.info("🚀 Direct path: Returning RustResponseBytes from fallback executor")
+                return Response(
+                    content=bytes(result),
+                    media_type="application/json",
+                )
+
+            # Build response (normal ExecutionResult path)
             response: dict[str, Any] = {}
             if result.data is not None:
                 response["data"] = result.data

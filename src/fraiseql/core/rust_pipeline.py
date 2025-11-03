@@ -52,22 +52,101 @@ class RustResponseBytes:
     FastAPI detects this type and sends bytes directly without any
     Python serialization or string operations.
 
+    This class supports optional schema_type tracking for debugging and
+    provides a to_json() method for testing purposes (not recommended for
+    production due to performance overhead).
+
     WORKAROUND: Fixes known Rust bug where closing brace is missing for
     data object when query has nested objects. This is a temporary fix
     until fraiseql-rs is updated.
+
+    Args:
+        data: Pre-serialized JSON bytes from Rust
+        schema_type: Optional GraphQL schema type name for debugging (e.g., "Product", "User")
+
+    Examples:
+        >>> # Basic usage (existing code - backwards compatible)
+        >>> response = RustResponseBytes(b'{"data":{"hello":"world"}}')
+        >>> bytes(response)
+        b'{"data":{"hello":"world"}}'
+
+        >>> # With schema type tracking (Phase 3 enhancement)
+        >>> response = RustResponseBytes(b'{"data":{"products":[]}}', schema_type="Product")
+        >>> response.schema_type
+        'Product'
+
+        >>> # Testing with to_json() (Phase 3 - for tests only!)
+        >>> response.to_json()
+        {'data': {'products': []}}
     """
 
-    __slots__ = ("_data", "_fixed", "content_type")
+    __slots__ = ("_data", "_fixed", "_schema_type", "content_type")
 
-    def __init__(self, data: bytes) -> None:
+    def __init__(self, data: bytes, schema_type: Optional[str] = None) -> None:
         self._data = data
         self.content_type = "application/json"
         self._fixed = False
+        self._schema_type = schema_type
 
     @property
     def bytes(self) -> bytes:
         """Backward compatibility property for accessing the data."""
         return self._data
+
+    @property
+    def schema_type(self) -> Optional[str]:
+        """Get the GraphQL schema type name for this response.
+
+        This property is useful for debugging and understanding what type
+        the RustResponseBytes represents. For example, if this response
+        contains a list of Product objects, schema_type would be "Product".
+
+        Returns:
+            The GraphQL schema type name, or None if not set
+
+        Examples:
+            >>> response = RustResponseBytes(b'{"data":{"products":[]}}', schema_type="Product")
+            >>> response.schema_type
+            'Product'
+
+            >>> response = RustResponseBytes(b'{"data":{}}')
+            >>> response.schema_type is None
+            True
+        """
+        return self._schema_type
+
+    def to_json(self) -> dict:
+        """Parse the response bytes as JSON and return as dict.
+
+        ⚠️ WARNING: This method is intended for TESTING ONLY!
+
+        In production, RustResponseBytes should be sent directly to the client
+        via __bytes__() without any parsing. This method defeats the purpose
+        of the zero-copy architecture and should only be used in test code
+        for assertions.
+
+        Returns:
+            Parsed JSON as a Python dict
+
+        Raises:
+            json.JSONDecodeError: If the bytes don't contain valid JSON
+
+        Examples:
+            >>> response = RustResponseBytes(b'{"data":{"hello":"world"}}')
+            >>> response.to_json()
+            {'data': {'hello': 'world'}}
+
+            >>> # In tests, you can use this to verify structure
+            >>> data = response.to_json()
+            >>> assert data["data"]["hello"] == "world"
+
+            >>> # But DON'T use this in production - use __bytes__() instead!
+            >>> bytes(response)  # ✅ Good - zero-copy
+            b'{"data":{"hello":"world"}}'
+        """
+        # Use __bytes__() to get the (potentially fixed) bytes
+        data_bytes = self.__bytes__()
+        return json.loads(data_bytes)
 
     def __bytes__(self) -> bytes:
         # Workaround for Rust bug: Check if JSON is missing closing brace
