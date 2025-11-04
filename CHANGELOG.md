@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2025-11-04
+
+### 🐛 Bug Fixes
+
+**Improved Mutation Return Object Resolution (Issue #110 Follow-up)**
+- **Issue**: v1.2.1 fix used hardcoded entity names (`'machine'`, `'location'`, etc.), which broke when users had custom field names
+- **Root Cause**: The `_extract_field_value()` function couldn't distinguish between entity hints and actual data because it lacked context about which fields exist in the Success class
+- **Fix**: Made entity hint detection dynamic instead of hardcoded
+  - Added `all_field_names` parameter to `_extract_field_value()` to provide Success class context
+  - Created `_is_entity_hint()` helper that checks if metadata values point to actual field names
+  - Now detects `metadata={'entity': 'machine'}` as a hint if `'machine'` is a field in the Success class
+  - Removes hardcoded entity name list, making it work with ANY custom field names
+- **Impact**:
+  - ✅ Works with custom field names like `machine`, `device`, `sensor`, etc.
+  - ✅ Dynamically adapts to any Success class structure
+  - ✅ All existing tests pass (4 regression tests + 58 unit mutation tests)
+  - ✅ No breaking changes
+- **Related**: `src/fraiseql/mutations/parser.py:_is_entity_hint()` and `_extract_field_value()`
+- **Test Coverage**:
+  - `tests/regression/test_issue_110_rust_mutation_object_return.py::test_mutation_python_mode_works`
+  - `tests/regression/test_issue_110_rust_mutation_object_return.py::test_mutation_rust_mode_works`
+  - `tests/regression/test_issue_110_rust_mutation_object_return.py::test_mutation_with_context_params_rust_mode`
+  - `tests/regression/test_issue_110_rust_mutation_object_return.py::test_mutation_with_machine_field_hint`
+
 ## [1.2.1] - 2025-11-04
 
 ### 🐛 Bug Fixes

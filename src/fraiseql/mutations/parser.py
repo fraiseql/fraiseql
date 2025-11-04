@@ -183,6 +183,7 @@ def _parse_success(
             field_type,
             result.object_data,
             result.extra_metadata,
+            all_field_names=set(annotations.keys()),
         )
 
         if value is not None:
@@ -296,6 +297,7 @@ def _parse_error(
                 field_type,
                 result.object_data,
                 None,  # Don't re-check metadata
+                all_field_names=set(annotations.keys()),
             )
             if value is not None:
                 fields[field_name] = value
@@ -399,11 +401,50 @@ def _parse_error(
     return instance
 
 
+def _is_entity_hint(
+    metadata_value: Any,
+    field_name: str,
+    all_field_names: set[str] | None,
+) -> bool:
+    """Check if a metadata value is an entity hint rather than actual field data.
+
+    Entity hints are metadata values that indicate which field should receive object_data.
+    For example:
+    - metadata={'entity': 'entity'} → hint
+    - metadata={'entity': 'machine'} → hint (if 'machine' is a field in the class)
+    - metadata={'child_count': 5} → actual data (not a hint)
+
+    Args:
+        metadata_value: The value from metadata
+        field_name: The name of the field being checked
+        all_field_names: Set of all field names in the parent class
+
+    Returns:
+        True if this appears to be an entity hint, False otherwise
+    """
+    # Non-string values are never hints (e.g., numbers, bools, objects)
+    if not isinstance(metadata_value, str):
+        return False
+
+    # Check pattern 1: self-referential hint like metadata={'entity': 'entity'}
+    if metadata_value == field_name:
+        return True
+
+    # Check pattern 2: metadata value points to another field in the parent class
+    # E.g., metadata={'entity': 'machine'} where 'machine' is a field in CreateMachineSuccess
+    if all_field_names and metadata_value in all_field_names:
+        return True
+
+    # Otherwise, treat it as actual data
+    return False
+
+
 def _extract_field_value(
     field_name: str,
     field_type: type,
     object_data: dict[str, Any] | None,
     metadata: dict[str, Any] | None,
+    all_field_names: set[str] | None = None,
 ) -> Any:
     """Extract field value from object_data or metadata.
 
@@ -416,19 +457,23 @@ def _extract_field_value(
     not actual data. It tells us which field to populate from object_data.
     For example, metadata={'entity': 'machine'} means "populate the 'machine'
     field with the object_data", not "set entity field to string 'machine'".
+
+    Args:
+        field_name: Name of the field being extracted
+        field_type: Type of the field
+        object_data: Main object data from mutation result
+        metadata: Extra metadata from mutation result
+        all_field_names: Set of all field names in the parent class (used to detect hints)
     """
     # Check metadata for actual field data (but NOT for entity type hints)
     # The 'entity' key in metadata is a special hint, not data
     if metadata and field_name in metadata:
         metadata_value = metadata[field_name]
-        # Skip if this looks like an entity hint (string matching the field name)
-        # Entity hints are like: metadata={'entity': 'entity'} or {'entity': 'machine'}
-        # These are meant for _find_main_field(), not as field values
-        if isinstance(metadata_value, str) and (
-            metadata_value == field_name  # e.g., 'entity': 'entity'
-            or metadata_value in ("entity", "machine", "location", "user")  # common entity names
-        ):
-            # This is likely a field mapping hint, not actual data - skip it
+        # Skip if this looks like an entity hint
+        # Entity hints are metadata values that point to field names in the parent class
+        # E.g., metadata={'entity': 'machine'} where 'machine' is a field in the Success class
+        if _is_entity_hint(metadata_value, field_name, all_field_names):
+            # This is a field mapping hint, not actual data - skip it
             logger.debug(
                 f"Skipping metadata['{field_name}'] = '{metadata_value}' - "
                 f"appears to be a field mapping hint, not data"
