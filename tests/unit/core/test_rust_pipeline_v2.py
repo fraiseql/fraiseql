@@ -86,7 +86,7 @@ def test_build_graphql_response_empty_list():
 
 
 def test_build_graphql_response_single_object():
-    """Test single object response."""
+    """Test single object response (non-list query)."""
     json_string = '{"id": 1, "user_name": "Alice"}'
 
     response_bytes = fraiseql_rs.build_graphql_response(
@@ -94,11 +94,12 @@ def test_build_graphql_response_single_object():
         field_name="user",
         type_name="User",
         field_paths=None,
+        is_list=False,  # Explicitly request single object (not array)
     )
 
     result = response_bytes.decode("utf-8")
 
-    # Single object (not array)
+    # Single object (not array) when is_list=False
     assert '"user":{' in result
     assert '"userName":"Alice"' in result
 
