@@ -40,7 +40,7 @@ CREATE INDEX idx_tb_user_email ON tb_user(email);
 CREATE INDEX idx_tb_user_created_at ON tb_user(created_at);
 
 -- Addresses table
-CREATE TABLE addresses (
+CREATE TABLE tb_address (
     pk_address INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
@@ -56,10 +56,10 @@ CREATE TABLE addresses (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_addresses_fk_user ON addresses(fk_user);
+CREATE INDEX idx_tb_address_fk_user ON tb_address(fk_user);
 
 -- Products table
-CREATE TABLE products (
+CREATE TABLE tb_product (
     pk_product INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     sku VARCHAR(100) UNIQUE NOT NULL,
@@ -78,14 +78,14 @@ CREATE TABLE products (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_products_sku ON products(sku);
-CREATE INDEX idx_products_category ON products(category);
-CREATE INDEX idx_products_price ON products(price);
-CREATE INDEX idx_products_created_at ON products(created_at);
-CREATE INDEX idx_products_tags ON products USING GIN(tags);
+CREATE INDEX idx_tb_product_sku ON tb_product(sku);
+CREATE INDEX idx_tb_product_category ON tb_product(category);
+CREATE INDEX idx_tb_product_price ON tb_product(price);
+CREATE INDEX idx_tb_product_created_at ON tb_product(created_at);
+CREATE INDEX idx_tb_product_tags ON tb_product USING GIN(tags);
 
 -- Carts table
-CREATE TABLE carts (
+CREATE TABLE tb_cart (
     pk_cart INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     fk_user INT REFERENCES tb_user(pk_user) ON DELETE CASCADE,
@@ -98,16 +98,16 @@ CREATE TABLE carts (
     CONSTRAINT cart_owner CHECK (fk_user IS NOT NULL OR session_id IS NOT NULL)
 );
 
-CREATE INDEX idx_carts_fk_user ON carts(fk_user);
-CREATE INDEX idx_carts_session_id ON carts(session_id);
-CREATE INDEX idx_carts_expires_at ON carts(expires_at);
+CREATE INDEX idx_tb_cart_fk_user ON tb_cart(fk_user);
+CREATE INDEX idx_tb_cart_session_id ON tb_cart(session_id);
+CREATE INDEX idx_tb_cart_expires_at ON tb_cart(expires_at);
 
 -- Cart items table
-CREATE TABLE cart_items (
+CREATE TABLE tb_cart_item (
     pk_cart_item INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    fk_cart INT NOT NULL REFERENCES carts(pk_cart) ON DELETE CASCADE,
-    fk_product INT NOT NULL REFERENCES products(pk_product),
+    fk_cart INT NOT NULL REFERENCES tb_cart(pk_cart) ON DELETE CASCADE,
+    fk_product INT NOT NULL REFERENCES tb_product(pk_product),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -115,18 +115,18 @@ CREATE TABLE cart_items (
     UNIQUE(fk_cart, fk_product)
 );
 
-CREATE INDEX idx_cart_items_fk_cart ON cart_items(fk_cart);
+CREATE INDEX idx_tb_cart_item_fk_cart ON tb_cart_item(fk_cart);
 
 -- Orders table
-CREATE TABLE orders (
+CREATE TABLE tb_order (
     pk_order INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
     fk_user INT NOT NULL REFERENCES tb_user(pk_user),
     status order_status DEFAULT 'pending',
     payment_status payment_status DEFAULT 'pending',
-    fk_shipping_address INT NOT NULL REFERENCES addresses(pk_address),
-    fk_billing_address INT NOT NULL REFERENCES addresses(pk_address),
+    fk_shipping_address INT NOT NULL REFERENCES tb_address(pk_address),
+    fk_billing_address INT NOT NULL REFERENCES tb_address(pk_address),
     subtotal DECIMAL(10,2) NOT NULL,
     tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     shipping_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -140,32 +140,32 @@ CREATE TABLE orders (
     cancelled_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_orders_fk_user ON orders(fk_user);
-CREATE INDEX idx_orders_order_number ON orders(order_number);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_placed_at ON orders(placed_at);
+CREATE INDEX idx_tb_order_fk_user ON tb_order(fk_user);
+CREATE INDEX idx_tb_order_order_number ON tb_order(order_number);
+CREATE INDEX idx_tb_order_status ON tb_order(status);
+CREATE INDEX idx_tb_order_placed_at ON tb_order(placed_at);
 
 -- Order items table
-CREATE TABLE order_items (
+CREATE TABLE tb_order_item (
     pk_order_item INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    fk_order INT NOT NULL REFERENCES orders(pk_order) ON DELETE CASCADE,
-    fk_product INT NOT NULL REFERENCES products(pk_product),
+    fk_order INT NOT NULL REFERENCES tb_order(pk_order) ON DELETE CASCADE,
+    fk_product INT NOT NULL REFERENCES tb_product(pk_product),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     price DECIMAL(10,2) NOT NULL,
     total DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_order_items_fk_order ON order_items(fk_order);
+CREATE INDEX idx_tb_order_item_fk_order ON tb_order_item(fk_order);
 
 -- Reviews table
-CREATE TABLE reviews (
+CREATE TABLE tb_review (
     pk_review INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    fk_product INT NOT NULL REFERENCES products(pk_product) ON DELETE CASCADE,
+    fk_product INT NOT NULL REFERENCES tb_product(pk_product) ON DELETE CASCADE,
     fk_user INT NOT NULL REFERENCES tb_user(pk_user),
-    order_id UUID REFERENCES orders(id),
+    order_id UUID REFERENCES tb_order(id),
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     title VARCHAR(255) NOT NULL,
     comment TEXT NOT NULL,
@@ -176,14 +176,15 @@ CREATE TABLE reviews (
     UNIQUE(fk_product, fk_user, order_id)
 );
 
-CREATE INDEX idx_reviews_fk_product ON reviews(fk_product);
-CREATE INDEX idx_reviews_fk_user ON reviews(fk_user);
-CREATE INDEX idx_reviews_rating ON reviews(rating);
-CREATE INDEX idx_reviews_created_at ON reviews(created_at);
+CREATE INDEX idx_tb_review_fk_product ON tb_review(fk_product);
+CREATE INDEX idx_tb_review_fk_user ON tb_review(fk_user);
+CREATE INDEX idx_tb_review_rating ON tb_review(rating);
+CREATE INDEX idx_tb_review_created_at ON tb_review(created_at);
 
 -- Coupons table
-CREATE TABLE coupons (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_coupon (
+    pk_coupon INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     code VARCHAR(50) UNIQUE NOT NULL,
     description TEXT NOT NULL,
     discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
@@ -197,19 +198,19 @@ CREATE TABLE coupons (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_coupons_code ON coupons(code);
+CREATE INDEX idx_tb_coupon_code ON tb_coupon(code);
 
 -- Wishlist table
-CREATE TABLE wishlist_items (
+CREATE TABLE tb_wishlist_item (
     pk_wishlist_item INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
-    fk_product INT NOT NULL REFERENCES products(pk_product) ON DELETE CASCADE,
+    fk_product INT NOT NULL REFERENCES tb_product(pk_product) ON DELETE CASCADE,
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(fk_user, fk_product)
 );
 
-CREATE INDEX idx_wishlist_user_id ON wishlist_items(user_id);
+CREATE INDEX idx_tb_wishlist_item_fk_user ON tb_wishlist_item(fk_user);
 
 -- Create views for FraiseQL
 
@@ -252,7 +253,7 @@ SELECT
         'is_default', is_default,
         'created_at', created_at
     ) as data
-FROM addresses;
+FROM tb_address;
 
 -- Products view
 CREATE OR REPLACE VIEW v_product AS
@@ -281,7 +282,7 @@ SELECT
         'created_at', created_at,
         'updated_at', updated_at
     ) as data
-FROM products;
+FROM tb_product;
 
 -- Carts view
 CREATE OR REPLACE VIEW v_cart AS
@@ -302,7 +303,7 @@ SELECT
         'created_at', c.created_at,
         'updated_at', c.updated_at
     ) as data
-FROM carts c
+FROM tb_cart c
 LEFT JOIN v_user u ON c.fk_user = u.pk_user
 LEFT JOIN v_cart_item ci ON c.pk_cart = ci.fk_cart
 GROUP BY c.pk_cart, c.id, c.fk_user, c.session_id, c.items_count, c.subtotal, c.expires_at, c.created_at, c.updated_at, u.data;
@@ -321,7 +322,7 @@ SELECT
         'created_at', ci.created_at,
         'updated_at', ci.updated_at
     ) as data
-FROM cart_items ci
+FROM tb_cart_item ci
 LEFT JOIN v_product p ON ci.fk_product = p.pk_product;
 
 -- Orders view
@@ -349,7 +350,7 @@ SELECT
         'delivered_at', o.delivered_at,
         'cancelled_at', o.cancelled_at
     ) as data
-FROM orders o
+FROM tb_order o
 LEFT JOIN v_user u ON o.fk_user = u.pk_user
 LEFT JOIN v_address sa ON o.fk_shipping_address = sa.pk_address
 LEFT JOIN v_address ba ON o.fk_billing_address = ba.pk_address;
@@ -368,7 +369,7 @@ SELECT
         'total', oi.total,
         'created_at', oi.created_at
     ) as data
-FROM order_items oi
+FROM tb_order_item oi
 LEFT JOIN v_product p ON oi.fk_product = p.pk_product;
 
 -- Reviews view
@@ -389,13 +390,15 @@ SELECT
         'created_at', r.created_at,
         'updated_at', r.updated_at
     ) as data
-FROM reviews r
+FROM tb_review r
 LEFT JOIN v_product p ON r.fk_product = p.pk_product
 LEFT JOIN v_user u ON r.fk_user = u.pk_user;
 
 -- Coupons view
 CREATE OR REPLACE VIEW v_coupon AS
 SELECT
+    pk_coupon,
+    id,
     jsonb_build_object(
         'id', id,
         'code', code,
@@ -410,7 +413,7 @@ SELECT
         'valid_until', valid_until,
         'created_at', created_at
     ) as data
-FROM coupons;
+FROM tb_coupon;
 
 -- Wishlist items view
 CREATE OR REPLACE VIEW v_wishlist_item AS
@@ -423,7 +426,7 @@ SELECT
         'product', p.data,
         'added_at', wi.added_at
     ) as data
-FROM wishlist_items wi
+FROM tb_wishlist_item wi
 LEFT JOIN v_user u ON wi.fk_user = u.pk_user
 LEFT JOIN v_product p ON wi.fk_product = p.pk_product;
 
@@ -442,19 +445,19 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_tb_user_updated_at BEFORE UPDATE ON tb_user
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER update_addresses_updated_at BEFORE UPDATE ON addresses
+CREATE TRIGGER update_tb_address_updated_at BEFORE UPDATE ON tb_address
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+CREATE TRIGGER update_tb_product_updated_at BEFORE UPDATE ON tb_product
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER update_carts_updated_at BEFORE UPDATE ON carts
+CREATE TRIGGER update_tb_cart_updated_at BEFORE UPDATE ON tb_cart
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER update_cart_items_updated_at BEFORE UPDATE ON cart_items
+CREATE TRIGGER update_tb_cart_item_updated_at BEFORE UPDATE ON tb_cart_item
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
+CREATE TRIGGER update_tb_review_updated_at BEFORE UPDATE ON tb_review
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Grant permissions

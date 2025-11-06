@@ -92,7 +92,7 @@ app.register_input_type(ProjectUpdateInput)
 async def current_organization(info: Info) -> Organization:
     """Get current user's organization."""
     org_id = info.context["organization_id"]
-    org = await info.context.repo.find_one("organizations_view", org_id)
+    org = await info.context.repo.find_one("v_organization", org_id)
     return Organization(**org)
 
 
@@ -100,7 +100,7 @@ async def current_organization(info: Info) -> Organization:
 async def current_user(info: Info) -> User:
     """Get current authenticated user."""
     user_id = info.context["user_id"]
-    user = await info.context.repo.find_one("tb_user_view", user_id)
+    user = await info.context.repo.find_one("v_user", user_id)
     return User(**user)
 
 
@@ -109,7 +109,7 @@ async def team_members(info: Info) -> list[User]:
     """Get all team members in current organization."""
     org_id = info.context["organization_id"]
     users = await info.context.repo.find(
-        "tb_user_view", where={"organization_id": org_id}, order_by="created_at"
+        "v_user", where={"fk_organization": org_id}, order_by="created_at"
     )
     return [User(**u) for u in users]
 
@@ -119,7 +119,7 @@ async def projects(info: Info, limit: int = 50) -> list[Project]:
     """Get projects for current organization."""
     org_id = info.context["organization_id"]
     projects = await info.context.repo.find(
-        "projects_view", where={"organization_id": org_id}, limit=limit, order_by="-created_at"
+        "v_project", where={"fk_organization": org_id}, limit=limit, order_by="-created_at"
     )
     return [Project(**p) for p in projects]
 

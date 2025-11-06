@@ -595,16 +595,43 @@ class FraiseQLRepository:
         if info is None and "graphql_info" in self.context:
             info = self.context["graphql_info"]
 
-        # 1. Extract field paths from GraphQL info
+        # 1. Extract field paths and build field selections from GraphQL info
         field_paths = None
+        field_selections_json = None
         if info:
             from fraiseql.core.ast_parser import extract_field_paths_from_info
+            from fraiseql.core.selection_tree import GraphQLSchemaWrapper, build_selection_tree
             from fraiseql.utils.casing import to_snake_case
 
             field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
-            # Convert from list[FieldPath] to list[list[str]] for Rust
+            # Convert from list[FieldPath] to list[list[str]] for Rust (backward compatibility)
             if field_path_objects:
                 field_paths = [fp.path for fp in field_path_objects]
+
+                # NEW: Build field selections with alias and type information
+                # Get type name for schema lookup
+                parent_type = self._get_cached_type_name(view_name)
+                if parent_type and info.schema:
+                    # Wrap schema for field type lookups
+                    schema_wrapper = GraphQLSchemaWrapper(info.schema)
+
+                    # Build selection tree with materialized paths
+                    field_selections = build_selection_tree(
+                        field_path_objects,
+                        schema_wrapper,
+                        parent_type=parent_type,
+                    )
+
+                    # Serialize to JSON format for Rust
+                    field_selections_json = [
+                        {
+                            "path": sel.path,
+                            "alias": sel.alias,
+                            "type_name": sel.type_name,
+                            "is_nested_object": sel.is_nested_object,
+                        }
+                        for sel in field_selections
+                    ]
 
         # 2. Get JSONB column from cached metadata (NO sample query!)
         jsonb_column = None  # default to None (use row_to_json)
@@ -642,6 +669,7 @@ class FraiseQLRepository:
                 type_name,
                 is_list=True,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
+                field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
             )
 
             # Store RustResponseBytes in context for direct path
@@ -674,16 +702,43 @@ class FraiseQLRepository:
         if info is None and "graphql_info" in self.context:
             info = self.context["graphql_info"]
 
-        # 1. Extract field paths from GraphQL info
+        # 1. Extract field paths and build field selections from GraphQL info
         field_paths = None
+        field_selections_json = None
         if info:
             from fraiseql.core.ast_parser import extract_field_paths_from_info
+            from fraiseql.core.selection_tree import GraphQLSchemaWrapper, build_selection_tree
             from fraiseql.utils.casing import to_snake_case
 
             field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
-            # Convert from list[FieldPath] to list[list[str]] for Rust
+            # Convert from list[FieldPath] to list[list[str]] for Rust (backward compatibility)
             if field_path_objects:
                 field_paths = [fp.path for fp in field_path_objects]
+
+                # NEW: Build field selections with alias and type information
+                # Get type name for schema lookup
+                parent_type = self._get_cached_type_name(view_name)
+                if parent_type and info.schema:
+                    # Wrap schema for field type lookups
+                    schema_wrapper = GraphQLSchemaWrapper(info.schema)
+
+                    # Build selection tree with materialized paths
+                    field_selections = build_selection_tree(
+                        field_path_objects,
+                        schema_wrapper,
+                        parent_type=parent_type,
+                    )
+
+                    # Serialize to JSON format for Rust
+                    field_selections_json = [
+                        {
+                            "path": sel.path,
+                            "alias": sel.alias,
+                            "type_name": sel.type_name,
+                            "is_nested_object": sel.is_nested_object,
+                        }
+                        for sel in field_selections
+                    ]
 
         # 2. Get JSONB column from cached metadata
         jsonb_column = None  # default to None (use row_to_json)
@@ -721,6 +776,7 @@ class FraiseQLRepository:
                 type_name,
                 is_list=False,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
+                field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
             )
 
             # NEW: Check if result is null (empty array from Rust)

@@ -10,8 +10,9 @@ CREATE TYPE app.mutation_result AS (
 );
 
 -- Organizations table (for multi-tenancy)
-CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS tb_organization (
+    pk_organization INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT NOW()
@@ -19,8 +20,9 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 -- Users table
 CREATE TABLE IF NOT EXISTS tb_user (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
+    pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    fk_organization INT NOT NULL REFERENCES tb_organization(pk_organization),
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     active BOOLEAN DEFAULT true,
@@ -28,11 +30,12 @@ CREATE TABLE IF NOT EXISTS tb_user (
 );
 
 -- Locations table (tenant-isolated)
-CREATE TABLE IF NOT EXISTS locations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
-    created_by UUID NOT NULL REFERENCES tb_user(id),
-    updated_by UUID REFERENCES tb_user(id),
+CREATE TABLE IF NOT EXISTS tb_location (
+    pk_location INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    fk_organization INT NOT NULL REFERENCES tb_organization(pk_organization),
+    fk_created_by INT NOT NULL REFERENCES tb_user(pk_user),
+    fk_updated_by INT REFERENCES tb_user(pk_user),
     name VARCHAR(255) NOT NULL,
     address TEXT NOT NULL,
     latitude NUMERIC(10, 8),
@@ -43,10 +46,11 @@ CREATE TABLE IF NOT EXISTS locations (
 );
 
 -- Categories table (legacy single-parameter example)
-CREATE TABLE IF NOT EXISTS categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
-    created_by UUID NOT NULL REFERENCES tb_user(id),
+CREATE TABLE IF NOT EXISTS tb_category (
+    pk_category INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    fk_organization INT NOT NULL REFERENCES tb_organization(pk_organization),
+    fk_created_by INT NOT NULL REFERENCES tb_user(pk_user),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     active BOOLEAN DEFAULT true,
@@ -56,8 +60,8 @@ CREATE TABLE IF NOT EXISTS categories (
 -- Create location function with context parameters
 -- This function receives tenant_id and user_id as separate parameters
 CREATE OR REPLACE FUNCTION app.create_location(
-    input_pk_organization UUID,  -- Tenant ID from GraphQL context
-    input_created_by UUID,       -- User ID from GraphQL context
+    input_pk_organization INT,  -- Tenant ID from GraphQL context
+    input_created_by INT,       -- User ID from GraphQL context
     input_json JSONB             -- Business data from mutation input
 ) RETURNS app.mutation_result
 LANGUAGE plpgsql
@@ -69,8 +73,8 @@ DECLARE
 BEGIN
     -- Validate organization exists and is active
     IF NOT EXISTS (
-        SELECT 1 FROM organizations
-        WHERE id = input_pk_organization
+        SELECT 1 FROM tb_organization
+        WHERE pk_organization = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -82,8 +86,8 @@ BEGIN
     -- Validate user belongs to organization
     IF NOT EXISTS (
         SELECT 1 FROM tb_user
-        WHERE id = input_created_by
-        AND organization_id = input_pk_organization
+        WHERE pk_user = input_created_by
+        AND fk_organization = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -101,10 +105,10 @@ BEGIN
     END IF;
 
     -- Create the location with proper tenant isolation
-    INSERT INTO locations (
+    INSERT INTO tb_location (
         id,
-        organization_id,    -- Ensures tenant isolation
-        created_by,         -- Audit trail
+        fk_organization,    -- Ensures tenant isolation
+        fk_created_by,         -- Audit trail
         name,
         address,
         latitude,
@@ -141,8 +145,8 @@ $$;
 
 -- Update location function with context parameters
 CREATE OR REPLACE FUNCTION app.update_location(
-    input_pk_organization UUID,  -- Tenant ID from context
-    input_updated_by UUID,       -- User ID from context
+    input_pk_organization INT,  -- Tenant ID from context
+    input_updated_by INT,       -- User ID from context
     input_json JSONB             -- Update data
 ) RETURNS app.mutation_result
 LANGUAGE plpgsql
@@ -158,9 +162,9 @@ BEGIN
 
     -- Validate location exists and belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM locations
+        SELECT 1 FROM tb_location
         WHERE id = v_location_id
-        AND organization_id = input_pk_organization
+        AND fk_organization = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -170,12 +174,12 @@ BEGIN
     END IF;
 
     -- Update fields that are provided
-    UPDATE locations SET
+    UPDATE tb_location SET
         name = COALESCE(input_json->>'name', name),
         address = COALESCE(input_json->>'address', address),
         latitude = COALESCE((input_json->>'latitude')::NUMERIC, latitude),
         longitude = COALESCE((input_json->>'longitude')::NUMERIC, longitude),
-        updated_by = input_updated_by,
+        fk_updated_by = input_updated_by,
         updated_at = NOW()
     WHERE id = v_location_id;
 
@@ -206,8 +210,8 @@ $$;
 
 -- Delete location function with context parameters
 CREATE OR REPLACE FUNCTION app.delete_location(
-    input_pk_organization UUID,  -- Tenant ID from context
-    input_deleted_by UUID,       -- User ID from context
+    input_pk_organization INT,  -- Tenant ID from context
+    input_deleted_by INT,       -- User ID from context
     input_json JSONB             -- Contains location ID
 ) RETURNS app.mutation_result
 LANGUAGE plpgsql
@@ -221,9 +225,9 @@ BEGIN
 
     -- Validate location exists and belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM locations
+        SELECT 1 FROM tb_location
         WHERE id = v_location_id
-        AND organization_id = input_pk_organization
+        AND fk_organization = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -233,9 +237,9 @@ BEGIN
     END IF;
 
     -- Soft delete the location (preserve audit trail)
-    UPDATE locations SET
+    UPDATE tb_location SET
         active = false,
-        updated_by = input_deleted_by,
+        fk_updated_by = input_deleted_by,
         updated_at = NOW()
     WHERE id = v_location_id;
 
@@ -277,8 +281,8 @@ BEGIN
 
     -- Validate organization
     IF NOT EXISTS (
-        SELECT 1 FROM organizations
-        WHERE id = v_organization_id
+        SELECT 1 FROM tb_organization
+        WHERE pk_organization = v_organization_id
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -287,9 +291,9 @@ BEGIN
     END IF;
 
     -- Create category
-    INSERT INTO categories (
-        organization_id,
-        created_by,
+    INSERT INTO tb_category (
+        fk_organization,
+        fk_created_by,
         name,
         description
     ) VALUES (
@@ -314,13 +318,13 @@ END;
 $$;
 
 -- Create some sample data for testing
-INSERT INTO organizations (id, name) VALUES
+INSERT INTO tb_organization (id, name) VALUES
     ('550e8400-e29b-41d4-a716-446655440000', 'Acme Corporation'),
     ('550e8400-e29b-41d4-a716-446655440001', 'Widget Inc')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO tb_user (id, organization_id, email, name) VALUES
-    ('550e8400-e29b-41d4-a716-446655440010', '550e8400-e29b-41d4-a716-446655440000', 'admin@acme.com', 'John Admin'),
-    ('550e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440000', 'user@acme.com', 'Jane User'),
-    ('550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440001', 'admin@widget.com', 'Bob Admin')
+INSERT INTO tb_user (id, fk_organization, email, name) VALUES
+    ('550e8400-e29b-41d4-a716-446655440010', 1, 'admin@acme.com', 'John Admin'),
+    ('550e8400-e29b-41d4-a716-446655440011', 1, 'user@acme.com', 'Jane User'),
+    ('550e8400-e29b-41d4-a716-446655440020', 2, 'admin@widget.com', 'Bob Admin')
 ON CONFLICT (id) DO NOTHING;

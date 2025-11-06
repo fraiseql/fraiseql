@@ -10,8 +10,9 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";  -- For full-text search
 -- ============================================================================
 
 -- Customers table
-CREATE TABLE customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_customer (
+    pk_customer INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -21,9 +22,10 @@ CREATE TABLE customers (
 );
 
 -- Support tickets table
-CREATE TABLE support_tickets (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fk_customer UUID NOT NULL REFERENCES customers(id),
+CREATE TABLE tb_support_ticket (
+    pk_support_ticket INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_customer INT NOT NULL REFERENCES tb_customer(pk_customer),
     subject VARCHAR(500) NOT NULL,
     description TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'open',
@@ -35,10 +37,11 @@ CREATE TABLE support_tickets (
 );
 
 -- Orders table
-CREATE TABLE orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_order (
+    pk_order INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
-    fk_customer UUID NOT NULL REFERENCES customers(id),
+    fk_customer INT NOT NULL REFERENCES tb_customer(pk_customer),
     total DECIMAL(10, 2) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     tracking_number VARCHAR(100),
@@ -50,9 +53,10 @@ CREATE TABLE orders (
 );
 
 -- Order items table
-CREATE TABLE order_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fk_order UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+CREATE TABLE tb_order_item (
+    pk_order_item INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_order INT NOT NULL REFERENCES tb_order(pk_order) ON DELETE CASCADE,
     product_name VARCHAR(255) NOT NULL,
     product_sku VARCHAR(100) NOT NULL,
     quantity INT NOT NULL,
@@ -61,8 +65,9 @@ CREATE TABLE order_items (
 );
 
 -- Deals/opportunities table
-CREATE TABLE deals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_deal (
+    pk_deal INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     company_name VARCHAR(255) NOT NULL,
     contact_name VARCHAR(255) NOT NULL,
     contact_email VARCHAR(255) NOT NULL,
@@ -77,8 +82,9 @@ CREATE TABLE deals (
 );
 
 -- Admin users table
-CREATE TABLE tb_admin_users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_admin_user (
+    pk_admin_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -88,9 +94,10 @@ CREATE TABLE tb_admin_users (
 );
 
 -- Audit log table (critical for compliance)
-CREATE TABLE admin_audit_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fk_admin_user UUID NOT NULL REFERENCES tb_admin_users(id),
+CREATE TABLE tb_admin_audit_log (
+    pk_admin_audit_log INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_admin_user INT NOT NULL REFERENCES tb_admin_user(pk_admin_user),
     action VARCHAR(100) NOT NULL,
     target_type VARCHAR(50),
     target_id UUID,
@@ -104,77 +111,93 @@ CREATE TABLE admin_audit_log (
 -- ============================================================================
 
 -- Customer search indexes
-CREATE INDEX idx_customers_email ON customers USING gin(email gin_trgm_ops);
-CREATE INDEX idx_customers_name ON customers USING gin(name gin_trgm_ops);
-CREATE INDEX idx_customers_status ON customers(subscription_status);
-CREATE INDEX idx_customers_created ON customers(created_at DESC);
+CREATE INDEX idx_tb_customer_email ON tb_customer USING gin(email gin_trgm_ops);
+CREATE INDEX idx_tb_customer_name ON tb_customer USING gin(name gin_trgm_ops);
+CREATE INDEX idx_tb_customer_status ON tb_customer(subscription_status);
+CREATE INDEX idx_tb_customer_created ON tb_customer(created_at DESC);
 
 -- Support tickets indexes
-CREATE INDEX idx_tickets_fk_customer ON support_tickets(fk_customer);
-CREATE INDEX idx_orders_fk_customer ON orders(fk_customer);
-CREATE INDEX idx_order_items_fk_order ON order_items(fk_order);
-CREATE INDEX idx_audit_fk_admin_user ON admin_audit_log(fk_admin_user);
-CREATE INDEX idx_audit_action ON admin_audit_log(action);
-CREATE INDEX idx_audit_target ON admin_audit_log(target_type, target_id);
-CREATE INDEX idx_audit_created ON admin_audit_log(created_at DESC);
+CREATE INDEX idx_tb_support_ticket_fk_customer ON tb_support_ticket(fk_customer);
+CREATE INDEX idx_tb_order_fk_customer ON tb_order(fk_customer);
+CREATE INDEX idx_tb_order_item_fk_order ON tb_order_item(fk_order);
+CREATE INDEX idx_tb_admin_audit_log_fk_admin_user ON tb_admin_audit_log(fk_admin_user);
+CREATE INDEX idx_tb_admin_audit_log_action ON tb_admin_audit_log(action);
+CREATE INDEX idx_tb_admin_audit_log_target ON tb_admin_audit_log(target_type, target_id);
+CREATE INDEX idx_tb_admin_audit_log_created ON tb_admin_audit_log(created_at DESC);
 
 -- ============================================================================
 -- READ-ONLY VIEWS FOR ADMIN PANEL
 -- ============================================================================
 
 -- Customer admin view (safe, no passwords)
-CREATE VIEW customer_admin_view AS
+CREATE VIEW v_customer_admin AS
 SELECT
+    c.pk_customer,
     c.id,
-    c.email,
-    c.name,
-    c.created_at,
-    c.subscription_status,
-    COALESCE(SUM(o.total), 0)::DECIMAL(10,2) as total_spent,
-    COUNT(DISTINCT t.id)::INT as ticket_count
-FROM customers c
-LEFT JOIN orders o ON o.fk_customer = c.id
-LEFT JOIN support_tickets t ON t.fk_customer = c.id
-GROUP BY c.id, c.email, c.name, c.created_at, c.subscription_status;
+    jsonb_build_object(
+        'id', c.id,
+        'email', c.email,
+        'name', c.name,
+        'created_at', c.created_at,
+        'subscription_status', c.subscription_status,
+        'total_spent', COALESCE(SUM(o.total), 0)::DECIMAL(10,2),
+        'ticket_count', COUNT(DISTINCT t.id)::INT
+    ) as data
+FROM tb_customer c
+LEFT JOIN tb_order o ON o.fk_customer = c.pk_customer
+LEFT JOIN tb_support_ticket t ON t.fk_customer = c.pk_customer
+GROUP BY c.pk_customer, c.id, c.email, c.name, c.created_at, c.subscription_status;
 
 -- Support tickets view with customer info
-CREATE VIEW support_tickets_view AS
+CREATE VIEW v_support_ticket AS
 SELECT
+    t.pk_support_ticket,
     t.id,
-    t.fk_customer as customer_id,
-    t.subject,
-    t.status,
-    t.priority,
-    t.assigned_to_id,
-    t.created_at,
-    t.updated_at
-FROM support_tickets t;
+    jsonb_build_object(
+        'id', t.id,
+        'fk_customer', t.fk_customer,
+        'subject', t.subject,
+        'status', t.status,
+        'priority', t.priority,
+        'assigned_to_id', t.assigned_to_id,
+        'created_at', t.created_at,
+        'updated_at', t.updated_at
+    ) as data
+FROM tb_support_ticket t;
 
 -- Orders view with customer info
-CREATE VIEW orders_view AS
+CREATE VIEW v_order AS
 SELECT
+    o.pk_order,
     o.id,
-    o.order_number,
-    o.fk_customer as customer_id,
-    o.total,
-    o.status,
-    o.tracking_number,
-    o.created_at,
-    o.shipped_at,
-    o.delivered_at
-FROM orders o;
+    jsonb_build_object(
+        'id', o.id,
+        'order_number', o.order_number,
+        'fk_customer', o.fk_customer,
+        'total', o.total,
+        'status', o.status,
+        'tracking_number', o.tracking_number,
+        'created_at', o.created_at,
+        'shipped_at', o.shipped_at,
+        'delivered_at', o.delivered_at
+    ) as data
+FROM tb_order o;
 
 -- Orders needing attention (delayed, stuck, etc.)
-CREATE VIEW orders_needing_attention_view AS
+CREATE VIEW v_order_attention AS
 SELECT
+    o.pk_order,
     o.id,
-    o.order_number,
-    o.fk_customer as customer_id,
-    o.total,
-    o.status,
-    o.created_at,
-    (NOW() - o.created_at) as age_hours
-FROM orders o
+    jsonb_build_object(
+        'id', o.id,
+        'order_number', o.order_number,
+        'fk_customer', o.fk_customer,
+        'total', o.total,
+        'status', o.status,
+        'created_at', o.created_at,
+        'age_hours', (NOW() - o.created_at)
+    ) as data
+FROM tb_order o
 WHERE
     (o.status = 'pending' AND o.created_at < NOW() - INTERVAL '24 hours')
     OR (o.status = 'processing' AND o.created_at < NOW() - INTERVAL '48 hours')
@@ -182,21 +205,25 @@ WHERE
 ORDER BY o.created_at;
 
 -- Deals view
-CREATE VIEW deals_view AS
+CREATE VIEW v_deal AS
 SELECT
+    d.pk_deal,
     d.id,
-    d.company_name,
-    d.contact_name,
-    d.contact_email,
-    d.stage,
-    d.amount,
-    d.probability,
-    d.expected_close_date,
-    d.assigned_to_id,
-    d.notes,
-    d.created_at,
-    d.updated_at
-FROM deals d;
+    jsonb_build_object(
+        'id', d.id,
+        'company_name', d.company_name,
+        'contact_name', d.contact_name,
+        'contact_email', d.contact_email,
+        'stage', d.stage,
+        'amount', d.amount,
+        'probability', d.probability,
+        'expected_close_date', d.expected_close_date,
+        'assigned_to_id', d.assigned_to_id,
+        'notes', d.notes,
+        'created_at', d.created_at,
+        'updated_at', d.updated_at
+    ) as data
+FROM tb_deal d;
 
 -- ============================================================================
 -- MATERIALIZED VIEWS FOR DASHBOARD METRICS (REFRESH EVERY 5 MIN)
@@ -218,12 +245,12 @@ SELECT
     COALESCE(SUM(total) FILTER (WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)), 0)::DECIMAL(10,2) as month_revenue,
     100.0::FLOAT as order_accuracy,  -- Would calculate from returns in production
     95.0::FLOAT as on_time_delivery_rate  -- Would calculate from delivery dates in production
-FROM orders;
+FROM tb_order;
 
 -- Sales metrics materialized view
 CREATE MATERIALIZED VIEW sales_metrics_view AS
 SELECT
-    a.id as rep_id,
+    a.pk_admin_user as rep_id,
     a.name as rep_name,
     COALESCE(
         SUM(d.amount) FILTER (
@@ -239,14 +266,14 @@ SELECT
         AND DATE_TRUNC('month', d.updated_at) = DATE_TRUNC('month', CURRENT_DATE)
     )::INT as deals_won_this_month,
     COALESCE(AVG(d.amount) FILTER (WHERE d.stage NOT IN ('closed_won', 'closed_lost')), 0)::DECIMAL(12,2) as average_deal_size
-FROM tb_admin_users a
-LEFT JOIN deals d ON d.assigned_to_id = a.id
+FROM tb_admin_user a
+LEFT JOIN tb_deal d ON d.assigned_to_id = a.id
 WHERE a.role = 'sales'
 GROUP BY a.id, a.name;
 
 -- Create indexes on materialized views
 CREATE INDEX idx_operations_metrics_mv_refresh ON operations_metrics_mv ((1));
-CREATE INDEX idx_sales_metrics_mv_rep ON sales_metrics_view(rep_id);
+CREATE INDEX idx_sales_metrics_mv_rep ON sales_metrics_view(pk_admin_user);
 
 -- ============================================================================
 -- FUNCTIONS FOR AUTO-REFRESH (CALL FROM CRON OR PG_CRON)
@@ -268,32 +295,31 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- Insert sample admin users
-INSERT INTO tb_admin_users (email, name, password_hash, role) VALUES
+INSERT INTO tb_admin_user (email, name, password_hash, role) VALUES
 ('admin@example.com', 'Super Admin', '$2b$12$dummy_hash', 'admin'),
 ('support@example.com', 'Support Agent', '$2b$12$dummy_hash', 'customer_support'),
 ('ops@example.com', 'Operations Manager', '$2b$12$dummy_hash', 'operations'),
 ('sales@example.com', 'Sales Rep', '$2b$12$dummy_hash', 'sales');
 
 -- Insert sample customers
-INSERT INTO customers (id, email, name, password_hash, subscription_status) VALUES
+INSERT INTO tb_customer (id, email, name, password_hash, subscription_status) VALUES
 ('11111111-1111-1111-1111-111111111111', 'john@example.com', 'John Doe', '$2b$12$dummy_hash', 'active'),
 ('22222222-2222-2222-2222-222222222222', 'jane@example.com', 'Jane Smith', '$2b$12$dummy_hash', 'active'),
 ('33333333-3333-3333-3333-333333333333', 'bob@example.com', 'Bob Johnson', '$2b$12$dummy_hash', 'suspended');
 
 -- Insert sample orders
-INSERT INTO orders (id, order_number, fk_customer, total, status) VALUES
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ORD-001', '11111111-1111-1111-1111-111111111111', 149.99, 'pending'),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'ORD-002', '22222222-2222-2222-2222-222222222222', 299.99, 'shipped');
+INSERT INTO tb_order (id, order_number, fk_customer, total, status) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ORD-001', 1, 149.99, 'pending'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'ORD-002', 2, 299.99, 'shipped');
 
 -- Insert sample support tickets
-INSERT INTO support_tickets (fk_customer, subject, description, status, priority) VALUES
-('11111111-1111-1111-1111-111111111111', 'Cannot login to account', 'Getting error when trying to login', 'open', 'high'),
-('22222222-2222-2222-2222-222222222222', 'Question about billing', 'When will I be charged?', 'open', 'low');
+INSERT INTO tb_support_ticket (fk_customer, subject, description, status, priority) VALUES
+(1, 'Cannot login to account', 'Getting error when trying to login', 'open', 'high'),
+(2, 'Question about billing', 'When will I be charged?', 'open', 'low');
 
 -- Insert sample deals
-INSERT INTO deals (company_name, contact_name, contact_email, stage, amount, expected_close_date, assigned_to_id)
-SELECT 'Acme Corp', 'Alice Anderson', 'alice@acme.com', 'negotiation', 50000, CURRENT_DATE + 30, id
-FROM tb_admin_users WHERE role = 'sales' LIMIT 1;
+INSERT INTO tb_deal (company_name, contact_name, contact_email, stage, amount, expected_close_date, assigned_to_id) VALUES
+('Acme Corp', 'Alice Anderson', 'alice@acme.com', 'negotiation', 50000, CURRENT_DATE + 30, '11111111-1111-1111-1111-111111111111');
 
 -- Initial refresh of materialized views
 REFRESH MATERIALIZED VIEW operations_metrics_mv;

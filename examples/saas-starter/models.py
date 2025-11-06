@@ -32,7 +32,7 @@ class User:
     """User entity - belongs to an organization."""
 
     id: UUID = fraise_field(description="User unique identifier")
-    organization_id: UUID = fraise_field(description="Parent organization")
+    fk_organization: int = fraise_field(description="Parent organization")
     email: str = fraise_field(description="User email address")
     name: str = fraise_field(description="User full name")
     role: str = fraise_field(description="User role in organization")
@@ -47,7 +47,7 @@ class Subscription:
     """Subscription/billing information."""
 
     id: UUID = fraise_field(description="Subscription unique identifier")
-    organization_id: UUID = fraise_field(description="Organization ID")
+    fk_organization: int = fraise_field(description="Organization ID")
     plan: str = fraise_field(description="Plan name")
     status: str = fraise_field(description="Subscription status")
     amount: Decimal = fraise_field(description="Amount charged")
@@ -64,7 +64,7 @@ class Subscription:
 class UsageMetrics:
     """Organization usage metrics."""
 
-    organization_id: UUID = fraise_field(description="Organization ID")
+    fk_organization: int = fraise_field(description="Organization ID")
     period_start: datetime = fraise_field(description="Period start date")
     period_end: datetime = fraise_field(description="Period end date")
     projects: int = fraise_field(description="Number of projects")
@@ -88,11 +88,11 @@ class TeamInvitation:
     """Team member invitation."""
 
     id: UUID = fraise_field(description="Invitation unique identifier")
-    organization_id: UUID = fraise_field(description="Organization ID")
+    fk_organization: int = fraise_field(description="Organization ID")
     email: str = fraise_field(description="Invitee email")
     role: str = fraise_field(description="Invited role")
     token: str = fraise_field(description="Invitation token")
-    invited_by_id: UUID = fraise_field(description="User who sent invitation")
+    fk_invited_by: int = fraise_field(description="User who sent invitation")
     status: str = fraise_field(description="Invitation status")
     expires_at: datetime = fraise_field(description="Expiration timestamp")
     created_at: datetime = fraise_field(description="Invitation sent date")
@@ -103,8 +103,8 @@ class ActivityLogEntry:
     """Activity log entry for audit trail."""
 
     id: UUID = fraise_field(description="Log entry unique identifier")
-    organization_id: UUID = fraise_field(description="Organization ID")
-    user_id: UUID = fraise_field(description="User who performed action")
+    fk_organization: int = fraise_field(description="Organization ID")
+    fk_user: int = fraise_field(description="User who performed action")
     action: str = fraise_field(description="Action type")
     resource: str = fraise_field(description="Resource type")
     resource_id: UUID | None = fraise_field(description="Resource ID")
@@ -119,10 +119,10 @@ class Project:
     """Example resource - tenant-aware project."""
 
     id: UUID = fraise_field(description="Project unique identifier")
-    organization_id: UUID = fraise_field(description="Parent organization")
+    fk_organization: int = fraise_field(description="Parent organization")
     name: str = fraise_field(description="Project name")
     description: str | None = fraise_field(description="Project description")
-    owner_id: UUID = fraise_field(description="Project owner")
+    fk_owner: int = fraise_field(description="Project owner")
     status: str = fraise_field(description="Project status")
     settings: dict = fraise_field(description="Project settings (JSONB)")
     created_at: datetime = fraise_field(description="Creation date")

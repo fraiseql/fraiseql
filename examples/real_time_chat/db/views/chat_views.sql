@@ -38,10 +38,10 @@ SELECT
         'created_at', created_at,
         'updated_at', updated_at
     ) as data
-FROM rooms;
+FROM tb_room;
 
 -- Room list view with latest message and unread count
-CREATE OR REPLACE VIEW room_list AS
+CREATE OR REPLACE VIEW v_room_list AS
 SELECT
     r.pk_room,
     r.id,
@@ -75,15 +75,15 @@ SELECT
             LIMIT 1
         )
     ) as data
-FROM rooms r
+FROM tb_room r
 JOIN v_user u ON r.fk_owner = u.pk_user
-LEFT JOIN room_members rm ON rm.fk_room = r.pk_room AND rm.is_banned = false
-LEFT JOIN user_presence up ON up.fk_user = rm.fk_user AND up.fk_room = r.pk_room
+LEFT JOIN tb_room_member rm ON rm.fk_room = r.pk_room AND rm.is_banned = false
+LEFT JOIN tb_user_presence up ON up.fk_user = rm.fk_user AND up.fk_room = r.pk_room
 WHERE r.is_active = true
 GROUP BY r.pk_room, r.id, r.name, r.slug, r.description, r.type, r.fk_owner, r.max_members, r.is_active, r.settings, r.created_at, r.updated_at, u.data;
 
 -- Room detail view with members and permissions
-CREATE OR REPLACE VIEW room_detail AS
+CREATE OR REPLACE VIEW v_room_detail AS
 SELECT
     r.id,
     r.name,
@@ -130,16 +130,16 @@ SELECT
     COUNT(DISTINCT rm.user_id) FILTER (WHERE rm.is_banned = false) as member_count,
     COUNT(DISTINCT m.id) FILTER (WHERE m.is_deleted = false) as message_count,
     COUNT(DISTINCT up.user_id) FILTER (WHERE up.status = 'online') as online_count
-FROM rooms r
+FROM tb_room r
 JOIN tb_user owner ON r.fk_owner = owner.pk_user
-LEFT JOIN room_members rm ON rm.fk_room = r.pk_room AND rm.is_banned = false
+LEFT JOIN tb_room_member rm ON rm.fk_room = r.pk_room AND rm.is_banned = false
 LEFT JOIN tb_user u ON rm.fk_user = u.pk_user
-LEFT JOIN messages m ON m.fk_room = r.pk_room
+LEFT JOIN tb_message m ON m.fk_room = r.pk_room
 LEFT JOIN user_presence up ON up.fk_user = rm.fk_user AND up.fk_room = r.pk_room
 GROUP BY r.id, owner.id, owner.username, owner.display_name, owner.avatar_url, owner.status;
 
 -- Message thread view with reactions and replies
-CREATE OR REPLACE VIEW message_thread AS
+CREATE OR REPLACE VIEW v_message_thread AS
 SELECT
     m.pk_message,
     m.id,
@@ -197,18 +197,18 @@ SELECT
         'reply_count', COUNT(DISTINCT replies.id),
         'read_count', COUNT(DISTINCT mrr.fk_user)
     ) as data
-FROM messages m
+FROM tb_message m
 JOIN tb_user u ON m.fk_user = u.pk_user
-LEFT JOIN message_attachments ma ON ma.fk_message = m.pk_message
-LEFT JOIN message_reactions mr ON mr.fk_message = m.pk_message
+LEFT JOIN tb_message_attachment ma ON ma.fk_message = m.pk_message
+LEFT JOIN tb_message_reaction mr ON mr.fk_message = m.pk_message
 LEFT JOIN tb_user ru ON mr.fk_user = ru.pk_user
-LEFT JOIN messages replies ON replies.fk_parent_message = m.pk_message AND replies.is_deleted = false
-LEFT JOIN message_read_receipts mrr ON mrr.fk_message = m.pk_message
+LEFT JOIN tb_message replies ON replies.fk_parent_message = m.pk_message AND replies.is_deleted = false
+LEFT JOIN tb_message_read_receipt mrr ON mrr.fk_message = m.pk_message
 WHERE m.is_deleted = false
 GROUP BY m.pk_message, m.id, m.fk_room, m.fk_user, m.content, m.message_type, m.fk_parent_message, m.edited_at, m.is_deleted, m.metadata, m.created_at, u.id, u.username, u.display_name, u.avatar_url, u.status;
 
 -- User conversation view (DMs and room memberships)
-CREATE OR REPLACE VIEW user_conversations AS
+CREATE OR REPLACE VIEW v_user_conversation AS
 SELECT
     rm.fk_user,
     r.id,
@@ -252,23 +252,23 @@ SELECT
                     'avatar_url', other_user.avatar_url,
                     'status', other_user.status
                 )
-                FROM room_members other_rm
-                JOIN tb_user other_user ON other_rm.fk_user = other_user.pk_user
-                WHERE other_rm.fk_room = r.pk_room
-                AND other_rm.fk_user != rm.fk_user
-                LIMIT 1
+                 FROM tb_room_member other_rm
+                 JOIN tb_user other_user ON other_rm.fk_user = other_user.pk_user
+                 WHERE other_rm.fk_room = r.pk_room
+                 AND other_rm.fk_user != rm.fk_user
+                 LIMIT 1
             )
         ELSE NULL
     END as direct_user
-FROM room_members rm
-JOIN rooms r ON rm.fk_room = r.pk_room
-LEFT JOIN messages m ON m.fk_room = r.pk_room AND m.is_deleted = false
+FROM tb_room_member rm
+JOIN tb_room r ON rm.fk_room = r.pk_room
+LEFT JOIN tb_message m ON m.fk_room = r.pk_room AND m.is_deleted = false
 WHERE rm.is_banned = false
   AND r.is_active = true
 GROUP BY rm.user_id, r.id, rm.role, rm.joined_at, rm.last_read_at, rm.is_muted;
 
 -- Online users view
-CREATE OR REPLACE VIEW online_users AS
+CREATE OR REPLACE VIEW v_online_user AS
 SELECT DISTINCT
     u.id,
     u.username,
@@ -287,14 +287,14 @@ SELECT DISTINCT
         '[]'::json
     ) as active_rooms
 FROM tb_user u
-JOIN user_presence up ON up.fk_user = u.pk_user
+JOIN tb_user_presence up ON up.fk_user = u.pk_user
 WHERE up.status = 'online'
   AND up.last_activity > CURRENT_TIMESTAMP - INTERVAL '5 minutes'
   AND u.is_active = true
 GROUP BY u.id;
 
 -- Typing indicators view
-CREATE OR REPLACE VIEW active_typing AS
+CREATE OR REPLACE VIEW v_active_typing AS
 SELECT
     ti.fk_room,
     json_agg(
@@ -306,13 +306,13 @@ SELECT
             'expires_at', ti.expires_at
         )
     ) as typing_users
-FROM typing_indicators ti
+FROM tb_typing_indicator ti
 JOIN tb_user u ON ti.fk_user = u.pk_user
 WHERE ti.expires_at > CURRENT_TIMESTAMP
 GROUP BY ti.fk_room;
 
 -- Message search view
-CREATE OR REPLACE VIEW message_search AS
+CREATE OR REPLACE VIEW v_message_search AS
 SELECT
     m.id,
     m.fk_room,
@@ -337,14 +337,14 @@ SELECT
     to_tsvector('english', m.content) as search_vector,
     -- Search rank (for relevance scoring)
     ts_rank(to_tsvector('english', m.content), plainto_tsquery('english', '')) as search_rank
-FROM messages m
-JOIN rooms r ON m.fk_room = r.pk_room
+FROM tb_message m
+JOIN tb_room r ON m.fk_room = r.pk_room
 JOIN tb_user u ON m.fk_user = u.pk_user
 WHERE m.is_deleted = false
   AND r.is_active = true;
 
 -- Room analytics view
-CREATE OR REPLACE VIEW room_analytics AS
+CREATE OR REPLACE VIEW v_room_analytic AS
 SELECT
     r.id,
     r.name,
@@ -361,9 +361,9 @@ SELECT
     -- Activity patterns
     AVG(daily_stats.message_count) as avg_daily_messages,
     MAX(daily_stats.message_count) as peak_daily_messages
-FROM rooms r
-LEFT JOIN room_members rm ON rm.fk_room = r.pk_room
-LEFT JOIN messages m ON m.fk_room = r.pk_room AND m.is_deleted = false
+FROM tb_room r
+LEFT JOIN tb_room_member rm ON rm.fk_room = r.pk_room
+LEFT JOIN tb_message m ON m.fk_room = r.pk_room AND m.is_deleted = false
 LEFT JOIN LATERAL (
     SELECT
         DATE_TRUNC('day', created_at) as day,
