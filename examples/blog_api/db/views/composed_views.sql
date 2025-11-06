@@ -13,7 +13,7 @@ SELECT
         'bio', bio,
         'avatarUrl', avatar_url
     ) AS data
-FROM tb_users;
+FROM tb_user;
 
 -- Composed view: Posts with author data included
 -- This eliminates N+1 when fetching posts with their authors
