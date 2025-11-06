@@ -12,7 +12,8 @@ The serialized schema includes:
 Design Notes:
 - Uses versioned IR format to support future enhancements without breaking changes
 - Includes feature flags to document capabilities
-- Focuses on object types and their fields (scalars, interfaces, unions not needed for type resolution)
+- Focuses on object types and their fields (scalars, interfaces, unions not needed
+  for type resolution)
 - Tracks nested object relationships for recursive transformation in Rust
 """
 
@@ -135,9 +136,7 @@ class SchemaSerializer:
             Dictionary with type_name, is_nested_object, and is_list flags
         """
         # Unwrap NonNull wrapper
-        is_required = False
         if isinstance(field_type, GraphQLNonNull):
-            is_required = True
             field_type = field_type.of_type
 
         # Check for List wrapper
