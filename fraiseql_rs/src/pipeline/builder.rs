@@ -110,10 +110,16 @@ fn build_with_schema(
                 field_name: transformed_items
             }
         })
-    } else {
+    } else if !transformed_items.is_empty() {
         json!({
             "data": {
                 field_name: transformed_items.get(0).cloned().unwrap_or(Value::Null)
+            }
+        })
+    } else {
+        json!({
+            "data": {
+                field_name: Value::Null
             }
         })
     };
@@ -178,11 +184,13 @@ fn build_zero_copy(
         }
 
         result.push(b']');
-    } else {
+    } else if !json_rows.is_empty() {
         let row = &json_rows[0];
         let mut temp_buf = ByteBuf::with_estimated_capacity(row.len(), &config);
         transformer.transform_bytes(row.as_bytes(), &mut temp_buf)?;
         result.extend_from_slice(&temp_buf.into_vec());
+    } else {
+        result.extend_from_slice(b"null");
     }
 
     result.push(b'}');
