@@ -14,9 +14,9 @@ Internal documentation for FraiseQL maintainers and contributors.
 - Release execution notes and historical plans
 
 ### Code Audits
-- [Python Version Analysis](audits/python-version-analysis.md) - Python compatibility audits
-- [Type Hinting Audit](audits/type-hinting-audit.md) - Type annotation coverage
-- [Version Status](audits/version-status.md) - Current version status tracking
+- Python Version Analysis - Python compatibility audits (archived)
+- Type Hinting Audit - Type annotation coverage (archived)
+- Version Status - Current version status tracking (archived)
 
 ### Rust Extension
 - [Implementation](rust/implementation.md) - Rust extension implementation notes

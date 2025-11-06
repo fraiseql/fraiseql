@@ -910,7 +910,7 @@ fraiseql dev
 - **Python 3.13+** (required for Rust pipeline integration and advanced type features)
 - **PostgreSQL 13+**
 
-**[📖 Detailed Installation Guide](INSTALLATION.md)** - Platform-specific instructions, troubleshooting
+**[📖 Detailed Installation Guide](docs/getting-started/installation.md)** - Platform-specific instructions, troubleshooting
 
 ---
 
