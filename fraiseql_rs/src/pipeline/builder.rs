@@ -117,9 +117,10 @@ fn build_with_schema(
             }
         })
     } else {
+        // Empty result for is_list=False: return [] so Python null detection works
         json!({
             "data": {
-                field_name: Value::Null
+                field_name: Value::Array(vec![])
             }
         })
     };
@@ -190,7 +191,8 @@ fn build_zero_copy(
         transformer.transform_bytes(row.as_bytes(), &mut temp_buf)?;
         result.extend_from_slice(&temp_buf.into_vec());
     } else {
-        result.extend_from_slice(b"null");
+        // Empty result for is_list=False: return [] so Python null detection works
+        result.extend_from_slice(b"[]");
     }
 
     result.push(b'}');

@@ -46,13 +46,10 @@ _NULL_RESPONSE_CACHE: set[bytes] = {
 
 
 def _is_rust_response_null(response: RustResponseBytes) -> bool:
-    """Check if RustResponseBytes contains empty array or null (null result).
+    """Check if RustResponseBytes contains empty array (null result).
 
-    Rust's build_graphql_response returns:
-    - {"data":{"field":[]}} for null with is_list=True
-    - {"data":{"field":null}} for null with is_list=False
-
-    This function detects both patterns WITHOUT JSON parsing overhead.
+    Rust's build_graphql_response returns {"data":{"field":[]}} for null.
+    This function detects that pattern WITHOUT JSON parsing overhead.
 
     Performance: O(1) byte pattern matching (12x faster than JSON parsing)
     - Fast path: 5 constant-time checks
@@ -63,12 +60,10 @@ def _is_rust_response_null(response: RustResponseBytes) -> bool:
         response: RustResponseBytes to check
 
     Returns:
-        True if the response contains null (empty array or null), False otherwise
+        True if the response contains null (empty array), False otherwise
 
     Examples:
         >>> _is_rust_response_null(RustResponseBytes(b'{"data":{"user":[]}}'))
-        True
-        >>> _is_rust_response_null(RustResponseBytes(b'{"data":{"user":null}}'))
         True
         >>> _is_rust_response_null(RustResponseBytes(b'{"data":{"user":{"id":"123"}}}'))
         False
@@ -76,7 +71,7 @@ def _is_rust_response_null(response: RustResponseBytes) -> bool:
     data = response.bytes
 
     # Fast path: O(1) checks without JSON parsing
-    # 1. Length check: Null format is {"data":{"field":[]}} or {"data":{"field":null}}
+    # 1. Length check: Null format is {"data":{"field":[]}}
     #    Min: {"data":{"a":[]}} = 17 bytes
     #    Max: ~200 bytes for very long field names (rare)
     length = len(data)
@@ -87,8 +82,8 @@ def _is_rust_response_null(response: RustResponseBytes) -> bool:
     if not data.endswith(b"}}"):
         return False
 
-    # 3. Signature pattern: ":[]}" or ":null}" indicates null
-    if b":[]" not in data and b":null}" not in data:
+    # 3. Signature pattern: ":[]}" indicates empty array
+    if b":[]" not in data:
         return False
 
     # 4. Cache lookup for common patterns (90%+ hit rate)
@@ -96,28 +91,21 @@ def _is_rust_response_null(response: RustResponseBytes) -> bool:
         return True
 
     # 5. Structural validation for uncommon field names
-    #    Pattern: {"data":{"<field_name>":[]}} or {"data":{"<field_name>":null}}
-    if data.startswith(b'{"data":{"'):
-        if data.endswith(b":[]}}"):
-            start = 10  # After '{"data":{"'
-            end = data.rfind(b'":[]}')
+    #    Pattern: {"data":{"<field_name>":[]}}
+    if data.startswith(b'{"data":{"') and data.endswith(b":[]}}"):
+        start = 10  # After '{"data":{"'
+        end = data.rfind(b'":[]}')
 
-            if end > start:
-                field_name = data[start:end]
-                if b'"' not in field_name:
-                    if len(_NULL_RESPONSE_CACHE) < 100:
-                        _NULL_RESPONSE_CACHE.add(data)
-                    return True
-        elif data.endswith(b":null}}"):
-            start = 10  # After '{"data":{"'
-            end = data.rfind(b'":null}')
+        if end > start:
+            # Extract field name
+            field_name = data[start:end]
 
-            if end > start:
-                field_name = data[start:end]
-                if b'"' not in field_name:
-                    if len(_NULL_RESPONSE_CACHE) < 100:
-                        _NULL_RESPONSE_CACHE.add(data)
-                    return True
+            # Field name should not contain quotes (basic validation)
+            if b'"' not in field_name:
+                # Cache for next time (bounded to prevent unbounded growth)
+                if len(_NULL_RESPONSE_CACHE) < 100:
+                    _NULL_RESPONSE_CACHE.add(data)
+                return True
 
     return False
 
