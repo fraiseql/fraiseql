@@ -59,14 +59,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Enhanced psycopg Connection Pool Configuration**
 - **Optimization**: Improved database connection pool settings for better performance
   - Increased `min_size` from 1 to 2 connections (keeps more connections warm)
-  - Added `max_overflow` support (allows burst capacity beyond base pool size)
-  - Base pool: 20 connections + 10 overflow = 30 total concurrent connections
+  - Better connection pooling for high-concurrency workloads
+  - Base pool: 20 connections (configurable via `database_pool_size`)
 - **Impact**:
-  - ✅ **10-20% improvement** in database connection acquisition
-  - ✅ **Better concurrency** during traffic spikes
+  - ✅ **Improved connection availability** with warmer pool
+  - ✅ **Better performance** for concurrent requests
   - ✅ **Reduced connection overhead** for high-throughput workloads
   - ✅ **Zero functional changes** - purely performance optimization
-- **Configuration**: Uses existing `database_max_overflow` config (default: 10)
+- **Configuration**: Uses existing `database_pool_size` config (default: 20)
 - **Safety**: Fully backward compatible, all existing configurations work unchanged
 
 ## [1.2.2] - 2025-11-04

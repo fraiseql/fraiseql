@@ -222,7 +222,6 @@ def create_fraiseql_app(
                 str(config.database_url),
                 min_size=2,  # Keep 2 connections warm for better performance
                 max_size=config.database_pool_size,
-                max_overflow=config.database_max_overflow,
                 timeout=config.database_pool_timeout,
             )
             set_db_pool(pool)
@@ -248,7 +247,6 @@ def create_fraiseql_app(
                 str(config.database_url),
                 min_size=2,  # Keep 2 connections warm for better performance
                 max_size=config.database_pool_size,
-                max_overflow=config.database_max_overflow,
                 timeout=config.database_pool_timeout,
             )
             set_db_pool(pool)
