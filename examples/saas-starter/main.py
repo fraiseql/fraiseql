@@ -87,11 +87,12 @@ app.register_input_type(ProjectUpdateInput)
 # QUERIES
 # ============================================================================
 
+
 @fraiseql.query
 async def current_organization(info: Info) -> Organization:
     """Get current user's organization."""
     org_id = info.context["organization_id"]
-    org = await info.context.repo.find_one("organizations_view", org_id)
+    org = await info.context.repo.find_one("v_organization", org_id)
     return Organization(**org)
 
 
@@ -99,7 +100,7 @@ async def current_organization(info: Info) -> Organization:
 async def current_user(info: Info) -> User:
     """Get current authenticated user."""
     user_id = info.context["user_id"]
-    user = await info.context.repo.find_one("users_view", user_id)
+    user = await info.context.repo.find_one("v_user", user_id)
     return User(**user)
 
 
@@ -108,9 +109,7 @@ async def team_members(info: Info) -> list[User]:
     """Get all team members in current organization."""
     org_id = info.context["organization_id"]
     users = await info.context.repo.find(
-        "users_view",
-        where={"organization_id": org_id},
-        order_by="created_at"
+        "v_user", where={"fk_organization": org_id}, order_by="created_at"
     )
     return [User(**u) for u in users]
 
@@ -120,10 +119,7 @@ async def projects(info: Info, limit: int = 50) -> list[Project]:
     """Get projects for current organization."""
     org_id = info.context["organization_id"]
     projects = await info.context.repo.find(
-        "projects_view",
-        where={"organization_id": org_id},
-        limit=limit,
-        order_by="-created_at"
+        "v_project", where={"fk_organization": org_id}, limit=limit, order_by="-created_at"
     )
     return [Project(**p) for p in projects]
 
@@ -151,8 +147,7 @@ async def usage_metrics(info: Info) -> UsageMetrics:
     period_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
 
     metrics = await info.context.repo.find_one(
-        "usage_metrics",
-        where={"organization_id": org_id, "period_start": period_start}
+        "usage_metrics", where={"organization_id": org_id, "period_start": period_start}
     )
 
     if not metrics:
@@ -164,7 +159,7 @@ async def usage_metrics(info: Info) -> UsageMetrics:
             projects=0,
             storage=0,
             api_calls=0,
-            seats=1
+            seats=1,
         )
 
     return UsageMetrics(**metrics)
@@ -176,10 +171,7 @@ async def activity_log(info: Info, limit: int = 50) -> list[ActivityLogEntry]:
     org_id = info.context["organization_id"]
 
     entries = await info.context.repo.find(
-        "activity_log",
-        where={"organization_id": org_id},
-        limit=limit,
-        order_by="-created_at"
+        "activity_log", where={"organization_id": org_id}, limit=limit, order_by="-created_at"
     )
 
     return [ActivityLogEntry(**e) for e in entries]
@@ -188,6 +180,7 @@ async def activity_log(info: Info, limit: int = 50) -> list[ActivityLogEntry]:
 # ============================================================================
 # MUTATIONS
 # ============================================================================
+
 
 @fraiseql.mutation
 async def create_project(info: Info, input: ProjectCreateInput) -> Project:
@@ -210,14 +203,11 @@ async def create_project(info: Info, input: ProjectCreateInput) -> Project:
             "owner_id": user_id,
             "status": "active",
             "settings": {},
-        }
+        },
     )
 
     # Track usage
-    await info.context.repo.execute(
-        "SELECT track_usage(%s, 'projects', 1)",
-        [org_id]
-    )
+    await info.context.repo.execute("SELECT track_usage(%s, 'projects', 1)", [org_id])
 
     # Log activity
     await info.context.repo.create(
@@ -229,18 +219,14 @@ async def create_project(info: Info, input: ProjectCreateInput) -> Project:
             "resource": "project",
             "resource_id": project_id,
             "details": {"name": input.name},
-        }
+        },
     )
 
     return await project(info, project_id)
 
 
 @fraiseql.mutation
-async def update_project(
-    info: Info,
-    project_id: UUID,
-    input: ProjectUpdateInput
-) -> Project:
+async def update_project(info: Info, project_id: UUID, input: ProjectUpdateInput) -> Project:
     """Update project (tenant-aware)."""
     org_id = info.context["organization_id"]
     user_id = info.context["user_id"]
@@ -272,7 +258,7 @@ async def update_project(
             "resource": "project",
             "resource_id": project_id,
             "details": update_data,
-        }
+        },
     )
 
     return await project(info, project_id)
@@ -302,17 +288,14 @@ async def delete_project(info: Info, project_id: UUID) -> bool:
             "resource": "project",
             "resource_id": project_id,
             "details": {"name": existing["name"]},
-        }
+        },
     )
 
     return True
 
 
 @fraiseql.mutation
-async def update_organization(
-    info: Info,
-    input: OrganizationUpdateInput
-) -> Organization:
+async def update_organization(info: Info, input: OrganizationUpdateInput) -> Organization:
     """Update organization settings."""
     org_id = info.context["organization_id"]
     user_id = info.context["user_id"]
@@ -337,7 +320,7 @@ async def update_organization(
             "resource": "organization",
             "resource_id": org_id,
             "details": update_data,
-        }
+        },
     )
 
     return await current_organization(info)
@@ -362,6 +345,7 @@ app.register_mutation(update_organization)
 # ============================================================================
 # FASTAPI ROUTES
 # ============================================================================
+
 
 @app.get("/")
 async def root():
@@ -392,6 +376,7 @@ async def health():
 # ============================================================================
 # AUTHENTICATION MIDDLEWARE
 # ============================================================================
+
 
 @app.middleware("http")
 async def add_tenant_context(request: Request, call_next):

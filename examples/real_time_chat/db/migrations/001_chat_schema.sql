@@ -6,8 +6,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For message search
 
 -- Users table
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_user (
+    pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -22,13 +23,14 @@ CREATE TABLE users (
 );
 
 -- Chat rooms/channels
-CREATE TABLE rooms (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tb_room (
+    pk_room INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
     type VARCHAR(20) NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private', 'direct')),
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    fk_owner INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     max_members INTEGER DEFAULT 1000,
     is_active BOOLEAN DEFAULT true,
     settings JSONB DEFAULT '{}',
@@ -37,27 +39,29 @@ CREATE TABLE rooms (
 );
 
 -- Room membership
-CREATE TABLE room_members (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_room_member (
+    pk_room_member INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_room INT NOT NULL REFERENCES tb_room(pk_room) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'moderator', 'member')),
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_muted BOOLEAN DEFAULT false,
     is_banned BOOLEAN DEFAULT false,
     ban_expires_at TIMESTAMP WITH TIME ZONE,
-    UNIQUE(room_id, user_id)
+    UNIQUE(fk_room, fk_user)
 );
 
 -- Messages
-CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_message (
+    pk_message INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_room INT NOT NULL REFERENCES tb_room(pk_room) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     content TEXT NOT NULL,
     message_type VARCHAR(20) DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'system')),
-    parent_message_id UUID REFERENCES messages(id) ON DELETE SET NULL, -- For threading/replies
+    fk_parent_message INT REFERENCES tb_message(pk_message) ON DELETE SET NULL, -- For threading/replies
     edited_at TIMESTAMP WITH TIME ZONE,
     is_deleted BOOLEAN DEFAULT false,
     metadata JSONB DEFAULT '{}', -- For mentions, formatting, etc.
@@ -65,9 +69,10 @@ CREATE TABLE messages (
 );
 
 -- Message attachments
-CREATE TABLE message_attachments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+CREATE TABLE tb_message_attachment (
+    pk_message_attachment INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_message INT NOT NULL REFERENCES tb_message(pk_message) ON DELETE CASCADE,
     filename VARCHAR(255) NOT NULL,
     original_filename VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL,
@@ -81,61 +86,67 @@ CREATE TABLE message_attachments (
 );
 
 -- Message reactions (emojis)
-CREATE TABLE message_reactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_message_reaction (
+    pk_message_reaction INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_message INT NOT NULL REFERENCES tb_message(pk_message) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     emoji VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(message_id, user_id, emoji)
+    UNIQUE(fk_message, fk_user, emoji)
 );
 
 -- Direct message conversations (for 1-on-1 chats)
-CREATE TABLE direct_conversations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    user1_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    user2_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_direct_conversation (
+    pk_direct_conversation INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_room INT NOT NULL REFERENCES tb_room(pk_room) ON DELETE CASCADE,
+    fk_user1 INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
+    fk_user2 INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user1_id, user2_id),
-    CHECK (user1_id < user2_id) -- Ensure consistent ordering
+    UNIQUE(fk_user1, fk_user2),
+    CHECK (fk_user1 < fk_user2) -- Ensure consistent ordering
 );
 
 -- User presence tracking
-CREATE TABLE user_presence (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+CREATE TABLE tb_user_presence (
+    pk_user_presence INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
+    fk_room INT REFERENCES tb_room(pk_room) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL CHECK (status IN ('online', 'away', 'typing')),
     last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     session_id VARCHAR(255),
     metadata JSONB DEFAULT '{}',
-    UNIQUE(user_id, room_id, session_id)
+    UNIQUE(fk_user, fk_room, session_id)
 );
 
 -- Typing indicators
-CREATE TABLE typing_indicators (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_typing_indicator (
+    pk_typing_indicator INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_room INT NOT NULL REFERENCES tb_room(pk_room) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '10 seconds'),
-    UNIQUE(room_id, user_id)
+    UNIQUE(fk_room, fk_user)
 );
 
 -- Message read receipts
-CREATE TABLE message_read_receipts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_message_read_receipt (
+    pk_message_read_receipt INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_message INT NOT NULL REFERENCES tb_message(pk_message) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(message_id, user_id)
+    UNIQUE(fk_message, fk_user)
 );
 
 -- Push notification subscriptions
-CREATE TABLE push_subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE tb_push_subscription (
+    pk_push_subscription INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_user INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     endpoint TEXT NOT NULL,
     keys JSONB NOT NULL,
     user_agent TEXT,
@@ -145,12 +156,13 @@ CREATE TABLE push_subscriptions (
 );
 
 -- Moderation logs
-CREATE TABLE moderation_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    moderator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    target_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+CREATE TABLE tb_moderation_log (
+    pk_moderation_log INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_room INT NOT NULL REFERENCES tb_room(pk_room) ON DELETE CASCADE,
+    fk_moderator INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
+    fk_target_user INT REFERENCES tb_user(pk_user) ON DELETE SET NULL,
+    fk_target_message INT REFERENCES tb_message(pk_message) ON DELETE SET NULL,
     action VARCHAR(50) NOT NULL, -- ban, unban, kick, delete_message, etc.
     reason TEXT,
     duration INTERVAL, -- For temporary actions
@@ -159,27 +171,27 @@ CREATE TABLE moderation_logs (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_messages_room_created ON messages(room_id, created_at DESC);
-CREATE INDEX idx_messages_user ON messages(user_id);
-CREATE INDEX idx_messages_parent ON messages(parent_message_id) WHERE parent_message_id IS NOT NULL;
-CREATE INDEX idx_messages_content_search ON messages USING gin(to_tsvector('english', content)) WHERE is_deleted = false;
+CREATE INDEX idx_tb_message_fk_room_created ON tb_message(fk_room, created_at DESC);
+CREATE INDEX idx_tb_message_fk_user ON tb_message(fk_user);
+CREATE INDEX idx_tb_message_parent ON tb_message(fk_parent_message) WHERE fk_parent_message IS NOT NULL;
+CREATE INDEX idx_tb_message_content_search ON tb_message USING gin(to_tsvector('english', content)) WHERE is_deleted = false;
 
-CREATE INDEX idx_room_members_room ON room_members(room_id) WHERE is_banned = false;
-CREATE INDEX idx_room_members_user ON room_members(user_id);
-CREATE INDEX idx_room_members_last_read ON room_members(room_id, last_read_at);
+CREATE INDEX idx_tb_room_member_fk_room ON tb_room_member(fk_room) WHERE is_banned = false;
+CREATE INDEX idx_tb_room_member_fk_user ON tb_room_member(fk_user);
+CREATE INDEX idx_tb_room_member_last_read ON tb_room_member(fk_room, last_read_at);
 
-CREATE INDEX idx_message_reactions_message ON message_reactions(message_id);
-CREATE INDEX idx_message_reactions_user ON message_reactions(user_id);
+CREATE INDEX idx_tb_message_reaction_fk_message ON tb_message_reaction(fk_message);
+CREATE INDEX idx_tb_message_reaction_fk_user ON tb_message_reaction(fk_user);
 
-CREATE INDEX idx_user_presence_user ON user_presence(user_id);
-CREATE INDEX idx_user_presence_room ON user_presence(room_id) WHERE room_id IS NOT NULL;
-CREATE INDEX idx_user_presence_active ON user_presence(user_id, last_activity) WHERE status = 'online';
+CREATE INDEX idx_tb_user_presence_fk_user ON tb_user_presence(fk_user);
+CREATE INDEX idx_tb_user_presence_fk_room ON tb_user_presence(fk_room) WHERE fk_room IS NOT NULL;
+CREATE INDEX idx_tb_user_presence_active ON tb_user_presence(fk_user, last_activity) WHERE status = 'online';
 
-CREATE INDEX idx_typing_indicators_room ON typing_indicators(room_id) WHERE expires_at > CURRENT_TIMESTAMP;
-CREATE INDEX idx_typing_indicators_expires ON typing_indicators(expires_at);
+CREATE INDEX idx_tb_typing_indicator_fk_room ON tb_typing_indicator(fk_room) WHERE expires_at > CURRENT_TIMESTAMP;
+CREATE INDEX idx_tb_typing_indicator_expires ON tb_typing_indicator(expires_at);
 
-CREATE INDEX idx_message_read_receipts_message ON message_read_receipts(message_id);
-CREATE INDEX idx_message_read_receipts_user ON message_read_receipts(user_id);
+CREATE INDEX idx_tb_message_read_receipt_fk_message ON tb_message_read_receipt(fk_message);
+CREATE INDEX idx_tb_message_read_receipt_fk_user ON tb_message_read_receipt(fk_user);
 
 -- Update timestamp triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -190,13 +202,13 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+CREATE TRIGGER update_tb_user_updated_at BEFORE UPDATE ON tb_user
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_rooms_updated_at BEFORE UPDATE ON rooms
+CREATE TRIGGER update_tb_room_updated_at BEFORE UPDATE ON tb_room
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_push_subscriptions_updated_at BEFORE UPDATE ON push_subscriptions
+CREATE TRIGGER update_tb_push_subscription_updated_at BEFORE UPDATE ON tb_push_subscription
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Notification triggers for real-time subscriptions
@@ -207,9 +219,9 @@ BEGIN
         'message_event',
         json_build_object(
             'event', TG_OP,
-            'room_id', COALESCE(NEW.room_id, OLD.room_id),
+            'room_id', COALESCE(NEW.fk_room, OLD.fk_room),
             'message_id', COALESCE(NEW.id, OLD.id),
-            'user_id', COALESCE(NEW.user_id, OLD.user_id),
+            'user_id', COALESCE(NEW.fk_user, OLD.fk_user),
             'timestamp', CURRENT_TIMESTAMP
         )::text
     );
@@ -218,7 +230,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER message_event_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON messages
+    AFTER INSERT OR UPDATE OR DELETE ON tb_message
     FOR EACH ROW EXECUTE FUNCTION notify_message_event();
 
 -- Typing indicator notification
@@ -229,8 +241,8 @@ BEGIN
         'typing_event',
         json_build_object(
             'event', TG_OP,
-            'room_id', COALESCE(NEW.room_id, OLD.room_id),
-            'user_id', COALESCE(NEW.user_id, OLD.user_id),
+            'room_id', COALESCE(NEW.fk_room, OLD.fk_room),
+            'user_id', COALESCE(NEW.fk_user, OLD.fk_user),
             'timestamp', CURRENT_TIMESTAMP
         )::text
     );
@@ -239,7 +251,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER typing_event_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON typing_indicators
+    AFTER INSERT OR UPDATE OR DELETE ON tb_typing_indicator
     FOR EACH ROW EXECUTE FUNCTION notify_typing_event();
 
 -- User presence notification
@@ -250,8 +262,8 @@ BEGIN
         'presence_event',
         json_build_object(
             'event', TG_OP,
-            'user_id', COALESCE(NEW.user_id, OLD.user_id),
-            'room_id', COALESCE(NEW.room_id, OLD.room_id),
+            'user_id', COALESCE(NEW.fk_user, OLD.fk_user),
+            'room_id', COALESCE(NEW.fk_room, OLD.fk_room),
             'status', COALESCE(NEW.status, OLD.status),
             'timestamp', CURRENT_TIMESTAMP
         )::text
@@ -261,7 +273,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER presence_event_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON user_presence
+    AFTER INSERT OR UPDATE OR DELETE ON tb_user_presence
     FOR EACH ROW EXECUTE FUNCTION notify_presence_event();
 
 -- Cleanup functions

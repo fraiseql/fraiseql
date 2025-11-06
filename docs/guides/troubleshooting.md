@@ -306,7 +306,7 @@ lsof -i :8000
 - 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
 - 🔍 Search [existing issues](../issues)
 - 💬 Ask in [GitHub Discussions](../discussions)
-- 📧 File a [new issue](../issues/new) with your error message
+- 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
 - [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns

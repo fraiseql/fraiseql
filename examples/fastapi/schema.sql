@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
-CREATE TABLE tb_users (
+CREATE TABLE tb_user (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -15,11 +15,11 @@ CREATE TABLE tb_users (
 );
 
 -- Projects table
-CREATE TABLE tb_projects (
+CREATE TABLE tb_project (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    owner_id INT NOT NULL REFERENCES tb_users(id) ON DELETE CASCADE,
+    fk_user INT NOT NULL REFERENCES tb_user(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'completed')),
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -28,12 +28,12 @@ CREATE TABLE tb_projects (
 -- Tasks table
 CREATE TABLE tb_tasks (
     id SERIAL PRIMARY KEY,
-    project_id INT NOT NULL REFERENCES tb_projects(id) ON DELETE CASCADE,
+    fk_project INT NOT NULL REFERENCES tb_project(id) ON DELETE CASCADE,
     title VARCHAR(500) NOT NULL,
     description TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'completed', 'blocked')),
     priority VARCHAR(50) NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-    assignee_id INT REFERENCES tb_users(id) ON DELETE SET NULL,
+    fk_assignee INT REFERENCES tb_user(id) ON DELETE SET NULL,
     due_date TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -41,17 +41,17 @@ CREATE TABLE tb_tasks (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_projects_owner ON tb_projects(owner_id);
-CREATE INDEX idx_projects_status ON tb_projects(status) WHERE status != 'archived';
-CREATE INDEX idx_tasks_project ON tb_tasks(project_id);
-CREATE INDEX idx_tasks_assignee ON tb_tasks(assignee_id);
+CREATE INDEX idx_tb_project_fk_user ON tb_project(fk_user);
+CREATE INDEX idx_tb_project_status ON tb_project(status) WHERE status != 'archived';
+CREATE INDEX idx_tb_task_fk_project ON tb_tasks(fk_project);
+CREATE INDEX idx_tb_task_fk_assignee ON tb_tasks(fk_assignee);
 CREATE INDEX idx_tasks_status ON tb_tasks(status);
 CREATE INDEX idx_tasks_priority ON tb_tasks(priority) WHERE priority IN ('high', 'urgent');
 CREATE INDEX idx_tasks_due_date ON tb_tasks(due_date) WHERE due_date IS NOT NULL AND status != 'completed';
 
 -- Composite indexes for common queries
-CREATE INDEX idx_tasks_project_status ON tb_tasks(project_id, status);
-CREATE INDEX idx_tasks_assignee_status ON tb_tasks(assignee_id, status) WHERE assignee_id IS NOT NULL;
+CREATE INDEX idx_tb_task_fk_project_status ON tb_tasks(fk_project, status);
+CREATE INDEX idx_tb_task_fk_assignee_status ON tb_tasks(fk_assignee, status) WHERE fk_assignee IS NOT NULL;
 
 -- Views for GraphQL queries
 
@@ -63,32 +63,32 @@ SELECT
     avatar_url,
     created_at,
     updated_at
-FROM tb_users;
+FROM tb_user;
 
 CREATE VIEW v_projects AS
 SELECT
     p.id,
     p.name,
     p.description,
-    p.owner_id,
+    p.fk_user as owner_id,
     p.status,
     p.created_at,
     p.updated_at,
     u.name as owner_name,
-    (SELECT COUNT(*) FROM tb_tasks WHERE project_id = p.id) as task_count,
-    (SELECT COUNT(*) FROM tb_tasks WHERE project_id = p.id AND status = 'completed') as completed_count
-FROM tb_projects p
-LEFT JOIN tb_users u ON p.owner_id = u.id;
+    (SELECT COUNT(*) FROM tb_tasks WHERE fk_project = p.id) as task_count,
+    (SELECT COUNT(*) FROM tb_tasks WHERE fk_project = p.id AND status = 'completed') as completed_count
+FROM tb_project p
+LEFT JOIN tb_user u ON p.fk_user = u.id;
 
 CREATE VIEW v_tasks AS
 SELECT
     t.id,
-    t.project_id,
+    t.fk_project,
     t.title,
     t.description,
     t.status,
     t.priority,
-    t.assignee_id,
+    t.fk_assignee,
     t.due_date,
     t.completed_at,
     t.created_at,
@@ -96,8 +96,8 @@ SELECT
     p.name as project_name,
     u.name as assignee_name
 FROM tb_tasks t
-LEFT JOIN tb_projects p ON t.project_id = p.id
-LEFT JOIN tb_users u ON t.assignee_id = u.id;
+LEFT JOIN tb_project p ON t.fk_project = p.id
+LEFT JOIN tb_user u ON t.fk_assignee = u.id;
 
 -- PostgreSQL Functions for Mutations
 
@@ -105,29 +105,29 @@ LEFT JOIN tb_users u ON t.assignee_id = u.id;
 CREATE OR REPLACE FUNCTION fn_create_project(
     p_name VARCHAR(255),
     p_description TEXT,
-    p_owner_id INT
+    p_fk_user INT
 )
 RETURNS TABLE(
     id INT,
     name VARCHAR(255),
     description TEXT,
-    owner_id INT,
+    fk_user INT,
     status VARCHAR(50),
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
-    INSERT INTO tb_projects (name, description, owner_id)
-    VALUES (p_name, p_description, p_owner_id)
+    INSERT INTO tb_project (name, description, fk_user)
+    VALUES (p_name, p_description, p_fk_user)
     RETURNING
-        tb_projects.id,
-        tb_projects.name,
-        tb_projects.description,
-        tb_projects.owner_id,
-        tb_projects.status,
-        tb_projects.created_at,
-        tb_projects.updated_at;
+        tb_project.id,
+        tb_project.name,
+        tb_project.description,
+        tb_project.fk_user,
+        tb_project.status,
+        tb_project.created_at,
+        tb_project.updated_at;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -142,49 +142,49 @@ RETURNS TABLE(
     id INT,
     name VARCHAR(255),
     description TEXT,
-    owner_id INT,
+    fk_user INT,
     status VARCHAR(50),
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
-    UPDATE tb_projects
+    UPDATE tb_project
     SET
-        name = COALESCE(p_name, tb_projects.name),
-        description = COALESCE(p_description, tb_projects.description),
-        status = COALESCE(p_status, tb_projects.status),
+        name = COALESCE(p_name, tb_project.name),
+        description = COALESCE(p_description, tb_project.description),
+        status = COALESCE(p_status, tb_project.status),
         updated_at = NOW()
-    WHERE tb_projects.id = p_id
+    WHERE tb_project.id = p_id
     RETURNING
-        tb_projects.id,
-        tb_projects.name,
-        tb_projects.description,
-        tb_projects.owner_id,
-        tb_projects.status,
-        tb_projects.created_at,
-        tb_projects.updated_at;
+        tb_project.id,
+        tb_project.name,
+        tb_project.description,
+        tb_project.fk_user,
+        tb_project.status,
+        tb_project.created_at,
+        tb_project.updated_at;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Create a new task
 CREATE OR REPLACE FUNCTION fn_create_task(
-    p_project_id INT,
+    p_fk_project INT,
     p_title VARCHAR(500),
     p_description TEXT DEFAULT NULL,
     p_priority VARCHAR(50) DEFAULT 'medium',
     p_status VARCHAR(50) DEFAULT 'todo',
-    p_assignee_id INT DEFAULT NULL,
+    p_fk_assignee INT DEFAULT NULL,
     p_due_date TIMESTAMP DEFAULT NULL
 )
 RETURNS TABLE(
     id INT,
-    project_id INT,
+    fk_project INT,
     title VARCHAR(500),
     description TEXT,
     status VARCHAR(50),
     priority VARCHAR(50),
-    assignee_id INT,
+    fk_assignee INT,
     due_date TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP,
@@ -192,16 +192,16 @@ RETURNS TABLE(
 ) AS $$
 BEGIN
     RETURN QUERY
-    INSERT INTO tb_tasks (project_id, title, description, priority, status, assignee_id, due_date)
-    VALUES (p_project_id, p_title, p_description, p_priority, p_status, p_assignee_id, p_due_date)
+    INSERT INTO tb_tasks (fk_project, title, description, priority, status, fk_assignee, due_date)
+    VALUES (p_fk_project, p_title, p_description, p_priority, p_status, p_fk_assignee, p_due_date)
     RETURNING
         tb_tasks.id,
-        tb_tasks.project_id,
+        tb_tasks.fk_project,
         tb_tasks.title,
         tb_tasks.description,
         tb_tasks.status,
         tb_tasks.priority,
-        tb_tasks.assignee_id,
+        tb_tasks.fk_assignee,
         tb_tasks.due_date,
         tb_tasks.completed_at,
         tb_tasks.created_at,
@@ -216,17 +216,17 @@ CREATE OR REPLACE FUNCTION fn_update_task(
     p_description TEXT DEFAULT NULL,
     p_status VARCHAR(50) DEFAULT NULL,
     p_priority VARCHAR(50) DEFAULT NULL,
-    p_assignee_id INT DEFAULT NULL,
+    p_fk_assignee INT DEFAULT NULL,
     p_due_date TIMESTAMP DEFAULT NULL
 )
 RETURNS TABLE(
     id INT,
-    project_id INT,
+    fk_project INT,
     title VARCHAR(500),
     description TEXT,
     status VARCHAR(50),
     priority VARCHAR(50),
-    assignee_id INT,
+    fk_assignee INT,
     due_date TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP,
@@ -247,9 +247,9 @@ BEGIN
         description = COALESCE(p_description, tb_tasks.description),
         status = new_status,
         priority = COALESCE(p_priority, tb_tasks.priority),
-        assignee_id = CASE
-            WHEN p_assignee_id IS NULL AND p_assignee_id IS NOT DISTINCT FROM NULL THEN tb_tasks.assignee_id
-            ELSE p_assignee_id
+        fk_assignee = CASE
+            WHEN p_fk_assignee IS NULL AND p_fk_assignee IS NOT DISTINCT FROM NULL THEN tb_tasks.fk_assignee
+            ELSE p_fk_assignee
         END,
         due_date = CASE
             WHEN p_due_date IS NULL AND p_due_date IS NOT DISTINCT FROM NULL THEN tb_tasks.due_date
@@ -281,16 +281,16 @@ $$ LANGUAGE plpgsql;
 -- Assign a task to a user
 CREATE OR REPLACE FUNCTION fn_assign_task(
     p_task_id INT,
-    p_user_id INT
+    p_fk_user INT
 )
 RETURNS TABLE(
     id INT,
-    project_id INT,
+    fk_project INT,
     title VARCHAR(500),
     description TEXT,
     status VARCHAR(50),
     priority VARCHAR(50),
-    assignee_id INT,
+    fk_assignee INT,
     due_date TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP,
@@ -300,17 +300,17 @@ BEGIN
     RETURN QUERY
     UPDATE tb_tasks
     SET
-        assignee_id = p_user_id,
+        fk_assignee = p_fk_user,
         updated_at = NOW()
     WHERE tb_tasks.id = p_task_id
     RETURNING
         tb_tasks.id,
-        tb_tasks.project_id,
+        tb_tasks.fk_project,
         tb_tasks.title,
         tb_tasks.description,
         tb_tasks.status,
         tb_tasks.priority,
-        tb_tasks.assignee_id,
+        tb_tasks.fk_assignee,
         tb_tasks.due_date,
         tb_tasks.completed_at,
         tb_tasks.created_at,
@@ -328,19 +328,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Sample data
-INSERT INTO tb_users (name, email, avatar_url) VALUES
+INSERT INTO tb_user (name, email, avatar_url) VALUES
 ('Alice Johnson', 'alice@example.com', 'https://i.pravatar.cc/150?img=1'),
 ('Bob Smith', 'bob@example.com', 'https://i.pravatar.cc/150?img=2'),
 ('Carol Williams', 'carol@example.com', 'https://i.pravatar.cc/150?img=3'),
 ('David Brown', 'david@example.com', 'https://i.pravatar.cc/150?img=4');
 
-INSERT INTO tb_projects (name, description, owner_id, status) VALUES
+INSERT INTO tb_project (name, description, fk_user, status) VALUES
 ('FraiseQL Core', 'Core GraphQL framework development', 1, 'active'),
 ('TurboRouter', 'High-performance query optimization', 2, 'active'),
 ('Documentation', 'Improve docs and examples', 1, 'active'),
 ('Marketing Website', 'Build fraiseql.dev landing page', 3, 'completed');
 
-INSERT INTO tb_tasks (project_id, title, description, status, priority, assignee_id, due_date) VALUES
+INSERT INTO tb_tasks (fk_project, title, description, status, priority, fk_assignee, due_date) VALUES
 (1, 'Implement JSON passthrough', 'Zero-copy JSON handling for better performance', 'completed', 'high', 1, NOW() - INTERVAL '5 days'),
 (1, 'Add support for IPv6 types', 'Support PostgreSQL INET/CIDR types', 'in_progress', 'medium', 2, NOW() + INTERVAL '7 days'),
 (1, 'Write comprehensive tests', 'Achieve 90% code coverage', 'todo', 'medium', NULL, NOW() + INTERVAL '14 days'),

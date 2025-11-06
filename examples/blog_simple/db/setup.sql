@@ -296,10 +296,62 @@ CREATE POLICY comments_visibility ON tb_comment
 -- ==============================================================================
 
 -- Create views that follow Trinity pattern: expose only id (UUID) fields, not pk_/fk_
-CREATE VIEW v_users AS SELECT id, identifier as username, email, password_hash, role, profile_data, created_at, updated_at FROM tb_user;
-CREATE VIEW v_posts AS SELECT id, identifier as slug, title, content, excerpt, status, published_at, created_at, updated_at FROM tb_post;
-CREATE VIEW v_comments AS SELECT id, identifier, content, status, created_at, updated_at FROM tb_comment;
-CREATE VIEW v_tags AS SELECT id, identifier as slug, name, color, description, created_at FROM tb_tag;
+-- Views with UUID relationships exposed (Trinity pattern compliant)
+CREATE VIEW v_users AS
+SELECT
+    id,
+    identifier,
+    username,
+    email,
+    password_hash,
+    role,
+    profile_data,
+    created_at,
+    updated_at
+FROM tb_user;
+
+CREATE VIEW v_posts AS
+SELECT
+    p.id,
+    p.identifier,
+    p.slug,
+    p.title,
+    p.content,
+    p.excerpt,
+    p.status,
+    p.published_at,
+    p.created_at,
+    p.updated_at,
+    u.id AS author_id  -- ✅ UUID relationship from JOIN
+FROM tb_post p
+JOIN tb_user u ON p.fk_author = u.pk_user;
+
+CREATE VIEW v_comments AS
+SELECT
+    c.id,
+    c.identifier,
+    c.content,
+    c.status,
+    c.created_at,
+    c.updated_at,
+    p.id AS post_id,       -- ✅ UUID relationship from JOIN
+    u.id AS author_id,     -- ✅ UUID relationship from JOIN
+    pc.id AS parent_id     -- ✅ UUID relationship from JOIN
+FROM tb_comment c
+JOIN tb_post p ON c.fk_post = p.pk_post
+JOIN tb_user u ON c.fk_author = u.pk_user
+LEFT JOIN tb_comment pc ON c.fk_parent = pc.pk_comment;
+
+CREATE VIEW v_tags AS
+SELECT
+    id,
+    identifier,
+    name,
+    slug,
+    color,
+    description,
+    created_at
+FROM tb_tag;
 
 -- ==============================================================================
 -- PERMISSIONS: Grant basic permissions

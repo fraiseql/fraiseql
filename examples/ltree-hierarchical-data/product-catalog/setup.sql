@@ -4,8 +4,9 @@
 CREATE EXTENSION IF NOT EXISTS ltree;
 
 -- Product catalog table
-CREATE TABLE products (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE tb_product (
+    pk_product INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     description TEXT,
     price DECIMAL(10,2),
@@ -17,15 +18,16 @@ CREATE TABLE products (
 );
 
 -- GiST index for category queries
-CREATE INDEX idx_product_category_path ON products USING GIST (category_path);
+CREATE INDEX idx_tb_product_category_path ON tb_product USING GIST (category_path);
 
 -- Additional indexes for common queries
-CREATE INDEX idx_product_price ON products (price);
-CREATE INDEX idx_product_in_stock ON products (in_stock);
-CREATE INDEX idx_product_category_depth ON products (nlevel(category_path));
+CREATE INDEX idx_tb_product_price ON tb_product (price);
+CREATE INDEX idx_tb_product_in_stock ON tb_product (in_stock);
+CREATE INDEX idx_tb_product_category_depth ON tb_product (nlevel(category_path));
+CREATE INDEX idx_tb_product_id ON tb_product (id);
 
 -- Sample product catalog
-INSERT INTO products (name, description, price, category_path, sku) VALUES
+INSERT INTO tb_product (name, description, price, category_path, sku) VALUES
 -- Electronics
 ('MacBook Pro 16"', 'High-performance laptop for professionals', 2499.99, 'electronics.computers.laptops.apple', 'MBP16-2024'),
 ('Dell XPS 13', 'Ultra-portable laptop with premium build', 1299.99, 'electronics.computers.laptops.dell', 'DXPS13-2024'),
@@ -64,4 +66,4 @@ INSERT INTO products (name, description, price, category_path, sku) VALUES
 ('Theragun Pro', 'Percussion massage device', 599.99, 'fitness.recovery.massagers.theragun', 'THERAGUN-PRO');
 
 -- Analyze for query optimization
-ANALYZE products;
+ANALYZE tb_product;

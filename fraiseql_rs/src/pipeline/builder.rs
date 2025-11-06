@@ -1,22 +1,26 @@
 //! Pipeline response builder for GraphQL responses
 //!
 //! This module provides the high-level API for building complete GraphQL
-//! responses from PostgreSQL JSON rows using the zero-copy transformation engine.
+//! responses from PostgreSQL JSON rows using schema-aware transformation.
 
 use pyo3::prelude::*;
+use serde_json::{json, Value};
 use crate::core::arena::Arena;
 use crate::core::transform::{TransformConfig, ZeroCopyTransformer, ByteBuf};
 use crate::pipeline::projection::FieldSet;
+use crate::json_transform;
+use crate::schema_registry;
 
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
-/// This is the TOP-LEVEL API called from Python:
-/// ```python
-/// response_bytes = fraiseql_rs.build_graphql_response(
-///     json_rows=["{'id':1}", "{'id':2}"],
-///     field_name="users",
-///     typename="User",
-///     field_paths=[["id"], ["firstName"]],
+/// This is the TOP-LEVEL API called from lib.rs (FFI layer):
+/// ```rust
+/// let response_bytes = pipeline::builder::build_graphql_response(
+///     json_rows,
+///     field_name,
+///     type_name,
+///     field_paths,
+///     field_selections,
 /// )
 /// ```
 ///
@@ -45,14 +49,97 @@ use crate::pipeline::projection::FieldSet;
 /// └──────┬───────┘    - Project fields
 ///        │            - Add __typename
 ///        │            - CamelCase keys
+///        │            - Apply aliases
 ///        ▼
 /// ┌──────────────┐
 /// │ HTTP Bytes   │ → Return to Python (zero-copy)
 /// │ (Vec<u8>)    │
 /// └──────────────┘
 ///
-#[pyfunction]
 pub fn build_graphql_response(
+    json_rows: Vec<String>,
+    field_name: &str,
+    type_name: Option<&str>,
+    field_paths: Option<Vec<Vec<String>>>,
+    field_selections: Option<Vec<Value>>,
+) -> PyResult<Vec<u8>> {
+    // Check if schema registry is available for schema-aware transformation
+    let registry = schema_registry::get_registry();
+
+    if let (Some(registry), Some(type_name_str)) = (registry, type_name) {
+        // SCHEMA-AWARE PATH: Use transform_with_selections() for aliases or transform_with_schema()
+        return build_with_schema_awareness(json_rows, field_name, type_name_str, field_paths, field_selections, registry);
+    }
+
+    // FALLBACK PATH: Use zero-copy transformer (original behavior)
+    build_legacy_response(json_rows, field_name, type_name, field_paths)
+}
+
+/// Schema-aware transformation path (NEW)
+///
+/// Uses the schema registry to correctly resolve nested object types and apply aliases.
+/// This fixes Issue #112 where nested JSONB objects had wrong __typename.
+fn build_with_schema_awareness(
+    json_rows: Vec<String>,
+    field_name: &str,
+    type_name: &str,
+    _field_paths: Option<Vec<Vec<String>>>,  // TODO: Implement field projection (deprecated)
+    field_selections: Option<Vec<Value>>,
+    registry: &schema_registry::SchemaRegistry,
+) -> PyResult<Vec<u8>> {
+    // Parse, transform, and serialize each row
+    let transformed_items: Result<Vec<Value>, _> = json_rows
+        .iter()
+        .map(|row_str| {
+            // Parse JSON
+            serde_json::from_str::<Value>(row_str)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+                    format!("Failed to parse JSON: {}", e)
+                ))
+                .map(|value| {
+                    // Transform with schema awareness and optional alias support
+                    if let Some(ref selections) = field_selections {
+                        // Use transform_with_selections for alias support
+                        json_transform::transform_with_selections(&value, type_name, selections, registry)
+                    } else {
+                        // Fallback to transform_with_schema (no aliases)
+                        json_transform::transform_with_schema(&value, type_name, registry)
+                    }
+                })
+        })
+        .collect();
+
+    let transformed_items = transformed_items?;
+
+    // Build GraphQL response structure
+    let response_data = if json_rows.len() == 1 {
+        // Single object
+        json!({
+            "data": {
+                field_name: transformed_items.get(0).cloned().unwrap_or(Value::Null)
+            }
+        })
+    } else {
+        // Array of objects
+        json!({
+            "data": {
+                field_name: transformed_items
+            }
+        })
+    };
+
+    // Serialize to bytes
+    serde_json::to_vec(&response_data)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+            format!("Failed to serialize response: {}", e)
+        ))
+}
+
+/// Legacy zero-copy transformation (FALLBACK)
+///
+/// Used when schema registry is not available or type_name is not provided.
+/// This is the original implementation before schema-aware transformation.
+fn build_legacy_response(
     json_rows: Vec<String>,
     field_name: &str,
     type_name: Option<&str>,

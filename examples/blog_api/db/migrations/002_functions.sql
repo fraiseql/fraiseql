@@ -17,7 +17,7 @@ BEGIN
     END IF;
 
     -- Check if email already exists
-    IF EXISTS (SELECT 1 FROM tb_users WHERE email = input_data->>'email') THEN
+    IF EXISTS (SELECT 1 FROM tb_user WHERE email = input_data->>'email') THEN
         RETURN json_build_object(
             'success', false,
             'error', 'Email already exists'
@@ -25,7 +25,7 @@ BEGIN
     END IF;
 
     -- Insert new user
-    INSERT INTO tb_users (email, name, bio, avatar_url)
+    INSERT INTO tb_user (email, name, bio, avatar_url)
     VALUES (
         input_data->>'email',
         input_data->>'name',

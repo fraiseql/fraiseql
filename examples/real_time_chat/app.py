@@ -214,7 +214,7 @@ async def fetch_message_data(connection, message_id):
     """Fetch full message data for real-time updates"""
     query = """
     SELECT row_to_json(mt.*) as message
-    FROM message_thread mt
+    FROM v_message_thread mt
     WHERE mt.id = $1
     """
     row = await connection.fetchrow(query, message_id)

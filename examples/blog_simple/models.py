@@ -1,19 +1,20 @@
-"""Blog domain models for FraiseQL simple example.
+"""Blog domain models with Trinity Identifiers for FraiseQL example.
 
-This module demonstrates FraiseQL fundamentals:
-- Type definitions with proper annotations
-- Relationship modeling with field resolvers
-- JSONB field usage for flexible data
-- Input validation and mutation patterns
-- Error handling with success/failure types
+This module demonstrates FraiseQL with Trinity pattern:
+- Three-tier ID system (pk_*, id, identifier)
+- Type definitions with Trinity support
+- SERIAL foreign keys for faster joins
+- GraphQL exposes only id and identifier (not pk_*)
 """
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Union
 from uuid import UUID
 
 import fraiseql
+from fraiseql.db import DatabaseQuery
+from fraiseql.patterns import TrinityMixin, get_pk_column_name
 from graphql import GraphQLResolveInfo
 
 
@@ -45,26 +46,28 @@ class CommentStatus(str, Enum):
     REJECTED = "rejected"
 
 
-# Core domain types
-@fraiseql.type(sql_source="tb_user", jsonb_column=None)
-class User:
-    """User with profile and authentication."""
+# Core domain types with Trinity
+@fraiseql.type(sql_source="v_users", jsonb_column=None)
+class User(TrinityMixin):
+    """User with profile and Trinity identifiers.
 
-    pk_user: int
+    Trinity IDs:
+    - pk_user (SERIAL): Internal, fast joins (not exposed)
+    - id (UUID): Public API, secure
+    - identifier (TEXT): URL slug (@username)
+    """
+
+    # Public Trinity IDs (exposed in GraphQL)
     id: UUID
-    identifier: str
+    identifier: str | None  # @username
+
+    # User data
+    username: str
     email: str
-    password_hash: str
     role: UserRole
-    profile_data: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
-
-    # @fraiseql.field
-    # async def posts(self, info: GraphQLResolveInfo) -> list["Post"]:
-    #     """User's posts."""
-    #     db = info.context["db"]
-    #     return await db.find("posts", author_id=self.id, order_by="created_at DESC")
+    profile_data: dict[str, Any] | None
 
     @fraiseql.field
     async def full_name(self, info: GraphQLResolveInfo) -> str | None:
@@ -76,176 +79,150 @@ class User:
                 return f"{first} {last}".strip()
         return None
 
+    @fraiseql.field
+    async def url(self, info: GraphQLResolveInfo) -> str:
+        """User profile URL."""
+        return f"/users/{self.identifier}" if self.identifier else f"/users/{self.id}"
 
-@fraiseql.type(sql_source="tb_post", jsonb_column=None)
-class Post:
-    """Blog post with content and metadata."""
 
-    pk_post: int
+@fraiseql.type(sql_source="v_posts", jsonb_column=None)
+class Post(TrinityMixin):
+    """Blog post with Trinity identifiers.
+
+    Trinity IDs:
+    - pk_post (SERIAL): Internal, fast joins (not exposed)
+    - id (UUID): Public API, secure
+    - identifier (TEXT): URL slug (post-title)
+
+    Foreign Keys:
+    - fk_author (SERIAL): Fast join to users
+    """
+
+    # Public Trinity IDs (exposed in GraphQL)
     id: UUID
-    identifier: str
+    identifier: str | None  # post-slug
+
+    # Post data
     title: str
+    slug: str
     content: str
     excerpt: str | None
-    fk_author: int
     status: PostStatus
     published_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    author_id: UUID  # ✅ UUID relationship from view
 
     @fraiseql.field
-    async def author(self, info: GraphQLResolveInfo) -> User | None:
-        """Post author."""
+    async def author(self, info: GraphQLResolveInfo) -> User:
+        """Post author resolved via UUID from view."""
         db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
+        # ✅ View exposes author_id (UUID) - no pk_ mapping needed
+        return await db.find_one("v_users", id=self.author_id)
 
-        query = DatabaseQuery("SELECT * FROM tb_user WHERE pk_user = %s", [self.fk_author])
-        result = await db.run(query)
-        if result:
-            return User(**result[0])
-        return None
-
-    # @fraiseql.field
-    # async def tags(self, info: GraphQLResolveInfo) -> list["Tag"]:
-    #     """Post tags."""
-    #     db = info.context["db"]
-    #     # Join through post_tags table
-    #     result = await db.execute(
-    #         """
-    #         SELECT t.* FROM tags t
-    #         JOIN post_tags pt ON t.id = pt.tag_id
-    #         WHERE pt.post_id = %s
-    #     """,
-    #         [self.id],
-    #     )
-    #     return [Tag(**row) for row in result]
-
-    # @fraiseql.field
-    # async def comments(self, info: GraphQLResolveInfo) -> list["Comment"]:
-    #     """Post comments."""
-    #     db = info.context["db"]
-    #     return await db.find("comments", post_id=self.id, status=CommentStatus.APPROVED)
+    @fraiseql.field
+    async def url(self, info: GraphQLResolveInfo) -> str:
+        """Post URL."""
+        return f"/posts/{self.identifier}" if self.identifier else f"/posts/{self.id}"
 
     @fraiseql.field
     async def comment_count(self, info: GraphQLResolveInfo) -> int:
         """Number of approved comments."""
         db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
 
+        # ✅ CORRECT: Use UUID with JOIN (no pk_ exposure)
         query = DatabaseQuery(
-            "SELECT COUNT(*) as count FROM comments WHERE post_id = %s AND status = %s",
-            [self.id, CommentStatus.APPROVED],
+            """
+            SELECT COUNT(*) as count FROM comments c
+            JOIN posts p ON c.fk_post = p.pk_post
+            WHERE p.id = %s AND c.status = %s
+            """,
+            [str(self.id), CommentStatus.APPROVED.value],
         )
         result = await db.run(query)
         return result[0]["count"] if result else 0
 
 
-@fraiseql.type(sql_source="tb_comment", jsonb_column=None)
-class Comment:
-    """Comment with threading support."""
+@fraiseql.type(sql_source="v_comments", jsonb_column=None)
+class Comment(TrinityMixin):
+    """Comment with Trinity identifiers.
 
-    pk_comment: int
+    Trinity IDs:
+    - pk_comment (SERIAL): Internal, fast joins (not exposed)
+    - id (UUID): Public API, secure
+
+    Foreign Keys:
+    - fk_post (SERIAL): Fast join to posts
+    - fk_author (SERIAL): Fast join to users
+    - fk_parent (SERIAL): Fast join to parent comment
+    """
+
+    # Public Trinity IDs (exposed in GraphQL)
     id: UUID
-    identifier: str | None
-    fk_post: int
-    fk_author: int
-    fk_parent: int | None
+
+    # Comment data
     content: str
     status: CommentStatus
     created_at: datetime
     updated_at: datetime
+    post_id: UUID      # ✅ UUID relationship from view
+    author_id: UUID    # ✅ UUID relationship from view
+    parent_id: UUID | None  # ✅ UUID relationship from view
 
     @fraiseql.field
-    async def author(self, info: GraphQLResolveInfo) -> User | None:
-        """Comment author."""
+    async def author(self, info: GraphQLResolveInfo) -> User:
+        """Comment author resolved via UUID from view."""
         db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
-
-        query = DatabaseQuery("SELECT * FROM tb_user WHERE pk_user = %s", [self.fk_author])
-        result = await db.run(query)
-        if result:
-            return User(**result[0])
-        return None
-
-    @fraiseql.field
-    async def post(self, info: GraphQLResolveInfo) -> Post | None:
-        """Comment's post."""
-        db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
-
-        query = DatabaseQuery("SELECT * FROM tb_post WHERE pk_post = %s", [self.fk_post])
-        result = await db.run(query)
-        if result:
-            return Post(**result[0])
-        return None
+        # ✅ View exposes author_id (UUID) - no pk_ mapping needed
+        return await db.find_one("v_users", id=self.author_id)
 
     @fraiseql.field
     async def post(self, info: GraphQLResolveInfo) -> Post:
-        """Comment's post."""
+        """Comment's post resolved via UUID from view."""
         db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
-
-        query = DatabaseQuery("SELECT * FROM tb_post WHERE pk_post = %s", [self.fk_post])
-        result = await db.run(query)
-        if result:
-            return Post(**result[0])
-        return None
-
-    # @fraiseql.field
-    # async def parent(self, info: GraphQLResolveInfo) -> "Comment" | None:
-    #     """Parent comment if reply."""
-    #     if not self.parent_id:
-    #         return None
-    #     db = info.context["db"]
-    #     return await db.find_one("comments", id=self.parent_id)
-
-    # @fraiseql.field
-    # async def replies(self, info: GraphQLResolveInfo) -> list["Comment"]:
-    #     """Replies to this comment."""
-    #     db = info.context["db"]
-    #     return await db.find("comments", parent_id=self.id, status=CommentStatus.APPROVED)
+        # ✅ View exposes post_id (UUID) - no pk_ mapping needed
+        return await db.find_one("v_posts", id=self.post_id)
 
 
-@fraiseql.type(sql_source="tb_tag", jsonb_column=None)
-class Tag:
-    """Content tag/category."""
+@fraiseql.type(sql_source="v_tags", jsonb_column=None)
+class Tag(TrinityMixin):
+    """Content tag with Trinity identifiers.
 
-    pk_tag: int
+    Trinity IDs:
+    - pk_tag (SERIAL): Internal, fast joins (not exposed)
+    - id (UUID): Public API, secure
+    - identifier (TEXT): URL slug (tag-name)
+    """
+
+    # Public Trinity IDs (exposed in GraphQL)
     id: UUID
-    identifier: str
+    identifier: str | None  # tag-slug
+
+    # Tag data
     name: str
+    slug: str
     color: str | None
     description: str | None
-    created_at: datetime
 
-    # @fraiseql.field
-    # async def posts(self, info: GraphQLResolveInfo) -> list["Post"]:
-    #     """Posts with this tag."""
-    #     db = info.context["db"]
-    #     result = await db.execute(
-    #         """
-    #         SELECT p.* FROM posts p
-    #         JOIN post_tags pt ON p.id = pt.post_id
-    #         WHERE pt.tag_id = %s AND p.status = %s
-    #         ORDER BY p.created_at DESC
-    #     """,
-    #         [self.id, PostStatus.PUBLISHED],
-    #     )
-    #     return [Post(**row) for row in result]
+    @fraiseql.field
+    async def url(self, info: GraphQLResolveInfo) -> str:
+        """Tag URL."""
+        return f"/tags/{self.identifier}" if self.identifier else f"/tags/{self.id}"
 
     @fraiseql.field
     async def post_count(self, info: GraphQLResolveInfo) -> int:
         """Number of published posts with this tag."""
         db = info.context["db"]
-        from fraiseql.db import DatabaseQuery
 
+        # ✅ CORRECT: Use UUID with JOIN (no pk_ exposure)
         query = DatabaseQuery(
             """
             SELECT COUNT(*) as count FROM posts p
-            JOIN post_tags pt ON p.id = pt.post_id
-            WHERE pt.tag_id = %s AND p.status = %s
-        """,
-            [self.id, PostStatus.PUBLISHED],
+            JOIN post_tags pt ON p.pk_post = pt.pk_post
+            JOIN tags t ON pt.fk_tag = t.pk_tag
+            WHERE t.id = %s AND p.status = %s
+            """,
+            [str(self.id), PostStatus.PUBLISHED.value],
         )
         result = await db.run(query)
         return result[0]["count"] if result else 0
@@ -277,9 +254,9 @@ class UpdatePostInput:
 class CreateCommentInput:
     """Input for creating a comment."""
 
-    post_id: UUID
+    post_id: UUID  # Public UUID (will be converted to fk_post)
     content: str
-    parent_id: UUID | None = None
+    parent_id: UUID | None = None  # Public UUID (will be converted to fk_parent)
 
 
 @fraiseql.input
@@ -300,25 +277,6 @@ class CreateUserInput:
     password: str
     role: UserRole = UserRole.USER
     profile_data: dict[str, Any] | None = None
-
-
-# Filter inputs
-@fraiseql.input
-class PostWhereInput:
-    """Filter posts by various criteria."""
-
-    status: PostStatus | None = None
-    author_id: UUID | None = None
-    title_contains: str | None = None
-    tag_ids: list[UUID] | None = None
-
-
-@fraiseql.input
-class PostOrderByInput:
-    """Order posts by field and direction."""
-
-    field: str = "created_at"
-    direction: str = "DESC"
 
 
 # Success result types
@@ -391,154 +349,92 @@ class PermissionError:
     required_role: str | None = None
 
 
-@fraiseql.failure
-class BlogError:
-    """Generic blog operation error."""
-
-    message: str
-    code: str
-    entity_type: str | None = None
-    entity_id: UUID | None = None
-    field_errors: list[dict[str, str]] | None = None
-    required_role: str | None = None
-
-
-# Mutation classes (following printoptim pattern: database functions handle validation)
+# Mutation classes with Trinity support
 @fraiseql.mutation
 class CreatePost:
     """Create a new blog post."""
 
     input: CreatePostInput
     success: CreatePostSuccess
-    failure: BlogError
+    failure: Union[ValidationError, PermissionError]
 
     async def resolve(
         self, info: GraphQLResolveInfo
-    ) -> CreatePostSuccess | BlogError:
+    ) -> Union[CreatePostSuccess, ValidationError, PermissionError]:
         db = info.context["db"]
-        user_id = info.context["user_id"]
+        user_id = info.context["user_id"]  # ✅ CORRECT: Get UUID from context
+
+        if not user_id:
+            return PermissionError(message="Authentication required")
 
         try:
-            # Generate slug from title
-            slug = self.input.title.lower().replace(" ", "-").replace("_", "-")
-
-            # Create post
-            post_data = {
+            # ✅ Use database function that handles UUID → pk mapping
+            payload = {
                 "title": self.input.title,
-                "slug": slug,
                 "content": self.input.content,
-                "excerpt": self.input.excerpt or self.input.content[:200],
-                "author_id": user_id,
-                "status": PostStatus.DRAFT,
+                "excerpt": self.input.excerpt,
+                "status": PostStatus.DRAFT.value,
             }
 
-            post_id = await db.insert("posts", post_data, returning="id")
+            # Call database function with UUID (function maps to pk internally)
+            result = await db.execute_function("create_post", {
+                "input_user_id": str(user_id),
+                "input_payload": payload
+            })
 
-            # Add tags if provided
+            # Check for errors returned by database function
+            if result.get("status", "").startswith("error:") or result.get("status", "").startswith("noop:"):
+                return ValidationError(message=result.get("message", "Failed to create post"))
+
+            post_id = result.get("id")
+
+            # Add tags if provided (TODO: create add_tags_to_post function)
             if self.input.tag_ids:
+                from fraiseql.db import DatabaseQuery
                 for tag_id in self.input.tag_ids:
-                    await db.insert("post_tags", {"post_id": post_id, "tag_id": tag_id})
+                    tag_query = DatabaseQuery(
+                        """
+                        INSERT INTO tb_post_tag (fk_post, fk_tag)
+                        SELECT p.pk_post, t.pk_tag
+                        FROM tb_post p, tb_tag t
+                        WHERE p.id = %s AND t.id = %s
+                        """,
+                        [str(post_id), str(tag_id)],
+                    )
+                    await db.run(tag_query)
 
-            # Return created post
-            post = await db.find_one("posts", id=post_id)
-            return CreatePostSuccess(post=Post(**post))
+            # Return created post by UUID
+            post = await db.find_one("v_posts", id=post_id)
+            return CreatePostSuccess(post=post)
 
         except Exception as e:
-            return BlogError(message=f"Failed to create post: {e!s}", code="VALIDATION_ERROR")
-
-
-@fraiseql.mutation(
-    function="update_post",
-    context_params={
-        "user_id": "input_user_id",
-    },
-    error_config=fraiseql.DEFAULT_ERROR_CONFIG,
-)
-class UpdatePost:
-    """Update an existing blog post.
-
-    Following printoptim pattern:
-    - SQL function handles all validation (existence, ownership)
-    - Returns mutation_result with status codes:
-      - 'success:updated' -> UpdatePostSuccess
-      - 'noop:not_found' -> BlogError (post not found)
-      - 'error:permission_denied' -> BlogError (not post owner)
-    """
-
-    id: UUID  # Maps to input_post_id
-    input: UpdatePostInput  # Maps to input_payload (converted to JSONB)
-    success: UpdatePostSuccess
-    failure: BlogError
-
-    # No resolve method - SQL function handles everything
-
-
-@fraiseql.mutation(
-    function="create_comment",
-    context_params={
-        "user_id": "input_user_id",
-    },
-    error_config=fraiseql.DEFAULT_ERROR_CONFIG,
-)
-class CreateComment:
-    """Create a comment on a blog post.
-
-    Following printoptim pattern:
-    - SQL function handles all validation (post existence, user existence)
-    - Returns mutation_result with status codes:
-      - 'success:created' -> CreateCommentSuccess
-      - 'noop:not_found' -> BlogError (post not found)
-      - 'noop:user_not_found' -> BlogError (user not found)
-    """
-
-    input: CreateCommentInput  # Maps to input_payload (contains post_id, content, parent_id)
-    success: CreateCommentSuccess
-    failure: BlogError
-
-    # No resolve method - SQL function handles everything
+            return ValidationError(message=f"Failed to create post: {e!s}")
 
 
 # Query resolvers
 @fraiseql.query
 async def posts(
     info: GraphQLResolveInfo,
-    where: PostWhereInput | None = None,
-    order_by: list[PostOrderByInput | None] = None,
+    status: PostStatus | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Post]:
     """Query posts with filtering and pagination."""
     db = info.context["db"]
 
-    # Build WHERE clause
+    # Build query with SERIAL joins (fast)
     where_conditions = []
     params = []
 
-    if where:
-        if where.status:
-            where_conditions.append("status = %s")
-            params.append(where.status)
-        if where.author_id:
-            where_conditions.append("fk_author = %s")
-            params.append(where.author_id)
-        if where.title_contains:
-            where_conditions.append("title ILIKE %s")
-            params.append(f"%{where.title_contains}%")
+    if status:
+        where_conditions.append("status = %s")
+        params.append(status.value)
 
-    # Build ORDER BY clause
-    order_clause = "created_at DESC"
-    if order_by:
-        order_parts = []
-        for order in order_by:
-            order_parts.append(f"{order.field} {order.direction}")
-        order_clause = ", ".join(order_parts)
-
-    # Build query
     where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
     query = f"""
-        SELECT * FROM tb_post
+        SELECT * FROM v_posts
         WHERE {where_clause}
-        ORDER BY {order_clause}
+        ORDER BY created_at DESC
         LIMIT %s OFFSET %s
     """
     params.extend([limit, offset])
@@ -552,43 +448,78 @@ async def posts(
 
 @fraiseql.query
 async def post(
-    info: GraphQLResolveInfo, id: UUID | None = None, slug: str | None = None
+    info: GraphQLResolveInfo,
+    id: UUID | None = None,
+    identifier: str | None = None,
 ) -> Post | None:
-    """Get a single post by ID or slug."""
+    """Get a single post by UUID id or text identifier."""
     db = info.context["db"]
 
     if id:
-        result = await db.find_one("posts", id=id)
-    elif slug:
-        result = await db.find_one("posts", slug=slug)
+        result = await db.find_one("v_posts", id=id)
+    elif identifier:
+        result = await db.find_one("v_posts", identifier=identifier)
     else:
         return None
 
-    return result  # Repository already returns instantiated Post object or None
+    return result
+
+
+@fraiseql.query
+async def user(
+    info: GraphQLResolveInfo,
+    id: UUID | None = None,
+    identifier: str | None = None,
+) -> User | None:
+    """Get a single user by UUID id or text identifier."""
+    db = info.context["db"]
+
+    if id:
+        result = await db.find_one("v_users", id=id)
+    elif identifier:
+        result = await db.find_one("v_users", identifier=identifier)
+    else:
+        return None
+
+    return result
+
+
+@fraiseql.query
+async def tag(
+    info: GraphQLResolveInfo,
+    id: UUID | None = None,
+    identifier: str | None = None,
+) -> Tag | None:
+    """Get a single tag by UUID id or text identifier."""
+    db = info.context["db"]
+
+    if id:
+        result = await db.find_one("v_tags", id=id)
+    elif identifier:
+        result = await db.find_one("v_tags", identifier=identifier)
+    else:
+        return None
+
+    return result
 
 
 @fraiseql.query
 async def tags(info: GraphQLResolveInfo, limit: int = 50) -> list[Tag]:
     """Get all tags."""
     db = info.context["db"]
-
-    from fraiseql.db import DatabaseQuery
-    from psycopg.sql import SQL
-
-    query = DatabaseQuery(SQL("SELECT * FROM tb_tag ORDER BY name ASC LIMIT %s"), [limit])
-    result = await db.run(query)
-    return [Tag(**row) for row in result]
+    result = await db.find("v_tags", limit=limit, order_by="name ASC")
+    return result
 
 
 @fraiseql.query
 async def users(info: GraphQLResolveInfo, limit: int = 20) -> list[User]:
     """Get users (admin only)."""
     db = info.context["db"]
-    result = await db.find("users", limit=limit, order_by="created_at DESC")
-    return result  # Repository already returns instantiated User objects
+    result = await db.find("v_users", limit=limit, order_by="created_at DESC")
+    return result
 
 
 # Export collections for app registration
 BLOG_TYPES = [User, Post, Comment, Tag, UserRole, PostStatus, CommentStatus]
-BLOG_MUTATIONS = [CreatePost, UpdatePost, CreateComment]
-BLOG_QUERIES = [posts, post, tags, users]
+BLOG_MUTATIONS = [CreatePost]
+BLOG_QUERIES = [posts, post, user, tag, tags, users]

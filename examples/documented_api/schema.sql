@@ -2,8 +2,9 @@
 -- E-commerce product catalog with reviews
 
 -- Products table
-CREATE TABLE tb_products (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE tb_product (
+    pk_product INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     data JSONB NOT NULL,
     category VARCHAR(50) NOT NULL,
     in_stock BOOLEAN NOT NULL DEFAULT true,
@@ -14,31 +15,37 @@ CREATE TABLE tb_products (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_products_category ON tb_products(category);
-CREATE INDEX idx_products_in_stock ON tb_products(in_stock) WHERE in_stock = true;
-CREATE INDEX idx_products_price ON tb_products(price);
-CREATE INDEX idx_products_rating ON tb_products(average_rating) WHERE average_rating IS NOT NULL;
+CREATE INDEX idx_tb_product_category ON tb_product(category);
+CREATE INDEX idx_tb_product_in_stock ON tb_product(in_stock) WHERE in_stock = true;
+CREATE INDEX idx_tb_product_price ON tb_product(price);
+CREATE INDEX idx_tb_product_rating ON tb_product(average_rating) WHERE average_rating IS NOT NULL;
+CREATE INDEX idx_tb_product_id ON tb_product(id);
 
 -- Products view (optimized for GraphQL queries)
-CREATE VIEW v_products AS
+CREATE VIEW v_product AS
 SELECT
+    pk_product,
     id,
-    data->>'name' as name,
-    data->>'description' as description,
-    price,
-    category,
-    in_stock,
-    (data->>'stock_quantity')::int as stock_quantity,
-    average_rating,
-    (data->>'review_count')::int as review_count,
-    created_at,
-    updated_at
-FROM tb_products;
+    jsonb_build_object(
+        'id', id,
+        'name', data->>'name',
+        'description', data->>'description',
+        'price', price,
+        'category', category,
+        'in_stock', in_stock,
+        'stock_quantity', (data->>'stock_quantity')::int,
+        'average_rating', average_rating,
+        'review_count', (data->>'review_count')::int,
+        'created_at', created_at,
+        'updated_at', updated_at
+    ) as data
+FROM tb_product;
 
 -- Reviews table
-CREATE TABLE tb_reviews (
-    id SERIAL PRIMARY KEY,
-    product_id INT NOT NULL REFERENCES tb_products(id) ON DELETE CASCADE,
+CREATE TABLE tb_review (
+    pk_review INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    fk_product INT NOT NULL REFERENCES tb_product(pk_product) ON DELETE CASCADE,
     data JSONB NOT NULL,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     verified_purchase BOOLEAN NOT NULL DEFAULT false,
@@ -47,28 +54,34 @@ CREATE TABLE tb_reviews (
 );
 
 -- Indexes for reviews
-CREATE INDEX idx_reviews_product ON tb_reviews(product_id);
-CREATE INDEX idx_reviews_rating ON tb_reviews(rating);
-CREATE INDEX idx_reviews_verified ON tb_reviews(verified_purchase) WHERE verified_purchase = true;
-CREATE INDEX idx_reviews_created ON tb_reviews(created_at DESC);
+CREATE INDEX idx_tb_review_fk_product ON tb_review(fk_product);
+CREATE INDEX idx_tb_review_id ON tb_review(id);
+CREATE INDEX idx_tb_review_rating ON tb_review(rating);
+CREATE INDEX idx_tb_review_verified ON tb_review(verified_purchase) WHERE verified_purchase = true;
+CREATE INDEX idx_tb_review_created ON tb_review(created_at DESC);
 
 -- Reviews view
-CREATE VIEW v_reviews AS
+CREATE VIEW v_review AS
 SELECT
+    pk_review,
     id,
-    product_id,
-    data->>'customer_name' as customer_name,
-    rating,
-    data->>'title' as title,
-    data->>'content' as content,
-    verified_purchase,
-    helpful_count,
-    created_at
-FROM tb_reviews;
+    jsonb_build_object(
+        'id', id,
+        'fk_product', fk_product,
+        'customer_name', data->>'customer_name',
+        'rating', rating,
+        'title', data->>'title',
+        'content', data->>'content',
+        'verified_purchase', verified_purchase,
+        'helpful_count', helpful_count,
+        'created_at', created_at
+    ) as data
+FROM tb_review;
 
 -- Customers table
-CREATE TABLE tb_customers (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE tb_customer (
+    pk_customer INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     membership_tier VARCHAR(20) NOT NULL DEFAULT 'basic',
@@ -78,7 +91,7 @@ CREATE TABLE tb_customers (
 );
 
 -- Sample data
-INSERT INTO tb_products (data, category, in_stock, price, average_rating) VALUES
+INSERT INTO tb_product (data, category, in_stock, price, average_rating) VALUES
 (
     '{"name": "Wireless Headphones", "description": "Premium wireless over-ear headphones with active noise cancellation.", "stock_quantity": 50, "review_count": 127}',
     'electronics',
@@ -109,7 +122,7 @@ INSERT INTO tb_products (data, category, in_stock, price, average_rating) VALUES
 );
 
 -- Sample reviews
-INSERT INTO tb_reviews (product_id, data, rating, verified_purchase, helpful_count) VALUES
+INSERT INTO tb_review (fk_product, data, rating, verified_purchase, helpful_count) VALUES
 (
     1,
     '{"customer_name": "John D.", "title": "Amazing sound quality!", "content": "These headphones exceed my expectations. The noise cancellation is superb and battery life is excellent."}',
@@ -140,7 +153,7 @@ INSERT INTO tb_reviews (product_id, data, rating, verified_purchase, helpful_cou
 );
 
 -- Sample customers
-INSERT INTO tb_customers (email, name, membership_tier, total_orders, total_spent) VALUES
+INSERT INTO tb_customer (email, name, membership_tier, total_orders, total_spent) VALUES
 ('john.doe@example.com', 'John Doe', 'premium', 15, 1249.85),
 ('sarah.miller@example.com', 'Sarah Miller', 'vip', 42, 3899.50),
 ('mike.roberts@example.com', 'Mike Roberts', 'basic', 3, 189.97);

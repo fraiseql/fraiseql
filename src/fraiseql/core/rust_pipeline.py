@@ -203,6 +203,7 @@ async def execute_via_rust_pipeline(
     type_name: Optional[str],
     is_list: bool = True,
     field_paths: Optional[list[list[str]]] = None,
+    field_selections: Optional[list[dict[str, Any]]] = None,
 ) -> RustResponseBytes:
     """Execute query and build HTTP response entirely in Rust.
 
@@ -220,9 +221,14 @@ async def execute_via_rust_pipeline(
         type_name: GraphQL type for transformation (e.g., "User")
         is_list: True for arrays, False for single objects
         field_paths: Optional field paths for projection (e.g., [["id"], ["firstName"]])
+        field_selections: Optional field selections with aliases and type info (NEW for Phase 3)
 
     Returns:
         RustResponseBytes ready for HTTP response
+
+    Note:
+        field_selections parameter is for Phase 3 aliasing support. Currently passed but not yet
+        used by Rust until Task 3.4 (Update FFI) is complete. Maintains backward compatibility.
     """
     async with conn.cursor() as cursor:
         await cursor.execute(query, params or {})
