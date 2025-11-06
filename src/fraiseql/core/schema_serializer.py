@@ -20,15 +20,11 @@ import logging
 from typing import Any
 
 from graphql import (
-    GraphQLSchema,
-    GraphQLObjectType,
     GraphQLList,
-    GraphQLNonNull,
     GraphQLNamedType,
-    GraphQLScalarType,
-    GraphQLInterfaceType,
-    GraphQLUnionType,
-    GraphQLEnumType,
+    GraphQLNonNull,
+    GraphQLObjectType,
+    GraphQLSchema,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +99,9 @@ class SchemaSerializer:
                 try:
                     result["types"][type_name] = self._serialize_object_type(type_def)
                     type_count += 1
-                    logger.debug(f"Serialized type '{type_name}' with {len(type_def.fields)} fields")
+                    logger.debug(
+                        f"Serialized type '{type_name}' with {len(type_def.fields)} fields"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to serialize type '{type_name}': {e}")
                     # Continue with other types rather than failing completely

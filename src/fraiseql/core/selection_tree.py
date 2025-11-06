@@ -11,17 +11,10 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from graphql import (
-    GraphQLObjectType,
-    GraphQLList,
-    GraphQLNonNull,
-    GraphQLScalarType,
-    GraphQLEnumType,
     GraphQLSchema,
-    is_object_type,
-    is_scalar_type,
-    is_enum_type,
     is_list_type,
     is_non_null_type,
+    is_object_type,
 )
 
 
@@ -90,7 +83,7 @@ class GraphQLSchemaWrapper:
         is_nested = is_object_type(base_type)
 
         # Get the type name
-        if hasattr(base_type, 'name'):
+        if hasattr(base_type, "name"):
             base_type_name = base_type.name
         else:
             base_type_name = str(base_type)
