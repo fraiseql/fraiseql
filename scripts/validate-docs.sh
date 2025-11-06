@@ -160,10 +160,9 @@ validate_file_references() {
         "README.md"
         "pyproject.toml"
         "CONTRIBUTING.md"
-        "INSTALLATION.md"
         "dev/architecture/audiences.md"
-        "dev/audits/version-status.md"
         "docs/guides/performance-guide.md"
+        "docs/getting-started/installation.md"
     )
 
     for file in "${files_to_check[@]}"; do
@@ -515,12 +514,6 @@ check_version_consistency() {
         # Check if version appears in README
         if ! grep -q "$pyproject_version" "$PROJECT_ROOT/README.md"; then
             log_error "Version $pyproject_version not found in README.md"
-            ((errors++))
-        fi
-
-        # Check if version appears in dev/audits/version-status.md
-        if ! grep -q "$pyproject_version" "$PROJECT_ROOT/dev/audits/version-status.md"; then
-            log_error "Version $pyproject_version not found in dev/audits/version-status.md"
             ((errors++))
         fi
     fi

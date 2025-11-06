@@ -63,11 +63,10 @@ jobs:
         # Check that all major docs exist
         required_docs=(
           "README.md"
-          "INSTALLATION.md"
           "CONTRIBUTING.md"
           "dev/architecture/audiences.md"
-          "dev/audits/version-status.md"
           "docs/reference/testing-checklist.md"
+          "docs/getting-started/installation.md"
         )
 
         for doc in "${required_docs[@]}"; do
