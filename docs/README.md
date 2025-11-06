@@ -29,6 +29,41 @@
 - **[Database API](core/database-api.md)** - PostgreSQL integration and query execution
 - **[Configuration](core/configuration.md)** - Application configuration reference
 
+## 🔍 Querying & Filtering
+
+FraiseQL provides two flexible syntaxes for filtering data:
+
+- **[Where Input Types](advanced/where_input_types.md)** ⭐ **Complete filtering guide**
+  - **WhereType syntax** (preferred) - Type-safe with full IDE autocomplete
+  - **Dict-based syntax** - Maximum flexibility for dynamic queries
+  - Nested object filtering - Filter on related object properties
+  - All operators: eq, neq, gt, lt, contains, overlaps, etc.
+  - Logical operators: AND, OR, NOT
+  - **New in v1.2.0:** Dict-based nested filtering fully supported!
+
+- **[Syntax Comparison Cheat Sheet](reference/where-clause-syntax-comparison.md)** 📋 **Quick reference**
+  - Side-by-side examples of WhereType vs Dict
+  - When to use each syntax
+  - Common patterns and best practices
+
+- **[Filter Operators Reference](advanced/filter-operators.md)** - Complete operator documentation
+  - String, numeric, boolean, array operators
+  - Full-text search (tsvector)
+  - JSONB operators
+  - Regular expressions
+
+- **[Advanced Filtering Examples](examples/advanced-filtering.md)** - Real-world use cases
+  - E-commerce product search
+  - Content management systems
+  - User permissions & RBAC
+  - Log analysis
+
+- **[Dict-Based Nested Filtering](examples/dict-based-nested-filtering.md)** - Dict syntax deep-dive
+  - Multiple nested fields
+  - CamelCase support
+  - Performance optimization
+  - Migration guide
+
 ## Advanced Features
 
 - [Advanced Patterns](advanced/advanced-patterns.md)

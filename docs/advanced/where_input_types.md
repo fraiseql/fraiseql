@@ -2,6 +2,235 @@
 
 FraiseQL provides automatic generation of GraphQL Where input types that enable powerful, type-safe filtering across your API. This feature transforms simple type definitions into comprehensive filtering interfaces.
 
+## Two Ways to Filter: WhereType vs Dict
+
+FraiseQL supports **two syntaxes** for defining where clauses. Both support the same operators and capabilities, including nested object filtering.
+
+> **✨ Recent Enhancement (v1.2.0):** Dict-based nested object filtering is now fully supported! Previously only available in WhereType syntax, you can now filter on nested object properties using plain dictionaries. This includes automatic camelCase→snake_case conversion, multiple nested fields per object, and logical operators (AND/OR/NOT). All 23 integration tests passing! 🎉
+
+### Quick Comparison
+
+| Feature | WhereType (Preferred) | Dict-Based |
+|---------|----------------------|------------|
+| **Use Case** | GraphQL queries, resolvers | Repository methods, programmatic queries |
+| **Type Safety** | ✅ Full IDE autocomplete | ⚠️ Runtime validation only |
+| **Syntax** | `UserWhereInput(name=StringFilter(eq="John"))` | `{"name": {"eq": "John"}}` |
+| **Nested Objects** | ✅ Fully supported | ✅ Fully supported (since v1.2.0) |
+| **CamelCase → snake_case** | ✅ Automatic | ✅ Automatic |
+| **IDE Support** | ✅ Full autocomplete | ❌ No autocomplete |
+| **When to Use** | GraphQL queries, type-safe code | Repository methods, dynamic queries |
+
+---
+
+## Option 1: WhereType Syntax (Preferred)
+
+**Best for:** GraphQL queries, resolvers with type safety
+
+WhereType uses automatically generated GraphQL input types for full type safety and IDE support.
+
+### Basic Example
+
+```python
+from fraiseql.sql import create_graphql_where_input, StringFilter, BooleanFilter
+
+# 1. Generate WhereInput types
+UserWhereInput = create_graphql_where_input(User)
+
+# 2. Use in queries with full type safety
+where_filter = UserWhereInput(
+    name=StringFilter(contains="John"),
+    is_active=BooleanFilter(eq=True)
+)
+
+# 3. Pass to repository
+results = await db.find("users", where=where_filter)
+```
+
+### Nested Object Filtering (WhereType)
+
+```python
+# Define types with relationships
+@fraiseql.type
+class Device:
+    id: UUID
+    name: str
+    is_active: bool
+
+@fraiseql.type
+class Assignment:
+    id: UUID
+    device: Device
+    status: str
+
+# Generate where inputs
+DeviceWhereInput = create_graphql_where_input(Device)
+AssignmentWhereInput = create_graphql_where_input(Assignment)
+
+# Filter with nested objects - full type safety!
+where_filter = AssignmentWhereInput(
+    status=StringFilter(eq="active"),
+    device=DeviceWhereInput(
+        is_active=BooleanFilter(eq=True),
+        name=StringFilter(contains="server")
+    )
+)
+
+assignments = await db.find("assignments", where=where_filter)
+```
+
+**Benefits:**
+- ✅ Full IDE autocomplete
+- ✅ Type errors caught at development time
+- ✅ Self-documenting code
+- ✅ GraphQL schema validation
+
+---
+
+## Option 2: Dict-Based Syntax
+
+**Best for:** Repository methods, dynamic queries, scripting
+
+Dict-based syntax uses plain Python dictionaries for maximum flexibility.
+
+### Basic Example
+
+```python
+# Simple dict-based filter
+where_dict = {
+    "name": {"contains": "John"},
+    "is_active": {"eq": True}
+}
+
+results = await db.find("users", where=where_dict)
+```
+
+### Nested Object Filtering (Dict)
+
+```python
+# Filter assignments by nested device properties
+where_dict = {
+    "status": {"eq": "active"},
+    "device": {
+        "is_active": {"eq": True},
+        "name": {"contains": "server"}
+    }
+}
+
+assignments = await db.find("assignments", where=where_dict)
+```
+
+**Generated SQL:**
+```sql
+SELECT * FROM assignments
+WHERE data->>'status' = 'active'
+  AND data->'device'->>'is_active' = 'true'
+  AND data->'device'->>'name' ILIKE '%server%'
+```
+
+### Multiple Nested Fields (Dict)
+
+```python
+# Filter by multiple properties of the same nested object
+where_dict = {
+    "device": {
+        "is_active": {"eq": True},
+        "name": {"contains": "router"},
+        "location": {"eq": "datacenter-1"}
+    }
+}
+```
+
+### CamelCase Support (Dict)
+
+Dict-based filters automatically convert GraphQL-style camelCase to database snake_case:
+
+```python
+# Input with camelCase (from GraphQL clients)
+where_dict = {
+    "device": {
+        "isActive": {"eq": True},      # ✅ Auto-converts to is_active
+        "deviceName": {"contains": "router"}  # ✅ Auto-converts to device_name
+    }
+}
+
+# Generates correct SQL with snake_case
+# data->'device'->>'is_active' = 'true'
+# data->'device'->>'device_name' ILIKE '%router%'
+```
+
+### Logical Operators (Dict)
+
+```python
+# Complex logical expressions
+where_dict = {
+    "OR": [
+        {"device": {"is_active": {"eq": True}}},
+        {"device": {"name": {"contains": "backup"}}}
+    ],
+    "status": {"in": ["active", "pending"]}
+}
+```
+
+**Benefits:**
+- ✅ Maximum flexibility
+- ✅ Dynamic query construction
+- ✅ Easy to serialize/deserialize
+- ✅ Same operators as WhereType
+
+---
+
+## When to Use Each Syntax
+
+### Use WhereType When:
+
+1. **Writing GraphQL resolvers** - Type safety prevents bugs
+2. **Building query helpers** - IDE autocomplete improves DX
+3. **Complex nested queries** - Type checking catches errors early
+4. **Team development** - Self-documenting code
+
+```python
+@fraiseql.query
+async def active_assignments(info, device_name: str) -> list[Assignment]:
+    """Type-safe resolver with autocomplete."""
+    db = info.context["db"]
+
+    where = AssignmentWhereInput(
+        status=StringFilter(eq="active"),
+        device=DeviceWhereInput(
+            is_active=BooleanFilter(eq=True),
+            name=StringFilter(contains=device_name)
+        )
+    )
+
+    return await db.find("assignments", where=where)
+```
+
+### Use Dict-Based When:
+
+1. **Dynamic filters** - Building queries from user input
+2. **Repository layer** - Direct database access
+3. **Testing** - Quick filter construction
+4. **Scripting** - Simple queries without type overhead
+
+```python
+async def find_by_criteria(criteria: dict[str, Any]):
+    """Flexible repository method."""
+    # Build filter dynamically
+    where_dict = {}
+
+    if criteria.get("active_only"):
+        where_dict["device"] = {"is_active": {"eq": True}}
+
+    if criteria.get("device_name"):
+        where_dict.setdefault("device", {})["name"] = {
+            "contains": criteria["device_name"]
+        }
+
+    return await repo.find("assignments", where=where_dict)
+```
+
+---
+
 ## Overview
 
 Where input types are automatically generated GraphQL input types that provide operator-based filtering for any `@fraise_type` decorated class. They support:
@@ -9,7 +238,7 @@ Where input types are automatically generated GraphQL input types that provide o
 - **Type-safe filtering** - Generated from your type definitions
 - **Rich operators** - Equality, comparison, string matching, arrays, etc.
 - **Logical composition** - AND, OR, NOT operations
-- **Nested filtering** - Filter on related object properties
+- **Nested filtering** - Filter on related object properties (both WhereType and dict)
 - **Automatic SQL generation** - Converts GraphQL filters to SQL WHERE clauses
 
 ## Basic Usage
@@ -247,7 +476,9 @@ query {
 
 ## Nested Object Filtering
 
-When your types have relationships, you can filter on nested object properties:
+When your types have relationships, you can filter on nested object properties. **Both WhereType and dict-based syntaxes fully support nested filtering.**
+
+### GraphQL Query (WhereType)
 
 ```python
 @fraiseql.type(sql_source="posts")
@@ -277,6 +508,25 @@ query {
   }
 }
 ```
+
+### Programmatic (Dict-Based)
+
+```python
+# Same query using dict syntax
+where_dict = {
+    "author": {
+        "name": {"contains": "John"},
+        "department": {"eq": "engineering"}
+    },
+    "title": {"contains": "GraphQL"}
+}
+
+posts = await db.find("posts", where=where_dict)
+```
+
+**See also:**
+- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering.md)** - Comprehensive dict syntax documentation
+- Examples include multiple nested fields, camelCase support, and performance tips
 
 ## Advanced Filtering Examples
 
@@ -346,17 +596,21 @@ query {
 
 ## Programmatic Usage
 
-You can also create Where filters programmatically in your resolvers:
+You can create Where filters programmatically using **either syntax**:
+
+### Using WhereType (Type-Safe)
 
 ```python
+from fraiseql.sql import StringFilter, BooleanFilter, IntFilter
+
 @fraiseql.query
 async def active_users_in_department(info, department: str) -> list[User]:
     db = info.context["db"]
 
-    # Create filter programmatically
+    # Create filter with full type safety
     where_filter = UserWhereInput(
-        is_active={"eq": True},
-        department={"eq": department}
+        is_active=BooleanFilter(eq=True),
+        department=StringFilter(eq=department)
     )
 
     return await db.find("users", where=where_filter)
@@ -368,14 +622,49 @@ async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
     # Complex programmatic filter
     where_filter = UserWhereInput(
         AND=[
-            UserWhereInput(age={"gte": min_age}),
-            UserWhereInput(age={"lte": max_age}),
-            UserWhereInput(is_active={"eq": True})
+            UserWhereInput(age=IntFilter(gte=min_age)),
+            UserWhereInput(age=IntFilter(lte=max_age)),
+            UserWhereInput(is_active=BooleanFilter(eq=True))
         ]
     )
 
     return await db.find("users", where=where_filter)
 ```
+
+### Using Dict-Based (Flexible)
+
+```python
+@fraiseql.query
+async def active_users_in_department(info, department: str) -> list[User]:
+    db = info.context["db"]
+
+    # Create filter using dict (more flexible)
+    where_dict = {
+        "is_active": {"eq": True},
+        "department": {"eq": department}
+    }
+
+    return await db.find("users", where=where_dict)
+
+@fraiseql.query
+async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
+    db = info.context["db"]
+
+    # Build dict dynamically
+    where_dict = {
+        "AND": [
+            {"age": {"gte": min_age}},
+            {"age": {"lte": max_age}},
+            {"is_active": {"eq": True}}
+        ]
+    }
+
+    return await db.find("users", where=where_dict)
+```
+
+**Choose based on your needs:**
+- **WhereType**: Better for static queries with IDE support
+- **Dict**: Better for dynamic queries built at runtime
 
 ## Field-Level Filtering
 
