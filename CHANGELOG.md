@@ -5,6 +5,37 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-01-06
+
+### 🐛 Bug Fixes
+
+**Issue #114: db.find() returns dict instead of list for single record**
+- **Problem**: When `db.find()` matched exactly one record, the Rust pipeline was incorrectly returning a single object `{...}` instead of an array `[{...}]`
+- **Impact**: Broke GraphQL queries expecting `list[T]` return type when filters matched one record
+- **Root Cause**: Rust response builder checked `json_rows.len() == 1` to decide response format instead of respecting query intent
+- **Fix**:
+  - Added `is_list` parameter to Rust FFI layer (`build_graphql_response`)
+  - Updated both response builders (`build_with_schema`, `build_zero_copy`) to respect `is_list` parameter
+  - Python layer now passes `is_list=True` for `db.find()` calls and `is_list=False` for `db.find_one()` calls
+- **Behavior**:
+  - `db.find()` now **always** returns array: `[]`, `[{...}]`, `[{...}, {...}]`
+  - `db.find_one()` returns single object: `{...}`
+- **Testing**:
+  - Added comprehensive regression test suite: `tests/regression/test_issue_114_single_record_list.py`
+  - 4/4 tests passing covering all edge cases
+
+### 📦 Changes
+
+**Rust Pipeline (`fraiseql_rs`)**
+- `src/lib.rs`: Added `is_list: Option<bool>` parameter to `build_graphql_response()`
+- `src/pipeline/builder.rs`:
+  - `build_with_schema()`: Uses `is_list` parameter instead of row count check
+  - `build_zero_copy()`: Uses `is_list` parameter instead of row count check
+  - Defaults to `true` for backward compatibility
+
+**Python Layer**
+- `src/fraiseql/core/rust_pipeline.py`: Updated `execute_via_rust_pipeline()` to pass `is_list` parameter
+
 ## [1.3.0] - 2025-11-06
 
 ### 🚀 Major Features

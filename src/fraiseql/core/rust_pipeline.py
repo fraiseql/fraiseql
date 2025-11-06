@@ -237,29 +237,24 @@ async def execute_via_rust_pipeline(
             rows = await cursor.fetchall()
 
             if not rows:
-                # Empty array response
                 response_bytes = fraiseql_rs.build_graphql_response(
                     json_strings=[],
                     field_name=field_name,
-                    type_name=None,  # No typename for empty
+                    type_name=None,
                     field_paths=None,
+                    is_list=True,
                 )
                 return RustResponseBytes(response_bytes)
 
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
 
-            # 🚀 UNIFIED API (v0.2.0):
-            # - Field projection: Filter only requested fields
-            # - Concatenate: ['{"id":"1"}', '{"id":"2"}'] → '[{"id":"1"},{"id":"2"}]'
-            # - Wrap: '[...]' → '{"data":{"users":[...]}}'
-            # - Transform: snake_case → camelCase + __typename
-            # - Encode: String → UTF-8 bytes
             response_bytes = fraiseql_rs.build_graphql_response(
                 json_strings=json_strings,
                 field_name=field_name,
                 type_name=type_name,
-                field_paths=field_paths,  # None = no projection
+                field_paths=field_paths,
+                is_list=True,
             )
 
             return RustResponseBytes(response_bytes)
@@ -267,24 +262,23 @@ async def execute_via_rust_pipeline(
         row = await cursor.fetchone()
 
         if not row or row[0] is None:
-            # Null response - use empty structure or null
             response_bytes = fraiseql_rs.build_graphql_response(
-                json_strings=[], field_name=field_name, type_name=None, field_paths=None
+                json_strings=[],
+                field_name=field_name,
+                type_name=None,
+                field_paths=None,
+                is_list=False,
             )
             return RustResponseBytes(response_bytes)
 
         json_string = row[0]
 
-        # 🚀 UNIFIED API (v0.2.0):
-        # - Field projection: Filter only requested fields
-        # - Wrap: '{"id":"1"}' → '{"data":{"user":{"id":"1"}}}'
-        # - Transform: snake_case → camelCase + __typename
-        # - Encode: String → UTF-8 bytes
         response_bytes = fraiseql_rs.build_graphql_response(
-            json_strings=[json_string],  # Single item as list
+            json_strings=[json_string],
             field_name=field_name,
             type_name=type_name,
-            field_paths=field_paths,  # None = no projection
+            field_paths=field_paths,
+            is_list=False,
         )
 
         return RustResponseBytes(response_bytes)
