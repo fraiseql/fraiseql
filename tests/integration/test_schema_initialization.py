@@ -52,10 +52,18 @@ class TestSchemaRegistryInitialization:
         schema_json = json.dumps(schema_ir)
 
         # This should call Rust FFI to initialize the registry
-        result = _fraiseql_rs.initialize_schema_registry(schema_json)
-
-        # Should not raise error and should indicate success
-        assert result is None or result is True
+        # Note: Registry can only be initialized once per process
+        # In full test suite runs, it may already be initialized by other tests
+        try:
+            result = _fraiseql_rs.initialize_schema_registry(schema_json)
+            # Should not raise error and should indicate success
+            assert result is None or result is True
+        except RuntimeError as e:
+            # Registry already initialized - this is acceptable in test suite
+            if "already initialized" in str(e):
+                pass  # Test passes - registry is working as designed
+            else:
+                raise  # Re-raise if it's a different error
 
     def test_02_verify_nested_objects_schema_structure(self):
         """Test that schema with nested objects can be serialized correctly.
