@@ -13,6 +13,15 @@ This is a **production-ready blog application** that showcases:
 
 **Perfect for**: New FraiseQL projects, learning core patterns, simple content management systems.
 
+## 🎯 Key Features
+
+This example demonstrates FraiseQL's opinionated approach:
+
+- **GraphQL API** exposes only `id` (UUID) and `identifier` (slug) fields
+- **Python code** uses UUIDs exclusively for relationships
+- **Database layer** uses views with JOINs to expose UUID relationships
+- **Mutations** delegate to PostgreSQL functions for business logic
+
 ## 🚀 Quick Start
 
 ### 1. Setup Database
@@ -50,7 +59,7 @@ Visit http://localhost:8000/graphql for GraphQL Playground.
 blog_simple/
 ├── README.md                    # This documentation
 ├── app.py                       # FastAPI + FraiseQL application
-├── models.py                    # Blog domain models
+├── models.py                    # Blog domain models with GraphQL types
 ├── db/
 │   ├── setup.sql               # Complete database schema
 │   └── seed_data.sql           # Sample blog data
