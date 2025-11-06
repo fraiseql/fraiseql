@@ -23,7 +23,7 @@ CREATE TABLE customers (
 -- Support tickets table
 CREATE TABLE support_tickets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    customer_id UUID NOT NULL REFERENCES customers(id),
+    fk_customer UUID NOT NULL REFERENCES customers(id),
     subject VARCHAR(500) NOT NULL,
     description TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'open',
@@ -38,7 +38,7 @@ CREATE TABLE support_tickets (
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
-    customer_id UUID NOT NULL REFERENCES customers(id),
+    fk_customer UUID NOT NULL REFERENCES customers(id),
     total DECIMAL(10, 2) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     tracking_number VARCHAR(100),
@@ -52,7 +52,7 @@ CREATE TABLE orders (
 -- Order items table
 CREATE TABLE order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    fk_order UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     product_name VARCHAR(255) NOT NULL,
     product_sku VARCHAR(100) NOT NULL,
     quantity INT NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE deals (
 );
 
 -- Admin users table
-CREATE TABLE admin_users (
+CREATE TABLE tb_admin_users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE admin_users (
 -- Audit log table (critical for compliance)
 CREATE TABLE admin_audit_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_user_id UUID NOT NULL REFERENCES admin_users(id),
+    fk_admin_user UUID NOT NULL REFERENCES tb_admin_users(id),
     action VARCHAR(100) NOT NULL,
     target_type VARCHAR(50),
     target_id UUID,
@@ -110,30 +110,10 @@ CREATE INDEX idx_customers_status ON customers(subscription_status);
 CREATE INDEX idx_customers_created ON customers(created_at DESC);
 
 -- Support tickets indexes
-CREATE INDEX idx_tickets_customer ON support_tickets(customer_id);
-CREATE INDEX idx_tickets_status ON support_tickets(status);
-CREATE INDEX idx_tickets_priority ON support_tickets(priority);
-CREATE INDEX idx_tickets_assigned ON support_tickets(assigned_to_id);
-CREATE INDEX idx_tickets_created ON support_tickets(created_at DESC);
-
--- Orders indexes
-CREATE INDEX idx_orders_customer ON orders(customer_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created ON orders(created_at DESC);
-CREATE INDEX idx_orders_number ON orders(order_number);
-
--- Order items indexes
-CREATE INDEX idx_order_items_order ON order_items(order_id);
-CREATE INDEX idx_order_items_sku ON order_items(product_sku);
-
--- Deals indexes
-CREATE INDEX idx_deals_stage ON deals(stage);
-CREATE INDEX idx_deals_assigned ON deals(assigned_to_id);
-CREATE INDEX idx_deals_expected_close ON deals(expected_close_date);
-CREATE INDEX idx_deals_updated ON deals(updated_at DESC);
-
--- Audit log indexes
-CREATE INDEX idx_audit_admin ON admin_audit_log(admin_user_id);
+CREATE INDEX idx_tickets_fk_customer ON support_tickets(fk_customer);
+CREATE INDEX idx_orders_fk_customer ON orders(fk_customer);
+CREATE INDEX idx_order_items_fk_order ON order_items(fk_order);
+CREATE INDEX idx_audit_fk_admin_user ON admin_audit_log(fk_admin_user);
 CREATE INDEX idx_audit_action ON admin_audit_log(action);
 CREATE INDEX idx_audit_target ON admin_audit_log(target_type, target_id);
 CREATE INDEX idx_audit_created ON admin_audit_log(created_at DESC);
@@ -153,15 +133,15 @@ SELECT
     COALESCE(SUM(o.total), 0)::DECIMAL(10,2) as total_spent,
     COUNT(DISTINCT t.id)::INT as ticket_count
 FROM customers c
-LEFT JOIN orders o ON o.customer_id = c.id
-LEFT JOIN support_tickets t ON t.customer_id = c.id
+LEFT JOIN orders o ON o.fk_customer = c.id
+LEFT JOIN support_tickets t ON t.fk_customer = c.id
 GROUP BY c.id, c.email, c.name, c.created_at, c.subscription_status;
 
 -- Support tickets view with customer info
 CREATE VIEW support_tickets_view AS
 SELECT
     t.id,
-    t.customer_id,
+    t.fk_customer as customer_id,
     t.subject,
     t.status,
     t.priority,
@@ -175,7 +155,7 @@ CREATE VIEW orders_view AS
 SELECT
     o.id,
     o.order_number,
-    o.customer_id,
+    o.fk_customer as customer_id,
     o.total,
     o.status,
     o.tracking_number,
@@ -189,7 +169,7 @@ CREATE VIEW orders_needing_attention_view AS
 SELECT
     o.id,
     o.order_number,
-    o.customer_id,
+    o.fk_customer as customer_id,
     o.total,
     o.status,
     o.created_at,
@@ -259,7 +239,7 @@ SELECT
         AND DATE_TRUNC('month', d.updated_at) = DATE_TRUNC('month', CURRENT_DATE)
     )::INT as deals_won_this_month,
     COALESCE(AVG(d.amount) FILTER (WHERE d.stage NOT IN ('closed_won', 'closed_lost')), 0)::DECIMAL(12,2) as average_deal_size
-FROM admin_users a
+FROM tb_admin_users a
 LEFT JOIN deals d ON d.assigned_to_id = a.id
 WHERE a.role = 'sales'
 GROUP BY a.id, a.name;
@@ -288,7 +268,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- Insert sample admin users
-INSERT INTO admin_users (email, name, password_hash, role) VALUES
+INSERT INTO tb_admin_users (email, name, password_hash, role) VALUES
 ('admin@example.com', 'Super Admin', '$2b$12$dummy_hash', 'admin'),
 ('support@example.com', 'Support Agent', '$2b$12$dummy_hash', 'customer_support'),
 ('ops@example.com', 'Operations Manager', '$2b$12$dummy_hash', 'operations'),
@@ -301,19 +281,19 @@ INSERT INTO customers (id, email, name, password_hash, subscription_status) VALU
 ('33333333-3333-3333-3333-333333333333', 'bob@example.com', 'Bob Johnson', '$2b$12$dummy_hash', 'suspended');
 
 -- Insert sample orders
-INSERT INTO orders (id, order_number, customer_id, total, status) VALUES
+INSERT INTO orders (id, order_number, fk_customer, total, status) VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ORD-001', '11111111-1111-1111-1111-111111111111', 149.99, 'pending'),
 ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'ORD-002', '22222222-2222-2222-2222-222222222222', 299.99, 'shipped');
 
 -- Insert sample support tickets
-INSERT INTO support_tickets (customer_id, subject, description, status, priority) VALUES
+INSERT INTO support_tickets (fk_customer, subject, description, status, priority) VALUES
 ('11111111-1111-1111-1111-111111111111', 'Cannot login to account', 'Getting error when trying to login', 'open', 'high'),
 ('22222222-2222-2222-2222-222222222222', 'Question about billing', 'When will I be charged?', 'open', 'low');
 
 -- Insert sample deals
 INSERT INTO deals (company_name, contact_name, contact_email, stage, amount, expected_close_date, assigned_to_id)
 SELECT 'Acme Corp', 'Alice Anderson', 'alice@acme.com', 'negotiation', 50000, CURRENT_DATE + 30, id
-FROM admin_users WHERE role = 'sales' LIMIT 1;
+FROM tb_admin_users WHERE role = 'sales' LIMIT 1;
 
 -- Initial refresh of materialized views
 REFRESH MATERIALIZED VIEW operations_metrics_mv;

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from fraiseql.types.scalars.id_scalar import ID
+
 
 @dataclass
 class User:
@@ -33,7 +35,7 @@ class Project:
     id: int
     name: str
     description: str | None
-    owner_id: int
+    owner_id: ID
     status: str  # 'active', 'archived', 'completed'
     created_at: datetime
     updated_at: datetime
@@ -56,12 +58,12 @@ class Task:
     """
 
     id: int
-    project_id: int
+    project_id: ID
     title: str
     description: str | None
     status: str  # 'todo', 'in_progress', 'completed', 'blocked'
     priority: str  # 'low', 'medium', 'high', 'urgent'
-    assignee_id: int | None
+    assignee_id: ID | None
     due_date: datetime | None
     completed_at: datetime | None
     created_at: datetime
@@ -84,8 +86,8 @@ class CreateProjectInput:
     """Input for creating a new project."""
 
     name: str
+    owner_id: ID
     description: str | None = None
-    owner_id: int = 1  # Default to first user
 
 
 @dataclass
@@ -101,12 +103,12 @@ class UpdateProjectInput:
 class CreateTaskInput:
     """Input for creating a new task."""
 
-    project_id: int
+    project_id: ID
     title: str
     description: str | None = None
     priority: str = "medium"
     status: str = "todo"
-    assignee_id: int | None = None
+    assignee_id: ID | None = None
     due_date: datetime | None = None
 
 
@@ -118,5 +120,5 @@ class UpdateTaskInput:
     description: str | None = None
     status: str | None = None
     priority: str | None = None
-    assignee_id: int | None = None
+    assignee_id: ID | None = None
     due_date: datetime | None = None

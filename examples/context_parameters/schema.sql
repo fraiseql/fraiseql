@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 );
 
 -- Users table
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS tb_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id),
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id),
-    created_by UUID NOT NULL REFERENCES users(id),
-    updated_by UUID REFERENCES users(id),
+    created_by UUID NOT NULL REFERENCES tb_user(id),
+    updated_by UUID REFERENCES tb_user(id),
     name VARCHAR(255) NOT NULL,
     address TEXT NOT NULL,
     latitude NUMERIC(10, 8),
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS locations (
 CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id),
-    created_by UUID NOT NULL REFERENCES users(id),
+    created_by UUID NOT NULL REFERENCES tb_user(id),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     active BOOLEAN DEFAULT true,
@@ -81,7 +81,7 @@ BEGIN
 
     -- Validate user belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM users
+        SELECT 1 FROM tb_user
         WHERE id = input_created_by
         AND organization_id = input_pk_organization
         AND active = true
@@ -319,7 +319,7 @@ INSERT INTO organizations (id, name) VALUES
     ('550e8400-e29b-41d4-a716-446655440001', 'Widget Inc')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO users (id, organization_id, email, name) VALUES
+INSERT INTO tb_user (id, organization_id, email, name) VALUES
     ('550e8400-e29b-41d4-a716-446655440010', '550e8400-e29b-41d4-a716-446655440000', 'admin@acme.com', 'John Admin'),
     ('550e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440000', 'user@acme.com', 'Jane User'),
     ('550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440001', 'admin@widget.com', 'Bob Admin')

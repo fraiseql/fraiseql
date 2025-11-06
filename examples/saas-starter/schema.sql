@@ -25,7 +25,7 @@ CREATE TABLE organizations (
 -- USERS
 -- ============================================================================
 
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -38,11 +38,11 @@ CREATE TABLE users (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Enable RLS on users
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on tb_user
+ALTER TABLE tb_user ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see members of their organization
-CREATE POLICY users_tenant_isolation ON users
+CREATE POLICY tb_user_tenant_isolation ON tb_user
     FOR ALL
     TO authenticated_user
     USING (organization_id = current_setting('app.current_tenant', TRUE)::UUID);
@@ -86,7 +86,7 @@ CREATE TABLE team_invitations (
     email VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'member',
     token VARCHAR(255) UNIQUE NOT NULL,
-    invited_by_id UUID NOT NULL REFERENCES users(id),
+    invited_by_id UUID NOT NULL REFERENCES tb_user(id),
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -133,7 +133,7 @@ CREATE POLICY usage_metrics_tenant_isolation ON usage_metrics
 CREATE TABLE activity_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id),
+    user_id UUID NOT NULL REFERENCES tb_user(id),
     action VARCHAR(100) NOT NULL,
     resource VARCHAR(50),
     resource_id UUID,
@@ -160,7 +160,7 @@ CREATE TABLE projects (
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    owner_id UUID NOT NULL REFERENCES users(id),
+    owner_id UUID NOT NULL REFERENCES tb_user(id),
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     settings JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -185,10 +185,10 @@ CREATE INDEX idx_organizations_plan ON organizations(plan);
 CREATE INDEX idx_organizations_status ON organizations(subscription_status);
 
 -- Users
-CREATE INDEX idx_users_organization ON users(organization_id);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_tb_user_organization ON tb_user(organization_id);
+CREATE INDEX idx_tb_user_email ON tb_user(email);
+CREATE INDEX idx_tb_user_role ON tb_user(role);
+CREATE INDEX idx_tb_user_status ON tb_user(status);
 
 -- Subscriptions
 CREATE INDEX idx_subscriptions_organization ON subscriptions(organization_id);
@@ -226,7 +226,7 @@ RETURNS INT AS $$
 BEGIN
     RETURN (
         SELECT COUNT(*)::INT
-        FROM users
+        FROM tb_user
         WHERE organization_id = org_id AND status = 'active'
     );
 END;
@@ -293,7 +293,7 @@ SELECT
 FROM organizations o;
 
 -- Users view (excludes password_hash)
-CREATE VIEW users_view AS
+CREATE VIEW tb_user_view AS
 SELECT
     id,
     organization_id,
@@ -304,7 +304,7 @@ SELECT
     avatar_url,
     last_active,
     created_at
-FROM users;
+FROM tb_user;
 
 -- Projects view
 CREATE VIEW projects_view AS
@@ -330,7 +330,7 @@ INSERT INTO organizations (id, name, slug, plan, subscription_status) VALUES
 ('22222222-2222-2222-2222-222222222222', 'Startup Inc', 'startup-inc', 'free', 'trialing');
 
 -- Create sample users
-INSERT INTO users (id, organization_id, email, name, password_hash, role) VALUES
+INSERT INTO tb_user (id, organization_id, email, name, password_hash, role) VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'founder@acme.com', 'Jane Founder', '$2b$12$dummy_hash', 'owner'),
 ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'admin@acme.com', 'John Admin', '$2b$12$dummy_hash', 'admin'),
 ('cccccccc-cccc-cccc-cccc-cccccccccccc', '22222222-2222-2222-2222-222222222222', 'founder@startup.com', 'Bob Founder', '$2b$12$dummy_hash', 'owner');

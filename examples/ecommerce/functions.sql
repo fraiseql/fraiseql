@@ -48,7 +48,7 @@ BEGIN
     END IF;
 
     -- Check if email already exists
-    IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email') THEN
+    IF EXISTS (SELECT 1 FROM tb_user WHERE email = input->>'email') THEN
         RETURN jsonb_build_object(
             'type', 'error',
             'message', 'Email already registered',
@@ -57,7 +57,7 @@ BEGIN
     END IF;
 
     -- Create user
-    INSERT INTO users (email, password_hash, name, phone)
+    INSERT INTO tb_user (email, password_hash, name, phone)
     VALUES (
         input->>'email',
         hash_password(input->>'password'),
@@ -105,7 +105,7 @@ BEGIN
     -- Find user
     SELECT id, password_hash, is_active
     INTO user_record
-    FROM users
+    FROM tb_user
     WHERE email = input->>'email';
 
     IF NOT FOUND THEN
