@@ -8,6 +8,7 @@ use pyo3::exceptions::PyValueError;
 use serde_json::{Map, Value};
 
 use crate::camel_case::to_camel_case;
+use crate::schema_registry::SchemaRegistry;
 
 /// Transform a JSON string by converting all keys from snake_case to camelCase
 ///
@@ -84,6 +85,140 @@ fn transform_value(value: Value) -> Value {
         }
         // Primitives: return as-is
         other => other,
+    }
+}
+
+/// Transform a nested object field using schema information
+///
+/// This is a helper function that handles:
+/// - Null values (pass through)
+/// - Nested objects (recursive transformation with correct type)
+/// - Arrays of nested objects (map over items)
+///
+/// # Performance
+/// Uses schema registry O(1) lookup to resolve correct type for nested objects
+#[inline]
+fn transform_nested_object(
+    value: &Value,
+    type_name: &str,
+    is_list: bool,
+    registry: &SchemaRegistry,
+) -> Value {
+    if is_list {
+        // Array of nested objects
+        match value {
+            Value::Array(items) => {
+                let transformed_items: Vec<Value> = items
+                    .iter()
+                    .map(|item| match item {
+                        Value::Null => Value::Null,
+                        _ => transform_with_schema(item, type_name, registry),
+                    })
+                    .collect();
+                Value::Array(transformed_items)
+            }
+            Value::Null => Value::Null,
+            // Unexpected type - pass through with warning in debug mode
+            _ => {
+                #[cfg(debug_assertions)]
+                eprintln!(
+                    "Warning: Expected array for list type '{}', got {}",
+                    type_name,
+                    value
+                );
+                value.clone()
+            }
+        }
+    } else {
+        // Single nested object
+        match value {
+            Value::Null => Value::Null,
+            _ => transform_with_schema(value, type_name, registry),
+        }
+    }
+}
+
+/// Transform a JSON value using schema registry for type resolution
+///
+/// This function:
+/// 1. Converts snake_case keys to camelCase
+/// 2. Injects __typename for objects
+/// 3. Recursively resolves nested object types from schema
+/// 4. Handles arrays of nested objects
+/// 5. Gracefully handles missing schema information
+///
+/// # Arguments
+/// * `value` - The JSON value to transform
+/// * `current_type` - The GraphQL type name for this value
+/// * `registry` - The schema registry for type lookups
+///
+/// # Returns
+/// * Transformed JSON value with correct __typename at all levels
+///
+/// # Performance
+/// - O(1) schema lookups per field via HashMap
+/// - Zero-copy for unchanged scalar values where possible
+/// - Single-pass transformation (no backtracking)
+///
+/// # Graceful Degradation
+/// If a field type is not found in the schema registry, the function falls back
+/// to simple camelCase conversion without __typename injection for that field.
+///
+/// # Examples
+/// ```ignore
+/// let input = json!({"id": "1", "equipment": {"id": "2", "name": "Device"}});
+/// let result = transform_with_schema(&input, "Assignment", &registry);
+/// // result: {"__typename": "Assignment", "id": "1", "equipment": {"__typename": "Equipment", ...}}
+/// ```
+pub fn transform_with_schema(
+    value: &Value,
+    current_type: &str,
+    registry: &SchemaRegistry,
+) -> Value {
+    match value {
+        Value::Object(map) => {
+            // Pre-allocate result map with capacity for __typename + all fields
+            let mut result = Map::with_capacity(map.len() + 1);
+
+            // Inject __typename first (GraphQL convention)
+            result.insert(
+                "__typename".to_string(),
+                Value::String(current_type.to_string()),
+            );
+
+            // Transform each field
+            for (key, val) in map {
+                let camel_key = to_camel_case(key);
+
+                // Look up field type in schema (O(1) HashMap lookup)
+                let transformed_val = match registry.get_field_type(current_type, key) {
+                    Some(field_info) if field_info.is_nested_object() => {
+                        // Nested object or array - use schema to resolve correct type
+                        transform_nested_object(
+                            val,
+                            field_info.type_name(),
+                            field_info.is_list(),
+                            registry,
+                        )
+                    }
+                    Some(_) => {
+                        // Scalar field - no transformation needed, just clone
+                        val.clone()
+                    }
+                    None => {
+                        // Field not in schema - graceful degradation
+                        // Apply simple camelCase transformation recursively
+                        transform_value(val.clone())
+                    }
+                };
+
+                result.insert(camel_key, transformed_val);
+            }
+
+            Value::Object(result)
+        }
+        Value::Null => Value::Null,
+        other => other.clone(),
     }
 }
 

@@ -109,6 +109,8 @@ def create_fraiseql_app(
     # Development auth configuration
     dev_auth_username: str | None = None,
     dev_auth_password: str | None = None,
+    # Schema registry configuration
+    enable_schema_registry: bool = True,
     # FastAPI app to extend (optional)
     app: FastAPI | None = None,
 ) -> FastAPI:
@@ -129,6 +131,7 @@ def create_fraiseql_app(
         production: Whether to use production optimizations
         dev_auth_username: Override username for development auth (defaults to env var or "admin")
         dev_auth_password: Override password for development auth (defaults to env var)
+        enable_schema_registry: Whether to initialize Rust schema registry (default: True)
         app: Existing FastAPI app to extend (creates new if None)
 
     Returns:
@@ -310,6 +313,40 @@ def create_fraiseql_app(
         mutation_resolvers=list(mutations),
         camel_case_fields=config.auto_camel_case,
     )
+
+    # Initialize Rust schema registry for type resolution
+    # This enables correct __typename for nested JSONB objects and field aliasing
+    if enable_schema_registry:
+        import json
+        import time
+        from fraiseql import _fraiseql_rs
+        from fraiseql.core.schema_serializer import SchemaSerializer
+
+        try:
+            start_time = time.time()
+
+            serializer = SchemaSerializer()
+            schema_ir = serializer.serialize_schema(schema)
+            schema_json = json.dumps(schema_ir)
+
+            _fraiseql_rs.initialize_schema_registry(schema_json)
+
+            initialization_time_ms = (time.time() - start_time) * 1000
+            type_count = len(schema.type_map)
+
+            logger.info(
+                "Schema registry initialized successfully: types=%d, time=%.2fms",
+                type_count,
+                initialization_time_ms
+            )
+        except Exception as e:
+            # Log error but don't fail app startup - maintain backward compatibility
+            logger.warning(
+                "Failed to initialize schema registry (continuing with app startup): %s",
+                str(e)
+            )
+    else:
+        logger.debug("Schema registry initialization disabled by feature flag")
 
     # Create TurboRegistry if enabled (regardless of environment)
     turbo_registry = None

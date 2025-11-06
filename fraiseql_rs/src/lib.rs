@@ -5,8 +5,9 @@ use pyo3::types::PyDict;
 mod camel_case;
 pub mod core;
 mod json;
-mod json_transform;
+pub mod json_transform;
 pub mod pipeline;
+pub mod schema_registry;
 
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -143,6 +144,83 @@ pub fn build_graphql_response(
     )
 }
 
+/// Initialize the GraphQL schema registry from Python
+///
+/// This function should be called once at application startup to initialize
+/// the schema registry with type metadata from the GraphQL schema.
+///
+/// The registry stores type information for:
+/// - Object types and their fields
+/// - Nested object relationships
+/// - List types
+/// - Type metadata for runtime resolution
+///
+/// Examples:
+///     >>> import json
+///     >>> schema_ir = {"version": "1.0", "features": ["type_resolution"], "types": {...}}
+///     >>> initialize_schema_registry(json.dumps(schema_ir))
+///
+/// Args:
+///     schema_json: JSON string containing the schema IR from SchemaSerializer
+///
+/// Raises:
+///     ValueError: If JSON is malformed, missing required fields, or has unsupported version
+///     RuntimeError: If registry is already initialized
+///
+/// Returns:
+///     None on success
+#[pyfunction]
+pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
+    // Validate input
+    if schema_json.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Schema JSON cannot be empty",
+        ));
+    }
+
+    // Parse the schema JSON with detailed error messages
+    let registry = schema_registry::SchemaRegistry::from_json(&schema_json).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to parse schema JSON: {}. Expected format: {{\"version\": \"1.0\", \"features\": [...], \"types\": {{...}}}}",
+            e
+        ))
+    })?;
+
+    // Validate version (warn if using newer version)
+    if registry.version() != "1.0" {
+        eprintln!(
+            "Warning: Schema IR version '{}' may not be fully compatible with Rust registry version 1.0",
+            registry.version()
+        );
+    }
+
+    // Log schema statistics (to stderr for visibility)
+    eprintln!(
+        "Initializing schema registry: version={}, features=[{}], types={}",
+        registry.version(),
+        registry
+            .features
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+        registry.type_count()
+    );
+
+    // Initialize the global registry
+    let success = schema_registry::initialize_registry(registry);
+
+    if !success {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "Schema registry is already initialized. Re-initialization is not allowed. \
+             This is expected behavior - the registry is a global singleton that can only be set once.",
+        ));
+    }
+
+    eprintln!("✓ Schema registry initialized successfully");
+    Ok(())
+}
+
 
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
@@ -173,6 +251,7 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "transform_json",
         "test_function",
         "build_graphql_response",
+        "initialize_schema_registry",
     ])?;
 
     // Add functions
@@ -183,6 +262,9 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add zero-copy pipeline exports
     m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
+
+    // Add schema registry initialization
+    m.add_function(wrap_pyfunction!(initialize_schema_registry, m)?)?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;
