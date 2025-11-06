@@ -13,13 +13,14 @@ use crate::schema_registry;
 
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
-/// This is the TOP-LEVEL API called from Python:
-/// ```python
-/// response_bytes = fraiseql_rs.build_graphql_response(
-///     json_rows=["{'id':1}", "{'id':2}"],
-///     field_name="users",
-///     typename="User",
-///     field_paths=[["id"], ["firstName"]],
+/// This is the TOP-LEVEL API called from lib.rs (FFI layer):
+/// ```rust
+/// let response_bytes = pipeline::builder::build_graphql_response(
+///     json_rows,
+///     field_name,
+///     type_name,
+///     field_paths,
+///     field_selections,
 /// )
 /// ```
 ///
@@ -48,25 +49,26 @@ use crate::schema_registry;
 /// └──────┬───────┘    - Project fields
 ///        │            - Add __typename
 ///        │            - CamelCase keys
+///        │            - Apply aliases
 ///        ▼
 /// ┌──────────────┐
 /// │ HTTP Bytes   │ → Return to Python (zero-copy)
 /// │ (Vec<u8>)    │
 /// └──────────────┘
 ///
-#[pyfunction]
 pub fn build_graphql_response(
     json_rows: Vec<String>,
     field_name: &str,
     type_name: Option<&str>,
     field_paths: Option<Vec<Vec<String>>>,
+    field_selections: Option<Vec<Value>>,
 ) -> PyResult<Vec<u8>> {
     // Check if schema registry is available for schema-aware transformation
     let registry = schema_registry::get_registry();
 
     if let (Some(registry), Some(type_name_str)) = (registry, type_name) {
-        // SCHEMA-AWARE PATH: Use transform_with_schema() for correct nested types
-        return build_with_schema_awareness(json_rows, field_name, type_name_str, field_paths, registry);
+        // SCHEMA-AWARE PATH: Use transform_with_selections() for aliases or transform_with_schema()
+        return build_with_schema_awareness(json_rows, field_name, type_name_str, field_paths, field_selections, registry);
     }
 
     // FALLBACK PATH: Use zero-copy transformer (original behavior)
@@ -75,13 +77,14 @@ pub fn build_graphql_response(
 
 /// Schema-aware transformation path (NEW)
 ///
-/// Uses the schema registry to correctly resolve nested object types.
+/// Uses the schema registry to correctly resolve nested object types and apply aliases.
 /// This fixes Issue #112 where nested JSONB objects had wrong __typename.
 fn build_with_schema_awareness(
     json_rows: Vec<String>,
     field_name: &str,
     type_name: &str,
-    _field_paths: Option<Vec<Vec<String>>>,  // TODO: Implement field projection
+    _field_paths: Option<Vec<Vec<String>>>,  // TODO: Implement field projection (deprecated)
+    field_selections: Option<Vec<Value>>,
     registry: &schema_registry::SchemaRegistry,
 ) -> PyResult<Vec<u8>> {
     // Parse, transform, and serialize each row
@@ -94,8 +97,14 @@ fn build_with_schema_awareness(
                     format!("Failed to parse JSON: {}", e)
                 ))
                 .map(|value| {
-                    // Transform with schema awareness
-                    json_transform::transform_with_schema(&value, type_name, registry)
+                    // Transform with schema awareness and optional alias support
+                    if let Some(ref selections) = field_selections {
+                        // Use transform_with_selections for alias support
+                        json_transform::transform_with_selections(&value, type_name, selections, registry)
+                    } else {
+                        // Fallback to transform_with_schema (no aliases)
+                        json_transform::transform_with_schema(&value, type_name, registry)
+                    }
                 })
         })
         .collect();

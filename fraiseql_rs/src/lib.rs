@@ -109,14 +109,15 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
 /// This is the unified API for building GraphQL responses from database JSON.
-/// It handles camelCase conversion, __typename injection, and field projection.
+/// It handles camelCase conversion, __typename injection, field projection, and aliases.
 ///
 /// Examples:
 ///     >>> result = build_graphql_response(
 ///     ...     json_strings=['{"user_id": 1}', '{"user_id": 2}'],
 ///     ...     field_name="users",
 ///     ...     type_name="User",
-///     ...     field_paths=None
+///     ...     field_paths=None,
+///     ...     field_selections=None
 ///     ... )
 ///     >>> result.decode('utf-8')
 ///     '{"data":{"users":[{"__typename":"User","userId":1},{"__typename":"User","userId":2}]}}'
@@ -125,22 +126,43 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     json_strings: List of JSON strings from database (snake_case keys)
 ///     field_name: GraphQL field name (e.g., "users", "user")
 ///     type_name: Optional type name for __typename injection
-///     field_paths: Optional field projection paths
+///     field_paths: Optional field projection paths (DEPRECATED - use field_selections)
+///     field_selections: Optional field selections JSON string with aliases and type info
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
 #[pyfunction]
+#[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None))]
 pub fn build_graphql_response(
     json_strings: Vec<String>,
     field_name: &str,
     type_name: Option<&str>,
     field_paths: Option<Vec<Vec<String>>>,
+    field_selections: Option<String>,
 ) -> PyResult<Vec<u8>> {
+    // Parse field_selections JSON string if provided
+    let selections_json = match field_selections {
+        Some(json_str) => {
+            serde_json::from_str::<Vec<serde_json::Value>>(&json_str)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+                    format!("Invalid field_selections JSON: {}", e)
+                ))?
+        }
+        None => Vec::new()
+    };
+
+    let selections_opt = if selections_json.is_empty() {
+        None
+    } else {
+        Some(selections_json)
+    };
+
     pipeline::builder::build_graphql_response(
         json_strings,
         field_name,
         type_name,
         field_paths,
+        selections_opt,
     )
 }
 

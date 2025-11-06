@@ -222,6 +222,218 @@ pub fn transform_with_schema(
     }
 }
 
+/// Transform JSON using field selections with aliases
+///
+/// This function applies GraphQL field aliases during transformation.
+/// Field selections define which fields to include and what aliases to use.
+///
+/// # Arguments
+/// * `value` - The JSON value to transform
+/// * `current_type` - The GraphQL type name for this value
+/// * `selections` - Field selections with materialized paths and aliases
+/// * `registry` - The schema registry for type lookups
+///
+/// # Field Selection Format
+/// Each selection is a JSON object:
+/// ```json
+/// {
+///   "materialized_path": "user.posts.author_name",
+///   "alias": "postAuthor",
+///   "type_info": {
+///     "type_name": "String",
+///     "is_list": false,
+///     "is_nested_object": false
+///   }
+/// }
+/// ```
+///
+/// # Returns
+/// Transformed JSON value with:
+/// - Aliases applied according to selections
+/// - __typename injected at object boundaries
+/// - Nested objects resolved via schema registry
+///
+/// # Examples
+/// ```ignore
+/// let input = json!({"user_name": "John"});
+/// let selections = vec![
+///     json!({"materialized_path": "user_name", "alias": "username", ...})
+/// ];
+/// let result = transform_with_selections(&input, "User", &selections, &registry);
+/// // result: {"__typename": "User", "username": "John"}
+/// ```
+pub fn transform_with_selections(
+    value: &Value,
+    current_type: &str,
+    selections: &[Value],
+    registry: &SchemaRegistry,
+) -> Value {
+    // Build alias map from selections
+    let alias_map = build_alias_map(selections);
+
+    // Transform with aliases applied
+    transform_with_aliases(value, current_type, "", &alias_map, registry)
+}
+
+/// Build a mapping from materialized paths to aliases
+///
+/// Returns a HashMap where:
+/// - Key: materialized path (e.g., "user.posts.author_name")
+/// - Value: alias (e.g., "writerName")
+fn build_alias_map(selections: &[Value]) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+
+    for selection in selections {
+        if let (Some(path), Some(alias)) = (
+            selection.get("materialized_path").and_then(|v| v.as_str()),
+            selection.get("alias").and_then(|v| v.as_str()),
+        ) {
+            map.insert(path.to_string(), alias.to_string());
+        }
+    }
+
+    map
+}
+
+/// Transform JSON value with alias support
+///
+/// This is the core aliasing algorithm that applies GraphQL field aliases during
+/// transformation. It recursively traverses the JSON structure, maintaining a
+/// materialized path to match against the alias map.
+///
+/// # Algorithm
+/// 1. **Path Construction**: Build materialized path as we traverse (e.g., "user.posts.author_name")
+/// 2. **Alias Lookup**: Check if current path has an alias in the map
+/// 3. **Key Selection**: Use alias if present, otherwise camelCase
+/// 4. **Recursive Transform**: Apply same logic to nested objects/arrays
+///
+/// # Arguments
+/// * `value` - JSON value to transform
+/// * `current_type` - GraphQL type name for schema lookup
+/// * `current_path` - Materialized path to current position (e.g., "user.posts")
+/// * `alias_map` - Precomputed map from paths to aliases
+/// * `registry` - Schema registry for type resolution
+///
+/// # Performance
+/// - O(1) alias lookup via HashMap
+/// - Single-pass transformation (no backtracking)
+/// - Minimal allocations (path string constructed once per field)
+fn transform_with_aliases(
+    value: &Value,
+    current_type: &str,
+    current_path: &str,
+    alias_map: &std::collections::HashMap<String, String>,
+    registry: &SchemaRegistry,
+) -> Value {
+    match value {
+        Value::Object(map) => {
+            // Pre-allocate result map (field count + __typename)
+            let mut result = Map::with_capacity(map.len() + 1);
+
+            // Inject __typename first (GraphQL convention)
+            result.insert(
+                "__typename".to_string(),
+                Value::String(current_type.to_string()),
+            );
+
+            // Transform each field with alias support
+            for (key, val) in map {
+                // Build materialized path for this field
+                // Example: "" + "user_name" → "user_name"
+                //          "user.posts" + "author_name" → "user.posts.author_name"
+                let field_path = if current_path.is_empty() {
+                    key.to_string()
+                } else {
+                    format!("{}.{}", current_path, key)
+                };
+
+                // Determine output key: alias or camelCase
+                // If alias is "user.posts.writerName", extract "writerName"
+                let output_key = if let Some(alias) = alias_map.get(&field_path) {
+                    // Extract final segment after last '.' (handles nested paths)
+                    alias.rsplit('.').next().unwrap_or(alias).to_string()
+                } else {
+                    // No alias - default to camelCase transformation
+                    to_camel_case(key)
+                };
+
+                // Transform value based on schema type
+                let transformed_val = match registry.get_field_type(current_type, key) {
+                    Some(field_info) if field_info.is_nested_object() => {
+                        // Nested object or array - recursively transform with updated path
+                        transform_nested_field_with_aliases(
+                            val,
+                            field_info.type_name(),
+                            field_info.is_list(),
+                            &field_path,
+                            alias_map,
+                            registry,
+                        )
+                    }
+                    Some(_) => {
+                        // Scalar field - clone value as-is (no transformation needed)
+                        val.clone()
+                    }
+                    None => {
+                        // Field not in schema - graceful degradation
+                        // Apply simple camelCase transformation without type info
+                        transform_value(val.clone())
+                    }
+                };
+
+                result.insert(output_key, transformed_val);
+            }
+
+            Value::Object(result)
+        }
+        Value::Null => Value::Null,
+        other => other.clone(),
+    }
+}
+
+/// Helper to transform nested fields (objects and arrays) with alias support
+///
+/// Extracted to reduce code duplication between list and single object cases.
+#[inline]
+fn transform_nested_field_with_aliases(
+    value: &Value,
+    nested_type: &str,
+    is_list: bool,
+    current_path: &str,
+    alias_map: &std::collections::HashMap<String, String>,
+    registry: &SchemaRegistry,
+) -> Value {
+    if is_list {
+        // Array of nested objects - map over items
+        match value {
+            Value::Array(items) => {
+                let transformed_items: Vec<Value> = items
+                    .iter()
+                    .map(|item| match item {
+                        Value::Null => Value::Null,
+                        _ => transform_with_aliases(
+                            item,
+                            nested_type,
+                            current_path,
+                            alias_map,
+                            registry,
+                        ),
+                    })
+                    .collect();
+                Value::Array(transformed_items)
+            }
+            Value::Null => Value::Null,
+            _ => value.clone(), // Unexpected type - pass through
+        }
+    } else {
+        // Single nested object
+        match value {
+            Value::Null => Value::Null,
+            _ => transform_with_aliases(value, nested_type, current_path, alias_map, registry),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
