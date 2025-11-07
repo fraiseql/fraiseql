@@ -1601,7 +1601,18 @@ class FraiseQLRepository:
             if hasattr(order_by, "to_sql"):
                 order_sql = order_by.to_sql()
                 if order_sql:
-                    query_parts.extend([SQL(" ORDER BY "), order_sql])
+                    # OrderBySet.to_sql() already includes "ORDER BY " prefix
+                    query_parts.append(SQL(" "))
+                    query_parts.append(order_sql)
+            elif hasattr(order_by, "_to_sql_order_by"):
+                # Convert GraphQL OrderByInput to SQL OrderBySet, then get SQL
+                sql_order_by_obj = order_by._to_sql_order_by()
+                if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
+                    order_sql = sql_order_by_obj.to_sql()
+                    if order_sql:
+                        # OrderBySet.to_sql() already includes "ORDER BY " prefix
+                        query_parts.append(SQL(" "))
+                        query_parts.append(order_sql)
             elif isinstance(order_by, str):
                 query_parts.extend([SQL(" ORDER BY "), SQL(order_by)])
 

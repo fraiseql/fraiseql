@@ -221,8 +221,8 @@ class TestAutoGenerationIntegration:
         results = response.to_json()["data"]["tv_inventory_auto_test"]
 
         assert len(results) == 2
-        assert results[0]["item_name"] == "Laptop"  # quantity 10
-        assert results[1]["item_name"] == "Mouse"   # quantity 50
+        assert results[0]["itemName"] == "Laptop"  # quantity 10
+        assert results[1]["itemName"] == "Mouse"   # quantity 50
 
         # Filter by category and order by name descending
         where = WhereInput(category={"eq": "Furniture"})
@@ -233,8 +233,8 @@ class TestAutoGenerationIntegration:
         results = response.to_json()["data"]["tv_inventory_auto_test"]
 
         assert len(results) == 2
-        assert results[0]["item_name"] == "Desk"
-        assert results[1]["item_name"] == "Chair"
+        assert results[0]["itemName"] == "Desk"
+        assert results[1]["itemName"] == "Chair"
 
         # Cleanup
         async with db_pool.connection() as conn:
@@ -370,9 +370,9 @@ async def test_nested_auto_generation_with_fk_detection(db_pool):
             f"""
             INSERT INTO tv_orders_nested_auto (customer_id, order_number, data)
             VALUES
-                ('{customer_alpha_id}', 'ORD-001', '{{"orderNumber": "ORD-001"}}'),
-                ('{customer_alpha_id}', 'ORD-002', '{{"orderNumber": "ORD-002"}}'),
-                ('{customer_beta_id}', 'ORD-003', '{{"orderNumber": "ORD-003"}}');
+                ('{customer_alpha_id}', 'ORD-001', '{{"orderNumber": "ORD-001", "customer": {{"id": "{customer_alpha_id}", "name": "Customer Alpha"}}}}'),
+                ('{customer_alpha_id}', 'ORD-002', '{{"orderNumber": "ORD-002", "customer": {{"id": "{customer_alpha_id}", "name": "Customer Alpha"}}}}'),
+                ('{customer_beta_id}', 'ORD-003', '{{"orderNumber": "ORD-003", "customer": {{"id": "{customer_beta_id}", "name": "Customer Beta"}}}}');
             """
         )
         await conn.commit()
@@ -401,8 +401,8 @@ async def test_nested_auto_generation_with_fk_detection(db_pool):
     results = response.to_json()["data"]["tv_orders_nested_auto"]
 
     assert len(results) == 2
-    assert results[0]["order_number"] in ["ORD-001", "ORD-002"]
-    assert results[1]["order_number"] in ["ORD-001", "ORD-002"]
+    assert results[0]["orderNumber"] in ["ORD-001", "ORD-002"]
+    assert results[1]["orderNumber"] in ["ORD-001", "ORD-002"]
 
     # Test filtering by different customer
     where = OrderWhere(customer={"name": {"eq": "Customer Beta"}})
@@ -412,7 +412,7 @@ async def test_nested_auto_generation_with_fk_detection(db_pool):
     results = response.to_json()["data"]["tv_orders_nested_auto"]
 
     assert len(results) == 1
-    assert results[0]["order_number"] == "ORD-003"
+    assert results[0]["orderNumber"] == "ORD-003"
 
     # Cleanup
     async with db_pool.connection() as conn:

@@ -121,6 +121,9 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                     # If it's an OrderDirection enum, use it
                     if isinstance(value, OrderDirection):
                         instructions.append(OrderBy(field=field_path, direction=value.value))
+                    # Handle string direction (e.g., "ASC" or "DESC")
+                    elif isinstance(value, str) and value.upper() in ["ASC", "DESC"]:
+                        instructions.append(OrderBy(field=field_path, direction=value.lower()))
                     # If it's a nested order by input, process recursively
                     elif hasattr(value, "__gql_fields__"):
                         process_order_by(value, field_path)
