@@ -318,4 +318,3 @@ result = await repo.count(User, where=where)      # CQRSRepository
 
 - [Database API Reference](database.md) - Complete API documentation
 - [Query Patterns](../advanced/database-patterns.md) - Common query patterns
-- [Performance Guide](../advanced/performance.md) - Optimization techniques
