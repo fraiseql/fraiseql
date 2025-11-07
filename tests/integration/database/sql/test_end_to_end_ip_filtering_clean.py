@@ -87,7 +87,7 @@ class TestEndToEndIPFiltering:
         assert "::inet = '192.168.1.1'::inet" in sql_str
 
         # String field should use LIKE
-        assert "data ->> 'name' LIKE '%%server%%'" in sql_str
+        assert "data ->> 'name' LIKE '%server%'" in sql_str
 
         # Integer field should use numeric casting
         assert "(data ->> 'port')::numeric = 80" in sql_str
