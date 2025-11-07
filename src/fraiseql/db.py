@@ -792,6 +792,677 @@ class FraiseQLRepository:
 
             return result
 
+    async def count(
+        self,
+        view_name: str,
+        **kwargs: Any,
+    ) -> int:
+        """Count records in a view with optional filtering.
+
+        This method provides a clean API for count queries, returning a simple integer
+        count instead of GraphQL response bytes. Uses the same WHERE clause logic as
+        find() for consistency.
+
+        Args:
+            view_name: Database table/view name
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Integer count of matching records
+
+        Example:
+            count = await db.count("v_users", where={"status": {"eq": "active"}})
+            total = await db.count("v_products")
+            tenant_count = await db.count("v_orders", tenant_id="tenant-123")
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause (extracted to helper method for reuse)
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build COUNT(*) query
+        query_parts = [SQL("SELECT COUNT(*) FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query and return count
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return result[0] if result else 0
+
+    async def exists(
+        self,
+        view_name: str,
+        **kwargs: Any,
+    ) -> bool:
+        """Check if any records exist matching the filter.
+
+        More efficient than count() > 0 for existence checks.
+        Uses EXISTS() SQL query for optimal performance.
+
+        Args:
+            view_name: Database table/view name (e.g., "v_users", "v_orders")
+            **kwargs: Query parameters:
+                - where: dict - WHERE clause filters (e.g., {"email": {"eq": "test@example.com"}})
+                - tenant_id: UUID - Filter by tenant_id
+                - Any other parameters supported by _build_where_clause()
+
+        Returns:
+            True if at least one record exists, False otherwise
+
+        Example:
+            # Check if email exists
+            exists = await db.exists("v_users", where={"email": {"eq": "test@example.com"}})
+
+            # Check if tenant has orders
+            has_orders = await db.exists("v_orders", tenant_id=tenant_id)
+
+            # Check with multiple filters
+            exists = await db.exists(
+                "v_users",
+                where={"email": {"eq": "test@example.com"}, "status": {"eq": "active"}}
+            )
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build EXISTS query
+        query_parts = [SQL("SELECT EXISTS(SELECT 1 FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query_parts.append(SQL(")"))
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return bool(result[0]) if result else False
+
+    async def sum(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> float:
+        """Sum a numeric field.
+
+        Args:
+            view_name: Database table/view name (e.g., "v_orders")
+            field: Field name to sum (e.g., "amount", "quantity")
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Sum as float (returns 0.0 if no records)
+
+        Example:
+            # Total revenue
+            total = await db.sum("v_orders", "amount")
+
+            # Total for completed orders
+            total = await db.sum(
+                "v_orders",
+                "amount",
+                where={"status": {"eq": "completed"}}
+            )
+
+            # Total for tenant
+            total = await db.sum("v_orders", "amount", tenant_id=tenant_id)
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build SUM query
+        query_parts = [
+            SQL("SELECT COALESCE(SUM("),
+            Identifier(field),
+            SQL("), 0) FROM "),
+            table_identifier,
+        ]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return float(result[0]) if result and result[0] is not None else 0.0
+
+    async def avg(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> float:
+        """Average of a numeric field.
+
+        Args:
+            view_name: Database table/view name
+            field: Field name to average
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Average as float (returns 0.0 if no records)
+
+        Example:
+            # Average order value
+            avg_order = await db.avg("v_orders", "amount")
+
+            # Average for completed orders
+            avg_order = await db.avg(
+                "v_orders",
+                "amount",
+                where={"status": {"eq": "completed"}}
+            )
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build AVG query
+        query_parts = [
+            SQL("SELECT COALESCE(AVG("),
+            Identifier(field),
+            SQL("), 0) FROM "),
+            table_identifier,
+        ]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return float(result[0]) if result and result[0] is not None else 0.0
+
+    async def min(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> Any:
+        """Minimum value of a field.
+
+        Args:
+            view_name: Database table/view name
+            field: Field name to get minimum value
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Minimum value (type depends on field), or None if no records
+
+        Example:
+            # Lowest product price
+            min_price = await db.min("v_products", "price")
+
+            # Earliest order date
+            first_order = await db.min("v_orders", "created_at")
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build MIN query
+        query_parts = [SQL("SELECT MIN("), Identifier(field), SQL(") FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return result[0] if result else None
+
+    async def max(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> Any:
+        """Maximum value of a field.
+
+        Args:
+            view_name: Database table/view name
+            field: Field name to get maximum value
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Maximum value (type depends on field), or None if no records
+
+        Example:
+            # Highest product price
+            max_price = await db.max("v_products", "price")
+
+            # Latest order date
+            last_order = await db.max("v_orders", "created_at")
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build MAX query
+        query_parts = [SQL("SELECT MAX("), Identifier(field), SQL(") FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+            return result[0] if result else None
+
+    async def distinct(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> list[Any]:
+        """Get distinct values for a field.
+
+        Args:
+            view_name: Database table/view name
+            field: Field name to get distinct values
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            List of unique values (sorted)
+
+        Example:
+            # Get all categories
+            categories = await db.distinct("v_products", "category")
+            # Returns: ["books", "clothing", "electronics"]
+
+            # Get statuses for tenant
+            statuses = await db.distinct("v_orders", "status", tenant_id=tenant_id)
+            # Returns: ["cancelled", "completed", "pending"]
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build DISTINCT query
+        query_parts = [SQL("SELECT DISTINCT "), Identifier(field), SQL(" FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query_parts.append(SQL(" ORDER BY "))
+        query_parts.append(Identifier(field))
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            results = await cursor.fetchall()
+            return [row[0] for row in results] if results else []
+
+    async def pluck(
+        self,
+        view_name: str,
+        field: str,
+        **kwargs: Any,
+    ) -> list[Any]:
+        """Extract a single field from matching records.
+
+        More efficient than find() when you only need one field.
+
+        Args:
+            view_name: Database table/view name
+            field: Field name to extract
+            **kwargs: Query parameters (where, limit, offset, order_by, etc.)
+
+        Returns:
+            List of field values (not full objects)
+
+        Example:
+            # Get all user IDs
+            user_ids = await db.pluck("v_users", "id")
+            # Returns: [uuid1, uuid2, uuid3, ...]
+
+            # Get emails for active users
+            emails = await db.pluck(
+                "v_users",
+                "email",
+                where={"status": {"eq": "active"}}
+            )
+            # Returns: ["user1@example.com", "user2@example.com", ...]
+
+            # Get product names with limit
+            names = await db.pluck("v_products", "name", limit=10)
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build query with optional LIMIT and OFFSET
+        query_parts = [SQL("SELECT "), Identifier(field), SQL(" FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        # Add LIMIT if provided
+        if "limit" in kwargs:
+            query_parts.append(SQL(" LIMIT "))
+            query_parts.append(SQL(str(kwargs["limit"])))
+
+        # Add OFFSET if provided
+        if "offset" in kwargs:
+            query_parts.append(SQL(" OFFSET "))
+            query_parts.append(SQL(str(kwargs["offset"])))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            results = await cursor.fetchall()
+            return [row[0] for row in results] if results else []
+
+    async def aggregate(
+        self,
+        view_name: str,
+        aggregations: dict[str, str],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Perform multiple aggregations in a single query.
+
+        Args:
+            view_name: Database table/view name
+            aggregations: Dict mapping result names to SQL aggregation expressions
+            **kwargs: Query parameters (where, tenant_id, etc.)
+
+        Returns:
+            Dict with aggregation results as Python values
+
+        Example:
+            # Multiple aggregations in one query
+            stats = await db.aggregate(
+                "v_orders",
+                aggregations={
+                    "total_revenue": "SUM(amount)",
+                    "avg_order": "AVG(amount)",
+                    "max_order": "MAX(amount)",
+                    "order_count": "COUNT(*)",
+                },
+                where={"status": {"eq": "completed"}}
+            )
+            # Returns: {
+            #     "total_revenue": 125000.50,
+            #     "avg_order": 250.00,
+            #     "max_order": 1500.00,
+            #     "order_count": 500
+            # }
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        if not aggregations:
+            return {}
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build SELECT clause with all aggregations
+        agg_clauses = [SQL(f"{expr} AS {name}") for name, expr in aggregations.items()]
+        select_clause = Composed(agg_clauses)
+
+        # Build query
+        query_parts = [SQL("SELECT "), select_clause, SQL(" FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query)
+            result = await cursor.fetchone()
+
+            if not result:
+                return dict.fromkeys(aggregations.keys())
+
+            # Map column names to values
+            column_names = [desc[0] for desc in cursor.description]
+            return dict(zip(column_names, result, strict=True))
+
+    async def batch_exists(
+        self,
+        view_name: str,
+        ids: list[Any],
+        field: str = "id",
+        **kwargs: Any,
+    ) -> dict[Any, bool]:
+        """Check existence of multiple records in a single query.
+
+        Args:
+            view_name: Database table/view name
+            ids: List of IDs to check for existence
+            field: Field name to check against (default: "id")
+            **kwargs: Additional query parameters (tenant_id, etc.)
+
+        Returns:
+            Dict mapping each ID to boolean existence status
+
+        Example:
+            # Check if multiple users exist
+            results = await db.batch_exists("v_users", [user_id1, user_id2, user_id3])
+            # Returns: {user_id1: True, user_id2: False, user_id3: True}
+
+            # Check by custom field
+            results = await db.batch_exists("v_users", ["user1", "user2"], field="username")
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        if not ids:
+            return {}
+
+        # Build WHERE clause using existing helper
+        where_parts = self._build_where_clause(view_name, **kwargs)
+
+        # Handle schema-qualified table names
+        if "." in view_name:
+            schema_name, table_name = view_name.split(".", 1)
+            table_identifier = Identifier(schema_name, table_name)
+        else:
+            table_identifier = Identifier(view_name)
+
+        # Build query to select existing IDs
+        query_parts = [SQL("SELECT "), Identifier(field), SQL(" FROM "), table_identifier]
+
+        if where_parts:
+            query_parts.append(SQL(" WHERE "))
+            query_parts.append(SQL(" AND ").join(where_parts))
+            query_parts.append(SQL(" AND "))
+        else:
+            query_parts.append(SQL(" WHERE "))
+
+        # Add IN clause for the IDs (using Identifier for field to prevent SQL injection)
+        if len(ids) == 1:
+            # Single ID - use equality
+            query_parts.extend([Identifier(field), SQL(" = %s")])
+        else:
+            # Multiple IDs - use IN clause
+            placeholders = ", ".join(["%s"] * len(ids))
+            query_parts.extend([Identifier(field), SQL(f" IN ({placeholders})")])
+
+        query = Composed(query_parts)
+
+        # Execute query
+        async with self._pool.connection() as conn, conn.cursor() as cursor:
+            await cursor.execute(query, ids)
+            results = await cursor.fetchall()
+
+            # Extract existing IDs
+            existing_ids = {row[0] for row in results} if results else set()
+
+            # Build result dict
+            return {id_val: (id_val in existing_ids) for id_val in ids}
+
+    def _build_where_clause(self, view_name: str, **kwargs: Any) -> list[Any]:
+        """Build WHERE clause parts from kwargs.
+
+        Extracted helper method to avoid code duplication between count() and
+        other query-building methods.
+
+        Args:
+            view_name: View name for metadata lookup
+            **kwargs: Query parameters including where, tenant_id, etc.
+
+        Returns:
+            List of SQL Composed objects for WHERE clause parts
+        """
+        from psycopg.sql import SQL, Composed, Identifier, Literal
+
+        where_parts = []
+
+        # Extract where parameter
+        where_obj = kwargs.pop("where", None)
+
+        # Process where object
+        if where_obj:
+            if hasattr(where_obj, "to_sql"):
+                where_composed = where_obj.to_sql()
+                if where_composed:
+                    where_parts.append(where_composed)
+            elif hasattr(where_obj, "_to_sql_where"):
+                # Convert GraphQL WhereInput to SQL where type
+                sql_where_obj = where_obj._to_sql_where()
+                if hasattr(sql_where_obj, "to_sql"):
+                    where_composed = sql_where_obj.to_sql()
+                    if where_composed:
+                        where_parts.append(where_composed)
+            elif isinstance(where_obj, dict):
+                # Get JSONB column from metadata
+                jsonb_column = None
+                if view_name in _table_metadata:
+                    metadata = _table_metadata[view_name]
+                    if metadata.get("has_jsonb_data", False):
+                        jsonb_column = metadata.get("jsonb_column") or "data"
+                    elif "jsonb_column" in metadata:
+                        jsonb_column = metadata["jsonb_column"]
+
+                # Get table columns for nested object detection
+                table_columns = None
+                if (
+                    hasattr(self, "_introspected_columns")
+                    and view_name in self._introspected_columns
+                ):
+                    table_columns = self._introspected_columns[view_name]
+                elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
+                    table_columns = _table_metadata[view_name]["columns"]
+
+                dict_where_sql = self._convert_dict_where_to_sql(
+                    where_obj, view_name, table_columns, jsonb_column
+                )
+                if dict_where_sql:
+                    where_parts.append(dict_where_sql)
+
+        # Process remaining kwargs as simple equality filters
+        for key, value in kwargs.items():
+            where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
+            where_parts.append(where_condition)
+
+        return where_parts
+
     def _extract_type(self, field_type: type) -> Optional[type]:
         """Extract the actual type from Optional, Union, etc."""
         origin = get_origin(field_type)

@@ -5,6 +5,102 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-01-07
+
+### ✨ New Features
+
+**Issues #116 & #117: Add 9 Utility Methods to FraiseQLRepository**
+- **Feature**: Nine new utility methods for clean, type-safe database operations
+- **New Methods**: `count()`, `exists()`, `sum()`, `avg()`, `min()`, `max()`, `distinct()`, `pluck()`, `aggregate()`, `batch_exists()`
+- **Motivation**:
+  - Users had no clean API for common operations (count, sum, exists, etc.)
+  - `db.find()` returns `RustResponseBytes` which can't be used with `len()` or Python operations
+  - No way to leverage SQL capabilities for dynamic queries (dashboards, analytics, validation)
+- **Solution**: Added 9 utility methods that return Python types and enable dynamic queries with filters
+
+#### Method Details
+
+1. **`count(view_name, **kwargs) -> int`**
+   - Count records matching filters
+   - Uses optimized `COUNT(*)` SQL query
+   - Example: `total = await db.count("v_users", where={"status": {"eq": "active"}})`
+
+2. **`exists(view_name, **kwargs) -> bool`**
+   - Check if any records exist (faster than `count() > 0`)
+   - Uses `SELECT EXISTS()` - short-circuits after first match
+   - Example: `if await db.exists("v_users", where={"email": {"eq": email}}): ...`
+
+3. **`sum(view_name, field, **kwargs) -> float`**
+   - Sum a numeric field
+   - Converts PostgreSQL Decimal to Python float
+   - Example: `revenue = await db.sum("v_orders", "amount", where={...})`
+
+4. **`avg(view_name, field, **kwargs) -> float`**
+   - Average of a numeric field
+   - Converts PostgreSQL Decimal to Python float
+   - Example: `avg_order = await db.avg("v_orders", "amount")`
+
+5. **`min(view_name, field, **kwargs) -> Any`**
+   - Minimum value of a field
+   - Preserves original type (Decimal, datetime, str, etc.)
+   - Example: `earliest = await db.min("v_orders", "created_at")`
+
+6. **`max(view_name, field, **kwargs) -> Any`**
+   - Maximum value of a field
+   - Preserves original type (Decimal, datetime, str, etc.)
+   - Example: `latest = await db.max("v_orders", "created_at")`
+
+7. **`distinct(view_name, field, **kwargs) -> list[Any]`**
+   - Get unique values for a field
+   - Perfect for filter dropdowns
+   - Example: `categories = await db.distinct("v_products", "category")`
+
+8. **`pluck(view_name, field, **kwargs) -> list[Any]`**
+   - Extract single field from records (more efficient than full objects)
+   - Supports LIMIT/OFFSET
+   - Example: `emails = await db.pluck("v_users", "email", where={...})`
+
+9. **`aggregate(view_name, aggregations, **kwargs) -> dict[str, Any]`**
+   - Multiple aggregations in one query
+   - Example: `stats = await db.aggregate("v_orders", {"total": "SUM(amount)", "count": "COUNT(*)"})`
+
+10. **`batch_exists(view_name, ids, field="id", **kwargs) -> dict[Any, bool]`**
+    - Check multiple IDs in one query (not N queries)
+    - Example: `existence = await db.batch_exists("v_users", [id1, id2, id3])`
+
+### 📦 Changes
+
+**Python Layer**
+- `src/fraiseql/db.py`:
+  - Added `exists()` method (line 845)
+  - Added `sum()` method (line 906)
+  - Added `avg()` method (line 968)
+  - Added `min()` method (line 1027)
+  - Added `max()` method (line 1077)
+  - Added `distinct()` method (line 1127)
+  - Added `pluck()` method (line 1181)
+  - Added `aggregate()` method (line 1252)
+  - Added `batch_exists()` method (line 1327)
+  - All methods use `psycopg.sql.Identifier` for SQL injection protection
+  - All methods support same filter syntax as `find()`
+
+**Tests**
+- `tests/unit/db/test_db_utility_methods.py`: NEW comprehensive test suite
+  - 56 unit tests covering all 9 methods
+  - 56/56 tests passing
+  - Total: 104/104 db tests passing (56 new + 48 existing)
+  - Zero regressions
+
+**Documentation**
+- `docs/reference/repositories.md`: NEW - Comprehensive comparison of FraiseQLRepository vs CQRSRepository
+- `docs/reference/database.md`: Updated with all utility methods documentation
+- `RELEASE_1.3.2.md`: Comprehensive release notes with examples for all 9 methods
+
+### 🔗 Related Issues
+- Resolves #116 - Add count() method to FraiseQLRepository
+- Resolves #117 - Add utility methods for API consistency
+- Related #114 - User encountered count() limitation
+
 ## [1.3.1] - 2025-01-06
 
 ### 🐛 Bug Fixes
