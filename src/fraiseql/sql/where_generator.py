@@ -223,7 +223,11 @@ def _build_where_to_sql(
                             dict_conditions: list[Composed] = []
                             for field_name, field_val in item.items():
                                 if isinstance(field_val, dict):
-                                    field_type = enhanced_type_hints.get(field_name) if enhanced_type_hints else None
+                                    field_type = (
+                                        enhanced_type_hints.get(field_name)
+                                        if enhanced_type_hints
+                                        else None
+                                    )
                                     json_path = parent_path if parent_path else "data"
                                     cond = _make_filter_field_composed(
                                         field_name,
@@ -256,7 +260,11 @@ def _build_where_to_sql(
                             dict_conditions: list[Composed] = []
                             for field_name, field_val in item.items():
                                 if isinstance(field_val, dict):
-                                    field_type = enhanced_type_hints.get(field_name) if enhanced_type_hints else None
+                                    field_type = (
+                                        enhanced_type_hints.get(field_name)
+                                        if enhanced_type_hints
+                                        else None
+                                    )
                                     json_path = parent_path if parent_path else "data"
                                     cond = _make_filter_field_composed(
                                         field_name,
