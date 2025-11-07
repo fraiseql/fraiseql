@@ -1043,9 +1043,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.3.2** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.3.3** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.3.1** | Superseded | Legacy | Use v1.3.2 | ⚠️ Migrate |
+| **v1.3.2** | Superseded | Legacy | Use v1.3.3 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
