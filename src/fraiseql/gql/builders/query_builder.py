@@ -217,7 +217,7 @@ class QueryTypeBuilder:
         Args:
             fields: The fields dictionary to populate.
         """
-        for typ in self.registry.types:
+        for typ in list(self.registry.types):
             definition = getattr(typ, "__fraiseql_definition__", None)
             if definition is None:
                 continue
