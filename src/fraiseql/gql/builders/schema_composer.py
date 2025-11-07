@@ -68,7 +68,7 @@ class SchemaComposer:
             List of GraphQLObjectType instances.
         """
         all_types = []
-        for typ in self.registry.types.values():
+        for typ in list(self.registry.types.values()):
             # Skip QueryRoot - it's special and its fields are added to Query type
             if typ.__name__ == "QueryRoot":
                 continue

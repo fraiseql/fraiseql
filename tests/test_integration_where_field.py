@@ -89,7 +89,8 @@ class TestWhereFieldIntegration:
             sql_where = where_filter._to_sql_where()
             assert sql_where is not None
 
-            # The SQL where should have the field filters
+            # The SQL where should be a WhereType object with the field filters
+            # It's not a dict - it's a dataclass instance
             assert hasattr(sql_where, "name")
             assert hasattr(sql_where, "status")
 

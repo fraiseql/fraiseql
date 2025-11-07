@@ -388,6 +388,18 @@ def _get_filter_type_for_field(
             # Store the deferred type for later resolution
             return type(f"_Deferred_{field_type.__name__}WhereInput", (), {})
 
+        # PHASE 2 ENHANCEMENT: Check if type has auto-generated WhereInput property
+        # This allows lazy properties to handle nested types naturally
+        if hasattr(field_type, "WhereInput"):
+            try:
+                # Use the lazy property - it will generate on access
+                # This breaks circular dependencies naturally
+                nested_where_input = field_type.WhereInput
+                return nested_where_input
+            except Exception:
+                # If lazy property fails, fall through to manual generation
+                pass
+
         # Generate nested where input type recursively
         # Since we're already inside the module, we can call the function directly
         # without circular import issues
@@ -489,12 +501,16 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
             if filter_value is not None:
                 # Handle logical operators specially
                 if field_name in ("OR", "AND"):
-                    # These are lists of WhereInput objects
+                    # These are lists of WhereInput objects or dicts
                     if isinstance(filter_value, list):
                         converted_list = []
                         for item in filter_value:
                             if hasattr(item, "_to_sql_where"):
+                                # WhereInput object
                                 converted_list.append(item._to_sql_where())
+                            elif isinstance(item, dict):
+                                # Plain dict - convert it recursively
+                                converted_list.append(item)
                         setattr(where_obj, field_name, converted_list)
                 elif field_name == "NOT":
                     # This is a single WhereInput object
@@ -521,12 +537,16 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
             if filter_value is not None:
                 # Handle logical operators specially
                 if field_name in ("OR", "AND"):
-                    # These are lists of WhereInput objects
+                    # These are lists of WhereInput objects or dicts
                     if isinstance(filter_value, list):
                         converted_list = []
                         for item in filter_value:
                             if hasattr(item, "_to_sql_where"):
+                                # WhereInput object
                                 converted_list.append(item._to_sql_where())
+                            elif isinstance(item, dict):
+                                # Plain dict - convert it recursively
+                                converted_list.append(item)
                         setattr(where_obj, field_name, converted_list)
                 elif field_name == "NOT":
                     # This is a single WhereInput object
