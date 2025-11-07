@@ -1909,6 +1909,19 @@ class FraiseQLRepository:
             if field_filter is None:
                 continue
 
+            # Check for logical operators FIRST, before any type checking
+            # Logical operators can have list or dict values
+            LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
+
+            if field_name in LOGICAL_OPERATORS:
+                # This is a top-level logical operator
+                logical_conditions = self._handle_logical_operator(
+                    field_name, field_filter, view_name, table_columns, jsonb_column
+                )
+                if logical_conditions:
+                    conditions.extend(logical_conditions)
+                continue  # Skip further processing for logical operators
+
             # Convert GraphQL field names to database field names
             db_field_name = self._convert_field_name_to_database(field_name)
 
@@ -1917,24 +1930,12 @@ class FraiseQLRepository:
                 is_nested_object = False
                 use_fk = False
 
-                # Check if this is a top-level logical operator query
-                # e.g., {OR: [{status: {eq: "active"}}, {device: {is_active: {eq: true}}}]}
-                LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
-
-                if field_name in LOGICAL_OPERATORS:
-                    # This is a top-level logical operator
-                    logical_conditions = self._handle_logical_operator(
-                        field_name, field_filter, view_name, table_columns, jsonb_column
-                    )
-                    if logical_conditions:
-                        conditions.extend(logical_conditions)
-                else:
-                    # This is a regular field filter or nested object filter
-                    # Check if this might be a nested object filter
-                    # (e.g., {machine: {id: {eq: value}}} or {device: {is_active: {eq: true}}})
-                    is_nested_object, use_fk = self._is_nested_object_filter(
-                        field_name, field_filter, table_columns, view_name
-                    )
+                # This is a regular field filter or nested object filter
+                # Check if this might be a nested object filter
+                # (e.g., {machine: {id: {eq: value}}} or {device: {is_active: {eq: true}}})
+                is_nested_object, use_fk = self._is_nested_object_filter(
+                    field_name, field_filter, table_columns, view_name
+                )
 
                 if is_nested_object and use_fk:
                     # FK SCENARIO: Handle nested filters on 'id' field using FK column

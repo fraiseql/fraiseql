@@ -674,29 +674,29 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
         if op == "startswith":
             if isinstance(val, str):
                 # Use LIKE for prefix matching
-                # Use %% to escape % for psycopg3
-                like_val = f"{val}%%"
+                # Use single % for Literal() - psycopg handles escaping
+                like_val = f"{val}%"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~ "), Literal(f"^{val}.*")])
         if op == "endswith":
             if isinstance(val, str):
                 # Use LIKE for suffix matching
-                # Use %% to escape % for psycopg3
-                like_val = f"%%{val}"
+                # Use single % for Literal() - psycopg handles escaping
+                like_val = f"%{val}"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}$")])
         if op == "contains":
             if isinstance(val, str):
                 # Use LIKE for substring matching
-                # Use %% to escape % for psycopg3
-                like_val = f"%%{val}%%"
+                # Use single % for Literal() - psycopg handles escaping
+                like_val = f"%{val}%"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
         if op == "ilike":
             if isinstance(val, str):
                 # Use ILIKE for case-insensitive substring matching with automatic wildcards
-                # Use %% to escape % for psycopg3
-                like_val = f"%%{val}%%"
+                # Use single % for Literal() - psycopg handles escaping
+                like_val = f"%{val}%"
                 return Composed([casted_path, SQL(" ILIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~* "), Literal(val)])
         if op == "imatches":

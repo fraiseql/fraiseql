@@ -231,7 +231,18 @@ async def execute_via_rust_pipeline(
         used by Rust until Task 3.4 (Update FFI) is complete. Maintains backward compatibility.
     """
     async with conn.cursor() as cursor:
-        await cursor.execute(query, params or {})
+        # Handle statement execution based on type and parameter presence
+        # When query is Composed without params, all values are embedded as literals
+        # Passing an empty dict causes psycopg to look for % placeholders
+        if isinstance(query, Composed) and not params:
+            # Composed objects without params have only embedded literals
+            await cursor.execute(query)
+        elif params:
+            # Pass parameters for queries that need them
+            await cursor.execute(query, params)
+        else:
+            # SQL objects or other types without parameters
+            await cursor.execute(query)
 
         if is_list:
             rows = await cursor.fetchall()

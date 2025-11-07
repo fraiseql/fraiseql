@@ -217,6 +217,33 @@ def _build_where_to_sql(
                             item_sql = item.to_sql(parent_path)
                             if item_sql:
                                 logical_or.append(item_sql)
+                        elif isinstance(item, dict):
+                            # Handle plain dict items in OR clause
+                            # Each dict represents a complete where condition
+                            dict_conditions: list[Composed] = []
+                            for field_name, field_val in item.items():
+                                if isinstance(field_val, dict):
+                                    field_type = enhanced_type_hints.get(field_name) if enhanced_type_hints else None
+                                    json_path = parent_path if parent_path else "data"
+                                    cond = _make_filter_field_composed(
+                                        field_name,
+                                        cast("dict[str, object]", field_val),
+                                        json_path,
+                                        field_type,
+                                    )
+                                    if cond:
+                                        dict_conditions.append(cond)
+                            if dict_conditions:
+                                if len(dict_conditions) == 1:
+                                    logical_or.append(dict_conditions[0])
+                                else:
+                                    # Multiple conditions in this dict, combine with AND
+                                    and_parts: list[SQL | Composed] = []
+                                    for i, cond in enumerate(dict_conditions):
+                                        if i > 0:
+                                            and_parts.append(SQL(" AND "))
+                                        and_parts.append(cond)
+                                    logical_or.append(Composed(and_parts))
             elif name == "AND":
                 if isinstance(val, list):
                     for item in val:
@@ -224,6 +251,32 @@ def _build_where_to_sql(
                             item_sql = item.to_sql(parent_path)
                             if item_sql:
                                 logical_and.append(item_sql)
+                        elif isinstance(item, dict):
+                            # Handle plain dict items in AND clause
+                            dict_conditions: list[Composed] = []
+                            for field_name, field_val in item.items():
+                                if isinstance(field_val, dict):
+                                    field_type = enhanced_type_hints.get(field_name) if enhanced_type_hints else None
+                                    json_path = parent_path if parent_path else "data"
+                                    cond = _make_filter_field_composed(
+                                        field_name,
+                                        cast("dict[str, object]", field_val),
+                                        json_path,
+                                        field_type,
+                                    )
+                                    if cond:
+                                        dict_conditions.append(cond)
+                            if dict_conditions:
+                                if len(dict_conditions) == 1:
+                                    logical_and.append(dict_conditions[0])
+                                else:
+                                    # Multiple conditions in this dict, combine with AND
+                                    and_parts_inner: list[SQL | Composed] = []
+                                    for i, cond in enumerate(dict_conditions):
+                                        if i > 0:
+                                            and_parts_inner.append(SQL(" AND "))
+                                        and_parts_inner.append(cond)
+                                    logical_and.append(Composed(and_parts_inner))
             elif name == "NOT":
                 if hasattr(val, "to_sql"):
                     not_sql = val.to_sql(parent_path)

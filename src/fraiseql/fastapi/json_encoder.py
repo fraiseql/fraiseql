@@ -60,6 +60,13 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
                     and not callable(getattr(obj, attr_name, None))
                 ):
                     value = getattr(obj, attr_name, None)
+
+                    # Skip descriptor instances (like LazyWhereInputProperty, LazyOrderByProperty)
+                    # When accessed on an instance, descriptors might return themselves
+                    if value is not None and hasattr(value, "__get__"):
+                        # This is a descriptor instance, skip it
+                        continue
+
                     if value is not None:
                         obj_dict[attr_name] = value
             return obj_dict
