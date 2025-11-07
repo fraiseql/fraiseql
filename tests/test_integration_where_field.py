@@ -89,14 +89,14 @@ class TestWhereFieldIntegration:
             sql_where = where_filter._to_sql_where()
             assert sql_where is not None
 
-            # The SQL where should be a dictionary with the field filters
-            assert isinstance(sql_where, dict)
-            assert "name" in sql_where
-            assert "status" in sql_where
+            # The SQL where should be a WhereType object with the field filters
+            # It's not a dict - it's a dataclass instance
+            assert hasattr(sql_where, "name")
+            assert hasattr(sql_where, "status")
 
             # The field filters should be dictionaries with operators
-            assert sql_where["name"] == {"contains": "test"}
-            assert sql_where["status"] == {"eq": "active"}
+            assert sql_where.name == {"contains": "test"}
+            assert sql_where.status == {"eq": "active"}
 
     def test_enhanced_resolver_creation(self):
         """Test that enhanced resolvers are created for where-enabled fields."""
