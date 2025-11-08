@@ -1426,7 +1426,55 @@ class FraiseQLRepository:
             elif hasattr(where_obj, "_to_sql_where"):
                 # Convert GraphQL WhereInput to SQL where type
                 sql_where_obj = where_obj._to_sql_where()
-                if hasattr(sql_where_obj, "to_sql"):
+
+                # FIX FOR ISSUE #124: Handle nested object filters in hybrid tables
+                # When a table has both SQL columns (e.g., machine_id) and JSONB data
+                # (e.g., data->'machine'->>'id'), nested object filters like
+                # {machine: {id: {eq: value}}} should use the SQL column for performance.
+                #
+                # Without this fix, WhereInput objects bypass the hybrid table logic
+                # and generate incorrect JSONB paths, causing "Unsupported operator: id"
+                # warnings and returning unfiltered results.
+                #
+                # Check if this is a hybrid table with registered columns
+                table_columns = None
+                if (
+                    hasattr(self, "_introspected_columns")
+                    and view_name in self._introspected_columns
+                ):
+                    table_columns = self._introspected_columns[view_name]
+                elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
+                    table_columns = _table_metadata[view_name]["columns"]
+
+                # If we have table column metadata, convert WHERE object to dict
+                # for hybrid table processing (enables FK column detection)
+                if table_columns and hasattr(sql_where_obj, "to_sql"):
+                    # Convert WHERE object to dict to detect nested object filters
+                    where_dict = self._where_obj_to_dict(sql_where_obj, table_columns)
+
+                    if where_dict:
+                        # Get JSONB column from metadata
+                        jsonb_column = None
+                        if view_name in _table_metadata:
+                            metadata = _table_metadata[view_name]
+                            if metadata.get("has_jsonb_data", False):
+                                jsonb_column = metadata.get("jsonb_column") or "data"
+                            elif "jsonb_column" in metadata:
+                                jsonb_column = metadata["jsonb_column"]
+
+                        # Use dict-based processing which handles hybrid tables correctly
+                        dict_where_sql = self._convert_dict_where_to_sql(
+                            where_dict, view_name, table_columns, jsonb_column
+                        )
+                        if dict_where_sql:
+                            where_parts.append(dict_where_sql)
+                    else:
+                        # Fallback to standard processing if conversion fails
+                        where_composed = sql_where_obj.to_sql()
+                        if where_composed:
+                            where_parts.append(where_composed)
+                # No table columns metadata, use standard processing
+                elif hasattr(sql_where_obj, "to_sql"):
                     where_composed = sql_where_obj.to_sql()
                     if where_composed:
                         where_parts.append(where_composed)
