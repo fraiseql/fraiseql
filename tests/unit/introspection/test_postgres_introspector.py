@@ -157,3 +157,53 @@ class TestPostgresIntrospector:
 
         # Then: Returns None
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_discover_views_includes_column_comments(self, introspector, mock_pool):
+        """Test that view discovery includes column comments from PostgreSQL."""
+        # Mock the database responses
+        conn = mock_pool.connection.return_value.__aenter__.return_value
+
+        # Mock views query result
+        views_result = MagicMock()
+        views_result.fetchall = AsyncMock(
+            return_value=[
+                ("public", "v_users", "SELECT id, email, name FROM users"),
+            ]
+        )
+
+        # Mock comment query result
+        comment_result = MagicMock()
+        comment_result.fetchone = AsyncMock(return_value=("User profile data",))
+
+        # Mock columns query result with column comments
+        columns_result = MagicMock()
+        columns_result.fetchall = AsyncMock(
+            return_value=[
+                ("id", "uuid", True, "Unique identifier for the user"),
+                ("email", "text", False, "Primary email address"),
+                ("name", "text", False, "Full name of the user"),
+            ]
+        )
+
+        # Configure execute to return different results for different queries
+        conn.execute = AsyncMock(side_effect=[views_result, comment_result, columns_result])
+
+        # When: Discover views
+        views = await introspector.discover_views()
+
+        # Then: Returns view metadata with column comments
+        assert len(views) == 1
+        view = views[0]
+
+        assert view.view_name == "v_users"
+        assert view.comment == "User profile data"
+
+        # Then: Columns include comments
+        assert "id" in view.columns
+        assert "email" in view.columns
+        assert "name" in view.columns
+
+        assert view.columns["id"].comment == "Unique identifier for the user"
+        assert view.columns["email"].comment == "Primary email address"
+        assert view.columns["name"].comment == "Full name of the user"

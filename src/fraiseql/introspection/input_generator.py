@@ -144,8 +144,9 @@ class InputGenerator:
                 f"Check if SpecQL created this type."
             )
 
-        # Step 2: Build annotations from composite type attributes
+        # Step 2: Build annotations AND field descriptors
         annotations = {}
+        gql_fields = {}  # NEW: Store field metadata
 
         for attr in composite_metadata.attributes:
             # Step 2a: Parse field metadata from comment (SpecQL puts metadata here)
@@ -163,15 +164,33 @@ class InputGenerator:
 
             python_type = self.type_mapper.pg_type_to_python(attr.pg_type, nullable=nullable)
 
-            # Step 2d: Add to annotations
+            # Step 2d: Create field descriptor with description
+            from fraiseql.fields import FraiseQLField
+
+            field_descriptor = FraiseQLField(
+                field_type=python_type,
+                description=attr.comment,  # PostgreSQL comment (NEW)
+                purpose="input",
+            )
+
+            gql_fields[field_name] = field_descriptor
             annotations[field_name] = python_type
 
         # Step 3: Generate class name from composite type name
         # "type_create_contact_input" → "CreateContactInput"
         class_name = self._composite_type_to_class_name(composite_type_name)
 
-        # Step 4: Create input class dynamically
-        input_cls = type(class_name, (object,), {"__annotations__": annotations})
+        # Step 4: Create input class with field metadata
+        input_cls = type(
+            class_name,
+            (object,),
+            {
+                "__annotations__": annotations,
+                "__gql_fields__": gql_fields,  # NEW: Store field metadata
+                "__doc__": composite_metadata.comment
+                or f"Auto-generated from {composite_type_name}",
+            },
+        )
 
         return input_cls
 

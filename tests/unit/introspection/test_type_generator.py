@@ -177,3 +177,37 @@ class TestTypeGenerator:
         assert result["id"]["nullable"] is False
         assert result["name"]["type"] == "text"
         assert result["name"]["nullable"] is True
+
+    async def test_view_comment_used_as_type_description(self, type_generator):
+        """Test that PostgreSQL view comments become GraphQL type descriptions."""
+        # Arrange
+        view_metadata = ViewMetadata(
+            schema_name="public",
+            view_name="v_user",
+            definition="SELECT * FROM users",
+            comment="User profile data with contact information",  # PostgreSQL comment
+            columns={},
+        )
+        annotation = TypeAnnotation()  # No explicit description
+
+        # Mock database pool and connection
+        mock_conn = AsyncMock()
+        mock_row = MagicMock()
+        mock_row.__getitem__.return_value = {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "name": "Test User",
+        }
+        mock_conn.fetchrow.return_value = mock_row
+
+        @asynccontextmanager
+        async def mock_connection():
+            yield mock_conn
+
+        mock_pool = MagicMock()
+        mock_pool.connection = mock_connection
+
+        # Act
+        cls = await type_generator.generate_type_class(view_metadata, annotation, mock_pool)
+
+        # Assert
+        assert cls.__doc__ == "User profile data with contact information"

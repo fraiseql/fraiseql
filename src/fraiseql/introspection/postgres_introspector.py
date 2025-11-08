@@ -125,7 +125,7 @@ class PostgresIntrospector:
                         a.attname as column_name,
                         t.typname as pg_type,
                         a.attnotnull as not_null,
-                        obj_description(a.attrelid, 'pg_attribute') as column_comment
+                        col_description(a.attrelid, a.attnum) as column_comment
                     FROM pg_attribute a
                     JOIN pg_type t ON a.atttypid = t.oid
                     JOIN pg_class c ON a.attrelid = c.oid

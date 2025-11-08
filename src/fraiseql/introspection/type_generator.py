@@ -63,8 +63,11 @@ class TypeGenerator:
             (object,),
             {
                 "__annotations__": annotations,
-                "__doc__": annotation.description
-                or f"Auto-generated from {view_metadata.view_name}",
+                "__doc__": (
+                    annotation.description  # Priority 1: Explicit annotation
+                    or view_metadata.comment  # Priority 2: PostgreSQL comment (NEW)
+                    or f"Auto-generated from {view_metadata.view_name}"  # Priority 3: Fallback
+                ),
                 "__module__": "fraiseql.introspection.generated",
             },
         )

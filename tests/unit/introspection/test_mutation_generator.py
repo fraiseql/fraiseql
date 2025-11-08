@@ -327,3 +327,37 @@ class TestMutationGenerator:
 
         # Then: Generic auth_ handling (auth_organization_id → organization_id)
         assert context_params == {"organization_id": "auth_organization_id"}
+
+    def test_function_comment_used_as_mutation_description(
+        self, mutation_generator: MutationGenerator
+    ):
+        """Test that PostgreSQL function comments become GraphQL mutation descriptions."""
+        # Given: Input class and types
+        input_cls = type("CreateUserInput", (), {"__annotations__": {"name": str, "email": str}})
+
+        success_type = type("User", (), {})
+        failure_type = type("ValidationError", (), {})
+
+        function_metadata = FunctionMetadata(
+            schema_name="app",
+            function_name="fn_create_user",
+            parameters=[],
+            return_type="jsonb",
+            comment="Creates a new user account with email verification",  # PostgreSQL comment
+            language="plpgsql",
+        )
+
+        annotation = MutationAnnotation(
+            name="createUser",
+            success_type="User",
+            failure_type="ValidationError",
+            description=None,  # No explicit description
+        )
+
+        # When: Create mutation class
+        mutation_cls = mutation_generator._create_mutation_class(
+            function_metadata, annotation, input_cls, success_type, failure_type
+        )
+
+        # Then: Class uses function comment as description
+        assert mutation_cls.__doc__ == "Creates a new user account with email verification"

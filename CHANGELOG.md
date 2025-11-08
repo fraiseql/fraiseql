@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SpecQL Integration**: Support for explicit `context_params` in function metadata
 - **Clarity**: Clear distinction between auth context (`auth_*`) and business input
 
+**PostgreSQL Comments to GraphQL Descriptions** ✅ IMPLEMENTED
+- **Automatic Documentation**: PostgreSQL object comments become GraphQL schema descriptions
+- **View Comments**: `COMMENT ON VIEW` → GraphQL type descriptions
+- **Function Comments**: `COMMENT ON FUNCTION` → GraphQL mutation descriptions
+- **Composite Type Comments**: `COMMENT ON TYPE` → GraphQL input type descriptions
+- **Column Comments**: Infrastructure ready for future GraphQL field descriptions
+- **Zero Configuration**: Works automatically with existing database schemas
+
 ### 🔄 Breaking Changes
 
 **Authentication Context Parameters** ⚠️ BREAKING

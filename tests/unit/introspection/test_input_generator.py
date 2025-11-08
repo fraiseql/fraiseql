@@ -371,3 +371,97 @@ class TestInputGenerator:
         assert "auth_user_id" not in input_cls.__annotations__  # ✅ Excluded!
         assert "tenant_id" not in input_cls.__annotations__  # ✅ Excluded!
         assert "user_id" not in input_cls.__annotations__  # ✅ Excluded!
+
+    @pytest.mark.asyncio
+    async def test_composite_attribute_comments_stored(
+        self, input_generator: InputGenerator, mock_introspector
+    ):
+        """Test that composite type attribute comments are captured in input fields."""
+        from fraiseql.introspection.postgres_introspector import (
+            CompositeTypeMetadata,
+            CompositeAttribute,
+        )
+
+        # Mock the introspector to return composite type metadata with comments
+        async def mock_discover_composite_type(type_name, schema):
+            if type_name == "type_create_user_input" and schema == "app":
+                return CompositeTypeMetadata(
+                    schema_name="app",
+                    type_name="type_create_user_input",
+                    attributes=[
+                        CompositeAttribute(
+                            name="email",
+                            pg_type="text",
+                            ordinal_position=1,
+                            comment="Primary email address for authentication",  # PostgreSQL comment
+                        ),
+                        CompositeAttribute(
+                            name="name",
+                            pg_type="text",
+                            ordinal_position=2,
+                            comment="Full name of the user",
+                        ),
+                    ],
+                    comment="Input parameters for user creation",
+                )
+            return None
+
+        mock_introspector.discover_composite_type = mock_discover_composite_type
+
+        # Act
+        input_cls = await input_generator._generate_from_composite_type(
+            "type_create_user_input", "app", mock_introspector
+        )
+
+        # Assert
+        assert hasattr(input_cls, "__gql_fields__")
+        assert "email" in input_cls.__gql_fields__
+        assert (
+            input_cls.__gql_fields__["email"].description
+            == "Primary email address for authentication"
+        )
+        assert input_cls.__gql_fields__["name"].description == "Full name of the user"
+
+    @pytest.mark.asyncio
+    async def test_composite_type_comment_used_as_input_description(
+        self, input_generator: InputGenerator, mock_introspector
+    ):
+        """Test that PostgreSQL composite type comments become GraphQL input type descriptions."""
+        from fraiseql.introspection.postgres_introspector import (
+            CompositeTypeMetadata,
+            CompositeAttribute,
+        )
+
+        # Mock the introspector to return composite type metadata with comment
+        async def mock_discover_composite_type(type_name, schema):
+            if type_name == "type_create_user_input" and schema == "app":
+                return CompositeTypeMetadata(
+                    schema_name="app",
+                    type_name="type_create_user_input",
+                    attributes=[
+                        CompositeAttribute(
+                            name="email",
+                            pg_type="text",
+                            ordinal_position=1,
+                            comment="Primary email address for authentication",
+                        ),
+                        CompositeAttribute(
+                            name="name",
+                            pg_type="text",
+                            ordinal_position=2,
+                            comment="Full name of the user",
+                        ),
+                    ],
+                    comment="Input parameters for user creation",  # Composite type comment
+                )
+            return None
+
+        mock_introspector.discover_composite_type = mock_discover_composite_type
+
+        # Act
+        input_cls = await input_generator._generate_from_composite_type(
+            "type_create_user_input", "app", mock_introspector
+        )
+
+        # Assert
+        assert input_cls.__doc__ == "Input parameters for user creation"

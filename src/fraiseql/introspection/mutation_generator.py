@@ -185,8 +185,12 @@ class MutationGenerator:
                     "success": success_type,
                     "failure": failure_type,
                 },
-                "__doc__": annotation.description
-                or f"Auto-generated mutation from {function_metadata.function_name}",
+                "__doc__": (
+                    annotation.description  # Priority 1: Explicit annotation
+                    or function_metadata.comment  # Priority 2: PostgreSQL comment (NEW)
+                    # Priority 3: Fallback
+                    or f"Auto-generated mutation from {function_metadata.function_name}"
+                ),
                 "__module__": "fraiseql.introspection.generated",
             },
         )
