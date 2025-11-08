@@ -2017,6 +2017,10 @@ class FraiseQLRepository:
                                 if value is None:
                                     continue
                                 # Build condition using the FK column directly
+                                logger.debug(
+                                    f"Dict WHERE: Building FK condition "
+                                    f"for {fk_column} {operator} {value}"
+                                )
                                 condition_sql = self._build_dict_where_condition(
                                     fk_column,
                                     operator,
@@ -2026,7 +2030,13 @@ class FraiseQLRepository:
                                     jsonb_column,
                                 )
                                 if condition_sql:
+                                    logger.debug("Dict WHERE: FK condition built successfully")
                                     conditions.append(condition_sql)
+                                else:
+                                    logger.warning(
+                                        f"Dict WHERE: FK condition returned None "
+                                        f"for {fk_column} {operator} {value}"
+                                    )
 
                     # Check for mixed filters: both FK and JSONB fields
                     # Process any non-id fields as JSONB filters
@@ -2586,15 +2596,19 @@ class FraiseQLRepository:
             # Determine if this field is a regular column or needs JSONB path
             use_jsonb_path = False
 
-            if jsonb_column:
-                # Explicit JSONB column specified - use JSONB paths for all fields except 'id'
+            # IMPORTANT: Check table_columns FIRST for hybrid tables (Issue #124)
+            # For hybrid tables with FK columns, we must use the SQL FK column, not JSONB path
+            if table_columns is not None and field_name in table_columns:
+                # This field is a real SQL column - never use JSONB path for it
+                use_jsonb_path = False
+                logger.debug(f"Dict WHERE: Field '{field_name}' is a SQL column, not JSONB path")
+            elif jsonb_column:
+                # Explicit JSONB column specified - use JSONB paths for non-column fields
                 use_jsonb_path = field_name != "id"
             elif table_columns is not None:
-                # We have actual column info - use it!
-                # Field is JSONB if: table has 'data' column AND field is NOT a regular column
+                # We have column info, but field is not in columns - check if it's in JSONB
                 has_data_column = "data" in table_columns
-                is_regular_column = field_name in table_columns
-                use_jsonb_path = has_data_column and not is_regular_column
+                use_jsonb_path = has_data_column
             elif view_name:
                 # Fall back to heuristic-based detection
                 use_jsonb_path = self._should_use_jsonb_path_sync(view_name, field_name)
