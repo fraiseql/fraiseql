@@ -1,14 +1,16 @@
-# Release v1.3.4: WhereInput Nested Filter Fix
+# Release v1.3.4: Nested Filter Bug Fixes for Hybrid Tables
 
 **Date**: 2025-11-08
 **Type**: Bug Fix Release
 **Severity**: High - Affects production deployments using nested filters
 
-## 🐛 Critical Bug Fix
+## 🐛 Critical Bug Fixes
 
-### Fixed: WhereInput Nested Filters on Hybrid Tables (#124)
+This release fixes **TWO related bugs** in nested filtering on hybrid tables (tables with both SQL columns and JSONB data).
 
-**Problem**: GraphQL queries with nested `WhereInput` filters like `{relatedEntity: {id: {eq: $id}}}` failed on hybrid tables (tables with both SQL columns and JSONB data), returning unfiltered results and logging "Unsupported operator: id" warnings.
+### Bug Fix #1: WhereInput Nested Filters on Hybrid Tables (#124)
+
+**Problem**: GraphQL queries with nested `WhereInput` filters like `{relatedEntity: {id: {eq: $id}}}` failed on hybrid tables, returning unfiltered results and logging "Unsupported operator: id" warnings.
 
 **Impact**:
 - ❌ Queries returned ALL records instead of filtered subset
@@ -18,10 +20,26 @@
 
 **Root Cause**: The `WhereInput` code path (`_to_sql_where()`) bypassed hybrid table detection logic that maps nested filters to SQL foreign key columns, causing incorrect JSONB path generation.
 
-**Solution**: Modified `src/fraiseql/db.py` to:
+**Solution**: Modified `src/fraiseql/db.py` (lines 1426-1481) to:
 1. Detect hybrid tables when processing `WhereInput` objects
 2. Convert `WhereInput` to dictionary format for FK column detection
 3. Use the proven `_convert_dict_where_to_sql()` logic that correctly handles nested filters
+
+### Bug Fix #2: Dict-Based Nested Filters on Hybrid Tables
+
+**Problem**: Even dict-based nested filters like `{'machine': {'id': {'eq': uuid}}}` were incorrectly using JSONB paths instead of SQL FK columns on hybrid tables.
+
+**Impact**:
+- ❌ FK columns treated as JSONB paths (e.g., `data->>'machine_id'` instead of `machine_id`)
+- ❌ Type mismatches causing filter failures
+- ❌ Slow queries without index usage
+
+**Root Cause**: In `_build_dict_where_condition()`, the check for `jsonb_column` parameter came BEFORE the check for `table_columns`, causing FK columns to be incorrectly identified as JSONB fields.
+
+**Solution**: Modified `src/fraiseql/db.py` (lines 2595-2612) to:
+1. Check `table_columns` FIRST - if field is a SQL column, never use JSONB path
+2. Only fall back to `jsonb_column` logic for non-SQL fields
+3. Ensures FK columns are always recognized as SQL columns
 
 **Benefits**:
 - ✅ **10-100x performance improvement** - Uses indexed SQL columns instead of JSONB traversal
@@ -54,10 +72,11 @@ Added comprehensive test suite in `tests/regression/issue_124/test_whereinput_ne
 
 - ✅ `test_whereinput_nested_filter_returns_zero_results` - Validates filtering for non-existent records
 - ✅ `test_whereinput_nested_filter_returns_correct_results` - Validates correct filtering
+- ✅ `test_whereinput_vs_dict_filter_equivalence` - Ensures WhereInput and dict filters work identically
 - ✅ `test_whereinput_uses_sql_column_not_jsonb` - Performance verification
 
 ### Test Results
-- ✅ All 3 new regression tests pass
+- ✅ All 4 new regression tests pass
 - ✅ All 1,610 integration tests pass
 - ✅ Zero regressions
 
