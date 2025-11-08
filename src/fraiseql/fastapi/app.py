@@ -98,6 +98,8 @@ def create_fraiseql_app(
     types: Sequence[type] = (),
     mutations: Sequence[Callable[..., Any]] = (),
     queries: Sequence[type] = (),
+    # Auto-discovery configuration
+    auto_discover: bool = False,
     # Optional configuration
     config: FraiseQLConfig | None = None,
     auth: Auth0Config | AuthProvider | None = None,
@@ -124,6 +126,7 @@ def create_fraiseql_app(
         types: Sequence of FraiseQL types to register
         mutations: Sequence of mutation resolver functions
         queries: Sequence of query types (if not using default QueryRoot)
+        auto_discover: Enable automatic discovery of GraphQL schema from PostgreSQL metadata
         config: Full configuration object (overrides other params)
         auth: Authentication configuration or provider
         context_getter: Optional async function to build GraphQL context from request
@@ -156,6 +159,15 @@ def create_fraiseql_app(
                 api_identifier="https://api.myapp.com"
             ),
             production=True
+        )
+        ```
+
+        Auto-discovery example:
+        ```python
+        # Enable auto-discovery from PostgreSQL metadata
+        app = create_fraiseql_app(
+            database_url="postgresql://localhost/mydb",
+            auto_discover=True  # Discovers types/queries/mutations from database
         )
         ```
     """
@@ -308,12 +320,24 @@ def create_fraiseql_app(
             password=config.dev_auth_password,
         )
 
+    # Auto-discover schema components if enabled
+    auto_types = []
+    auto_queries = []
+    auto_mutations = []
+
+    if auto_discover:
+        # TODO(@lionel): Implement auto-discovery in Phase 1-2 - https://github.com/fraiseql/fraiseql/issues/AUTOFRAISEQL-1
+        # For Phase 0, just log that auto-discovery is enabled
+        logger.info("Auto-discovery enabled. Implementation coming in Phase 1.")
+
     # Build GraphQL schema
     # Combine both types and queries - types define GraphQL types, queries define query functions
-    all_query_types = list(types) + list(queries)
+    all_query_types = list(types) + list(queries) + auto_types + auto_queries
+    all_mutations = list(mutations) + auto_mutations
+
     schema = build_fraiseql_schema(
         query_types=all_query_types,
-        mutation_resolvers=list(mutations),
+        mutation_resolvers=all_mutations,
         camel_case_fields=config.auto_camel_case,
     )
 
