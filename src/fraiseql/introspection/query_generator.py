@@ -5,7 +5,7 @@ queries (find_one, find_all, connection) for auto-discovered types.
 """
 
 import logging
-from typing import Type, Optional, Any
+from typing import Any, Optional
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -19,8 +19,7 @@ class QueryGenerator:
     def generate_queries_for_type(
         self, type_class: Any, view_name: str, schema_name: str, annotation: TypeAnnotation
     ) -> list[callable]:
-        """
-        Generate standard queries for a type.
+        """Generate standard queries for a type.
 
         Generates:
         1. find_one(id) → Single item by UUID
@@ -56,7 +55,7 @@ class QueryGenerator:
         """Generate find_one(id) query."""
 
         # Create query function dynamically
-        async def find_one_impl(info, id: UUID) -> Optional[Any]:
+        async def find_one_impl(info: Any, id: UUID) -> Optional[Any]:
             """Get a single item by ID."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
@@ -79,7 +78,7 @@ class QueryGenerator:
         """Generate find_all(where, order_by, ...) query."""
 
         async def find_all_impl(
-            info,
+            info: Any,
             where: Optional[dict] = None,
             order_by: Optional[dict] = None,
             limit: Optional[int] = None,
@@ -112,7 +111,7 @@ class QueryGenerator:
         # For now, return a basic connection implementation
         # In a full implementation, this would use Relay connection spec
         async def connection_impl(
-            info,
+            info: Any,
             first: Optional[int] = None,
             after: Optional[str] = None,
             where: Optional[dict] = None,

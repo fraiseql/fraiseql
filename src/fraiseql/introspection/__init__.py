@@ -6,14 +6,14 @@ It introspects database views, functions, and comments to generate types, querie
 
 from .metadata_parser import MetadataParser
 from .postgres_introspector import PostgresIntrospector
-from .type_mapper import TypeMapper
-from .type_generator import TypeGenerator
 from .query_generator import QueryGenerator
+from .type_generator import TypeGenerator
+from .type_mapper import TypeMapper
 
 __all__ = [
     "MetadataParser",
     "PostgresIntrospector",
-    "TypeMapper",
-    "TypeGenerator",
     "QueryGenerator",
+    "TypeGenerator",
+    "TypeMapper",
 ]

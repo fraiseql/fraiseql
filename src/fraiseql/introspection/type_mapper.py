@@ -4,9 +4,9 @@ This module provides utilities to map PostgreSQL database types to Python types
 for dynamic GraphQL type generation.
 """
 
-from typing import Any, get_type_hints, List
-from decimal import Decimal
 from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, List
 from uuid import UUID
 
 
@@ -50,8 +50,7 @@ class TypeMapper:
     }
 
     def pg_type_to_python(self, pg_type: str, nullable: bool = False) -> Any:
-        """
-        Map PostgreSQL type to Python type.
+        """Map PostgreSQL type to Python type.
 
         Args:
             pg_type: PostgreSQL type name (e.g., "text", "integer")
@@ -76,9 +75,8 @@ class TypeMapper:
             from typing import Optional
 
             return Optional[python_type]
-        else:
-            return python_type
+        return python_type
 
-    def register_custom_type(self, pg_type: str, python_type: type):
+    def register_custom_type(self, pg_type: str, python_type: type) -> None:
         """Register custom type mapping."""
         self.PG_TO_PYTHON[pg_type.lower()] = python_type

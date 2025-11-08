@@ -5,12 +5,12 @@ dynamically from PostgreSQL view metadata and @fraiseql annotations.
 """
 
 import logging
-from typing import Type, Optional
+from typing import Any, Optional, Type
 from uuid import UUID
 
-from .type_mapper import TypeMapper
-from .postgres_introspector import ViewMetadata
 from .metadata_parser import TypeAnnotation
+from .postgres_introspector import ViewMetadata
+from .type_mapper import TypeMapper
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,9 @@ class TypeGenerator:
         self.type_mapper = type_mapper or TypeMapper()
 
     async def generate_type_class(
-        self, view_metadata: ViewMetadata, annotation: TypeAnnotation, db_pool
+        self, view_metadata: ViewMetadata, annotation: TypeAnnotation, db_pool: Any
     ) -> Type:
-        """
-        Generate a @type class from view metadata.
+        """Generate a @type class from view metadata.
 
         Steps:
         1. Introspect JSONB data column to get field structure
@@ -80,10 +79,9 @@ class TypeGenerator:
         return decorated_cls
 
     async def _introspect_jsonb_column(
-        self, view_name: str, schema_name: str, db_pool
+        self, view_name: str, schema_name: str, db_pool: Any
     ) -> dict[str, dict]:
-        """
-        Introspect JSONB data column structure.
+        """Introspect JSONB data column structure.
 
         Strategy:
         1. Query one row from view
@@ -111,10 +109,9 @@ class TypeGenerator:
             return fields
 
     async def _introspect_view_definition(
-        self, view_name: str, schema_name: str, conn
+        self, view_name: str, schema_name: str, conn: Any
     ) -> dict[str, dict]:
-        """
-        Introspect view definition when no data is available.
+        """Introspect view definition when no data is available.
 
         This is a fallback that parses the view definition to extract
         column information from the underlying tables.
@@ -141,20 +138,20 @@ class TypeGenerator:
 
         return fields
 
-    def _infer_pg_type_from_value(self, value) -> str:
+    def _infer_pg_type_from_value(self, value: Any) -> str:
         """Infer PostgreSQL type from Python value."""
         if isinstance(value, bool):
             return "boolean"
-        elif isinstance(value, int):
+        if isinstance(value, int):
             return "integer"
-        elif isinstance(value, float):
+        if isinstance(value, float):
             return "double precision"
-        elif isinstance(value, str):
+        if isinstance(value, str):
             # Check if it's a UUID string
             try:
                 UUID(value)
                 return "uuid"
-            except:
+            except ValueError:
                 return "text"
         elif isinstance(value, (dict, list)):
             return "jsonb"
