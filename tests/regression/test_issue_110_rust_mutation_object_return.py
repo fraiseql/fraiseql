@@ -297,8 +297,8 @@ class TestIssue110RustMutationObjectReturn:
         await conn.execute(
             """
             CREATE OR REPLACE FUNCTION app.create_entity_with_context(
-                input_tenant_id UUID,
-                input_created_by UUID,
+                auth_tenant_id UUID,
+                auth_user_id UUID,
                 p_input JSONB
             ) RETURNS app.mutation_result AS $$
             DECLARE
@@ -327,8 +327,8 @@ class TestIssue110RustMutationObjectReturn:
                 );
                 v_result.extra_metadata := jsonb_build_object(
                     'entity', 'entity',
-                    'tenant_id', input_tenant_id,
-                    'created_by', input_created_by
+                    'tenant_id', auth_tenant_id,
+                    'created_by', auth_user_id
                 );
 
                 RETURN v_result;
@@ -360,7 +360,7 @@ class TestIssue110RustMutationObjectReturn:
             function="create_entity_with_context",
             schema="app",
             context_params={
-                "tenant_id": "input_tenant_id",
+                "tenant_id": "auth_tenant_id",
                 "user_id": "input_created_by",
             },
         )

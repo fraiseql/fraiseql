@@ -54,9 +54,7 @@ expose_fields:
         """Test basic mutation annotation parsing."""
         parser = MetadataParser()
         comment = """@fraiseql:mutation
-input_schema:
-  name: {type: string, required: true}
-  email: {type: string, required: true}
+name: createUser
 success_type: User
 failure_type: ValidationError
 description: Create a new user"""
@@ -64,10 +62,10 @@ description: Create a new user"""
         result = parser.parse_mutation_annotation(comment)
 
         assert result is not None
+        assert result.name == "createUser"
         assert result.success_type == "User"
         assert result.failure_type == "ValidationError"
         assert result.description == "Create a new user"
-        assert "name" in result.input_schema
 
     def test_parse_mutation_annotation_missing_required(self):
         """Test mutation annotation with missing required fields."""
@@ -76,3 +74,105 @@ description: Create a new user"""
 
         result = parser.parse_mutation_annotation(comment)
         assert result is None
+
+    def test_parse_field_annotation_basic(self):
+        """Test parsing basic field annotation (created by SpecQL)."""
+        # Given: Parser
+        parser = MetadataParser()
+
+        # Given: Field comment (as SpecQL creates it)
+        comment = "@fraiseql:field name=email,type=String!,required=true"
+
+        # When: Parse annotation
+        metadata = parser.parse_field_annotation(comment)
+
+        # Then: Metadata is parsed correctly
+        assert metadata is not None
+        assert metadata.name == "email"
+        assert metadata.graphql_type == "String!"
+        assert metadata.required is True
+        assert metadata.is_enum is False
+
+    def test_parse_field_annotation_with_enum(self):
+        """Test parsing field annotation with enum flag."""
+        # Given: Parser
+        parser = MetadataParser()
+
+        # Given: Field comment with enum (SpecQL creates this for enum fields)
+        comment = "@fraiseql:field name=status,type=ContactStatus,required=true,enum=true"
+
+        # When: Parse
+        metadata = parser.parse_field_annotation(comment)
+
+        # Then: Enum flag is set
+        assert metadata is not None
+        assert metadata.name == "status"
+        assert metadata.is_enum is True
+
+    def test_parse_field_annotation_optional(self):
+        """Test parsing optional field (required=false)."""
+        # Given: Parser
+        parser = MetadataParser()
+
+        # Given: Optional field (SpecQL marks nullable fields this way)
+        comment = "@fraiseql:field name=companyId,type=UUID,required=false"
+
+        # When: Parse
+        metadata = parser.parse_field_annotation(comment)
+
+        # Then: Required is False
+        assert metadata is not None
+        assert metadata.required is False
+
+    def test_parse_field_annotation_no_annotation(self):
+        """Test parsing comment without @fraiseql:field."""
+        # Given: Parser
+        parser = MetadataParser()
+
+        # Given: Regular comment (not from SpecQL)
+        comment = "This is just a regular comment"
+
+        # When: Parse
+        metadata = parser.parse_field_annotation(comment)
+
+        # Then: Returns None
+        assert metadata is None
+
+    def test_parse_mutation_annotation_with_context_params(self):
+        """Test parsing mutation annotation with context_params."""
+        # Given: Mutation comment with context_params
+        comment = """
+        @fraiseql:mutation
+        name: qualifyLead
+        success_type: Contact
+        failure_type: ContactError
+        context_params: [auth_tenant_id, auth_user_id]
+        """
+
+        # When: Parse annotation
+        parser = MetadataParser()
+        annotation = parser.parse_mutation_annotation(comment)
+
+        # Then: context_params is parsed
+        assert annotation is not None
+        assert annotation.name == "qualifyLead"
+        assert annotation.context_params == ["auth_tenant_id", "auth_user_id"]
+
+    def test_parse_mutation_annotation_without_context_params(self):
+        """Test parsing mutation annotation without context_params (backward compat)."""
+        # Given: Mutation comment without context_params
+        comment = """
+        @fraiseql:mutation
+        name: getStatus
+        success_type: Status
+        failure_type: StatusError
+        """
+
+        # When: Parse annotation
+        parser = MetadataParser()
+        annotation = parser.parse_mutation_annotation(comment)
+
+        # Then: context_params is None (will use auto-detection)
+        assert annotation is not None
+        assert annotation.name == "getStatus"
+        assert annotation.context_params is None

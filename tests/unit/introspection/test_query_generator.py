@@ -1,6 +1,6 @@
 """Unit tests for QueryGenerator."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -27,7 +27,7 @@ class TestQueryGenerator:
         """Test basic query generation."""
         annotation = TypeAnnotation()
 
-        with pytest.mock.patch("fraiseql.query") as mock_query_decorator:
+        with patch("fraiseql.query") as mock_query_decorator:
             mock_query_decorator.return_value = "decorated_query"
 
             queries = query_generator.generate_queries_for_type(
@@ -45,7 +45,7 @@ class TestQueryGenerator:
         """Test query generation with connection (filter_config)."""
         annotation = TypeAnnotation(filter_config={"some": "config"})
 
-        with pytest.mock.patch("fraiseql.query") as mock_query_decorator:
+        with patch("fraiseql.query") as mock_query_decorator:
             mock_query_decorator.return_value = "decorated_query"
 
             queries = query_generator.generate_queries_for_type(
@@ -61,7 +61,7 @@ class TestQueryGenerator:
 
     def test_generate_find_one_query(self, query_generator, mock_type_class):
         """Test find_one query generation."""
-        with pytest.mock.patch("fraiseql.query") as mock_query_decorator:
+        with patch("fraiseql.query") as mock_query_decorator:
             mock_query_decorator.return_value = "decorated_find_one"
 
             query = query_generator._generate_find_one_query(mock_type_class, "v_user", "public")
@@ -78,7 +78,7 @@ class TestQueryGenerator:
 
     def test_generate_find_all_query(self, query_generator, mock_type_class):
         """Test find_all query generation."""
-        with pytest.mock.patch("fraiseql.query") as mock_query_decorator:
+        with patch("fraiseql.query") as mock_query_decorator:
             mock_query_decorator.return_value = "decorated_find_all"
 
             query = query_generator._generate_find_all_query(mock_type_class, "v_user", "public")
@@ -95,7 +95,7 @@ class TestQueryGenerator:
 
     def test_generate_connection_query(self, query_generator, mock_type_class):
         """Test connection query generation."""
-        with pytest.mock.patch("fraiseql.query") as mock_query_decorator:
+        with patch("fraiseql.query") as mock_query_decorator:
             mock_query_decorator.return_value = "decorated_connection"
 
             query = query_generator._generate_connection_query(mock_type_class, "v_user", "public")

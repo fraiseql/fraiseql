@@ -53,6 +53,26 @@ class ParameterInfo:
     default_value: Optional[str]
 
 
+@dataclass
+class CompositeAttribute:
+    """Metadata for a single attribute in a PostgreSQL composite type."""
+
+    name: str  # Attribute name (e.g., "email")
+    pg_type: str  # PostgreSQL type (e.g., "text", "uuid")
+    ordinal_position: int  # Position in type (1, 2, 3, ...)
+    comment: Optional[str]  # Column comment (contains @fraiseql:field metadata)
+
+
+@dataclass
+class CompositeTypeMetadata:
+    """Metadata for a PostgreSQL composite type."""
+
+    schema_name: str  # Schema (e.g., "app")
+    type_name: str  # Type name (e.g., "type_create_contact_input")
+    attributes: list[CompositeAttribute]  # List of attributes/fields
+    comment: Optional[str]  # Type comment (contains @fraiseql:input metadata)
+
+
 class PostgresIntrospector:
     """Introspect PostgreSQL database for FraiseQL metadata."""
 
@@ -182,6 +202,86 @@ class PostgresIntrospector:
                 functions.append(function_metadata)
 
             return functions
+
+    async def discover_composite_type(
+        self, type_name: str, schema: str = "app"
+    ) -> CompositeTypeMetadata | None:
+        """Introspect a PostgreSQL composite type.
+
+        Args:
+            type_name: Name of the composite type (e.g., "type_create_contact_input")
+            schema: Schema name (default: "app")
+
+        Returns:
+            CompositeTypeMetadata if type exists, None otherwise
+
+        Example:
+            >>> introspector = PostgresIntrospector(pool)
+            >>> metadata = await introspector.discover_composite_type(
+            ...     "type_create_contact_input",
+            ...     schema="app"
+            ... )
+            >>> print(metadata.attributes[0].name)  # "email"
+        """
+        async with self.pool.connection() as conn:
+            # Step 1: Get type-level metadata (comment)
+            type_query = """
+                SELECT
+                    t.typname AS type_name,
+                    n.nspname AS schema_name,
+                    obj_description(t.oid, 'pg_type') AS comment
+                FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE t.typtype = 'c'         -- 'c' = composite type
+                  AND n.nspname = %s          -- Schema filter
+                  AND t.typname = %s          -- Type name filter
+            """
+
+            type_result = await conn.execute(type_query, (schema, type_name))
+            type_row = await type_result.fetchone()
+
+            if not type_row:
+                return None  # Composite type not found
+
+            # Step 2: Get attribute-level metadata (fields)
+            attr_query = """
+                SELECT
+                    a.attname AS attribute_name,
+                    format_type(a.atttypid, a.atttypmod) AS pg_type,
+                    a.attnum AS ordinal_position,
+                    col_description(c.oid, a.attnum) AS comment
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                JOIN pg_attribute a ON a.attrelid = c.oid
+                WHERE c.relkind = 'c'         -- 'c' = composite type
+                  AND n.nspname = %s          -- Schema filter
+                  AND c.relname = %s          -- Type name filter
+                  AND a.attnum > 0            -- Exclude system columns
+                  AND NOT a.attisdropped      -- Exclude dropped columns
+                ORDER BY a.attnum;
+            """
+
+            attr_result = await conn.execute(attr_query, (schema, type_name))
+            attr_rows = await attr_result.fetchall()
+
+            # Step 3: Build attribute list
+            attributes = [
+                CompositeAttribute(
+                    name=row[0],  # attribute_name
+                    pg_type=row[1],  # pg_type
+                    ordinal_position=row[2],  # ordinal_position
+                    comment=row[3],  # comment
+                )
+                for row in attr_rows
+            ]
+
+            # Step 4: Return composite type metadata
+            return CompositeTypeMetadata(
+                schema_name=schema,
+                type_name=type_name,
+                attributes=attributes,
+                comment=type_row[2],  # comment is the 3rd column
+            )
 
     def _parse_function_arguments(self, arguments_str: str) -> list[ParameterInfo]:
         """Parse function arguments string into ParameterInfo objects.

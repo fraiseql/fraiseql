@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from fraiseql.introspection.postgres_introspector import (
+    CompositeAttribute,
+    CompositeTypeMetadata,
     PostgresIntrospector,
 )
 
@@ -75,3 +77,83 @@ class TestPostgresIntrospector:
         assert len(result) == 1
         assert result[0].name == "p_name"
         assert result[0].pg_type == "text"
+
+    @pytest.mark.asyncio
+    async def test_discover_composite_type_found(self, introspector, mock_pool):
+        """Test composite type discovery when type exists."""
+        # Mock the database responses
+        conn = mock_pool.connection.return_value.__aenter__.return_value
+
+        # Mock type query result (returns tuple: type_name, schema_name, comment)
+        type_result = MagicMock()
+        type_result.fetchone = AsyncMock(
+            return_value=(
+                "type_create_contact_input",
+                "app",
+                "@fraiseql:input name=CreateContactInput",
+            )
+        )
+
+        # Mock attribute query result (returns tuples: attribute_name, pg_type, ordinal_position, comment)
+        attr_result = MagicMock()
+        attr_result.fetchall = AsyncMock(
+            return_value=[
+                (
+                    "email",
+                    "text",
+                    1,
+                    "@fraiseql:field name=email,type=String!,required=true",
+                ),
+                (
+                    "company_id",
+                    "uuid",
+                    2,
+                    "@fraiseql:field name=companyId,type=UUID,required=false",
+                ),
+            ]
+        )
+
+        # Configure execute to return different results for different queries
+        conn.execute = AsyncMock(side_effect=[type_result, attr_result])
+
+        # When: Discover composite type
+        result = await introspector.discover_composite_type(
+            "type_create_contact_input", schema="app"
+        )
+
+        # Then: Returns metadata
+        assert result is not None
+        assert result.type_name == "type_create_contact_input"
+        assert result.schema_name == "app"
+        assert result.comment == "@fraiseql:input name=CreateContactInput"
+
+        # Then: Has correct attributes
+        assert len(result.attributes) == 2
+
+        email_attr = result.attributes[0]
+        assert email_attr.name == "email"
+        assert email_attr.pg_type == "text"
+        assert email_attr.ordinal_position == 1
+        assert email_attr.comment == "@fraiseql:field name=email,type=String!,required=true"
+
+        company_attr = result.attributes[1]
+        assert company_attr.name == "company_id"
+        assert company_attr.pg_type == "uuid"
+        assert company_attr.ordinal_position == 2
+
+    @pytest.mark.asyncio
+    async def test_discover_composite_type_not_found(self, introspector, mock_pool):
+        """Test composite type discovery when type doesn't exist."""
+        # Mock the database response
+        conn = mock_pool.connection.return_value.__aenter__.return_value
+
+        # Mock type query result (no rows)
+        type_result = MagicMock()
+        type_result.fetchone = AsyncMock(return_value=None)
+        conn.execute = AsyncMock(return_value=type_result)
+
+        # When: Discover non-existent composite type
+        result = await introspector.discover_composite_type("type_nonexistent_input", schema="app")
+
+        # Then: Returns None
+        assert result is None

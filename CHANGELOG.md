@@ -5,6 +5,30 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-11-08
+
+### 🚀 New Features
+
+**Phase 5.6: Auth Context Enhancement** ✅ IMPLEMENTED
+- **New Standard**: `auth_*` prefix for authentication context parameters (BREAKING CHANGE)
+- **Security**: Auth parameters are now completely excluded from GraphQL input schema
+- **SpecQL Integration**: Support for explicit `context_params` in function metadata
+- **Clarity**: Clear distinction between auth context (`auth_*`) and business input
+
+### 🔄 Breaking Changes
+
+**Authentication Context Parameters** ⚠️ BREAKING
+- **OLD**: `input_tenant_id`, `input_user_id` (deprecated)
+- **NEW**: `auth_tenant_id`, `auth_user_id` (standard)
+- **Migration**: Update PostgreSQL function signatures to use `auth_*` prefix
+- **Impact**: Existing functions using `input_*` for auth context will need updates
+
+### 🛡️ Security Improvements
+
+- **GraphQL Schema Security**: Auth parameters can never be client-controlled
+- **Parameter Validation**: Context params validated before PostgreSQL function calls
+- **Clear Conventions**: `auth_*` means "server-controlled authentication context"
+
 ## [1.3.3] - 2025-01-07
 
 ### 🐛 Bug Fixes

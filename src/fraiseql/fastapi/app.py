@@ -22,6 +22,7 @@ from fraiseql.fastapi.dependencies import (
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.introspection import AutoDiscovery
 from fraiseql.utils import normalize_database_url
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,67 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
     await pool.open()
 
     return pool
+
+
+async def discover_fraiseql_schema(
+    database_url: str,
+    view_pattern: str = "v_%",
+    function_pattern: str = "fn_%",
+    schemas: list[str] | None = None,
+) -> dict[str, list]:
+    """Discover GraphQL schema components from PostgreSQL database.
+
+    This function introspects the database and generates types, queries, and mutations
+    automatically from views and functions with @fraiseql annotations.
+
+    Args:
+        database_url: PostgreSQL connection URL
+        view_pattern: Pattern for view discovery (default: "v_%")
+        function_pattern: Pattern for function discovery (default: "fn_%")
+        schemas: List of schemas to search (default: ["public"])
+
+    Returns:
+        Dictionary with discovered components:
+        {
+            'types': [User, Post, ...],
+            'queries': [user, users, ...],
+            'mutations': [createUser, ...],
+        }
+
+    Example:
+        ```python
+        from fraiseql.fastapi import discover_fraiseql_schema
+
+        # Discover schema components
+        schema_components = await discover_fraiseql_schema(
+            "postgresql://user:pass@localhost/db"
+        )
+
+        # Use with create_fraiseql_app
+        app = create_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            types=schema_components['types'],
+            queries=schema_components['queries'],
+            mutations=schema_components['mutations'],
+        )
+        ```
+    """
+    import psycopg_pool
+
+    # Create connection pool
+    pool = psycopg_pool.AsyncConnectionPool(database_url, min_size=1, max_size=10)
+    await pool.open()
+
+    try:
+        # Initialize auto-discovery
+        auto_discovery = AutoDiscovery(pool)
+
+        # Discover all components
+        return await auto_discovery.discover_all(
+            view_pattern=view_pattern, function_pattern=function_pattern, schemas=schemas
+        )
+    finally:
+        await pool.close()
 
 
 def create_fraiseql_app(
@@ -326,9 +388,107 @@ def create_fraiseql_app(
     auto_mutations = []
 
     if auto_discover:
-        # TODO(@lionel): Implement auto-discovery in Phase 1-2 - https://github.com/fraiseql/fraiseql/issues/AUTOFRAISEQL-1
-        # For Phase 0, just log that auto-discovery is enabled
-        logger.info("Auto-discovery enabled. Implementation coming in Phase 1.")
+        logger.info("Auto-discovery enabled - performing discovery during app creation")
+        # Perform synchronous discovery using the discover_fraiseql_schema function
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types.extend(discovered.get("types", []))
+            auto_queries.extend(discovered.get("queries", []))
+            auto_mutations.extend(discovered.get("mutations", []))
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+
+    if auto_discover:
+        logger.info("Auto-discovery enabled - performing discovery during app creation")
+        # Perform synchronous discovery using the discover_fraiseql_schema function
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types = discovered.get("types", [])
+            auto_queries = discovered.get("queries", [])
+            auto_mutations = discovered.get("mutations", [])
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+            auto_types = []
+            auto_queries = []
+            auto_mutations = []
+
+    if auto_discover:
+        logger.info("Auto-discovery enabled - performing synchronous discovery during app creation")
+        # For now, perform synchronous discovery using the discover_fraiseql_schema function
+        # This is a temporary solution until we can make the full async integration work
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types = discovered.get("types", [])
+            auto_queries = discovered.get("queries", [])
+            auto_mutations = discovered.get("mutations", [])
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+            auto_types = []
+            auto_queries = []
+            auto_mutations = []
 
     # Build GraphQL schema
     # Combine both types and queries - types define GraphQL types, queries define query functions

@@ -107,10 +107,10 @@ def generate_insert_json_call(
         msg = f"Cannot serialize input JSON for '{sql_function_name}': {e}"
         raise TypeError(msg) from e
 
-    params = {f"input_{key}": context[key] for key in context_keys if key in context}
+    params = {f"auth_{key}": context[key] for key in context_keys if key in context}
     params["input_json"] = Jsonb(json_data)
 
-    placeholders = [sql.Placeholder(f"input_{key}") for key in context_keys if key in context]
+    placeholders = [sql.Placeholder(f"auth_{key}") for key in context_keys if key in context]
     placeholders.append(sql.Placeholder("input_json"))
 
     statement = sql.SQL("SELECT * FROM {}({})").format(
