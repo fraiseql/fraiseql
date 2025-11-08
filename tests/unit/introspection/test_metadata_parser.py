@@ -1,10 +1,7 @@
 """Unit tests for metadata parser."""
 
-import pytest
 from fraiseql.introspection.metadata_parser import (
     MetadataParser,
-    TypeAnnotation,
-    MutationAnnotation,
 )
 
 

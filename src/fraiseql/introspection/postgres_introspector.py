@@ -78,11 +78,11 @@ class PostgresIntrospector:
             views_query = """
                 SELECT schemaname, viewname, definition
                 FROM pg_views
-                WHERE schemaname = ANY($1)
-                  AND viewname LIKE $2
+                WHERE schemaname = ANY(%s)
+                  AND viewname LIKE %s
                 ORDER BY schemaname, viewname
             """
-            cursor = await conn.execute(views_query, [schemas, pattern])
+            cursor = await conn.execute(views_query, (schemas, pattern))
             view_rows = await cursor.fetchall()
 
             views = []
@@ -93,14 +93,40 @@ class PostgresIntrospector:
                 comment_query = """
                     SELECT obj_description(c.oid, 'pg_class') as comment
                     FROM pg_class c
-                    WHERE c.relname = $1 AND c.relkind = 'v'
+                    WHERE c.relname = %s AND c.relkind = 'v'
                 """
-                cursor = await conn.execute(comment_query, [view_name])
+                cursor = await conn.execute(comment_query, (view_name,))
                 comment_row = await cursor.fetchone()
                 comment = comment_row[0] if comment_row else None
 
-                # Get columns (simplified for now)
-                columns = {}  # TODO(@lionel): Implement column introspection - https://github.com/fraiseql/fraiseql/issues/AUTOFRAISEQL-2
+                # Get columns from pg_attribute
+                columns_query = """
+                    SELECT
+                        a.attname as column_name,
+                        t.typname as pg_type,
+                        a.attnotnull as not_null,
+                        obj_description(a.attrelid, 'pg_attribute') as column_comment
+                    FROM pg_attribute a
+                    JOIN pg_type t ON a.atttypid = t.oid
+                    JOIN pg_class c ON a.attrelid = c.oid
+                    WHERE c.relname = %s
+                      AND c.relkind = 'v'
+                      AND a.attnum > 0  -- Skip system columns
+                      AND NOT a.attisdropped  -- Skip dropped columns
+                    ORDER BY a.attnum
+                """
+                cursor = await conn.execute(columns_query, (view_name,))
+                column_rows = await cursor.fetchall()
+
+                columns = {}
+                for col_row in column_rows:
+                    column_name, pg_type, not_null, column_comment = col_row
+                    columns[column_name] = ColumnInfo(
+                        name=column_name,
+                        pg_type=pg_type,
+                        nullable=not not_null,  # attnotnull is True when NOT NULL
+                        comment=column_comment,
+                    )
 
                 view_metadata = ViewMetadata(
                     schema_name=schema_name,
@@ -119,7 +145,6 @@ class PostgresIntrospector:
         """Discover database functions matching the given pattern."""
         if schemas is None:
             schemas = ["public"]
-        """Discover functions matching pattern."""
         async with self.pool.connection() as conn:
             query = """
             SELECT
@@ -132,19 +157,19 @@ class PostgresIntrospector:
             FROM pg_proc p
             JOIN pg_namespace n ON n.oid = p.pronamespace
             JOIN pg_language l ON l.oid = p.prolang
-            WHERE n.nspname = ANY($1)
-              AND p.proname LIKE $2
+            WHERE n.nspname = ANY(%s)
+              AND p.proname LIKE %s
             ORDER BY n.nspname, p.proname
             """
-            cursor = await conn.execute(query, [schemas, pattern])
+            cursor = await conn.execute(query, (schemas, pattern))
             rows = await cursor.fetchall()
 
             functions = []
             for row in rows:
-                schema_name, function_name, _arguments, return_type, comment, language = row
+                schema_name, function_name, arguments_str, return_type, comment, language = row
 
-                # Parse parameters (simplified)
-                parameters = []  # TODO(@lionel): Implement parameter parsing - https://github.com/fraiseql/fraiseql/issues/AUTOFRAISEQL-3
+                # Parse parameters from arguments string
+                parameters = self._parse_function_arguments(arguments_str)
 
                 function_metadata = FunctionMetadata(
                     schema_name=schema_name,
@@ -157,3 +182,50 @@ class PostgresIntrospector:
                 functions.append(function_metadata)
 
             return functions
+
+    def _parse_function_arguments(self, arguments_str: str) -> list[ParameterInfo]:
+        """Parse function arguments string into ParameterInfo objects.
+
+        Args:
+            arguments_str: String like "p_name text, p_email text DEFAULT 'test@example.com'"
+
+        Returns:
+            List of ParameterInfo objects
+        """
+        if not arguments_str or arguments_str.strip() == "":
+            return []
+
+        parameters = []
+        # Split on comma, but be careful with commas inside DEFAULT values
+        # This is a simplified parser - for production, might need more sophisticated parsing
+        arg_parts = [arg.strip() for arg in arguments_str.split(",") if arg.strip()]
+
+        for arg_part in arg_parts:
+            # Parse each argument: "p_name text DEFAULT 'value'" or "p_name text"
+            parts = arg_part.split()
+
+            if len(parts) < 2:
+                continue  # Skip malformed arguments
+
+            param_name = parts[0]
+            param_type = parts[1]
+
+            # Check for DEFAULT value
+            default_value = None
+            if len(parts) > 2 and parts[2].upper() == "DEFAULT":
+                # Join remaining parts as default value
+                default_value = " ".join(parts[3:])
+
+            # Determine mode (simplified - assume all are IN parameters)
+            mode = "IN"
+
+            parameters.append(
+                ParameterInfo(
+                    name=param_name,
+                    pg_type=param_type,
+                    mode=mode,
+                    default_value=default_value,
+                )
+            )
+
+        return parameters
