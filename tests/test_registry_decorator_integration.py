@@ -10,9 +10,9 @@ from typing import Optional
 import pytest
 
 from fraiseql.fields import fraise_field
-from fraiseql.types import fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
-from fraiseql.nested_array_filters import register_nested_array_filter, clear_registry
+from fraiseql.nested_array_filters import clear_registry, register_nested_array_filter
+from fraiseql.types import fraise_type
 
 
 # Define the DeviceRegistry type (unique name for this test file)
@@ -44,7 +44,7 @@ class TestRegistryDecoratorIntegration:
     """Test that the registry decorator API is properly wired to schema generation."""
 
     @pytest.fixture(autouse=True)
-    def setup_registry(self):
+    def setup_registry(self) -> None:
         """Clear and setup registry before each test."""
         from fraiseql.gql.builders.registry import SchemaRegistry
 
@@ -60,7 +60,7 @@ class TestRegistryDecoratorIntegration:
         clear_registry()
         SchemaRegistry.get_instance().clear()
 
-    def test_registry_based_schema_generation(self):
+    def test_registry_based_schema_generation(self) -> None:
         """Test that schema generation uses the registry when nested_where_type is not set."""
         from fraiseql import query
 
@@ -74,9 +74,7 @@ class TestRegistryDecoratorIntegration:
             """Get all networks."""
             return []
 
-        schema = build_fraiseql_schema(
-            query_types=[network_with_registry, networks_with_registry]
-        )
+        schema = build_fraiseql_schema(query_types=[network_with_registry, networks_with_registry])
         assert schema is not None
 
         # Verify the schema includes the NetworkWithRegistry type
@@ -89,17 +87,15 @@ class TestRegistryDecoratorIntegration:
 
         # Verify the where argument exists on the devices field
         where_arg = devices_field.args.get("where")
-        assert (
-            where_arg is not None
-        ), "Registry-based field should have where argument"
+        assert where_arg is not None, "Registry-based field should have where argument"
 
         # The where argument should be a DeviceRegistryWhereInput type
         where_type_name = str(where_arg.type)
-        assert (
-            "DeviceRegistryWhereInput" in where_type_name
-        ), f"Expected DeviceRegistryWhereInput, got {where_type_name}"
+        assert "DeviceRegistryWhereInput" in where_type_name, (
+            f"Expected DeviceRegistryWhereInput, got {where_type_name}"
+        )
 
-    def test_registry_where_input_type_generated(self):
+    def test_registry_where_input_type_generated(self) -> None:
         """Test that DeviceWhereInput is generated via registry lookup."""
         from fraiseql import query
 
@@ -112,25 +108,24 @@ class TestRegistryDecoratorIntegration:
 
         # Check if DeviceRegistryWhereInput type exists in schema
         device_where_input = schema.get_type("DeviceRegistryWhereInput")
-        assert (
-            device_where_input is not None
-        ), "DeviceRegistryWhereInput should be generated from registry"
+        assert device_where_input is not None, (
+            "DeviceRegistryWhereInput should be generated from registry"
+        )
 
         # Verify it has the expected fields
         expected_fields = ["id", "hostname", "ipAddress", "status", "priority"]
         for field_name in expected_fields:
             field = device_where_input.fields.get(field_name)
-            assert (
-                field is not None
-            ), f"DeviceRegistryWhereInput should have {field_name} field"
+            assert field is not None, f"DeviceRegistryWhereInput should have {field_name} field"
 
-    def test_registry_resolver_functionality(self):
+    def test_registry_resolver_functionality(self) -> None:
         """Test that the resolver works with registry-based filtering."""
-        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+        import asyncio
+
         from fraiseql.core.nested_field_resolver import (
             create_nested_array_field_resolver_with_where,
         )
-        import asyncio
+        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
         DeviceRegistryWhereInput = create_graphql_where_input(DeviceRegistry)
 
@@ -161,9 +156,7 @@ class TestRegistryDecoratorIntegration:
         )
 
         # Create resolver
-        resolver = create_nested_array_field_resolver_with_where(
-            "devices", list[DeviceRegistry]
-        )
+        resolver = create_nested_array_field_resolver_with_where("devices", list[DeviceRegistry])
 
         # Create where filter
         where_filter = DeviceRegistryWhereInput()
@@ -179,13 +172,13 @@ class TestRegistryDecoratorIntegration:
         assert result[0].status == "active"
         assert result[0].ip_address is not None
 
-    def test_registry_priority_system(self):
+    def test_registry_priority_system(self) -> None:
         """Test that field attributes have priority over registry."""
+        from fraiseql import query
         from fraiseql.fields import fraise_field
-        from fraiseql.types import fraise_type
         from fraiseql.gql.schema_builder import build_fraiseql_schema
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-        from fraiseql import query
+        from fraiseql.types import fraise_type
 
         # Create a custom where input type
         CustomDeviceRegistryWhereInput = create_graphql_where_input(DeviceRegistry)

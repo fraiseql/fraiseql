@@ -1,11 +1,11 @@
 """Test rust_transformer.py with fraiseql_rs v0.2.0 API."""
 
-import pytest
-from fraiseql import _fraiseql_rs as fraiseql_rs
 from src.fraiseql.core.rust_transformer import RustTransformer
 
+from fraiseql import _fraiseql_rs as fraiseql_rs
 
-def test_transform_without_schema_registry():
+
+def test_transform_without_schema_registry() -> None:
     """Ensure transformation works without SchemaRegistry."""
     json_str = '{"user_id": 1, "first_name": "John"}'
 
@@ -28,7 +28,7 @@ def test_transform_without_schema_registry():
     assert '"firstName"' in result
 
 
-def test_transform_json_only_camelcase():
+def test_transform_json_only_camelcase() -> None:
     """Test simple camelCase transformation without typename."""
     json_str = '{"user_name": "Alice", "email_address": "alice@example.com"}'
 

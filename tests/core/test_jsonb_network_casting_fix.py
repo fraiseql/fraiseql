@@ -15,12 +15,13 @@ REPRODUCTION:
 This is the core issue causing 3 release failures.
 """
 
-import pytest
 from dataclasses import dataclass
+
+import pytest
 from psycopg.sql import SQL
 
-from fraiseql.types import IpAddress, LTree, DateRange, MacAddress
 from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
 
 @dataclass
@@ -36,7 +37,7 @@ class JsonbNetworkDevice:
 class TestJSONBNetworkCastingIssue:
     """RED: Tests that reproduce the exact JSONB->TEXT->network type issue."""
 
-    def test_jsonb_ip_equality_fails_without_casting(self):
+    def test_jsonb_ip_equality_fails_without_casting(self) -> None:
         """RED: Test that reveals the core JSONB casting issue.
 
         This test reproduces the exact failure from the deep dive:
@@ -81,7 +82,7 @@ class TestJSONBNetworkCastingIssue:
             # This test should FAIL initially to demonstrate the issue
             pytest.fail(f"JSONB IP equality using text comparison instead of inet: {sql_str}")
 
-    def test_jsonb_network_isprivate_requires_inet_casting(self):
+    def test_jsonb_network_isprivate_requires_inet_casting(self) -> None:
         """RED: Test that reveals isPrivate operator casting issue."""
         registry = get_operator_registry()
 
@@ -104,7 +105,7 @@ class TestJSONBNetworkCastingIssue:
         has_private_check = any(range_str in sql_str for range_str in private_ranges)
         assert has_private_check, f"Should check private IP ranges, got: {sql_str}"
 
-    def test_jsonb_network_insubnet_requires_inet_casting(self):
+    def test_jsonb_network_insubnet_requires_inet_casting(self) -> None:
         """RED: Test that reveals inSubnet operator casting issue."""
         registry = get_operator_registry()
 
@@ -122,7 +123,7 @@ class TestJSONBNetworkCastingIssue:
         assert "<<=" in sql_str, "Should use PostgreSQL subnet containment operator"
         assert "192.168.0.0/16" in sql_str, "Should include subnet parameter"
 
-    def test_strategy_selection_for_network_types(self):
+    def test_strategy_selection_for_network_types(self) -> None:
         """RED: Test that proper strategies are selected for network types."""
         registry = get_operator_registry()
 
@@ -143,7 +144,7 @@ class TestJSONBNetworkCastingIssue:
 class TestJSONBSpecialTypesCasting:
     """Test JSONB casting for all special types to ensure consistency."""
 
-    def test_ltree_jsonb_casting_issue(self):
+    def test_ltree_jsonb_casting_issue(self) -> None:
         """Test LTree operations need proper casting from JSONB."""
         registry = get_operator_registry()
 
@@ -159,7 +160,7 @@ class TestJSONBSpecialTypesCasting:
         assert "::ltree" in sql_str, "LTree operations require ltree casting"
         assert "@>" in sql_str, "Should use PostgreSQL ltree ancestor operator"
 
-    def test_daterange_jsonb_casting_issue(self):
+    def test_daterange_jsonb_casting_issue(self) -> None:
         """Test DateRange operations need proper casting from JSONB."""
         registry = get_operator_registry()
 
@@ -175,7 +176,7 @@ class TestJSONBSpecialTypesCasting:
         assert "::daterange" in sql_str, "DateRange operations require daterange casting"
         assert "@>" in sql_str, "Should use PostgreSQL range contains operator"
 
-    def test_macaddress_jsonb_casting_issue(self):
+    def test_macaddress_jsonb_casting_issue(self) -> None:
         """Test MacAddress operations need proper casting from JSONB."""
         registry = get_operator_registry()
 
@@ -195,7 +196,7 @@ class TestJSONBSpecialTypesCasting:
 class TestProductionReproduction:
     """Tests that exactly reproduce the production failure scenario."""
 
-    def test_production_failure_reproduction(self):
+    def test_production_failure_reproduction(self) -> None:
         """Exact reproduction of the production failure case.
 
         Based on the deep dive:
@@ -206,8 +207,9 @@ class TestProductionReproduction:
         - Expected: Find DNS server
         - Actual: Empty result (FAILS)
         """
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         # This is the exact path FraiseQL uses for JSONB extraction
         jsonb_ip_path = SQL("(data ->> 'ip_address')")
@@ -228,13 +230,14 @@ class TestProductionReproduction:
         # For the RED phase, we expect this to reveal the casting issue
         if "::inet" not in sql_str:
             print("❌ PRODUCTION BUG REPRODUCED: No inet casting for IP address equality")
-            print(f"   This explains why ipAddress: {{eq: '8.8.8.8'}} fails in production")
+            print("   This explains why ipAddress: {eq: '8.8.8.8'} fails in production")
             print(f"   SQL: {sql_str}")
 
-    def test_production_network_operations_fail(self):
+    def test_production_network_operations_fail(self) -> None:
         """Test the network operations that definitely fail in production."""
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         jsonb_ip_path = SQL("(data ->> 'ip_address')")
 
@@ -266,14 +269,15 @@ class TestProductionReproduction:
 class TestEnvironmentalParity:
     """Test to understand why tests pass but production fails."""
 
-    def test_test_vs_production_sql_generation(self):
+    def test_test_vs_production_sql_generation(self) -> None:
         """Compare SQL generation in test vs production scenarios.
 
         The deep dive mentions that pytest tests pass but production fails.
         This might be due to different data loading or initialization.
         """
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         # Test the exact same SQL generation that would happen in both environments
         jsonb_path = SQL("(data ->> 'ip_address')")

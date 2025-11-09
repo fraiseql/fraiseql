@@ -11,8 +11,9 @@ TestClient for HTTP-level testing.
 """
 
 import json
-import pytest
 from uuid import UUID
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -22,10 +23,9 @@ pytestmark = pytest.mark.database
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
-from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.config import FraiseQLConfig
+from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
@@ -33,6 +33,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 @fraiseql.type
 class ProductWithJSONB:
     """Product entity with JSONB data column."""
+
     id: str
     name: str
     brand: str  # Stored in JSONB
@@ -42,9 +43,7 @@ class ProductWithJSONB:
 
 # GraphQL resolvers (same as Phase 5)
 @fraiseql.query
-async def products_with_jsonb(
-    info, limit: int = 10
-) -> list[ProductWithJSONB]:
+async def products_with_jsonb(info, limit: int = 10) -> list[ProductWithJSONB]:
     """List query with typed return value."""
     pool = info.context.get("pool")
     repo = FraiseQLRepository(pool, context={"mode": "development"})
@@ -52,9 +51,7 @@ async def products_with_jsonb(
 
 
 @fraiseql.query
-async def product_with_jsonb(
-    info, id: UUID
-) -> ProductWithJSONB | None:
+async def product_with_jsonb(info, id: UUID) -> ProductWithJSONB | None:
     """Single query with typed return value."""
     pool = info.context.get("pool")
     repo = FraiseQLRepository(pool, context={"mode": "development"})
@@ -92,7 +89,7 @@ class TestFastAPIJSONBIntegration:
     """
 
     @pytest.fixture
-    async def setup_fastapi_jsonb_test(self, db_pool):
+    async def setup_fastapi_jsonb_test(self, db_pool) -> None:
         """Create test data and register types for FastAPI testing."""
         # Register type with has_jsonb_data=True
         register_type_for_view(
@@ -100,7 +97,7 @@ class TestFastAPIJSONBIntegration:
             ProductWithJSONB,
             table_columns={"id", "name", "data"},
             has_jsonb_data=True,
-            jsonb_column="data"
+            jsonb_column="data",
         )
 
         async with db_pool.connection() as conn:
@@ -152,7 +149,7 @@ class TestFastAPIJSONBIntegration:
             await conn.execute("DROP TABLE IF EXISTS test_products_fastapi_jsonb")
 
     @pytest.fixture
-    def fastapi_app(self, db_pool):
+    def fastapi_app(self, db_pool) -> None:
         """Create FastAPI app with GraphQL router configured for testing.
 
         This fixture creates a real FastAPI app with the create_graphql_router,
@@ -164,8 +161,7 @@ class TestFastAPIJSONBIntegration:
         # Create config for testing
         # Use development environment which enables UnifiedExecutor (realistic scenario)
         config = FraiseQLConfig(
-            database_url="postgresql://test:test@localhost:5432/test",
-            environment="development"
+            database_url="postgresql://test:test@localhost:5432/test", environment="development"
         )
 
         # Set globals so dependencies work
@@ -174,25 +170,24 @@ class TestFastAPIJSONBIntegration:
 
         # DEBUG: Verify pool was set
         from fraiseql.fastapi.dependencies import get_db_pool
+
         test_pool = get_db_pool()
         print(f"🔍 DEBUG: Pool set successfully: {test_pool is not None}")
 
         # Build schema
         schema = build_fraiseql_schema(
             query_types=[products_with_jsonb, product_with_jsonb],
-            mutation_resolvers=[create_product_with_jsonb]
+            mutation_resolvers=[create_product_with_jsonb],
         )
 
         # Create custom context getter that adds pool to context
-        async def test_context_getter(request):
+        async def test_context_getter(request) -> None:
             """Add pool to context for our test resolvers."""
             return {"pool": db_pool}
 
         # Create router with custom context getter
         router = create_graphql_router(
-            schema=schema,
-            config=config,
-            context_getter=test_context_getter
+            schema=schema, config=config, context_getter=test_context_getter
         )
 
         # Create FastAPI app and include router
@@ -234,10 +229,7 @@ class TestFastAPIJSONBIntegration:
         """
 
         # Make HTTP request
-        response = client.post(
-            "/graphql",
-            json={"query": query_str}
-        )
+        response = client.post("/graphql", json={"query": query_str})
 
         # ASSERTION 1: HTTP status should be 200
         assert response.status_code == 200, (
@@ -255,6 +247,7 @@ class TestFastAPIJSONBIntegration:
 
         # DEBUG: Print actual response to understand structure
         import json as json_module
+
         print(f"\n🔍 DEBUG Response: {json_module.dumps(data, indent=2)}")
 
         # The field name might be different depending on how RustResponseBytes is handled
@@ -265,7 +258,9 @@ class TestFastAPIJSONBIntegration:
         else:
             # Show what fields are actually present
             actual_fields = list(data["data"].keys()) if data["data"] else []
-            pytest.fail(f"Expected products field in data. Actual fields: {actual_fields}, Full data: {data}")
+            pytest.fail(
+                f"Expected products field in data. Actual fields: {actual_fields}, Full data: {data}"
+            )
 
         # ASSERTION 4: Should return list of products
         assert isinstance(products, list), f"Expected list, got {type(products)}"
@@ -314,11 +309,7 @@ class TestFastAPIJSONBIntegration:
 
         # Make HTTP request
         response = client.post(
-            "/graphql",
-            json={
-                "query": query_str,
-                "variables": {"id": "fastapi-prod-001"}
-            }
+            "/graphql", json={"query": query_str, "variables": {"id": "fastapi-prod-001"}}
         )
 
         # ASSERTION 1: HTTP status should be 200
@@ -396,9 +387,9 @@ class TestFastAPIJSONBIntegration:
                     "name": "FastAPI Mutation Product",
                     "brand": "TestBrand",
                     "category": "TestCategory",
-                    "price": 123.45
-                }
-            }
+                    "price": 123.45,
+                },
+            },
         )
 
         # ASSERTION 1: HTTP status should be 200
@@ -449,10 +440,7 @@ class TestFastAPIJSONBIntegration:
         """
 
         # Make HTTP request
-        response = client.post(
-            "/graphql",
-            json={"query": query_str}
-        )
+        response = client.post("/graphql", json={"query": query_str})
 
         # Should still return 200 (GraphQL spec)
         assert response.status_code == 200
@@ -482,10 +470,7 @@ class TestFastAPIJSONBIntegration:
             }
         """
 
-        response = client.post(
-            "/graphql",
-            json={"query": query_str}
-        )
+        response = client.post("/graphql", json={"query": query_str})
 
         assert response.status_code == 200
 

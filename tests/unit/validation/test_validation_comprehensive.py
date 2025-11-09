@@ -51,19 +51,19 @@ class Comment:
 class TestValidateWhereInput:
     """Test the validate_where_input function."""
 
-    def test_valid_simple_where(self):
+    def test_valid_simple_where(self) -> None:
         """Test validation of simple where clause."""
         where = {"name": {"_eq": "John"}}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_valid_multiple_fields(self):
+    def test_valid_multiple_fields(self) -> None:
         """Test validation with multiple fields."""
         where = {"name": {"_eq": "John"}, "age": {"_gt": 18}, "email": {"_like": "%@example.com"}}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_invalid_field(self):
+    def test_invalid_field(self) -> None:
         """Test validation with invalid field."""
         where = {"invalid_field": {"_eq": "value"}}
         errors = validate_where_input(where, User)
@@ -71,7 +71,7 @@ class TestValidateWhereInput:
         assert "invalid_field" in errors[0]
         assert "Unknown field" in errors[0]
 
-    def test_invalid_operator(self):
+    def test_invalid_operator(self) -> None:
         """Test validation with invalid operator."""
         where = {"name": {"_invalid_op": "value"}}
         errors = validate_where_input(where, User)
@@ -79,25 +79,25 @@ class TestValidateWhereInput:
         assert "_invalid_op" in errors[0]
         assert "Unknown operator" in errors[0]
 
-    def test_logical_operators_and(self):
+    def test_logical_operators_and(self) -> None:
         """Test validation with AND operator."""
         where = {"_and": [{"name": {"_eq": "John"}}, {"age": {"_gt": 18}}]}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_logical_operators_or(self):
+    def test_logical_operators_or(self) -> None:
         """Test validation with OR operator."""
         where = {"_or": [{"name": {"_eq": "John"}}, {"email": {"_like": "%gmail.com"}}]}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_logical_operators_not(self):
+    def test_logical_operators_not(self) -> None:
         """Test validation with NOT operator."""
         where = {"_not": {"name": {"_eq": "John"}}}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_nested_logical_operators(self):
+    def test_nested_logical_operators(self) -> None:
         """Test validation with nested logical operators."""
         where = {
             "_and": [
@@ -108,7 +108,7 @@ class TestValidateWhereInput:
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_invalid_logical_operator_format(self):
+    def test_invalid_logical_operator_format(self) -> None:
         """Test validation with invalid logical operator format."""
         # _and should be an array, not a dict
         where = {"_and": {"name": {"_eq": "John"}}}
@@ -116,7 +116,7 @@ class TestValidateWhereInput:
         assert len(errors) == 1
         assert "must contain an array" in errors[0]
 
-    def test_comparison_operators(self):
+    def test_comparison_operators(self) -> None:
         """Test all comparison operators."""
         operators = ["_eq", "_neq", "_gt", "_gte", "_lt", "_lte"]
         for op in operators:
@@ -124,7 +124,7 @@ class TestValidateWhereInput:
             errors = validate_where_input(where, User)
             assert errors == [], f"Operator {op} should be valid"
 
-    def test_string_operators(self):
+    def test_string_operators(self) -> None:
         """Test all string operators."""
         operators = ["_like", "_ilike", "_contains", "_starts_with", "_ends_with"]
         for op in operators:
@@ -132,19 +132,19 @@ class TestValidateWhereInput:
             errors = validate_where_input(where, User)
             assert errors == [], f"Operator {op} should be valid"
 
-    def test_array_operators(self):
+    def test_array_operators(self) -> None:
         """Test array operators."""
         where = {"name": {"_in": ["John", "Jane"]}, "age": {"_nin": [25, 30]}}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_null_operator(self):
+    def test_null_operator(self) -> None:
         """Test null operator."""
         where = {"age": {"_is_null": True}}
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_empty_where(self):
+    def test_empty_where(self) -> None:
         """Test validation with empty where clause."""
         errors = validate_where_input({}, User)
         assert errors == []
@@ -152,13 +152,13 @@ class TestValidateWhereInput:
         errors = validate_where_input(None, User)
         assert errors == []
 
-    def test_non_dict_where(self):
+    def test_non_dict_where(self) -> None:
         """Test validation with non-dict where clause."""
         errors = validate_where_input("not a dict", User)
         assert len(errors) == 1
         assert "must be a dictionary" in errors[0]
 
-    def test_strict_mode_raises_on_error(self):
+    def test_strict_mode_raises_on_error(self) -> None:
         """Test that strict mode raises exception on first error."""
         where = {"invalid_field": {"_eq": "value"}}
 
@@ -167,7 +167,7 @@ class TestValidateWhereInput:
 
         assert "invalid_field" in str(exc_info.value)
 
-    def test_strict_mode_with_invalid_operator(self):
+    def test_strict_mode_with_invalid_operator(self) -> None:
         """Test strict mode with invalid operator."""
         where = {"name": {"_invalid": "value"}}
 
@@ -176,13 +176,13 @@ class TestValidateWhereInput:
 
         assert "_invalid" in str(exc_info.value)
 
-    def test_nested_type_validation(self):
+    def test_nested_type_validation(self) -> None:
         """Test validation with nested types."""
         where = {"author": {"name": {"_eq": "John"}, "age": {"_gt": 18}}}
         errors = validate_where_input(where, Post)
         assert errors == []
 
-    def test_multiple_errors_collected(self):
+    def test_multiple_errors_collected(self) -> None:
         """Test that multiple errors are collected in non-strict mode."""
         where = {
             "invalid1": {"_eq": "value"},
@@ -192,7 +192,7 @@ class TestValidateWhereInput:
         errors = validate_where_input(where, User)
         assert len(errors) >= 3
 
-    def test_path_in_error_messages(self):
+    def test_path_in_error_messages(self) -> None:
         """Test that error messages include path information."""
         where = {"_and": [{"invalid": {"_eq": "value"}}]}
         errors = validate_where_input(where, User)
@@ -202,42 +202,42 @@ class TestValidateWhereInput:
 class TestValidateFields:
     """Test the validate_query_fields function."""
 
-    def test_valid_simple_fields(self):
+    def test_valid_simple_fields(self) -> None:
         """Test validation of simple field selection."""
         # validate_query_fields doesn't exist - remove these tests
 
-    def test_invalid_field_selection(self):
+    def test_invalid_field_selection(self) -> None:
         """Test validation with invalid field."""
 
-    def test_nested_field_selection(self):
+    def test_nested_field_selection(self) -> None:
         """Test validation with nested field selection."""
 
-    def test_invalid_nested_field(self):
+    def test_invalid_nested_field(self) -> None:
         """Test validation with invalid nested field."""
 
-    def test_deeply_nested_fields(self):
+    def test_deeply_nested_fields(self) -> None:
         """Test validation with deeply nested fields."""
 
-    def test_empty_selection(self):
+    def test_empty_selection(self) -> None:
         """Test validation with empty selection."""
 
-    def test_strict_mode_field_validation(self):
+    def test_strict_mode_field_validation(self) -> None:
         """Test strict mode raises on invalid field."""
 
-    def test_mixed_valid_invalid_fields(self):
+    def test_mixed_valid_invalid_fields(self) -> None:
         """Test validation with mix of valid and invalid fields."""
 
-    def test_list_type_field(self):
+    def test_list_type_field(self) -> None:
         """Test validation with list type fields."""
 
-    def test_optional_field(self):
+    def test_optional_field(self) -> None:
         """Test validation with optional fields."""
 
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_where_validation_with_none_values(self):
+    def test_where_validation_with_none_values(self) -> None:
         """Test where validation handles None values gracefully."""
         where = {
             "name": None,  # Should be skipped
@@ -246,7 +246,7 @@ class TestEdgeCases:
         _ = validate_where_input(where, User)
         # Implementation might vary on how None is handled
 
-    def test_circular_type_references(self):
+    def test_circular_type_references(self) -> None:
         """Test validation with circular type references."""
 
         # This would need special handling in real implementation
@@ -260,7 +260,7 @@ class TestEdgeCases:
         # Currently just testing the type definition works
         _ = Node  # Just ensure the type is defined properly
 
-    def test_complex_where_with_all_operators(self):
+    def test_complex_where_with_all_operators(self) -> None:
         """Test complex where clause using many operators."""
         where = {
             "_and": [
@@ -273,7 +273,7 @@ class TestEdgeCases:
         errors = validate_where_input(where, User)
         assert errors == []
 
-    def test_validation_with_inherited_types(self):
+    def test_validation_with_inherited_types(self) -> None:
         """Test validation with inherited dataclass types."""
 
         @fraiseql.type

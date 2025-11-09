@@ -16,7 +16,6 @@ import pytest
 
 from .conftest import is_known_exception
 
-
 DASHBOARD_DIR = Path(__file__).parent.parent.parent / "grafana"
 DASHBOARD_FILES = [
     "error_monitoring.json",
@@ -28,7 +27,7 @@ DASHBOARD_FILES = [
 
 
 @pytest.fixture
-def all_sql_queries():
+def all_sql_queries() -> None:
     """Extract all SQL queries from all dashboards."""
     queries = []
 
@@ -58,13 +57,13 @@ def all_sql_queries():
 class TestSQLSyntax:
     """Test SQL query syntax and structure."""
 
-    def test_queries_are_not_empty(self, all_sql_queries):
+    def test_queries_are_not_empty(self, all_sql_queries) -> None:
         """All SQL queries should have content."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].strip()
             assert sql, f"{query_info['dashboard']}.{query_info['panel']}: Empty SQL query"
 
-    def test_queries_have_select_statement(self, all_sql_queries):
+    def test_queries_have_select_statement(self, all_sql_queries) -> None:
         """All queries should contain SELECT statement."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].upper()
@@ -72,7 +71,7 @@ class TestSQLSyntax:
                 f"{query_info['dashboard']}.{query_info['panel']}: No SELECT statement"
             )
 
-    def test_queries_have_from_clause(self, all_sql_queries):
+    def test_queries_have_from_clause(self, all_sql_queries) -> None:
         """All queries should have FROM clause (except CTEs)."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].upper()
@@ -83,7 +82,7 @@ class TestSQLSyntax:
 
             assert "FROM" in sql, f"{query_info['dashboard']}.{query_info['panel']}: No FROM clause"
 
-    def test_queries_end_with_semicolon_or_not(self, all_sql_queries):
+    def test_queries_end_with_semicolon_or_not(self, all_sql_queries) -> None:
         """Queries should consistently handle semicolons."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].strip()
@@ -109,7 +108,7 @@ class TestTableReferences:
         "tb_error_notification_log",
     }
 
-    def test_queries_reference_valid_tables(self, all_sql_queries):
+    def test_queries_reference_valid_tables(self, all_sql_queries) -> None:
         """Queries should reference known FraiseQL tables."""
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -145,7 +144,7 @@ class TestTableReferences:
                         f"{query_info['dashboard']}.{query_info['panel']}: Unknown table '{table}'"
                     )
 
-    def test_monitoring_schema_usage(self, all_sql_queries):
+    def test_monitoring_schema_usage(self, all_sql_queries) -> None:
         """Queries should use monitoring schema for observability tables."""
         observability_tables = ["errors", "traces", "metrics"]
 
@@ -164,7 +163,7 @@ class TestTableReferences:
 class TestGrafanaVariables:
     """Test Grafana variable usage in queries."""
 
-    def test_queries_use_time_range_variables(self, all_sql_queries):
+    def test_queries_use_time_range_variables(self, all_sql_queries) -> None:
         """Time-series queries should use Grafana time range variables."""
         time_sensitive_keywords = [
             "occurred_at",
@@ -197,7 +196,7 @@ class TestGrafanaVariables:
                     f"Time-sensitive query should use Grafana time variables, NOW(), or be a latest-value query"
                 )
 
-    def test_queries_use_environment_variable(self, all_sql_queries):
+    def test_queries_use_environment_variable(self, all_sql_queries) -> None:
         """Queries should filter by environment variable."""
         # Queries accessing observability tables should typically filter by environment
         observability_tables = ["monitoring.errors", "monitoring.traces", "monitoring.metrics"]
@@ -229,7 +228,7 @@ class TestGrafanaVariables:
                         f"Query should filter by '$environment' variable"
                     )
 
-    def test_custom_time_range_variable(self, all_sql_queries):
+    def test_custom_time_range_variable(self, all_sql_queries) -> None:
         """Queries using custom time range should use '$time_range' variable."""
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -243,7 +242,7 @@ class TestGrafanaVariables:
 class TestQueryPerformance:
     """Test query performance characteristics."""
 
-    def test_queries_use_indexed_columns(self, all_sql_queries):
+    def test_queries_use_indexed_columns(self, all_sql_queries) -> None:
         """WHERE clauses should use indexed columns."""
         indexed_columns = [
             "occurred_at",
@@ -275,7 +274,7 @@ class TestQueryPerformance:
                         f"Query should filter by indexed columns for performance"
                     )
 
-    def test_queries_have_reasonable_limits(self, all_sql_queries):
+    def test_queries_have_reasonable_limits(self, all_sql_queries) -> None:
         """Table queries should have LIMIT clauses."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].upper()
@@ -297,7 +296,7 @@ class TestQueryPerformance:
                             f"LIMIT {limit_value} is too high (max 1000)"
                         )
 
-    def test_queries_avoid_select_star(self, all_sql_queries):
+    def test_queries_avoid_select_star(self, all_sql_queries) -> None:
         """Queries should select specific columns, not SELECT *."""
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -320,7 +319,7 @@ class TestQueryPerformance:
 class TestSQLInjectionPrevention:
     """Test that queries don't have SQL injection vulnerabilities."""
 
-    def test_variables_are_properly_quoted(self, all_sql_queries):
+    def test_variables_are_properly_quoted(self, all_sql_queries) -> None:
         """Grafana variables should be properly quoted."""
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -356,7 +355,7 @@ class TestSQLInjectionPrevention:
                             f"Variable {var} should be quoted in WHERE clause"
                         )
 
-    def test_no_dynamic_sql_construction(self, all_sql_queries):
+    def test_no_dynamic_sql_construction(self, all_sql_queries) -> None:
         """Queries should not use dynamic SQL construction."""
         dangerous_patterns = [
             r"EXECUTE\s+",
@@ -377,7 +376,7 @@ class TestSQLInjectionPrevention:
 class TestQueryCorrectness:
     """Test query correctness and PostgreSQL compatibility."""
 
-    def test_aggregates_with_group_by(self, all_sql_queries):
+    def test_aggregates_with_group_by(self, all_sql_queries) -> None:
         """Queries with aggregates should have GROUP BY for non-aggregated columns."""
         aggregate_functions = ["COUNT", "SUM", "AVG", "MAX", "MIN", "PERCENTILE_CONT"]
 
@@ -420,7 +419,7 @@ class TestQueryCorrectness:
                                 f"Query with aggregates and non-aggregate columns needs GROUP BY clause"
                             )
 
-    def test_json_operators_are_valid(self, all_sql_queries):
+    def test_json_operators_are_valid(self, all_sql_queries) -> None:
         """JSONB operators should use valid PostgreSQL syntax."""
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -438,7 +437,7 @@ class TestQueryCorrectness:
                         f"JSONB key should be quoted: {op}"
                     )
 
-    def test_cte_syntax(self, all_sql_queries):
+    def test_cte_syntax(self, all_sql_queries) -> None:
         """CTE (Common Table Expression) syntax should be valid."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].upper()

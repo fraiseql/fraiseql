@@ -54,7 +54,7 @@ class CreateNetworkConfiguration:
 class MockDatabase:
     """Mock database to capture function calls."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.last_function_call = None
         self.last_input_data = None
 
@@ -89,12 +89,12 @@ class MockDatabase:
 class MockInfo:
     """Mock GraphQL info object."""
 
-    def __init__(self, db: MockDatabase):
+    def __init__(self, db: MockDatabase) -> None:
         self.context = {"db": db}
 
 
 @pytest.mark.asyncio
-async def test_dns_1_id_field_not_transformed():
+async def test_dns_1_id_field_not_transformed() -> None:
     """Test that dns_1_id is not incorrectly transformed to dns_1.
 
     This is the RED test - it should fail initially due to the bug.
@@ -151,7 +151,7 @@ async def test_dns_1_id_field_not_transformed():
 
 
 @pytest.mark.asyncio
-async def test_various_underscore_number_id_patterns():
+async def test_various_underscore_number_id_patterns() -> None:
     """Test various patterns of underscore+number+_id fields."""
     mock_db = MockDatabase()
     mock_info = MockInfo(mock_db)

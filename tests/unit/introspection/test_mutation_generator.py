@@ -10,11 +10,11 @@ from fraiseql.introspection.type_mapper import TypeMapper
 
 
 @pytest.fixture
-def mock_introspector():
+def mock_introspector() -> None:
     """Mock PostgresIntrospector for testing."""
 
     class MockIntrospector:
-        async def discover_composite_type(self, *args, **kwargs):
+        async def discover_composite_type(self, *args, **kwargs) -> None:
             return None
 
     return MockIntrospector()
@@ -140,7 +140,7 @@ class TestMutationGenerator:
         # Then: Returns None due to missing success type
         assert mutation is None
 
-    def test_create_mutation_class(self, mutation_generator: MutationGenerator):
+    def test_create_mutation_class(self, mutation_generator: MutationGenerator) -> None:
         """Test creating mutation class with proper annotations."""
         # Given: Input class and types
         input_cls = type("CreateUserInput", (), {"__annotations__": {"name": str, "email": str}})
@@ -193,7 +193,7 @@ class TestMutationGenerator:
             actual = mutation_generator._function_to_mutation_class_name(function_name)
             assert actual == expected_class_name
 
-    def test_extract_context_params_auth_prefix(self):
+    def test_extract_context_params_auth_prefix(self) -> None:
         """Test context parameter extraction with auth_ prefix (new standard)."""
         # Given: MutationGenerator
         type_mapper = TypeMapper()
@@ -229,7 +229,7 @@ class TestMutationGenerator:
         # Then: Correct mapping
         assert context_params == {"tenant_id": "auth_tenant_id", "user_id": "auth_user_id"}
 
-    def test_extract_context_params_explicit_metadata(self):
+    def test_extract_context_params_explicit_metadata(self) -> None:
         """Test context parameter extraction with explicit metadata."""
         # Given: MutationGenerator
         type_mapper = TypeMapper()
@@ -265,7 +265,7 @@ class TestMutationGenerator:
         # Then: Uses explicit metadata (priority 1)
         assert context_params == {"tenant_id": "auth_tenant_id", "user_id": "auth_user_id"}
 
-    def test_extract_context_params_no_context(self):
+    def test_extract_context_params_no_context(self) -> None:
         """Test context parameter extraction with no context params."""
         # Given: Function without context parameters
         function = FunctionMetadata(
@@ -296,7 +296,7 @@ class TestMutationGenerator:
         # Then: Empty dict (no context params)
         assert context_params == {}
 
-    def test_extract_context_params_generic_auth_prefix(self):
+    def test_extract_context_params_generic_auth_prefix(self) -> None:
         """Test generic auth_ prefix support (e.g., auth_organization_id)."""
         # Given: Function with non-standard auth param
         function = FunctionMetadata(

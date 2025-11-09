@@ -5,6 +5,7 @@ which is essential for GraphQL response serialization.
 """
 
 import json
+
 import pytest
 
 from fraiseql.types.errors import Error
@@ -13,7 +14,7 @@ from fraiseql.types.errors import Error
 class TestErrorJSONSerialization:
     """Test Error type JSON serialization methods."""
 
-    def test_error_basic_json_serialization_fails_without_fix(self):
+    def test_error_basic_json_serialization_fails_without_fix(self) -> None:
         """Test that Error objects cannot be JSON serialized by default (RED phase)."""
         error = Error(
             message="Test error",
@@ -26,7 +27,7 @@ class TestErrorJSONSerialization:
         with pytest.raises(TypeError, match="Object of type Error is not JSON serializable"):
             json.dumps(error)
 
-    def test_error_list_json_serialization_fails_without_fix(self):
+    def test_error_list_json_serialization_fails_without_fix(self) -> None:
         """Test that lists of Error objects cannot be JSON serialized (RED phase)."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
@@ -37,7 +38,7 @@ class TestErrorJSONSerialization:
         with pytest.raises(TypeError, match="Object of type Error is not JSON serializable"):
             json.dumps(errors)
 
-    def test_error_nested_json_serialization_fails_without_fix(self):
+    def test_error_nested_json_serialization_fails_without_fix(self) -> None:
         """Test that nested structures with Error objects cannot be JSON serialized (RED phase)."""
         error = Error(message="Nested error", code=409, identifier="conflict")
 
@@ -51,7 +52,7 @@ class TestErrorJSONSerialization:
         with pytest.raises(TypeError, match="Object of type Error is not JSON serializable"):
             json.dumps(complex_structure)
 
-    def test_error_should_be_json_serializable_with_fix(self):
+    def test_error_should_be_json_serializable_with_fix(self) -> None:
         """Test that Error objects can be JSON serialized after implementing __json__ method (GREEN phase goal)."""
         error = Error(
             message="Test error",
@@ -72,7 +73,7 @@ class TestErrorJSONSerialization:
         assert parsed["identifier"] == "test_error"
         assert parsed["details"] == {"field": "name", "reason": "invalid"}
 
-    def test_error_to_dict_method(self):
+    def test_error_to_dict_method(self) -> None:
         """Test that Error objects have a to_dict method for conversion (GREEN phase goal)."""
         error = Error(
             message="Dict test",
@@ -94,7 +95,7 @@ class TestErrorJSONSerialization:
         }
         assert result_dict == expected
 
-    def test_error_with_none_details_serialization(self):
+    def test_error_with_none_details_serialization(self) -> None:
         """Test Error serialization when details is None (edge case)."""
         error = Error(
             message="No details error",
@@ -122,7 +123,7 @@ class TestErrorJSONSerialization:
         parsed = json.loads(json_str)
         assert parsed == expected
 
-    def test_error_with_complex_nested_details(self):
+    def test_error_with_complex_nested_details(self) -> None:
         """Test Error with complex nested details structure (edge case)."""
         complex_details = {
             "validation": {
@@ -159,7 +160,7 @@ class TestErrorJSONSerialization:
         assert parsed["details"]["validation"]["fields"][0]["field"] == "email"
         assert parsed["details"]["metadata"]["user_context"]["role"] == "admin"
 
-    def test_error_list_mixed_with_regular_data(self):
+    def test_error_list_mixed_with_regular_data(self) -> None:
         """Test list of Errors mixed with other data types (integration edge case)."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
@@ -176,7 +177,7 @@ class TestErrorJSONSerialization:
         # Should be serializable with custom default handler
         import json
 
-        def error_serializer(obj):
+        def error_serializer(obj) -> None:
             if hasattr(obj, "__json__"):
                 return obj.__json__()
             raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")

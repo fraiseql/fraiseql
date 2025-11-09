@@ -32,14 +32,14 @@ DepartmentOrderBy = create_graphql_order_by_input(Department)
 EmployeeOrderBy = create_graphql_order_by_input(Employee)
 
 
-def test_real_world_graphql_order_by_usage():
+def test_real_world_graphql_order_by_usage() -> None:
     """Test the real-world usage pattern from the bug report."""
     # Simulate what GraphQL frameworks pass to the resolver
     # This is typically a dict, not an instance of our OrderByInputClass
     order_by_from_graphql = {"name": "DESC", "department": {"name": "ASC"}}
 
     # Simulate a resolver function
-    async def employees(info, order_by=None):
+    async def employees(info, order_by=None) -> None:
         # This is what happens in a real resolver
         db = info.context["db"]
 
@@ -62,7 +62,7 @@ def test_real_world_graphql_order_by_usage():
     assert "data -> 'department' -> 'name' ASC" in sql_string
 
 
-def test_simple_order_by_dict():
+def test_simple_order_by_dict() -> None:
     """Test simple ORDER BY as reported in the bug."""
     # The exact case from the bug report
     order_by = {"name": "DESC"}
@@ -76,7 +76,7 @@ def test_simple_order_by_dict():
     assert sql_order_by.instructions[0].direction == "desc"
 
 
-def test_enum_values_in_dict():
+def test_enum_values_in_dict() -> None:
     """Test that OrderDirection enum values work in dicts."""
     # Some GraphQL libraries might pass the enum directly
     order_by = {"name": OrderDirection.DESC, "email": OrderDirection.ASC}

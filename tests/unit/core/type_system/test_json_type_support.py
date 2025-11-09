@@ -17,7 +17,7 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 
 @pytest.mark.unit
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear registry before each test to avoid type conflicts."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

@@ -150,7 +150,7 @@ class TestRoundTrip:
         back_to_psycopg2 = url_to_psycopg2(url)
 
         # Parse both to compare
-        def parse_psycopg2(s):
+        def parse_psycopg2(s) -> None:
             params = {}
             import re
 

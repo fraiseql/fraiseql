@@ -14,12 +14,12 @@ from fraiseql.types import LTree
 class TestLTreePathManipulationOperators:
     """Test LTREE path manipulation operators."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.strategy = LTreeOperatorStrategy()
         self.path_sql = SQL("data->>'path'")
 
-    def test_ltree_concat_operator(self):
+    def test_ltree_concat_operator(self) -> None:
         """Test || operator - concatenate paths."""
         # 'top.science' || 'physics.quantum' = 'top.science.physics.quantum'
         suffix = "physics.quantum"
@@ -27,21 +27,21 @@ class TestLTreePathManipulationOperators:
         expected = "(data->>'path')::ltree || 'physics.quantum'::ltree"
         assert result.as_string(None) == expected
 
-    def test_ltree_concat_single_label(self):
+    def test_ltree_concat_single_label(self) -> None:
         """Test concatenating single label to path."""
         # 'top.science' || 'physics' = 'top.science.physics'
         result = self.strategy.build_sql(self.path_sql, "concat", "physics", LTree)
         expected = "(data->>'path')::ltree || 'physics'::ltree"
         assert result.as_string(None) == expected
 
-    def test_ltree_concat_empty_string(self):
+    def test_ltree_concat_empty_string(self) -> None:
         """Test concatenating empty string."""
         # 'top.science' || '' should work
         result = self.strategy.build_sql(self.path_sql, "concat", "", LTree)
         expected = "(data->>'path')::ltree || ''::ltree"
         assert result.as_string(None) == expected
 
-    def test_ltree_lca_operator(self):
+    def test_ltree_lca_operator(self) -> None:
         """Test lca(ltree[]) - lowest common ancestor."""
         # lca('top.science.physics', 'top.science.chemistry') = 'top.science'
         paths = ["top.science.physics", "top.science.chemistry", "top.science.biology"]
@@ -49,7 +49,7 @@ class TestLTreePathManipulationOperators:
         expected = "lca(ARRAY['top.science.physics'::ltree, 'top.science.chemistry'::ltree, 'top.science.biology'::ltree])"
         assert result.as_string(None) == expected
 
-    def test_ltree_lca_two_paths(self):
+    def test_ltree_lca_two_paths(self) -> None:
         """Test lca with just two paths."""
         # lca('top.science', 'top.technology') = 'top'
         paths = ["top.science", "top.technology"]
@@ -57,7 +57,7 @@ class TestLTreePathManipulationOperators:
         expected = "lca(ARRAY['top.science'::ltree, 'top.technology'::ltree])"
         assert result.as_string(None) == expected
 
-    def test_ltree_lca_single_path(self):
+    def test_ltree_lca_single_path(self) -> None:
         """Test lca with single path (edge case)."""
         # lca with single path should still work
         paths = ["top.science.physics"]
@@ -69,22 +69,22 @@ class TestLTreePathManipulationOperators:
 class TestLTreePathManipulationValidation:
     """Test validation for path manipulation operators."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.strategy = LTreeOperatorStrategy()
         self.path_sql = SQL("data->>'path'")
 
-    def test_lca_requires_list(self):
+    def test_lca_requires_list(self) -> None:
         """Test that lca operator requires a list of paths."""
         with pytest.raises(TypeError):
             self.strategy.build_sql(self.path_sql, "lca", "not-a-list", LTree)
 
-    def test_lca_empty_list(self):
+    def test_lca_empty_list(self) -> None:
         """Test lca with empty list."""
         with pytest.raises((TypeError, ValueError)):
             self.strategy.build_sql(self.path_sql, "lca", [], LTree)
 
-    def test_concat_with_none(self):
+    def test_concat_with_none(self) -> None:
         """Test concat with None value."""
         # This should work - concatenating None might be allowed
         try:
@@ -100,19 +100,19 @@ class TestLTreePathManipulationValidation:
 class TestLTreePathManipulationEdgeCases:
     """Test edge cases for path manipulation operators."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.strategy = LTreeOperatorStrategy()
         self.path_sql = SQL("data->>'path'")
 
-    def test_concat_with_special_characters(self):
+    def test_concat_with_special_characters(self) -> None:
         """Test concat with paths containing underscores and numbers."""
         suffix = "version_2.release_1"
         result = self.strategy.build_sql(self.path_sql, "concat", suffix, LTree)
         expected = "(data->>'path')::ltree || 'version_2.release_1'::ltree"
         assert result.as_string(None) == expected
 
-    def test_lca_with_deep_paths(self):
+    def test_lca_with_deep_paths(self) -> None:
         """Test lca with deeply nested paths."""
         paths = [
             "top.academics.university.department.faculty.professor.research.papers",
@@ -123,14 +123,14 @@ class TestLTreePathManipulationEdgeCases:
         expected = "lca(ARRAY['top.academics.university.department.faculty.professor.research.papers'::ltree, 'top.academics.university.department.faculty.professor.teaching.courses'::ltree, 'top.academics.university.department.staff.admin.budget'::ltree])"
         assert result.as_string(None) == expected
 
-    def test_lca_with_identical_paths(self):
+    def test_lca_with_identical_paths(self) -> None:
         """Test lca with identical paths."""
         paths = ["top.science.physics", "top.science.physics", "top.science.physics"]
         result = self.strategy.build_sql(self.path_sql, "lca", paths, LTree)
         expected = "lca(ARRAY['top.science.physics'::ltree, 'top.science.physics'::ltree, 'top.science.physics'::ltree])"
         assert result.as_string(None) == expected
 
-    def test_concat_result_filtering(self):
+    def test_concat_result_filtering(self) -> None:
         """Test that concat can be used in filtering contexts."""
         # This tests that concat returns a proper SQL expression that can be used in WHERE clauses
         suffix = "quantum"

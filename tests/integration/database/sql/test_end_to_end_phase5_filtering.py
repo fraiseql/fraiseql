@@ -6,6 +6,7 @@ of the WHERE clause building system, from field detection through SQL generation
 
 import pytest
 from psycopg.sql import SQL
+
 from fraiseql.sql.where.core.field_detection import FieldType
 from fraiseql.sql.where.operators import get_operator_function
 
@@ -13,7 +14,7 @@ from fraiseql.sql.where.operators import get_operator_function
 class TestDateTimeEndToEndIntegration:
     """Test DateTime operators in full integration context."""
 
-    def test_datetime_field_type_operators(self):
+    def test_datetime_field_type_operators(self) -> None:
         """Test that all expected DateTime operators are available."""
         expected_operators = {"eq", "neq", "in", "notin", "gt", "gte", "lt", "lte"}
 
@@ -21,7 +22,7 @@ class TestDateTimeEndToEndIntegration:
             func = get_operator_function(FieldType.DATETIME, op)
             assert callable(func), f"DateTime operator '{op}' should return a callable function"
 
-    def test_datetime_operators_integration(self):
+    def test_datetime_operators_integration(self) -> None:
         """Test DateTime operators generate correct SQL in full context."""
         path_sql = SQL("data->>'created_at'")
 
@@ -43,7 +44,7 @@ class TestDateTimeEndToEndIntegration:
         expected = "(data->>'created_at')::timestamptz > '2023-07-15T09:00:00Z'::timestamptz"
         assert result.as_string(None) == expected
 
-    def test_datetime_timezone_formats_integration(self):
+    def test_datetime_timezone_formats_integration(self) -> None:
         """Test DateTime with various timezone formats in integration."""
         path_sql = SQL("data->>'timestamp'")
         eq_func = get_operator_function(FieldType.DATETIME, "eq")
@@ -72,7 +73,7 @@ class TestDateTimeEndToEndIntegration:
             result = eq_func(path_sql, datetime_str)
             assert result.as_string(None) == expected
 
-    def test_datetime_comparison_operators_integration(self):
+    def test_datetime_comparison_operators_integration(self) -> None:
         """Test DateTime comparison operators in integration context."""
         path_sql = SQL("data->>'event_time'")
 
@@ -104,7 +105,7 @@ class TestDateTimeEndToEndIntegration:
 class TestDateEndToEndIntegration:
     """Test Date operators in full integration context."""
 
-    def test_date_field_type_operators(self):
+    def test_date_field_type_operators(self) -> None:
         """Test that all expected Date operators are available."""
         expected_operators = {"eq", "neq", "in", "notin", "gt", "gte", "lt", "lte"}
 
@@ -112,7 +113,7 @@ class TestDateEndToEndIntegration:
             func = get_operator_function(FieldType.DATE, op)
             assert callable(func), f"Date operator '{op}' should return a callable function"
 
-    def test_date_operators_integration(self):
+    def test_date_operators_integration(self) -> None:
         """Test Date operators generate correct SQL in full context."""
         path_sql = SQL("data->>'birth_date'")
 
@@ -134,7 +135,7 @@ class TestDateEndToEndIntegration:
         expected = "(data->>'birth_date')::date > '2023-07-01'::date"
         assert result.as_string(None) == expected
 
-    def test_date_comparison_operators_integration(self):
+    def test_date_comparison_operators_integration(self) -> None:
         """Test Date comparison operators in integration context."""
         path_sql = SQL("data->>'event_date'")
 
@@ -150,7 +151,7 @@ class TestDateEndToEndIntegration:
             result = func(path_sql, date_str)
             assert result.as_string(None) == expected
 
-    def test_date_special_formats_integration(self):
+    def test_date_special_formats_integration(self) -> None:
         """Test Date with special date formats in integration."""
         path_sql = SQL("data->>'date'")
         eq_func = get_operator_function(FieldType.DATE, "eq")
@@ -171,7 +172,7 @@ class TestDateEndToEndIntegration:
 class TestDateTimeVsDateOperators:
     """Test that DateTime and Date operators are properly differentiated."""
 
-    def test_datetime_uses_timestamptz_casting(self):
+    def test_datetime_uses_timestamptz_casting(self) -> None:
         """Verify DateTime operators use ::timestamptz casting."""
         path_sql = SQL("data->>'created_at'")
         eq_func = get_operator_function(FieldType.DATETIME, "eq")
@@ -182,7 +183,7 @@ class TestDateTimeVsDateOperators:
         assert "::timestamptz" in query_str
         assert "::date" not in query_str
 
-    def test_date_uses_date_casting(self):
+    def test_date_uses_date_casting(self) -> None:
         """Verify Date operators use ::date casting."""
         path_sql = SQL("data->>'birth_date'")
         eq_func = get_operator_function(FieldType.DATE, "eq")
@@ -193,7 +194,7 @@ class TestDateTimeVsDateOperators:
         assert "::date" in query_str
         assert "::timestamptz" not in query_str
 
-    def test_operator_coverage_datetime(self):
+    def test_operator_coverage_datetime(self) -> None:
         """Test that all expected DateTime operators are available."""
         from fraiseql.sql.where.operators import OPERATOR_MAP
 
@@ -205,7 +206,7 @@ class TestDateTimeVsDateOperators:
         for key in datetime_operators:
             assert key in OPERATOR_MAP, f"Missing DateTime operator: {key[1]}"
 
-    def test_operator_coverage_date(self):
+    def test_operator_coverage_date(self) -> None:
         """Test that all expected Date operators are available."""
         from fraiseql.sql.where.operators import OPERATOR_MAP
 
@@ -221,17 +222,17 @@ class TestDateTimeVsDateOperators:
 class TestPhase5ErrorHandling:
     """Test error handling for DateTime/Date operators."""
 
-    def test_datetime_invalid_operator_error(self):
+    def test_datetime_invalid_operator_error(self) -> None:
         """Test that invalid DateTime operators raise appropriate errors."""
         with pytest.raises(ValueError, match="Unsupported operator 'invalid_op'"):
             get_operator_function(FieldType.DATETIME, "invalid_op")
 
-    def test_date_invalid_operator_error(self):
+    def test_date_invalid_operator_error(self) -> None:
         """Test that invalid Date operators raise appropriate errors."""
         with pytest.raises(ValueError, match="Unsupported operator 'invalid_op'"):
             get_operator_function(FieldType.DATE, "invalid_op")
 
-    def test_datetime_in_requires_list_error(self):
+    def test_datetime_in_requires_list_error(self) -> None:
         """Test DateTime 'in' operator with non-list value raises error."""
         path_sql = SQL("data->>'timestamp'")
         in_func = get_operator_function(FieldType.DATETIME, "in")
@@ -239,7 +240,7 @@ class TestPhase5ErrorHandling:
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             in_func(path_sql, "2023-07-15T14:30:00Z")  # Should be a list
 
-    def test_date_in_requires_list_error(self):
+    def test_date_in_requires_list_error(self) -> None:
         """Test Date 'in' operator with non-list value raises error."""
         path_sql = SQL("data->>'date'")
         in_func = get_operator_function(FieldType.DATE, "in")

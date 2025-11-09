@@ -18,12 +18,11 @@ Expected Behavior:
 4. GraphQL validation should reject String variables for IpAddress fields
 """
 
-import pytest
-from graphql import validate, parse, print_schema
+from graphql import parse, print_schema, validate
 
 import fraiseql
-from fraiseql.types import IpAddress
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.types import IpAddress
 
 
 @fraiseql.input
@@ -67,7 +66,7 @@ async def health_check(info) -> str:
     return "OK"
 
 
-def test_ip_address_scalar_mapping():
+def test_ip_address_scalar_mapping() -> None:
     """Test that IpAddress Python type maps correctly to IpAddressString GraphQL scalar."""
     # Build schema with the test types
     schema = build_fraiseql_schema(
@@ -116,7 +115,7 @@ def test_ip_address_scalar_mapping():
     assert "ipAddress: String" not in input_text, "Field incorrectly mapped to String"
 
 
-def test_graphql_validation_with_ip_address_scalar():
+def test_graphql_validation_with_ip_address_scalar() -> None:
     """Test that GraphQL validation correctly handles IpAddressString variables."""
     # Build schema
     schema = build_fraiseql_schema(
@@ -174,7 +173,7 @@ def test_graphql_validation_with_ip_address_scalar():
     assert "IpAddressString" in error_message, "Error should mention IpAddressString type"
 
 
-def test_ip_address_field_type_mapping():
+def test_ip_address_field_type_mapping() -> None:
     """Test that IpAddressField correctly maps to IpAddressScalar."""
     from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
     from fraiseql.types.scalars.ip_address import IpAddressField, IpAddressScalar
@@ -185,7 +184,7 @@ def test_ip_address_field_type_mapping():
     assert mapped_scalar.name == "IpAddressString", "Scalar name incorrect"
 
 
-def test_multiple_ip_address_field_name_conversions():
+def test_multiple_ip_address_field_name_conversions() -> None:
     """Test that various snake_case IP address field names convert correctly to camelCase."""
 
     @fraiseql.input

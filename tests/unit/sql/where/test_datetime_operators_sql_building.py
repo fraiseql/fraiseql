@@ -10,20 +10,20 @@ from psycopg.sql import SQL
 # Import DateTime operator functions
 from fraiseql.sql.where.operators.datetime import (
     build_datetime_eq_sql,
-    build_datetime_neq_sql,
-    build_datetime_in_sql,
-    build_datetime_notin_sql,
     build_datetime_gt_sql,
     build_datetime_gte_sql,
+    build_datetime_in_sql,
     build_datetime_lt_sql,
     build_datetime_lte_sql,
+    build_datetime_neq_sql,
+    build_datetime_notin_sql,
 )
 
 
 class TestDateTimeBasicOperators:
     """Test basic DateTime operators (eq, neq, in, notin)."""
 
-    def test_build_datetime_equality_sql(self):
+    def test_build_datetime_equality_sql(self) -> None:
         """Test DateTime equality operator with proper timestamp casting."""
         path_sql = SQL("data->>'created_at'")
         value = "2023-07-15T14:30:00Z"
@@ -33,7 +33,7 @@ class TestDateTimeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_inequality_sql(self):
+    def test_build_datetime_inequality_sql(self) -> None:
         """Test DateTime inequality operator with proper timestamp casting."""
         path_sql = SQL("data->>'updated_at'")
         value = "2023-01-01T00:00:00Z"
@@ -43,7 +43,7 @@ class TestDateTimeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_in_list_sql(self):
+    def test_build_datetime_in_list_sql(self) -> None:
         """Test DateTime IN list with multiple datetime values."""
         path_sql = SQL("data->>'event_time'")
         value = ["2023-07-15T10:00:00Z", "2023-07-15T14:30:00Z", "2023-07-15T18:00:00Z"]
@@ -53,7 +53,7 @@ class TestDateTimeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_not_in_list_sql(self):
+    def test_build_datetime_not_in_list_sql(self) -> None:
         """Test DateTime NOT IN list with multiple datetime values."""
         path_sql = SQL("data->>'event_time'")
         value = ["2023-01-01T00:00:00Z", "2023-12-31T23:59:59Z"]
@@ -63,7 +63,7 @@ class TestDateTimeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_single_item_in_list(self):
+    def test_build_datetime_single_item_in_list(self) -> None:
         """Test DateTime IN list with single value."""
         path_sql = SQL("data->>'timestamp'")
         value = ["2023-07-15T14:30:00Z"]
@@ -73,7 +73,7 @@ class TestDateTimeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_timezone_formats(self):
+    def test_build_datetime_timezone_formats(self) -> None:
         """Test DateTime operators with different timezone formats."""
         path_sql = SQL("data->>'timestamp'")
 
@@ -96,7 +96,7 @@ class TestDateTimeBasicOperators:
         )
         assert result_neg_offset.as_string(None) == expected_neg_offset
 
-    def test_build_datetime_empty_list_handling(self):
+    def test_build_datetime_empty_list_handling(self) -> None:
         """Test DateTime operators handle empty lists gracefully."""
         path_sql = SQL("data->>'timestamp'")
         value = []
@@ -113,7 +113,7 @@ class TestDateTimeBasicOperators:
 class TestDateTimeComparisonOperators:
     """Test DateTime comparison operators (gt, gte, lt, lte)."""
 
-    def test_build_datetime_greater_than_sql(self):
+    def test_build_datetime_greater_than_sql(self) -> None:
         """Test DateTime greater than operator."""
         path_sql = SQL("data->>'created_at'")
         value = "2023-07-01T00:00:00Z"
@@ -123,7 +123,7 @@ class TestDateTimeComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_greater_than_equal_sql(self):
+    def test_build_datetime_greater_than_equal_sql(self) -> None:
         """Test DateTime greater than or equal operator."""
         path_sql = SQL("data->>'created_at'")
         value = "2023-07-01T00:00:00Z"
@@ -133,7 +133,7 @@ class TestDateTimeComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_less_than_sql(self):
+    def test_build_datetime_less_than_sql(self) -> None:
         """Test DateTime less than operator."""
         path_sql = SQL("data->>'created_at'")
         value = "2023-12-31T23:59:59Z"
@@ -143,7 +143,7 @@ class TestDateTimeComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_datetime_less_than_equal_sql(self):
+    def test_build_datetime_less_than_equal_sql(self) -> None:
         """Test DateTime less than or equal operator."""
         path_sql = SQL("data->>'created_at'")
         value = "2023-12-31T23:59:59Z"
@@ -153,7 +153,7 @@ class TestDateTimeComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_datetime_range_queries(self):
+    def test_datetime_range_queries(self) -> None:
         """Test DateTime range queries with comparison operators."""
         path_sql = SQL("data->>'event_time'")
 
@@ -185,21 +185,21 @@ class TestDateTimeComparisonOperators:
 class TestDateTimeValidation:
     """Test DateTime operator validation and error handling."""
 
-    def test_datetime_in_requires_list(self):
+    def test_datetime_in_requires_list(self) -> None:
         """Test that DateTime 'in' operator requires a list."""
         path_sql = SQL("data->>'timestamp'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_datetime_in_sql(path_sql, "2023-07-15T14:30:00Z")
 
-    def test_datetime_notin_requires_list(self):
+    def test_datetime_notin_requires_list(self) -> None:
         """Test that DateTime 'notin' operator requires a list."""
         path_sql = SQL("data->>'timestamp'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_datetime_notin_sql(path_sql, "2023-07-15T14:30:00Z")
 
-    def test_datetime_iso_formats_supported(self):
+    def test_datetime_iso_formats_supported(self) -> None:
         """Test that various ISO 8601 datetime formats are supported."""
         path_sql = SQL("data->>'timestamp'")
 
@@ -220,7 +220,7 @@ class TestDateTimeValidation:
             expected = f"(data->>'timestamp')::timestamptz = '{datetime_str}'::timestamptz"
             assert result.as_string(None) == expected
 
-    def test_datetime_precision_handling(self):
+    def test_datetime_precision_handling(self) -> None:
         """Test DateTime with different precision levels."""
         path_sql = SQL("data->>'timestamp'")
 
@@ -243,7 +243,7 @@ class TestDateTimeValidation:
         )
         assert result_micros.as_string(None) == expected_micros
 
-    def test_datetime_timezone_edge_cases(self):
+    def test_datetime_timezone_edge_cases(self) -> None:
         """Test DateTime with timezone edge cases."""
         path_sql = SQL("data->>'timestamp'")
 

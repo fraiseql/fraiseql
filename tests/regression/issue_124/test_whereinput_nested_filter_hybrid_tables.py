@@ -10,15 +10,16 @@ hybrid table detection logic that exists in the dict-based filtering path.
 Issue: https://github.com/fraiseql/fraiseql/issues/124
 """
 
-import pytest
 import uuid
 from datetime import datetime
 
+import pytest
+from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
+
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.sql import create_graphql_where_input, UUIDFilter
-from tests.unit.utils.test_response_utils import extract_graphql_data
-from tests.fixtures.database.database_conftest import *  # noqa: F403
+from fraiseql.sql import UUIDFilter, create_graphql_where_input
 
 pytestmark = pytest.mark.database
 
@@ -27,6 +28,7 @@ pytestmark = pytest.mark.database
 @fraiseql.type
 class Machine:
     """Machine type with minimal fields for testing."""
+
     id: uuid.UUID
     name: str
 
@@ -41,6 +43,7 @@ class Allocation:
 
     This matches the real-world printoptim_backend structure.
     """
+
     id: uuid.UUID
     machine: Machine | None  # Nested object from JSONB
     status: str | None = None
@@ -52,7 +55,7 @@ class TestWhereInputNestedFilterHybridTables:
     """Test that WhereInput nested filtering works on hybrid tables."""
 
     @pytest.fixture
-    async def setup_test_data(self, db_pool):
+    async def setup_test_data(self, db_pool) -> None:
         """Create hybrid allocation table and test data."""
         async with db_pool.connection() as conn:
             # Create hybrid table with both SQL columns and JSONB data
@@ -180,9 +183,7 @@ class TestWhereInputNestedFilterHybridTables:
                 }
 
     @pytest.mark.asyncio
-    async def test_whereinput_nested_filter_returns_zero_results(
-        self, db_pool, setup_test_data
-    ):
+    async def test_whereinput_nested_filter_returns_zero_results(self, db_pool, setup_test_data):
         """Test WhereInput nested filter for machine with 0 allocations.
 
         This is the exact scenario from issue #124 where the filter should
@@ -223,9 +224,7 @@ class TestWhereInputNestedFilterHybridTables:
         )
 
     @pytest.mark.asyncio
-    async def test_whereinput_nested_filter_returns_correct_results(
-        self, db_pool, setup_test_data
-    ):
+    async def test_whereinput_nested_filter_returns_correct_results(self, db_pool, setup_test_data):
         """Test WhereInput nested filter for machine with 2 allocations.
 
         Ensures the filter correctly returns only matching allocations.
@@ -267,7 +266,7 @@ class TestWhereInputNestedFilterHybridTables:
             )
 
     @pytest.mark.asyncio
-    async def test_whereinput_vs_dict_filter_equivalence(self, db_pool, setup_test_data):
+    async def test_whereinput_vs_dict_filter_equivalence(self, db_pool, setup_test_data) -> None:
         """Test that WhereInput and dict filters produce identical results.
 
         Dict-based filtering works correctly. This test ensures WhereInput
@@ -296,9 +295,7 @@ class TestWhereInputNestedFilterHybridTables:
         results_whereinput = extract_graphql_data(result_whereinput, "tv_allocation")
 
         # Query 2: Using dict (direct way - known to work)
-        where_dict = {
-            "machine": {"id": {"eq": test_data["machine2_id"]}}
-        }
+        where_dict = {"machine": {"id": {"eq": test_data["machine2_id"]}}}
 
         result_dict = await repo.find("tv_allocation", where=where_dict)
         results_dict = extract_graphql_data(result_dict, "tv_allocation")
@@ -315,7 +312,7 @@ class TestWhereInputNestedFilterHybridTables:
         )
 
     @pytest.mark.asyncio
-    async def test_whereinput_uses_sql_column_not_jsonb(self, db_pool, setup_test_data):
+    async def test_whereinput_uses_sql_column_not_jsonb(self, db_pool, setup_test_data) -> None:
         """Test that WhereInput uses the SQL column (machine_id) not JSONB path.
 
         This is a performance test - SQL column access should be used for

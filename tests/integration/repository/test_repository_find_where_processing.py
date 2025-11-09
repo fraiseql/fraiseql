@@ -4,8 +4,9 @@ This test reproduces the bug where FraiseQLRepository.find() uses primitive
 SQL templates instead of FraiseQL's operator strategy system for WHERE clauses.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from fraiseql.db import FraiseQLRepository
 
@@ -13,7 +14,7 @@ from fraiseql.db import FraiseQLRepository
 class TestRepositoryFindWhereProcessing:
     """Test that FraiseQLRepository.find() uses FraiseQL's WHERE generation system."""
 
-    def test_repository_find_uses_primitive_sql_templates_not_operator_strategies(self):
+    def test_repository_find_uses_primitive_sql_templates_not_operator_strategies(self) -> None:
         """TEST THAT WILL FAIL: Repository bypasses operator strategies.
 
         This test demonstrates that FraiseQLRepository.find() uses primitive
@@ -57,7 +58,7 @@ class TestRepositoryFindWhereProcessing:
         )
 
     @pytest.mark.asyncio
-    async def test_repository_find_should_use_operator_strategy_system(self, db_pool):
+    async def test_repository_find_should_use_operator_strategy_system(self, db_pool) -> None:
         """TEST SHOWING THE CORRECT BEHAVIOR: find() should use operator strategies."""
         db = FraiseQLRepository(db_pool)
 
@@ -89,7 +90,7 @@ class TestRepositoryFindWhereProcessing:
                 ),
             )
 
-    def test_operator_strategy_system_provides_intelligent_casting(self):
+    def test_operator_strategy_system_provides_intelligent_casting(self) -> None:
         """Show that the fixed system provides intelligent type casting."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -122,10 +123,11 @@ class TestRepositoryFindWhereProcessing:
                 # For non-cast fields, just verify we get some valid SQL
                 assert condition_str != "None", f"Should generate valid SQL for {field}"
 
-    def test_operator_strategy_system_works_correctly(self):
+    def test_operator_strategy_system_works_correctly(self) -> None:
         """Show that the operator strategy system (when used) works correctly."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
         from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import get_operator_registry
 
         # This is what the repository SHOULD be using
         registry = get_operator_registry()

@@ -1,19 +1,19 @@
 # tests/integration/enterprise/audit/test_audit_bridge.py
 
-"""
-Test bridge between tenant.tb_audit_log and cryptographic audit_events.
+"""Test bridge between tenant.tb_audit_log and cryptographic audit_events.
 
 This demonstrates how existing log_and_return_mutation() calls can automatically
 benefit from cryptographic chain integrity by enabling the bridge trigger.
 """
 
-import pytest
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_bridge_schema(db_pool):
+async def setup_bridge_schema(db_pool) -> None:
     """Set up bridge schema and tenant.tb_audit_log table for testing."""
     async with db_pool.connection() as conn:
         async with conn.cursor() as cur:
@@ -96,9 +96,10 @@ async def setup_bridge_schema(db_pool):
             await conn.commit()
 
 
-async def test_bridge_automatically_populates_audit_events(db_repo):
+async def test_bridge_automatically_populates_audit_events(db_repo) -> None:
     """Verify bridge trigger automatically creates audit_events from tb_audit_log."""
     import psycopg.types.json
+
     from fraiseql.db import DatabaseQuery
 
     # Simulate a mutation being logged via log_and_return_mutation()
@@ -173,9 +174,10 @@ async def test_bridge_automatically_populates_audit_events(db_repo):
     assert event["previous_hash"] is None
 
 
-async def test_bridge_creates_cryptographic_chain(db_repo):
+async def test_bridge_creates_cryptographic_chain(db_repo) -> None:
     """Verify multiple mutations create a valid cryptographic chain."""
     import psycopg.types.json
+
     from fraiseql.db import DatabaseQuery
 
     org_id = uuid4()  # Unique tenant for this test
@@ -242,9 +244,10 @@ async def test_bridge_creates_cryptographic_chain(db_repo):
         assert event["signature"] is not None
 
 
-async def test_bridge_preserves_debezium_style_data(db_repo):
+async def test_bridge_preserves_debezium_style_data(db_repo) -> None:
     """Verify bridge preserves old_data and new_data (Debezium CDC style)."""
     import psycopg.types.json
+
     from fraiseql.db import DatabaseQuery
 
     org_id = uuid4()

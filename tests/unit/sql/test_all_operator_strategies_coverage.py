@@ -1,5 +1,4 @@
-"""
-Comprehensive test for all special operator strategies.
+"""Comprehensive test for all special operator strategies.
 
 This test verifies that all advanced type operator strategies have proper
 basic operator coverage after the NetworkOperatorStrategy fix.
@@ -9,21 +8,21 @@ NetworkOperatorStrategy was.
 """
 
 import pytest
+
 from fraiseql.sql.operator_strategies import (
-    NetworkOperatorStrategy,
-    MacAddressOperatorStrategy,
     DateRangeOperatorStrategy,
     LTreeOperatorStrategy,
+    MacAddressOperatorStrategy,
+    NetworkOperatorStrategy,
 )
-from fraiseql.types import IpAddress, MacAddress, DateRange, LTree
+from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
 
 class TestAllOperatorStrategiesCoverage:
     """Test that all special operator strategies have proper basic operator coverage."""
 
-    def test_all_strategies_have_basic_operators(self):
+    def test_all_strategies_have_basic_operators(self) -> None:
         """Test that all special operator strategies include basic operators."""
-
         # Define expected basic operators that all special strategies should have
         basic_operators = {"eq", "neq", "in", "notin"}
 
@@ -56,9 +55,9 @@ class TestAllOperatorStrategiesCoverage:
                     f"{strategy_name} Strategy should handle '{op}' with {field_type} field type"
                 )
 
-            print(f"   ✅ Can handle all basic operators with field type")
+            print("   ✅ Can handle all basic operators with field type")
 
-    def test_network_operator_strategy_specific(self):
+    def test_network_operator_strategy_specific(self) -> None:
         """Test NetworkOperatorStrategy specifically (the one that was fixed)."""
         strategy = NetworkOperatorStrategy()
 
@@ -91,7 +90,7 @@ class TestAllOperatorStrategiesCoverage:
             f"Expected: {expected_operators}, Got: {strategy_operators}"
         )
 
-    def test_mac_address_operator_strategy_specific(self):
+    def test_mac_address_operator_strategy_specific(self) -> None:
         """Test MacAddressOperatorStrategy (should already be complete)."""
         strategy = MacAddressOperatorStrategy()
 
@@ -111,7 +110,7 @@ class TestAllOperatorStrategiesCoverage:
             f"MAC Address Strategy missing MAC-specific operators: {missing_specific}"
         )
 
-    def test_daterange_operator_strategy_specific(self):
+    def test_daterange_operator_strategy_specific(self) -> None:
         """Test DateRangeOperatorStrategy (should already be complete)."""
         strategy = DateRangeOperatorStrategy()
 
@@ -137,7 +136,7 @@ class TestAllOperatorStrategiesCoverage:
             f"Date Range Strategy missing range-specific operators: {missing_specific}"
         )
 
-    def test_ltree_operator_strategy_specific(self):
+    def test_ltree_operator_strategy_specific(self) -> None:
         """Test LTreeOperatorStrategy (should already be complete)."""
         strategy = LTreeOperatorStrategy()
 
@@ -162,7 +161,7 @@ class TestAllOperatorStrategiesCoverage:
             f"LTree Strategy missing tree-specific operators: {missing_specific}"
         )
 
-    def test_operator_precedence_consistency(self):
+    def test_operator_precedence_consistency(self) -> None:
         """Test that all strategies follow consistent precedence patterns."""
         strategies_and_types = [
             (NetworkOperatorStrategy(), IpAddress, "Network"),
@@ -185,9 +184,9 @@ class TestAllOperatorStrategiesCoverage:
                     f"{strategy_name} Strategy should handle '{op}' with {field_type} field type"
                 )
 
-            print(f"   ✅ Handles all basic operators with field type")
+            print("   ✅ Handles all basic operators with field type")
 
-    def test_backward_compatibility(self):
+    def test_backward_compatibility(self) -> None:
         """Test that all strategies maintain backward compatibility."""
         strategies_and_types = [
             (NetworkOperatorStrategy(), IpAddress, "Network"),
@@ -215,7 +214,7 @@ class TestAllOperatorStrategiesCoverage:
                         f"{strategy_name} Strategy should handle type-specific '{op}'"
                     )
 
-            print(f"   ✅ Maintains backward compatibility for type-specific operators")
+            print("   ✅ Maintains backward compatibility for type-specific operators")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ This module tests the complete LTree filtering pipeline:
 2. Real hierarchical path operations with specialized PostgreSQL ltree operators
 """
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.where import build_where_clause, detect_field_type, get_operator_function
@@ -16,7 +15,7 @@ from fraiseql.sql.where.core.field_detection import FieldType
 class TestEndToEndLTreeFiltering:
     """Test complete LTree filtering pipeline with hierarchical path operations."""
 
-    def test_graphql_ltree_equality_filtering(self):
+    def test_graphql_ltree_equality_filtering(self) -> None:
         """Test LTree equality filtering reproduces expected behavior."""
         # Simulate GraphQL WHERE input for LTree path filtering
         graphql_where = {"categoryPath": {"eq": "top.science.astrophysics"}}
@@ -38,7 +37,7 @@ class TestEndToEndLTreeFiltering:
         for pattern in expected_patterns:
             assert pattern in sql_string, f"Expected pattern '{pattern}' not found in: {sql_string}"
 
-    def test_ltree_hierarchical_operations(self):
+    def test_ltree_hierarchical_operations(self) -> None:
         """Test LTree hierarchical operations with ancestor_of and descendant_of."""
         # Test ancestor_of operation
         graphql_where_ancestor = {
@@ -64,7 +63,7 @@ class TestEndToEndLTreeFiltering:
         assert "::ltree" in sql_descendant
         assert "'top.science'::ltree" in sql_descendant
 
-    def test_ltree_pattern_matching_operations(self):
+    def test_ltree_pattern_matching_operations(self) -> None:
         """Test LTree pattern matching with matches_lquery and matches_ltxtquery."""
         # Test lquery pattern matching
         graphql_where_lquery = {"navigationPath": {"matches_lquery": "science.*"}}
@@ -88,7 +87,7 @@ class TestEndToEndLTreeFiltering:
         assert "::ltxtquery" in sql_ltxtquery
         assert "'astrophysics'::ltxtquery" in sql_ltxtquery
 
-    def test_ltree_list_operations(self):
+    def test_ltree_list_operations(self) -> None:
         """Test LTree IN and NOT IN list operations."""
         ltree_paths = ["top.science.physics", "top.science.chemistry", "top.technology.computing"]
 
@@ -103,7 +102,7 @@ class TestEndToEndLTreeFiltering:
         for path in ltree_paths:
             assert f"'{path}'::ltree" in sql_in
 
-    def test_field_name_conversion_snake_to_camel_ltree(self):
+    def test_field_name_conversion_snake_to_camel_ltree(self) -> None:
         """Test that field names are correctly converted from camelCase to snake_case."""
         graphql_where = {"categoryTreePath": {"neq": "top.science.biology"}}  # camelCase
 
@@ -114,7 +113,7 @@ class TestEndToEndLTreeFiltering:
         assert "category_tree_path" in sql_string
         assert "::ltree" in sql_string
 
-    def test_field_detection_recognizes_ltree_fields(self):
+    def test_field_detection_recognizes_ltree_fields(self) -> None:
         """Test that field detection correctly identifies LTree fields."""
         # Test field name detection
         ltree_field_names = [
@@ -138,7 +137,7 @@ class TestEndToEndLTreeFiltering:
                 f"Field '{field_name}' should be detected as LTREE"
             )
 
-    def test_field_detection_recognizes_ltree_values(self):
+    def test_field_detection_recognizes_ltree_values(self) -> None:
         """Test that field detection recognizes LTree path values."""
         ltree_values = [
             "top.science.physics",  # Standard hierarchical path
@@ -155,7 +154,7 @@ class TestEndToEndLTreeFiltering:
                 f"Value '{ltree_value}' should be detected as LTREE"
             )
 
-    def test_operator_function_selection_for_ltree(self):
+    def test_operator_function_selection_for_ltree(self) -> None:
         """Test that correct operator functions are selected for LTree fields."""
         # Basic operators
         basic_operators = ["eq", "neq", "in", "notin"]
@@ -220,7 +219,7 @@ class TestEndToEndLTreeFiltering:
                     "matches_ltxtquery should use ::ltxtquery casting"
                 )
 
-    def test_complex_hierarchical_paths(self):
+    def test_complex_hierarchical_paths(self) -> None:
         """Test LTree operators with complex, deeply nested paths."""
         complex_path = (
             "top.academics.university.computer_science.artificial_intelligence.machine_learning"
@@ -235,7 +234,7 @@ class TestEndToEndLTreeFiltering:
         assert "::ltree" in sql_string
         assert complex_path in sql_string
 
-    def test_mixed_field_types_with_ltree_operations(self):
+    def test_mixed_field_types_with_ltree_operations(self) -> None:
         """Test WHERE clause with LTree, MAC, and IP address field types together."""
         graphql_where = {
             "categoryPath": {"ancestor_of": "top.science.physics"},

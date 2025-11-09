@@ -74,7 +74,7 @@ async def user_info(info: GraphQLResolveInfo) -> UserInfo:
 class TestAuthenticationEnforcement:
     """Test that authentication is properly enforced."""
 
-    def test_auth_disabled_allows_anonymous(self):
+    def test_auth_disabled_allows_anonymous(self) -> None:
         """When auth is not configured, anonymous requests should succeed."""
         # When no auth provider is passed, auth is disabled
         app = create_fraiseql_app(
@@ -95,7 +95,7 @@ class TestAuthenticationEnforcement:
             assert response.status_code == 200
             assert response.json()["data"]["sensitiveData"] == "Sensitive information"
 
-    def test_auth_enabled_blocks_anonymous(self):
+    def test_auth_enabled_blocks_anonymous(self) -> None:
         """When auth is configured, anonymous requests should be blocked."""
         # When auth provider is passed, auth is enabled
         app = create_fraiseql_app(
@@ -115,7 +115,7 @@ class TestAuthenticationEnforcement:
             response = client.post("/graphql", json={"query": "{ publicData }"})
             assert response.status_code == 401
 
-    def test_auth_enabled_accepts_valid_token(self):
+    def test_auth_enabled_accepts_valid_token(self) -> None:
         """When auth is configured, valid tokens should work."""
         app = create_fraiseql_app(
             database_url="sqlite:///:memory:",
@@ -146,7 +146,7 @@ class TestAuthenticationEnforcement:
             assert data["email"] == "test@example.com"
             assert data["authenticated"] is True
 
-    def test_auth_enabled_rejects_invalid_token(self):
+    def test_auth_enabled_rejects_invalid_token(self) -> None:
         """Invalid tokens should be rejected."""
         app = create_fraiseql_app(
             database_url="sqlite:///:memory:",
@@ -164,7 +164,7 @@ class TestAuthenticationEnforcement:
             )
             assert response.status_code == 401
 
-    def test_introspection_allowed_in_dev_without_auth(self):
+    def test_introspection_allowed_in_dev_without_auth(self) -> None:
         """Introspection should be allowed in development even without auth."""
         app = create_fraiseql_app(
             database_url="sqlite:///:memory:",
@@ -181,7 +181,7 @@ class TestAuthenticationEnforcement:
             assert response.status_code == 200
             assert response.json()["data"]["__schema"]["queryType"]["name"] == "Query"
 
-    def test_introspection_blocked_in_production_without_auth(self):
+    def test_introspection_blocked_in_production_without_auth(self) -> None:
         """Introspection should be blocked in production without auth."""
         app = create_fraiseql_app(
             database_url="sqlite:///:memory:",
@@ -198,7 +198,7 @@ class TestAuthenticationEnforcement:
             assert response.status_code == 401
             assert "Authentication required" in response.json()["detail"]
 
-    def test_auth_provider_passed_enables_auth(self):
+    def test_auth_provider_passed_enables_auth(self) -> None:
         """Passing an auth provider should automatically enable authentication."""
         # Don't explicitly set auth_enabled, just pass auth provider
         app = create_fraiseql_app(
@@ -225,7 +225,7 @@ class TestAuthenticationEnforcement:
 class TestAuthContextPropagation:
     """Test that auth context is properly propagated."""
 
-    def test_context_contains_user_when_authenticated(self):
+    def test_context_contains_user_when_authenticated(self) -> None:
         """Context should contain user info when authenticated."""
 
         @query
@@ -258,7 +258,7 @@ class TestAuthContextPropagation:
             assert data["authenticated"] is True
             assert data["userId"] == "user-123"
 
-    def test_context_shows_unauthenticated(self):
+    def test_context_shows_unauthenticated(self) -> None:
         """Context should show unauthenticated when auth is optional."""
 
         @query

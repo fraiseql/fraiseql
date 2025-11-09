@@ -1,20 +1,20 @@
 """Integration tests for auto-generation with database operations."""
 
+from dataclasses import asdict, dataclass
+from uuid import UUID
+
 import pytest
-from dataclasses import dataclass
-from uuid import UUID, uuid4
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
-from dataclasses import asdict
 
 
 @pytest.mark.integration
 class TestAutoGenerationIntegration:
     """Test auto-generation works with actual database queries."""
 
-    async def test_auto_generated_where_input_in_query(self, db_pool):
+    async def test_auto_generated_where_input_in_query(self, db_pool) -> None:
         """Test that auto-generated WhereInput works in db.find()."""
         clear_auto_generated_cache()
 
@@ -48,7 +48,7 @@ class TestAutoGenerationIntegration:
             "tv_customers_auto_test",
             CustomerAutoTest,
             table_columns={"id", "name", "email", "data"},
-            has_jsonb_data=True
+            has_jsonb_data=True,
         )
 
         db = FraiseQLRepository(db_pool)
@@ -74,10 +74,9 @@ class TestAutoGenerationIntegration:
         assert results[0]["name"] == "Bob Brown"
 
         # Test logical operators
-        where = WhereInput(OR=[
-            {"name": {"eq": "Alice Anderson"}},
-            {"name": {"eq": "Charlie Chen"}}
-        ])
+        where = WhereInput(
+            OR=[{"name": {"eq": "Alice Anderson"}}, {"name": {"eq": "Charlie Chen"}}]
+        )
         where_dict = {k: v for k, v in asdict(where).items() if v is not None}
         response = await db.find("tv_customers_auto_test", where=where_dict)
         results = response.to_json()["data"]["tv_customers_auto_test"]
@@ -88,7 +87,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_customers_auto_test CASCADE")
             await conn.commit()
 
-    async def test_auto_generated_order_by_in_query(self, db_pool):
+    async def test_auto_generated_order_by_in_query(self, db_pool) -> None:
         """Test that auto-generated OrderBy works in db.find()."""
         clear_auto_generated_cache()
 
@@ -122,7 +121,7 @@ class TestAutoGenerationIntegration:
             "tv_products_auto_test",
             ProductAutoTest,
             table_columns={"id", "name", "price", "data"},
-            has_jsonb_data=True
+            has_jsonb_data=True,
         )
 
         db = FraiseQLRepository(db_pool)
@@ -138,8 +137,8 @@ class TestAutoGenerationIntegration:
         results = response.to_json()["data"]["tv_products_auto_test"]
         assert len(results) == 3
         assert results[0]["name"] == "Doohickey"  # $5.99
-        assert results[1]["name"] == "Widget"     # $9.99
-        assert results[2]["name"] == "Gadget"     # $19.99
+        assert results[1]["name"] == "Widget"  # $9.99
+        assert results[2]["name"] == "Gadget"  # $19.99
 
         # Test descending order
         order_by = OrderBy(price="DESC")
@@ -147,8 +146,8 @@ class TestAutoGenerationIntegration:
 
         results = response.to_json()["data"]["tv_products_auto_test"]
         assert len(results) == 3
-        assert results[0]["name"] == "Gadget"     # $19.99
-        assert results[1]["name"] == "Widget"     # $9.99
+        assert results[0]["name"] == "Gadget"  # $19.99
+        assert results[1]["name"] == "Widget"  # $9.99
         assert results[2]["name"] == "Doohickey"  # $5.99
 
         # Test ordering by name
@@ -166,7 +165,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_products_auto_test CASCADE")
             await conn.commit()
 
-    async def test_combined_where_and_order_by_auto_generated(self, db_pool):
+    async def test_combined_where_and_order_by_auto_generated(self, db_pool) -> None:
         """Test using both auto-generated WhereInput and OrderBy together."""
         clear_auto_generated_cache()
 
@@ -203,7 +202,7 @@ class TestAutoGenerationIntegration:
             "tv_inventory_auto_test",
             InventoryAutoTest,
             table_columns={"id", "item_name", "quantity", "category", "data"},
-            has_jsonb_data=True
+            has_jsonb_data=True,
         )
 
         db = FraiseQLRepository(db_pool)
@@ -222,7 +221,7 @@ class TestAutoGenerationIntegration:
 
         assert len(results) == 2
         assert results[0]["itemName"] == "Laptop"  # quantity 10
-        assert results[1]["itemName"] == "Mouse"   # quantity 50
+        assert results[1]["itemName"] == "Mouse"  # quantity 50
 
         # Filter by category and order by name descending
         where = WhereInput(category={"eq": "Furniture"})
@@ -241,7 +240,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_inventory_auto_test CASCADE")
             await conn.commit()
 
-    async def test_auto_generated_with_limit_and_offset(self, db_pool):
+    async def test_auto_generated_with_limit_and_offset(self, db_pool) -> None:
         """Test auto-generated types work with pagination."""
         clear_auto_generated_cache()
 
@@ -277,7 +276,7 @@ class TestAutoGenerationIntegration:
             "tv_users_auto_test",
             UserAutoTest,
             table_columns={"id", "username", "age", "data"},
-            has_jsonb_data=True
+            has_jsonb_data=True,
         )
 
         db = FraiseQLRepository(db_pool)
@@ -317,7 +316,7 @@ class TestAutoGenerationIntegration:
 
 
 @pytest.mark.integration
-async def test_nested_auto_generation_with_fk_detection(db_pool):
+async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
     """Test that nested auto-generated WhereInput works with FK detection."""
     clear_auto_generated_cache()
 
@@ -360,10 +359,14 @@ async def test_nested_auto_generation_with_fk_detection(db_pool):
                 ('Customer Beta', '{"name": "Customer Beta"}');
         """)
 
-        result = await conn.execute("SELECT id FROM tv_customers_nested_auto WHERE name = 'Customer Alpha'")
+        result = await conn.execute(
+            "SELECT id FROM tv_customers_nested_auto WHERE name = 'Customer Alpha'"
+        )
         customer_alpha_id = (await result.fetchone())[0]
 
-        result = await conn.execute("SELECT id FROM tv_customers_nested_auto WHERE name = 'Customer Beta'")
+        result = await conn.execute(
+            "SELECT id FROM tv_customers_nested_auto WHERE name = 'Customer Beta'"
+        )
         customer_beta_id = (await result.fetchone())[0]
 
         await conn.execute(
@@ -384,7 +387,7 @@ async def test_nested_auto_generation_with_fk_detection(db_pool):
         "tv_orders_nested_auto",
         OrderNestedAuto,
         table_columns={"id", "customer_id", "order_number", "data"},
-        has_jsonb_data=True
+        has_jsonb_data=True,
     )
 
     # Use auto-generated nested WhereInput

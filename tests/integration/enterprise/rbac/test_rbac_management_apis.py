@@ -4,16 +4,15 @@ Tests GraphQL mutations for managing roles, permissions, and user assignments.
 Verifies automatic cache invalidation via domain versioning.
 """
 
-import pytest
 from uuid import uuid4
 
-from fraiseql.enterprise.rbac.models import Role, Permission, RolePermission, UserRole
+import pytest
 
 
 class TestRoleManagement:
     """Test role management mutations."""
 
-    async def test_create_role_basic(self, db_pool):
+    async def test_create_role_basic(self, db_pool) -> None:
         """Test creating a basic role."""
         from fraiseql.enterprise.rbac.mutations import CreateRole, CreateRoleInput
 
@@ -26,7 +25,7 @@ class TestRoleManagement:
         assert result.message == "Role 'test_role' created successfully"
         # Note: role_id would be populated by the actual mutation execution
 
-    async def test_create_role_with_hierarchy(self, db_pool):
+    async def test_create_role_with_hierarchy(self, db_pool) -> None:
         """Test creating a role with parent hierarchy."""
         from fraiseql.enterprise.rbac.mutations import CreateRole, CreateRoleInput
 
@@ -50,7 +49,7 @@ class TestRoleManagement:
         assert result.success is True
         assert "child_role" in result.message
 
-    async def test_update_role(self, db_pool):
+    async def test_update_role(self, db_pool) -> None:
         """Test updating an existing role."""
         from fraiseql.enterprise.rbac.mutations import UpdateRole, UpdateRoleInput
 
@@ -67,7 +66,7 @@ class TestRoleManagement:
         assert result.role_id == input_data.role_id
         assert "updated" in result.message
 
-    async def test_delete_role(self, db_pool):
+    async def test_delete_role(self, db_pool) -> None:
         """Test deleting a role."""
         from fraiseql.enterprise.rbac.mutations import DeleteRole, DeleteRoleInput
 
@@ -83,7 +82,7 @@ class TestRoleManagement:
 class TestPermissionManagement:
     """Test permission management mutations."""
 
-    async def test_create_permission_basic(self, db_pool):
+    async def test_create_permission_basic(self, db_pool) -> None:
         """Test creating a basic permission."""
         from fraiseql.enterprise.rbac.mutations import CreatePermission, CreatePermissionInput
 
@@ -96,7 +95,7 @@ class TestPermissionManagement:
         assert result.success is True
         assert "user:read" in result.message
 
-    async def test_create_permission_with_constraints(self, db_pool):
+    async def test_create_permission_with_constraints(self, db_pool) -> None:
         """Test creating a permission with constraints."""
         from fraiseql.enterprise.rbac.mutations import CreatePermission, CreatePermissionInput
 
@@ -112,7 +111,7 @@ class TestPermissionManagement:
         assert result.success is True
         assert "user:update" in result.message
 
-    async def test_update_permission(self, db_pool):
+    async def test_update_permission(self, db_pool) -> None:
         """Test updating an existing permission."""
         from fraiseql.enterprise.rbac.mutations import UpdatePermission, UpdatePermissionInput
 
@@ -128,7 +127,7 @@ class TestPermissionManagement:
         assert result.permission_id == input_data.permission_id
         assert "updated" in result.message
 
-    async def test_delete_permission(self, db_pool):
+    async def test_delete_permission(self, db_pool) -> None:
         """Test deleting a permission."""
         from fraiseql.enterprise.rbac.mutations import DeletePermission, DeletePermissionInput
 
@@ -144,7 +143,7 @@ class TestPermissionManagement:
 class TestRolePermissionManagement:
     """Test role-permission assignment mutations."""
 
-    async def test_grant_permission_to_role(self, db_pool):
+    async def test_grant_permission_to_role(self, db_pool) -> None:
         """Test granting a permission to a role."""
         from fraiseql.enterprise.rbac.mutations import (
             GrantPermissionToRole,
@@ -161,7 +160,7 @@ class TestRolePermissionManagement:
         assert result.success is True
         assert "granted" in result.message
 
-    async def test_revoke_permission_from_role(self, db_pool):
+    async def test_revoke_permission_from_role(self, db_pool) -> None:
         """Test revoking a permission from a role."""
         from fraiseql.enterprise.rbac.mutations import (
             RevokePermissionFromRole,
@@ -182,7 +181,7 @@ class TestRolePermissionManagement:
 class TestUserRoleManagement:
     """Test user-role assignment mutations."""
 
-    async def test_assign_role_to_user_basic(self, db_pool):
+    async def test_assign_role_to_user_basic(self, db_pool) -> None:
         """Test assigning a role to a user."""
         from fraiseql.enterprise.rbac.mutations import AssignRoleToUser, AssignRoleToUserInput
 
@@ -196,10 +195,11 @@ class TestUserRoleManagement:
         assert result.success is True
         assert "assigned" in result.message
 
-    async def test_assign_role_to_user_with_tenant(self, db_pool):
+    async def test_assign_role_to_user_with_tenant(self, db_pool) -> None:
         """Test assigning a role to a user within a tenant."""
-        from fraiseql.enterprise.rbac.mutations import AssignRoleToUser, AssignRoleToUserInput
         from datetime import datetime, timedelta
+
+        from fraiseql.enterprise.rbac.mutations import AssignRoleToUser, AssignRoleToUserInput
 
         input_data = AssignRoleToUserInput(
             user_id=uuid4(),
@@ -213,7 +213,7 @@ class TestUserRoleManagement:
         assert result.success is True
         assert "assigned" in result.message
 
-    async def test_revoke_role_from_user(self, db_pool):
+    async def test_revoke_role_from_user(self, db_pool) -> None:
         """Test revoking a role from a user."""
         from fraiseql.enterprise.rbac.mutations import RevokeRoleFromUser, RevokeRoleFromUserInput
 
@@ -232,7 +232,7 @@ class TestUserRoleManagement:
 class TestCacheInvalidation:
     """Test that mutations trigger automatic cache invalidation."""
 
-    def test_role_creation_invalidates_cache(self):
+    def test_role_creation_invalidates_cache(self) -> None:
         """Verify that creating a role invalidates related caches.
 
         Note: Full cache invalidation testing requires database setup
@@ -250,7 +250,7 @@ class TestCacheInvalidation:
 
         # Real cache invalidation testing is in test_cache_invalidation.py
 
-    async def test_permission_grant_invalidates_cache(self, db_pool):
+    async def test_permission_grant_invalidates_cache(self, db_pool) -> None:
         """Verify that granting permissions invalidates user caches."""
         from fraiseql.enterprise.rbac.mutations import (
             GrantPermissionToRole,
@@ -265,7 +265,7 @@ class TestCacheInvalidation:
         assert result.success is True
         # In full test: verify CASCADE invalidation occurred
 
-    async def test_user_role_assignment_invalidates_cache(self, db_pool):
+    async def test_user_role_assignment_invalidates_cache(self, db_pool) -> None:
         """Verify that user role changes invalidate permission caches."""
         from fraiseql.enterprise.rbac.mutations import AssignRoleToUser, AssignRoleToUserInput
 
@@ -281,7 +281,7 @@ class TestCacheInvalidation:
 class TestMutationErrorHandling:
     """Test error handling in mutations."""
 
-    async def test_update_role_no_fields(self, db_pool):
+    async def test_update_role_no_fields(self, db_pool) -> None:
         """Test that updating a role with no fields fails."""
         from fraiseql.enterprise.rbac.mutations import UpdateRole
 
@@ -289,7 +289,7 @@ class TestMutationErrorHandling:
         with pytest.raises(ValueError, match="At least one field must be provided"):
             UpdateRole.sql(uuid4())  # No update fields provided
 
-    async def test_update_permission_no_fields(self, db_pool):
+    async def test_update_permission_no_fields(self, db_pool) -> None:
         """Test that updating a permission with no fields fails."""
         from fraiseql.enterprise.rbac.mutations import UpdatePermission
 

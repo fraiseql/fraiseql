@@ -4,12 +4,12 @@ These tests focus on the core IP filtering bug: generating proper PostgreSQL
 inet casting for IP address comparisons.
 """
 
-import pytest
-from psycopg.sql import SQL, Literal
+from psycopg.sql import SQL
+
 from fraiseql.sql.where.operators.network import (
     build_ip_eq_sql,
-    build_ip_neq_sql,
     build_ip_in_sql,
+    build_ip_neq_sql,
     build_ip_notin_sql,
 )
 
@@ -17,7 +17,7 @@ from fraiseql.sql.where.operators.network import (
 class TestIPAddressSQLBuilding:
     """Test IP address SQL building functionality."""
 
-    def test_build_ip_equality_sql(self):
+    def test_build_ip_equality_sql(self) -> None:
         """Should build proper inet casting for IP equality."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'ip_address')")
@@ -31,7 +31,7 @@ class TestIPAddressSQLBuilding:
         # Should NOT use host() function which was the bug
         assert "host(" not in sql_str
 
-    def test_build_ip_inequality_sql(self):
+    def test_build_ip_inequality_sql(self) -> None:
         """Should build proper inet casting for IP inequality."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'server_ip')")
@@ -42,7 +42,7 @@ class TestIPAddressSQLBuilding:
         assert "data ->> 'server_ip'" in sql_str
         assert "::inet != '10.0.0.1'::inet" in sql_str
 
-    def test_build_ip_in_list_sql(self):
+    def test_build_ip_in_list_sql(self) -> None:
         """Should build proper inet casting for IP IN lists."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'gateway_ip')")
@@ -57,7 +57,7 @@ class TestIPAddressSQLBuilding:
         assert "'10.0.0.1'::inet" in sql_str
         assert "'172.16.0.1'::inet" in sql_str
 
-    def test_build_ip_not_in_list_sql(self):
+    def test_build_ip_not_in_list_sql(self) -> None:
         """Should build proper inet casting for IP NOT IN lists."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'host_ip')")
@@ -71,7 +71,7 @@ class TestIPAddressSQLBuilding:
         assert "'8.8.8.8'::inet" in sql_str
         assert "'8.8.4.4'::inet" in sql_str
 
-    def test_build_ip_ipv6_equality_sql(self):
+    def test_build_ip_ipv6_equality_sql(self) -> None:
         """Should build proper inet casting for IPv6 addresses."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'ipv6_address')")
@@ -82,7 +82,7 @@ class TestIPAddressSQLBuilding:
         assert "data ->> 'ipv6_address'" in sql_str
         assert "::inet = '2001:db8::1'::inet" in sql_str
 
-    def test_build_ip_cidr_equality_sql(self):
+    def test_build_ip_cidr_equality_sql(self) -> None:
         """Should build proper inet casting for CIDR networks."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'network')")
@@ -97,7 +97,7 @@ class TestIPAddressSQLBuilding:
 class TestIPAddressNetworkOperators:
     """Test network-specific IP operators like inSubnet, isPrivate, etc."""
 
-    def test_build_in_subnet_sql(self):
+    def test_build_in_subnet_sql(self) -> None:
         """Should build proper subnet containment operator."""
         # Red cycle - this will fail initially
         from fraiseql.sql.where.operators.network import build_in_subnet_sql
@@ -110,7 +110,7 @@ class TestIPAddressNetworkOperators:
         assert "data ->> 'ip_address'" in sql_str
         assert "<<= '192.168.1.0/24'::inet" in sql_str
 
-    def test_build_is_private_sql(self):
+    def test_build_is_private_sql(self) -> None:
         """Should build proper private IP detection."""
         # Red cycle - this will fail initially
         from fraiseql.sql.where.operators.network import build_is_private_sql
@@ -125,7 +125,7 @@ class TestIPAddressNetworkOperators:
         assert "192.168.0.0/16" in sql_str
         assert "<<=" in sql_str  # Subnet containment operator
 
-    def test_build_is_public_sql(self):
+    def test_build_is_public_sql(self) -> None:
         """Should build proper public IP detection (inverse of private)."""
         # Red cycle - this will fail initially
         from fraiseql.sql.where.operators.network import build_is_public_sql

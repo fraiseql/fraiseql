@@ -13,7 +13,7 @@ class TestDatabaseContextParameters:
     """Test context parameter support in database layer."""
 
     @pytest.mark.asyncio
-    async def test_execute_function_with_context_psycopg(self):
+    async def test_execute_function_with_context_psycopg(self) -> None:
         """Test execute_function_with_context with psycopg pool."""
         # Create mock psycopg pool and connection
         mock_pool = MagicMock()
@@ -63,7 +63,7 @@ class TestDatabaseContextParameters:
         assert call_args[1] == expected_params
 
     @pytest.mark.asyncio
-    async def test_execute_function_with_context_asyncpg(self):
+    async def test_execute_function_with_context_asyncpg(self) -> None:
         """Test execute_function_with_context with asyncpg pool."""
         # Create mock asyncpg pool and connection
         mock_pool = AsyncMock()
@@ -111,7 +111,7 @@ class TestDatabaseContextParameters:
         assert call_args[1:] == expected_params
 
     @pytest.mark.asyncio
-    async def test_execute_function_with_context_empty_context(self):
+    async def test_execute_function_with_context_empty_context(self) -> None:
         """Test execute_function_with_context with no context parameters."""
         # Create mock psycopg pool
         mock_pool = MagicMock()
@@ -147,7 +147,7 @@ class TestDatabaseContextParameters:
         assert call_args[0] == expected_sql
 
     @pytest.mark.asyncio
-    async def test_execute_function_with_context_invalid_function_name(self):
+    async def test_execute_function_with_context_invalid_function_name(self) -> None:
         """Test execute_function_with_context rejects invalid function names."""
         mock_pool = MagicMock()
         repo = FraiseQLRepository(mock_pool)
@@ -159,7 +159,7 @@ class TestDatabaseContextParameters:
             )
 
     @pytest.mark.asyncio
-    async def test_execute_function_with_context_none_result(self):
+    async def test_execute_function_with_context_none_result(self) -> None:
         """Test execute_function_with_context handles None result."""
         # Create mock psycopg pool
         mock_pool = MagicMock()

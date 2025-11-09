@@ -55,7 +55,7 @@ class CreateOrder:
     failure: CreateOrderError
 
 
-def test_mutation_with_date_field():
+def test_mutation_with_date_field() -> None:
     """Test that date fields in mutations are properly serialized for database calls."""
     # Create the mutation definition
     definition = CreateOrder.__fraiseql_mutation__
@@ -101,7 +101,7 @@ def test_mutation_with_date_field():
     assert result.status == "success"
 
 
-def test_mutation_with_context_params_and_date():
+def test_mutation_with_context_params_and_date() -> None:
     """Test mutation with context parameters and date field."""
 
     @mutation(

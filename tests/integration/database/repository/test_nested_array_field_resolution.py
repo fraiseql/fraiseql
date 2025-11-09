@@ -8,7 +8,6 @@ import uuid
 from typing import Optional
 
 import pytest
-from graphql import build_schema, graphql_sync
 
 import fraiseql
 
@@ -50,7 +49,7 @@ class NetworkConfiguration:
 class TestNestedArrayFieldResolution:
     """Test GraphQL field resolution for nested arrays."""
 
-    def test_single_nested_object_works(self):
+    def test_single_nested_object_works(self) -> None:
         """Verify that single nested objects work as expected."""
         # Sample data that would come from JSONB
         data = {
@@ -91,7 +90,7 @@ class TestNestedArrayFieldResolution:
         assert all(isinstance(server, PrintServer) for server in config.print_servers)
         assert config.print_servers[0].hostname == "printserver02.local"
 
-    def test_field_resolver_handles_nested_arrays(self):
+    def test_field_resolver_handles_nested_arrays(self) -> None:
         """Test that GraphQL field resolvers handle nested arrays correctly.
 
         This reproduces the exact bug: when objects have raw dict arrays,
@@ -102,7 +101,7 @@ class TestNestedArrayFieldResolution:
         # Create a mock object that simulates what comes from database
         # with raw dictionaries in the array (not converted yet)
         class MockNetworkConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.id = uuid.UUID("01436121-0000-0000-0000-000000000010")
                 self.identifier = "network-config-001"
                 self.dns1 = DnsServer(
@@ -150,7 +149,7 @@ class TestNestedArrayFieldResolution:
         assert isinstance(result[0], PrintServer), f"Expected PrintServer, got {type(result[0])}"
         assert result[0].hostname == "printserver02.local"
 
-    def test_empty_nested_array_handling(self):
+    def test_empty_nested_array_handling(self) -> None:
         """Test that empty arrays are handled correctly."""
         data = {
             "id": "01436121-0000-0000-0000-000000000010",
@@ -176,7 +175,7 @@ class TestNestedArrayFieldResolution:
         result = resolver(config, MockInfo())
         assert result == []  # Should return empty array, not None
 
-    def test_null_nested_array_handling(self):
+    def test_null_nested_array_handling(self) -> None:
         """Test that null arrays are handled correctly."""
         data = {
             "id": "01436121-0000-0000-0000-000000000010",
@@ -202,7 +201,7 @@ class TestNestedArrayFieldResolution:
         result = resolver(config, MockInfo())
         assert result is None  # Should return None
 
-    def test_deeply_nested_arrays(self):
+    def test_deeply_nested_arrays(self) -> None:
         """Test arrays within nested objects."""
 
         @fraiseql.type
@@ -248,7 +247,7 @@ class TestNestedArrayFieldResolution:
         departments_resolver = departments_field.resolve
 
         class MockOrg:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.id = uuid.UUID("01436121-0000-0000-0000-000000000010")
                 self.name = "Tech Corp"
                 self.departments = [
@@ -280,7 +279,7 @@ class TestNestedArrayFieldResolution:
         assert all(isinstance(p, Printer) for p in result[0].printers)
         assert result[0].printers[0].name == "Printer 1"
 
-    def test_mixed_array_content(self):
+    def test_mixed_array_content(self) -> None:
         """Test arrays with mixed content (some dicts, some already converted)."""
 
         @fraiseql.type
@@ -295,7 +294,7 @@ class TestNestedArrayFieldResolution:
 
         # Create a container with mixed content
         class MockContainer:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.id = uuid.UUID("01436121-0000-0000-0000-000000000010")
                 self.devices = [
                     # Already converted object
@@ -329,7 +328,7 @@ class TestNestedArrayFieldResolution:
         assert result[1].name == "Device 2"  # Was dict, now converted
         assert result[2].name == "Device 3"  # Was dict, now converted
 
-    def test_non_fraiseql_array_items(self):
+    def test_non_fraiseql_array_items(self) -> None:
         """Test arrays with non-FraiseQL items (should remain unchanged)."""
 
         @fraiseql.type
@@ -340,7 +339,7 @@ class TestNestedArrayFieldResolution:
             raw_data: list[dict]  # Not typed to FraiseQL objects
 
         class MockContainer:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.id = uuid.UUID("01436121-0000-0000-0000-000000000010")
                 self.strings = ["hello", "world"]
                 self.numbers = [1, 2, 3]

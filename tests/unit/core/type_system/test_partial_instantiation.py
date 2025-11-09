@@ -36,7 +36,7 @@ class SampleModel:
 class TestPartialInstantiation:
     """Test partial instantiation functionality."""
 
-    def test_partial_instance_with_all_fields(self):
+    def test_partial_instance_with_all_fields(self) -> None:
         """Test creating instance when all fields are provided."""
         data = {
             "id": UUID("550e8400-e29b-41d4-a716-446655440000"),
@@ -57,7 +57,7 @@ class TestPartialInstantiation:
         assert is_partial_instance(instance)
         assert get_available_fields(instance) == {"id", "name", "required_field", "optional_field"}
 
-    def test_partial_instance_missing_required_fields(self):
+    def test_partial_instance_missing_required_fields(self) -> None:
         """Test creating instance when required fields are missing."""
         data = {
             "id": UUID("550e8400-e29b-41d4-a716-446655440000"),
@@ -75,7 +75,7 @@ class TestPartialInstantiation:
         assert is_partial_instance(instance)
         assert get_available_fields(instance) == {"id", "name"}
 
-    def test_partial_instance_with_nested_partial(self):
+    def test_partial_instance_with_nested_partial(self) -> None:
         """Test creating instance with nested partial objects."""
         data = {
             "id": UUID("550e8400-e29b-41d4-a716-446655440000"),
@@ -103,7 +103,7 @@ class TestPartialInstantiation:
         assert is_partial_instance(instance)
         assert is_partial_instance(instance.nested)
 
-    def test_partial_instance_only_requested_fields(self):
+    def test_partial_instance_only_requested_fields(self) -> None:
         """Test creating instance with only GraphQL-requested fields."""
         # Simulating a GraphQL query that only requests id and name
         data = {"id": UUID("550e8400-e29b-41d4-a716-446655440000"), "name": "Test"}
@@ -119,11 +119,11 @@ class TestPartialInstantiation:
         # Only the provided fields should be tracked
         assert get_available_fields(instance) == {"id", "name"}
 
-    def test_regular_class_partial_instantiation(self):
+    def test_regular_class_partial_instantiation(self) -> None:
         """Test partial instantiation with non-dataclass types."""
 
         class RegularClass:
-            def __init__(self, id: UUID, name: str, required: str):
+            def __init__(self, id: UUID, name: str, required: str) -> None:
                 self.id = id
                 self.name = name
                 self.required = required

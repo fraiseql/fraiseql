@@ -108,7 +108,7 @@ async def drop_test_database(db_name: str) -> None:
 class DatabaseManager:
     """Utility class for database management during tests."""
 
-    def __init__(self, connection: psycopg.AsyncConnection):
+    def __init__(self, connection: psycopg.AsyncConnection) -> None:
         self.connection = connection
 
     async def execute_query(self, query: str, params: dict | None = None) -> list[dict]:
@@ -144,7 +144,7 @@ class DatabaseManager:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def test_database():
+async def test_database() -> None:
     """Session-scoped test database fixture."""
     db_name = DB_NAME_TEMPLATE.format(suffix="main")
 
@@ -156,7 +156,7 @@ async def test_database():
 
 
 @pytest_asyncio.fixture
-async def db_connection(test_database: str) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+async def db_connection(test_database: str) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Provide isolated database connection with transaction rollback."""
     conn_str = get_db_connection_string(test_database)
 

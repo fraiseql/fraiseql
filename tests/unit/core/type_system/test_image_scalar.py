@@ -16,7 +16,7 @@ from fraiseql.types.scalars.image import (
 class TestImageSerialization:
     """Test image serialization."""
 
-    def test_serialize_valid_images(self):
+    def test_serialize_valid_images(self) -> None:
         """Test serializing valid image URLs/paths."""
         # URLs
         assert serialize_image("https://example.com/image.jpg") == "https://example.com/image.jpg"
@@ -34,11 +34,11 @@ class TestImageSerialization:
         assert serialize_image("image.JPEG") == "image.JPEG"
         assert serialize_image("photo.PNG") == "photo.PNG"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_image(None) is None
 
-    def test_serialize_invalid_image(self):
+    def test_serialize_invalid_image(self) -> None:
         """Test serializing invalid images raises error."""
         # Wrong extension
         with pytest.raises(GraphQLError, match="Invalid image"):
@@ -59,13 +59,13 @@ class TestImageSerialization:
 class TestImageParsing:
     """Test image parsing from variables."""
 
-    def test_parse_valid_image(self):
+    def test_parse_valid_image(self) -> None:
         """Test parsing valid images."""
         assert parse_image_value("https://example.com/image.jpg") == "https://example.com/image.jpg"
         assert parse_image_value("/uploads/avatar.png") == "/uploads/avatar.png"
         assert parse_image_value("photo.gif") == "photo.gif"
 
-    def test_parse_invalid_image(self):
+    def test_parse_invalid_image(self) -> None:
         """Test parsing invalid images raises error."""
         with pytest.raises(GraphQLError, match="Invalid image"):
             parse_image_value("document.pdf")
@@ -76,7 +76,7 @@ class TestImageParsing:
         with pytest.raises(GraphQLError, match="Invalid image"):
             parse_image_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Image must be a string"):
             parse_image_value(123)
@@ -91,7 +91,7 @@ class TestImageParsing:
 class TestImageField:
     """Test ImageField class."""
 
-    def test_create_valid_image_field(self):
+    def test_create_valid_image_field(self) -> None:
         """Test creating ImageField with valid values."""
         image = ImageField("https://example.com/image.jpg")
         assert image == "https://example.com/image.jpg"
@@ -100,7 +100,7 @@ class TestImageField:
         image = ImageField("/uploads/avatar.png")
         assert image == "/uploads/avatar.png"
 
-    def test_create_invalid_image_field(self):
+    def test_create_invalid_image_field(self) -> None:
         """Test creating ImageField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid image"):
             ImageField("document.pdf")
@@ -115,7 +115,7 @@ class TestImageField:
 class TestImageLiteralParsing:
     """Test parsing image from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid image literals."""
         assert (
             parse_image_literal(StringValueNode(value="https://example.com/image.jpg"))
@@ -126,7 +126,7 @@ class TestImageLiteralParsing:
             == "/uploads/avatar.png"
         )
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid image format literals."""
         with pytest.raises(GraphQLError, match="Invalid image"):
             parse_image_literal(StringValueNode(value="document.pdf"))
@@ -134,7 +134,7 @@ class TestImageLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid image"):
             parse_image_literal(StringValueNode(value="image"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Image must be a string"):
             parse_image_literal(IntValueNode(value="123"))

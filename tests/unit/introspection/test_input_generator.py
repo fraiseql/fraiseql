@@ -9,11 +9,11 @@ from fraiseql.introspection.type_mapper import TypeMapper
 
 
 @pytest.fixture
-def mock_introspector():
+def mock_introspector() -> None:
     """Mock PostgresIntrospector for testing."""
 
     class MockIntrospector:
-        async def discover_composite_type(self, type_name, schema):
+        async def discover_composite_type(self, type_name, schema) -> None:
             # Mock implementation - will be overridden in specific tests
             return None
 
@@ -219,12 +219,12 @@ class TestInputGenerator:
     ):
         """Test input generation from composite type (SpecQL pattern)."""
         from fraiseql.introspection.postgres_introspector import (
-            CompositeTypeMetadata,
             CompositeAttribute,
+            CompositeTypeMetadata,
         )
 
         # Mock the introspector to return composite type metadata
-        async def mock_discover_composite_type(type_name, schema):
+        async def mock_discover_composite_type(type_name, schema) -> None:
             if type_name == "type_create_contact_input" and schema == "app":
                 return CompositeTypeMetadata(
                     schema_name="app",
@@ -378,12 +378,12 @@ class TestInputGenerator:
     ):
         """Test that composite type attribute comments are captured in input fields."""
         from fraiseql.introspection.postgres_introspector import (
-            CompositeTypeMetadata,
             CompositeAttribute,
+            CompositeTypeMetadata,
         )
 
         # Mock the introspector to return composite type metadata with comments
-        async def mock_discover_composite_type(type_name, schema):
+        async def mock_discover_composite_type(type_name, schema) -> None:
             if type_name == "type_create_user_input" and schema == "app":
                 return CompositeTypeMetadata(
                     schema_name="app",
@@ -428,12 +428,12 @@ class TestInputGenerator:
     ):
         """Test that PostgreSQL composite type comments become GraphQL input type descriptions."""
         from fraiseql.introspection.postgres_introspector import (
-            CompositeTypeMetadata,
             CompositeAttribute,
+            CompositeTypeMetadata,
         )
 
         # Mock the introspector to return composite type metadata with comment
-        async def mock_discover_composite_type(type_name, schema):
+        async def mock_discover_composite_type(type_name, schema) -> None:
             if type_name == "type_create_user_input" and schema == "app":
                 return CompositeTypeMetadata(
                     schema_name="app",

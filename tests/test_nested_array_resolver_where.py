@@ -5,10 +5,10 @@ from typing import Optional
 
 import pytest
 
-from fraiseql.fields import fraise_field
-from fraiseql.types import fraise_type
-from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
+from fraiseql.fields import fraise_field
+from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+from fraiseql.types import fraise_type
 
 
 @fraise_type
@@ -35,7 +35,7 @@ class TestNestedArrayResolverWithWhere:
     """Test the enhanced nested array resolver with where filtering."""
 
     @pytest.fixture
-    def sample_network_config(self):
+    def sample_network_config(self) -> None:
         """Create a sample network configuration with print servers."""
         return MockNetworkConfiguration(
             id=uuid.uuid4(),
@@ -66,7 +66,7 @@ class TestNestedArrayResolverWithWhere:
             ],
         )
 
-    async def test_resolver_without_where_returns_all_items(self, sample_network_config):
+    async def test_resolver_without_where_returns_all_items(self, sample_network_config) -> None:
         """Test that resolver returns all items when no where filter is provided."""
         resolver = create_nested_array_field_resolver_with_where(
             "print_servers", list[MockPrintServer]
@@ -77,7 +77,7 @@ class TestNestedArrayResolverWithWhere:
         assert len(result) == 3
         assert all(isinstance(server, MockPrintServer) for server in result)
 
-    async def test_resolver_with_hostname_filter(self, sample_network_config):
+    async def test_resolver_with_hostname_filter(self, sample_network_config) -> None:
         """Test filtering by hostname."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -96,7 +96,7 @@ class TestNestedArrayResolverWithWhere:
         assert "prod-server-02" in hostnames
         assert "dev-server-01" not in hostnames
 
-    async def test_resolver_with_ip_address_filter(self, sample_network_config):
+    async def test_resolver_with_ip_address_filter(self, sample_network_config) -> None:
         """Test filtering by IP address (null/not null)."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -114,7 +114,7 @@ class TestNestedArrayResolverWithWhere:
         for server in result:
             assert server.ip_address is not None
 
-    async def test_resolver_with_numeric_range_filter(self, sample_network_config):
+    async def test_resolver_with_numeric_range_filter(self, sample_network_config) -> None:
         """Test filtering by numeric range."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -131,7 +131,7 @@ class TestNestedArrayResolverWithWhere:
         assert result[0].hostname == "prod-server-01"
         assert result[0].n_total_allocations == 150
 
-    async def test_resolver_with_enum_filter(self, sample_network_config):
+    async def test_resolver_with_enum_filter(self, sample_network_config) -> None:
         """Test filtering by enum/choice values."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -148,7 +148,7 @@ class TestNestedArrayResolverWithWhere:
         assert result[0].operating_system == "Linux"
         assert result[0].hostname == "dev-server-01"
 
-    async def test_resolver_with_multiple_filters(self, sample_network_config):
+    async def test_resolver_with_multiple_filters(self, sample_network_config) -> None:
         """Test filtering with multiple criteria (AND logic)."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -169,7 +169,7 @@ class TestNestedArrayResolverWithWhere:
         assert result[0].ip_address == "192.168.1.10"
         assert result[0].n_total_allocations == 150
 
-    async def test_resolver_returns_empty_list_when_no_matches(self, sample_network_config):
+    async def test_resolver_returns_empty_list_when_no_matches(self, sample_network_config) -> None:
         """Test that resolver returns empty list when no items match."""
         PrintServerWhereInput = create_graphql_where_input(MockPrintServer)
 
@@ -184,7 +184,7 @@ class TestNestedArrayResolverWithWhere:
 
         assert result == []
 
-    async def test_resolver_handles_empty_array(self):
+    async def test_resolver_handles_empty_array(self) -> None:
         """Test that resolver handles empty array gracefully."""
         empty_config = MockNetworkConfiguration(
             id=uuid.uuid4(), identifier="empty-network", name="Empty Network", print_servers=[]
@@ -202,7 +202,7 @@ class TestNestedArrayResolverWithWhere:
 
         assert result == []
 
-    async def test_resolver_handles_none_value(self):
+    async def test_resolver_handles_none_value(self) -> None:
         """Test that resolver handles None field value."""
         config_with_none = MockNetworkConfiguration(
             id=uuid.uuid4(), identifier="none-network", name="None Network", print_servers=None

@@ -1,11 +1,13 @@
 """Test edge cases for enum parameter conversion."""
 
-import pytest
 from enum import Enum
 from typing import Optional
-import fraiseql
-from fraiseql.gql.resolver_wrappers import wrap_resolver, _coerce_to_enum
+
+import pytest
 from graphql import GraphQLResolveInfo
+
+import fraiseql
+from fraiseql.gql.resolver_wrappers import _coerce_to_enum, wrap_resolver
 
 
 @fraiseql.enum
@@ -38,27 +40,27 @@ class MixedEnum(Enum):
 class TestEnumCoercion:
     """Test the _coerce_to_enum helper function."""
 
-    def test_coerce_by_value_string(self):
+    def test_coerce_by_value_string(self) -> None:
         """Test coercing string value to enum."""
         result = _coerce_to_enum("red", Color)
         assert result == Color.RED
 
-    def test_coerce_by_value_int(self):
+    def test_coerce_by_value_int(self) -> None:
         """Test coercing integer value to enum."""
         result = _coerce_to_enum(2, Level)
         assert result == Level.INTERMEDIATE
 
-    def test_coerce_by_name(self):
+    def test_coerce_by_name(self) -> None:
         """Test coercing by enum member name."""
         result = _coerce_to_enum("GREEN", Color)
         assert result == Color.GREEN
 
-    def test_coerce_already_enum(self):
+    def test_coerce_already_enum(self) -> None:
         """Test that enum instances pass through unchanged."""
         result = _coerce_to_enum(Color.BLUE, Color)
         assert result == Color.BLUE
 
-    def test_coerce_invalid_value_raises(self):
+    def test_coerce_invalid_value_raises(self) -> None:
         """Test that invalid values raise ValueError."""
         with pytest.raises(ValueError) as exc_info:
             _coerce_to_enum("purple", Color)
@@ -66,7 +68,7 @@ class TestEnumCoercion:
         assert "Cannot convert 'purple' to Color" in str(exc_info.value)
         assert "RED=red" in str(exc_info.value)
 
-    def test_coerce_mixed_types(self):
+    def test_coerce_mixed_types(self) -> None:
         """Test coercing mixed enum types."""
         assert _coerce_to_enum("test", MixedEnum) == MixedEnum.STRING_VAL
         assert _coerce_to_enum(42, MixedEnum) == MixedEnum.INT_VAL
@@ -74,7 +76,7 @@ class TestEnumCoercion:
 
 
 @pytest.mark.asyncio
-async def test_resolver_with_optional_enum():
+async def test_resolver_with_optional_enum() -> None:
     """Test that optional enum parameters work correctly."""
 
     async def resolver(info: GraphQLResolveInfo, color: Optional[Color] = None) -> str:
@@ -97,7 +99,7 @@ async def test_resolver_with_optional_enum():
 
 
 @pytest.mark.asyncio
-async def test_resolver_with_multiple_enums():
+async def test_resolver_with_multiple_enums() -> None:
     """Test resolver with multiple enum parameters."""
 
     async def resolver(
@@ -117,7 +119,7 @@ async def test_resolver_with_multiple_enums():
 
 
 @pytest.mark.asyncio
-async def test_resolver_preserves_non_enum_types():
+async def test_resolver_preserves_non_enum_types() -> None:
     """Test that non-enum parameters are not affected."""
 
     async def resolver(
@@ -138,7 +140,7 @@ async def test_resolver_preserves_non_enum_types():
 
 
 @pytest.mark.asyncio
-async def test_invalid_enum_value_handling():
+async def test_invalid_enum_value_handling() -> None:
     """Test handling of invalid enum values."""
 
     async def resolver(info: GraphQLResolveInfo, color: Color) -> str:
@@ -158,7 +160,7 @@ async def test_invalid_enum_value_handling():
 
 
 @pytest.mark.asyncio
-async def test_enum_by_name_resolution():
+async def test_enum_by_name_resolution() -> None:
     """Test that enum names (not just values) can be resolved."""
 
     async def resolver(info: GraphQLResolveInfo, level: Level) -> str:

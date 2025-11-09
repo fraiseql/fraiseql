@@ -34,7 +34,7 @@ class DnsServer:
 class TestOrderByListDictRegression:
     """Regression tests for the OrderBy list of dictionaries bug."""
 
-    def test_list_of_dicts_conversion(self):
+    def test_list_of_dicts_conversion(self) -> None:
         """Test that list of dicts is properly converted to OrderBySet."""
         # This is the exact input format that was failing
         order_by_input = [{"ipAddress": "asc"}]
@@ -52,7 +52,7 @@ class TestOrderByListDictRegression:
             f"Direction should be lowercase, got {instruction.direction}"
         )
 
-    def test_multiple_fields_in_list(self):
+    def test_multiple_fields_in_list(self) -> None:
         """Test multiple field ordering in list format."""
         order_by_input = [
             {"ipAddress": "asc"},
@@ -75,7 +75,7 @@ class TestOrderByListDictRegression:
         actual = [(instr.field, instr.direction) for instr in result.instructions]
         assert actual == expected, f"Expected {expected}, got {actual}"
 
-    def test_complex_field_names(self):
+    def test_complex_field_names(self) -> None:
         """Test complex camelCase to snake_case conversion."""
         test_cases = [
             ("ipAddress", "ip_address"),
@@ -98,7 +98,7 @@ class TestOrderByListDictRegression:
                 f"Expected {camel_case} -> {expected_snake_case}, got {result.instructions[0].field}"
             )
 
-    def test_direction_case_normalization(self):
+    def test_direction_case_normalization(self) -> None:
         """Test that direction strings are normalized to lowercase."""
         test_cases = [
             ("asc", "asc"),
@@ -118,7 +118,7 @@ class TestOrderByListDictRegression:
                 f"Expected {input_direction} -> {expected_direction}, got {result.instructions[0].direction}"
             )
 
-    def test_mixed_formats_in_list(self):
+    def test_mixed_formats_in_list(self) -> None:
         """Test that a list can contain mixed formats (if supported)."""
         # This tests that we can handle OrderByItem objects and dicts in the same list
         # Note: In practice, GraphQL would send consistent format, but we should be robust
@@ -134,7 +134,7 @@ class TestOrderByListDictRegression:
         actual_fields = [instr.field for instr in result.instructions]
         assert actual_fields == expected_fields
 
-    def test_invalid_direction_ignored(self):
+    def test_invalid_direction_ignored(self) -> None:
         """Test that invalid directions are ignored gracefully."""
         order_by_input = [
             {"ipAddress": "invalid"},
@@ -152,12 +152,12 @@ class TestOrderByListDictRegression:
             # Or it might return None if no valid instructions
             assert result is None
 
-    def test_empty_list(self):
+    def test_empty_list(self) -> None:
         """Test that empty list returns None."""
         result = _convert_order_by_input_to_sql([])
         assert result is None
 
-    def test_none_values_filtered(self):
+    def test_none_values_filtered(self) -> None:
         """Test that None values are filtered out."""
         order_by_input = [{"ipAddress": None}, {"serverName": "asc"}]
 
@@ -167,7 +167,7 @@ class TestOrderByListDictRegression:
         assert len(result.instructions) == 1
         assert result.instructions[0].field == "server_name"
 
-    def test_sql_generation(self):
+    def test_sql_generation(self) -> None:
         """Test that the generated SQL is correct."""
         order_by_input = [{"ipAddress": "asc"}, {"serverName": "desc"}]
         result = _convert_order_by_input_to_sql(order_by_input)
@@ -182,7 +182,7 @@ class TestOrderByListDictRegression:
         assert "data -> 'ip_address' ASC" in sql_str
         assert "data -> 'server_name' DESC" in sql_str
 
-    def test_backward_compatibility_with_dicts(self):
+    def test_backward_compatibility_with_dicts(self) -> None:
         """Test that single dict input still works (not in list)."""
         # Test single dict (not in list) - should still work
         order_by_input = {"ipAddress": "asc"}
@@ -193,7 +193,7 @@ class TestOrderByListDictRegression:
         assert result.instructions[0].field == "ip_address"
         assert result.instructions[0].direction == "asc"
 
-    def test_generated_input_types_still_work(self):
+    def test_generated_input_types_still_work(self) -> None:
         """Test that FraiseQL-generated input types still work after the fix."""
         # Create the proper FraiseQL OrderBy input type
         DnsServerOrderBy = create_graphql_order_by_input(DnsServer)
@@ -211,7 +211,7 @@ class TestOrderByListDictRegression:
         assert result.instructions[0].field == "ip_address"
         assert result.instructions[0].direction == "asc"
 
-    def test_multiple_fields_single_dict(self):
+    def test_multiple_fields_single_dict(self) -> None:
         """Test multiple fields in a single dictionary."""
         order_by_input = [{"ipAddress": "asc", "serverName": "desc"}]
         result = _convert_order_by_input_to_sql(order_by_input)
@@ -230,13 +230,13 @@ class TestOrderByListDictRegression:
 class TestOrderByIntegrationRegression:
     """Integration tests with the database layer."""
 
-    def test_repository_handles_list_dicts(self):
+    def test_repository_handles_list_dicts(self) -> None:
         """Test that the repository layer properly routes list of dicts."""
         from fraiseql.db import FraiseQLRepository
 
         # Mock pool that doesn't need real database
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 return None
 
         repo = FraiseQLRepository(MockPool())

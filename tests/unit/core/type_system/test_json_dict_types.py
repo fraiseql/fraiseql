@@ -71,7 +71,7 @@ async def get_metadata(info) -> MetadataType:
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear the registry before each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

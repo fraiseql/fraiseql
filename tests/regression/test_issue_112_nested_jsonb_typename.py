@@ -14,7 +14,6 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
-import fraiseql
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
@@ -24,6 +23,7 @@ from fraiseql.types import fraise_type
 @fraise_type
 class Equipment:
     """Equipment tracked in the system."""
+
     id: uuid.UUID
     name: str
     is_active: bool
@@ -32,6 +32,7 @@ class Equipment:
 @fraise_type
 class Assignment:
     """Assignment of equipment to a location."""
+
     id: uuid.UUID
     start_date: str
     equipment: Optional[Equipment] = None  # Nested JSONB object
@@ -60,7 +61,7 @@ async def assignments(info, limit: int = 10) -> list[Assignment]:
 
 
 @pytest_asyncio.fixture
-async def setup_issue_112_database(db_connection):
+async def setup_issue_112_database(db_connection) -> None:
     """Set up database schema matching issue #112 reproduction case."""
     async with db_connection.cursor() as cur:
         # Drop existing objects to ensure clean state
@@ -151,7 +152,7 @@ async def setup_issue_112_database(db_connection):
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_issue_112_database, clear_registry):
+def graphql_client(db_pool, setup_issue_112_database, clear_registry) -> None:
     """Create a GraphQL test client with real database connection."""
     from fraiseql.fastapi.dependencies import set_db_pool
 
@@ -166,7 +167,9 @@ def graphql_client(db_pool, setup_issue_112_database, clear_registry):
     return TestClient(app)
 
 
-@pytest.mark.skip(reason="Schema registry singleton - only one initialization per process. Tests pass individually. Run with: pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v")
+@pytest.mark.skip(
+    reason="Schema registry singleton - only one initialization per process. Tests pass individually. Run with: pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v"
+)
 class TestIssue112NestedJSONBTypename:
     """Test suite for Issue #112: Nested JSONB __typename bug.
 
@@ -174,7 +177,7 @@ class TestIssue112NestedJSONBTypename:
     These tests pass individually but fail in full test suite runs.
     """
 
-    def test_nested_object_has_correct_typename(self, graphql_client):
+    def test_nested_object_has_correct_typename(self, graphql_client) -> None:
         """Test that nested JSONB objects have correct __typename.
 
         BUG REPRODUCTION:
@@ -217,8 +220,9 @@ class TestIssue112NestedJSONBTypename:
             assignment = assignments_data
 
         # Parent type should be correct (this works)
-        assert assignment["__typename"] == "Assignment", \
+        assert assignment["__typename"] == "Assignment", (
             f"Parent __typename wrong: expected 'Assignment', got '{assignment['__typename']}'"
+        )
 
         # Nested type should be correct (BUG: this fails!)
         assert assignment["equipment"] is not None, "Expected equipment to be present"
@@ -227,10 +231,11 @@ class TestIssue112NestedJSONBTypename:
         # 🐛 BUG: This assertion will fail
         # Expected: "Equipment"
         # Actual: "Assignment" (nested object gets parent's typename)
-        assert equipment["__typename"] == "Equipment", \
+        assert equipment["__typename"] == "Equipment", (
             f"❌ BUG CONFIRMED: Nested __typename wrong! Expected 'Equipment', got '{equipment['__typename']}'"
+        )
 
-    def test_nested_object_has_all_fields(self, graphql_client):
+    def test_nested_object_has_all_fields(self, graphql_client) -> None:
         """Test that nested JSONB objects have all fields resolved.
 
         BUG REPRODUCTION:
@@ -275,14 +280,15 @@ class TestIssue112NestedJSONBTypename:
         assert "name" in equipment, "Missing 'name' field in nested equipment"
 
         # 🐛 BUG: This assertion may fail if isActive is missing
-        assert "isActive" in equipment, \
+        assert "isActive" in equipment, (
             f"❌ BUG CONFIRMED: Missing 'isActive' field! Available fields: {list(equipment.keys())}"
+        )
 
         # Verify field values
         assert equipment["name"] == "Device ABC"
         assert equipment["isActive"] is True
 
-    def test_nested_object_type_inference_from_schema(self, graphql_client):
+    def test_nested_object_type_inference_from_schema(self, graphql_client) -> None:
         """Test that type inference works correctly for nested objects.
 
         The GraphQL schema defines:
@@ -317,10 +323,11 @@ class TestIssue112NestedJSONBTypename:
         equipment = assignment["equipment"]
 
         # Type should be inferred from schema annotation (Assignment.equipment: Equipment)
-        assert equipment["__typename"] == "Equipment", \
+        assert equipment["__typename"] == "Equipment", (
             "Type inference should use schema annotation, not parent type"
+        )
 
-    def test_multiple_assignments_all_have_correct_nested_typename(self, graphql_client):
+    def test_multiple_assignments_all_have_correct_nested_typename(self, graphql_client) -> None:
         """Test that ALL nested objects have correct typename, not just the first one.
 
         This ensures the bug isn't a one-off issue but affects all nested objects.
@@ -355,8 +362,9 @@ class TestIssue112NestedJSONBTypename:
         # Check that EVERY assignment's equipment has correct typename
         for idx, assignment in enumerate(assignments):
             if assignment["equipment"]:
-                assert assignment["equipment"]["__typename"] == "Equipment", \
+                assert assignment["equipment"]["__typename"] == "Equipment", (
                     f"Assignment {idx} has wrong nested __typename: {assignment['equipment']['__typename']}"
+                )
 
 
 if __name__ == "__main__":

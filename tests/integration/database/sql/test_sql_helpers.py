@@ -16,7 +16,7 @@ from fraiseql.utils.sql_helpers import (
 class TestSQLHelpers:
     """Test SQL helper functions."""
 
-    def test_generate_partial_update_checks(self):
+    def test_generate_partial_update_checks(self) -> None:
         """Test generating CASE statements for partial updates."""
         fields = {"ipAddress": "ip_address", "hostname": "hostname", "macAddress": "mac_address"}
 
@@ -27,7 +27,7 @@ class TestSQLHelpers:
         assert "hostname = CASE WHEN p_input ? 'hostname'" in result
         assert "mac_address = CASE WHEN p_input ? 'macAddress'" in result
 
-    def test_generate_field_update_blocks(self):
+    def test_generate_field_update_blocks(self) -> None:
         """Test generating individual IF blocks for updates."""
         fields = {"ipAddress": "ip_address", "hostname": "hostname"}
 
@@ -39,7 +39,7 @@ class TestSQLHelpers:
         assert "v_updated_fields := array_append(v_updated_fields, 'ipAddress')" in result
         assert "IF p_input ? 'hostname' THEN" in result
 
-    def test_generate_jsonb_build_object(self):
+    def test_generate_jsonb_build_object(self) -> None:
         """Test generating jsonb_build_object calls."""
         fields = {"id": "id", "ipAddress": "ip_address", "hostname": "hostname"}
 
@@ -55,7 +55,7 @@ class TestSQLHelpers:
         assert "'id', r.id" in result_with_alias
         assert "'ipAddress', r.ip_address" in result_with_alias
 
-    def test_check_field_exists(self):
+    def test_check_field_exists(self) -> None:
         """Test field existence check generation."""
         # Test without camelCase check
         result = check_field_exists("p_input", "hostname", False)
@@ -69,7 +69,7 @@ class TestSQLHelpers:
         result = check_field_exists("p_input", "hostname", True)
         assert result == "p_input ? 'hostname'"
 
-    def test_get_jsonb_field_value(self):
+    def test_get_jsonb_field_value(self) -> None:
         """Test JSONB field value extraction."""
         # Test without camelCase check
         result = get_jsonb_field_value("p_input", "hostname", False)
@@ -83,7 +83,7 @@ class TestSQLHelpers:
         result = get_jsonb_field_value("p_input", "hostname", True)
         assert result == "p_input->>'hostname'"
 
-    def test_generate_partial_update_function(self):
+    def test_generate_partial_update_function(self) -> None:
         """Test generating complete partial update function."""
         fields = {"ipAddress": "ip_address", "hostname": "hostname", "location": "location"}
 
@@ -117,7 +117,7 @@ class TestSQLHelpers:
         assert "'entity', 'router'" in result
         assert "'operation', 'update'" in result
 
-    def test_generate_partial_update_function_no_timestamps(self):
+    def test_generate_partial_update_function_no_timestamps(self) -> None:
         """Test generating function without timestamp fields."""
         fields = {"name": "name", "value": "value"}
 

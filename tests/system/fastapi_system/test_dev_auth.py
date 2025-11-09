@@ -150,7 +150,7 @@ class TestDevAuthIntegration:
         app.add_middleware(DevAuthMiddleware, username="admin", password="secret")
 
         @app.get("/graphql")
-        async def graphql_endpoint():
+        async def graphql_endpoint() -> None:
             return {"message": "GraphQL endpoint"}
 
         client = TestClient(app)
@@ -165,7 +165,7 @@ class TestDevAuthIntegration:
         app.add_middleware(DevAuthMiddleware, username="admin", password="secret")
 
         @app.get("/graphql")
-        async def graphql_endpoint():
+        async def graphql_endpoint() -> None:
             return {"message": "GraphQL endpoint"}
 
         client = TestClient(app)
@@ -185,7 +185,7 @@ class TestDevAuthIntegration:
         app.add_middleware(DevAuthMiddleware, username="admin", password="secret")
 
         @app.get("/graphql")
-        async def graphql_endpoint():
+        async def graphql_endpoint() -> None:
             return {"message": "GraphQL endpoint"}
 
         client = TestClient(app)
@@ -204,7 +204,7 @@ class TestDevAuthIntegration:
         app.add_middleware(DevAuthMiddleware, username="admin", password="secret")
 
         @app.get("/health")
-        async def health_endpoint():
+        async def health_endpoint() -> None:
             return {"status": "healthy"}
 
         client = TestClient(app)

@@ -6,15 +6,16 @@ would use view_name as the field name when info parameter was not passed.
 The fix: Auto-extract info from self.context["graphql_info"] if not provided.
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository
 
 
 @pytest.mark.asyncio
-async def test_find_auto_extracts_info_from_context():
+async def test_find_auto_extracts_info_from_context() -> None:
     """Test that find() auto-extracts info from context when not explicitly passed."""
     # Create a mock pool with async context manager
     mock_conn = AsyncMock()
@@ -59,7 +60,7 @@ async def test_find_auto_extracts_info_from_context():
 
 
 @pytest.mark.asyncio
-async def test_find_uses_explicit_info_over_context():
+async def test_find_uses_explicit_info_over_context() -> None:
     """Test that explicitly passed info takes precedence over context."""
     # Create a mock pool with async context manager
     mock_conn = AsyncMock()
@@ -105,7 +106,7 @@ async def test_find_uses_explicit_info_over_context():
 
 
 @pytest.mark.asyncio
-async def test_find_one_auto_extracts_info_from_context():
+async def test_find_one_auto_extracts_info_from_context() -> None:
     """Test that find_one() also auto-extracts info from context."""
     # Create a mock pool with async context manager
     mock_conn = AsyncMock()
@@ -145,7 +146,7 @@ async def test_find_one_auto_extracts_info_from_context():
 
 
 @pytest.mark.asyncio
-async def test_find_falls_back_to_view_name_when_no_info_available():
+async def test_find_falls_back_to_view_name_when_no_info_available() -> None:
     """Test that view_name is used as fallback when no info is available."""
     # Create a mock pool with async context manager
     mock_conn = AsyncMock()

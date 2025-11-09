@@ -38,7 +38,7 @@ class CreateLocationError:
     message: str = ""
 
 
-def test_mutation_result_parsing_with_object_data():
+def test_mutation_result_parsing_with_object_data() -> None:
     """Test that object_data is properly mapped to entity field."""
     # Simulate PostgreSQL function result
     db_result = {
@@ -73,7 +73,7 @@ def test_mutation_result_parsing_with_object_data():
     assert result.location.active is True
 
 
-def test_mutation_result_with_unset_values():
+def test_mutation_result_with_unset_values() -> None:
     """Test that UNSET values in object_data are handled correctly."""
     from fraiseql.types.definitions import UNSET
 

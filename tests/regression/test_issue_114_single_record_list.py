@@ -18,13 +18,11 @@ Actual (before fix):
 
 import json
 
-import pytest
-
 
 class TestIssue114SingleRecordList:
     """Test that db.find() always returns list, even for single records."""
 
-    def test_rust_pipeline_single_record_with_is_list_true(self):
+    def test_rust_pipeline_single_record_with_is_list_true(self) -> None:
         """Rust pipeline: single record with is_list=True should return array."""
         from fraiseql import _fraiseql_rs
 
@@ -41,7 +39,7 @@ class TestIssue114SingleRecordList:
         assert len(data["data"]["routers"]) == 1, "Should have exactly one item"
         assert data["data"]["routers"][0]["name"] == "router-01"
 
-    def test_rust_pipeline_single_record_with_is_list_false(self):
+    def test_rust_pipeline_single_record_with_is_list_false(self) -> None:
         """Rust pipeline: single record with is_list=False should return object."""
         from fraiseql import _fraiseql_rs
 
@@ -57,7 +55,7 @@ class TestIssue114SingleRecordList:
         assert isinstance(data["data"]["router"], dict), "Should return dict, not list"
         assert data["data"]["router"]["name"] == "router-01"
 
-    def test_rust_pipeline_multiple_records_with_is_list_true(self):
+    def test_rust_pipeline_multiple_records_with_is_list_true(self) -> None:
         """Rust pipeline: multiple records with is_list=True should return array."""
         from fraiseql import _fraiseql_rs
 
@@ -76,7 +74,7 @@ class TestIssue114SingleRecordList:
         assert isinstance(data["data"]["routers"], list), "Should return list"
         assert len(data["data"]["routers"]) == 2, "Should have two items"
 
-    def test_rust_pipeline_zero_records_with_is_list_true(self):
+    def test_rust_pipeline_zero_records_with_is_list_true(self) -> None:
         """Rust pipeline: zero records with is_list=True should return empty array."""
         from fraiseql import _fraiseql_rs
 

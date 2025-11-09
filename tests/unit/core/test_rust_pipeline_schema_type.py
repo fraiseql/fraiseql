@@ -6,8 +6,9 @@ This test suite verifies that RustResponseBytes can track the GraphQL schema typ
 for better debugging and provides a to_json() method for testing purposes.
 """
 
-import pytest
 import json
+
+import pytest
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 
@@ -15,7 +16,7 @@ from fraiseql.core.rust_pipeline import RustResponseBytes
 class TestRustResponseBytesSchemaType:
     """Test schema_type tracking in RustResponseBytes."""
 
-    def test_rustresponsebytes_tracks_schema_type(self):
+    def test_rustresponsebytes_tracks_schema_type(self) -> None:
         """Test that RustResponseBytes can track the GraphQL schema type.
 
         🔴 RED Phase: This test should FAIL initially because RustResponseBytes
@@ -38,7 +39,7 @@ class TestRustResponseBytesSchemaType:
             f"Expected schema_type='Product', got {rust_response.schema_type}"
         )
 
-    def test_rustresponsebytes_schema_type_optional(self):
+    def test_rustresponsebytes_schema_type_optional(self) -> None:
         """Test that schema_type is optional (defaults to None).
 
         This ensures backwards compatibility - existing code that creates
@@ -56,7 +57,7 @@ class TestRustResponseBytesSchemaType:
             f"Expected schema_type=None, got {rust_response.schema_type}"
         )
 
-    def test_rustresponsebytes_schema_type_immutable(self):
+    def test_rustresponsebytes_schema_type_immutable(self) -> None:
         """Test that schema_type is read-only after creation.
 
         This ensures type information cannot be accidentally changed after
@@ -74,7 +75,7 @@ class TestRustResponseBytesSchemaType:
 class TestRustResponseBytesToJson:
     """Test to_json() method for testing purposes."""
 
-    def test_rustresponsebytes_to_json_for_testing(self):
+    def test_rustresponsebytes_to_json_for_testing(self) -> None:
         """Test that RustResponseBytes has to_json() method for testing.
 
         🔴 RED Phase (Cycle 3.2): This test should FAIL initially because
@@ -90,23 +91,17 @@ class TestRustResponseBytesToJson:
         rust_response = RustResponseBytes(response_bytes)
 
         # 🎯 ASSERTION: Should have to_json() method
-        assert hasattr(rust_response, "to_json"), (
-            "RustResponseBytes should have to_json() method"
-        )
+        assert hasattr(rust_response, "to_json"), "RustResponseBytes should have to_json() method"
 
         # Call to_json()
         json_data = rust_response.to_json()
 
         # Verify it returns parsed JSON
-        assert isinstance(json_data, dict), (
-            f"Expected dict from to_json(), got {type(json_data)}"
-        )
+        assert isinstance(json_data, dict), f"Expected dict from to_json(), got {type(json_data)}"
         assert "data" in json_data, f"Expected 'data' key: {json_data}"
-        assert "products" in json_data["data"], (
-            f"Expected 'products' field: {json_data}"
-        )
+        assert "products" in json_data["data"], f"Expected 'products' field: {json_data}"
 
-    def test_rustresponsebytes_to_json_with_invalid_json(self):
+    def test_rustresponsebytes_to_json_with_invalid_json(self) -> None:
         """Test that to_json() handles invalid JSON gracefully.
 
         This ensures the method provides helpful error messages when
@@ -120,7 +115,7 @@ class TestRustResponseBytesToJson:
         with pytest.raises(json.JSONDecodeError):
             rust_response.to_json()
 
-    def test_rustresponsebytes_to_json_idempotent(self):
+    def test_rustresponsebytes_to_json_idempotent(self) -> None:
         """Test that calling to_json() multiple times returns same result.
 
         This ensures the method is side-effect free and can be called
@@ -135,14 +130,10 @@ class TestRustResponseBytesToJson:
         result2 = rust_response.to_json()
 
         # 🎯 ASSERTION: Should return same result both times
-        assert result1 == result2, (
-            f"to_json() should be idempotent: {result1} != {result2}"
-        )
-        assert result1 == {"data": {"hello": "world"}}, (
-            f"Expected correct parsed JSON: {result1}"
-        )
+        assert result1 == result2, f"to_json() should be idempotent: {result1} != {result2}"
+        assert result1 == {"data": {"hello": "world"}}, f"Expected correct parsed JSON: {result1}"
 
-    def test_rustresponsebytes_to_json_does_not_modify_bytes(self):
+    def test_rustresponsebytes_to_json_does_not_modify_bytes(self) -> None:
         """Test that to_json() doesn't modify the original bytes.
 
         This ensures calling to_json() for testing doesn't affect the
@@ -156,6 +147,4 @@ class TestRustResponseBytesToJson:
         _ = rust_response.to_json()
 
         # 🎯 ASSERTION: Original bytes should be unchanged
-        assert bytes(rust_response) == original_bytes, (
-            "to_json() should not modify original bytes"
-        )
+        assert bytes(rust_response) == original_bytes, "to_json() should not modify original bytes"

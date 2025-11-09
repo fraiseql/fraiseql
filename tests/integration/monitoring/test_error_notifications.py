@@ -13,12 +13,11 @@ from fraiseql.monitoring.notifications import (
 )
 from fraiseql.monitoring.postgres_error_tracker import (
     PostgreSQLErrorTracker,
-    init_error_tracker,
 )
 
 
 @pytest.fixture
-async def error_tracker(db_pool):
+async def error_tracker(db_pool) -> None:
     """Create error tracker instance for testing."""
     tracker = PostgreSQLErrorTracker(
         db_pool,
@@ -47,7 +46,7 @@ async def error_tracker(db_pool):
 
 
 @pytest.fixture
-async def notification_manager(db_pool):
+async def notification_manager(db_pool) -> None:
     """Create notification manager instance for testing."""
     return NotificationManager(db_pool)
 
@@ -56,7 +55,7 @@ class TestEmailChannel:
     """Test email notification channel."""
 
     @pytest.mark.asyncio
-    async def test_email_format_message(self):
+    async def test_email_format_message(self) -> None:
         """Test email message formatting."""
         channel = EmailChannel(
             smtp_host="smtp.example.com",
@@ -85,7 +84,7 @@ class TestEmailChannel:
         assert "5" in message  # occurrence count
 
     @pytest.mark.asyncio
-    async def test_email_send_success(self):
+    async def test_email_send_success(self) -> None:
         """Test successful email sending."""
         channel = EmailChannel(
             smtp_host="smtp.example.com",
@@ -125,7 +124,7 @@ class TestEmailChannel:
             mock_server.sendmail.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_email_send_no_recipients(self):
+    async def test_email_send_no_recipients(self) -> None:
         """Test email sending with no recipients."""
         channel = EmailChannel(smtp_host="smtp.example.com")
 
@@ -142,7 +141,7 @@ class TestSlackChannel:
     """Test Slack notification channel."""
 
     @pytest.mark.asyncio
-    async def test_slack_format_message(self):
+    async def test_slack_format_message(self) -> None:
         """Test Slack message formatting."""
         channel = SlackChannel()
 
@@ -175,7 +174,7 @@ class TestSlackChannel:
         assert "ValueError" in str(message["blocks"][0])
 
     @pytest.mark.asyncio
-    async def test_slack_send_success(self):
+    async def test_slack_send_success(self) -> None:
         """Test successful Slack notification."""
         channel = SlackChannel()
 
@@ -208,7 +207,7 @@ class TestSlackChannel:
             assert error_msg is None
 
     @pytest.mark.asyncio
-    async def test_slack_send_no_webhook(self):
+    async def test_slack_send_no_webhook(self) -> None:
         """Test Slack sending with no webhook URL."""
         channel = SlackChannel()
 
@@ -225,7 +224,7 @@ class TestWebhookChannel:
     """Test generic webhook notification channel."""
 
     @pytest.mark.asyncio
-    async def test_webhook_send_success(self):
+    async def test_webhook_send_success(self) -> None:
         """Test successful webhook notification."""
         channel = WebhookChannel()
 
@@ -251,7 +250,7 @@ class TestWebhookChannel:
             assert error_msg is None
 
     @pytest.mark.asyncio
-    async def test_webhook_custom_method(self):
+    async def test_webhook_custom_method(self) -> None:
         """Test webhook with custom HTTP method."""
         channel = WebhookChannel()
 
@@ -277,14 +276,14 @@ class TestNotificationManager:
     """Test notification manager."""
 
     @pytest.mark.asyncio
-    async def test_register_custom_channel(self, notification_manager):
+    async def test_register_custom_channel(self, notification_manager) -> None:
         """Test registering a custom notification channel."""
 
         class CustomChannel:
-            async def send(self, error, config):
+            async def send(self, error, config) -> None:
                 return True, None
 
-            def format_message(self, error, template=None):
+            def format_message(self, error, template=None) -> None:
                 return "custom message"
 
         notification_manager.register_channel("custom", CustomChannel)
@@ -293,7 +292,7 @@ class TestNotificationManager:
         assert notification_manager.channels["custom"] == CustomChannel
 
     @pytest.mark.asyncio
-    async def test_send_notifications_no_config(self, error_tracker, notification_manager):
+    async def test_send_notifications_no_config(self, error_tracker, notification_manager) -> None:
         """Test sending notifications with no matching config."""
         # Create an error
         try:
@@ -315,7 +314,9 @@ class TestNotificationManager:
                 assert result[0] == 0
 
     @pytest.mark.asyncio
-    async def test_send_notifications_with_config(self, error_tracker, notification_manager):
+    async def test_send_notifications_with_config(
+        self, error_tracker, notification_manager
+    ) -> None:
         """Test sending notifications with matching config."""
         # Create notification config
         async with error_tracker.db.connection() as conn:
@@ -366,7 +367,7 @@ class TestNotificationManager:
                 # This is expected behavior for fire-and-forget notifications
 
     @pytest.mark.asyncio
-    async def test_rate_limiting(self, error_tracker, notification_manager):
+    async def test_rate_limiting(self, error_tracker, notification_manager) -> None:
         """Test notification rate limiting."""
         # Create notification config with 60-minute rate limit
         async with error_tracker.db.connection() as conn:
@@ -422,7 +423,7 @@ class TestErrorTrackerNotificationIntegration:
     """Test integration between error tracker and notification system."""
 
     @pytest.mark.asyncio
-    async def test_notifications_triggered_on_error(self, error_tracker):
+    async def test_notifications_triggered_on_error(self, error_tracker) -> None:
         """Test that notifications are triggered when error is captured."""
         # Mock NotificationManager at the import location
         with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
@@ -447,7 +448,7 @@ class TestErrorTrackerNotificationIntegration:
             # This is expected for fire-and-forget notifications
 
     @pytest.mark.asyncio
-    async def test_notifications_disabled(self, db_pool):
+    async def test_notifications_disabled(self, db_pool) -> None:
         """Test that notifications can be disabled."""
         # Create tracker with notifications disabled
         tracker = PostgreSQLErrorTracker(
@@ -469,7 +470,7 @@ class TestErrorTrackerNotificationIntegration:
             mock_manager_class.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_notification_failure_doesnt_break_error_tracking(self, error_tracker):
+    async def test_notification_failure_doesnt_break_error_tracking(self, error_tracker) -> None:
         """Test that notification failures don't break error tracking."""
         # Mock NotificationManager to raise an exception
         with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:

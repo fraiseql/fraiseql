@@ -16,7 +16,7 @@ pytestmark = [
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_app_health(blog_enterprise_client):
+async def test_blog_enterprise_app_health(blog_enterprise_client) -> None:
     """Test that blog_enterprise app starts up and responds to health checks."""
     response = await blog_enterprise_client.get("/health")
     assert response.status_code == 200
@@ -29,7 +29,7 @@ async def test_blog_enterprise_app_health(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_home_endpoint(blog_enterprise_client):
+async def test_blog_enterprise_home_endpoint(blog_enterprise_client) -> None:
     """Test that blog_enterprise home endpoint returns expected information."""
     response = await blog_enterprise_client.get("/")
     assert response.status_code == 200
@@ -48,7 +48,7 @@ async def test_blog_enterprise_home_endpoint(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_metrics_endpoint(blog_enterprise_client):
+async def test_blog_enterprise_metrics_endpoint(blog_enterprise_client) -> None:
     """Test that blog_enterprise metrics endpoint works."""
     response = await blog_enterprise_client.get("/metrics")
     assert response.status_code == 200
@@ -71,7 +71,7 @@ async def test_blog_enterprise_metrics_endpoint(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_admin_endpoint(blog_enterprise_client):
+async def test_blog_enterprise_admin_endpoint(blog_enterprise_client) -> None:
     """Test that blog_enterprise admin endpoint is accessible."""
     response = await blog_enterprise_client.get("/admin")
     assert response.status_code == 200
@@ -94,7 +94,7 @@ async def test_blog_enterprise_admin_endpoint(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_graphql_endpoint_exists(blog_enterprise_client):
+async def test_blog_enterprise_graphql_endpoint_exists(blog_enterprise_client) -> None:
     """Test that GraphQL endpoint exists (even if no schema is implemented yet)."""
     # Try a simple introspection query
     response = await blog_enterprise_client.post(
@@ -110,7 +110,7 @@ async def test_blog_enterprise_graphql_endpoint_exists(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_environment_config(blog_enterprise_client):
+async def test_blog_enterprise_environment_config(blog_enterprise_client) -> None:
     """Test that enterprise environment configuration works."""
     response = await blog_enterprise_client.get("/")
     data = response.json()
@@ -128,7 +128,7 @@ async def test_blog_enterprise_environment_config(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_cors_headers(blog_enterprise_client):
+async def test_blog_enterprise_cors_headers(blog_enterprise_client) -> None:
     """Test that CORS headers are properly configured for enterprise."""
     # Make an OPTIONS request to check CORS
     response = await blog_enterprise_client.options("/")
@@ -142,7 +142,7 @@ async def test_blog_enterprise_cors_headers(blog_enterprise_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_domain_structure_exists():
+async def test_blog_enterprise_domain_structure_exists() -> None:
     """Test that enterprise domain structure exists."""
     # Check if FraiseQL is available first
     try:
@@ -186,7 +186,7 @@ async def test_blog_enterprise_domain_structure_exists():
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_vs_simple_distinction(blog_enterprise_client, blog_simple_client):
+async def test_blog_enterprise_vs_simple_distinction(blog_enterprise_client, blog_simple_client) -> None:
     """Test that enterprise version has distinct features from simple version."""
     # Get both app info
     enterprise_response = await blog_enterprise_client.get("/")
@@ -225,7 +225,7 @@ async def test_blog_enterprise_vs_simple_distinction(blog_enterprise_client, blo
 
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_blog_enterprise_startup_time(blog_enterprise_client):
+async def test_blog_enterprise_startup_time(blog_enterprise_client) -> None:
     """Test that enterprise app starts up within reasonable time."""
     import time
 

@@ -1,19 +1,18 @@
 """Tests for APQ storage backend abstract interface."""
 
 import pytest
-from abc import ABC
 
 from fraiseql.storage.backends.base import APQStorageBackend
 
 
-def test_apq_storage_backend_is_abstract():
+def test_apq_storage_backend_is_abstract() -> None:
     """Test that APQStorageBackend is an abstract base class."""
     # Should not be able to instantiate directly
     with pytest.raises(TypeError):
         APQStorageBackend()
 
 
-def test_apq_storage_backend_interface():
+def test_apq_storage_backend_interface() -> None:
     """Test that APQStorageBackend defines the required interface."""
     # Check that all required methods are abstract
     abstract_methods = APQStorageBackend.__abstractmethods__
@@ -26,13 +25,13 @@ def test_apq_storage_backend_interface():
     assert abstract_methods == expected_methods
 
 
-def test_concrete_implementation_must_implement_all_methods():
+def test_concrete_implementation_must_implement_all_methods() -> None:
     """Test that concrete implementations must implement all abstract methods."""
 
     class IncompleteBackend(APQStorageBackend):
         """Incomplete implementation missing required methods."""
 
-        def get_persisted_query(self, hash_value: str):
+        def get_persisted_query(self, hash_value: str) -> None:
             return None
 
     # Should fail to instantiate due to missing methods
@@ -40,22 +39,22 @@ def test_concrete_implementation_must_implement_all_methods():
         IncompleteBackend()
 
 
-def test_concrete_implementation_with_all_methods():
+def test_concrete_implementation_with_all_methods() -> None:
     """Test that concrete implementations work when all methods are implemented."""
 
     class CompleteBackend(APQStorageBackend):
         """Complete implementation with all required methods."""
 
-        def get_persisted_query(self, hash_value: str):
+        def get_persisted_query(self, hash_value: str) -> None:
             return None
 
-        def store_persisted_query(self, hash_value: str, query: str):
+        def store_persisted_query(self, hash_value: str, query: str) -> None:
             pass
 
-        def get_cached_response(self, hash_value: str):
+        def get_cached_response(self, hash_value: str) -> None:
             return None
 
-        def store_cached_response(self, hash_value: str, response):
+        def store_cached_response(self, hash_value: str, response) -> None:
             pass
 
     # Should successfully instantiate
@@ -63,7 +62,7 @@ def test_concrete_implementation_with_all_methods():
     assert isinstance(backend, APQStorageBackend)
 
 
-def test_method_signatures():
+def test_method_signatures() -> None:
     """Test that abstract methods have correct signatures."""
 
     class TestBackend(APQStorageBackend):

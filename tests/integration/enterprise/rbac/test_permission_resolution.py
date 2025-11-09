@@ -4,15 +4,17 @@ Tests for effective permission computation with hierarchical role inheritance
 and PostgreSQL-native caching.
 """
 
-import pytest
-from uuid import uuid4
 from pathlib import Path
-from fraiseql.enterprise.rbac.resolver import PermissionResolver
+from uuid import uuid4
+
+import pytest
+
 from fraiseql.enterprise.rbac.cache import PermissionCache
+from fraiseql.enterprise.rbac.resolver import PermissionResolver
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def ensure_rbac_schema(db_pool):
+async def ensure_rbac_schema(db_pool) -> None:
     """Ensure RBAC schema exists before running tests."""
     # Check if roles table exists
     async with db_pool.connection() as conn:
@@ -35,7 +37,7 @@ async def ensure_rbac_schema(db_pool):
                 await conn.commit()
 
 
-async def test_user_effective_permissions_with_caching(db_repo, db_pool):
+async def test_user_effective_permissions_with_caching(db_repo, db_pool) -> None:
     """Verify user permissions are cached in PostgreSQL."""
     cache = PermissionCache(db_pool)
     resolver = PermissionResolver(db_repo, cache)
@@ -52,7 +54,7 @@ async def test_user_effective_permissions_with_caching(db_repo, db_pool):
     assert permissions1 == permissions2
 
 
-async def test_permission_resolver_methods_exist(db_repo, db_pool):
+async def test_permission_resolver_methods_exist(db_repo, db_pool) -> None:
     """Verify PermissionResolver has required methods."""
     cache = PermissionCache(db_pool)
     resolver = PermissionResolver(db_repo, cache)
@@ -82,7 +84,7 @@ async def test_permission_resolver_methods_exist(db_repo, db_pool):
     assert "tenant_id" in sig.parameters
 
 
-async def test_cache_integration(db_repo, db_pool):
+async def test_cache_integration(db_repo, db_pool) -> None:
     """Test that resolver integrates properly with cache."""
     cache = PermissionCache(db_pool)
     resolver = PermissionResolver(db_repo, cache)

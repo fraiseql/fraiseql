@@ -1,12 +1,13 @@
 # tests/integration/enterprise/audit/test_event_logger.py
 
-import pytest
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 
 @pytest.fixture(autouse=True, scope="session")
-async def setup_audit_schema(db_pool):
+async def setup_audit_schema(db_pool) -> None:
     """Set up audit schema before running tests."""
     # Check if schema already exists
     async with db_pool.connection() as conn:
@@ -54,7 +55,7 @@ async def setup_audit_schema(db_pool):
             await conn.commit()
 
 
-async def test_log_audit_event(db_repo):
+async def test_log_audit_event(db_repo) -> None:
     """Verify audit event is logged to database with proper chain."""
     # This test will fail until we implement the AuditLogger
     from fraiseql.enterprise.audit.event_logger import AuditLogger
@@ -87,7 +88,7 @@ async def test_log_audit_event(db_repo):
     assert event["signature"] is not None
 
 
-async def test_log_event_batching(db_repo):
+async def test_log_event_batching(db_repo) -> None:
     """Verify batching functionality works correctly."""
     from fraiseql.enterprise.audit.event_logger import AuditLogger
 
@@ -126,10 +127,11 @@ async def test_log_event_batching(db_repo):
         assert len(events) == 1
 
 
-async def test_audit_chain_integrity(db_repo):
+async def test_audit_chain_integrity(db_repo) -> None:
     """Verify cryptographic chain integrity."""
-    from fraiseql.enterprise.audit.event_logger import AuditLogger
     import uuid
+
+    from fraiseql.enterprise.audit.event_logger import AuditLogger
 
     # Use a unique tenant to ensure we start a new chain
     tenant_id = str(uuid.uuid4())

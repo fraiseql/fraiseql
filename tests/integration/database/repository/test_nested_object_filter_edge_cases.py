@@ -6,18 +6,17 @@ from datetime import datetime
 
 import pytest
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import *  # noqa: F403
+
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql import (
-    BooleanFilter,
     StringFilter,
     UUIDFilter,
     create_graphql_where_input,
 )
-
-# Import database fixtures
-from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 # Define test types
 
@@ -41,7 +40,7 @@ class Allocation:
 class TestNestedObjectFilterEdgeCases:
     """Test edge cases for nested object filtering."""
 
-    def test_empty_nested_filter_dict(self):
+    def test_empty_nested_filter_dict(self) -> None:
         """Test that empty nested filter dicts are handled correctly."""
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -61,7 +60,7 @@ class TestNestedObjectFilterEdgeCases:
         assert sql_where.machine.name == {}
         assert sql_where.machine.is_current == {}
 
-    def test_null_nested_filter(self):
+    def test_null_nested_filter(self) -> None:
         """Test that None nested filters are handled correctly."""
         create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -75,7 +74,7 @@ class TestNestedObjectFilterEdgeCases:
         assert sql_where.machine == {}  # No filter on machine
         assert sql_where.status == {"eq": "pending"}
 
-    def test_mixed_fk_and_field_nested_filter(self):
+    def test_mixed_fk_and_field_nested_filter(self) -> None:
         """Test mixed FK + field filters in nested objects.
 
         This tests the scenario: {machine: {id: {...}, name: {...}}}
@@ -113,7 +112,7 @@ class TestNestedObjectFilterEdgeCases:
             f"Expected FK column or JSONB path for machine fields, but got: {sql_str}"
         )
 
-    def test_deeply_nested_filtering_not_supported(self):
+    def test_deeply_nested_filtering_not_supported(self) -> None:
         """Test that deeply nested filtering (3+ levels) provides clear error messages.
 
         This tests: {machine: {location: {city: {...}}}}
@@ -166,7 +165,7 @@ class TestNestedObjectFilterEdgeCases:
             )
 
 
-def _parse_rust_response(result):
+def _parse_rust_response(result) -> None:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -190,7 +189,7 @@ class TestNestedObjectFilterDatabaseEdgeCases:
     """End-to-end database integration tests for nested object filtering edge cases."""
 
     @pytest.fixture
-    async def setup_edge_case_data(self, db_pool):
+    async def setup_edge_case_data(self, db_pool) -> None:
         """Set up test tables and data for edge case tests."""
         async with db_pool.connection() as conn:
             # Clean up any existing test data
@@ -287,7 +286,9 @@ class TestNestedObjectFilterDatabaseEdgeCases:
             await conn.execute("DROP TABLE IF EXISTS test_allocations_edge CASCADE")
 
     @pytest.mark.asyncio
-    async def test_empty_machine_filter_dict_where_clause(self, db_pool, setup_edge_case_data):
+    async def test_empty_machine_filter_dict_where_clause(
+        self, db_pool, setup_edge_case_data
+    ) -> None:
         """Test dict-based where clause with empty machine filter.
 
         {machine: {}} should match records with empty machine objects.
@@ -329,7 +330,9 @@ class TestNestedObjectFilterDatabaseEdgeCases:
         )
 
     @pytest.mark.asyncio
-    async def test_null_machine_filter_dict_where_clause(self, db_pool, setup_edge_case_data):
+    async def test_null_machine_filter_dict_where_clause(
+        self, db_pool, setup_edge_case_data
+    ) -> None:
         """Test dict-based where clause with null machine filter.
 
         {machine: None} should match records with null machine.

@@ -40,7 +40,7 @@ def test_mutation_with_failure_attribute() -> None:
         success: CreateUserSuccess
         failure: CreateUserFailure  # Using 'failure' instead of 'error'
 
-        async def execute(self, db, input_data):
+        async def execute(self, db, input_data) -> None:
             # Mock implementation
             return CreateUserSuccess(user_id=1)
 
@@ -58,7 +58,7 @@ def test_mutation_with_error_still_works() -> None:
         success: CreateUserSuccess
         error: CreateUserFailure  # Using legacy 'error' name
 
-        async def execute(self, db, input_data):
+        async def execute(self, db, input_data) -> None:
             return CreateUserSuccess(user_id=2)
 
     # Should work with 'error' too
@@ -76,7 +76,7 @@ def test_mutation_without_failure_or_error_fails() -> None:
             success: CreateUserSuccess
             # Missing failure/error type!
 
-            async def execute(self, db, input_data):
+            async def execute(self, db, input_data) -> None:
                 return CreateUserSuccess(user_id=3)
 
 
@@ -94,7 +94,7 @@ def test_mutation_prefers_error_over_failure() -> None:
         error: CreateUserFailure  # This should be used
         failure: OtherError  # This should be ignored
 
-        async def execute(self, db, input_data):
+        async def execute(self, db, input_data) -> None:
             return CreateUserSuccess(user_id=4)
 
     # Should use 'error' when both are present

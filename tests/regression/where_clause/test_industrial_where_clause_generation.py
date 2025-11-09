@@ -13,23 +13,21 @@ CRITICAL BUGS TO CATCH:
 This test suite creates the "industrial steel grade" coverage missing from v0.7.24.
 """
 
-import json
-import pytest
-from decimal import Decimal
 from uuid import uuid4
-from datetime import date, timedelta
+
+import pytest
 from psycopg.sql import SQL
 
 pytestmark = pytest.mark.database
 
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.sql.where_generator import safe_create_where_type, build_operator_composed
 from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import Hostname
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @fraiseql.type
@@ -52,7 +50,7 @@ NetworkDeviceWhere = safe_create_where_type(NetworkDevice)
 class TestREDPhaseHostnameLtreeBug:
     """RED: Tests that MUST FAIL initially - hostname.local incorrectly identified as ltree."""
 
-    def test_hostname_with_dots_not_ltree_path(self):
+    def test_hostname_with_dots_not_ltree_path(self) -> None:
         """RED: hostname 'printserver01.local' should NOT be cast as ::ltree."""
         registry = get_operator_registry()
 
@@ -78,7 +76,7 @@ class TestREDPhaseHostnameLtreeBug:
         assert "data ->>" in sql_str, "Should extract JSONB field as text"
         assert "printserver01.local" in sql_str, "Should include hostname value"
 
-    def test_multiple_dot_hostname_patterns(self):
+    def test_multiple_dot_hostname_patterns(self) -> None:
         """RED: Test various hostname patterns that could trigger ltree confusion."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
@@ -104,7 +102,7 @@ class TestREDPhaseHostnameLtreeBug:
                 f"Hostname '{hostname}' incorrectly identified as ltree path. SQL: {sql_str}"
             )
 
-    def test_actual_ltree_vs_hostname_distinction(self):
+    def test_actual_ltree_vs_hostname_distinction(self) -> None:
         """RED: Ensure we can distinguish actual ltree paths from hostnames."""
         from fraiseql.types import LTree
 
@@ -139,7 +137,7 @@ class TestREDPhaseHostnameLtreeBug:
 class TestREDPhaseNumericCastingBug:
     """RED: Tests that MUST FAIL - integer fields unnecessarily cast as ::numeric."""
 
-    def test_integer_port_consistent_numeric_casting(self):
+    def test_integer_port_consistent_numeric_casting(self) -> None:
         """GREEN: port 443 should ALWAYS be cast as ::numeric for consistent JSONB behavior."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -162,7 +160,7 @@ class TestREDPhaseNumericCastingBug:
         assert "::numeric" in sql_str, "Should cast to numeric"
         assert "data ->> 'port'" in sql_str, "Should extract port field"
 
-    def test_boolean_field_no_boolean_casting(self):
+    def test_boolean_field_no_boolean_casting(self) -> None:
         """RED: boolean true should NOT be cast as ::boolean for JSONB fields."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -186,7 +184,7 @@ class TestREDPhaseNumericCastingBug:
 class TestREDPhaseCastingLocationBug:
     """RED: Tests that MUST FAIL - type casting applied to field names instead of values."""
 
-    def test_casting_applied_to_values_not_field_names(self):
+    def test_casting_applied_to_values_not_field_names(self) -> None:
         """RED: Casting should be (data->>'field')::type, NOT (data->>'field'::type)."""
         registry = get_operator_registry()
 
@@ -219,7 +217,7 @@ class TestREDPhaseProductionScenarios:
     """RED: Real production scenarios that must work perfectly."""
 
     @pytest.fixture
-    async def setup_realistic_network_devices(self, db_pool):
+    async def setup_realistic_network_devices(self, db_pool) -> None:
         """Create realistic network device data that triggers all the bugs."""
         async with db_pool.connection() as conn:
             # Create production-like hybrid table
@@ -288,7 +286,9 @@ class TestREDPhaseProductionScenarios:
             await conn.commit()
 
     @pytest.mark.asyncio
-    async def test_production_hostname_filtering(self, db_pool, setup_realistic_network_devices):
+    async def test_production_hostname_filtering(
+        self, db_pool, setup_realistic_network_devices
+    ) -> None:
         """Test hostname filtering with .local domains works correctly."""
         setup_realistic_network_devices
 
@@ -313,7 +313,9 @@ class TestREDPhaseProductionScenarios:
         assert results[0]["hostname"] == "printserver01.local"
 
     @pytest.mark.asyncio
-    async def test_production_port_filtering(self, db_pool, setup_realistic_network_devices):
+    async def test_production_port_filtering(
+        self, db_pool, setup_realistic_network_devices
+    ) -> None:
         """Test port filtering with numeric values works correctly."""
         setup_realistic_network_devices
 
@@ -335,7 +337,9 @@ class TestREDPhaseProductionScenarios:
         assert results[0]["port"] == 443
 
     @pytest.mark.asyncio
-    async def test_production_boolean_filtering(self, db_pool, setup_realistic_network_devices):
+    async def test_production_boolean_filtering(
+        self, db_pool, setup_realistic_network_devices
+    ) -> None:
         """Test boolean filtering works correctly."""
         setup_realistic_network_devices
 
@@ -398,7 +402,7 @@ class TestREDPhaseProductionScenarios:
 class TestREDPhaseEdgeCaseScenarios:
     """RED: Edge cases that could break industrial-grade WHERE generation."""
 
-    def test_sql_injection_resistance_in_casting(self):
+    def test_sql_injection_resistance_in_casting(self) -> None:
         """RED: Ensure type casting doesn't create SQL injection vulnerabilities."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
@@ -420,7 +424,7 @@ class TestREDPhaseEdgeCaseScenarios:
             "Malicious content should be parameterized"
         )
 
-    def test_null_value_casting_handling(self):
+    def test_null_value_casting_handling(self) -> None:
         """RED: Ensure NULL values don't break type casting."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
@@ -434,7 +438,7 @@ class TestREDPhaseEdgeCaseScenarios:
         # Should handle NULL gracefully - wrapped in Literal()
         assert "Literal(None)" in sql_str, "NULL should be properly parameterized"
 
-    def test_unicode_hostname_casting(self):
+    def test_unicode_hostname_casting(self) -> None:
         """RED: Ensure Unicode hostnames don't break casting."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")

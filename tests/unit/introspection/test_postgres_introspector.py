@@ -5,8 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from fraiseql.introspection.postgres_introspector import (
-    CompositeAttribute,
-    CompositeTypeMetadata,
     PostgresIntrospector,
 )
 
@@ -15,7 +13,7 @@ class TestPostgresIntrospector:
     """Test PostgresIntrospector functionality."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         pool = MagicMock()
         conn = MagicMock()
@@ -24,11 +22,11 @@ class TestPostgresIntrospector:
         return pool
 
     @pytest.fixture
-    def introspector(self, mock_pool):
+    def introspector(self, mock_pool) -> None:
         """Create PostgresIntrospector instance."""
         return PostgresIntrospector(mock_pool)
 
-    def test_parse_function_arguments_empty(self, introspector):
+    def test_parse_function_arguments_empty(self, introspector) -> None:
         """Test parsing empty function arguments."""
         result = introspector._parse_function_arguments("")
         assert result == []
@@ -36,7 +34,7 @@ class TestPostgresIntrospector:
         result = introspector._parse_function_arguments("   ")
         assert result == []
 
-    def test_parse_function_arguments_simple(self, introspector):
+    def test_parse_function_arguments_simple(self, introspector) -> None:
         """Test parsing simple function arguments."""
         args_str = "p_name text, p_email text"
         result = introspector._parse_function_arguments(args_str)
@@ -53,7 +51,7 @@ class TestPostgresIntrospector:
         assert result[1].mode == "IN"
         assert result[1].default_value is None
 
-    def test_parse_function_arguments_with_defaults(self, introspector):
+    def test_parse_function_arguments_with_defaults(self, introspector) -> None:
         """Test parsing function arguments with default values."""
         args_str = "p_name text, p_email text DEFAULT 'test@example.com'"
         result = introspector._parse_function_arguments(args_str)
@@ -68,7 +66,7 @@ class TestPostgresIntrospector:
         assert result[1].pg_type == "text"
         assert result[1].default_value == "'test@example.com'"
 
-    def test_parse_function_arguments_malformed(self, introspector):
+    def test_parse_function_arguments_malformed(self, introspector) -> None:
         """Test parsing malformed function arguments."""
         args_str = "malformed, p_name text"
         result = introspector._parse_function_arguments(args_str)
@@ -79,7 +77,7 @@ class TestPostgresIntrospector:
         assert result[0].pg_type == "text"
 
     @pytest.mark.asyncio
-    async def test_discover_composite_type_found(self, introspector, mock_pool):
+    async def test_discover_composite_type_found(self, introspector, mock_pool) -> None:
         """Test composite type discovery when type exists."""
         # Mock the database responses
         conn = mock_pool.connection.return_value.__aenter__.return_value
@@ -142,7 +140,7 @@ class TestPostgresIntrospector:
         assert company_attr.ordinal_position == 2
 
     @pytest.mark.asyncio
-    async def test_discover_composite_type_not_found(self, introspector, mock_pool):
+    async def test_discover_composite_type_not_found(self, introspector, mock_pool) -> None:
         """Test composite type discovery when type doesn't exist."""
         # Mock the database response
         conn = mock_pool.connection.return_value.__aenter__.return_value
@@ -159,7 +157,7 @@ class TestPostgresIntrospector:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_discover_views_includes_column_comments(self, introspector, mock_pool):
+    async def test_discover_views_includes_column_comments(self, introspector, mock_pool) -> None:
         """Test that view discovery includes column comments from PostgreSQL."""
         # Mock the database responses
         conn = mock_pool.connection.return_value.__aenter__.return_value

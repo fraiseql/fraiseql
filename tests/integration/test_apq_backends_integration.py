@@ -1,27 +1,25 @@
 """End-to-end integration tests for APQ backend abstraction."""
 
-import pytest
-
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.storage.backends.factory import create_apq_backend
-from fraiseql.storage.backends.memory import MemoryAPQBackend
-from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 from fraiseql.middleware.apq_caching import (
+    clear_backend_cache,
     get_apq_backend,
     handle_apq_request_with_cache,
     store_response_in_cache,
-    clear_backend_cache,
 )
+from fraiseql.storage.backends.factory import create_apq_backend
+from fraiseql.storage.backends.memory import MemoryAPQBackend
+from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 
 
 class MockRequest:
     """Mock GraphQL request for testing."""
 
-    def __init__(self, extensions=None):
+    def __init__(self, extensions=None) -> None:
         self.extensions = extensions or {}
 
 
-def test_end_to_end_memory_backend():
+def test_end_to_end_memory_backend() -> None:
     """Test complete APQ flow with memory backend."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -66,7 +64,7 @@ def test_end_to_end_memory_backend():
     assert cached_response == response
 
 
-def test_end_to_end_postgresql_backend():
+def test_end_to_end_postgresql_backend() -> None:
     """Test complete APQ flow with PostgreSQL backend."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -86,7 +84,7 @@ def test_end_to_end_postgresql_backend():
     assert backend._responses_table == "test_apq_responses"
 
 
-def test_backend_singleton_behavior():
+def test_backend_singleton_behavior() -> None:
     """Test that get_apq_backend returns same instance for same config."""
     clear_backend_cache()  # Clear any existing cache
 
@@ -102,9 +100,8 @@ def test_backend_singleton_behavior():
     assert backend1 is backend2
 
 
-def test_config_driven_backend_selection():
+def test_config_driven_backend_selection() -> None:
     """Test that configuration correctly drives backend selection."""
-
     # Memory backend
     memory_config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
@@ -122,7 +119,7 @@ def test_config_driven_backend_selection():
     assert isinstance(pg_backend, PostgreSQLAPQBackend)
 
 
-def test_caching_behavior_with_config():
+def test_caching_behavior_with_config() -> None:
     """Test that caching behavior respects configuration."""
     config_disabled = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -155,7 +152,7 @@ def test_caching_behavior_with_config():
     assert result_enabled == response
 
 
-def test_error_handling_integration():
+def test_error_handling_integration() -> None:
     """Test error handling across the integration."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -184,7 +181,7 @@ def test_error_handling_integration():
     assert result is None
 
 
-def test_response_storage_conditions():
+def test_response_storage_conditions() -> None:
     """Test that responses are stored only under correct conditions."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -211,7 +208,7 @@ def test_response_storage_conditions():
     assert backend.get_cached_response(hash_value) == success_response
 
 
-def test_custom_backend_config():
+def test_custom_backend_config() -> None:
     """Test custom backend configuration handling."""
     custom_config = {
         "table_prefix": "custom_apq_",
@@ -232,13 +229,13 @@ def test_custom_backend_config():
     assert backend._auto_create_tables is True
 
 
-def test_backward_compatibility():
+def test_backward_compatibility() -> None:
     """Test that existing APQ functionality continues to work."""
     from fraiseql.storage.apq_store import (
-        store_persisted_query,
-        get_persisted_query,
         clear_storage,
+        get_persisted_query,
         get_storage_stats,
+        store_persisted_query,
     )
 
     # Clear any existing data
@@ -261,7 +258,7 @@ def test_backward_compatibility():
     assert get_persisted_query(hash_value) is None
 
 
-def test_comprehensive_flow():
+def test_comprehensive_flow() -> None:
     """Test the complete APQ flow from request to cached response."""
     # Setup
     config = FraiseQLConfig(

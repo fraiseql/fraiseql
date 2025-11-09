@@ -7,7 +7,7 @@ This test should FAIL initially because the module doesn't exist yet.
 import pytest
 
 
-def test_fraiseql_rs_module_exists():
+def test_fraiseql_rs_module_exists() -> None:
     """Test that fraiseql_rs module can be imported.
 
     RED: This should fail with ModuleNotFoundError
@@ -21,7 +21,7 @@ def test_fraiseql_rs_module_exists():
         pytest.fail(f"fraiseql_rs module not found: {e}")
 
 
-def test_fraiseql_rs_has_version():
+def test_fraiseql_rs_has_version() -> None:
     """Test that fraiseql_rs module has __version__ attribute.
 
     RED: This should fail because module doesn't exist
@@ -34,7 +34,7 @@ def test_fraiseql_rs_has_version():
     assert len(fraiseql_rs.__version__) > 0
 
 
-def test_fraiseql_rs_version_format():
+def test_fraiseql_rs_version_format() -> None:
     """Test that version follows semantic versioning.
 
     Expected format: X.Y.Z or X.Y.Z-suffix

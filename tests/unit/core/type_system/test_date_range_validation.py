@@ -19,7 +19,7 @@ from fraiseql.types import (
 class TestValidateDateRange:
     """Test the validate_date_range function."""
 
-    def test_valid_date_range(self):
+    def test_valid_date_range(self) -> None:
         """Test validation with valid date range."""
 
         @fraise_input
@@ -33,7 +33,7 @@ class TestValidateDateRange:
         assert is_valid is True
         assert error_msg is None
 
-    def test_invalid_date_range(self):
+    def test_invalid_date_range(self) -> None:
         """Test validation with end date before start date."""
 
         @fraise_input
@@ -47,7 +47,7 @@ class TestValidateDateRange:
         assert is_valid is False
         assert error_msg == "End date (2025-01-01) cannot be before start date (2025-12-31)"
 
-    def test_same_dates(self):
+    def test_same_dates(self) -> None:
         """Test validation with same start and end dates."""
 
         @fraise_input
@@ -61,7 +61,7 @@ class TestValidateDateRange:
         assert is_valid is True
         assert error_msg is None
 
-    def test_unset_values(self):
+    def test_unset_values(self) -> None:
         """Test validation with UNSET values."""
 
         @fraise_input
@@ -87,7 +87,7 @@ class TestValidateDateRange:
         assert is_valid is True
         assert error_msg is None
 
-    def test_none_values(self):
+    def test_none_values(self) -> None:
         """Test validation with None values."""
 
         @fraise_input
@@ -117,7 +117,7 @@ class TestValidateDateRange:
 class TestGetDateRangeValidationErrors:
     """Test the get_date_range_validation_errors function."""
 
-    def test_valid_range_no_errors(self):
+    def test_valid_range_no_errors(self) -> None:
         """Test that valid range returns empty error list."""
 
         @fraise_input
@@ -130,7 +130,7 @@ class TestGetDateRangeValidationErrors:
         errors = get_date_range_validation_errors(obj)
         assert errors == []
 
-    def test_invalid_range_returns_errors(self):
+    def test_invalid_range_returns_errors(self) -> None:
         """Test that invalid range returns proper error format."""
 
         @fraise_input
@@ -153,7 +153,7 @@ class TestGetDateRangeValidationErrors:
 class TestDateRangeValidationMixin:
     """Test the DateRangeValidationMixin class."""
 
-    def test_mixin_validate_dates(self):
+    def test_mixin_validate_dates(self) -> None:
         """Test mixin's validate_dates method."""
 
         @fraise_input
@@ -173,7 +173,7 @@ class TestDateRangeValidationMixin:
         assert is_valid is False
         assert "cannot be before" in error_msg
 
-    def test_mixin_get_validation_errors(self):
+    def test_mixin_get_validation_errors(self) -> None:
         """Test mixin's get_validation_errors method."""
 
         @fraise_input
@@ -192,7 +192,7 @@ class TestDateRangeValidationMixin:
         assert len(errors) == 1
         assert errors[0]["code"] == 422
 
-    def test_mixin_with_optional_fields(self):
+    def test_mixin_with_optional_fields(self) -> None:
         """Test mixin with optional date fields."""
 
         @fraise_input
@@ -217,7 +217,7 @@ class TestDateRangeValidationMixin:
 class TestDateRangeValidatorDecorator:
     """Test the date_range_validator decorator."""
 
-    def test_decorator_adds_methods(self):
+    def test_decorator_adds_methods(self) -> None:
         """Test that decorator adds validation methods."""
 
         @date_range_validator
@@ -239,7 +239,7 @@ class TestDateRangeValidatorDecorator:
         errors = obj.get_validation_errors()
         assert errors == []
 
-    def test_decorator_with_invalid_range(self):
+    def test_decorator_with_invalid_range(self) -> None:
         """Test decorator with invalid date range."""
 
         @date_range_validator
@@ -258,7 +258,7 @@ class TestDateRangeValidatorDecorator:
         assert len(errors) == 1
         assert errors[0]["identifier"] == "validation_error"
 
-    def test_decorator_with_existing_methods(self):
+    def test_decorator_with_existing_methods(self) -> None:
         """Test that decorator doesn't break existing class functionality."""
 
         @date_range_validator
@@ -286,7 +286,7 @@ class TestDateRangeValidatorDecorator:
 class TestDateRangeValidatableProtocol:
     """Test the DateRangeValidatable protocol."""
 
-    def test_protocol_with_compliant_class(self):
+    def test_protocol_with_compliant_class(self) -> None:
         """Test that classes with start_date and end_date match protocol."""
 
         @fraise_input
@@ -306,7 +306,7 @@ class TestDateRangeValidatableProtocol:
         is_valid, _ = validate_date_range(obj)
         assert is_valid is True
 
-    def test_protocol_with_optional_dates(self):
+    def test_protocol_with_optional_dates(self) -> None:
         """Test protocol with optional date fields."""
 
         @fraise_input
@@ -324,7 +324,7 @@ class TestDateRangeValidatableProtocol:
 class TestIntegrationScenarios:
     """Test real-world integration scenarios."""
 
-    def test_mutation_integration_pattern(self):
+    def test_mutation_integration_pattern(self) -> None:
         """Test the pattern used in mutation resolvers."""
 
         @fraise_input
@@ -382,7 +382,7 @@ class TestIntegrationScenarios:
         assert "Invalid date range" in result["message"]
         assert len(result["errors"]) == 1
 
-    def test_update_mutation_pattern(self):
+    def test_update_mutation_pattern(self) -> None:
         """Test pattern for update mutations with partial data."""
 
         @date_range_validator

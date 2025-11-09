@@ -12,7 +12,7 @@ from typing import Optional
 
 import pytest
 
-from fraiseql import query, _fraiseql_rs
+from fraiseql import _fraiseql_rs, query
 from fraiseql.core.schema_serializer import SchemaSerializer
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.types import fraise_type
@@ -25,11 +25,12 @@ class TestSchemaRegistryInitialization:
     initialized once per test session. Tests are ordered to handle this.
     """
 
-    def test_01_initialize_simple_schema(self):
+    def test_01_initialize_simple_schema(self) -> None:
         """Test that schema can be initialized from Python with simple types.
 
         This test runs first and initializes the global registry.
         """
+
         # Build a simple test schema
         @fraise_type
         class User:
@@ -41,10 +42,7 @@ class TestSchemaRegistryInitialization:
         async def users(info) -> list[User]:
             return []
 
-        schema = build_fraiseql_schema(
-            query_types=[User, users],
-            mutation_resolvers=[]
-        )
+        schema = build_fraiseql_schema(query_types=[User, users], mutation_resolvers=[])
 
         # Serialize schema to JSON IR
         serializer = SchemaSerializer()
@@ -65,12 +63,13 @@ class TestSchemaRegistryInitialization:
             else:
                 raise  # Re-raise if it's a different error
 
-    def test_02_verify_nested_objects_schema_structure(self):
+    def test_02_verify_nested_objects_schema_structure(self) -> None:
         """Test that schema with nested objects can be serialized correctly.
 
         Note: We can't re-initialize the registry, so we just verify
         the schema serialization structure is correct.
         """
+
         # Build schema with nested objects (Issue #112 scenario)
         @fraise_type
         class Equipment:
@@ -89,8 +88,7 @@ class TestSchemaRegistryInitialization:
             return []
 
         schema = build_fraiseql_schema(
-            query_types=[Equipment, Assignment, assignments],
-            mutation_resolvers=[]
+            query_types=[Equipment, Assignment, assignments], mutation_resolvers=[]
         )
 
         # Serialize and verify structure
@@ -109,12 +107,13 @@ class TestSchemaRegistryInitialization:
         assert equipment_field["is_nested_object"] is True
         assert equipment_field["type_name"] == "Equipment"
 
-    def test_03_verify_list_types_schema_structure(self):
+    def test_03_verify_list_types_schema_structure(self) -> None:
         """Test that schema with list types can be serialized correctly.
 
         Note: We can't re-initialize the registry, so we just verify
         the schema serialization structure is correct.
         """
+
         @fraise_type
         class Tag:
             id: uuid.UUID
@@ -130,10 +129,7 @@ class TestSchemaRegistryInitialization:
         async def posts(info) -> list[Post]:
             return []
 
-        schema = build_fraiseql_schema(
-            query_types=[Tag, Post, posts],
-            mutation_resolvers=[]
-        )
+        schema = build_fraiseql_schema(query_types=[Tag, Post, posts], mutation_resolvers=[])
 
         serializer = SchemaSerializer()
         schema_ir = serializer.serialize_schema(schema)
@@ -145,7 +141,7 @@ class TestSchemaRegistryInitialization:
         assert tags_field["is_nested_object"] is True
         assert tags_field["type_name"] == "Tag"
 
-    def test_initialize_with_malformed_json(self):
+    def test_initialize_with_malformed_json(self) -> None:
         """Test that malformed JSON raises clear error.
 
         RED PHASE: This test will FAIL (function doesn't exist yet).
@@ -160,7 +156,7 @@ class TestSchemaRegistryInitialization:
         error_msg = str(exc_info.value).lower()
         assert "json" in error_msg or "parse" in error_msg
 
-    def test_initialize_with_empty_json(self):
+    def test_initialize_with_empty_json(self) -> None:
         """Test that empty JSON is rejected.
 
         This validates that required fields are checked.
@@ -175,7 +171,7 @@ class TestSchemaRegistryInitialization:
         error_msg = str(exc_info.value).lower()
         assert "version" in error_msg or "types" in error_msg or "missing" in error_msg
 
-    def test_initialize_with_empty_string(self):
+    def test_initialize_with_empty_string(self) -> None:
         """Test that empty string is rejected with clear error."""
         with pytest.raises(ValueError) as exc_info:
             _fraiseql_rs.initialize_schema_registry("")
@@ -183,7 +179,7 @@ class TestSchemaRegistryInitialization:
         error_msg = str(exc_info.value).lower()
         assert "empty" in error_msg
 
-    def test_performance_large_schema(self):
+    def test_performance_large_schema(self) -> None:
         """Test initialization performance with a large schema.
 
         Target: < 100ms for 100-type schema (from plan)
@@ -194,6 +190,7 @@ class TestSchemaRegistryInitialization:
         # Build a large schema with many types
         types = []
         for i in range(50):
+
             @fraise_type
             class DynamicType:
                 id: uuid.UUID
@@ -211,10 +208,7 @@ class TestSchemaRegistryInitialization:
 
         # Note: This schema has already been initialized in test_01, so we
         # just verify the serialization performance is acceptable
-        schema = build_fraiseql_schema(
-            query_types=types + [large_query],
-            mutation_resolvers=[]
-        )
+        schema = build_fraiseql_schema(query_types=types + [large_query], mutation_resolvers=[])
 
         serializer = SchemaSerializer()
 
@@ -224,14 +218,16 @@ class TestSchemaRegistryInitialization:
         serialization_time_ms = (time.time() - start) * 1000
 
         # Serialization should be fast (< 100ms for 50+ types)
-        assert serialization_time_ms < 100, f"Serialization took {serialization_time_ms:.2f}ms (target: < 100ms)"
+        assert serialization_time_ms < 100, (
+            f"Serialization took {serialization_time_ms:.2f}ms (target: < 100ms)"
+        )
 
         # Verify the schema structure is correct
         assert len(schema_ir["types"]) >= 50, f"Expected >= 50 types, got {len(schema_ir['types'])}"
         assert schema_ir["version"] == "1.0"
         assert "type_resolution" in schema_ir["features"]
 
-    def test_error_message_quality(self):
+    def test_error_message_quality(self) -> None:
         """Test that error messages are helpful for debugging."""
         # Test with JSON missing 'version' field
         invalid_schema = json.dumps({"features": [], "types": {}})

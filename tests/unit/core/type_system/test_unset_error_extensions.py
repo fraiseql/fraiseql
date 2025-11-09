@@ -73,7 +73,7 @@ async def error_query_func(info) -> SampleType:
 
 
 @pytest.fixture
-def test_app(clear_registry, monkeypatch):
+def test_app(clear_registry, monkeypatch) -> None:
     """Create test app with our test types."""
     from unittest.mock import MagicMock
 
@@ -94,12 +94,12 @@ def test_app(clear_registry, monkeypatch):
 
 
 @pytest.fixture
-def test_client(test_app):
+def test_client(test_app) -> None:
     """Create test client."""
     return TestClient(test_app)
 
 
-def test_graphql_error_with_unset_in_extensions(test_client, clear_registry):
+def test_graphql_error_with_unset_in_extensions(test_client, clear_registry) -> None:
     """Test that UNSET values in error extensions are properly serialized."""
     query = """
     query {
@@ -132,14 +132,14 @@ def test_graphql_error_with_unset_in_extensions(test_client, clear_registry):
     assert extensions["debug_info"]["unset_value"] is None  # UNSET -> None
 
 
-def test_mutation_error_with_unset_input(test_client, monkeypatch, clear_registry):
+def test_mutation_error_with_unset_input(test_client, monkeypatch, clear_registry) -> None:
     """Test mutation error handling when input contains UNSET."""
     from unittest.mock import MagicMock
 
     # Mock the database to simulate an error
     mock_db = MagicMock()
 
-    async def mock_execute_function(func_name, input_data):
+    async def mock_execute_function(func_name, input_data) -> None:
         # Simulate error that includes the input data
         raise GraphQLError(
             "Database constraint violation",
@@ -153,7 +153,7 @@ def test_mutation_error_with_unset_input(test_client, monkeypatch, clear_registr
     mock_db.execute_function = mock_execute_function
 
     # Override the context getter to provide our mock
-    async def get_test_context(request):
+    async def get_test_context(request) -> None:
         return {"db": mock_db}
 
     # Create a new app with our context getter
@@ -194,7 +194,7 @@ def test_mutation_error_with_unset_input(test_client, monkeypatch, clear_registr
     assert len(data["errors"]) > 0
 
 
-def test_production_mode_error_handling(monkeypatch, clear_registry):
+def test_production_mode_error_handling(monkeypatch, clear_registry) -> None:
     """Test that production mode also handles UNSET in errors."""
     from unittest.mock import MagicMock
 

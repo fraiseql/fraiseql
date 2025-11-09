@@ -814,14 +814,82 @@ query {
 }
 ```
 
-**Supported specialized types:**
+**50+ Specialized Scalar Types:**
 
-- **Network:** IPv4, IPv6, CIDR, MACAddress with subnet operations
-- **Hierarchical:** LTree with ancestor/descendant queries
-- **Temporal:** DateRange with overlap/containment
-- **Geospatial:** Coordinate (latitude/longitude) with distance calculations
-- **Standard:** EmailAddress, UUID, JSON with validation
-- **Nested Arrays:** Complete AND/OR/NOT logical operators
+**Financial & Trading:**
+- CUSIP, ISIN, SEDOL, MIC, LEI - Security identifiers
+- Money, Percentage, ExchangeRate - Financial values
+- CurrencyCode, StockSymbol - Trading symbols
+
+**Network & Infrastructure:**
+- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
+- Hostname, DomainName, Port, EmailAddress - Internet identifiers
+- APIKey, HashSHA256 - Security tokens
+
+**Geospatial & Location:**
+- Coordinate, Latitude, Longitude - Geographic coordinates with distance calculations
+- PostalCode, Timezone - Location data
+
+**Business & Logistics:**
+- ContainerNumber, FlightNumber, TrackingNumber, VIN - Asset identifiers
+- IBAN, LicensePlate - Financial & vehicle identifiers
+- PhoneNumber, LocaleCode, LanguageCode - Contact & localization
+
+**Technical & Data:**
+- UUID, JSON, Date, DateTime, Time, DateRange - Standard types with validation
+- LTree - Hierarchical data with ancestor/descendant queries
+- SemanticVersion, Color, MIMEType, File, Image - Specialized formats
+- HTML, Markdown - Rich text content
+
+**Advanced Filtering:** Full-text search, JSONB queries, array operations, regex on all types
+
+#### Scalar Type Usage Examples
+
+```python
+from fraiseql import type
+from fraiseql.types import (
+    EmailAddress, PhoneNumber, Money, Percentage,
+    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
+)
+
+@type(sql_source="v_financial_data")
+class FinancialRecord:
+    id: int
+    email: EmailAddress           # Validated email addresses
+    phone: PhoneNumber           # International phone numbers
+    balance: Money               # Currency amounts with precision
+    margin: Percentage           # Percentages (0.00-100.00)
+    security_id: CUSIP | ISIN    # Financial instrument identifiers
+
+@type(sql_source="v_network_devices")
+class NetworkDevice:
+    id: int
+    ip_address: IPv4             # IPv4 addresses with subnet operations
+    mac_address: MACAddress      # MAC addresses with validation
+    location: LTree              # Hierarchical location paths
+    maintenance_window: DateRange # Date ranges with overlap queries
+```
+
+```graphql
+# Advanced filtering with specialized types
+query {
+  financialRecords(where: {
+    balance: { gte: "1000.00" }           # Money comparison
+    margin: { between: ["5.0", "15.0"] }   # Percentage range
+    security_id: { eq: "037833100" }       # CUSIP validation
+  }) {
+    id balance margin security_id
+  }
+
+  networkDevices(where: {
+    ip_address: { inSubnet: "192.168.1.0/24" }  # CIDR operations
+    location: { ancestor_of: "US.CA.SF" }       # LTree hierarchy
+    maintenance_window: { overlaps: "[2024-01-01,2024-12-31)" }
+  }) {
+    id ip_address location
+  }
+}
+```
 
 **[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/nested-array-filtering.md)**
 

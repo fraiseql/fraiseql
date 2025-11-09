@@ -12,7 +12,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 class TestAutoMutationFields:
     """Test that @fraiseql.success and @fraiseql.failure automatically inject standard fields."""
 
-    def test_success_auto_injects_standard_fields(self):
+    def test_success_auto_injects_standard_fields(self) -> None:
         """Test that @success automatically adds status, message, errors fields."""
 
         @fraiseql.success
@@ -32,7 +32,7 @@ class TestAutoMutationFields:
         assert "message" in field_names  # Auto-injected
         assert "errors" in field_names  # Auto-injected
 
-    def test_failure_auto_injects_standard_fields(self):
+    def test_failure_auto_injects_standard_fields(self) -> None:
         """Test that @failure automatically adds status, message, errors fields."""
 
         @fraiseql.failure
@@ -52,7 +52,7 @@ class TestAutoMutationFields:
         assert "message" in field_names  # Auto-injected
         assert "errors" in field_names  # Auto-injected
 
-    def test_parser_works_with_auto_injected_fields(self):
+    def test_parser_works_with_auto_injected_fields(self) -> None:
         """Test that mutation parser works with auto-injected fields."""
 
         @fraiseql.success
@@ -84,7 +84,7 @@ class TestAutoMutationFields:
         assert parsed_success.errors is None  # Success shouldn't have errors
         assert parsed_success.entity is not None
 
-    def test_error_case_with_auto_injected_fields(self):
+    def test_error_case_with_auto_injected_fields(self) -> None:
         """Test error case with auto-injected fields and error auto-population."""
 
         @fraiseql.success
@@ -121,7 +121,7 @@ class TestAutoMutationFields:
         assert parsed_error.errors[0].message == "Entity already exists"
         assert parsed_error.errors[0].identifier == "already_exists"
 
-    def test_explicit_fields_override_auto_injection(self):
+    def test_explicit_fields_override_auto_injection(self) -> None:
         """Test that explicitly defined fields override auto-injection."""
 
         @fraiseql.success
@@ -140,7 +140,7 @@ class TestAutoMutationFields:
         assert "errors" in field_names
         assert "entity" in field_names
 
-    def test_no_inheritance_needed_for_fraiseql_patterns(self):
+    def test_no_inheritance_needed_for_fraiseql_patterns(self) -> None:
         """Test that FraiseQL patterns work without any inheritance."""
 
         # This should work exactly like FraiseQL's current patterns

@@ -1,6 +1,5 @@
 """Test to reproduce the first query returning null issue."""
 
-import json
 import uuid
 from typing import Optional
 
@@ -11,7 +10,6 @@ from graphql import GraphQLResolveInfo
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 # Define the User type
 
@@ -68,7 +66,7 @@ async def users(info: GraphQLResolveInfo, limit: int = 10) -> list[User]:
     return result
 
 
-def test_first_query_returns_null_simple():
+def test_first_query_returns_null_simple() -> None:
     """Test that demonstrates the first query returning null issue using simple mocked queries."""
     # Create the app without database
     app = create_fraiseql_app(

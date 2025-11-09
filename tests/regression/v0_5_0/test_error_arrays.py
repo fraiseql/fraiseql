@@ -146,7 +146,7 @@ def create_author_mutation_logic(input_data: dict) -> Union[CreateAuthorSuccess,
 class TestErrorArraysV050:
     """Test error arrays functionality introduced in v0.5.0."""
 
-    def test_multiple_validation_errors_returned_as_array(self):
+    def test_multiple_validation_errors_returned_as_array(self) -> None:
         """Test that multiple validation errors are returned as structured array."""
         # Input with multiple validation errors
         input_data = {
@@ -175,7 +175,7 @@ class TestErrorArraysV050:
         assert "name_too_long" in error_identifiers
         assert "invalid_email_format" in error_identifiers
 
-    def test_successful_creation_returns_empty_errors_array(self):
+    def test_successful_creation_returns_empty_errors_array(self) -> None:
         """Test that successful operations return empty errors array."""
         input_data = {
             "identifier": "success-author",
@@ -196,7 +196,7 @@ class TestErrorArraysV050:
         assert result.author is not None
         assert result.author.identifier == "success-author"
 
-    def test_error_array_structure_consistency(self):
+    def test_error_array_structure_consistency(self) -> None:
         """Test that all errors in array follow consistent structure."""
         # Input that will generate multiple different error types
         input_data = {"identifier": "", "name": "", "email": "bad-email"}
@@ -237,7 +237,7 @@ class TestErrorArraysV050:
             if error.details:
                 assert isinstance(error.details, dict), f"Error {i} 'details' should be dict"
 
-    def test_field_level_error_grouping_capability(self):
+    def test_field_level_error_grouping_capability(self) -> None:
         """Test that errors can be grouped by field for client convenience."""
         input_data = {
             "identifier": "",  # Missing required field
@@ -277,7 +277,7 @@ class TestErrorArraysV050:
         email_errors = field_errors["email"]
         assert any("format" in e["identifier"] for e in email_errors)
 
-    def test_validation_summary_provides_aggregated_information(self):
+    def test_validation_summary_provides_aggregated_information(self) -> None:
         """Test that validation summary provides useful aggregated error information."""
         input_data = {
             "identifier": "",  # Missing field - validation error
@@ -294,7 +294,7 @@ class TestErrorArraysV050:
         assert validation_summary["has_validation_errors"] is True
         assert validation_summary["has_conflicts"] is False
 
-    def test_error_array_supports_different_error_codes(self):
+    def test_error_array_supports_different_error_codes(self) -> None:
         """Test that error arrays can contain different HTTP status codes."""
 
         # Add conflict check to validation function temporarily for this test

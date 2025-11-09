@@ -52,7 +52,7 @@ class CreateLocationError:
     message: str = ""
 
 
-def test_single_entity_mapping_from_object_data():
+def test_single_entity_mapping_from_object_data() -> None:
     """Test mapping entire object_data to a single entity field."""
     # Simulate PostgreSQL function result
     db_result = {
@@ -89,7 +89,7 @@ class UpdateLocationSuccess:
     affected_machines: list[Machine] | None = None
 
 
-def test_multiple_entity_mapping_from_object_data():
+def test_multiple_entity_mapping_from_object_data() -> None:
     """Test mapping object_data with multiple named entities."""
     db_result = {
         "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -141,7 +141,7 @@ class CreateMachineSuccess:
     machine: Machine | None = None
 
 
-def test_entity_mapping_with_metadata_hint():
+def test_entity_mapping_with_metadata_hint() -> None:
     """Test mapping with entity hint in extra_metadata."""
     db_result = {
         "id": "789e4567-e89b-12d3-a456-426614174000",
@@ -173,7 +173,7 @@ class ComplexMutationSuccess:
     deleted_machines: list[Machine] | None = None
 
 
-def test_complex_mutation_with_selective_population():
+def test_complex_mutation_with_selective_population() -> None:
     """Test that only relevant fields are populated from object_data."""
     db_result = {
         "id": "999e4567-e89b-12d3-a456-426614174000",
@@ -210,7 +210,7 @@ def test_complex_mutation_with_selective_population():
 
 
 # Test case 5: UNSET value handling
-def test_entity_mapping_with_unset_values():
+def test_entity_mapping_with_unset_values() -> None:
     """Test that UNSET values are properly cleaned during mapping."""
     from fraiseql.types.definitions import UNSET
 
@@ -237,7 +237,7 @@ def test_entity_mapping_with_unset_values():
 
 
 # Test case 6: Empty object_data handling
-def test_empty_object_data():
+def test_empty_object_data() -> None:
     """Test that empty or null object_data is handled gracefully."""
     db_result = {
         "id": None,
@@ -263,7 +263,7 @@ class BulkCreateSuccess:
     locations: list[Location] | None = None
 
 
-def test_list_entity_mapping():
+def test_list_entity_mapping() -> None:
     """Test mapping a list of entities from object_data."""
     db_result = {
         "id": None,

@@ -5,8 +5,8 @@ The current implementation only recognizes nested objects when they contain an '
 but the fix will extend this to recognize nested filters on any field.
 """
 
-import pytest
 from unittest.mock import MagicMock
+
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
@@ -15,12 +15,12 @@ from fraiseql.db import FraiseQLRepository
 class TestNestedObjectFilterDetection:
     """Test nested object filter detection logic."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test repository with mock pool."""
         self.mock_pool = MagicMock(spec=AsyncConnectionPool)
         self.repo = FraiseQLRepository(self.mock_pool)
 
-    def test_current_behavior_nested_id_filter_works(self):
+    def test_current_behavior_nested_id_filter_works(self) -> None:
         """Test that nested filters on 'id' field currently work (FK scenario).
 
         This documents the existing behavior that works.
@@ -40,7 +40,7 @@ class TestNestedObjectFilterDetection:
         assert "device_id" in sql_str
         assert "some-device-id" in sql_str
 
-    def test_nested_non_id_filter_now_works(self):
+    def test_nested_non_id_filter_now_works(self) -> None:
         """Test that nested filters on non-'id' fields now work correctly.
 
         🟢 GREEN CYCLE: After the fix, nested filters on any field should work.
@@ -67,7 +67,7 @@ class TestNestedObjectFilterDetection:
         assert "->>" in sql_str
         assert "true" in sql_str
 
-    def test_nested_name_filter_now_works(self):
+    def test_nested_name_filter_now_works(self) -> None:
         """Test that nested filters on 'name' field now work correctly.
 
         🟢 GREEN CYCLE: After the fix, nested string filters should work.
@@ -90,7 +90,7 @@ class TestNestedObjectFilterDetection:
         assert "LIKE" in sql_str
         assert "%router%" in sql_str
 
-    def test_camelcase_nested_filter_now_works(self):
+    def test_camelcase_nested_filter_now_works(self) -> None:
         """Test that camelCase nested filters now work correctly.
 
         🟢 GREEN CYCLE: camelCase field names should be converted to snake_case.
@@ -117,7 +117,7 @@ class TestNestedObjectFilterDetection:
         # Should NOT contain the original camelCase
         assert "isActive" not in sql_str
 
-    def test_detection_helper_fk_scenario(self):
+    def test_detection_helper_fk_scenario(self) -> None:
         """Test that the detection helper correctly identifies FK scenarios."""
         # FK scenario: {"id": {"eq": value}} with FK column present
         field_filter = {"id": {"eq": "device-123"}}
@@ -130,7 +130,7 @@ class TestNestedObjectFilterDetection:
         assert is_nested is True
         assert use_fk is True
 
-    def test_detection_helper_jsonb_scenario(self):
+    def test_detection_helper_jsonb_scenario(self) -> None:
         """Test that the detection helper correctly identifies JSONB scenarios."""
         # JSONB scenario: {"is_active": {"eq": True}} with data column present
         field_filter = {"is_active": {"eq": True}}
@@ -143,7 +143,7 @@ class TestNestedObjectFilterDetection:
         assert is_nested is True
         assert use_fk is False
 
-    def test_detection_helper_no_nested_object(self):
+    def test_detection_helper_no_nested_object(self) -> None:
         """Test that the detection helper correctly identifies non-nested filters."""
         # Not a nested object: regular operator filter
         field_filter = {"eq": "value"}
@@ -156,7 +156,7 @@ class TestNestedObjectFilterDetection:
         assert is_nested is False
         assert use_fk is False
 
-    def test_detection_helper_no_table_columns(self):
+    def test_detection_helper_no_table_columns(self) -> None:
         """Test detection when no table columns are provided."""
         # Without table columns, should not detect JSONB scenario
         field_filter = {"is_active": {"eq": True}}
@@ -169,7 +169,7 @@ class TestNestedObjectFilterDetection:
         assert is_nested is False
         assert use_fk is False
 
-    def test_detection_helper_no_data_column(self):
+    def test_detection_helper_no_data_column(self) -> None:
         """Test detection when table has no 'data' column (not JSONB table)."""
         # Without 'data' column, should not detect JSONB scenario
         field_filter = {"is_active": {"eq": True}}

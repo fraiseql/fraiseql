@@ -19,7 +19,7 @@ class TestDataLoader:
         batch_fn = AsyncMock(return_value=["a", "b", "c"])
 
         class TestLoader(DataLoader):
-            async def batch_load(self, keys):
+            async def batch_load(self, keys) -> None:
                 return await batch_fn(keys)
 
         loader = TestLoader()
@@ -38,7 +38,7 @@ class TestDataLoader:
         call_count = 0
 
         class TestLoader(DataLoader):
-            async def batch_load(self, keys):
+            async def batch_load(self, keys) -> None:
                 nonlocal call_count
                 call_count += 1
                 return [f"value_{k}" for k in keys]
@@ -61,7 +61,7 @@ class TestDataLoader:
         batch_fn = AsyncMock(return_value=["a", "b"])
 
         class TestLoader(DataLoader):
-            async def batch_load(self, keys):
+            async def batch_load(self, keys) -> None:
                 return await batch_fn(keys)
 
         loader = TestLoader()
@@ -103,7 +103,7 @@ class TestDataLoader:
             def __init__(self) -> None:
                 super().__init__(max_batch_size=2)
 
-            async def batch_load(self, keys):
+            async def batch_load(self, keys) -> None:
                 batches_called.append(keys)
                 return [f"value_{k}" for k in keys]
 

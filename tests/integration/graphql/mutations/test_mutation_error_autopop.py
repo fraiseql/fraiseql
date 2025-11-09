@@ -40,7 +40,7 @@ class MutationTestError:
 class TestMutationErrorAutoPopulation:
     """Test cases for automatic error field population."""
 
-    def test_error_field_auto_populated_when_none(self):
+    def test_error_field_auto_populated_when_none(self) -> None:
         """Test that errors field is auto-populated when it's None."""
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -80,7 +80,7 @@ class TestMutationErrorAutoPopulation:
         else:
             assert parsed.errors[0].details == {"conflict_id": "existing-id"}
 
-    def test_error_field_not_overwritten_if_provided(self):
+    def test_error_field_not_overwritten_if_provided(self) -> None:
         """Test that explicitly provided errors are not overwritten."""
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -111,7 +111,7 @@ class TestMutationErrorAutoPopulation:
         assert parsed.errors[0].message == "Field 'name' is required"
         assert parsed.errors[0].identifier == "missing_field"
 
-    def test_conflicting_entity_populated_from_object_data(self):
+    def test_conflicting_entity_populated_from_object_data(self) -> None:
         """Test that other fields like conflicting_entity are populated from object_data."""
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -145,7 +145,7 @@ class TestMutationErrorAutoPopulation:
         assert len(parsed.errors) == 1
         assert parsed.errors[0].identifier == "duplicate_name"
 
-    def test_various_status_codes_mapped_correctly(self):
+    def test_various_status_codes_mapped_correctly(self) -> None:
         """Test that different status patterns map to appropriate error codes."""
         test_cases = [
             ("noop:not_found", 404),
@@ -182,7 +182,7 @@ class TestMutationErrorAutoPopulation:
                 f"Status {status} should map to code {expected_code}"
             )
 
-    def test_success_result_not_affected(self):
+    def test_success_result_not_affected(self) -> None:
         """Test that successful results are not affected by error auto-population."""
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",

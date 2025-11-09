@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 DASHBOARD_DIR = Path(__file__).parent.parent.parent / "grafana"
 DASHBOARD_FILES = [
     "error_monitoring.json",
@@ -25,13 +24,13 @@ DASHBOARD_FILES = [
 
 
 @pytest.fixture
-def dashboard_files():
+def dashboard_files() -> None:
     """Return list of dashboard file paths."""
     return [DASHBOARD_DIR / filename for filename in DASHBOARD_FILES]
 
 
 @pytest.fixture
-def dashboards(dashboard_files):
+def dashboards(dashboard_files) -> None:
     """Load all dashboard JSON files."""
     dashboards = {}
     for filepath in dashboard_files:
@@ -43,12 +42,12 @@ def dashboards(dashboard_files):
 class TestDashboardStructure:
     """Test dashboard JSON structure and validity."""
 
-    def test_all_dashboard_files_exist(self, dashboard_files):
+    def test_all_dashboard_files_exist(self, dashboard_files) -> None:
         """All expected dashboard files should exist."""
         for filepath in dashboard_files:
             assert filepath.exists(), f"Dashboard file not found: {filepath}"
 
-    def test_dashboards_are_valid_json(self, dashboard_files):
+    def test_dashboards_are_valid_json(self, dashboard_files) -> None:
         """All dashboard files should contain valid JSON."""
         for filepath in dashboard_files:
             with open(filepath) as f:
@@ -57,7 +56,7 @@ class TestDashboardStructure:
                 except json.JSONDecodeError as e:
                     pytest.fail(f"Invalid JSON in {filepath}: {e}")
 
-    def test_dashboards_have_required_top_level_keys(self, dashboards):
+    def test_dashboards_have_required_top_level_keys(self, dashboards) -> None:
         """Each dashboard should have required top-level keys."""
         required_keys = ["dashboard", "overwrite", "message"]
 
@@ -65,7 +64,7 @@ class TestDashboardStructure:
             for key in required_keys:
                 assert key in dashboard, f"{name}: Missing required key '{key}'"
 
-    def test_dashboard_metadata(self, dashboards):
+    def test_dashboard_metadata(self, dashboards) -> None:
         """Each dashboard should have proper metadata."""
         required_metadata = ["title", "tags", "timezone", "schemaVersion", "panels"]
 
@@ -80,13 +79,13 @@ class TestDashboardStructure:
             # Verify tags include 'fraiseql'
             assert "fraiseql" in dashboard_obj["tags"], f"{name}: Missing 'fraiseql' tag"
 
-    def test_dashboard_has_panels(self, dashboards):
+    def test_dashboard_has_panels(self, dashboards) -> None:
         """Each dashboard should have at least one panel."""
         for name, dashboard in dashboards.items():
             panels = dashboard["dashboard"]["panels"]
             assert len(panels) > 0, f"{name}: Dashboard has no panels"
 
-    def test_panel_structure(self, dashboards):
+    def test_panel_structure(self, dashboards) -> None:
         """Each panel should have required fields."""
         required_panel_fields = ["id", "title", "type", "gridPos", "targets"]
 
@@ -103,7 +102,7 @@ class TestDashboardStructure:
                 panel_ids = [p["id"] for p in panels]
                 assert len(panel_ids) == len(set(panel_ids)), f"{name}: Duplicate panel IDs found"
 
-    def test_panel_grid_position(self, dashboards):
+    def test_panel_grid_position(self, dashboards) -> None:
         """Each panel should have valid grid position."""
         for name, dashboard in dashboards.items():
             panels = dashboard["dashboard"]["panels"]
@@ -128,7 +127,7 @@ class TestDashboardStructure:
                     f"{name}, panel '{panel['title']}': Invalid height {grid_pos['h']}"
                 )
 
-    def test_panel_targets(self, dashboards):
+    def test_panel_targets(self, dashboards) -> None:
         """Each panel should have at least one target with SQL query."""
         for name, dashboard in dashboards.items():
             panels = dashboard["dashboard"]["panels"]
@@ -146,7 +145,7 @@ class TestDashboardStructure:
                     )
                     assert target["rawSql"], f"{name}, panel '{panel['title']}': Empty SQL query"
 
-    def test_templating_variables(self, dashboards):
+    def test_templating_variables(self, dashboards) -> None:
         """Dashboards should have required template variables."""
         for name, dashboard in dashboards.items():
             assert "templating" in dashboard["dashboard"], (
@@ -172,7 +171,7 @@ class TestDashboardStructure:
                 f"{name}: Environment variable missing 'production' option"
             )
 
-    def test_time_configuration(self, dashboards):
+    def test_time_configuration(self, dashboards) -> None:
         """Dashboards should have time configuration."""
         for name, dashboard in dashboards.items():
             assert "time" in dashboard["dashboard"], f"{name}: Missing time configuration"
@@ -181,7 +180,7 @@ class TestDashboardStructure:
             assert "from" in time_config, f"{name}: Missing time 'from'"
             assert "to" in time_config, f"{name}: Missing time 'to'"
 
-    def test_refresh_rate(self, dashboards):
+    def test_refresh_rate(self, dashboards) -> None:
         """Dashboards should have refresh rate configured."""
         for name, dashboard in dashboards.items():
             assert "refresh" in dashboard["dashboard"], f"{name}: Missing refresh configuration"
@@ -200,7 +199,7 @@ class TestDashboardStructure:
 class TestDashboardSpecificContent:
     """Test dashboard-specific content requirements."""
 
-    def test_error_monitoring_dashboard(self, dashboards):
+    def test_error_monitoring_dashboard(self, dashboards) -> None:
         """Error monitoring dashboard should have error-specific panels."""
         dashboard = dashboards["error_monitoring"]
         panel_titles = [p["title"] for p in dashboard["dashboard"]["panels"]]
@@ -215,7 +214,7 @@ class TestDashboardSpecificContent:
         for expected in expected_panels:
             assert expected in panel_titles, f"Error monitoring dashboard missing panel: {expected}"
 
-    def test_performance_metrics_dashboard(self, dashboards):
+    def test_performance_metrics_dashboard(self, dashboards) -> None:
         """Performance metrics dashboard should have performance-specific panels."""
         dashboard = dashboards["performance_metrics"]
         panel_titles = [p["title"] for p in dashboard["dashboard"]["panels"]]
@@ -229,7 +228,7 @@ class TestDashboardSpecificContent:
         for expected in expected_panels:
             assert expected in panel_titles, f"Performance dashboard missing panel: {expected}"
 
-    def test_cache_hit_rate_dashboard(self, dashboards):
+    def test_cache_hit_rate_dashboard(self, dashboards) -> None:
         """Cache hit rate dashboard should have cache-specific panels."""
         dashboard = dashboards["cache_hit_rate"]
         panel_titles = [p["title"] for p in dashboard["dashboard"]["panels"]]
@@ -243,7 +242,7 @@ class TestDashboardSpecificContent:
         for expected in expected_panels:
             assert expected in panel_titles, f"Cache hit rate dashboard missing panel: {expected}"
 
-    def test_database_pool_dashboard(self, dashboards):
+    def test_database_pool_dashboard(self, dashboards) -> None:
         """Database pool dashboard should have pool-specific panels."""
         dashboard = dashboards["database_pool"]
         panel_titles = [p["title"] for p in dashboard["dashboard"]["panels"]]
@@ -257,7 +256,7 @@ class TestDashboardSpecificContent:
         for expected in expected_panels:
             assert expected in panel_titles, f"Database pool dashboard missing panel: {expected}"
 
-    def test_apq_effectiveness_dashboard(self, dashboards):
+    def test_apq_effectiveness_dashboard(self, dashboards) -> None:
         """APQ effectiveness dashboard should have APQ-specific panels."""
         dashboard = dashboards["apq_effectiveness"]
         panel_titles = [p["title"] for p in dashboard["dashboard"]["panels"]]
@@ -277,7 +276,7 @@ class TestDashboardSpecificContent:
 class TestDashboardTags:
     """Test dashboard tagging for organization."""
 
-    def test_dashboards_have_appropriate_tags(self, dashboards):
+    def test_dashboards_have_appropriate_tags(self, dashboards) -> None:
         """Each dashboard should have relevant tags."""
         expected_tags = {
             "error_monitoring": ["fraiseql", "errors", "monitoring"],

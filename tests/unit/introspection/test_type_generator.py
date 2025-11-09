@@ -1,7 +1,7 @@
 """Unit tests for TypeGenerator."""
 
-from unittest.mock import AsyncMock, MagicMock
 from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,23 +15,23 @@ class TestTypeGenerator:
     """Test TypeGenerator functionality."""
 
     @pytest.fixture
-    def type_mapper(self):
+    def type_mapper(self) -> None:
         """Create a TypeMapper instance."""
         return TypeMapper()
 
     @pytest.fixture
-    def type_generator(self, type_mapper):
+    def type_generator(self, type_mapper) -> None:
         """Create a TypeGenerator instance."""
         return TypeGenerator(type_mapper)
 
-    def test_view_name_to_class_name(self, type_generator):
+    def test_view_name_to_class_name(self, type_generator) -> None:
         """Test view name to class name conversion."""
         assert type_generator._view_name_to_class_name("v_user") == "User"
         assert type_generator._view_name_to_class_name("v_user_profile") == "UserProfile"
         assert type_generator._view_name_to_class_name("tv_machine_item") == "MachineItem"
         assert type_generator._view_name_to_class_name("v_simple") == "Simple"
 
-    def test_infer_pg_type_from_value(self, type_generator):
+    def test_infer_pg_type_from_value(self, type_generator) -> None:
         """Test PostgreSQL type inference from Python values."""
         assert type_generator._infer_pg_type_from_value(True) == "boolean"
         assert type_generator._infer_pg_type_from_value(42) == "integer"
@@ -41,14 +41,14 @@ class TestTypeGenerator:
         assert type_generator._infer_pg_type_from_value([1, 2, 3]) == "jsonb"
         assert type_generator._infer_pg_type_from_value(None) == "text"  # fallback
 
-    def test_infer_pg_type_from_uuid_string(self, type_generator):
+    def test_infer_pg_type_from_uuid_string(self, type_generator) -> None:
         """Test UUID string detection."""
         from uuid import uuid4
 
         uuid_str = str(uuid4())
         assert type_generator._infer_pg_type_from_value(uuid_str) == "uuid"
 
-    def test_apply_type_decorator_mock(self, type_generator):
+    def test_apply_type_decorator_mock(self, type_generator) -> None:
         """Test applying @type decorator (mocked)."""
 
         # Create a mock class
@@ -56,7 +56,7 @@ class TestTypeGenerator:
             pass
 
         # Mock the fraiseql.type decorator
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_decorated_class = MagicMock()
         mock_decorator_func = MagicMock(return_value=mock_decorated_class)
@@ -73,7 +73,7 @@ class TestTypeGenerator:
             mock_decorator_func.assert_called_once_with(MockClass)
             assert result == mock_decorated_class
 
-    def test_register_type_mock(self, type_generator):
+    def test_register_type_mock(self, type_generator) -> None:
         """Test registering type in registry (mocked)."""
 
         class MockClass:
@@ -87,7 +87,7 @@ class TestTypeGenerator:
             # Should register the class
             mock_registry.__setitem__.assert_called_once_with("MockClass", MockClass)
 
-    async def test_introspect_jsonb_column_with_data(self, type_generator):
+    async def test_introspect_jsonb_column_with_data(self, type_generator) -> None:
         """Test JSONB introspection when view has data."""
         # Mock database connection
         mock_conn = AsyncMock()
@@ -101,7 +101,7 @@ class TestTypeGenerator:
         mock_conn.fetchrow.return_value = mock_row
 
         @asynccontextmanager
-        async def mock_connection():
+        async def mock_connection() -> None:
             yield mock_conn
 
         mock_pool = MagicMock()
@@ -120,7 +120,7 @@ class TestTypeGenerator:
         assert result["age"]["type"] == "integer"
         assert result["active"]["type"] == "boolean"
 
-    async def test_introspect_jsonb_column_empty_view(self, type_generator):
+    async def test_introspect_jsonb_column_empty_view(self, type_generator) -> None:
         """Test JSONB introspection when view is empty."""
         # Mock database connection - no data
         mock_conn = AsyncMock()
@@ -136,7 +136,7 @@ class TestTypeGenerator:
         ) as mock_fallback:
 
             @asynccontextmanager
-            async def mock_connection():
+            async def mock_connection() -> None:
                 yield mock_conn
 
             mock_pool = MagicMock()
@@ -148,7 +148,7 @@ class TestTypeGenerator:
             mock_fallback.assert_called_once()
             assert result == {"id": {"type": "uuid", "nullable": False}}
 
-    async def test_introspect_view_definition(self, type_generator):
+    async def test_introspect_view_definition(self, type_generator) -> None:
         """Test view definition introspection fallback."""
         mock_conn = AsyncMock()
         mock_rows = [
@@ -178,7 +178,7 @@ class TestTypeGenerator:
         assert result["name"]["type"] == "text"
         assert result["name"]["nullable"] is True
 
-    async def test_view_comment_used_as_type_description(self, type_generator):
+    async def test_view_comment_used_as_type_description(self, type_generator) -> None:
         """Test that PostgreSQL view comments become GraphQL type descriptions."""
         # Arrange
         view_metadata = ViewMetadata(
@@ -200,7 +200,7 @@ class TestTypeGenerator:
         mock_conn.fetchrow.return_value = mock_row
 
         @asynccontextmanager
-        async def mock_connection():
+        async def mock_connection() -> None:
             yield mock_conn
 
         mock_pool = MagicMock()

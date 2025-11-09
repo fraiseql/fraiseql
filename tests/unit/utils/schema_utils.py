@@ -149,7 +149,7 @@ class SchemaQualifiedQueryBuilder:
     SQL queries in tests.
     """
 
-    def __init__(self, schema: str):
+    def __init__(self, schema: str) -> None:
         """Initialize the query builder with a schema name.
 
         Args:

@@ -5,9 +5,8 @@ GraphQL camelCase field names to database snake_case field names automatically
 in WHERE clause processing.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-from psycopg.sql import SQL, Composed
+from unittest.mock import MagicMock
+
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
@@ -16,12 +15,12 @@ from fraiseql.db import FraiseQLRepository
 class TestFieldNameMapping:
     """Test automatic field name conversion in WHERE clauses."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test repository with mock pool."""
         self.mock_pool = MagicMock(spec=AsyncConnectionPool)
         self.repo = FraiseQLRepository(self.mock_pool)
 
-    def test_camel_case_where_field_names_work_automatically(self):
+    def test_camel_case_where_field_names_work_automatically(self) -> None:
         """GraphQL camelCase field names should work in WHERE clauses without manual conversion.
 
         🔴 RED CYCLE: This test will fail initially - that's expected!
@@ -42,7 +41,7 @@ class TestFieldNameMapping:
         # Should contain the IP value
         assert "192.168.1.1" in sql_str
 
-    def test_multiple_camel_case_fields_converted(self):
+    def test_multiple_camel_case_fields_converted(self) -> None:
         """Multiple camelCase fields should all be converted automatically.
 
         🔴 RED CYCLE: This will fail initially.
@@ -68,7 +67,7 @@ class TestFieldNameMapping:
         assert "macAddress" not in sql_str
         assert "deviceName" not in sql_str
 
-    def test_snake_case_fields_work_unchanged(self):
+    def test_snake_case_fields_work_unchanged(self) -> None:
         """Existing snake_case field names should continue to work (backward compatibility)."""
         where_clause = {"ip_address": {"eq": "192.168.1.1"}}
 
@@ -79,7 +78,7 @@ class TestFieldNameMapping:
         assert "ip_address" in sql_str
         assert "192.168.1.1" in sql_str
 
-    def test_mixed_case_fields_both_work(self):
+    def test_mixed_case_fields_both_work(self) -> None:
         """Mixed camelCase and snake_case fields should both work in same query."""
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1"},  # camelCase
@@ -103,7 +102,7 @@ class TestFieldNameMapping:
         assert "ipAddress" not in sql_str
         assert "deviceName" not in sql_str
 
-    def test_field_name_conversion_method_exists(self):
+    def test_field_name_conversion_method_exists(self) -> None:
         """The field name conversion method should exist and work correctly.
 
         🔴 RED CYCLE: This will fail because method doesn't exist yet.
@@ -121,12 +120,12 @@ class TestFieldNameMapping:
         assert self.repo._convert_field_name_to_database("ip_address") == "ip_address"
         assert self.repo._convert_field_name_to_database("status") == "status"
 
-    def test_empty_where_clause_handling(self):
+    def test_empty_where_clause_handling(self) -> None:
         """Empty WHERE clauses should be handled gracefully."""
         result = self.repo._convert_dict_where_to_sql({})
         assert result is None
 
-    def test_none_field_values_ignored(self):
+    def test_none_field_values_ignored(self) -> None:
         """None values in WHERE clauses should be ignored."""
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1"},  # Valid
@@ -146,7 +145,7 @@ class TestFieldNameMapping:
         assert "status" not in sql_str
         assert "device_name" not in sql_str
 
-    def test_complex_camel_case_conversions(self):
+    def test_complex_camel_case_conversions(self) -> None:
         """Test more complex camelCase to snake_case conversions."""
         test_cases = [
             ("ipAddress", "ip_address"),
@@ -178,7 +177,7 @@ class TestFieldNameMapping:
                 f"Original camelCase {camel_case} should not appear in SQL"
             )
 
-    def test_edge_case_field_names(self):
+    def test_edge_case_field_names(self) -> None:
         """Test edge cases like empty strings and unusual field names."""
         # Test empty field name handling
         assert self.repo._convert_field_name_to_database("") == ""
@@ -194,7 +193,7 @@ class TestFieldNameMapping:
         assert self.repo._convert_field_name_to_database("id1") == "id1"
         assert self.repo._convert_field_name_to_database("apiV2Key") == "api_v2_key"
 
-    def test_method_is_idempotent(self):
+    def test_method_is_idempotent(self) -> None:
         """Calling the conversion method multiple times should produce the same result."""
         test_cases = ["ipAddress", "ip_address", "deviceName", "status"]
 

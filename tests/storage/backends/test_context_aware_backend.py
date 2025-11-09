@@ -1,14 +1,12 @@
 """Tests for context-aware APQ backend functionality."""
 
-import pytest
-
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
 
 class TestContextAwareAPQBackend:
     """Test that APQ backends accept and use optional context parameter."""
 
-    def test_store_cached_response_accepts_context(self):
+    def test_store_cached_response_accepts_context(self) -> None:
         """Test that store_cached_response accepts an optional context parameter."""
         backend = MemoryAPQBackend()
 
@@ -23,7 +21,7 @@ class TestContextAwareAPQBackend:
         stored = backend.get_cached_response(test_hash, context=test_context)
         assert stored is not None
 
-    def test_get_cached_response_accepts_context(self):
+    def test_get_cached_response_accepts_context(self) -> None:
         """Test that get_cached_response accepts an optional context parameter."""
         backend = MemoryAPQBackend()
 
@@ -42,7 +40,7 @@ class TestContextAwareAPQBackend:
         cached_global = backend.get_cached_response(test_hash)
         assert cached_global == test_response
 
-    def test_backward_compatibility_without_context(self):
+    def test_backward_compatibility_without_context(self) -> None:
         """Test that existing code without context still works."""
         backend = MemoryAPQBackend()
 
@@ -55,10 +53,11 @@ class TestContextAwareAPQBackend:
 
         assert cached == test_response
 
-    def test_base_class_signature_supports_context(self):
+    def test_base_class_signature_supports_context(self) -> None:
         """Test that the abstract base class defines context parameter."""
-        from fraiseql.storage.backends.base import APQStorageBackend
         import inspect
+
+        from fraiseql.storage.backends.base import APQStorageBackend
 
         # Check method signatures include context parameter
         store_sig = inspect.signature(APQStorageBackend.store_cached_response)
@@ -68,7 +67,7 @@ class TestContextAwareAPQBackend:
         assert "context" in store_sig.parameters
         assert "context" in get_sig.parameters
 
-    def test_context_extraction_helpers(self):
+    def test_context_extraction_helpers(self) -> None:
         """Test the extract_tenant_id helper method."""
         backend = MemoryAPQBackend()
 
@@ -91,7 +90,7 @@ class TestContextAwareAPQBackend:
         # None context
         assert backend.extract_tenant_id(None) is None
 
-    def test_cache_key_generation_with_tenant(self):
+    def test_cache_key_generation_with_tenant(self) -> None:
         """Test that base backend implements tenant isolation."""
         backend = MemoryAPQBackend()
 

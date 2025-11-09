@@ -50,7 +50,7 @@ except ImportError:
 
 
 @pytest.fixture(scope="session")
-def smart_dependencies():
+def smart_dependencies() -> None:
     """Ensure all required dependencies are available for example tests."""
     # Skip complex dependency management - assume dependencies are available when running via uv
     # This assumes the tests are being run in the proper environment
@@ -68,7 +68,7 @@ def smart_dependencies():
 
 
 @pytest.fixture(scope="session")
-def examples_event_loop():
+def examples_event_loop() -> None:
     """Create event loop for examples testing."""
     loop = asyncio.new_event_loop()
     yield loop
@@ -76,7 +76,7 @@ def examples_event_loop():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def blog_simple_db_url(smart_dependencies):
+async def blog_simple_db_url(smart_dependencies) -> None:
     """Setup blog_simple test database using smart database manager."""
     db_manager = get_database_manager()
 
@@ -100,7 +100,7 @@ async def blog_simple_db_url(smart_dependencies):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_db_connection(blog_simple_db_url):
+async def blog_simple_db_connection(blog_simple_db_url) -> None:
     """Provide database connection for blog_simple tests."""
     try:
         import psycopg
@@ -113,7 +113,7 @@ async def blog_simple_db_connection(blog_simple_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_repository(blog_simple_db_connection):
+async def blog_simple_repository(blog_simple_db_connection) -> None:
     """Provide CQRS repository for blog_simple tests."""
     from fraiseql.cqrs import CQRSRepository
 
@@ -133,7 +133,7 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
 
 
 @pytest_asyncio.fixture
-async def blog_simple_app(smart_dependencies, blog_simple_db_url):
+async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> None:
     """Create blog_simple app for testing with guaranteed dependencies."""
     blog_simple_path = None
     original_sys_modules = None
@@ -208,7 +208,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_client(blog_simple_app):
+async def blog_simple_client(blog_simple_app) -> None:
     """HTTP client for blog_simple app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture
     from httpx import AsyncClient, ASGITransport
@@ -221,11 +221,11 @@ async def blog_simple_client(blog_simple_app):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_graphql_client(blog_simple_client):
+async def blog_simple_graphql_client(blog_simple_client) -> None:
     """GraphQL client for blog_simple."""
 
     class GraphQLClient:
-        def __init__(self, http_client: AsyncClient):
+        def __init__(self, http_client: AsyncClient) -> None:
             self.client = http_client
 
         async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
@@ -239,7 +239,7 @@ async def blog_simple_graphql_client(blog_simple_client):
 
 
 @pytest_asyncio.fixture(scope="session")
-async def blog_enterprise_db_url(smart_dependencies):
+async def blog_enterprise_db_url(smart_dependencies) -> None:
     """Setup blog_enterprise test database using smart database manager."""
     db_manager = get_database_manager()
 
@@ -263,7 +263,7 @@ async def blog_enterprise_db_url(smart_dependencies):
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
+async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url) -> None:
     """Create blog_enterprise app for testing with guaranteed dependencies."""
     blog_enterprise_path = None
     original_sys_modules = None
@@ -338,7 +338,7 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_client(blog_enterprise_app):
+async def blog_enterprise_client(blog_enterprise_app) -> None:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture
     from httpx import AsyncClient, ASGITransport
@@ -352,7 +352,7 @@ async def blog_enterprise_client(blog_enterprise_app):
 
 # Sample data fixtures that work across examples
 @pytest.fixture
-def sample_user_data():
+def sample_user_data() -> None:
     """Sample user data for testing."""
     return {
         "username": f"testuser_{uuid4().hex[:8]}",
@@ -368,7 +368,7 @@ def sample_user_data():
 
 
 @pytest.fixture
-def sample_post_data():
+def sample_post_data() -> None:
     """Sample post data for testing."""
     return {
         "title": f"Test Post {uuid4().hex[:8]}",
@@ -379,7 +379,7 @@ def sample_post_data():
 
 
 @pytest.fixture
-def sample_tag_data():
+def sample_tag_data() -> None:
     """Sample tag data for testing."""
     return {
         "name": f"Test Tag {uuid4().hex[:8]}",
@@ -389,7 +389,7 @@ def sample_tag_data():
 
 
 @pytest.fixture
-def sample_comment_data():
+def sample_comment_data() -> None:
     """Sample comment data for testing."""
     return {
         "content": f"This is a test comment {uuid4().hex[:8]} with valuable insights for integration testing."

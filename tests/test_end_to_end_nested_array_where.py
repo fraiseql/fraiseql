@@ -11,8 +11,8 @@ from typing import Optional
 import pytest
 
 from fraiseql.fields import fraise_field
-from fraiseql.types import fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.types import fraise_type
 
 
 @fraise_type
@@ -41,7 +41,7 @@ class Network:
 class TestEndToEndNestedArrayWhere:
     """End-to-end tests for the complete nested array where filtering feature."""
 
-    def test_schema_generation_with_where_parameter(self):
+    def test_schema_generation_with_where_parameter(self) -> None:
         """Test that GraphQL schema is generated correctly with where parameter."""
         try:
             # Create a proper query function
@@ -79,7 +79,7 @@ class TestEndToEndNestedArrayWhere:
         except Exception as e:
             pytest.fail(f"Schema generation should work with where filtering: {e}")
 
-    def test_device_where_input_type_generated(self):
+    def test_device_where_input_type_generated(self) -> None:
         """Test that DeviceWhereInput type is properly generated."""
         try:
             # Create a proper query function
@@ -110,7 +110,7 @@ class TestEndToEndNestedArrayWhere:
         except Exception as e:
             pytest.fail(f"DeviceWhereInput type generation should work: {e}")
 
-    def test_field_resolver_integration(self):
+    def test_field_resolver_integration(self) -> None:
         """Test that the enhanced field resolver is properly integrated."""
         # Create a Network instance with devices
         network = Network(
@@ -154,12 +154,12 @@ class TestEndToEndNestedArrayWhere:
             assert hasattr(devices_field, "nested_where_type")
             assert devices_field.nested_where_type == Device
 
-    def test_where_filter_creation_and_usage(self):
+    def test_where_filter_creation_and_usage(self) -> None:
         """Test creating and using where filters directly."""
-        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
         from fraiseql.core.nested_field_resolver import (
             create_nested_array_field_resolver_with_where,
         )
+        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
         # Create DeviceWhereInput type
         DeviceWhereInput = create_graphql_where_input(Device)
@@ -203,7 +203,7 @@ class TestEndToEndNestedArrayWhere:
         assert result[0].status == "active"
         assert result[0].ip_address is not None
 
-    def test_automatic_where_input_generation(self):
+    def test_automatic_where_input_generation(self) -> None:
         """Test that where input types are generated automatically from nested_where_type."""
         # Create a field with nested_where_type instead of explicit where_input_type
         test_field = fraise_field(supports_where_filtering=True, nested_where_type=Device)
@@ -213,12 +213,12 @@ class TestEndToEndNestedArrayWhere:
         assert test_field.nested_where_type == Device
         assert test_field.where_input_type is None  # Should be generated automatically
 
-    def test_complex_where_filtering_scenarios(self):
+    def test_complex_where_filtering_scenarios(self) -> None:
         """Test complex where filtering scenarios with multiple conditions."""
-        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
         from fraiseql.core.nested_field_resolver import (
             create_nested_array_field_resolver_with_where,
         )
+        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
         DeviceWhereInput = create_graphql_where_input(Device)
 

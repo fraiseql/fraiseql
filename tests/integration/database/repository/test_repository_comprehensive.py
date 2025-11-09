@@ -14,7 +14,7 @@ from fraiseql.cqrs.repository import CQRSRepository
 
 @pytest.mark.unit
 @pytest.fixture
-def mock_connection():
+def mock_connection() -> None:
     """Create a mock async database connection."""
     conn = AsyncMock(spec=AsyncConnection)
     conn.execute = AsyncMock()
@@ -24,14 +24,14 @@ def mock_connection():
 
 
 @pytest.fixture
-def mock_executor():
+def mock_executor() -> None:
     """Create a mock CQRS executor."""
     executor = AsyncMock(spec=CQRSExecutor)
     return executor
 
 
 @pytest.fixture
-async def repository(mock_connection):
+async def repository(mock_connection) -> None:
     """Create a repository instance with mock connection."""
     return CQRSRepository(mock_connection)
 
@@ -39,7 +39,7 @@ async def repository(mock_connection):
 class TestCQRSRepositoryCommands:
     """Test command methods (write operations)."""
 
-    async def test_create_entity(self, repository, mock_connection):
+    async def test_create_entity(self, repository, mock_connection) -> None:
         """Test creating an entity via SQL function."""
         # Mock the executor
         test_id = uuid4()
@@ -57,7 +57,7 @@ class TestCQRSRepositoryCommands:
             )
             assert result == expected_result
 
-    async def test_update_entity(self, repository):
+    async def test_update_entity(self, repository) -> None:
         """Test updating an entity via SQL function."""
         test_id = uuid4()
         update_data = {"id": test_id, "name": "Updated User"}
@@ -71,7 +71,7 @@ class TestCQRSRepositoryCommands:
             mock_exec.assert_called_once_with("fn_update_user", update_data)
             assert result == expected_result
 
-    async def test_delete_entity(self, repository):
+    async def test_delete_entity(self, repository) -> None:
         """Test deleting an entity via SQL function."""
         test_id = uuid4()
         expected_result = {"id": test_id, "deleted": True}
@@ -84,7 +84,7 @@ class TestCQRSRepositoryCommands:
             mock_exec.assert_called_once_with("fn_delete_user", {"id": str(test_id)})
             assert result == expected_result
 
-    async def test_execute_custom_function(self, repository):
+    async def test_execute_custom_function(self, repository) -> None:
         """Test executing a custom SQL function."""
         function_result = {"status": "success", "count": 5}
 
@@ -100,7 +100,7 @@ class TestCQRSRepositoryCommands:
 class TestCQRSRepositoryQueries:
     """Test query methods (read operations)."""
 
-    async def test_find_by_id(self, repository, mock_connection):
+    async def test_find_by_id(self, repository, mock_connection) -> None:
         """Test finding entity by ID."""
         test_id = uuid4()
         expected_data = {
@@ -130,7 +130,7 @@ class TestCQRSRepositoryQueries:
         assert "vw_user" in str(query_args[0])  # View name
         assert test_id in query_args[1]  # ID in parameters
 
-    async def test_find_by_id_not_found(self, repository, mock_connection):
+    async def test_find_by_id_not_found(self, repository, mock_connection) -> None:
         """Test finding entity by ID when not found."""
         test_id = uuid4()
 
@@ -144,7 +144,7 @@ class TestCQRSRepositoryQueries:
         result = await repository.find_by_id(User, test_id)
         assert result is None
 
-    async def test_list_entities(self, repository, mock_connection):
+    async def test_list_entities(self, repository, mock_connection) -> None:
         """Test listing entities with pagination."""
         expected_data = [
             {"data": {"id": "1", "name": "User 1"}},
@@ -174,7 +174,7 @@ class TestCQRSRepositoryQueries:
         assert "LIMIT" in query_str
         assert "OFFSET" in query_str
 
-    async def test_list_with_filtering(self, repository, mock_connection):
+    async def test_list_with_filtering(self, repository, mock_connection) -> None:
         """Test listing entities with where clause."""
         expected_data = [{"data": {"id": "1", "name": "Active User"}}]
 
@@ -195,7 +195,7 @@ class TestCQRSRepositoryQueries:
         cursor.execute.assert_called_once()
         # Where clause should be applied
 
-    async def test_list_with_ordering(self, repository, mock_connection):
+    async def test_list_with_ordering(self, repository, mock_connection) -> None:
         """Test listing entities with order by."""
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = []
 
@@ -216,7 +216,7 @@ class TestCQRSRepositoryQueries:
 
         assert "ORDER BY" in query_str
 
-    async def test_find_by_view(self, repository, mock_connection):
+    async def test_find_by_view(self, repository, mock_connection) -> None:
         """Test finding by custom view."""
         expected_data = [{"data": {"id": "1", "email": "user@example.com"}}]
 
@@ -241,7 +241,7 @@ class TestCQRSRepositoryQueries:
         query_args = cursor.execute.call_args[0]
         assert "vw_active_users" in str(query_args[0])
 
-    async def test_execute_raw_query(self, repository):
+    async def test_execute_raw_query(self, repository) -> None:
         """Test executing raw SQL query."""
         expected_data = [{"count": 10, "status": "active"}]
 
@@ -265,7 +265,7 @@ class TestCQRSRepositoryQueries:
 class TestCQRSRepositoryBatchOperations:
     """Test batch operations."""
 
-    async def test_batch_create(self, repository):
+    async def test_batch_create(self, repository) -> None:
         """Test batch creating entities."""
         inputs = [
             {"name": "User 1", "email": "user1@example.com"},
@@ -284,7 +284,7 @@ class TestCQRSRepositoryBatchOperations:
             assert len(results) == 2
             assert mock_exec.call_count == 2
 
-    async def test_batch_update(self, repository):
+    async def test_batch_update(self, repository) -> None:
         """Test batch updating entities."""
         updates = [{"id": "1", "name": "Updated 1"}, {"id": "2", "name": "Updated 2"}]
         expected_results = [
@@ -300,7 +300,7 @@ class TestCQRSRepositoryBatchOperations:
             assert len(results) == 2
             assert mock_exec.call_count == 2
 
-    async def test_batch_delete(self, repository):
+    async def test_batch_delete(self, repository) -> None:
         """Test batch deleting entities."""
         ids = [uuid4(), uuid4(), uuid4()]
         expected_results = [
@@ -321,7 +321,7 @@ class TestCQRSRepositoryBatchOperations:
 class TestCQRSRepositoryTransactions:
     """Test transaction handling."""
 
-    async def test_with_transaction(self, mock_connection):
+    async def test_with_transaction(self, mock_connection) -> None:
         """Test executing operations within a transaction."""
         # Mock transaction context
         transaction = AsyncMock()
@@ -342,7 +342,7 @@ class TestCQRSRepositoryTransactions:
 class TestCQRSRepositoryUtilities:
     """Test utility methods."""
 
-    def test_get_view_name(self):
+    def test_get_view_name(self) -> None:
         """Test view name generation from entity type."""
 
         @fraiseql.type
@@ -353,14 +353,14 @@ class TestCQRSRepositoryUtilities:
         view_name = repo._get_view_name(UserProfile)
         assert view_name == "vw_user_profile"
 
-    def test_get_function_name(self):
+    def test_get_function_name(self) -> None:
         """Test function name generation."""
         repo = CQRSRepository(MagicMock())
 
         assert repo._get_function_name("create", "user") == "fn_create_user"
         assert repo._get_function_name("update", "user_profile") == "fn_update_user_profile"
 
-    async def test_count_entities(self, repository, mock_connection):
+    async def test_count_entities(self, repository, mock_connection) -> None:
         """Test counting entities."""
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [42]
 
@@ -377,7 +377,7 @@ class TestCQRSRepositoryUtilities:
         query_args = cursor.execute.call_args[0]
         assert "COUNT(*)" in str(query_args[0])
 
-    async def test_exists(self, repository, mock_connection):
+    async def test_exists(self, repository, mock_connection) -> None:
         """Test checking entity existence."""
         test_id = uuid4()
 
@@ -402,7 +402,7 @@ class TestCQRSRepositoryUtilities:
 class TestCQRSRepositoryErrorHandling:
     """Test error handling in repository."""
 
-    async def test_handle_missing_function(self, repository):
+    async def test_handle_missing_function(self, repository) -> None:
         """Test handling when SQL function doesn't exist."""
         with patch.object(repository.executor, "execute_function") as mock_exec:
             mock_exec.side_effect = Exception("function fn_create_invalid does not exist")
@@ -410,7 +410,7 @@ class TestCQRSRepositoryErrorHandling:
             with pytest.raises(Exception, match="function.*does not exist"):
                 await repository.create("invalid", {"data": "test"})
 
-    async def test_handle_query_error(self, repository, mock_connection):
+    async def test_handle_query_error(self, repository, mock_connection) -> None:
         """Test handling query execution errors."""
         mock_connection.cursor.return_value.__aenter__.return_value.execute.side_effect = Exception(
             """relation does not exist"""

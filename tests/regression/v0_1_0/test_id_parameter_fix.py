@@ -34,7 +34,7 @@ async def create_item(info, id_: UUID, class_: str) -> Item:
 
 # Subscription with reserved word parameter
 @subscription
-async def watch_items(info, type_: str) -> AsyncGenerator[Item, None]:
+async def watch_items(info, type_: str) -> AsyncGenerator[Item]:
     """Watch items of a specific type."""
     # Simulate streaming items
     for i in range(3):
@@ -44,12 +44,12 @@ async def watch_items(info, type_: str) -> AsyncGenerator[Item, None]:
 
 
 class TestReservedWordParameters:
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         SchemaRegistry._instance = None
         SchemaConfig._instance = None
 
-    def test_graphql_schema_removes_trailing_underscore(self):
+    def test_graphql_schema_removes_trailing_underscore(self) -> None:
         """Test that GraphQL schema exposes 'id' not 'id_'."""
         # Get schema
         registry = SchemaRegistry.get_instance()
@@ -91,7 +91,7 @@ class TestReservedWordParameters:
         assert "class_" not in create_item_field.args
 
     @pytest.mark.asyncio
-    async def test_query_execution_with_reserved_words(self):
+    async def test_query_execution_with_reserved_words(self) -> None:
         """Test that queries execute correctly with reserved word mapping."""
         from graphql import graphql
 
@@ -130,7 +130,7 @@ class TestReservedWordParameters:
         assert result.data["getItem"]["type"] == "special"
 
     @pytest.mark.asyncio
-    async def test_mutation_execution_with_reserved_words(self):
+    async def test_mutation_execution_with_reserved_words(self) -> None:
         """Test that mutations execute correctly with reserved word mapping."""
         from graphql import graphql
 
@@ -169,7 +169,7 @@ class TestReservedWordParameters:
         assert result.data is not None
         assert result.data["createItem"]["className"] == "PremiumClass"
 
-    def test_introspection_shows_clean_names(self):
+    def test_introspection_shows_clean_names(self) -> None:
         """Test that introspection shows clean GraphQL names without underscores."""
         from graphql import graphql_sync
 

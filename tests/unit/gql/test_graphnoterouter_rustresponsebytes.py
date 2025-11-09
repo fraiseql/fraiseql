@@ -6,17 +6,18 @@ These tests verify that GraphNoteRouter correctly handles RustResponseBytes
 returned by execute_graphql() and passes them through as HTTP response bytes.
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock
+
+import pytest
+from graphql import ExecutionResult, GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
 from starlette.requests import Request
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.gql.graphql_entrypoint import GraphNoteRouter
-from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString, ExecutionResult
 
 
 @pytest.mark.asyncio
-async def test_graphnoterouter_handles_rustresponsebytes():
+async def test_graphnoterouter_handles_rustresponsebytes() -> None:
     """Test that GraphNoteRouter returns Response with bytes for RustResponseBytes.
 
     This test verifies Phase 2 implementation:
@@ -31,12 +32,7 @@ async def test_graphnoterouter_handles_rustresponsebytes():
 
     # Create a simple schema
     schema = GraphQLSchema(
-        query=GraphQLObjectType(
-            name="Query",
-            fields={
-                "hello": GraphQLField(GraphQLString)
-            }
-        )
+        query=GraphQLObjectType(name="Query", fields={"hello": GraphQLField(GraphQLString)})
     )
 
     # Create router
@@ -45,9 +41,10 @@ async def test_graphnoterouter_handles_rustresponsebytes():
     # Mock execute_graphql to return RustResponseBytes
     # We need to patch it where it's used
     import fraiseql.gql.graphql_entrypoint as gql_module
+
     original_execute_graphql = gql_module.execute_graphql
 
-    async def mock_execute_graphql(*args, **kwargs):
+    async def mock_execute_graphql(*args, **kwargs) -> None:
         return rust_response
 
     gql_module.execute_graphql = mock_execute_graphql
@@ -56,9 +53,7 @@ async def test_graphnoterouter_handles_rustresponsebytes():
         # Create mock request
         mock_request = Mock(spec=Request)
         mock_request.method = "POST"
-        mock_request.json = AsyncMock(return_value={
-            "query": "{ hello }"
-        })
+        mock_request.json = AsyncMock(return_value={"query": "{ hello }"})
 
         # Call handle_graphql
         response = await router.handle_graphql(mock_request)
@@ -68,9 +63,7 @@ async def test_graphnoterouter_handles_rustresponsebytes():
         assert response.media_type == "application/json", (
             f"Expected application/json, got {response.media_type}"
         )
-        assert response.body == mock_response_bytes, (
-            f"Expected bytes to match, got {response.body}"
-        )
+        assert response.body == mock_response_bytes, f"Expected bytes to match, got {response.body}"
 
     finally:
         # Restore original
@@ -78,19 +71,14 @@ async def test_graphnoterouter_handles_rustresponsebytes():
 
 
 @pytest.mark.asyncio
-async def test_graphnoterouter_handles_normal_executionresult():
+async def test_graphnoterouter_handles_normal_executionresult() -> None:
     """Test that GraphNoteRouter still handles normal ExecutionResult correctly.
 
     This verifies backwards compatibility - normal GraphQL execution should work.
     """
     # Create a simple schema
     schema = GraphQLSchema(
-        query=GraphQLObjectType(
-            name="Query",
-            fields={
-                "hello": GraphQLField(GraphQLString)
-            }
-        )
+        query=GraphQLObjectType(name="Query", fields={"hello": GraphQLField(GraphQLString)})
     )
 
     # Create router
@@ -98,9 +86,10 @@ async def test_graphnoterouter_handles_normal_executionresult():
 
     # Mock execute_graphql to return ExecutionResult
     import fraiseql.gql.graphql_entrypoint as gql_module
+
     original_execute_graphql = gql_module.execute_graphql
 
-    async def mock_execute_graphql(*args, **kwargs):
+    async def mock_execute_graphql(*args, **kwargs) -> None:
         return ExecutionResult(data={"hello": "world"}, errors=None)
 
     gql_module.execute_graphql = mock_execute_graphql
@@ -109,9 +98,7 @@ async def test_graphnoterouter_handles_normal_executionresult():
         # Create mock request
         mock_request = Mock(spec=Request)
         mock_request.method = "POST"
-        mock_request.json = AsyncMock(return_value={
-            "query": "{ hello }"
-        })
+        mock_request.json = AsyncMock(return_value={"query": "{ hello }"})
 
         # Call handle_graphql
         response = await router.handle_graphql(mock_request)
@@ -121,6 +108,7 @@ async def test_graphnoterouter_handles_normal_executionresult():
 
         # Parse JSON response
         import json
+
         data = json.loads(response.body)
         assert "data" in data, f"Expected 'data' in response: {data}"
         assert data["data"]["hello"] == "world", f"Expected hello=world: {data}"
@@ -131,19 +119,14 @@ async def test_graphnoterouter_handles_normal_executionresult():
 
 
 @pytest.mark.asyncio
-async def test_graphnoterouter_handles_errors_in_executionresult():
+async def test_graphnoterouter_handles_errors_in_executionresult() -> None:
     """Test that GraphNoteRouter handles errors correctly.
 
     This verifies error handling - errors should return 400 status.
     """
     # Create a simple schema
     schema = GraphQLSchema(
-        query=GraphQLObjectType(
-            name="Query",
-            fields={
-                "hello": GraphQLField(GraphQLString)
-            }
-        )
+        query=GraphQLObjectType(name="Query", fields={"hello": GraphQLField(GraphQLString)})
     )
 
     # Create router
@@ -151,15 +134,13 @@ async def test_graphnoterouter_handles_errors_in_executionresult():
 
     # Mock execute_graphql to return ExecutionResult with errors
     import fraiseql.gql.graphql_entrypoint as gql_module
+
     original_execute_graphql = gql_module.execute_graphql
 
     from graphql import GraphQLError
 
-    async def mock_execute_graphql(*args, **kwargs):
-        return ExecutionResult(
-            data=None,
-            errors=[GraphQLError("Test error")]
-        )
+    async def mock_execute_graphql(*args, **kwargs) -> None:
+        return ExecutionResult(data=None, errors=[GraphQLError("Test error")])
 
     gql_module.execute_graphql = mock_execute_graphql
 
@@ -167,9 +148,7 @@ async def test_graphnoterouter_handles_errors_in_executionresult():
         # Create mock request
         mock_request = Mock(spec=Request)
         mock_request.method = "POST"
-        mock_request.json = AsyncMock(return_value={
-            "query": "{ hello }"
-        })
+        mock_request.json = AsyncMock(return_value={"query": "{ hello }"})
 
         # Call handle_graphql
         response = await router.handle_graphql(mock_request)
@@ -179,6 +158,7 @@ async def test_graphnoterouter_handles_errors_in_executionresult():
 
         # Parse JSON response
         import json
+
         data = json.loads(response.body)
         assert "errors" in data, f"Expected 'errors' in response: {data}"
         assert len(data["errors"]) > 0, f"Expected at least one error: {data}"

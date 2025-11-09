@@ -5,10 +5,11 @@ These tests should FAIL initially because the function doesn't exist yet.
 """
 
 import json
+
 import pytest
 
 
-def test_transform_json_simple():
+def test_transform_json_simple() -> None:
     """Test simple JSON object transformation.
 
     RED: This should fail with AttributeError (function doesn't exist)
@@ -27,7 +28,7 @@ def test_transform_json_simple():
     }
 
 
-def test_transform_json_nested():
+def test_transform_json_nested() -> None:
     """Test nested JSON object transformation."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -61,7 +62,7 @@ def test_transform_json_nested():
     }
 
 
-def test_transform_json_with_array():
+def test_transform_json_with_array() -> None:
     """Test JSON with arrays of objects."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -87,7 +88,7 @@ def test_transform_json_with_array():
     }
 
 
-def test_transform_json_complex():
+def test_transform_json_complex() -> None:
     """Test complex nested structure (like FraiseQL User with posts)."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -134,7 +135,7 @@ def test_transform_json_complex():
     assert result["posts"][0]["createdAt"] == "2025-02-02T09:10:29.55859"
 
 
-def test_transform_json_preserves_types():
+def test_transform_json_preserves_types() -> None:
     """Test that JSON types are preserved (int, str, bool, null)."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -160,7 +161,7 @@ def test_transform_json_preserves_types():
     assert result["postCount"] == 0  # zero preserved
 
 
-def test_transform_json_empty():
+def test_transform_json_empty() -> None:
     """Test edge case: empty object."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -171,7 +172,7 @@ def test_transform_json_empty():
     assert result == {}
 
 
-def test_transform_json_invalid():
+def test_transform_json_invalid() -> None:
     """Test error handling for invalid JSON."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -179,7 +180,7 @@ def test_transform_json_invalid():
         fraiseql_rs.transform_json("not valid json")
 
 
-def test_transform_json_array_root():
+def test_transform_json_array_root() -> None:
     """Test transformation when root is an array."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 

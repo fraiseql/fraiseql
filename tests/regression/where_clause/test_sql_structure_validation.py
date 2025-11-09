@@ -5,8 +5,9 @@ not just that it contains certain substrings. This provides much stronger
 validation than simple string matching.
 """
 
-import pytest
 import re
+
+import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
@@ -17,7 +18,7 @@ from fraiseql.sql.where_generator import build_operator_composed
 class TestSQLStructureValidation:
     """Validate that generated SQL has correct structure and syntax."""
 
-    def test_numeric_casting_structure(self):
+    def test_numeric_casting_structure(self) -> None:
         """Test that numeric casting has valid structural components."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -49,7 +50,7 @@ class TestSQLStructureValidation:
                 f"Missing SQL operator {expected_op} for {op} in {sql_str}"
             )
 
-    def test_boolean_text_comparison_structure(self):
+    def test_boolean_text_comparison_structure(self) -> None:
         """Test that boolean comparison has correct structural components."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -77,7 +78,7 @@ class TestSQLStructureValidation:
             f"Boolean comparison should not use ::numeric casting: {sql_str}"
         )
 
-    def test_hostname_text_structure(self):
+    def test_hostname_text_structure(self) -> None:
         """Test that hostname comparison has correct text structure."""
         from fraiseql.types import Hostname
 
@@ -100,7 +101,7 @@ class TestSQLStructureValidation:
         # Should NOT have ltree casting (the bug we fixed)
         assert "::ltree" not in sql_str, f"Hostname should not get ltree casting: {sql_str}"
 
-    def test_list_operations_structure(self):
+    def test_list_operations_structure(self) -> None:
         """Test that IN/NOT IN operations have correct structure."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -120,7 +121,7 @@ class TestSQLStructureValidation:
         assert "Literal(443)" in sql_str, f"Missing second literal: {sql_str}"
         assert "Literal(8080)" in sql_str, f"Missing third literal: {sql_str}"
 
-    def test_boolean_list_structure(self):
+    def test_boolean_list_structure(self) -> None:
         """Test that boolean IN operations use text values."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -147,7 +148,7 @@ class TestSQLStructureValidation:
         # Should NOT have casting
         assert "::boolean" not in sql_str, f"Boolean IN should not use casting: {sql_str}"
 
-    def test_sql_composition_validity(self):
+    def test_sql_composition_validity(self) -> None:
         """Test that composed SQL structures are valid."""
         # Test complex composition using build_operator_composed
         path_sql = SQL("data->>'test_field'")
@@ -177,7 +178,7 @@ class TestSQLStructureValidation:
                     f"Missing text boolean value: {sql_str}"
                 )
 
-    def test_parentheses_balancing(self):
+    def test_parentheses_balancing(self) -> None:
         """Test that all parentheses are properly balanced."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'field')")
@@ -206,7 +207,7 @@ class TestSQLStructureValidation:
                 f"SQL: {sql_str}"
             )
 
-    def test_no_sql_injection_vulnerabilities(self):
+    def test_no_sql_injection_vulnerabilities(self) -> None:
         """Test that all values are properly parameterized."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'field')")

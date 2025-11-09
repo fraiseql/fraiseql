@@ -6,12 +6,14 @@ converted from their raw values (strings/ints) to Python Enum instances.
 Related issue: /tmp/fraiseql_enum_issue.md
 """
 
-import pytest
 from enum import Enum
 from typing import Optional
+
+import pytest
+from graphql import GraphQLResolveInfo
+
 import fraiseql
 from fraiseql.gql.resolver_wrappers import wrap_resolver
-from graphql import GraphQLResolveInfo
 
 
 @fraiseql.enum
@@ -54,7 +56,7 @@ class TestEnumParameterConversionFix:
     """Test suite for enum parameter conversion bug fix."""
 
     @pytest.mark.asyncio
-    async def test_enum_string_value_converted_to_instance(self):
+    async def test_enum_string_value_converted_to_instance(self) -> None:
         """Test that string enum values are converted to enum instances."""
         # Wrap the resolver to apply type coercion
         field = wrap_resolver(task_resolver)
@@ -69,7 +71,7 @@ class TestEnumParameterConversionFix:
         assert result == "TODO"
 
     @pytest.mark.asyncio
-    async def test_enum_integer_value_converted_to_instance(self):
+    async def test_enum_integer_value_converted_to_instance(self) -> None:
         """Test that integer enum values are converted to enum instances."""
         field = wrap_resolver(task_resolver)
 
@@ -83,7 +85,7 @@ class TestEnumParameterConversionFix:
         assert result == "IN_PROGRESS:3"
 
     @pytest.mark.asyncio
-    async def test_optional_enum_with_none_value(self):
+    async def test_optional_enum_with_none_value(self) -> None:
         """Test that optional enum parameters handle None correctly."""
         field = wrap_resolver(task_resolver)
 
@@ -95,7 +97,7 @@ class TestEnumParameterConversionFix:
         assert result == "DONE"
 
     @pytest.mark.asyncio
-    async def test_enum_comparison_works_after_conversion(self):
+    async def test_enum_comparison_works_after_conversion(self) -> None:
         """Test that enum comparisons work correctly after conversion."""
 
         async def comparison_resolver(
@@ -119,7 +121,7 @@ class TestEnumParameterConversionFix:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_enum_methods_available_after_conversion(self):
+    async def test_enum_methods_available_after_conversion(self) -> None:
         """Test that enum methods are available after conversion."""
 
         async def method_resolver(
@@ -139,7 +141,7 @@ class TestEnumParameterConversionFix:
 
 
 @pytest.mark.asyncio
-async def test_real_world_example():
+async def test_real_world_example() -> None:
     """Test a real-world example similar to the original bug report."""
 
     @fraiseql.enum
@@ -160,10 +162,9 @@ async def test_real_world_example():
         # Before the fix, this would fail because period would be a string
         if period == Period.CURRENT:
             return "current period data"
-        elif period == Period.PAST:
+        if period == Period.PAST:
             return "past period data"
-        else:
-            return f"other period: {period.name}"
+        return f"other period: {period.name}"
 
     field = wrap_resolver(allocation_resolver)
 

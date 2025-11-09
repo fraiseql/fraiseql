@@ -4,8 +4,6 @@ import hashlib
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
-import pytest
-
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
 from fraiseql.storage.backends.memory import MemoryAPQBackend
@@ -14,7 +12,7 @@ from fraiseql.storage.backends.memory import MemoryAPQBackend
 class ContextCapturingBackend(MemoryAPQBackend):
     """Test backend that captures context passed to methods."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.captured_store_context = None
         self.captured_get_context = None
@@ -37,7 +35,7 @@ class ContextCapturingBackend(MemoryAPQBackend):
 class TestAPQContextPropagation:
     """Test that context flows from router to APQ backend."""
 
-    def test_router_passes_context_when_storing_response(self):
+    def test_router_passes_context_when_storing_response(self) -> None:
         """Test that router passes context to store_cached_response."""
         from fraiseql.middleware.apq_caching import store_response_in_cache
 
@@ -71,7 +69,7 @@ class TestAPQContextPropagation:
         assert "user" in backend.captured_store_context
         assert backend.captured_store_context["user"]["metadata"]["tenant_id"] == "tenant-123"
 
-    def test_router_passes_context_when_getting_cached_response(self):
+    def test_router_passes_context_when_getting_cached_response(self) -> None:
         """Test that router passes context to get_cached_response."""
         from fraiseql.middleware.apq_caching import handle_apq_request_with_cache
 
@@ -111,17 +109,16 @@ class TestAPQContextPropagation:
 class TestContextExtraction:
     """Test context extraction in different scenarios."""
 
-    def test_context_available_at_apq_processing_time(self):
+    def test_context_available_at_apq_processing_time(self) -> None:
         """Verify that context is built before APQ processing."""
         call_order = []
 
-        def mock_build_context(*args, **kwargs):
+        def mock_build_context(*args, **kwargs) -> None:
             call_order.append("build_context")
             return {"user": {"metadata": {"tenant_id": "test"}}}
 
-        def mock_apq_processing(*args, **kwargs):
+        def mock_apq_processing(*args, **kwargs) -> None:
             call_order.append("apq_processing")
-            return None
 
         with patch(
             "fraiseql.fastapi.dependencies.build_graphql_context", side_effect=mock_build_context
@@ -137,7 +134,7 @@ class TestContextExtraction:
                 # Verify order
                 assert call_order.index("build_context") < call_order.index("apq_processing")
 
-    def test_context_includes_jwt_tenant_info(self):
+    def test_context_includes_jwt_tenant_info(self) -> None:
         """Test that JWT tenant_id is included in context."""
         from fraiseql.auth.base import UserContext
 

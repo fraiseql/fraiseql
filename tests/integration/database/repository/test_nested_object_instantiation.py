@@ -48,7 +48,7 @@ class NetworkConfiguration:
 class TestNestedObjectInstantiation:
     """Test that nested objects are properly instantiated from dictionaries."""
 
-    def test_from_dict_with_nested_objects(self):
+    def test_from_dict_with_nested_objects(self) -> None:
         """Test that from_dict properly instantiates nested objects."""
         # Sample data that would come from JSONB
         data = {
@@ -95,7 +95,7 @@ class TestNestedObjectInstantiation:
         assert config.router.name == "Main Router"
         assert config.router.firmware_version == "2.1.0"
 
-    def test_from_dict_with_null_nested_objects(self):
+    def test_from_dict_with_null_nested_objects(self) -> None:
         """Test that from_dict handles null nested objects correctly."""
         data = {
             "id": "550e8400-e29b-41d4-a716-446655440001",
@@ -109,7 +109,7 @@ class TestNestedObjectInstantiation:
         assert config.gateway is None
         assert config.router is None
 
-    def test_from_dict_with_missing_nested_objects(self):
+    def test_from_dict_with_missing_nested_objects(self) -> None:
         """Test that from_dict handles missing nested objects correctly."""
         data = {
             "id": "550e8400-e29b-41d4-a716-446655440001",
@@ -123,7 +123,7 @@ class TestNestedObjectInstantiation:
         assert config.gateway is None
         assert config.router is None
 
-    def test_nested_lists_of_objects(self):
+    def test_nested_lists_of_objects(self) -> None:
         """Test that lists of nested objects are properly instantiated."""
 
         @fraiseql.type
@@ -153,7 +153,7 @@ class TestNestedObjectInstantiation:
         assert group.devices[0].name == "Device 1"
         assert group.devices[1].name == "Device 2"
 
-    def test_deeply_nested_objects(self):
+    def test_deeply_nested_objects(self) -> None:
         """Test multiple levels of nested objects."""
 
         @fraiseql.type

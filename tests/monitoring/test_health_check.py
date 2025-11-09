@@ -8,12 +8,12 @@ from fraiseql.monitoring.health import CheckResult, HealthCheck, HealthStatus
 class TestHealthCheckCore:
     """Test core HealthCheck functionality."""
 
-    def test_healthcheck_instantiation(self):
+    def test_healthcheck_instantiation(self) -> None:
         """Test that HealthCheck can be instantiated."""
         health = HealthCheck()
         assert health is not None
 
-    def test_healthcheck_add_check(self):
+    def test_healthcheck_add_check(self) -> None:
         """Test adding a custom check function."""
         health = HealthCheck()
 
@@ -29,7 +29,7 @@ class TestHealthCheckCore:
         health.add_check("dummy", dummy_check)
         assert "dummy" in health._checks
 
-    def test_healthcheck_duplicate_check_raises(self):
+    def test_healthcheck_duplicate_check_raises(self) -> None:
         """Test that adding duplicate check name raises ValueError."""
         health = HealthCheck()
 
@@ -54,7 +54,7 @@ class TestHealthCheckCore:
             health.add_check("test", check_2)
 
     @pytest.mark.asyncio
-    async def test_healthcheck_run_single_check(self):
+    async def test_healthcheck_run_single_check(self) -> None:
         """Test running a single health check."""
         health = HealthCheck()
 
@@ -73,7 +73,7 @@ class TestHealthCheckCore:
         assert result["checks"]["test"]["status"] == "healthy"
 
     @pytest.mark.asyncio
-    async def test_healthcheck_run_multiple_checks(self):
+    async def test_healthcheck_run_multiple_checks(self) -> None:
         """Test running multiple health checks."""
         health = HealthCheck()
 
@@ -102,7 +102,7 @@ class TestHealthCheckCore:
         assert "check2" in result["checks"]
 
     @pytest.mark.asyncio
-    async def test_healthcheck_degraded_when_check_fails(self):
+    async def test_healthcheck_degraded_when_check_fails(self) -> None:
         """Test that overall status is degraded when any check fails."""
         health = HealthCheck()
 
@@ -131,7 +131,7 @@ class TestHealthCheckCore:
         assert result["checks"]["bad"]["status"] == "unhealthy"
 
     @pytest.mark.asyncio
-    async def test_healthcheck_exception_handling(self):
+    async def test_healthcheck_exception_handling(self) -> None:
         """Test that exceptions in checks are caught and reported."""
         health = HealthCheck()
 
@@ -150,7 +150,7 @@ class TestHealthCheckCore:
 class TestCheckResult:
     """Test CheckResult data structure."""
 
-    def test_check_result_creation(self):
+    def test_check_result_creation(self) -> None:
         """Test creating a CheckResult."""
         result = CheckResult(
             name="test",
@@ -161,7 +161,7 @@ class TestCheckResult:
         assert result.status == HealthStatus.HEALTHY
         assert result.message == "All systems operational"
 
-    def test_check_result_with_metadata(self):
+    def test_check_result_with_metadata(self) -> None:
         """Test CheckResult with optional metadata."""
         result = CheckResult(
             name="database",
@@ -176,7 +176,7 @@ class TestCheckResult:
 class TestHealthStatus:
     """Test HealthStatus enum."""
 
-    def test_health_status_values(self):
+    def test_health_status_values(self) -> None:
         """Test that HealthStatus enum has expected values."""
         assert HealthStatus.HEALTHY.value == "healthy"
         assert HealthStatus.UNHEALTHY.value == "unhealthy"

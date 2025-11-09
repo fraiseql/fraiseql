@@ -15,7 +15,7 @@ from fraiseql.types.scalars.daterange import DateRangeField
 class TestDateRangeFilterOperations:
     """Test DateRange filtering with proper PostgreSQL daterange operators."""
 
-    def test_daterange_contains_date_operation(self):
+    def test_daterange_contains_date_operation(self) -> None:
         """Test DateRange contains_date operation (@>)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -29,7 +29,7 @@ class TestDateRangeFilterOperations:
         assert "@>" in sql_str, "Missing contains operator"
         assert "2023-06-15" in sql_str
 
-    def test_daterange_overlaps_operation(self):
+    def test_daterange_overlaps_operation(self) -> None:
         """Test DateRange overlaps operation (&&)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -46,7 +46,7 @@ class TestDateRangeFilterOperations:
         assert "&&" in sql_str, "Missing overlaps operator"
         assert "[2023-06-01,2023-06-30]" in sql_str
 
-    def test_daterange_adjacent_operation(self):
+    def test_daterange_adjacent_operation(self) -> None:
         """Test DateRange adjacent operation (-|-)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -63,7 +63,7 @@ class TestDateRangeFilterOperations:
         assert "-|-" in sql_str, "Missing adjacent operator"
         assert "[2023-07-01,2023-07-31]" in sql_str
 
-    def test_daterange_strictly_left_operation(self):
+    def test_daterange_strictly_left_operation(self) -> None:
         """Test DateRange strictly_left operation (<<)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -80,7 +80,7 @@ class TestDateRangeFilterOperations:
         assert "<<" in sql_str, "Missing strictly left operator"
         assert "[2023-07-01,2023-12-31]" in sql_str
 
-    def test_daterange_strictly_right_operation(self):
+    def test_daterange_strictly_right_operation(self) -> None:
         """Test DateRange strictly_right operation (>>)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -97,7 +97,7 @@ class TestDateRangeFilterOperations:
         assert ">>" in sql_str, "Missing strictly right operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
 
-    def test_daterange_not_left_operation(self):
+    def test_daterange_not_left_operation(self) -> None:
         """Test DateRange not_left operation (&>)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -114,7 +114,7 @@ class TestDateRangeFilterOperations:
         assert "&>" in sql_str, "Missing not left operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
 
-    def test_daterange_not_right_operation(self):
+    def test_daterange_not_right_operation(self) -> None:
         """Test DateRange not_right operation (&<)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -131,7 +131,7 @@ class TestDateRangeFilterOperations:
         assert "&<" in sql_str, "Missing not right operator"
         assert "[2023-07-01,2023-12-31]" in sql_str
 
-    def test_daterange_eq_operation_with_casting(self):
+    def test_daterange_eq_operation_with_casting(self) -> None:
         """Test that basic equality uses daterange casting for consistency."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -145,7 +145,7 @@ class TestDateRangeFilterOperations:
         assert "=" in sql_str, "Missing equality operator"
         assert "[2023-01-01,2023-12-31]" in sql_str
 
-    def test_daterange_neq_operation_with_casting(self):
+    def test_daterange_neq_operation_with_casting(self) -> None:
         """Test that inequality uses daterange casting for consistency."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -159,7 +159,7 @@ class TestDateRangeFilterOperations:
         assert "!=" in sql_str, "Missing inequality operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
 
-    def test_daterange_isnull_operation(self):
+    def test_daterange_isnull_operation(self) -> None:
         """Test DateRange NULL check operations."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -176,7 +176,7 @@ class TestDateRangeFilterOperations:
         )
         assert "IS NOT NULL" in str(sql_not_null)
 
-    def test_daterange_in_list_with_casting(self):
+    def test_daterange_in_list_with_casting(self) -> None:
         """Test DateRange IN operation with proper daterange casting."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -195,7 +195,7 @@ class TestDateRangeFilterOperations:
         for range_val in ranges:
             assert range_val in sql_str
 
-    def test_daterange_nin_operation_with_casting(self):
+    def test_daterange_nin_operation_with_casting(self) -> None:
         """Test DateRange NOT IN operation with proper daterange casting."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -215,7 +215,7 @@ class TestDateRangeFilterOperations:
         for range_val in excluded_ranges:
             assert range_val in sql_str
 
-    def test_daterange_filter_excludes_pattern_operators(self):
+    def test_daterange_filter_excludes_pattern_operators(self) -> None:
         """Test that DateRange doesn't allow generic pattern operators."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -229,7 +229,7 @@ class TestDateRangeFilterOperations:
             ):
                 registry.build_sql(path_sql=path_sql, op=op, val="2023", field_type=DateRangeField)
 
-    def test_daterange_vs_string_field_behavior(self):
+    def test_daterange_vs_string_field_behavior(self) -> None:
         """Test that DateRange fields get different treatment than string fields."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'some_field'")
@@ -248,7 +248,7 @@ class TestDateRangeFilterOperations:
         string_sql_str = str(string_sql)
         assert "::daterange" not in string_sql_str
 
-    def test_daterange_typical_use_cases(self):
+    def test_daterange_typical_use_cases(self) -> None:
         """Test typical date range query scenarios."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'period'")
@@ -293,7 +293,7 @@ class TestDateRangeFilterOperations:
             )
             assert case["val"] in sql_str, f"Missing value for {case['description']}"
 
-    def test_daterange_complex_range_queries(self):
+    def test_daterange_complex_range_queries(self) -> None:
         """Test complex range query combinations.
 
         This test should pass once DateRangeOperatorStrategy is implemented.
@@ -330,7 +330,7 @@ class TestDateRangeFilterOperations:
             assert "::daterange" in sql_str
             assert scenario["val"] in sql_str
 
-    def test_daterange_inclusive_exclusive_boundaries(self):
+    def test_daterange_inclusive_exclusive_boundaries(self) -> None:
         """Test inclusive vs exclusive range boundaries.
 
         This test should pass once DateRangeOperatorStrategy is implemented.

@@ -9,24 +9,24 @@ from psycopg.sql import SQL
 
 # Import DateRange operator functions
 from fraiseql.sql.where.operators.date_range import (
-    build_daterange_eq_sql,
-    build_daterange_neq_sql,
-    build_daterange_in_sql,
-    build_daterange_notin_sql,
-    build_contains_date_sql,
-    build_overlaps_sql,
     build_adjacent_sql,
-    build_strictly_left_sql,
-    build_strictly_right_sql,
+    build_contains_date_sql,
+    build_daterange_eq_sql,
+    build_daterange_in_sql,
+    build_daterange_neq_sql,
+    build_daterange_notin_sql,
     build_not_left_sql,
     build_not_right_sql,
+    build_overlaps_sql,
+    build_strictly_left_sql,
+    build_strictly_right_sql,
 )
 
 
 class TestDateRangeBasicOperators:
     """Test basic DateRange operators (eq, neq, in, notin)."""
 
-    def test_build_daterange_equality_sql(self):
+    def test_build_daterange_equality_sql(self) -> None:
         """Test DateRange equality operator with proper daterange casting."""
         path_sql = SQL("data->>'period'")
         value = "[2023-01-01,2023-12-31]"
@@ -36,7 +36,7 @@ class TestDateRangeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_daterange_inequality_sql(self):
+    def test_build_daterange_inequality_sql(self) -> None:
         """Test DateRange inequality operator with proper daterange casting."""
         path_sql = SQL("data->>'period'")
         value = "[2023-01-01,2023-12-31]"
@@ -46,7 +46,7 @@ class TestDateRangeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_daterange_in_list_sql(self):
+    def test_build_daterange_in_list_sql(self) -> None:
         """Test DateRange IN list with multiple daterange values."""
         path_sql = SQL("data->>'period'")
         value = ["[2023-01-01,2023-12-31]", "[2024-01-01,2024-12-31]"]
@@ -56,7 +56,7 @@ class TestDateRangeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_daterange_not_in_list_sql(self):
+    def test_build_daterange_not_in_list_sql(self) -> None:
         """Test DateRange NOT IN list with multiple daterange values."""
         path_sql = SQL("data->>'period'")
         value = ["[2023-01-01,2023-12-31]", "[2024-01-01,2024-12-31]"]
@@ -66,7 +66,7 @@ class TestDateRangeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_daterange_single_item_in_list(self):
+    def test_build_daterange_single_item_in_list(self) -> None:
         """Test DateRange IN list with single value."""
         path_sql = SQL("data->>'period'")
         value = ["[2023-01-01,2023-12-31]"]
@@ -76,7 +76,7 @@ class TestDateRangeBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_daterange_different_bracket_types(self):
+    def test_build_daterange_different_bracket_types(self) -> None:
         """Test DateRange operators with different bracket types (inclusive/exclusive)."""
         path_sql = SQL("data->>'period'")
 
@@ -90,7 +90,7 @@ class TestDateRangeBasicOperators:
         expected_exc_inc = "(data->>'period')::daterange = '(2023-01-01,2023-12-31]'::daterange"
         assert result_exc_inc.as_string(None) == expected_exc_inc
 
-    def test_build_daterange_empty_list_handling(self):
+    def test_build_daterange_empty_list_handling(self) -> None:
         """Test DateRange operators handle empty lists gracefully."""
         path_sql = SQL("data->>'period'")
         value = []
@@ -107,7 +107,7 @@ class TestDateRangeBasicOperators:
 class TestDateRangeSpecificOperators:
     """Test DateRange-specific operators for range operations."""
 
-    def test_build_contains_date_sql(self):
+    def test_build_contains_date_sql(self) -> None:
         """Test DateRange contains_date (@>) operator."""
         path_sql = SQL("data->>'period'")
         value = "2023-07-15"
@@ -117,7 +117,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_overlaps_sql(self):
+    def test_build_overlaps_sql(self) -> None:
         """Test DateRange overlaps (&&) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2023-06-01,2023-08-31]"
@@ -127,7 +127,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_adjacent_sql(self):
+    def test_build_adjacent_sql(self) -> None:
         """Test DateRange adjacent (-|-) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2024-01-01,2024-12-31]"
@@ -137,7 +137,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_strictly_left_sql(self):
+    def test_build_strictly_left_sql(self) -> None:
         """Test DateRange strictly_left (<<) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2024-01-01,2024-12-31]"
@@ -147,7 +147,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_strictly_right_sql(self):
+    def test_build_strictly_right_sql(self) -> None:
         """Test DateRange strictly_right (>>) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2022-01-01,2022-12-31]"
@@ -157,7 +157,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_not_left_sql(self):
+    def test_build_not_left_sql(self) -> None:
         """Test DateRange not_left (&>) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2023-01-01,2023-12-31]"
@@ -167,7 +167,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_not_right_sql(self):
+    def test_build_not_right_sql(self) -> None:
         """Test DateRange not_right (&<) operator."""
         path_sql = SQL("data->>'period'")
         value = "[2023-01-01,2023-12-31]"
@@ -177,7 +177,7 @@ class TestDateRangeSpecificOperators:
 
         assert result.as_string(None) == expected
 
-    def test_range_operators_complex_ranges(self):
+    def test_range_operators_complex_ranges(self) -> None:
         """Test range operators with complex date ranges."""
         path_sql = SQL("data->>'fiscal_year'")
 
@@ -197,21 +197,21 @@ class TestDateRangeSpecificOperators:
 class TestDateRangeValidation:
     """Test DateRange operator validation and error handling."""
 
-    def test_daterange_in_requires_list(self):
+    def test_daterange_in_requires_list(self) -> None:
         """Test that DateRange 'in' operator requires a list."""
         path_sql = SQL("data->>'period'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_daterange_in_sql(path_sql, "[2023-01-01,2023-12-31]")
 
-    def test_daterange_notin_requires_list(self):
+    def test_daterange_notin_requires_list(self) -> None:
         """Test that DateRange 'notin' operator requires a list."""
         path_sql = SQL("data->>'period'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_daterange_notin_sql(path_sql, "[2023-01-01,2023-12-31]")
 
-    def test_daterange_formats_supported(self):
+    def test_daterange_formats_supported(self) -> None:
         """Test that various DateRange formats are supported."""
         path_sql = SQL("data->>'period'")
 
@@ -230,7 +230,7 @@ class TestDateRangeValidation:
             expected = f"(data->>'period')::daterange = '{date_range}'::daterange"
             assert result.as_string(None) == expected
 
-    def test_daterange_infinite_bounds(self):
+    def test_daterange_infinite_bounds(self) -> None:
         """Test DateRange with infinite bounds."""
         path_sql = SQL("data->>'period'")
 

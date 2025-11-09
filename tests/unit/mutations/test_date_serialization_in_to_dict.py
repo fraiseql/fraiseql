@@ -18,7 +18,7 @@ class CreateOrderInput:
 class TestDateSerializationInToDict:
     """Test date serialization in to_dict method."""
 
-    def test_date_field_serialized_to_iso_string(self):
+    def test_date_field_serialized_to_iso_string(self) -> None:
         """Date fields should be serialized to ISO strings in to_dict method."""
         order_input = CreateOrderInput(
             client_order_id="ORDER2025", order_date=datetime.date(2025, 2, 15)
@@ -30,7 +30,7 @@ class TestDateSerializationInToDict:
         assert result["order_date"] == "2025-02-15"  # Date serialized to ISO string
         assert "delivery_date" not in result  # UNSET field excluded
 
-    def test_optional_date_field_serialized_when_set(self):
+    def test_optional_date_field_serialized_when_set(self) -> None:
         """Optional date fields should be serialized when set."""
         order_input = CreateOrderInput(
             client_order_id="ORDER2025",
@@ -44,7 +44,7 @@ class TestDateSerializationInToDict:
         assert result["order_date"] == "2025-02-15"
         assert result["delivery_date"] == "2025-03-01"  # Set date serialized
 
-    def test_json_method_also_serializes_dates(self):
+    def test_json_method_also_serializes_dates(self) -> None:
         """__json__ method should also serialize dates correctly."""
         order_input = CreateOrderInput(
             client_order_id="ORDER2025", order_date=datetime.date(2025, 2, 15)

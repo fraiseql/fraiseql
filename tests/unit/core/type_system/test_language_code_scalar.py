@@ -16,7 +16,7 @@ from fraiseql.types.scalars.language_code import (
 class TestLanguageCodeSerialization:
     """Test language code serialization."""
 
-    def test_serialize_valid_language_codes(self):
+    def test_serialize_valid_language_codes(self) -> None:
         """Test serializing valid ISO 639-1 language codes."""
         assert serialize_language_code("en") == "en"
         assert serialize_language_code("fr") == "fr"
@@ -29,18 +29,18 @@ class TestLanguageCodeSerialization:
         assert serialize_language_code("pt") == "pt"
         assert serialize_language_code("it") == "it"
 
-    def test_serialize_case_insensitive(self):
+    def test_serialize_case_insensitive(self) -> None:
         """Test language code serialization is case-insensitive (normalized to lowercase)."""
         assert serialize_language_code("EN") == "en"
         assert serialize_language_code("Fr") == "fr"
         assert serialize_language_code("DE") == "de"
         assert serialize_language_code("eS") == "es"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_language_code(None) is None
 
-    def test_serialize_invalid_language_code(self):
+    def test_serialize_invalid_language_code(self) -> None:
         """Test serializing invalid language codes raises error."""
         # Too long
         with pytest.raises(GraphQLError, match="Invalid language code"):
@@ -75,13 +75,13 @@ class TestLanguageCodeSerialization:
 class TestLanguageCodeParsing:
     """Test language code parsing from variables."""
 
-    def test_parse_valid_language_code(self):
+    def test_parse_valid_language_code(self) -> None:
         """Test parsing valid language codes."""
         assert parse_language_code_value("en") == "en"
         assert parse_language_code_value("FR") == "fr"
         assert parse_language_code_value("De") == "de"
 
-    def test_parse_invalid_language_code(self):
+    def test_parse_invalid_language_code(self) -> None:
         """Test parsing invalid language codes raises error."""
         with pytest.raises(GraphQLError, match="Invalid language code"):
             parse_language_code_value("eng")
@@ -92,7 +92,7 @@ class TestLanguageCodeParsing:
         with pytest.raises(GraphQLError, match="Invalid language code"):
             parse_language_code_value("en-US")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Language code must be a string"):
             parse_language_code_value(123)
@@ -107,7 +107,7 @@ class TestLanguageCodeParsing:
 class TestLanguageCodeField:
     """Test LanguageCodeField class."""
 
-    def test_create_valid_language_code_field(self):
+    def test_create_valid_language_code_field(self) -> None:
         """Test creating LanguageCodeField with valid values."""
         lang = LanguageCodeField("en")
         assert lang == "en"
@@ -117,7 +117,7 @@ class TestLanguageCodeField:
         lang = LanguageCodeField("FR")
         assert lang == "fr"
 
-    def test_create_invalid_language_code_field(self):
+    def test_create_invalid_language_code_field(self) -> None:
         """Test creating LanguageCodeField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid language code"):
             LanguageCodeField("eng")
@@ -132,13 +132,13 @@ class TestLanguageCodeField:
 class TestLanguageCodeLiteralParsing:
     """Test parsing language code from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid language code literals."""
         assert parse_language_code_literal(StringValueNode(value="en")) == "en"
         assert parse_language_code_literal(StringValueNode(value="FR")) == "fr"
         assert parse_language_code_literal(StringValueNode(value="De")) == "de"
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid language code format literals."""
         with pytest.raises(GraphQLError, match="Invalid language code"):
             parse_language_code_literal(StringValueNode(value="eng"))
@@ -146,7 +146,7 @@ class TestLanguageCodeLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid language code"):
             parse_language_code_literal(StringValueNode(value="en-US"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Language code must be a string"):
             parse_language_code_literal(IntValueNode(value="123"))

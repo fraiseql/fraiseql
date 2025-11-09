@@ -16,7 +16,7 @@ from fraiseql.types.scalars.semantic_version import (
 class TestSemanticVersionSerialization:
     """Test semantic version serialization."""
 
-    def test_serialize_valid_semantic_versions(self):
+    def test_serialize_valid_semantic_versions(self) -> None:
         """Test serializing valid semantic versions."""
         assert serialize_semantic_version("1.0.0") == "1.0.0"
         assert serialize_semantic_version("2.3.4") == "2.3.4"
@@ -27,11 +27,11 @@ class TestSemanticVersionSerialization:
         assert serialize_semantic_version("0.1.0") == "0.1.0"
         assert serialize_semantic_version("10.20.30-rc.1+build.2") == "10.20.30-rc.1+build.2"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_semantic_version(None) is None
 
-    def test_serialize_invalid_semantic_versions(self):
+    def test_serialize_invalid_semantic_versions(self) -> None:
         """Test serializing invalid semantic versions raises error."""
         # Missing parts
         with pytest.raises(GraphQLError, match="Invalid semantic version"):
@@ -73,7 +73,7 @@ class TestSemanticVersionSerialization:
 class TestSemanticVersionParsing:
     """Test semantic version parsing from variables."""
 
-    def test_parse_valid_semantic_versions(self):
+    def test_parse_valid_semantic_versions(self) -> None:
         """Test parsing valid semantic versions."""
         assert parse_semantic_version_value("1.0.0") == "1.0.0"
         assert parse_semantic_version_value("2.3.4-alpha.1") == "2.3.4-alpha.1"
@@ -81,7 +81,7 @@ class TestSemanticVersionParsing:
             parse_semantic_version_value("3.0.0-beta+20130313144700") == "3.0.0-beta+20130313144700"
         )
 
-    def test_parse_invalid_semantic_versions(self):
+    def test_parse_invalid_semantic_versions(self) -> None:
         """Test parsing invalid semantic versions raises error."""
         with pytest.raises(GraphQLError, match="Invalid semantic version"):
             parse_semantic_version_value("1.0")
@@ -95,7 +95,7 @@ class TestSemanticVersionParsing:
         with pytest.raises(GraphQLError, match="Invalid semantic version"):
             parse_semantic_version_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Semantic version must be a string"):
             parse_semantic_version_value(123)
@@ -110,7 +110,7 @@ class TestSemanticVersionParsing:
 class TestSemanticVersionField:
     """Test SemanticVersionField class."""
 
-    def test_create_valid_semantic_version_field(self):
+    def test_create_valid_semantic_version_field(self) -> None:
         """Test creating SemanticVersionField with valid values."""
         version = SemanticVersionField("1.0.0")
         assert version == "1.0.0"
@@ -124,7 +124,7 @@ class TestSemanticVersionField:
         version = SemanticVersionField("3.0.0-beta+20130313144700")
         assert version == "3.0.0-beta+20130313144700"
 
-    def test_create_invalid_semantic_version_field(self):
+    def test_create_invalid_semantic_version_field(self) -> None:
         """Test creating SemanticVersionField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid semantic version"):
             SemanticVersionField("1.0")
@@ -139,7 +139,7 @@ class TestSemanticVersionField:
 class TestSemanticVersionLiteralParsing:
     """Test parsing semantic version from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid semantic version literals."""
         assert parse_semantic_version_literal(StringValueNode(value="1.0.0")) == "1.0.0"
         assert (
@@ -151,7 +151,7 @@ class TestSemanticVersionLiteralParsing:
             == "3.0.0-beta+20130313144700"
         )
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid semantic version format literals."""
         with pytest.raises(GraphQLError, match="Invalid semantic version"):
             parse_semantic_version_literal(StringValueNode(value="1.0"))
@@ -159,7 +159,7 @@ class TestSemanticVersionLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid semantic version"):
             parse_semantic_version_literal(StringValueNode(value="01.0.0"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Semantic version must be a string"):
             parse_semantic_version_literal(IntValueNode(value="123"))

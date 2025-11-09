@@ -16,7 +16,7 @@ from fraiseql.types.scalars.api_key import (
 class TestApiKeySerialization:
     """Test API key serialization."""
 
-    def test_serialize_valid_api_keys(self):
+    def test_serialize_valid_api_keys(self) -> None:
         """Test serializing valid API keys."""
         assert (
             serialize_api_key("sk_test_4eC39HqLyjWDarjtT1zdp7dc")
@@ -30,11 +30,11 @@ class TestApiKeySerialization:
         assert serialize_api_key("a" * 16) == "a" * 16
         assert serialize_api_key("a" * 128) == "a" * 128
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_api_key(None) is None
 
-    def test_serialize_invalid_api_keys(self):
+    def test_serialize_invalid_api_keys(self) -> None:
         """Test serializing invalid API keys raises error."""
         # Too short
         with pytest.raises(GraphQLError, match="Invalid API key"):
@@ -66,7 +66,7 @@ class TestApiKeySerialization:
 class TestApiKeyParsing:
     """Test API key parsing from variables."""
 
-    def test_parse_valid_api_keys(self):
+    def test_parse_valid_api_keys(self) -> None:
         """Test parsing valid API keys."""
         assert (
             parse_api_key_value("sk_test_4eC39HqLyjWDarjtT1zdp7dc")
@@ -76,7 +76,7 @@ class TestApiKeyParsing:
         assert parse_api_key_value("a" * 16) == "a" * 16
         assert parse_api_key_value("a" * 128) == "a" * 128
 
-    def test_parse_invalid_api_keys(self):
+    def test_parse_invalid_api_keys(self) -> None:
         """Test parsing invalid API keys raises error."""
         with pytest.raises(GraphQLError, match="Invalid API key"):
             parse_api_key_value("short")
@@ -93,7 +93,7 @@ class TestApiKeyParsing:
         with pytest.raises(GraphQLError, match="Invalid API key"):
             parse_api_key_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="API key must be a string"):
             parse_api_key_value(123)
@@ -108,7 +108,7 @@ class TestApiKeyParsing:
 class TestApiKeyField:
     """Test ApiKeyField class."""
 
-    def test_create_valid_api_key_field(self):
+    def test_create_valid_api_key_field(self) -> None:
         """Test creating ApiKeyField with valid values."""
         api_key = ApiKeyField("sk_test_4eC39HqLyjWDarjtT1zdp7dc")
         assert api_key == "sk_test_4eC39HqLyjWDarjtT1zdp7dc"
@@ -122,7 +122,7 @@ class TestApiKeyField:
         api_key = ApiKeyField("a" * 128)
         assert api_key == "a" * 128
 
-    def test_create_invalid_api_key_field(self):
+    def test_create_invalid_api_key_field(self) -> None:
         """Test creating ApiKeyField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid API key"):
             ApiKeyField("short")
@@ -140,7 +140,7 @@ class TestApiKeyField:
 class TestApiKeyLiteralParsing:
     """Test parsing API key from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid API key literals."""
         assert (
             parse_api_key_literal(StringValueNode(value="sk_test_4eC39HqLyjWDarjtT1zdp7dc"))
@@ -149,7 +149,7 @@ class TestApiKeyLiteralParsing:
         assert parse_api_key_literal(StringValueNode(value="a" * 16)) == "a" * 16
         assert parse_api_key_literal(StringValueNode(value="a" * 128)) == "a" * 128
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid API key format literals."""
         with pytest.raises(GraphQLError, match="Invalid API key"):
             parse_api_key_literal(StringValueNode(value="short"))
@@ -160,7 +160,7 @@ class TestApiKeyLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid API key"):
             parse_api_key_literal(StringValueNode(value="sk_test key"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="API key must be a string"):
             parse_api_key_literal(IntValueNode(value="123"))

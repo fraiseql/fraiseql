@@ -8,8 +8,9 @@ Bug: "125.0" > "1234.53" because text comparison treats "2" > "1"
 Fix: Use data->'amount' instead of data->>'amount' for numeric fields
 """
 
-import pytest
 import uuid
+
+import pytest
 
 import fraiseql
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
@@ -27,7 +28,7 @@ class Price:
 class TestNumericOrderingBug:
     """Test suite for numeric ordering bug."""
 
-    def test_single_numeric_field_ordering_bug(self):
+    def test_single_numeric_field_ordering_bug(self) -> None:
         """Test that demonstrates the numeric ordering bug with single field.
 
         EXPECTED BEHAVIOR: Numeric values should be ordered mathematically
@@ -43,7 +44,7 @@ class TestNumericOrderingBug:
             f"Expected numeric JSONB extraction, got text extraction: {sql}"
         )
 
-    def test_multiple_numeric_fields_ordering_bug(self):
+    def test_multiple_numeric_fields_ordering_bug(self) -> None:
         """Test numeric ordering bug with multiple numeric fields."""
         order_by_set = OrderBySet(
             [
@@ -57,7 +58,7 @@ class TestNumericOrderingBug:
         expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'quantity' DESC"
         assert sql == expected_correct
 
-    def test_mixed_field_types_ordering(self):
+    def test_mixed_field_types_ordering(self) -> None:
         """Test ordering with both numeric and text fields.
 
         NOTE: Current implementation treats all fields uniformly with JSONB extraction.
@@ -76,7 +77,7 @@ class TestNumericOrderingBug:
         expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'identifier' DESC"
         assert sql == expected_correct
 
-    def test_nested_numeric_field_ordering_bug(self):
+    def test_nested_numeric_field_ordering_bug(self) -> None:
         """Test numeric ordering bug with nested fields."""
         order_by = OrderBy(field="pricing.amount", direction="desc")
         sql = order_by.to_sql().as_string(None)
@@ -91,7 +92,7 @@ class TestNumericOrderingBug:
 class TestNumericOrderingRealWorld:
     """Integration tests that demonstrate real-world impact of the ordering bug."""
 
-    def test_financial_amounts_ordering_simulation(self):
+    def test_financial_amounts_ordering_simulation(self) -> None:
         """Demonstrate the difference between lexicographic and numeric ordering.
 
         This validates that our fix addresses the core issue where string sorting
@@ -109,7 +110,7 @@ class TestNumericOrderingRealWorld:
         assert numeric == [25.0, 125.0, 1000.0, 1234.53]
         assert [float(x) for x in lexicographic] != numeric
 
-    def test_decimal_precision_ordering_bug(self):
+    def test_decimal_precision_ordering_bug(self) -> None:
         """Test ordering bug with high-precision decimal values."""
         order_by = OrderBy(field="precise_amount", direction="asc")
         sql = order_by.to_sql().as_string(None)
@@ -121,7 +122,7 @@ class TestNumericOrderingRealWorld:
         # 123.456, 123.5, 123.45678
         # JSONB numeric sort: 123.45, 123.456, 123.5 (CORRECT)
 
-    def test_performance_impact_documentation(self):
+    def test_performance_impact_documentation(self) -> None:
         """Document performance implications of the fix.
 
         Using JSONB extraction (data->'field') vs text extraction (data->>'field')

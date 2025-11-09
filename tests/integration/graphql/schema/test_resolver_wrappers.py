@@ -12,7 +12,7 @@ class TestWrapResolver:
     """Test suite for wrap_resolver function."""
 
     @pytest.fixture
-    def clear_registry(self):
+    def clear_registry(self) -> None:
         """Clear the schema registry before each test."""
         from fraiseql.gql.schema_builder import SchemaRegistry
 
@@ -22,7 +22,7 @@ class TestWrapResolver:
         registry.clear()
 
     @pytest.fixture
-    def sample_input_type(self, clear_registry):
+    def sample_input_type(self, clear_registry) -> None:
         """Create a sample input type."""
 
         @fraiseql.input
@@ -33,7 +33,7 @@ class TestWrapResolver:
         return CreateUserInput
 
     @pytest.fixture
-    def sample_output_type(self, clear_registry):
+    def sample_output_type(self, clear_registry) -> None:
         """Create a sample output type."""
 
         @fraiseql.type

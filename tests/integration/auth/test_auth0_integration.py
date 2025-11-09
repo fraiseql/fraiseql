@@ -14,7 +14,7 @@ class TestAuth0Integration:
     """Test Auth0 integration fixes."""
 
     @pytest.fixture
-    def bearer_token(self):
+    def bearer_token(self) -> None:
         """Get the test bearer token."""
         # Sample Auth0 token for testing (expired, safe to use in tests)
         return (
@@ -27,7 +27,7 @@ class TestAuth0Integration:
         )
 
     @pytest.fixture
-    def auth0_provider(self):
+    def auth0_provider(self) -> None:
         """Create Auth0 provider instance."""
         return Auth0Provider(
             domain="staging-fraiseql-juqnt9ch4.eu.auth0.com",
@@ -36,7 +36,7 @@ class TestAuth0Integration:
         )
 
     @pytest.fixture
-    def mock_jwt_payload(self):
+    def mock_jwt_payload(self) -> None:
         """Mock JWT payload with custom namespaced claims."""
         return {
             "https://example.com/email": "test@example.com",
@@ -55,7 +55,9 @@ class TestAuth0Integration:
         }
 
     @pytest.mark.asyncio
-    async def test_auth0_provider_extracts_custom_claims(self, auth0_provider, mock_jwt_payload):
+    async def test_auth0_provider_extracts_custom_claims(
+        self, auth0_provider, mock_jwt_payload
+    ) -> None:
         """Test that Auth0Provider correctly extracts custom claims into metadata."""
         # Mock the validate_token method to return our payload
         with patch.object(auth0_provider, "validate_token", return_value=mock_jwt_payload):
@@ -78,7 +80,7 @@ class TestAuth0Integration:
                 == "87654321-4321-4321-4321-876543210987"
             )
 
-    def test_config_creates_auth0_provider(self, clear_registry):
+    def test_config_creates_auth0_provider(self, clear_registry) -> None:
         """Test that FraiseQL creates Auth0 provider from config."""
         # Reset the auth provider first
         set_auth_provider(None)
@@ -120,7 +122,7 @@ class TestAuth0Integration:
             assert auth_provider.api_identifier == "https://develop.api.fraiseql.io"
 
     @pytest.mark.asyncio
-    async def test_context_getter_receives_user(self):
+    async def test_context_getter_receives_user(self) -> None:
         """Test that custom context_getter receives the user parameter."""
         from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
 
@@ -130,7 +132,7 @@ class TestAuth0Integration:
         # Track calls to context_getter
         context_calls = []
 
-        async def custom_context_getter(request, user=None):
+        async def custom_context_getter(request, user=None) -> None:
             context_calls.append(
                 {
                     "request": request,
@@ -164,7 +166,7 @@ class TestAuth0Integration:
         assert len(sig.parameters) >= 2  # Should accept request and user
 
     @pytest.mark.asyncio
-    async def test_custom_context_extraction(self, mock_jwt_payload):
+    async def test_custom_context_extraction(self, mock_jwt_payload) -> None:
         """Test the context extraction logic for custom namespaced claims."""
         # Simulate what a custom context_getter function would do
 
@@ -199,7 +201,7 @@ class TestAuth0Integration:
             assert context["auth_user_exists"] is True
             assert context["auth_user"] == mock_jwt_payload
 
-    def test_config_validation_requires_auth0_fields(self):
+    def test_config_validation_requires_auth0_fields(self) -> None:
         """Test that config validation requires auth0 fields when provider is auth0."""
         with pytest.raises(ValueError, match="auth0_domain is required"):
             FraiseQLConfig(
@@ -209,7 +211,7 @@ class TestAuth0Integration:
             )
 
     @pytest.mark.asyncio
-    async def test_auth0_provider_cleanup(self, auth0_provider):
+    async def test_auth0_provider_cleanup(self, auth0_provider) -> None:
         """Test that Auth0Provider properly cleans up resources."""
         # Should not raise any errors
         await auth0_provider.close()

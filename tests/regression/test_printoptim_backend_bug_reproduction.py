@@ -13,15 +13,15 @@ This is the EXACT scenario from PrintOptim Backend.
 
 import logging
 import uuid
-from unittest.mock import patch
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 import fraiseql
-from fraiseql.types import IpAddress, EmailAddress
-from fraiseql.types.definitions import UNSET
+from fraiseql.types import EmailAddress, IpAddress
 from fraiseql.types.coercion import coerce_input
+from fraiseql.types.definitions import UNSET
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -58,12 +58,11 @@ class CreateNetworkConfigurationError:
 class PrintOptimBackendMockDB:
     """Mock that simulates the PrintOptim Backend PostgreSQL function call."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.calls = []
 
-    async def execute_function_with_context(self, function_name, context_args, input_data):
+    async def execute_function_with_context(self, function_name, context_args, input_data) -> None:
         """Mock the PostgreSQL function that expects dns_1_id, dns_2_id."""
-
         self.calls.append(
             {
                 "function": function_name,
@@ -74,7 +73,7 @@ class PrintOptimBackendMockDB:
 
         logger.info("=" * 80)
         logger.info(f"PRINTOPTIM BACKEND POSTGRESQL FUNCTION: {function_name}")
-        logger.info(f"Expected parameters: dns_1_id, dns_2_id, gateway_id, etc.")
+        logger.info("Expected parameters: dns_1_id, dns_2_id, gateway_id, etc.")
         logger.info(f"Received parameters: {list(input_data.keys())}")
         logger.info(f"Full input data: {input_data}")
         logger.info("=" * 80)
@@ -145,9 +144,8 @@ class CreateNetworkConfiguration:
 
 @patch("fraiseql.config.schema_config.SchemaConfig.get_instance")
 @pytest.mark.asyncio
-async def test_printoptim_backend_exact_bug_reproduction(mock_config):
+async def test_printoptim_backend_exact_bug_reproduction(mock_config) -> None:
     """Reproduce the exact bug from PrintOptim Backend."""
-
     # Enable camel_case_fields as in PrintOptim Backend
     mock_config.return_value.camel_case_fields = True
 

@@ -9,7 +9,7 @@ from fraiseql.types.errors import Error
 
 
 @pytest.fixture
-def mock_repository():
+def mock_repository() -> None:
     """Create a mock repository for testing."""
     repo = AsyncMock()
     repo.run = AsyncMock()
@@ -17,7 +17,7 @@ def mock_repository():
 
 
 @pytest.fixture
-def sample_input_type():
+def sample_input_type() -> None:
     """Create a sample input type for testing."""
 
     @dataclass
@@ -29,7 +29,7 @@ def sample_input_type():
 
 
 @pytest.fixture
-def sample_result_types():
+def sample_result_types() -> None:
     """Create sample result types for testing."""
 
     @dataclass

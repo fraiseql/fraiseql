@@ -22,7 +22,7 @@ from fraiseql.optimization.n_plus_one_detector import (
 class TestQueryPattern:
     """Test QueryPattern dataclass."""
 
-    def test_query_pattern_creation(self):
+    def test_query_pattern_creation(self) -> None:
         """Test creating a QueryPattern."""
         pattern = QueryPattern(
             field_path="articles.0.author",
@@ -38,7 +38,7 @@ class TestQueryPattern:
         assert pattern.count == 0
         assert pattern.execution_times == []
 
-    def test_avg_execution_time_empty(self):
+    def test_avg_execution_time_empty(self) -> None:
         """Test average execution time with no times."""
         pattern = QueryPattern(
             field_path="test.field",
@@ -49,7 +49,7 @@ class TestQueryPattern:
 
         assert pattern.avg_execution_time == 0.0
 
-    def test_avg_execution_time_with_values(self):
+    def test_avg_execution_time_with_values(self) -> None:
         """Test average execution time calculation."""
         pattern = QueryPattern(
             field_path="test.field",
@@ -62,7 +62,7 @@ class TestQueryPattern:
         # Use approximate equality for floating point
         assert abs(pattern.avg_execution_time - 0.2) < 0.001
 
-    def test_avg_execution_time_single_value(self):
+    def test_avg_execution_time_single_value(self) -> None:
         """Test average execution time with single value."""
         pattern = QueryPattern(
             field_path="test.field",
@@ -78,7 +78,7 @@ class TestQueryPattern:
 class TestN1DetectionResult:
     """Test N1DetectionResult dataclass."""
 
-    def test_detection_result_creation(self):
+    def test_detection_result_creation(self) -> None:
         """Test creating an N1DetectionResult."""
         patterns = [
             QueryPattern(
@@ -108,7 +108,7 @@ class TestN1DetectionResult:
 class TestN1QueryDetector:
     """Test N1QueryDetector class."""
 
-    def test_detector_initialization_defaults(self):
+    def test_detector_initialization_defaults(self) -> None:
         """Test detector initialization with default values."""
         detector = N1QueryDetector()
 
@@ -119,7 +119,7 @@ class TestN1QueryDetector:
         assert detector._current_request_id is None
         assert len(detector._patterns) == 0
 
-    def test_detector_initialization_custom(self):
+    def test_detector_initialization_custom(self) -> None:
         """Test detector initialization with custom values."""
         detector = N1QueryDetector(
             threshold=5, time_window=2.0, enabled=False, raise_on_detection=True
@@ -130,7 +130,7 @@ class TestN1QueryDetector:
         assert detector.enabled is False
         assert detector.raise_on_detection is True
 
-    def test_start_request_enabled(self):
+    def test_start_request_enabled(self) -> None:
         """Test starting a request when detector is enabled."""
         detector = N1QueryDetector(enabled=True)
         request_id = "test-request-123"
@@ -141,7 +141,7 @@ class TestN1QueryDetector:
         assert len(detector._patterns) == 0
         assert len(detector._pattern_timestamps) == 0
 
-    def test_start_request_disabled(self):
+    def test_start_request_disabled(self) -> None:
         """Test starting a request when detector is disabled."""
         detector = N1QueryDetector(enabled=False)
         request_id = "test-request-123"
@@ -151,7 +151,7 @@ class TestN1QueryDetector:
         # Should not set request ID when disabled
         assert detector._current_request_id is None
 
-    def test_start_request_clears_previous_data(self):
+    def test_start_request_clears_previous_data(self) -> None:
         """Test that starting a new request clears previous data."""
         detector = N1QueryDetector(enabled=True)
 
@@ -167,7 +167,7 @@ class TestN1QueryDetector:
         assert len(detector._patterns) == 0
         assert len(detector._pattern_timestamps) == 0
 
-    def test_end_request_disabled(self):
+    def test_end_request_disabled(self) -> None:
         """Test ending a request when detector is disabled."""
         detector = N1QueryDetector(enabled=False)
 
@@ -180,7 +180,7 @@ class TestN1QueryDetector:
         assert result.total_queries == 0
         assert result.threshold_exceeded is False
 
-    def test_end_request_no_patterns(self):
+    def test_end_request_no_patterns(self) -> None:
         """Test ending a request with no patterns."""
         detector = N1QueryDetector(enabled=True, threshold=5)
         detector.start_request("test-request")
@@ -193,7 +193,7 @@ class TestN1QueryDetector:
         assert result.total_queries == 0
         assert result.threshold_exceeded is False
 
-    def test_end_request_patterns_below_threshold(self):
+    def test_end_request_patterns_below_threshold(self) -> None:
         """Test ending a request with patterns below threshold."""
         detector = N1QueryDetector(enabled=True, threshold=10)
         detector.start_request("test-request")
@@ -216,7 +216,7 @@ class TestN1QueryDetector:
         assert result.total_queries == 5
         assert result.threshold_exceeded is False
 
-    def test_end_request_patterns_above_threshold(self):
+    def test_end_request_patterns_above_threshold(self) -> None:
         """Test ending a request with patterns above threshold."""
         detector = N1QueryDetector(enabled=True, threshold=5)
         detector.start_request("test-request")
@@ -241,7 +241,7 @@ class TestN1QueryDetector:
         assert result.total_queries == 10
         assert result.threshold_exceeded is True
 
-    def test_end_request_multiple_patterns(self):
+    def test_end_request_multiple_patterns(self) -> None:
         """Test ending a request with multiple patterns."""
         detector = N1QueryDetector(enabled=True, threshold=5)
         detector.start_request("test-request")
@@ -281,7 +281,7 @@ class TestN1QueryDetector:
         assert len(result.suggestions) == 2
 
     @patch("fraiseql.optimization.n_plus_one_detector.logger")
-    def test_end_request_logs_warnings(self, mock_logger):
+    def test_end_request_logs_warnings(self, mock_logger) -> None:
         """Test that end_request logs warnings when patterns detected."""
         detector = N1QueryDetector(enabled=True, threshold=5)
         detector.start_request("test-request")
@@ -302,7 +302,7 @@ class TestN1QueryDetector:
         warning_calls = mock_logger.warning.call_args_list
         assert len(warning_calls) >= 2  # Header + suggestion
 
-    def test_end_request_raises_exception(self):
+    def test_end_request_raises_exception(self) -> None:
         """Test that end_request raises exception when configured."""
         detector = N1QueryDetector(enabled=True, threshold=5, raise_on_detection=True)
         detector.start_request("test-request")
@@ -322,7 +322,7 @@ class TestN1QueryDetector:
         assert "N+1 query pattern detected" in str(exc_info.value)
         assert len(exc_info.value.patterns) == 1
 
-    def test_end_request_no_exception_when_disabled(self):
+    def test_end_request_no_exception_when_disabled(self) -> None:
         """Test that end_request doesn't raise when raise_on_detection is False."""
         detector = N1QueryDetector(enabled=True, threshold=5, raise_on_detection=False)
         detector.start_request("test-request")
@@ -341,7 +341,7 @@ class TestN1QueryDetector:
         assert result.detected is True
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_disabled(self):
+    async def test_track_field_resolution_disabled(self) -> None:
         """Test tracking field resolution when detector is disabled."""
         detector = N1QueryDetector(enabled=False)
 
@@ -353,7 +353,7 @@ class TestN1QueryDetector:
         assert len(detector._patterns) == 0
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_no_request(self):
+    async def test_track_field_resolution_no_request(self) -> None:
         """Test tracking field resolution when no request is active."""
         detector = N1QueryDetector(enabled=True)
         # Don't start a request
@@ -366,7 +366,7 @@ class TestN1QueryDetector:
         assert len(detector._patterns) == 0
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_creates_pattern(self):
+    async def test_track_field_resolution_creates_pattern(self) -> None:
         """Test tracking field resolution creates new pattern."""
         detector = N1QueryDetector(enabled=True)
         detector.start_request("test-request")
@@ -392,7 +392,7 @@ class TestN1QueryDetector:
         assert pattern.execution_times == [0.1]
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_updates_pattern(self):
+    async def test_track_field_resolution_updates_pattern(self) -> None:
         """Test tracking field resolution updates existing pattern."""
         detector = N1QueryDetector(enabled=True)
         detector.start_request("test-request")
@@ -412,7 +412,7 @@ class TestN1QueryDetector:
         assert pattern.execution_times == [0.1, 0.2, 0.15]
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_no_parent_type(self):
+    async def test_track_field_resolution_no_parent_type(self) -> None:
         """Test tracking field resolution with no parent type."""
         detector = N1QueryDetector(enabled=True)
         detector.start_request("test-request")
@@ -427,7 +427,7 @@ class TestN1QueryDetector:
         assert pattern.parent_type == "Unknown"
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_time_window_cleanup(self):
+    async def test_track_field_resolution_time_window_cleanup(self) -> None:
         """Test that old timestamps are cleaned up based on time window."""
         detector = N1QueryDetector(enabled=True, time_window=0.1)  # 100ms window
         detector.start_request("test-request")
@@ -453,7 +453,7 @@ class TestN1QueryDetector:
 class TestN1QueryDetectedError:
     """Test N1QueryDetectedError exception."""
 
-    def test_error_creation(self):
+    def test_error_creation(self) -> None:
         """Test creating N1QueryDetectedError."""
         patterns = [
             QueryPattern(
@@ -474,7 +474,7 @@ class TestN1QueryDetectedError:
 class TestGlobalDetectorFunctions:
     """Test global detector functions."""
 
-    def test_get_detector_creates_instance(self):
+    def test_get_detector_creates_instance(self) -> None:
         """Test that get_detector creates a global instance."""
         # Clear any existing detector
         import fraiseql.optimization.n_plus_one_detector as detector_module
@@ -489,7 +489,7 @@ class TestGlobalDetectorFunctions:
         detector2 = get_detector()
         assert detector is detector2
 
-    def test_configure_detector_sets_global(self):
+    def test_configure_detector_sets_global(self) -> None:
         """Test that configure_detector sets global detector."""
         detector = configure_detector(
             threshold=15, time_window=2.0, enabled=False, raise_on_detection=True
@@ -510,7 +510,7 @@ class TestN1DetectionContext:
     """Test n1_detection_context context manager."""
 
     @pytest.mark.asyncio
-    async def test_context_normal_execution(self):
+    async def test_context_normal_execution(self) -> None:
         """Test context manager with normal execution."""
         # Ensure detector is enabled for this test
         configure_detector(enabled=True)
@@ -526,7 +526,7 @@ class TestN1DetectionContext:
         # This is the expected behavior
 
     @pytest.mark.asyncio
-    async def test_context_with_exception(self):
+    async def test_context_with_exception(self) -> None:
         """Test context manager when exception occurs."""
         request_id = "test-request-123"
         detector = get_detector()
@@ -557,7 +557,7 @@ class TestN1DetectionContext:
         detector.end_request = original_end_request
 
     @pytest.mark.asyncio
-    async def test_context_calls_end_request(self):
+    async def test_context_calls_end_request(self) -> None:
         """Test that context manager calls end_request on normal completion."""
         request_id = "test-request-123"
         detector = get_detector()
@@ -588,7 +588,7 @@ class TestTrackResolverExecution:
     """Test track_resolver_execution decorator."""
 
     @pytest.mark.asyncio
-    async def test_async_resolver_tracking_disabled(self):
+    async def test_async_resolver_tracking_disabled(self) -> None:
         """Test async resolver with tracking disabled."""
         detector = Mock()
         detector.enabled = False
@@ -596,7 +596,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            async def test_resolver(self, info):
+            async def test_resolver(self, info) -> None:
                 return "result"
 
             mock_info = Mock(spec=GraphQLResolveInfo)
@@ -610,7 +610,7 @@ class TestTrackResolverExecution:
             )
 
     @pytest.mark.asyncio
-    async def test_async_resolver_tracking_enabled(self):
+    async def test_async_resolver_tracking_enabled(self) -> None:
         """Test async resolver with tracking enabled."""
         detector = Mock()
         detector.enabled = True
@@ -622,7 +622,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            async def test_resolver(self, info):
+            async def test_resolver(self, info) -> None:
                 await asyncio.sleep(0.01)  # Small delay for timing
                 return "result"
 
@@ -638,7 +638,7 @@ class TestTrackResolverExecution:
             assert isinstance(call_args[0][2], float)  # execution time
 
     @pytest.mark.asyncio
-    async def test_async_resolver_with_exception(self):
+    async def test_async_resolver_with_exception(self) -> None:
         """Test async resolver that raises exception."""
         detector = Mock()
         detector.enabled = True
@@ -650,7 +650,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            async def failing_resolver(self, info):
+            async def failing_resolver(self, info) -> None:
                 raise ValueError("Test error")
 
             with pytest.raises(ValueError, match="Test error"):
@@ -659,7 +659,7 @@ class TestTrackResolverExecution:
             # Should still track the field resolution
             detector.track_field_resolution.assert_called_once()
 
-    def test_sync_resolver_tracking_disabled(self):
+    def test_sync_resolver_tracking_disabled(self) -> None:
         """Test sync resolver with tracking disabled."""
         detector = Mock()
         detector.enabled = False
@@ -667,7 +667,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            def test_resolver(self, info):
+            def test_resolver(self, info) -> None:
                 return "result"
 
             mock_info = Mock(spec=GraphQLResolveInfo)
@@ -676,7 +676,7 @@ class TestTrackResolverExecution:
             assert result == "result"
 
     @patch("fraiseql.optimization.n_plus_one_detector.asyncio.create_task")
-    def test_sync_resolver_tracking_enabled(self, mock_create_task):
+    def test_sync_resolver_tracking_enabled(self, mock_create_task) -> None:
         """Test sync resolver with tracking enabled."""
         detector = Mock()
         detector.enabled = True
@@ -688,7 +688,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            def test_resolver(self, info):
+            def test_resolver(self, info) -> None:
                 time.sleep(0.001)  # Small delay for timing
                 return "result"
 
@@ -699,7 +699,7 @@ class TestTrackResolverExecution:
             mock_create_task.assert_called_once()
 
     @patch("fraiseql.optimization.n_plus_one_detector.asyncio.create_task")
-    def test_sync_resolver_with_exception(self, mock_create_task):
+    def test_sync_resolver_with_exception(self, mock_create_task) -> None:
         """Test sync resolver that raises exception."""
         detector = Mock()
         detector.enabled = True
@@ -711,7 +711,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
-            def failing_resolver(self, info):
+            def failing_resolver(self, info) -> None:
                 raise ValueError("Test error")
 
             with pytest.raises(ValueError, match="Test error"):
@@ -720,11 +720,11 @@ class TestTrackResolverExecution:
             # Should still create task for tracking
             mock_create_task.assert_called_once()
 
-    def test_decorator_wraps_function(self):
+    def test_decorator_wraps_function(self) -> None:
         """Test that decorator wraps the function correctly."""
 
         @track_resolver_execution
-        async def documented_resolver(self, info):
+        async def documented_resolver(self, info) -> None:
             """This is a documented resolver."""
             return "result"
 
@@ -733,15 +733,15 @@ class TestTrackResolverExecution:
         assert callable(documented_resolver)
         assert asyncio.iscoroutinefunction(documented_resolver)
 
-    def test_sync_function_detection(self):
+    def test_sync_function_detection(self) -> None:
         """Test that decorator correctly detects sync vs async functions."""
 
         @track_resolver_execution
-        def sync_func(self, info):
+        def sync_func(self, info) -> None:
             return "sync"
 
         @track_resolver_execution
-        async def async_func(self, info):
+        async def async_func(self, info) -> None:
             return "async"
 
         # Check that the right wrapper is used
@@ -752,7 +752,7 @@ class TestTrackResolverExecution:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_query_pattern_with_empty_execution_times(self):
+    def test_query_pattern_with_empty_execution_times(self) -> None:
         """Test QueryPattern with empty execution times list."""
         pattern = QueryPattern(
             field_path="test",
@@ -765,7 +765,7 @@ class TestEdgeCases:
         assert pattern.avg_execution_time == 0.0
 
     @pytest.mark.asyncio
-    async def test_track_field_resolution_with_complex_path(self):
+    async def test_track_field_resolution_with_complex_path(self) -> None:
         """Test tracking with complex GraphQL path."""
         detector = N1QueryDetector(enabled=True)
         detector.start_request("test-request")
@@ -780,7 +780,7 @@ class TestEdgeCases:
         pattern = detector._patterns["Article.comments"]
         assert "articles.0.author.posts.1.comments" in pattern.field_path
 
-    def test_end_request_with_zero_threshold(self):
+    def test_end_request_with_zero_threshold(self) -> None:
         """Test end_request with threshold of 0."""
         detector = N1QueryDetector(enabled=True, threshold=0)
         detector.start_request("test-request")
@@ -799,7 +799,7 @@ class TestEdgeCases:
         assert result.detected is True
         assert len(result.patterns) == 1
 
-    def test_configure_detector_multiple_times(self):
+    def test_configure_detector_multiple_times(self) -> None:
         """Test configuring detector multiple times."""
         detector1 = configure_detector(threshold=5)
         detector2 = configure_detector(threshold=15)
@@ -813,7 +813,7 @@ class TestEdgeCases:
         assert global_detector is detector2
 
     @pytest.mark.asyncio
-    async def test_context_manager_with_detection_exception(self):
+    async def test_context_manager_with_detection_exception(self) -> None:
         """Test context manager when N+1 detection raises exception."""
         configure_detector(threshold=1, enabled=True, raise_on_detection=True)
 
@@ -834,7 +834,7 @@ class TestEdgeCases:
         except N1QueryDetectedError:
             pass  # Expected when raise_on_detection=True
 
-    def test_pattern_suggestion_formatting(self):
+    def test_pattern_suggestion_formatting(self) -> None:
         """Test that pattern suggestions are formatted correctly."""
         detector = N1QueryDetector(enabled=True, threshold=5)
         detector.start_request("test-request")
@@ -857,7 +857,7 @@ class TestEdgeCases:
         assert "Consider using a DataLoader" in suggestion
 
     @pytest.mark.asyncio
-    async def test_detector_thread_safety(self):
+    async def test_detector_thread_safety(self) -> None:
         """Test detector behavior with concurrent access."""
         detector = N1QueryDetector(enabled=True)
         detector.start_request("test-request")

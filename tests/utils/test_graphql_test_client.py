@@ -6,9 +6,9 @@ This test client mimics real GraphQL client behavior by:
 3. Providing type-safe response objects
 """
 
-import pytest
-from typing import TypeVar
 from dataclasses import dataclass
+
+import pytest
 
 # We'll import these once implemented
 # from tests.utils.graphql_test_client import TypedGraphQLResponse, GraphQLTestClient
@@ -17,13 +17,14 @@ from dataclasses import dataclass
 @dataclass
 class Product:
     """Sample product type for testing."""
+
     id: int
     name: str
     price: float
 
 
 # TDD Cycle 4.1: Basic TypedGraphQLResponse
-def test_typed_graphql_response_creation():
+def test_typed_graphql_response_creation() -> None:
     """Test TypedGraphQLResponse can be created with data and errors."""
     from tests.utils.graphql_test_client import TypedGraphQLResponse
 
@@ -44,7 +45,7 @@ def test_typed_graphql_response_creation():
     assert response_with_errors.ok is False
 
 
-def test_typed_graphql_response_with_list_data():
+def test_typed_graphql_response_with_list_data() -> None:
     """Test TypedGraphQLResponse handles list data correctly."""
     from tests.utils.graphql_test_client import TypedGraphQLResponse
 
@@ -59,7 +60,7 @@ def test_typed_graphql_response_with_list_data():
     assert response.ok is True
 
 
-def test_typed_graphql_response_partial_success():
+def test_typed_graphql_response_partial_success() -> None:
     """Test TypedGraphQLResponse with both data and errors (partial success)."""
     from tests.utils.graphql_test_client import TypedGraphQLResponse
 
@@ -76,21 +77,15 @@ def test_typed_graphql_response_partial_success():
 
 # TDD Cycle 4.2: GraphQLTestClient Query Execution
 @pytest.mark.asyncio
-async def test_graphql_test_client_executes_query():
+async def test_graphql_test_client_executes_query() -> None:
     """Test GraphQLTestClient can execute a basic query."""
+    from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
     from tests.utils.graphql_test_client import GraphQLTestClient
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString
 
     # Create a simple schema
     schema = GraphQLSchema(
         query=GraphQLObjectType(
-            "Query",
-            {
-                "hello": GraphQLField(
-                    GraphQLString,
-                    resolve=lambda obj, info: "world"
-                )
-            }
+            "Query", {"hello": GraphQLField(GraphQLString, resolve=lambda obj, info: "world")}
         )
     )
 
@@ -106,12 +101,22 @@ async def test_graphql_test_client_executes_query():
 
 
 @pytest.mark.asyncio
-async def test_graphql_test_client_handles_rustresponsebytes():
+async def test_graphql_test_client_handles_rustresponsebytes() -> None:
     """Test GraphQLTestClient handles RustResponseBytes return from execute_graphql."""
-    from tests.utils.graphql_test_client import GraphQLTestClient
-    from fraiseql.core.rust_pipeline import RustResponseBytes
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLList, GraphQLInt, GraphQLFloat, GraphQLString
     import json
+
+    from graphql import (
+        GraphQLField,
+        GraphQLFloat,
+        GraphQLInt,
+        GraphQLList,
+        GraphQLObjectType,
+        GraphQLSchema,
+        GraphQLString,
+    )
+    from tests.utils.graphql_test_client import GraphQLTestClient
+
+    from fraiseql.core.rust_pipeline import RustResponseBytes
 
     # Create a schema that returns list of products
     schema = GraphQLSchema(
@@ -126,17 +131,19 @@ async def test_graphql_test_client_handles_rustresponsebytes():
                                 "id": GraphQLField(GraphQLInt),
                                 "name": GraphQLField(GraphQLString),
                                 "price": GraphQLField(GraphQLFloat),
-                            }
+                            },
                         )
                     ),
                     resolve=lambda obj, info: RustResponseBytes(
-                        json.dumps([
-                            {"id": 1, "name": "Product 1", "price": 10.0},
-                            {"id": 2, "name": "Product 2", "price": 20.0},
-                        ]).encode("utf-8")
-                    )
+                        json.dumps(
+                            [
+                                {"id": 1, "name": "Product 1", "price": 10.0},
+                                {"id": 2, "name": "Product 2", "price": 20.0},
+                            ]
+                        ).encode("utf-8")
+                    ),
                 )
-            }
+            },
         )
     )
 
@@ -151,21 +158,18 @@ async def test_graphql_test_client_handles_rustresponsebytes():
 
 
 @pytest.mark.asyncio
-async def test_graphql_test_client_handles_errors():
+async def test_graphql_test_client_handles_errors() -> None:
     """Test GraphQLTestClient handles GraphQL errors correctly."""
+    from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
     from tests.utils.graphql_test_client import GraphQLTestClient
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString
 
     # Create schema with a field that raises an error
-    def error_resolver(obj, info):
+    def error_resolver(obj, info) -> None:
         raise Exception("Something went wrong")
 
     schema = GraphQLSchema(
         query=GraphQLObjectType(
-            "Query",
-            {
-                "failing": GraphQLField(GraphQLString, resolve=error_resolver)
-            }
+            "Query", {"failing": GraphQLField(GraphQLString, resolve=error_resolver)}
         )
     )
 
@@ -182,10 +186,17 @@ async def test_graphql_test_client_handles_errors():
 
 # TDD Cycle 4.3: Type Deserialization
 @pytest.mark.asyncio
-async def test_graphql_test_client_deserializes_nested_types():
+async def test_graphql_test_client_deserializes_nested_types() -> None:
     """Test GraphQLTestClient handles nested dataclass types."""
+    from graphql import (
+        GraphQLField,
+        GraphQLFloat,
+        GraphQLInt,
+        GraphQLObjectType,
+        GraphQLSchema,
+        GraphQLString,
+    )
     from tests.utils.graphql_test_client import GraphQLTestClient
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLList, GraphQLInt, GraphQLString, GraphQLFloat
 
     @dataclass
     class Category:
@@ -217,25 +228,27 @@ async def test_graphql_test_client_deserializes_nested_types():
                                     {
                                         "id": GraphQLField(GraphQLInt),
                                         "name": GraphQLField(GraphQLString),
-                                    }
+                                    },
                                 )
                             ),
-                        }
+                        },
                     ),
                     resolve=lambda obj, info: {
                         "id": 1,
                         "name": "Product 1",
                         "price": 99.99,
-                        "category": {"id": 10, "name": "Electronics"}
-                    }
+                        "category": {"id": 10, "name": "Electronics"},
+                    },
                 )
-            }
+            },
         )
     )
 
     client = GraphQLTestClient(schema)
     # Result type should match the GraphQL response shape: {"product": {...}}
-    response = await client.query("{ product { id name price category { id name } } }", result_type=dict)
+    response = await client.query(
+        "{ product { id name price category { id name } } }", result_type=dict
+    )
 
     assert response.ok is True
     assert isinstance(response.data, dict)
@@ -249,10 +262,10 @@ async def test_graphql_test_client_deserializes_nested_types():
 
 
 @pytest.mark.asyncio
-async def test_graphql_test_client_handles_null_values():
+async def test_graphql_test_client_handles_null_values() -> None:
     """Test GraphQLTestClient handles null values in responses."""
+    from graphql import GraphQLField, GraphQLInt, GraphQLObjectType, GraphQLSchema, GraphQLString
     from tests.utils.graphql_test_client import GraphQLTestClient
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLInt, GraphQLString
 
     schema = GraphQLSchema(
         query=GraphQLObjectType(
@@ -265,11 +278,11 @@ async def test_graphql_test_client_handles_null_values():
                             "id": GraphQLField(GraphQLInt),
                             "name": GraphQLField(GraphQLString),
                             "description": GraphQLField(GraphQLString),
-                        }
+                        },
                     ),
-                    resolve=lambda obj, info: {"id": 1, "name": "Product 1", "description": None}
+                    resolve=lambda obj, info: {"id": 1, "name": "Product 1", "description": None},
                 )
-            }
+            },
         )
     )
 
@@ -284,10 +297,18 @@ async def test_graphql_test_client_handles_null_values():
 
 
 @pytest.mark.asyncio
-async def test_graphql_test_client_handles_empty_lists():
+async def test_graphql_test_client_handles_empty_lists() -> None:
     """Test GraphQLTestClient handles empty list responses."""
+    from graphql import (
+        GraphQLField,
+        GraphQLFloat,
+        GraphQLInt,
+        GraphQLList,
+        GraphQLObjectType,
+        GraphQLSchema,
+        GraphQLString,
+    )
     from tests.utils.graphql_test_client import GraphQLTestClient
-    from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLList, GraphQLInt, GraphQLString, GraphQLFloat
 
     schema = GraphQLSchema(
         query=GraphQLObjectType(
@@ -301,12 +322,12 @@ async def test_graphql_test_client_handles_empty_lists():
                                 "id": GraphQLField(GraphQLInt),
                                 "name": GraphQLField(GraphQLString),
                                 "price": GraphQLField(GraphQLFloat),
-                            }
+                            },
                         )
                     ),
-                    resolve=lambda obj, info: []
+                    resolve=lambda obj, info: [],
                 )
-            }
+            },
         )
     )
 

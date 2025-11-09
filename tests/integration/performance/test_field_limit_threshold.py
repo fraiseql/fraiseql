@@ -10,7 +10,7 @@ from fraiseql.sql.sql_generator import build_sql_query
 class TestFieldLimitThreshold:
     """Test field limit threshold behavior in SQL generation."""
 
-    def test_normal_query_below_threshold(self):
+    def test_normal_query_below_threshold(self) -> None:
         """Test that queries with few fields use jsonb_build_object."""
         # Create 5 field paths (below any reasonable threshold)
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(5)]
@@ -28,7 +28,7 @@ class TestFieldLimitThreshold:
         for i in range(5):
             assert f"'field{i}'" in sql_str
 
-    def test_query_exceeds_threshold_returns_full_data(self):
+    def test_query_exceeds_threshold_returns_full_data(self) -> None:
         """Test that queries exceeding threshold return full data column."""
         # Create 25 field paths (exceeds threshold of 20)
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(25)]
@@ -45,7 +45,7 @@ class TestFieldLimitThreshold:
         assert "SELECT data AS result" in sql_str
         assert 'FROM "users"' in sql_str
 
-    def test_query_at_exact_threshold(self):
+    def test_query_at_exact_threshold(self) -> None:
         """Test behavior when field count equals threshold."""
         # Create exactly 20 field paths
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(20)]
@@ -59,7 +59,7 @@ class TestFieldLimitThreshold:
         # At threshold, should still use jsonb_build_object
         assert "jsonb_build_object(" in sql_str
 
-    def test_threshold_with_where_clause(self):
+    def test_threshold_with_where_clause(self) -> None:
         """Test that WHERE clause works with full data selection."""
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(30)]
 
@@ -80,7 +80,7 @@ class TestFieldLimitThreshold:
         # Should include WHERE clause
         assert "WHERE data->>'status' = 'active'" in sql_str
 
-    def test_raw_json_output_with_threshold(self):
+    def test_raw_json_output_with_threshold(self) -> None:
         """Test raw JSON output when exceeding threshold."""
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(25)]
 
@@ -97,7 +97,7 @@ class TestFieldLimitThreshold:
         # Should cast to text for raw output
         assert "SELECT data::text AS result" in sql_str
 
-    def test_no_json_output_with_threshold(self):
+    def test_no_json_output_with_threshold(self) -> None:
         """Test non-JSON output when exceeding threshold."""
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(25)]
 
@@ -111,7 +111,7 @@ class TestFieldLimitThreshold:
         assert "SELECT data FROM" in sql_str
         assert "AS result" not in sql_str
 
-    def test_no_threshold_specified(self):
+    def test_no_threshold_specified(self) -> None:
         """Test behavior when no threshold is specified."""
         # Create many fields
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(100)]
@@ -128,7 +128,7 @@ class TestFieldLimitThreshold:
         # Should use jsonb_build_object regardless of field count
         assert "jsonb_build_object(" in sql_str
 
-    def test_zero_threshold(self):
+    def test_zero_threshold(self) -> None:
         """Test behavior with zero threshold (always use full data)."""
         field_paths = [
             FieldPath(alias="name", path=["name"]),
@@ -144,7 +144,7 @@ class TestFieldLimitThreshold:
         # With 0 threshold, any fields should trigger full data
         assert "SELECT data AS result" in sql_str
 
-    def test_nested_fields_count_correctly(self):
+    def test_nested_fields_count_correctly(self) -> None:
         """Test that nested fields are counted correctly."""
         field_paths = [
             FieldPath(alias=f"nested{i}", path=["profile", "details", f"field{i}"])
@@ -160,7 +160,7 @@ class TestFieldLimitThreshold:
         # Should still exceed threshold with nested fields
         assert "SELECT data AS result" in sql_str
 
-    def test_typename_not_counted_in_threshold(self):
+    def test_typename_not_counted_in_threshold(self) -> None:
         """Test that __typename doesn't count toward field limit."""
         # Create exactly 20 fields
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(20)]
@@ -185,7 +185,7 @@ class TestFieldLimitThreshold:
 class TestFieldLimitThresholdEdgeCases:
     """Test edge cases for field limit threshold."""
 
-    def test_empty_field_paths(self):
+    def test_empty_field_paths(self) -> None:
         """Test behavior with no fields requested."""
         query = build_sql_query(
             table="users", field_paths=[], json_output=True, field_limit_threshold=20
@@ -196,7 +196,7 @@ class TestFieldLimitThresholdEdgeCases:
         # Should still use jsonb_build_object for empty
         assert "jsonb_build_object(" in sql_str
 
-    def test_single_field_various_thresholds(self):
+    def test_single_field_various_thresholds(self) -> None:
         """Test single field with various threshold values."""
         field_paths = [FieldPath(alias="name", path=["name"])]
 
@@ -212,7 +212,7 @@ class TestFieldLimitThresholdEdgeCases:
         )
         assert "SELECT data AS result" in query2.as_string(None)
 
-    def test_very_large_field_count(self):
+    def test_very_large_field_count(self) -> None:
         """Test with field count that would exceed PostgreSQL limits."""
         # Create 60 fields (would need 120 parameters in jsonb_build_object)
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(60)]
@@ -235,7 +235,7 @@ class TestFieldLimitThresholdEdgeCases:
             (24, "full_data"),  # 25 fields > 24 threshold
         ],
     )
-    def test_various_thresholds(self, threshold, expected_mode):
+    def test_various_thresholds(self, threshold, expected_mode) -> None:
         """Test various threshold values with 25 fields."""
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(25)]
 

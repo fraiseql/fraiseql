@@ -10,20 +10,20 @@ from psycopg.sql import SQL
 # Import Date operator functions
 from fraiseql.sql.where.operators.date import (
     build_date_eq_sql,
-    build_date_neq_sql,
-    build_date_in_sql,
-    build_date_notin_sql,
     build_date_gt_sql,
     build_date_gte_sql,
+    build_date_in_sql,
     build_date_lt_sql,
     build_date_lte_sql,
+    build_date_neq_sql,
+    build_date_notin_sql,
 )
 
 
 class TestDateBasicOperators:
     """Test basic Date operators (eq, neq, in, notin)."""
 
-    def test_build_date_equality_sql(self):
+    def test_build_date_equality_sql(self) -> None:
         """Test Date equality operator with proper date casting."""
         path_sql = SQL("data->>'birth_date'")
         value = "2023-07-15"
@@ -33,7 +33,7 @@ class TestDateBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_inequality_sql(self):
+    def test_build_date_inequality_sql(self) -> None:
         """Test Date inequality operator with proper date casting."""
         path_sql = SQL("data->>'event_date'")
         value = "2023-01-01"
@@ -43,7 +43,7 @@ class TestDateBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_in_list_sql(self):
+    def test_build_date_in_list_sql(self) -> None:
         """Test Date IN list with multiple date values."""
         path_sql = SQL("data->>'holiday_date'")
         value = ["2023-07-04", "2023-12-25", "2023-01-01"]
@@ -53,7 +53,7 @@ class TestDateBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_not_in_list_sql(self):
+    def test_build_date_not_in_list_sql(self) -> None:
         """Test Date NOT IN list with multiple date values."""
         path_sql = SQL("data->>'work_date'")
         value = ["2023-07-04", "2023-12-25"]
@@ -63,7 +63,7 @@ class TestDateBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_single_item_in_list(self):
+    def test_build_date_single_item_in_list(self) -> None:
         """Test Date IN list with single value."""
         path_sql = SQL("data->>'anniversary'")
         value = ["2023-07-15"]
@@ -73,7 +73,7 @@ class TestDateBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_formats(self):
+    def test_build_date_formats(self) -> None:
         """Test Date operators with different date formats."""
         path_sql = SQL("data->>'date'")
 
@@ -92,7 +92,7 @@ class TestDateBasicOperators:
         expected_end = "(data->>'date')::date = '2023-12-31'::date"
         assert result_end.as_string(None) == expected_end
 
-    def test_build_date_empty_list_handling(self):
+    def test_build_date_empty_list_handling(self) -> None:
         """Test Date operators handle empty lists gracefully."""
         path_sql = SQL("data->>'date'")
         value = []
@@ -109,7 +109,7 @@ class TestDateBasicOperators:
 class TestDateComparisonOperators:
     """Test Date comparison operators (gt, gte, lt, lte)."""
 
-    def test_build_date_greater_than_sql(self):
+    def test_build_date_greater_than_sql(self) -> None:
         """Test Date greater than operator."""
         path_sql = SQL("data->>'start_date'")
         value = "2023-07-01"
@@ -119,7 +119,7 @@ class TestDateComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_greater_than_equal_sql(self):
+    def test_build_date_greater_than_equal_sql(self) -> None:
         """Test Date greater than or equal operator."""
         path_sql = SQL("data->>'start_date'")
         value = "2023-07-01"
@@ -129,7 +129,7 @@ class TestDateComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_less_than_sql(self):
+    def test_build_date_less_than_sql(self) -> None:
         """Test Date less than operator."""
         path_sql = SQL("data->>'end_date'")
         value = "2023-12-31"
@@ -139,7 +139,7 @@ class TestDateComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_date_less_than_equal_sql(self):
+    def test_build_date_less_than_equal_sql(self) -> None:
         """Test Date less than or equal operator."""
         path_sql = SQL("data->>'end_date'")
         value = "2023-12-31"
@@ -149,7 +149,7 @@ class TestDateComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_date_range_queries(self):
+    def test_date_range_queries(self) -> None:
         """Test Date range queries with comparison operators."""
         path_sql = SQL("data->>'event_date'")
 
@@ -177,21 +177,21 @@ class TestDateComparisonOperators:
 class TestDateValidation:
     """Test Date operator validation and error handling."""
 
-    def test_date_in_requires_list(self):
+    def test_date_in_requires_list(self) -> None:
         """Test that Date 'in' operator requires a list."""
         path_sql = SQL("data->>'date'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_date_in_sql(path_sql, "2023-07-15")
 
-    def test_date_notin_requires_list(self):
+    def test_date_notin_requires_list(self) -> None:
         """Test that Date 'notin' operator requires a list."""
         path_sql = SQL("data->>'date'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_date_notin_sql(path_sql, "2023-07-15")
 
-    def test_date_iso_formats_supported(self):
+    def test_date_iso_formats_supported(self) -> None:
         """Test that various ISO 8601 date formats are supported."""
         path_sql = SQL("data->>'date'")
 
@@ -213,7 +213,7 @@ class TestDateValidation:
             expected = f"(data->>'date')::date = '{date_str}'::date"
             assert result.as_string(None) == expected
 
-    def test_date_seasonal_boundaries(self):
+    def test_date_seasonal_boundaries(self) -> None:
         """Test Date with seasonal and calendar boundaries."""
         path_sql = SQL("data->>'date'")
 
@@ -231,7 +231,7 @@ class TestDateValidation:
         expected_apr30 = "(data->>'date')::date = '2023-04-30'::date"
         assert result_apr30.as_string(None) == expected_apr30
 
-    def test_date_business_scenarios(self):
+    def test_date_business_scenarios(self) -> None:
         """Test Date with common business scenarios."""
         path_sql = SQL("data->>'business_date'")
 
@@ -246,7 +246,7 @@ class TestDateValidation:
         expected_fiscal_end = f"(data->>'business_date')::date <= '{fiscal_end}'::date"
         assert result_fiscal_end.as_string(None) == expected_fiscal_end
 
-    def test_date_historical_and_future(self):
+    def test_date_historical_and_future(self) -> None:
         """Test Date with historical and future dates."""
         path_sql = SQL("data->>'date'")
 

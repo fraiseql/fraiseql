@@ -15,11 +15,11 @@ actual production failures that unit tests miss.
 """
 
 from dataclasses import dataclass
-from typing import get_type_hints
+
 import pytest
 
-from fraiseql.types import IpAddress, LTree, DateRange, MacAddress
 from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
 
 # Test Data Models
@@ -67,7 +67,7 @@ class NetworkInterface:
 class TestTier1NetworkTypes:
     """Core Network type filtering tests - must pass for basic functionality."""
 
-    def test_network_eq_operator_jsonb_flat(self):
+    def test_network_eq_operator_jsonb_flat(self) -> None:
         """RED: Test Network eq operator with JSONB flat storage fails initially.
 
         This test reproduces the core issue where IP address equality filtering
@@ -106,7 +106,7 @@ class TestTier1NetworkTypes:
         # Both should now work and produce similar results
         assert "::inet" in sql_with_type, "Should work with field_type too"
 
-    def test_network_isprivate_operator_jsonb_flat(self):
+    def test_network_isprivate_operator_jsonb_flat(self) -> None:
         """RED: Test Network isPrivate operator with JSONB flat storage.
 
         Tests private IP detection on JSONB-stored IP addresses.
@@ -135,7 +135,7 @@ class TestTier1NetworkTypes:
         has_private_ranges = any(range_str in sql_str for range_str in rfc1918_ranges)
         assert has_private_ranges, f"Should check RFC 1918 ranges, got: {sql_str}"
 
-    def test_network_ispublic_operator_jsonb_flat(self):
+    def test_network_ispublic_operator_jsonb_flat(self) -> None:
         """RED: Test Network isPublic operator with JSONB flat storage.
 
         Tests public IP detection as inverse of private IP logic.
@@ -156,7 +156,7 @@ class TestTier1NetworkTypes:
         # Should be NOT private (inversion logic)
         assert "NOT" in sql_str, "Public should be NOT private"
 
-    def test_network_insubnet_operator_jsonb_flat(self):
+    def test_network_insubnet_operator_jsonb_flat(self) -> None:
         """RED: Test Network inSubnet operator with JSONB flat storage.
 
         Tests subnet matching using PostgreSQL inet subnet operators.
@@ -182,7 +182,7 @@ class TestTier1NetworkTypes:
 class TestTier1LTreeTypes:
     """Core LTree hierarchical path filtering tests."""
 
-    def test_ltree_eq_operator_jsonb_flat(self):
+    def test_ltree_eq_operator_jsonb_flat(self) -> None:
         """RED: Test LTree eq operator with JSONB flat storage fails initially.
 
         Tests basic LTree path equality with proper ltree casting.
@@ -201,7 +201,7 @@ class TestTier1LTreeTypes:
         assert "::ltree" in sql_str, "LTree equality requires ltree casting"
         assert "top.middle.bottom" in sql_str, "Should include path value"
 
-    def test_ltree_ancestor_of_operator_jsonb_flat(self):
+    def test_ltree_ancestor_of_operator_jsonb_flat(self) -> None:
         """RED: Test LTree ancestor_of operator with JSONB flat storage.
 
         Tests hierarchical ancestor relationship using PostgreSQL ltree operators.
@@ -220,7 +220,7 @@ class TestTier1LTreeTypes:
         assert "@>" in sql_str, "Ancestor relationship requires PostgreSQL @> operator"
         assert "::ltree" in sql_str, "Ancestor operation requires ltree casting"
 
-    def test_ltree_matches_lquery_operator_jsonb_flat(self):
+    def test_ltree_matches_lquery_operator_jsonb_flat(self) -> None:
         """RED: Test LTree matches_lquery operator with JSONB flat storage.
 
         Tests pattern matching using ltree lquery patterns.
@@ -245,7 +245,7 @@ class TestTier1LTreeTypes:
 class TestTier1DateRangeTypes:
     """Core DateRange temporal filtering tests."""
 
-    def test_daterange_eq_operator_jsonb_flat(self):
+    def test_daterange_eq_operator_jsonb_flat(self) -> None:
         """RED: Test DateRange eq operator with JSONB flat storage fails initially.
 
         Tests basic DateRange equality with proper daterange casting.
@@ -264,7 +264,7 @@ class TestTier1DateRangeTypes:
         assert "::daterange" in sql_str, "DateRange equality requires daterange casting"
         assert "2024-01-01" in sql_str and "2024-12-31" in sql_str, "Should include date range"
 
-    def test_daterange_contains_date_operator_jsonb_flat(self):
+    def test_daterange_contains_date_operator_jsonb_flat(self) -> None:
         """RED: Test DateRange contains_date operator with JSONB flat storage.
 
         Tests whether a range contains a specific date using PostgreSQL range operators.
@@ -284,7 +284,7 @@ class TestTier1DateRangeTypes:
         assert "::daterange" in sql_str, "Contains operation requires daterange casting"
         assert "::date" in sql_str, "Date parameter requires date casting"
 
-    def test_daterange_overlaps_operator_jsonb_flat(self):
+    def test_daterange_overlaps_operator_jsonb_flat(self) -> None:
         """RED: Test DateRange overlaps operator with JSONB flat storage.
 
         Tests range overlap detection using PostgreSQL range operators.
@@ -308,7 +308,7 @@ class TestTier1DateRangeTypes:
 class TestTier1MacAddressTypes:
     """Core MAC address filtering tests."""
 
-    def test_mac_eq_operator_jsonb_flat(self):
+    def test_mac_eq_operator_jsonb_flat(self) -> None:
         """RED: Test MAC address eq operator with JSONB flat storage fails initially.
 
         Tests basic MAC address equality with proper macaddr casting.
@@ -327,7 +327,7 @@ class TestTier1MacAddressTypes:
         assert "::macaddr" in sql_str, "MAC equality requires macaddr casting"
         assert "00:11:22:33:44:55" in sql_str, "Should include MAC address"
 
-    def test_mac_in_operator_jsonb_flat(self):
+    def test_mac_in_operator_jsonb_flat(self) -> None:
         """RED: Test MAC address in operator with JSONB flat storage.
 
         Tests MAC address list filtering with proper macaddr casting.
@@ -354,11 +354,12 @@ class TestTier1MacAddressTypes:
 class TestTier1FieldTypePassthrough:
     """Test that field_type information propagates correctly through the system."""
 
-    def test_field_type_propagation_network(self):
+    def test_field_type_propagation_network(self) -> None:
         """Test that IpAddress field_type propagates to operator strategies."""
         # This tests the critical field_type propagation issue
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         # Test with explicit field_type (should work)
         path_sql = SQL("(data ->> 'ip_address')")
@@ -379,10 +380,11 @@ class TestTier1FieldTypePassthrough:
             error_msg = str(e).lower()
             assert "field type" in error_msg or "ip address" in error_msg
 
-    def test_field_type_propagation_ltree(self):
+    def test_field_type_propagation_ltree(self) -> None:
         """Test that LTree field_type propagates to operator strategies."""
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         path_sql = SQL("(data ->> 'path')")
         result = build_operator_composed(path_sql, "ancestor_of", "top.middle", LTree)
@@ -390,10 +392,11 @@ class TestTier1FieldTypePassthrough:
         sql_str = str(result)
         assert "::ltree" in sql_str, "Field type should enable proper ltree casting"
 
-    def test_field_type_propagation_daterange(self):
+    def test_field_type_propagation_daterange(self) -> None:
         """Test that DateRange field_type propagates to operator strategies."""
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         path_sql = SQL("(data ->> 'period')")
         result = build_operator_composed(path_sql, "contains_date", "2024-06-15", DateRange)
@@ -401,10 +404,11 @@ class TestTier1FieldTypePassthrough:
         sql_str = str(result)
         assert "::daterange" in sql_str, "Field type should enable proper daterange casting"
 
-    def test_field_type_propagation_macaddress(self):
+    def test_field_type_propagation_macaddress(self) -> None:
         """Test that MacAddress field_type propagates to operator strategies."""
-        from fraiseql.sql.where_generator import build_operator_composed
         from psycopg.sql import SQL
+
+        from fraiseql.sql.where_generator import build_operator_composed
 
         path_sql = SQL("(data ->> 'mac')")
         result = build_operator_composed(path_sql, "eq", "00:11:22:33:44:55", MacAddress)
@@ -417,7 +421,7 @@ class TestTier1FieldTypePassthrough:
 class TestTier1StrategySelection:
     """Test that the correct operator strategies are selected for each special type."""
 
-    def test_network_strategy_selection(self):
+    def test_network_strategy_selection(self) -> None:
         """Test that network operators select NetworkOperatorStrategy."""
         registry = get_operator_registry()
 
@@ -430,7 +434,7 @@ class TestTier1StrategySelection:
                 f"Operator {op} should use NetworkOperatorStrategy"
             )
 
-    def test_ltree_strategy_selection(self):
+    def test_ltree_strategy_selection(self) -> None:
         """Test that LTree operators select LTreeOperatorStrategy."""
         registry = get_operator_registry()
 
@@ -443,7 +447,7 @@ class TestTier1StrategySelection:
                 f"Operator {op} should use LTreeOperatorStrategy"
             )
 
-    def test_daterange_strategy_selection(self):
+    def test_daterange_strategy_selection(self) -> None:
         """Test that DateRange operators select DateRangeOperatorStrategy."""
         registry = get_operator_registry()
 
@@ -456,7 +460,7 @@ class TestTier1StrategySelection:
                 f"Operator {op} should use DateRangeOperatorStrategy"
             )
 
-    def test_macaddress_strategy_selection(self):
+    def test_macaddress_strategy_selection(self) -> None:
         """Test that MAC address operators with field_type select MacAddressOperatorStrategy."""
         registry = get_operator_registry()
 

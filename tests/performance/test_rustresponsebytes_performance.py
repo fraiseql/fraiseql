@@ -27,9 +27,6 @@ from typing import Any
 import pytest
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
-from fraiseql.execution.unified_executor import UnifiedExecutor
-from fraiseql.graphql.execute import execute_graphql
-
 
 # ============================================================================
 # Test 1: Detection Overhead Benchmarks
@@ -39,9 +36,11 @@ from fraiseql.graphql.execute import execute_graphql
 class TestDetectionOverhead:
     """Benchmark the cost of isinstance(result, RustResponseBytes) checks."""
 
-    @pytest.mark.skip(reason="Flaky performance test - threshold depends on system load. Target: <2ms for 10,000 checks")
+    @pytest.mark.skip(
+        reason="Flaky performance test - threshold depends on system load. Target: <2ms for 10,000 checks"
+    )
     @pytest.mark.performance
-    def test_isinstance_check_overhead(self):
+    def test_isinstance_check_overhead(self) -> None:
         """Measure raw isinstance() check latency.
 
         Target: < 2ms for 10,000 checks (< 0.2μs per check)
@@ -72,23 +71,21 @@ class TestDetectionOverhead:
         dict_check_ms = (end - start) * 1000
 
         # Results
-        print(f"\n📊 isinstance() Check Performance:")
+        print("\n📊 isinstance() Check Performance:")
         print(f"   RustResponseBytes (positive): {rust_check_ms:.3f}ms for 10,000 checks")
         print(f"   Regular dict (negative): {dict_check_ms:.3f}ms for 10,000 checks")
         print(f"   Average per check: {rust_check_ms / 10000:.6f}ms ({rust_check_ms / 10:.3f}μs)")
 
         # RED Phase - These will initially fail until we verify actual performance
         assert rust_check_ms < 2.0, (
-            f"isinstance() check too slow: {rust_check_ms:.3f}ms "
-            f"(target: < 2ms for 10,000 checks)"
+            f"isinstance() check too slow: {rust_check_ms:.3f}ms (target: < 2ms for 10,000 checks)"
         )
         assert dict_check_ms < 2.0, (
-            f"isinstance() check too slow: {dict_check_ms:.3f}ms "
-            f"(target: < 2ms for 10,000 checks)"
+            f"isinstance() check too slow: {dict_check_ms:.3f}ms (target: < 2ms for 10,000 checks)"
         )
 
     @pytest.mark.performance
-    def test_multi_layer_detection_overhead(self):
+    def test_multi_layer_detection_overhead(self) -> None:
         """Measure cumulative overhead across all detection layers.
 
         Simulates: execute_graphql() → UnifiedExecutor → FastAPI Router
@@ -119,15 +116,14 @@ class TestDetectionOverhead:
         end = time.perf_counter()
         elapsed_ms = (end - start) * 1000
 
-        print(f"\n🔍 Multi-Layer Detection Performance:")
+        print("\n🔍 Multi-Layer Detection Performance:")
         print(f"   Total time: {elapsed_ms:.3f}ms for 1,000 path checks")
         print(f"   Average per request: {elapsed_ms / 1000:.6f}ms")
         print(f"   Overhead per layer: {elapsed_ms / 3000:.6f}ms")
 
         # RED Phase - Strict threshold
         assert elapsed_ms < 1.0, (
-            f"Multi-layer detection too slow: {elapsed_ms:.3f}ms "
-            f"(target: < 1ms for 1,000 checks)"
+            f"Multi-layer detection too slow: {elapsed_ms:.3f}ms (target: < 1ms for 1,000 checks)"
         )
 
 
@@ -140,7 +136,7 @@ class TestPathComparison:
     """Compare RustResponseBytes path vs Python serialization path."""
 
     @pytest.mark.performance
-    def test_serialization_comparison_small_payload(self):
+    def test_serialization_comparison_small_payload(self) -> None:
         """Compare Rust bytes vs Python JSON serialization for small payloads.
 
         Payload: ~1KB JSON (typical single entity)
@@ -181,7 +177,7 @@ class TestPathComparison:
 
         speedup = python_path_ms / rust_path_ms
 
-        print(f"\n⚡ Serialization Performance (1KB payload):")
+        print("\n⚡ Serialization Performance (1KB payload):")
         print(f"   RustResponseBytes path: {rust_path_ms:.3f}ms for 1,000 conversions")
         print(f"   Python serialization path: {python_path_ms:.3f}ms for 1,000 conversions")
         print(f"   Speedup: {speedup:.2f}x faster")
@@ -191,12 +187,10 @@ class TestPathComparison:
         assert rust_path_ms < python_path_ms, (
             f"RustResponseBytes not faster: {rust_path_ms:.3f}ms vs {python_path_ms:.3f}ms"
         )
-        assert speedup >= 2.0, (
-            f"RustResponseBytes not fast enough: {speedup:.2f}x (target: >= 2x)"
-        )
+        assert speedup >= 2.0, f"RustResponseBytes not fast enough: {speedup:.2f}x (target: >= 2x)"
 
     @pytest.mark.performance
-    def test_serialization_comparison_large_payload(self):
+    def test_serialization_comparison_large_payload(self) -> None:
         """Compare Rust bytes vs Python JSON serialization for large payloads.
 
         Payload: ~100KB JSON (typical list of 100 entities)
@@ -244,19 +238,18 @@ class TestPathComparison:
 
         speedup = python_path_ms / rust_path_ms
 
-        print(f"\n⚡ Serialization Performance (100KB payload):")
+        print("\n⚡ Serialization Performance (100KB payload):")
         print(f"   RustResponseBytes path: {rust_path_ms:.3f}ms for 100 conversions")
         print(f"   Python serialization path: {python_path_ms:.3f}ms for 100 conversions")
         print(f"   Speedup: {speedup:.2f}x faster")
-        print(f"   Payload size: {len(json_bytes):,} bytes ({len(json_bytes)/1024:.1f} KB)")
+        print(f"   Payload size: {len(json_bytes):,} bytes ({len(json_bytes) / 1024:.1f} KB)")
 
         # RED Phase - Expect even bigger speedup for large payloads
         assert rust_path_ms < python_path_ms, (
             f"RustResponseBytes not faster: {rust_path_ms:.3f}ms vs {python_path_ms:.3f}ms"
         )
         assert speedup >= 5.0, (
-            f"RustResponseBytes not fast enough for large payload: "
-            f"{speedup:.2f}x (target: >= 5x)"
+            f"RustResponseBytes not fast enough for large payload: {speedup:.2f}x (target: >= 5x)"
         )
 
 
@@ -269,7 +262,7 @@ class TestMemoryProfile:
     """Test memory usage and leak detection for RustResponseBytes."""
 
     @pytest.mark.performance
-    def test_memory_no_leaks_repeated_creation(self):
+    def test_memory_no_leaks_repeated_creation(self) -> None:
         """Verify no memory leaks with repeated RustResponseBytes creation.
 
         Target: Memory should stabilize after warm-up, no continuous growth
@@ -295,10 +288,12 @@ class TestMemoryProfile:
         total_size = sum(sys.getsizeof(inst) for inst in instances)
         avg_size = total_size / len(instances)
 
-        print(f"\n💾 Memory Usage:")
+        print("\n💾 Memory Usage:")
         print(f"   Baseline instance size: {baseline_size} bytes")
         print(f"   Average instance size (1000 instances): {avg_size:.1f} bytes")
-        print(f"   Total memory (1000 instances): {total_size:,} bytes ({total_size/1024:.1f} KB)")
+        print(
+            f"   Total memory (1000 instances): {total_size:,} bytes ({total_size / 1024:.1f} KB)"
+        )
         print(f"   Per-instance overhead: {avg_size - baseline_size:.1f} bytes")
 
         # Clean up
@@ -316,7 +311,7 @@ class TestMemoryProfile:
         )
 
     @pytest.mark.performance
-    def test_memory_large_payload_efficiency(self):
+    def test_memory_large_payload_efficiency(self) -> None:
         """Verify memory efficiency for large JSONB payloads.
 
         Target: RustResponseBytes should not duplicate data unnecessarily
@@ -335,9 +330,9 @@ class TestMemoryProfile:
         overhead = instance_size - payload_size
         overhead_percent = (overhead / payload_size) * 100
 
-        print(f"\n💾 Large Payload Memory Efficiency:")
-        print(f"   Payload size: {payload_size:,} bytes ({payload_size/1024:.1f} KB)")
-        print(f"   Instance size: {instance_size:,} bytes ({instance_size/1024:.1f} KB)")
+        print("\n💾 Large Payload Memory Efficiency:")
+        print(f"   Payload size: {payload_size:,} bytes ({payload_size / 1024:.1f} KB)")
+        print(f"   Instance size: {instance_size:,} bytes ({instance_size / 1024:.1f} KB)")
         print(f"   Overhead: {overhead:,} bytes ({overhead_percent:.2f}%)")
 
         # RED Phase - Overhead should be minimal
@@ -356,7 +351,7 @@ class TestLatencyUnderLoad:
     """Simulate production load and measure P50/P95/P99 latencies."""
 
     @pytest.mark.performance
-    def test_detection_latency_percentiles(self):
+    def test_detection_latency_percentiles(self) -> None:
         """Measure latency percentiles for RustResponseBytes detection.
 
         Simulates 1,000 requests and measures P50, P95, P99
@@ -365,8 +360,7 @@ class TestLatencyUnderLoad:
         import statistics
 
         rust_bytes = RustResponseBytes(
-            json.dumps({"test": "data"}).encode("utf-8"),
-            schema_type="Test"
+            json.dumps({"test": "data"}).encode("utf-8"), schema_type="Test"
         )
 
         # Simulate 1,000 requests
@@ -390,7 +384,7 @@ class TestLatencyUnderLoad:
         p99 = latencies[int(len(latencies) * 0.99)]
         avg = statistics.mean(latencies)
 
-        print(f"\n📊 Latency Percentiles (1,000 requests):")
+        print("\n📊 Latency Percentiles (1,000 requests):")
         print(f"   Average: {avg:.6f}ms")
         print(f"   P50 (median): {p50:.6f}ms")
         print(f"   P95: {p95:.6f}ms")
@@ -404,7 +398,7 @@ class TestLatencyUnderLoad:
 
     @pytest.mark.performance
     @pytest.mark.slow
-    def test_sustained_throughput(self):
+    def test_sustained_throughput(self) -> None:
         """Measure sustained throughput for RustResponseBytes operations.
 
         Target: 10,000 operations/second (0.1ms per operation)
@@ -425,7 +419,7 @@ class TestLatencyUnderLoad:
         ops_per_sec = operations / (elapsed_ms / 1000)
         avg_time_ms = elapsed_ms / operations
 
-        print(f"\n⚡ Sustained Throughput:")
+        print("\n⚡ Sustained Throughput:")
         print(f"   Operations: {operations:,}")
         print(f"   Total time: {elapsed_ms:.3f}ms")
         print(f"   Throughput: {ops_per_sec:,.0f} ops/sec")
@@ -446,7 +440,7 @@ class TestComparisonBenchmarks:
     """Document the performance improvement of the pass-through architecture."""
 
     @pytest.mark.performance
-    def test_document_performance_gains(self):
+    def test_document_performance_gains(self) -> None:
         """Document overall performance gains for the architecture document.
 
         This test measures and reports performance improvements without assertions.
@@ -489,9 +483,9 @@ class TestComparisonBenchmarks:
         print("\nSmall Payload (~100 bytes):")
         print(f"  Rust path:   {rust_small:.3f}ms for 10,000 ops")
         print(f"  Python path: {python_small:.3f}ms for 10,000 ops")
-        print(f"  Speedup:     {python_small/rust_small:.2f}x")
-        print(f"\nLarge Payload (~10KB):")
+        print(f"  Speedup:     {python_small / rust_small:.2f}x")
+        print("\nLarge Payload (~10KB):")
         print(f"  Rust path:   {rust_large:.3f}ms for 1,000 ops")
         print(f"  Python path: {python_large:.3f}ms for 1,000 ops")
-        print(f"  Speedup:     {python_large/rust_large:.2f}x")
+        print(f"  Speedup:     {python_large / rust_large:.2f}x")
         print("\n" + "=" * 70)
