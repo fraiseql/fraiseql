@@ -34,8 +34,7 @@ class TestTypeDescriptions:
     def test_fraise_type_multiline_docstring_is_cleaned(self):
         @fraiseql.type(sql_source="test_table")
         class TestOrder:
-            """
-            An order in the e-commerce system.
+            """An order in the e-commerce system.
 
             Contains line items, customer information,
             and payment details.

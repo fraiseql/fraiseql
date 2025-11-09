@@ -1,7 +1,7 @@
 """Tests for ExchangeRate scalar type validation."""
 
+
 import pytest
-from decimal import Decimal
 from graphql import GraphQLError
 from graphql.language import IntValueNode, StringValueNode
 

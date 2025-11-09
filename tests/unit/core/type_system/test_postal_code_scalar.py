@@ -5,10 +5,10 @@ from graphql import GraphQLError
 from graphql.language import IntValueNode, StringValueNode
 
 from fraiseql.types.scalars.postal_code import (
+    PostalCodeField,
     parse_postal_code_literal,
     parse_postal_code_value,
     serialize_postal_code,
-    PostalCodeField,
 )
 
 

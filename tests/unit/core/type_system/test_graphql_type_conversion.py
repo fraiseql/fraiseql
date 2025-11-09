@@ -1,5 +1,5 @@
 import time
-from typing import Any, Annotated, Union
+from typing import Annotated, Any, Union
 from uuid import UUID
 
 import pytest
@@ -19,7 +19,7 @@ from fraiseql.core.graphql_type import convert_type_to_graphql_input, convert_ty
 from fraiseql.fields import fraise_field
 from fraiseql.types.fraise_input import fraise_input
 from fraiseql.types.fraise_type import fraise_type
-from fraiseql.types.scalars.json import JSONScalar, JSONField, parse_json_literal
+from fraiseql.types.scalars.json import JSONField, JSONScalar, parse_json_literal
 
 
 @pytest.mark.unit
