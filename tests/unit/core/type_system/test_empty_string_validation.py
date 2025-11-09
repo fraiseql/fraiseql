@@ -10,6 +10,7 @@ While accepting:
 """
 
 import pytest
+
 from fraiseql.types.fraise_input import fraise_input
 
 

@@ -1,7 +1,8 @@
 """Tests for Money scalar type validation."""
 
-import pytest
 from decimal import Decimal
+
+import pytest
 from graphql import GraphQLError
 from graphql.language import IntValueNode, StringValueNode
 

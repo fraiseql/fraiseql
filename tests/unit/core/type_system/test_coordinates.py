@@ -141,10 +141,11 @@ def test_coordinate_field_graphql_scalar():
 
 def test_coordinate_scalar_in_graphql_schema():
     """Test that Coordinate scalar appears in GraphQL schema."""
-    import fraiseql
-    from fraiseql.types import Coordinate
-    from fraiseql.gql.schema_builder import build_fraiseql_schema
     from graphql import print_schema
+
+    import fraiseql
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.types import Coordinate
 
     @fraiseql.input
     class LocationInput:
@@ -217,8 +218,8 @@ def test_coordinate_scalar_in_graphql_schema():
 
 def test_coordinate_field_type_mapping():
     """Test that CoordinateField correctly maps to CoordinateScalar."""
-    from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
     from fraiseql.types.scalars.coordinates import CoordinateField, CoordinateScalar
+    from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 
     # Test direct type mapping
     mapped_scalar = convert_scalar_to_graphql(CoordinateField)
@@ -228,10 +229,11 @@ def test_coordinate_field_type_mapping():
 
 def test_graphql_validation_with_coordinate_scalar():
     """Test that GraphQL validation correctly handles Coordinate variables."""
+    from graphql import parse, validate
+
     import fraiseql
-    from fraiseql.types import Coordinate
     from fraiseql.gql.schema_builder import build_fraiseql_schema
-    from graphql import validate, parse
+    from fraiseql.types import Coordinate
 
     @fraiseql.input
     class LocationInput:
