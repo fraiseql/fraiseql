@@ -93,14 +93,29 @@ class TypeGenerator:
         4. Return field_name → {type, nullable} mapping
         """
         async with db_pool.connection() as conn:
-            row = await conn.fetchrow(f"SELECT data FROM {schema_name}.{view_name} LIMIT 1")
+            # Check if view has a 'data' column (JSONB)
+            check_query = """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s AND column_name = 'data'
+            """
+            result = await conn.execute(check_query, (schema_name, view_name))
+            has_data_column = await result.fetchone()
 
-            if not row or not row["data"]:
+            if not has_data_column:
+                # No JSONB column, introspect regular columns
+                return await self._introspect_view_definition(view_name, schema_name, conn)
+
+            # View has data column, try to get sample
+            result = await conn.execute(f"SELECT data FROM {schema_name}.{view_name} LIMIT 1")
+            row = await result.fetchone()
+
+            if not row or not row[0]:
                 # View is empty, introspect view definition instead
                 return await self._introspect_view_definition(view_name, schema_name, conn)
 
             # Parse JSONB structure
-            data = row["data"]
+            data = row[0]  # psycopg returns tuple, not dict
             fields = {}
 
             for field_name, field_value in data.items():
@@ -130,11 +145,12 @@ class TypeGenerator:
             WHERE table_schema = %s AND table_name = %s
             ORDER BY ordinal_position
         """
-        rows = await conn.fetch(columns_query, schema_name, view_name)
+        result = await conn.execute(columns_query, (schema_name, view_name))
+        rows = await result.fetchall()
 
         fields = {}
         for row in rows:
-            column_name, data_type, is_nullable = row
+            column_name, data_type, is_nullable = row[0], row[1], row[2]
             if column_name == "data":  # Skip the JSONB data column
                 continue
             fields[column_name] = {"type": data_type, "nullable": is_nullable == "YES"}

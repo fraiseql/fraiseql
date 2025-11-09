@@ -132,16 +132,14 @@ class InputGenerator:
                     status: str
         """
         # Step 1: Introspect composite type (READ from database)
-        # SpecQL creates types in 'app' schema
         composite_metadata = await introspector.discover_composite_type(
-            composite_type_name, schema="app"
+            composite_type_name, schema=schema_name
         )
 
         if not composite_metadata:
             raise ValueError(
-                f"Composite type '{composite_type_name}' not found in 'app' schema. "
-                f"Expected by function '{schema_name}.{composite_type_name}'. "
-                f"Check if SpecQL created this type."
+                f"Composite type '{composite_type_name}' not found in '{schema_name}' schema. "
+                f"Expected by function '{schema_name}.{composite_type_name}'."
             )
 
         # Step 2: Build annotations AND field descriptors
