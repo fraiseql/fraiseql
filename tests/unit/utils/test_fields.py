@@ -11,7 +11,7 @@ class TestClassWithFraiseQLField:
 
 
 @pytest.fixture
-def test_class():
+def test_class() -> None:
     patch_missing_field_types(TestClassWithFraiseQLField)
     return TestClassWithFraiseQLField
 

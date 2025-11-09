@@ -50,7 +50,7 @@ class Product:
 class TestFilterTypes:
     """Test the individual filter types."""
 
-    def test_string_filter(self):
+    def test_string_filter(self) -> None:
         """Test StringFilter creation and fields."""
         filter_obj = StringFilter(
             eq="test",
@@ -68,7 +68,7 @@ class TestFilterTypes:
         assert filter_obj.in_ == ["test1", "test2"]
         assert filter_obj.isnull is False
 
-    def test_int_filter(self):
+    def test_int_filter(self) -> None:
         """Test IntFilter creation and fields."""
         filter_obj = IntFilter(
             eq=10, neq=5, gt=0, gte=1, lt=100, lte=99, in_=[1, 2, 3], isnull=False
@@ -82,7 +82,7 @@ class TestFilterTypes:
         assert filter_obj.lte == 99
         assert filter_obj.in_ == [1, 2, 3]
 
-    def test_uuid_filter(self):
+    def test_uuid_filter(self) -> None:
         """Test UUIDFilter creation and fields."""
         test_uuid = uuid.uuid4()
         filter_obj = UUIDFilter(eq=test_uuid, in_=[test_uuid])
@@ -90,7 +90,7 @@ class TestFilterTypes:
         assert filter_obj.eq == test_uuid
         assert filter_obj.in_ == [test_uuid]
 
-    def test_boolean_filter(self):
+    def test_boolean_filter(self) -> None:
         """Test BooleanFilter creation and fields."""
         filter_obj = BooleanFilter(eq=True, neq=False)
 
@@ -101,7 +101,7 @@ class TestFilterTypes:
 class TestCreateGraphQLWhereInput:
     """Test create_graphql_where_input function."""
 
-    def test_simple_model_where_input(self):
+    def test_simple_model_where_input(self) -> None:
         """Test creating where input for simple model."""
         SimpleWhereInput = create_graphql_where_input(SimpleModel)
 
@@ -123,7 +123,7 @@ class TestCreateGraphQLWhereInput:
         assert where_input.name.contains == "test"
         assert where_input.is_active.eq is True
 
-    def test_complex_model_where_input(self):
+    def test_complex_model_where_input(self) -> None:
         """Test creating where input for complex model with various types."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -142,13 +142,13 @@ class TestCreateGraphQLWhereInput:
         assert where_input.stock.gt == 0
         assert where_input.is_active.eq is True
 
-    def test_custom_name_where_input(self):
+    def test_custom_name_where_input(self) -> None:
         """Test creating where input with custom name."""
         CustomInput = create_graphql_where_input(SimpleModel, name="CustomFilterInput")
 
         assert CustomInput.__name__ == "CustomFilterInput"
 
-    def test_optional_fields_handling(self):
+    def test_optional_fields_handling(self) -> None:
         """Test that optional fields are handled correctly."""
 
         @dataclass
@@ -165,7 +165,7 @@ class TestCreateGraphQLWhereInput:
         assert where_input.name is None
         assert where_input.count is None
 
-    def test_conversion_to_sql_where(self):
+    def test_conversion_to_sql_where(self) -> None:
         """Test conversion from GraphQL input to SQL where type."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -192,7 +192,7 @@ class TestCreateGraphQLWhereInput:
         assert sql_where.price == {"gt": Decimal(50)}
         assert sql_where.is_active == {"eq": True}
 
-    def test_in_operator_field_mapping(self):
+    def test_in_operator_field_mapping(self) -> None:
         """Test that 'in_' field is properly mapped to 'in' operator."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -210,7 +210,7 @@ class TestCreateGraphQLWhereInput:
         assert "in" in sql_where.name
         assert sql_where.name["in"] == where_input.name.in_
 
-    def test_empty_filter_handling(self):
+    def test_empty_filter_handling(self) -> None:
         """Test that empty filters are handled correctly."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -227,7 +227,7 @@ class TestCreateGraphQLWhereInput:
         assert sql_where.name is None  # Empty filter converted to None
         assert sql_where.price == {}  # No filter provided, uses default empty dict
 
-    def test_all_field_types(self):
+    def test_all_field_types(self) -> None:
         """Test that all field types get correct filter types."""
 
         @dataclass
@@ -268,7 +268,7 @@ class TestCreateGraphQLWhereInput:
 class TestGraphQLWhereIntegration:
     """Test integration with SQL where generation."""
 
-    def test_sql_where_generation(self):
+    def test_sql_where_generation(self) -> None:
         """Test that converted where types generate valid SQL."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -287,7 +287,7 @@ class TestGraphQLWhereIntegration:
         # Check SQL was generated
         assert sql is not None
 
-    def test_complex_filter_combinations(self):
+    def test_complex_filter_combinations(self) -> None:
         """Test complex filter combinations."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -307,7 +307,7 @@ class TestGraphQLWhereIntegration:
         assert len(sql_where.name) == 3  # startswith, contains, isnull
         assert len(sql_where.id) == 2  # in, neq
 
-    def test_none_values_ignored(self):
+    def test_none_values_ignored(self) -> None:
         """Test that None values in filters are ignored."""
         ProductWhereInput = create_graphql_where_input(Product)
 
@@ -326,7 +326,7 @@ class TestGraphQLWhereIntegration:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_class_without_annotations(self):
+    def test_class_without_annotations(self) -> None:
         """Test handling of class without proper annotations."""
 
         class NoAnnotations:
@@ -336,7 +336,7 @@ class TestEdgeCases:
         WhereInput = create_graphql_where_input(NoAnnotations)
         assert WhereInput.__name__ == "NoAnnotationsWhereInput"
 
-    def test_private_fields_ignored(self):
+    def test_private_fields_ignored(self) -> None:
         """Test that private fields are ignored."""
 
         @dataclass

@@ -1,14 +1,12 @@
 """Unit tests for TypeMapper."""
 
-from typing import List
-
 from fraiseql.introspection.type_mapper import TypeMapper
 
 
 class TestTypeMapper:
     """Test TypeMapper functionality."""
 
-    def test_basic_type_mapping(self):
+    def test_basic_type_mapping(self) -> None:
         """Test basic types."""
         mapper = TypeMapper()
         assert mapper.pg_type_to_python("text") is str
@@ -16,7 +14,7 @@ class TestTypeMapper:
         assert mapper.pg_type_to_python("uuid") is not None  # UUID type
         assert mapper.pg_type_to_python("boolean") is bool
 
-    def test_nullable_type_mapping(self):
+    def test_nullable_type_mapping(self) -> None:
         """Test nullable types."""
         mapper = TypeMapper()
         result = mapper.pg_type_to_python("text", nullable=True)
@@ -24,7 +22,7 @@ class TestTypeMapper:
         # but it should not be just str
         assert result != str
 
-    def test_array_type_mapping(self):
+    def test_array_type_mapping(self) -> None:
         """Test array types."""
         mapper = TypeMapper()
         result = mapper.pg_type_to_python("text[]")
@@ -32,20 +30,20 @@ class TestTypeMapper:
         # but it should not be just str
         assert result != str
 
-    def test_case_insensitive_mapping(self):
+    def test_case_insensitive_mapping(self) -> None:
         """Test case insensitive type mapping."""
         mapper = TypeMapper()
         assert mapper.pg_type_to_python("TEXT") is str
         assert mapper.pg_type_to_python("Integer") is int
         assert mapper.pg_type_to_python("BOOLEAN") is bool
 
-    def test_unknown_type_fallback(self):
+    def test_unknown_type_fallback(self) -> None:
         """Test unknown types fall back to str."""
         mapper = TypeMapper()
         assert mapper.pg_type_to_python("unknown_type") is str
         assert mapper.pg_type_to_python("custom_type") is str
 
-    def test_register_custom_type(self):
+    def test_register_custom_type(self) -> None:
         """Test registering custom type mappings."""
         mapper = TypeMapper()
 
@@ -59,7 +57,7 @@ class TestTypeMapper:
         result = mapper.pg_type_to_python("custom")
         assert result is CustomType
 
-    def test_timestamp_types(self):
+    def test_timestamp_types(self) -> None:
         """Test timestamp type mappings."""
         mapper = TypeMapper()
         # All timestamp variants should map to datetime
@@ -67,7 +65,7 @@ class TestTypeMapper:
         assert mapper.pg_type_to_python("timestamp with time zone") is not None
         assert mapper.pg_type_to_python("timestamptz") is not None
 
-    def test_numeric_types(self):
+    def test_numeric_types(self) -> None:
         """Test numeric type mappings."""
         mapper = TypeMapper()
         # Various integer types

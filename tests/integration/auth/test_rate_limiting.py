@@ -17,28 +17,28 @@ from fraiseql.security.rate_limiting import (
 
 
 @pytest.fixture
-def app():
+def app() -> None:
     """Create test FastAPI app."""
     app = FastAPI()
 
     @app.get("/test")
-    async def test_endpoint():
+    async def test_endpoint() -> None:
         return {"message": "success"}
 
     @app.post("/graphql")
-    async def graphql_endpoint(request: Request):
+    async def graphql_endpoint(request: Request) -> None:
         await request.body()
         return {"data": {"test": "success"}}
 
     @app.get("/health")
-    async def health():
+    async def health() -> None:
         return {"status": "healthy"}
 
     return app
 
 
 @pytest.fixture
-def rate_limit_store():
+def rate_limit_store() -> None:
     """Create test rate limit store."""
     return RateLimitStore()
 
@@ -102,7 +102,7 @@ class TestGraphQLRateLimiter:
     """Test GraphQL-specific rate limiting."""
 
     @pytest.fixture
-    def graphql_limiter(self, rate_limit_store):
+    def graphql_limiter(self, rate_limit_store) -> None:
         """Create GraphQL rate limiter."""
         return GraphQLRateLimiter(rate_limit_store)
 
@@ -277,7 +277,7 @@ class TestRateLimitMiddleware:
     async def test_is_exempt_custom_function(self, app, rate_limit_store) -> None:
         """Test exemption with custom function."""
 
-        def exempt_admin(request):
+        def exempt_admin(request) -> None:
             return getattr(request.state, "is_admin", False)
 
         rules = [
@@ -394,7 +394,7 @@ async def test_concurrent_requests(app) -> None:
     client = TestClient(app)
 
     # Send many concurrent requests
-    async def make_request():
+    async def make_request() -> None:
         return client.get("/test")
 
     # This is a simplified test - in practice you'd use proper async client

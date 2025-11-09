@@ -217,7 +217,7 @@ class TestFraiseQLMetrics:
                 await asyncio.sleep(0.001)
 
         # Run concurrent tasks
-        async def run_all():
+        async def run_all() -> None:
             tasks = [record_queries() for _ in range(5)]
             await asyncio.gather(*tasks)
 
@@ -243,7 +243,7 @@ class TestMetricsMiddleware:
         request.method = "POST"
 
         # Mock call_next
-        async def mock_call_next(req):
+        async def mock_call_next(req) -> None:
             response = Mock()
             response.status_code = 200
             return response
@@ -291,7 +291,7 @@ class TestMetricsMiddleware:
         request.url.path = "/health"
         request.method = "GET"
 
-        async def mock_call_next(req):
+        async def mock_call_next(req) -> None:
             return Mock(status_code=200)
 
         await middleware.process_request(request, mock_call_next)

@@ -3,12 +3,12 @@
 import pytest
 
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.storage.backends.factory import create_apq_backend
 from fraiseql.storage.backends.base import APQStorageBackend
+from fraiseql.storage.backends.factory import create_apq_backend
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
 
-def test_factory_creates_memory_backend():
+def test_factory_creates_memory_backend() -> None:
     """Test that factory creates memory backend for memory config."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
@@ -20,7 +20,7 @@ def test_factory_creates_memory_backend():
     assert isinstance(backend, APQStorageBackend)
 
 
-def test_factory_creates_memory_backend_by_default():
+def test_factory_creates_memory_backend_by_default() -> None:
     """Test that factory creates memory backend by default."""
     config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
 
@@ -30,7 +30,7 @@ def test_factory_creates_memory_backend_by_default():
     assert config.apq_storage_backend == "memory"
 
 
-def test_factory_creates_postgresql_backend():
+def test_factory_creates_postgresql_backend() -> None:
     """Test that factory creates PostgreSQL backend for postgresql config."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -47,24 +47,24 @@ def test_factory_creates_postgresql_backend():
     assert isinstance(backend, APQStorageBackend)
 
 
-def test_factory_creates_custom_backend():
+def test_factory_creates_custom_backend() -> None:
     """Test that factory creates custom backend from class path."""
 
     # Create a mock custom backend class for testing
     class MockCustomBackend(APQStorageBackend):
-        def __init__(self, config_dict):
+        def __init__(self, config_dict) -> None:
             self.config = config_dict
 
-        def get_persisted_query(self, hash_value: str):
+        def get_persisted_query(self, hash_value: str) -> None:
             return None
 
-        def store_persisted_query(self, hash_value: str, query: str):
+        def store_persisted_query(self, hash_value: str, query: str) -> None:
             pass
 
-        def get_cached_response(self, hash_value: str):
+        def get_cached_response(self, hash_value: str) -> None:
             return None
 
-        def store_cached_response(self, hash_value: str, response):
+        def store_cached_response(self, hash_value: str, response) -> None:
             pass
 
     # Temporarily add the class to the test module's globals
@@ -89,7 +89,7 @@ def test_factory_creates_custom_backend():
     assert backend.config["custom_setting"] == "test_value"
 
 
-def test_factory_raises_error_for_unknown_backend():
+def test_factory_raises_error_for_unknown_backend() -> None:
     """Test that factory raises error for unknown backend type."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
@@ -102,7 +102,7 @@ def test_factory_raises_error_for_unknown_backend():
         create_apq_backend(config)
 
 
-def test_factory_raises_error_for_invalid_custom_class():
+def test_factory_raises_error_for_invalid_custom_class() -> None:
     """Test that factory raises error for invalid custom backend class."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -114,7 +114,7 @@ def test_factory_raises_error_for_invalid_custom_class():
         create_apq_backend(config)
 
 
-def test_factory_raises_error_for_missing_custom_class():
+def test_factory_raises_error_for_missing_custom_class() -> None:
     """Test that factory raises error when custom backend class is not specified."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -126,7 +126,7 @@ def test_factory_raises_error_for_missing_custom_class():
         create_apq_backend(config)
 
 
-def test_factory_passes_config_to_backends():
+def test_factory_passes_config_to_backends() -> None:
     """Test that factory passes configuration to backend constructors."""
     backend_config = {"test_setting": "test_value", "number_setting": 42}
 
@@ -143,7 +143,7 @@ def test_factory_passes_config_to_backends():
     assert hasattr(backend, "_config") or hasattr(backend, "config")
 
 
-def test_factory_singleton_behavior():
+def test_factory_singleton_behavior() -> None:
     """Test that factory can create multiple independent backend instances."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
@@ -157,7 +157,7 @@ def test_factory_singleton_behavior():
     assert type(backend1) == type(backend2)
 
 
-def test_factory_with_cache_enabled():
+def test_factory_with_cache_enabled() -> None:
     """Test factory with response caching enabled."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",

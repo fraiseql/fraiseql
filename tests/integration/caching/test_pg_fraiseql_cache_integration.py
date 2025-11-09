@@ -25,17 +25,17 @@ class TestExtensionDetection:
     """Phase 4.1: Test automatic detection of pg_fraiseql_cache extension."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.fixture
-    def cache_config(self):
+    def cache_config(self) -> None:
         """Create cache configuration."""
         return CacheConfig(enabled=True, default_ttl=300)
 
     @pytest.mark.asyncio
-    async def test_extension_detected_when_installed(self, mock_pool, cache_config):
+    async def test_extension_detected_when_installed(self, mock_pool, cache_config) -> None:
         """Test that FraiseQL detects pg_fraiseql_cache when installed.
 
         Expected behavior:
@@ -78,7 +78,7 @@ class TestExtensionDetection:
         assert extension_query_found, "Should query pg_extension table"
 
     @pytest.mark.asyncio
-    async def test_fallback_when_extension_not_installed(self, mock_pool, cache_config):
+    async def test_fallback_when_extension_not_installed(self, mock_pool, cache_config) -> None:
         """Test that FraiseQL works without pg_fraiseql_cache extension.
 
         Expected behavior:
@@ -117,7 +117,9 @@ class TestExtensionDetection:
         assert cache.extension_version is None, "Version should be None"
 
     @pytest.mark.asyncio
-    async def test_extension_detection_logs_correctly(self, mock_pool, cache_config, caplog):
+    async def test_extension_detection_logs_correctly(
+        self, mock_pool, cache_config, caplog
+    ) -> None:
         """Test that extension detection produces appropriate log messages.
 
         Expected behavior:
@@ -150,7 +152,7 @@ class TestExtensionDetection:
             )
 
     @pytest.mark.asyncio
-    async def test_properties_accessible_before_initialization(self, mock_pool):
+    async def test_properties_accessible_before_initialization(self, mock_pool) -> None:
         """Test that properties are accessible even before initialization.
 
         Expected behavior:
@@ -169,7 +171,7 @@ class TestExtensionDetection:
             pytest.fail(f"Properties should be accessible: {e}")
 
     @pytest.mark.asyncio
-    async def test_extension_detection_only_runs_once(self, mock_pool):
+    async def test_extension_detection_only_runs_once(self, mock_pool) -> None:
         """Test that extension detection only happens once per cache instance.
 
         Expected behavior:
@@ -204,7 +206,7 @@ class TestExtensionDetection:
         assert first_call_count == second_call_count, "Extension detection should only run once"
 
     @pytest.mark.asyncio
-    async def test_graceful_fallback_on_extension_query_error(self, mock_pool, caplog):
+    async def test_graceful_fallback_on_extension_query_error(self, mock_pool, caplog) -> None:
         """Test graceful fallback when extension detection query fails.
 
         Expected behavior:
@@ -221,7 +223,7 @@ class TestExtensionDetection:
         # Track call count to know which query is being executed
         call_count = 0
 
-        async def mock_execute(query, *args):
+        async def mock_execute(query, *args) -> None:
             nonlocal call_count
             call_count += 1
             # First two calls are CREATE TABLE queries (succeed)
@@ -263,17 +265,17 @@ class TestTenantIdInCacheKeys:
     """Phase 4.2.1: Test that cache keys include tenant_id for security isolation."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.fixture
-    def mock_cache_backend(self):
+    def mock_cache_backend(self) -> None:
         """Create mock cache backend."""
         return AsyncMock()
 
     @pytest.mark.asyncio
-    async def test_cache_key_includes_tenant_id(self):
+    async def test_cache_key_includes_tenant_id(self) -> None:
         """Test that cache keys include tenant_id for isolation.
 
         Expected behavior:
@@ -311,7 +313,7 @@ class TestTenantIdInCacheKeys:
         assert key1_parts[2] == "users", "Third part should be view name"
 
     @pytest.mark.asyncio
-    async def test_cache_key_without_tenant_id(self):
+    async def test_cache_key_without_tenant_id(self) -> None:
         """Test that cache keys work without tenant_id for backward compatibility.
 
         Expected behavior:
@@ -413,7 +415,7 @@ class TestTenantIdInCacheKeys:
         # Track cache keys used
         cache_keys_used = []
 
-        def track_cache_get(key):
+        def track_cache_get(key) -> None:
             cache_keys_used.append(key)
 
         mock_cache_backend.get = AsyncMock(side_effect=track_cache_get)
@@ -463,12 +465,12 @@ class TestCacheValueStructure:
     """Phase 4.2.2: Test cache value structure with version metadata."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_cache_set_accepts_versions_parameter(self, mock_pool):
+    async def test_cache_set_accepts_versions_parameter(self, mock_pool) -> None:
         """Test that PostgresCache.set() accepts versions parameter.
 
         Expected behavior:
@@ -504,7 +506,7 @@ class TestCacheValueStructure:
         await cache.set("test_key", test_value, ttl=300, versions=test_versions)
 
     @pytest.mark.asyncio
-    async def test_cache_get_with_metadata_method_exists(self, mock_pool):
+    async def test_cache_get_with_metadata_method_exists(self, mock_pool) -> None:
         """Test that PostgresCache has get_with_metadata() method.
 
         Expected behavior:
@@ -523,12 +525,12 @@ class TestVersionChecking:
     """Phase 4.2.3: Test domain version checking for cache invalidation."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_get_domain_versions_method_exists(self, mock_pool):
+    async def test_get_domain_versions_method_exists(self, mock_pool) -> None:
         """Test that PostgresCache has get_domain_versions() method.
 
         Expected behavior:
@@ -544,7 +546,7 @@ class TestVersionChecking:
         assert hasattr(cache, "get_domain_versions"), "get_domain_versions() method should exist"
 
     @pytest.mark.asyncio
-    async def test_get_domain_versions_returns_current_versions(self, mock_pool):
+    async def test_get_domain_versions_returns_current_versions(self, mock_pool) -> None:
         """Test that get_domain_versions() returns current domain versions.
 
         Expected behavior:
@@ -593,7 +595,7 @@ class TestVersionChecking:
         assert versions.get("post") == 15, "Should return post version"
 
     @pytest.mark.asyncio
-    async def test_cache_invalidated_on_data_change(self, mock_pool):
+    async def test_cache_invalidated_on_data_change(self, mock_pool) -> None:
         """Test that cache is invalidated when underlying data changes.
 
         Expected behavior:
@@ -611,19 +613,19 @@ class TestVersionChecking:
         # Mock database with proper fetch handling for get_with_metadata
         cached_data = {}
 
-        async def mock_execute(query, params=None):
+        async def mock_execute(query, params=None) -> None:
             # Track what gets cached during SET
             if "INSERT INTO" in query and params:
                 key, value_json, expires = params
                 cached_data[key] = json.loads(value_json)
 
-        async def mock_fetchone():
+        async def mock_fetchone() -> None:
             # For get_with_metadata, return cached value
             if "test_key" in cached_data:
                 return (cached_data["test_key"],)
             return None
 
-        async def mock_fetchall():
+        async def mock_fetchall() -> None:
             # For get_domain_versions queries
             # Simulate: first call returns version 42, later calls return 43
             if len(cached_data) > 0:
@@ -637,7 +639,7 @@ class TestVersionChecking:
         # Track call count to return correct data
         fetchone_call_count = 0
 
-        async def fetchone_router():
+        async def fetchone_router() -> None:
             nonlocal fetchone_call_count
             fetchone_call_count += 1
             if fetchone_call_count == 1:
@@ -681,7 +683,7 @@ class TestVersionChecking:
         assert cached_versions["user"] != current_versions["user"], "Versions should mismatch"
 
     @pytest.mark.asyncio
-    async def test_tenant_isolated_version_checks(self, mock_pool):
+    async def test_tenant_isolated_version_checks(self, mock_pool) -> None:
         """Test that version checks are tenant-isolated (CRITICAL SECURITY TEST).
 
         Expected behavior:
@@ -700,10 +702,10 @@ class TestVersionChecking:
         # Track which execute call we're on to return appropriate data
         execute_calls = []
 
-        async def mock_execute(query, params=None):
+        async def mock_execute(query, params=None) -> None:
             execute_calls.append((query, params))
 
-        async def mock_fetchall():
+        async def mock_fetchall() -> None:
             # Get the last execute call
             if execute_calls:
                 last_query, last_params = execute_calls[-1]
@@ -711,7 +713,7 @@ class TestVersionChecking:
                     tenant_id = last_params[0]
                     if tenant_id == tenant_a:
                         return [("user", 42)]
-                    elif tenant_id == tenant_b:
+                    if tenant_id == tenant_b:
                         return [("user", 10)]
             return []
 
@@ -753,12 +755,12 @@ class TestCascadeRules:
     """
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_register_cascade_rule_method_exists(self, mock_pool):
+    async def test_register_cascade_rule_method_exists(self, mock_pool) -> None:
         """Test that PostgresCache has register_cascade_rule() method.
 
         Expected behavior:
@@ -775,7 +777,7 @@ class TestCascadeRules:
         )
 
     @pytest.mark.asyncio
-    async def test_register_cascade_rule_inserts_into_table(self, mock_pool):
+    async def test_register_cascade_rule_inserts_into_table(self, mock_pool) -> None:
         """Test that register_cascade_rule() inserts into cascade_rules table.
 
         Expected behavior:
@@ -812,7 +814,7 @@ class TestCascadeRules:
         assert insert_found, "Should INSERT into fraiseql_cache.cascade_rules"
 
     @pytest.mark.asyncio
-    async def test_register_cascade_rule_only_when_extension_available(self, mock_pool):
+    async def test_register_cascade_rule_only_when_extension_available(self, mock_pool) -> None:
         """Test that CASCADE rules only work when extension is installed.
 
         Expected behavior:
@@ -849,7 +851,7 @@ class TestCascadeRules:
             pass
 
     @pytest.mark.asyncio
-    async def test_clear_cascade_rules_method_exists(self, mock_pool):
+    async def test_clear_cascade_rules_method_exists(self, mock_pool) -> None:
         """Test that PostgresCache has clear_cascade_rules() method.
 
         Expected behavior:
@@ -872,12 +874,12 @@ class TestTriggerSetup:
     """
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_setup_table_trigger_method_exists(self, mock_pool):
+    async def test_setup_table_trigger_method_exists(self, mock_pool) -> None:
         """Test that PostgresCache has setup_table_trigger() method.
 
         Expected behavior:
@@ -893,7 +895,7 @@ class TestTriggerSetup:
         assert hasattr(cache, "setup_table_trigger"), "setup_table_trigger() method should exist"
 
     @pytest.mark.asyncio
-    async def test_setup_table_trigger_calls_extension_function(self, mock_pool):
+    async def test_setup_table_trigger_calls_extension_function(self, mock_pool) -> None:
         """Test that setup_table_trigger() calls fraiseql_cache.setup_table_invalidation().
 
         Expected behavior:
@@ -931,7 +933,7 @@ class TestTriggerSetup:
         assert setup_function_called, "Should call fraiseql_cache.setup_table_invalidation()"
 
     @pytest.mark.asyncio
-    async def test_setup_table_trigger_with_custom_domain(self, mock_pool):
+    async def test_setup_table_trigger_with_custom_domain(self, mock_pool) -> None:
         """Test setup_table_trigger() with custom domain name.
 
         Expected behavior:
@@ -966,7 +968,7 @@ class TestTriggerSetup:
         assert any("setup_table_invalidation" in call for call in calls)
 
     @pytest.mark.asyncio
-    async def test_setup_table_trigger_only_when_extension_available(self, mock_pool):
+    async def test_setup_table_trigger_only_when_extension_available(self, mock_pool) -> None:
         """Test that trigger setup only works when extension is installed.
 
         Expected behavior:

@@ -3,22 +3,20 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-import pytest
-
 import fraiseql
-from fraiseql.sql.graphql_where_generator import StringFilter, IntFilter, NetworkAddressFilter
+from fraiseql.sql.graphql_where_generator import IntFilter, NetworkAddressFilter, StringFilter
 from fraiseql.utils.where_clause_descriptions import (
-    generate_filter_docstring,
-    apply_filter_descriptions,
     OPERATOR_DESCRIPTIONS,
+    apply_filter_descriptions,
     enhance_all_filter_types,
+    generate_filter_docstring,
 )
 
 
 class TestFilterDescriptionGeneration:
     """Test automatic generation of filter type descriptions."""
 
-    def test_string_filter_has_automatic_descriptions(self):
+    def test_string_filter_has_automatic_descriptions(self) -> None:
         """Test that StringFilter gets automatic field descriptions."""
         # Apply descriptions to StringFilter
         apply_filter_descriptions(StringFilter)
@@ -44,7 +42,7 @@ class TestFilterDescriptionGeneration:
             == "Null check - true to find null values, false to find non-null values"
         )
 
-    def test_int_filter_has_automatic_descriptions(self):
+    def test_int_filter_has_automatic_descriptions(self) -> None:
         """Test that IntFilter gets automatic field descriptions."""
         apply_filter_descriptions(IntFilter)
 
@@ -68,7 +66,7 @@ class TestFilterDescriptionGeneration:
             == "Less than or equal - field value is less than or equal to the specified value"
         )
 
-    def test_network_filter_has_network_specific_descriptions(self):
+    def test_network_filter_has_network_specific_descriptions(self) -> None:
         """Test that NetworkAddressFilter gets network-specific descriptions."""
         apply_filter_descriptions(NetworkAddressFilter)
 
@@ -89,7 +87,7 @@ class TestFilterDescriptionGeneration:
             == "Loopback address - IP is loopback (127.0.0.1 or ::1)"
         )
 
-    def test_docstring_generation(self):
+    def test_docstring_generation(self) -> None:
         """Test automatic docstring generation for filter classes."""
         # Create a mock filter class fields structure
         mock_fields = {
@@ -112,7 +110,7 @@ class TestFilterDescriptionGeneration:
         for part in expected_parts:
             assert part in docstring
 
-    def test_ltree_filter_has_hierarchical_descriptions(self):
+    def test_ltree_filter_has_hierarchical_descriptions(self) -> None:
         """Test that LTreeFilter gets comprehensive hierarchical operator descriptions."""
         # Create mock fields for common LTREE operators
         mock_fields = {
@@ -143,7 +141,7 @@ class TestFilterDescriptionGeneration:
         for part in expected_parts:
             assert part in docstring
 
-    def test_only_applies_to_filter_classes(self):
+    def test_only_applies_to_filter_classes(self) -> None:
         """Test that descriptions are only applied to filter classes."""
 
         @fraiseql.fraise_type
@@ -169,7 +167,7 @@ class TestFilterDescriptionGeneration:
         assert "This should not get filter descriptions" in fields["eq"].description
         assert "Regular field, not a filter operation" in fields["contains"].description
 
-    def test_preserves_existing_descriptions(self):
+    def test_preserves_existing_descriptions(self) -> None:
         """Test that existing explicit descriptions are not overridden."""
 
         @fraiseql.fraise_input
@@ -192,7 +190,7 @@ class TestFilterDescriptionGeneration:
             == "Substring search - field contains the specified text (case-sensitive)"
         )
 
-    def test_graphql_name_mapping(self):
+    def test_graphql_name_mapping(self) -> None:
         """Test that GraphQL field name mapping works correctly."""
         # StringFilter has in_ field mapped to "in" in GraphQL
         apply_filter_descriptions(StringFilter)
@@ -208,7 +206,7 @@ class TestFilterDescriptionGeneration:
         # Should map to "in" in GraphQL
         assert in_field.graphql_name == "in"
 
-    def test_unknown_operators_get_fallback_description(self):
+    def test_unknown_operators_get_fallback_description(self) -> None:
         """Test that unknown operators get fallback descriptions."""
 
         @fraiseql.fraise_input
@@ -229,7 +227,7 @@ class TestFilterDescriptionGeneration:
 class TestFilterEnhancement:
     """Test enhancement of existing filter types."""
 
-    def test_enhance_all_filter_types(self):
+    def test_enhance_all_filter_types(self) -> None:
         """Test that all filter types can be enhanced."""
         # This should not raise any errors
         enhance_all_filter_types()
@@ -238,7 +236,7 @@ class TestFilterEnhancement:
         assert StringFilter.__gql_fields__["eq"].description is not None
         assert IntFilter.__gql_fields__["gt"].description is not None
 
-    def test_integration_with_type_definition(self):
+    def test_integration_with_type_definition(self) -> None:
         """Test that filter descriptions work with the type definition pipeline."""
 
         @fraiseql.fraise_input
@@ -267,7 +265,7 @@ class TestFilterEnhancement:
 class TestOperatorDescriptions:
     """Test that all expected operators have descriptions."""
 
-    def test_all_common_operators_have_descriptions(self):
+    def test_all_common_operators_have_descriptions(self) -> None:
         """Test that all common filter operators have descriptions."""
         common_operators = [
             "eq",
@@ -288,7 +286,7 @@ class TestOperatorDescriptions:
             assert operator in OPERATOR_DESCRIPTIONS
             assert len(OPERATOR_DESCRIPTIONS[operator]) > 10  # Reasonable description length
 
-    def test_network_operators_have_descriptions(self):
+    def test_network_operators_have_descriptions(self) -> None:
         """Test that network-specific operators have descriptions."""
         network_operators = [
             "inSubnet",
@@ -308,7 +306,7 @@ class TestOperatorDescriptions:
                 or "network" in OPERATOR_DESCRIPTIONS[operator].lower()
             )
 
-    def test_description_quality(self):
+    def test_description_quality(self) -> None:
         """Test that descriptions are helpful and informative."""
         # Check a few key descriptions for quality
         eq_desc = OPERATOR_DESCRIPTIONS["eq"]
@@ -327,7 +325,7 @@ class TestOperatorDescriptions:
 class TestApolloStudioIntegration:
     """Test that filter descriptions will appear correctly in Apollo Studio."""
 
-    def test_filter_descriptions_in_graphql_schema(self):
+    def test_filter_descriptions_in_graphql_schema(self) -> None:
         """Test that filter descriptions appear in generated GraphQL schema."""
 
         @fraiseql.fraise_input
@@ -358,7 +356,7 @@ class TestApolloStudioIntegration:
         if "age" in fields and fields["age"].description:
             assert "operation" in fields["age"].description
 
-    def test_backward_compatibility_with_existing_schemas(self):
+    def test_backward_compatibility_with_existing_schemas(self) -> None:
         """Test that existing schemas continue to work with filter enhancements."""
 
         @fraiseql.fraise_type

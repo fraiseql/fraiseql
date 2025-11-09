@@ -16,7 +16,7 @@ from fraiseql.types.scalars.port_code import (
 class TestPortCodeSerialization:
     """Test port code serialization."""
 
-    def test_serialize_valid_port_codes(self):
+    def test_serialize_valid_port_codes(self) -> None:
         """Test serializing valid UN/LOCODE port codes."""
         assert serialize_port_code("USNYC") == "USNYC"
         assert serialize_port_code("CNSHA") == "CNSHA"
@@ -24,11 +24,11 @@ class TestPortCodeSerialization:
         assert serialize_port_code("GBLON") == "GBLON"
         assert serialize_port_code("usnyc") == "USNYC"  # Case normalization
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_port_code(None) is None
 
-    def test_serialize_invalid_port_codes(self):
+    def test_serialize_invalid_port_codes(self) -> None:
         """Test serializing invalid port codes raises error."""
         # Too short
         with pytest.raises(GraphQLError, match="Invalid port code"):
@@ -57,13 +57,13 @@ class TestPortCodeSerialization:
 class TestPortCodeParsing:
     """Test port code parsing from variables."""
 
-    def test_parse_valid_port_codes(self):
+    def test_parse_valid_port_codes(self) -> None:
         """Test parsing valid port codes."""
         assert parse_port_code_value("USNYC") == "USNYC"
         assert parse_port_code_value("CNSHA") == "CNSHA"
         assert parse_port_code_value("usnyc") == "USNYC"  # Case normalization
 
-    def test_parse_invalid_port_codes(self):
+    def test_parse_invalid_port_codes(self) -> None:
         """Test parsing invalid port codes raises error."""
         with pytest.raises(GraphQLError, match="Invalid port code"):
             parse_port_code_value("USNY")
@@ -80,7 +80,7 @@ class TestPortCodeParsing:
         with pytest.raises(GraphQLError, match="Invalid port code"):
             parse_port_code_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Port code must be a string"):
             parse_port_code_value(123)
@@ -95,7 +95,7 @@ class TestPortCodeParsing:
 class TestPortCodeField:
     """Test PortCodeField class."""
 
-    def test_create_valid_port_code_field(self):
+    def test_create_valid_port_code_field(self) -> None:
         """Test creating PortCodeField with valid values."""
         port_code = PortCodeField("USNYC")
         assert port_code == "USNYC"
@@ -105,7 +105,7 @@ class TestPortCodeField:
         port_code = PortCodeField("usnyc")
         assert port_code == "USNYC"
 
-    def test_create_invalid_port_code_field(self):
+    def test_create_invalid_port_code_field(self) -> None:
         """Test creating PortCodeField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid port code"):
             PortCodeField("USNY")
@@ -124,13 +124,13 @@ class TestPortCodeField:
 class TestPortCodeLiteralParsing:
     """Test parsing port code from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid port code literals."""
         assert parse_port_code_literal(StringValueNode(value="USNYC")) == "USNYC"
         assert parse_port_code_literal(StringValueNode(value="CNSHA")) == "CNSHA"
         assert parse_port_code_literal(StringValueNode(value="usnyc")) == "USNYC"
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid port code format literals."""
         with pytest.raises(GraphQLError, match="Invalid port code"):
             parse_port_code_literal(StringValueNode(value="USNY"))
@@ -141,7 +141,7 @@ class TestPortCodeLiteralParsing:
         # Case is normalized, this should work
         assert parse_port_code_literal(StringValueNode(value="usNYC")) == "USNYC"
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Port code must be a string"):
             parse_port_code_literal(IntValueNode(value="123"))

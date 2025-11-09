@@ -25,7 +25,7 @@ class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
     @pytest.fixture
-    async def test_data(self, db_connection_committed):
+    async def test_data(self, db_connection_committed) -> None:
         """Create test tables and data with committed changes."""
         conn = db_connection_committed
         schema = await get_current_schema(conn)
@@ -357,7 +357,7 @@ class TestFraiseQLRepositoryIntegration:
         schema = test_data  # test_data fixture now returns the schema name
         repository = FraiseQLRepository(pool=db_pool)
 
-        async def run_query(email: str):
+        async def run_query(email: str) -> None:
             query = DatabaseQuery(
                 statement=SQL("SELECT * FROM {}.users WHERE data->>'email' = %(email)s").format(
                     Identifier(schema)

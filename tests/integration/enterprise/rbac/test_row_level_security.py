@@ -1,14 +1,15 @@
 """Tests for Row-Level Security (RLS) enforcement."""
 
-import pytest
-import uuid
-from uuid import uuid4
 from pathlib import Path
-from fraiseql.db import FraiseQLRepository, DatabaseQuery
+from uuid import uuid4
+
+import pytest
+
+from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool):
+async def setup_rbac_schema(db_pool) -> None:
     """Set up RBAC schema before running tests."""
     # Read the RBAC migration file
     rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
@@ -65,10 +66,8 @@ async def setup_rbac_schema(db_pool):
             await conn.commit()
 
 
-async def test_session_variables_set_for_rls(db_pool):
+async def test_session_variables_set_for_rls(db_pool) -> None:
     """Verify RBAC session variables are set correctly for RLS."""
-    from fraiseql.db import FraiseQLRepository
-
     # Create repository with RBAC context
     user_id = uuid4()
     tenant_id = uuid4()
@@ -96,10 +95,8 @@ async def test_session_variables_set_for_rls(db_pool):
     assert row["is_super_admin"] == "false"  # Not super_admin
 
 
-async def test_super_admin_session_variable(db_pool):
+async def test_super_admin_session_variable(db_pool) -> None:
     """Verify super_admin session variable is set correctly."""
-    from fraiseql.db import FraiseQLRepository
-
     # Create repository with super_admin role
     user_id = uuid4()
     tenant_id = uuid4()
@@ -120,7 +117,7 @@ async def test_super_admin_session_variable(db_pool):
     assert result[0]["is_super_admin"] == "true"
 
 
-async def test_rbac_utility_functions(db_repo):
+async def test_rbac_utility_functions(db_repo) -> None:
     """Test the RBAC utility functions created in the migration."""
     # Test user_has_role function
     user_id = uuid4()
@@ -223,7 +220,7 @@ async def test_rbac_utility_functions(db_repo):
     assert result[0]["user_has_permission"] is False
 
 
-async def test_rls_policies_applied(db_repo):
+async def test_rls_policies_applied(db_repo) -> None:
     """Test that RLS policies can be applied to tables (when they exist)."""
     # For now, just verify that the RLS migration file exists and is valid
     # Actual RLS policy testing would require tables to exist
@@ -237,7 +234,7 @@ async def test_rls_policies_applied(db_repo):
     assert "current_setting" in migration_sql, "Migration should use session variables"
 
 
-async def test_tenant_isolation_logic():
+async def test_tenant_isolation_logic() -> None:
     """Test the logical correctness of tenant isolation (without actual data)."""
     # This test verifies the RLS policy logic is sound
     # In a real scenario, this would be tested with actual data

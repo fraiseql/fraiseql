@@ -25,7 +25,7 @@ class DnsServer:
 class TestIssueResolutionDemonstration:
     """Demonstrate that all reported issues are resolved."""
 
-    def test_issue_1_insubnet_filter_fixed(self):
+    def test_issue_1_insubnet_filter_fixed(self) -> None:
         """RESOLVED: inSubnet filter now returns correct results.
 
         Original Issue: inSubnet: "192.168.0.0/16" returned 21.43.108.1
@@ -51,7 +51,7 @@ class TestIssueResolutionDemonstration:
         # - ✅ 192.168.1.102 (in subnet)
         # - ❌ 21.43.108.1 (NOT in subnet) <- This was the bug!
 
-    def test_issue_2_exact_matching_eq_fixed(self):
+    def test_issue_2_exact_matching_eq_fixed(self) -> None:
         """RESOLVED: eq filter now works correctly.
 
         Original Issue: eq: "1.1.1.1" returned empty array
@@ -73,7 +73,7 @@ class TestIssueResolutionDemonstration:
         # - host('1.1.1.1'::inet) = '1.1.1.1' ✅
         # - host('1.1.1.1/32'::inet) = '1.1.1.1' ✅
 
-    def test_issue_3_isprivate_filter_fixed(self):
+    def test_issue_3_isprivate_filter_fixed(self) -> None:
         """RESOLVED: isPrivate filter now returns correct results.
 
         Original Issue: isPrivate: true returned empty array
@@ -107,7 +107,7 @@ class TestIssueResolutionDemonstration:
         # - ❌ 1.1.1.1 (public)
         # - ❌ 21.43.108.1 (public)
 
-    def test_string_filtering_still_works(self):
+    def test_string_filtering_still_works(self) -> None:
         """VERIFIED: String filtering continues to work (was not broken).
 
         Mentioned in issue: identifier: { contains: "text" } ✅
@@ -122,7 +122,7 @@ class TestIssueResolutionDemonstration:
         assert "sup-musiq" in sql_str
         assert "LIKE" in sql_str or "~" in sql_str  # Pattern matching
 
-    def test_network_operators_type_safety_improved(self):
+    def test_network_operators_type_safety_improved(self) -> None:
         """NEW: Network operators now properly check field types.
 
         Enhancement: NetworkOperatorStrategy.can_handle() now validates field types
@@ -139,7 +139,7 @@ class TestIssueResolutionDemonstration:
         assert not network_strategy.can_handle("inSubnet", str)
         assert not network_strategy.can_handle("isPrivate", int)
 
-    def test_graphql_integration_works(self):
+    def test_graphql_integration_works(self) -> None:
         """VERIFIED: GraphQL where input generation includes network operators.
 
         The GraphQL integration properly maps IpAddress -> NetworkAddressFilter
@@ -152,7 +152,7 @@ class TestIssueResolutionDemonstration:
         # Verify that ip_address field exists
         assert hasattr(where_instance, "ip_address")
 
-    def test_sql_generation_consistency_verified(self):
+    def test_sql_generation_consistency_verified(self) -> None:
         """VERIFIED: SQL generation is now consistent across operators.
 
         All network operators use consistent (path)::inet casting approach
@@ -176,7 +176,7 @@ class TestIssueResolutionDemonstration:
             assert "data->>'ip_address'" in sql_str
             assert "::inet" in sql_str
 
-    def test_comprehensive_fix_summary(self):
+    def test_comprehensive_fix_summary(self) -> None:
         """Summary of all fixes applied to resolve the JSONB network filtering issue."""
 
 

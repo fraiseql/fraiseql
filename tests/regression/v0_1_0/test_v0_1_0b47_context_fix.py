@@ -6,7 +6,7 @@ from fraiseql.db import FraiseQLRepository
 
 
 @pytest.mark.unit
-def test_repository_context_preserved():
+def test_repository_context_preserved() -> None:
     """Test that repository context can be updated with GraphQL info."""
     # Create repository with initial context
     repo_context = {"mode": "production", "query_timeout": 30, "custom": "value"}
@@ -26,7 +26,7 @@ def test_repository_context_preserved():
     assert repo.context["graphql_field_name"] == "testField"
 
 
-def test_repository_context_is_mutable():
+def test_repository_context_is_mutable() -> None:
     """Test that repository context is a mutable dict."""
     repo = FraiseQLRepository(None, {"initial": "value"})
 

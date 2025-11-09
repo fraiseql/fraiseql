@@ -8,7 +8,7 @@ from fraiseql.introspection.metadata_parser import (
 class TestMetadataParser:
     """Test metadata parsing functionality."""
 
-    def test_parse_type_annotation_basic(self):
+    def test_parse_type_annotation_basic(self) -> None:
         """Test basic type annotation parsing."""
         parser = MetadataParser()
         comment = "@fraiseql:type\ntrinity: true\ndescription: User account"
@@ -20,7 +20,7 @@ class TestMetadataParser:
         assert result.description == "User account"
         assert result.expose_fields is None
 
-    def test_parse_type_annotation_with_fields(self):
+    def test_parse_type_annotation_with_fields(self) -> None:
         """Test type annotation with expose_fields."""
         parser = MetadataParser()
         comment = """@fraiseql:type
@@ -34,7 +34,7 @@ expose_fields:
         assert result is not None
         assert result.expose_fields == ["id", "name", "email"]
 
-    def test_parse_type_annotation_invalid_yaml(self):
+    def test_parse_type_annotation_invalid_yaml(self) -> None:
         """Test error handling for invalid YAML."""
         parser = MetadataParser()
         comment = "@fraiseql:type\ninvalid: yaml: [unclosed"
@@ -42,7 +42,7 @@ expose_fields:
         result = parser.parse_type_annotation(comment)
         assert result is None
 
-    def test_parse_type_annotation_no_marker(self):
+    def test_parse_type_annotation_no_marker(self) -> None:
         """Test handling of comments without markers."""
         parser = MetadataParser()
         comment = "Just a regular comment"
@@ -50,7 +50,7 @@ expose_fields:
         result = parser.parse_type_annotation(comment)
         assert result is None
 
-    def test_parse_mutation_annotation_basic(self):
+    def test_parse_mutation_annotation_basic(self) -> None:
         """Test basic mutation annotation parsing."""
         parser = MetadataParser()
         comment = """@fraiseql:mutation
@@ -67,7 +67,7 @@ description: Create a new user"""
         assert result.failure_type == "ValidationError"
         assert result.description == "Create a new user"
 
-    def test_parse_mutation_annotation_missing_required(self):
+    def test_parse_mutation_annotation_missing_required(self) -> None:
         """Test mutation annotation with missing required fields."""
         parser = MetadataParser()
         comment = "@fraiseql:mutation\ndescription: Missing required fields"
@@ -75,7 +75,7 @@ description: Create a new user"""
         result = parser.parse_mutation_annotation(comment)
         assert result is None
 
-    def test_parse_field_annotation_basic(self):
+    def test_parse_field_annotation_basic(self) -> None:
         """Test parsing basic field annotation (created by SpecQL)."""
         # Given: Parser
         parser = MetadataParser()
@@ -93,7 +93,7 @@ description: Create a new user"""
         assert metadata.required is True
         assert metadata.is_enum is False
 
-    def test_parse_field_annotation_with_enum(self):
+    def test_parse_field_annotation_with_enum(self) -> None:
         """Test parsing field annotation with enum flag."""
         # Given: Parser
         parser = MetadataParser()
@@ -109,7 +109,7 @@ description: Create a new user"""
         assert metadata.name == "status"
         assert metadata.is_enum is True
 
-    def test_parse_field_annotation_optional(self):
+    def test_parse_field_annotation_optional(self) -> None:
         """Test parsing optional field (required=false)."""
         # Given: Parser
         parser = MetadataParser()
@@ -124,7 +124,7 @@ description: Create a new user"""
         assert metadata is not None
         assert metadata.required is False
 
-    def test_parse_field_annotation_no_annotation(self):
+    def test_parse_field_annotation_no_annotation(self) -> None:
         """Test parsing comment without @fraiseql:field."""
         # Given: Parser
         parser = MetadataParser()
@@ -138,7 +138,7 @@ description: Create a new user"""
         # Then: Returns None
         assert metadata is None
 
-    def test_parse_mutation_annotation_with_context_params(self):
+    def test_parse_mutation_annotation_with_context_params(self) -> None:
         """Test parsing mutation annotation with context_params."""
         # Given: Mutation comment with context_params
         comment = """
@@ -158,7 +158,7 @@ description: Create a new user"""
         assert annotation.name == "qualifyLead"
         assert annotation.context_params == ["auth_tenant_id", "auth_user_id"]
 
-    def test_parse_mutation_annotation_without_context_params(self):
+    def test_parse_mutation_annotation_without_context_params(self) -> None:
         """Test parsing mutation annotation without context_params (backward compat)."""
         # Given: Mutation comment without context_params
         comment = """

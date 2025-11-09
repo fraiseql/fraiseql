@@ -67,7 +67,7 @@ class InstallContext:
 class SmartDependencyManager:
     """Auto-install missing dependencies for integration tests."""
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Optional[Path] = None) -> None:
         """Initialize dependency manager."""
         self.cache_dir = cache_dir or Path(__file__).parent
         self.cache_file = self.cache_dir / ".dependency_cache.json"
@@ -91,7 +91,7 @@ class SmartDependencyManager:
                 return {}
         return {}
 
-    def _save_cache(self):
+    def _save_cache(self) -> None:
         """Save dependency cache to disk."""
         try:
             with open(self.cache_file, "w") as f:
@@ -99,7 +99,7 @@ class SmartDependencyManager:
         except OSError as e:
             logger.warning(f"Failed to save dependency cache: {e}")
 
-    def _log_install_attempt(self, message: str):
+    def _log_install_attempt(self, message: str) -> None:
         """Log installation attempt."""
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
@@ -286,7 +286,7 @@ class SmartDependencyManager:
 
         return not in_ci
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear dependency cache."""
         self.dependency_cache = {}
         if self.cache_file.exists():

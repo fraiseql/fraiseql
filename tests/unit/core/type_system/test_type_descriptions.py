@@ -7,7 +7,7 @@ from fraiseql.core.graphql_type import convert_type_to_graphql_output
 
 
 class TestTypeDescriptions:
-    def test_fraise_type_uses_docstring_as_description(self):
+    def test_fraise_type_uses_docstring_as_description(self) -> None:
         @fraiseql.type(sql_source="test_table")
         class TestUser:
             """A user in the system with authentication and profile data."""
@@ -20,7 +20,7 @@ class TestTypeDescriptions:
         assert isinstance(gql_type, GraphQLObjectType)
         assert gql_type.description == "A user in the system with authentication and profile data."
 
-    def test_fraise_type_without_docstring_has_no_description(self):
+    def test_fraise_type_without_docstring_has_no_description(self) -> None:
         @fraiseql.type(sql_source="test_table")
         class TestProduct:
             id: int
@@ -31,7 +31,7 @@ class TestTypeDescriptions:
         assert isinstance(gql_type, GraphQLObjectType)
         assert gql_type.description is None
 
-    def test_fraise_type_multiline_docstring_is_cleaned(self):
+    def test_fraise_type_multiline_docstring_is_cleaned(self) -> None:
         @fraiseql.type(sql_source="test_table")
         class TestOrder:
             """An order in the e-commerce system.
@@ -49,7 +49,7 @@ class TestTypeDescriptions:
         expected_description = "An order in the e-commerce system.\n\nContains line items, customer information,\nand payment details."
         assert gql_type.description == expected_description
 
-    def test_fraise_type_description_in_built_schema(self):
+    def test_fraise_type_description_in_built_schema(self) -> None:
         @fraiseql.type(sql_source="posts")
         class Post:
             """A blog post with content and metadata."""
@@ -74,7 +74,7 @@ class TestTypeDescriptions:
         assert isinstance(post_type, GraphQLObjectType)
         assert post_type.description == "A blog post with content and metadata."
 
-    def test_fraise_type_description_preserved_with_existing_functionality(self):
+    def test_fraise_type_description_preserved_with_existing_functionality(self) -> None:
         @fraiseql.type(sql_source="users")
         class DetailedUser:
             """A comprehensive user model with rich metadata."""

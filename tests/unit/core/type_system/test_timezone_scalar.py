@@ -16,7 +16,7 @@ from fraiseql.types.scalars.timezone import (
 class TestTimezoneSerialization:
     """Test timezone serialization."""
 
-    def test_serialize_valid_timezones(self):
+    def test_serialize_valid_timezones(self) -> None:
         """Test serializing valid IANA timezone identifiers."""
         assert serialize_timezone("America/New_York") == "America/New_York"
         assert serialize_timezone("Europe/Paris") == "Europe/Paris"
@@ -26,7 +26,7 @@ class TestTimezoneSerialization:
         assert serialize_timezone("Europe/London") == "Europe/London"
         assert serialize_timezone("Australia/Sydney") == "Australia/Sydney"
 
-    def test_serialize_three_part_timezones(self):
+    def test_serialize_three_part_timezones(self) -> None:
         """Test serializing timezones with three parts (Region/City/Locality)."""
         assert (
             serialize_timezone("America/Argentina/Buenos_Aires") == "America/Argentina/Buenos_Aires"
@@ -34,11 +34,11 @@ class TestTimezoneSerialization:
         assert serialize_timezone("America/Indiana/Indianapolis") == "America/Indiana/Indianapolis"
         assert serialize_timezone("America/Kentucky/Louisville") == "America/Kentucky/Louisville"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_timezone(None) is None
 
-    def test_serialize_invalid_timezone(self):
+    def test_serialize_invalid_timezone(self) -> None:
         """Test serializing invalid timezones raises error."""
         # Abbreviations not supported
         with pytest.raises(GraphQLError, match="Invalid timezone"):
@@ -80,7 +80,7 @@ class TestTimezoneSerialization:
 class TestTimezoneParsing:
     """Test timezone parsing from variables."""
 
-    def test_parse_valid_timezone(self):
+    def test_parse_valid_timezone(self) -> None:
         """Test parsing valid timezones."""
         assert parse_timezone_value("America/New_York") == "America/New_York"
         assert parse_timezone_value("Europe/Paris") == "Europe/Paris"
@@ -89,7 +89,7 @@ class TestTimezoneParsing:
             == "America/Argentina/Buenos_Aires"
         )
 
-    def test_parse_invalid_timezone(self):
+    def test_parse_invalid_timezone(self) -> None:
         """Test parsing invalid timezones raises error."""
         with pytest.raises(GraphQLError, match="Invalid timezone"):
             parse_timezone_value("EST")
@@ -100,7 +100,7 @@ class TestTimezoneParsing:
         with pytest.raises(GraphQLError, match="Invalid timezone"):
             parse_timezone_value("america/new_york")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Timezone must be a string"):
             parse_timezone_value(123)
@@ -115,7 +115,7 @@ class TestTimezoneParsing:
 class TestTimezoneField:
     """Test TimezoneField class."""
 
-    def test_create_valid_timezone_field(self):
+    def test_create_valid_timezone_field(self) -> None:
         """Test creating TimezoneField with valid values."""
         tz = TimezoneField("America/New_York")
         assert tz == "America/New_York"
@@ -127,7 +127,7 @@ class TestTimezoneField:
         tz = TimezoneField("America/Argentina/Buenos_Aires")
         assert tz == "America/Argentina/Buenos_Aires"
 
-    def test_create_invalid_timezone_field(self):
+    def test_create_invalid_timezone_field(self) -> None:
         """Test creating TimezoneField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid timezone"):
             TimezoneField("EST")
@@ -142,7 +142,7 @@ class TestTimezoneField:
 class TestTimezoneLiteralParsing:
     """Test parsing timezone from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid timezone literals."""
         assert (
             parse_timezone_literal(StringValueNode(value="America/New_York")) == "America/New_York"
@@ -153,7 +153,7 @@ class TestTimezoneLiteralParsing:
             == "America/Argentina/Buenos_Aires"
         )
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid timezone format literals."""
         with pytest.raises(GraphQLError, match="Invalid timezone"):
             parse_timezone_literal(StringValueNode(value="EST"))
@@ -161,7 +161,7 @@ class TestTimezoneLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid timezone"):
             parse_timezone_literal(StringValueNode(value="america/new_york"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Timezone must be a string"):
             parse_timezone_literal(IntValueNode(value="123"))

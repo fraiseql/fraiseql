@@ -8,7 +8,6 @@ import uuid
 from typing import Optional
 
 import pytest
-from graphql import GraphQLObjectType, GraphQLField, GraphQLString, GraphQLNonNull, GraphQLList
 
 from fraiseql import query
 from fraiseql.gql.schema_builder import build_fraiseql_schema
@@ -18,7 +17,7 @@ from fraiseql.types import fraise_type
 class TestSchemaSerializer:
     """Test suite for SchemaSerializer."""
 
-    def test_serializes_object_type_with_scalar_fields(self):
+    def test_serializes_object_type_with_scalar_fields(self) -> None:
         """Test that object types with scalar fields are correctly serialized.
 
         RED PHASE: This test will FAIL because SchemaSerializer is not implemented yet.
@@ -70,7 +69,7 @@ class TestSchemaSerializer:
         assert name_field["is_nested_object"] is False
         assert name_field["is_list"] is False
 
-    def test_serializes_nested_object_fields(self):
+    def test_serializes_nested_object_fields(self) -> None:
         """Test that nested object types are correctly identified.
 
         RED PHASE: This test will FAIL.
@@ -96,8 +95,7 @@ class TestSchemaSerializer:
             return []
 
         schema = build_fraiseql_schema(
-            query_types=[Equipment, Assignment, assignments],
-            mutation_resolvers=[]
+            query_types=[Equipment, Assignment, assignments], mutation_resolvers=[]
         )
 
         # Serialize
@@ -115,7 +113,7 @@ class TestSchemaSerializer:
         assert equipment_field["is_nested_object"] is True
         assert equipment_field["is_list"] is False
 
-    def test_serializes_list_types(self):
+    def test_serializes_list_types(self) -> None:
         """Test that list types are correctly serialized.
 
         RED PHASE: This test will FAIL.
@@ -138,10 +136,7 @@ class TestSchemaSerializer:
         async def posts(info) -> list[Post]:
             return []
 
-        schema = build_fraiseql_schema(
-            query_types=[Tag, Post, posts],
-            mutation_resolvers=[]
-        )
+        schema = build_fraiseql_schema(query_types=[Tag, Post, posts], mutation_resolvers=[])
 
         serializer = SchemaSerializer()
         result = serializer.serialize_schema(schema)
@@ -161,7 +156,7 @@ class TestSchemaSerializer:
         assert keywords_field["is_list"] is True
         assert keywords_field["is_nested_object"] is False
 
-    def test_includes_feature_flags(self):
+    def test_includes_feature_flags(self) -> None:
         """Test that schema IR includes feature flags for forward compatibility.
 
         RED PHASE: This test will FAIL.
@@ -177,8 +172,7 @@ class TestSchemaSerializer:
             return []
 
         schema = build_fraiseql_schema(
-            query_types=[SimpleType, simple_query],
-            mutation_resolvers=[]
+            query_types=[SimpleType, simple_query], mutation_resolvers=[]
         )
 
         serializer = SchemaSerializer()
@@ -193,7 +187,7 @@ class TestSchemaSerializer:
         assert isinstance(result["features"], list)
         assert "type_resolution" in result["features"]
 
-    def test_serialization_performance(self):
+    def test_serialization_performance(self) -> None:
         """Test that serialization completes within performance target.
 
         Target: < 10ms for 50-type schema
@@ -201,11 +195,13 @@ class TestSchemaSerializer:
         RED PHASE: This test will FAIL.
         """
         import time
+
         from fraiseql.core.schema_serializer import SchemaSerializer
 
         # Build a moderately sized schema
         types = []
         for i in range(50):
+
             @fraise_type
             class DynamicType:
                 id: uuid.UUID
@@ -220,10 +216,7 @@ class TestSchemaSerializer:
         async def dummy_query(info) -> list[types[0]]:
             return []
 
-        schema = build_fraiseql_schema(
-            query_types=types + [dummy_query],
-            mutation_resolvers=[]
-        )
+        schema = build_fraiseql_schema(query_types=types + [dummy_query], mutation_resolvers=[])
 
         serializer = SchemaSerializer()
 

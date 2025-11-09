@@ -10,8 +10,8 @@ from psycopg.sql import SQL
 # Import Hostname operator functions
 from fraiseql.sql.where.operators.hostname import (
     build_hostname_eq_sql,
-    build_hostname_neq_sql,
     build_hostname_in_sql,
+    build_hostname_neq_sql,
     build_hostname_notin_sql,
 )
 
@@ -19,7 +19,7 @@ from fraiseql.sql.where.operators.hostname import (
 class TestHostnameBasicOperators:
     """Test basic Hostname operators (eq, neq, in, notin)."""
 
-    def test_build_hostname_equality_sql(self):
+    def test_build_hostname_equality_sql(self) -> None:
         """Test Hostname equality operator with proper text handling."""
         path_sql = SQL("data->>'server_hostname'")
         value = "api.example.com"
@@ -29,7 +29,7 @@ class TestHostnameBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_hostname_inequality_sql(self):
+    def test_build_hostname_inequality_sql(self) -> None:
         """Test Hostname inequality operator with proper text handling."""
         path_sql = SQL("data->>'server_hostname'")
         value = "old.example.com"
@@ -39,7 +39,7 @@ class TestHostnameBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_hostname_in_list_sql(self):
+    def test_build_hostname_in_list_sql(self) -> None:
         """Test Hostname IN list with multiple hostname values."""
         path_sql = SQL("data->>'server_hostname'")
         value = ["api.example.com", "web.example.com", "db.example.com"]
@@ -51,7 +51,7 @@ class TestHostnameBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_hostname_not_in_list_sql(self):
+    def test_build_hostname_not_in_list_sql(self) -> None:
         """Test Hostname NOT IN list with multiple hostname values."""
         path_sql = SQL("data->>'server_hostname'")
         value = ["test.example.com", "staging.example.com"]
@@ -61,7 +61,7 @@ class TestHostnameBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_hostname_single_item_in_list(self):
+    def test_build_hostname_single_item_in_list(self) -> None:
         """Test Hostname IN list with single value."""
         path_sql = SQL("data->>'server_hostname'")
         value = ["prod.example.com"]
@@ -71,7 +71,7 @@ class TestHostnameBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_hostname_different_formats(self):
+    def test_build_hostname_different_formats(self) -> None:
         """Test Hostname operators with different hostname formats."""
         path_sql = SQL("data->>'hostname'")
 
@@ -90,7 +90,7 @@ class TestHostnameBasicOperators:
         expected_complex = "data->>'hostname' = 'web-01.east-1.example.com'"
         assert result_complex.as_string(None) == expected_complex
 
-    def test_build_hostname_empty_list_handling(self):
+    def test_build_hostname_empty_list_handling(self) -> None:
         """Test Hostname operators handle empty lists gracefully."""
         path_sql = SQL("data->>'hostname'")
         value = []
@@ -103,7 +103,7 @@ class TestHostnameBasicOperators:
         expected_notin = "data->>'hostname' NOT IN ()"
         assert result_notin.as_string(None) == expected_notin
 
-    def test_build_hostname_case_handling(self):
+    def test_build_hostname_case_handling(self) -> None:
         """Test Hostname operators handle case normalization."""
         path_sql = SQL("data->>'hostname'")
 
@@ -120,21 +120,21 @@ class TestHostnameBasicOperators:
 class TestHostnameValidation:
     """Test Hostname operator validation and error handling."""
 
-    def test_hostname_in_requires_list(self):
+    def test_hostname_in_requires_list(self) -> None:
         """Test that Hostname 'in' operator requires a list."""
         path_sql = SQL("data->>'hostname'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_hostname_in_sql(path_sql, "api.example.com")
 
-    def test_hostname_notin_requires_list(self):
+    def test_hostname_notin_requires_list(self) -> None:
         """Test that Hostname 'notin' operator requires a list."""
         path_sql = SQL("data->>'hostname'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_hostname_notin_sql(path_sql, "api.example.com")
 
-    def test_hostname_formats_supported(self):
+    def test_hostname_formats_supported(self) -> None:
         """Test that various valid hostname formats are supported."""
         path_sql = SQL("data->>'hostname'")
 
@@ -153,7 +153,7 @@ class TestHostnameValidation:
             expected = f"data->>'hostname' = '{hostname}'"
             assert result.as_string(None) == expected
 
-    def test_hostname_special_cases(self):
+    def test_hostname_special_cases(self) -> None:
         """Test Hostname with edge cases and special formats."""
         path_sql = SQL("data->>'hostname'")
 

@@ -11,7 +11,7 @@ from fraiseql.types.enum import fraise_enum
 
 
 @pytest.mark.unit
-def test_enum_serialization():
+def test_enum_serialization() -> None:
     """Test that enum values can be JSON serialized when returned from GraphQL."""
 
     # Define a test enum
@@ -49,7 +49,7 @@ def test_enum_serialization():
     assert json_str == '{"sourceType": "PRODUCT"}'  # GraphQL enum name is used in response
 
 
-def test_enum_with_mutation_return():
+def test_enum_with_mutation_return() -> None:
     """Test that enums work correctly when returned from mutations."""
     from graphql import (
         GraphQLArgument,
@@ -122,7 +122,7 @@ def test_enum_with_mutation_return():
     assert '"message": "Success"' in json_str
 
 
-def test_enum_value_storage():
+def test_enum_value_storage() -> None:
     """Test that GraphQLEnumValue stores primitive values, not enum members."""
 
     @fraise_enum

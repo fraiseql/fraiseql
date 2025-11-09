@@ -18,7 +18,7 @@ class SampleInput:
     optional_no_default: str | None = fraiseql.fraise_field(default=UNSET)
 
 
-def test_coerce_input_omitted_fields_use_default():
+def test_coerce_input_omitted_fields_use_default() -> None:
     """Test that omitted fields use their default values in coerce_input."""
     # Test with only required field
     raw_data = {"required_field": "test_value"}
@@ -36,7 +36,7 @@ def test_coerce_input_omitted_fields_use_default():
     assert result.optional_with_none is None
 
 
-def test_coerce_input_explicit_null_overrides_default():
+def test_coerce_input_explicit_null_overrides_default() -> None:
     """Test that explicit null values override default values."""
     # Test with explicit nulls
     raw_data = {
@@ -55,11 +55,11 @@ def test_coerce_input_explicit_null_overrides_default():
     assert result.optional_no_default is None  # Not UNSET
 
 
-def test_coerce_input_arguments_preserves_omitted_fields():
+def test_coerce_input_arguments_preserves_omitted_fields() -> None:
     """Test that coerce_input_arguments doesn't add omitted fields."""
 
     # Define a test function
-    def test_func(input: SampleInput):
+    def test_func(input: SampleInput) -> None:
         pass
 
     # Test with only required field in raw args
@@ -76,7 +76,7 @@ def test_coerce_input_arguments_preserves_omitted_fields():
     assert input_obj.optional_with_none is None
 
 
-def test_sql_generation_excludes_unset_fields():
+def test_sql_generation_excludes_unset_fields() -> None:
     """Test that UNSET fields are excluded from SQL generation."""
     from dataclasses import dataclass
 

@@ -64,7 +64,7 @@ class RegularDataclass:
 class TestFraiseTypeJSONSerialization:
     """Test JSON serialization of @fraise_type objects."""
 
-    def test_simple_fraise_type_with_encoder(self):
+    def test_simple_fraise_type_with_encoder(self) -> None:
         """Test serialization of simple @fraise_type object with FraiseQLJSONEncoder."""
         error = SimpleError(message="Test error", code=400)
 
@@ -73,7 +73,7 @@ class TestFraiseTypeJSONSerialization:
 
         assert parsed == {"message": "Test error", "code": 400}
 
-    def test_complex_fraise_type_with_encoder(self):
+    def test_complex_fraise_type_with_encoder(self) -> None:
         """Test serialization of complex @fraise_type object with FraiseQLJSONEncoder."""
         error = ComplexError(
             message="Complex error",
@@ -95,7 +95,7 @@ class TestFraiseTypeJSONSerialization:
         }
         assert parsed == expected
 
-    def test_fraise_type_with_none_fields(self):
+    def test_fraise_type_with_none_fields(self) -> None:
         """Test serialization with None fields."""
         error = ComplexError(
             message="Simple error", code=400, identifier="simple", details=None, metadata=None
@@ -108,7 +108,7 @@ class TestFraiseTypeJSONSerialization:
         expected = {"message": "Simple error", "code": 400, "identifier": "simple"}
         assert parsed == expected
 
-    def test_nested_fraise_types_with_encoder(self):
+    def test_nested_fraise_types_with_encoder(self) -> None:
         """Test serialization of nested @fraise_type objects."""
         simple_error = SimpleError(message="Nested error", code=500)
         complex_error = ComplexError(
@@ -134,7 +134,7 @@ class TestFraiseTypeJSONSerialization:
         }
         assert parsed == expected
 
-    def test_list_of_fraise_types_with_encoder(self):
+    def test_list_of_fraise_types_with_encoder(self) -> None:
         """Test serialization of list containing @fraise_type objects."""
         errors = [
             SimpleError(message="Error 1", code=400),
@@ -151,7 +151,7 @@ class TestFraiseTypeJSONSerialization:
         }
         assert parsed == expected
 
-    def test_mixed_types_with_encoder(self):
+    def test_mixed_types_with_encoder(self) -> None:
         """Test serialization of mixed @fraise_type and regular objects."""
         error = SimpleError(message="Mixed test", code=400)
         dataclass_obj = RegularDataclass(name="test", value=42)
@@ -180,7 +180,7 @@ class TestFraiseTypeJSONSerialization:
         }
         assert parsed == expected
 
-    def test_fraise_type_fails_with_standard_json(self):
+    def test_fraise_type_fails_with_standard_json(self) -> None:
         """Test that @fraise_type objects fail with standard JSON encoder."""
         error = SimpleError(message="Standard JSON test", code=400)
 
@@ -192,7 +192,7 @@ class TestFraiseTypeJSONSerialization:
         with pytest.raises(TypeError, match="Object of type SimpleError is not JSON serializable"):
             json.dumps(data)
 
-    def test_clean_fraise_types_function(self):
+    def test_clean_fraise_types_function(self) -> None:
         """Test the _clean_fraise_types function directly."""
         error = ComplexError(
             message="Clean test", code=422, identifier="clean", details={"test": True}
@@ -207,7 +207,7 @@ class TestFraiseTypeJSONSerialization:
         assert cleaned["identifier"] == "clean"
         assert cleaned["details"] == {"test": True}
 
-    def test_clean_fraise_types_preserves_structure(self):
+    def test_clean_fraise_types_preserves_structure(self) -> None:
         """Test that _clean_fraise_types preserves complex data structures."""
         error1 = SimpleError(message="Error 1", code=400)
         error2 = SimpleError(message="Error 2", code=500)
@@ -235,7 +235,7 @@ class TestFraiseTypeJSONSerialization:
         # Non-@fraise_type data preserved
         assert cleaned["level1"]["level2"][0]["id"] == 1
 
-    def test_clean_fraise_types_handles_empty_structures(self):
+    def test_clean_fraise_types_handles_empty_structures(self) -> None:
         """Test that _clean_fraise_types handles empty/None structures."""
         assert _clean_fraise_types(None) is None
         assert _clean_fraise_types([]) == []
@@ -244,7 +244,7 @@ class TestFraiseTypeJSONSerialization:
         assert _clean_fraise_types(42) == 42
         assert _clean_fraise_types(True) is True
 
-    def test_clean_fraise_types_with_circular_references(self):
+    def test_clean_fraise_types_with_circular_references(self) -> None:
         """Test that _clean_fraise_types handles structures safely."""
         # Create a structure that could be problematic
         error = SimpleError(message="Circular test", code=400)
@@ -266,7 +266,7 @@ class TestFraiseTypeJSONSerialization:
         except RecursionError:
             pytest.fail("_clean_fraise_types should handle circular references")
 
-    def test_performance_with_many_objects(self):
+    def test_performance_with_many_objects(self) -> None:
         """Test performance with many @fraise_type objects."""
         import time
 
@@ -291,7 +291,7 @@ class TestFraiseTypeJSONSerialization:
         assert cleaned["errors"][0]["message"] == "Error 0"
         assert cleaned["errors"][999]["message"] == "Error 999"
 
-    def test_json_serializable_after_cleaning(self):
+    def test_json_serializable_after_cleaning(self) -> None:
         """Test that cleaned objects are always JSON serializable."""
         # Create complex nested structure
         errors = [
@@ -334,7 +334,7 @@ class TestFraiseTypeJSONSerialization:
         assert parsed["metadata"]["count"] == 10
         assert parsed["status"] == "active"
 
-    def test_encoder_handles_fraiseql_definition_attribute(self):
+    def test_encoder_handles_fraiseql_definition_attribute(self) -> None:
         """Test that the encoder correctly identifies @fraise_type objects."""
         error = SimpleError(message="Attribute test", code=400)
 
@@ -349,7 +349,7 @@ class TestFraiseTypeJSONSerialization:
         assert result["message"] == "Attribute test"
         assert result["code"] == 400
 
-    def test_complex_graphql_response_structure(self):
+    def test_complex_graphql_response_structure(self) -> None:
         """Test cleaning of a structure that mirrors a GraphQL response."""
         # Simulate a GraphQL mutation response with auto-populated errors
         error = ComplexError(

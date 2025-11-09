@@ -5,12 +5,13 @@ production. The issue may be that field_type information is not propagating
 correctly from the dataclass definitions through to the operator strategies.
 """
 
-import pytest
 from dataclasses import dataclass
 from typing import get_type_hints
 
-from fraiseql.types import IpAddress, LTree, DateRange, MacAddress
+import pytest
+
 from fraiseql.sql.where_generator import safe_create_where_type
+from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
 
 @dataclass
@@ -38,7 +39,7 @@ class TestSpecialTypesModel:
 class TestFieldTypePropagation:
     """Test that field_type information propagates correctly."""
 
-    def test_type_hints_extraction(self):
+    def test_type_hints_extraction(self) -> None:
         """Test that get_type_hints correctly extracts special types."""
         type_hints = get_type_hints(TestNetworkModel)
 
@@ -53,7 +54,7 @@ class TestFieldTypePropagation:
             # Should handle Optional[IpAddress] correctly
             print(f"secondary_ip type: {type_hints['secondary_ip']}")
 
-    def test_where_type_generation_preserves_field_types(self):
+    def test_where_type_generation_preserves_field_types(self) -> None:
         """Test that WHERE type generation preserves field type information."""
         WhereType = safe_create_where_type(TestNetworkModel)
 
@@ -75,7 +76,7 @@ class TestFieldTypePropagation:
         # The critical test: field_type should cause proper inet casting
         assert "::inet" in sql_str, f"Field type not propagated - no inet casting in: {sql_str}"
 
-    def test_all_special_types_field_propagation(self):
+    def test_all_special_types_field_propagation(self) -> None:
         """Test field_type propagation for all special types."""
         WhereType = safe_create_where_type(TestSpecialTypesModel)
         where_instance = WhereType()
@@ -107,7 +108,7 @@ class TestFieldTypePropagation:
             # Reset for next test
             setattr(where_instance, field_name, {})
 
-    def test_field_type_none_fallback_behavior(self):
+    def test_field_type_none_fallback_behavior(self) -> None:
         """Test what happens when field_type is None (the potential production issue)."""
         from fraiseql.sql.where_generator import _make_filter_field_composed
 
@@ -143,7 +144,7 @@ class TestFieldTypePropagation:
             # This should work correctly
             assert "::inet" in sql_with_type, "Should have inet casting with field_type"
 
-    def test_operator_registry_without_field_type(self):
+    def test_operator_registry_without_field_type(self) -> None:
         """Test operator registry behavior when field_type is not provided."""
         from fraiseql.sql.operator_strategies import get_operator_registry
 
@@ -179,10 +180,11 @@ class TestFieldTypePropagation:
                 print(f"Operator {op} failed without field_type: {e}")
                 # This might be the root cause - some operators might fail without field_type
 
-    def test_comparison_strategy_field_type_handling(self):
+    def test_comparison_strategy_field_type_handling(self) -> None:
         """Test how ComparisonOperatorStrategy handles IpAddress types."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
         from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import get_operator_registry
 
         registry = get_operator_registry()
 
@@ -219,9 +221,8 @@ class TestFieldTypePropagation:
 class TestProductionScenarioSimulation:
     """Simulate production scenarios that might cause field_type to be lost."""
 
-    def test_field_type_loss_scenarios(self):
+    def test_field_type_loss_scenarios(self) -> None:
         """Test scenarios where field_type might be lost in production."""
-
         # Scenario 1: Different code path in production vs test
         # This might happen if production uses a different initialization path
 
@@ -242,7 +243,7 @@ class TestProductionScenarioSimulation:
 
         # This information might help identify production vs test differences
 
-    def test_graphql_integration_field_type_propagation(self):
+    def test_graphql_integration_field_type_propagation(self) -> None:
         """Test field_type propagation through GraphQL input generation."""
         # This would test the full pipeline from GraphQL input to SQL generation
         # but requires GraphQL setup which might be complex

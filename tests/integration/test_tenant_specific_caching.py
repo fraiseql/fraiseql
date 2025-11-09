@@ -1,9 +1,6 @@
 """Tests for tenant-specific APQ response caching."""
 
 import hashlib
-from typing import Any, Optional
-
-import pytest
 
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
@@ -11,7 +8,7 @@ from fraiseql.storage.backends.memory import MemoryAPQBackend
 class TestTenantSpecificCaching:
     """Test that responses are properly isolated by tenant."""
 
-    def test_different_tenants_get_different_cached_responses(self):
+    def test_different_tenants_get_different_cached_responses(self) -> None:
         """Test that each tenant gets their own cached response."""
         backend = MemoryAPQBackend()
 
@@ -39,7 +36,7 @@ class TestTenantSpecificCaching:
         assert cached_b == response_b, "Tenant B should get their own data"
         assert cached_a != cached_b, "Different tenants should have different responses"
 
-    def test_no_context_uses_global_cache(self):
+    def test_no_context_uses_global_cache(self) -> None:
         """Test that requests without context use global cache."""
         backend = MemoryAPQBackend()
 
@@ -58,7 +55,7 @@ class TestTenantSpecificCaching:
         tenant_cached = backend.get_cached_response(query_hash, context=tenant_context)
         assert tenant_cached is None, "Tenant should not see global cache"
 
-    def test_tenant_isolation_prevents_data_leakage(self):
+    def test_tenant_isolation_prevents_data_leakage(self) -> None:
         """Test that one tenant cannot access another tenant's cached data."""
         backend = MemoryAPQBackend()
 
@@ -75,7 +72,7 @@ class TestTenantSpecificCaching:
 
         assert leaked is None, "Tenant B should not see Tenant A's data"
 
-    def test_cache_invalidation_per_tenant(self):
+    def test_cache_invalidation_per_tenant(self) -> None:
         """Test that cache can be invalidated per tenant."""
         backend = MemoryAPQBackend()
 
@@ -99,7 +96,7 @@ class TestTenantSpecificCaching:
         # Tenant B's cache remains
         assert backend.get_cached_response(query_hash, context=context_b) == {"data": "B"}
 
-    def test_tenant_id_extraction_variations(self):
+    def test_tenant_id_extraction_variations(self) -> None:
         """Test that various context structures work correctly."""
         backend = MemoryAPQBackend()
 
@@ -121,7 +118,7 @@ class TestTenantSpecificCaching:
             cached = backend.get_cached_response(query_hash, context=ctx)
             assert cached == test_response, f"Failed for context: {ctx}"
 
-    def test_memory_backend_with_tenant_awareness(self):
+    def test_memory_backend_with_tenant_awareness(self) -> None:
         """Test that MemoryAPQBackend has built-in tenant isolation."""
         backend = MemoryAPQBackend()
 
@@ -152,7 +149,7 @@ class TestTenantSpecificCaching:
 class TestBackwardCompatibility:
     """Ensure that existing code without context still works."""
 
-    def test_backend_works_without_context(self):
+    def test_backend_works_without_context(self) -> None:
         """Test that backends work when no context is provided."""
         backend = MemoryAPQBackend()
 
@@ -165,7 +162,7 @@ class TestBackwardCompatibility:
 
         assert cached == response, "Should work without context"
 
-    def test_mixed_context_and_no_context(self):
+    def test_mixed_context_and_no_context(self) -> None:
         """Test that context and no-context calls don't interfere."""
         backend = MemoryAPQBackend()
 

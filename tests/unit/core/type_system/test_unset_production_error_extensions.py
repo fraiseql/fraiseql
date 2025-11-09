@@ -55,7 +55,7 @@ async def validation_error_query(info) -> list[SampleType]:
     return []
 
 
-def test_production_mode_unset_in_graphql_error_extensions(clear_registry, monkeypatch):
+def test_production_mode_unset_in_graphql_error_extensions(clear_registry, monkeypatch) -> None:
     """Test that production mode properly cleans UNSET from GraphQL error extensions."""
     from unittest.mock import MagicMock
 
@@ -115,7 +115,7 @@ def test_production_mode_unset_in_graphql_error_extensions(clear_registry, monke
     # Should not raise JSON serialization error
 
 
-def test_production_mode_validation_error_with_unset(clear_registry, monkeypatch):
+def test_production_mode_validation_error_with_unset(clear_registry, monkeypatch) -> None:
     """Test that production mode handles validation errors that might have UNSET."""
     from unittest.mock import MagicMock
 
@@ -176,7 +176,7 @@ def test_production_mode_validation_error_with_unset(clear_registry, monkeypatch
             assert validation_result == []
 
 
-def test_production_mode_with_detailed_errors(clear_registry, monkeypatch):
+def test_production_mode_with_detailed_errors(clear_registry, monkeypatch) -> None:
     """Test production mode when hide_error_details is False."""
     from unittest.mock import MagicMock
 

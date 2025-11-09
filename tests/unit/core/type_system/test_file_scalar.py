@@ -16,7 +16,7 @@ from fraiseql.types.scalars.file import (
 class TestFileSerialization:
     """Test file serialization."""
 
-    def test_serialize_valid_files(self):
+    def test_serialize_valid_files(self) -> None:
         """Test serializing valid file URLs/paths."""
         # URLs
         assert (
@@ -36,11 +36,11 @@ class TestFileSerialization:
         assert serialize_file("README") == "README"
         assert serialize_file("/etc/passwd") == "/etc/passwd"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_file(None) is None
 
-    def test_serialize_invalid_file(self):
+    def test_serialize_invalid_file(self) -> None:
         """Test serializing invalid files raises error."""
         # Control characters
         with pytest.raises(GraphQLError, match="Invalid file"):
@@ -57,7 +57,7 @@ class TestFileSerialization:
 class TestFileParsing:
     """Test file parsing from variables."""
 
-    def test_parse_valid_file(self):
+    def test_parse_valid_file(self) -> None:
         """Test parsing valid files."""
         assert (
             parse_file_value("https://example.com/document.pdf")
@@ -66,7 +66,7 @@ class TestFileParsing:
         assert parse_file_value("/uploads/document.pdf") == "/uploads/document.pdf"
         assert parse_file_value("README") == "README"
 
-    def test_parse_invalid_file(self):
+    def test_parse_invalid_file(self) -> None:
         """Test parsing invalid files raises error."""
         with pytest.raises(GraphQLError, match="Invalid file"):
             parse_file_value("file\x00name.txt")
@@ -74,7 +74,7 @@ class TestFileParsing:
         with pytest.raises(GraphQLError, match="Invalid file"):
             parse_file_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="File must be a string"):
             parse_file_value(123)
@@ -89,7 +89,7 @@ class TestFileParsing:
 class TestFileField:
     """Test FileField class."""
 
-    def test_create_valid_file_field(self):
+    def test_create_valid_file_field(self) -> None:
         """Test creating FileField with valid values."""
         file = FileField("https://example.com/document.pdf")
         assert file == "https://example.com/document.pdf"
@@ -101,7 +101,7 @@ class TestFileField:
         file = FileField("README")
         assert file == "README"
 
-    def test_create_invalid_file_field(self):
+    def test_create_invalid_file_field(self) -> None:
         """Test creating FileField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid file"):
             FileField("file\x00name.txt")
@@ -113,7 +113,7 @@ class TestFileField:
 class TestFileLiteralParsing:
     """Test parsing file from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid file literals."""
         assert (
             parse_file_literal(StringValueNode(value="https://example.com/document.pdf"))
@@ -125,7 +125,7 @@ class TestFileLiteralParsing:
         )
         assert parse_file_literal(StringValueNode(value="README")) == "README"
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid file format literals."""
         with pytest.raises(GraphQLError, match="Invalid file"):
             parse_file_literal(StringValueNode(value="file\x00name.txt"))
@@ -133,7 +133,7 @@ class TestFileLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid file"):
             parse_file_literal(StringValueNode(value=""))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="File must be a string"):
             parse_file_literal(IntValueNode(value="123"))

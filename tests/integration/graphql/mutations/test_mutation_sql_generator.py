@@ -13,7 +13,7 @@ class TestGenerateInsertJsonCall:
     """Test suite for SQL mutation query generation."""
 
     @pytest.fixture
-    def sample_input_type(self):
+    def sample_input_type(self) -> None:
         """Create a sample input type for testing."""
 
         @dataclass

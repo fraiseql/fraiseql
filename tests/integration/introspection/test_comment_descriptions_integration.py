@@ -7,7 +7,6 @@ as GraphQL schema descriptions across all supported comment types.
 import pytest
 
 from fraiseql.introspection.input_generator import InputGenerator
-from fraiseql.introspection.metadata_parser import MetadataParser
 from fraiseql.introspection.mutation_generator import MutationGenerator
 from fraiseql.introspection.postgres_introspector import PostgresIntrospector
 from fraiseql.introspection.type_generator import TypeGenerator
@@ -44,7 +43,7 @@ class TestCommentDescriptionsIntegration:
         return PostgresIntrospector(db_pool)
 
     @pytest.fixture
-    async def real_database_setup(self, db_connection):
+    async def real_database_setup(self, db_connection) -> None:
         """Set up a real PostgreSQL database with test schema and comments."""
         conn = db_connection
 
@@ -170,8 +169,8 @@ class TestCommentDescriptionsIntegration:
 
         # 2. Test Function Comment → GraphQL Mutation Description
         # Mock function metadata (since we can't easily introspect functions in this test)
-        from fraiseql.introspection.postgres_introspector import FunctionMetadata, ParameterInfo
         from fraiseql.introspection.metadata_parser import MutationAnnotation
+        from fraiseql.introspection.postgres_introspector import FunctionMetadata, ParameterInfo
 
         function_metadata = FunctionMetadata(
             schema_name="test_comments",

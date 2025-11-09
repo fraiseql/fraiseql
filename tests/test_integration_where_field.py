@@ -1,13 +1,12 @@
 """Integration test focusing on the where field functionality."""
 
 import uuid
-from typing import Optional
 
 import pytest
 
+from fraiseql.core.graphql_type import convert_type_to_graphql_output
 from fraiseql.fields import fraise_field
 from fraiseql.types import fraise_type
-from fraiseql.core.graphql_type import convert_type_to_graphql_output
 
 
 @fraise_type
@@ -30,7 +29,7 @@ class TestNetwork:
 class TestWhereFieldIntegration:
     """Test the integration of where filtering with FraiseQL field processing."""
 
-    def test_field_metadata_is_set_correctly(self):
+    def test_field_metadata_is_set_correctly(self) -> None:
         """Test that field metadata for where filtering is set correctly."""
         network_fields = getattr(TestNetwork, "__gql_fields__", {})
         devices_field = network_fields.get("devices")
@@ -41,7 +40,7 @@ class TestWhereFieldIntegration:
         assert hasattr(devices_field, "nested_where_type")
         assert devices_field.nested_where_type == TestDevice
 
-    def test_graphql_type_conversion_works(self):
+    def test_graphql_type_conversion_works(self) -> None:
         """Test that GraphQL type conversion works with where-enabled fields."""
         try:
             gql_type = convert_type_to_graphql_output(TestNetwork)
@@ -68,7 +67,7 @@ class TestWhereFieldIntegration:
         except Exception as e:
             pytest.fail(f"GraphQL type conversion should work: {e}")
 
-    def test_where_input_type_generation(self):
+    def test_where_input_type_generation(self) -> None:
         """Test that WhereInput types are generated for nested types."""
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
@@ -98,7 +97,7 @@ class TestWhereFieldIntegration:
             assert sql_where.name == {"contains": "test"}
             assert sql_where.status == {"eq": "active"}
 
-    def test_enhanced_resolver_creation(self):
+    def test_enhanced_resolver_creation(self) -> None:
         """Test that enhanced resolvers are created for where-enabled fields."""
         from fraiseql.core.nested_field_resolver import (
             create_nested_array_field_resolver_with_where,
@@ -145,7 +144,7 @@ class TestWhereFieldIntegration:
         assert result_filtered[0].status == "active"
         assert result_filtered[0].name == "device-1"
 
-    def test_field_without_where_filtering_works_normally(self):
+    def test_field_without_where_filtering_works_normally(self) -> None:
         """Test that fields without where filtering still work normally."""
 
         @fraise_type
@@ -171,7 +170,7 @@ class TestWhereFieldIntegration:
         except Exception as e:
             pytest.fail(f"Normal fields should still work: {e}")
 
-    def test_multiple_where_enabled_fields(self):
+    def test_multiple_where_enabled_fields(self) -> None:
         """Test a type with multiple where-enabled fields."""
 
         @fraise_type

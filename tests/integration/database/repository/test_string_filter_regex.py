@@ -10,11 +10,11 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 # Test types
@@ -33,7 +33,7 @@ class TestStringFilterRegex:
     """Test suite for regex operators in StringFilter."""
 
     @pytest.fixture
-    async def setup_test_views(self, db_pool):
+    async def setup_test_views(self, db_pool) -> None:
         """Create test views with proper structure."""
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
@@ -86,7 +86,7 @@ class TestStringFilterRegex:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_matches_operator_basic_regex(self, db_pool, setup_test_views):
+    async def test_matches_operator_basic_regex(self, db_pool, setup_test_views) -> None:
         """Test basic regex matching with matches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -102,7 +102,7 @@ class TestStringFilterRegex:
         assert all(r["name"].startswith("Widget") for r in results)
 
     @pytest.mark.asyncio
-    async def test_matches_operator_case_sensitive(self, db_pool, setup_test_views):
+    async def test_matches_operator_case_sensitive(self, db_pool, setup_test_views) -> None:
         """Test case-sensitive regex matching."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -116,7 +116,7 @@ class TestStringFilterRegex:
         assert len(results) == 5
 
     @pytest.mark.asyncio
-    async def test_matches_operator_with_numbers(self, db_pool, setup_test_views):
+    async def test_matches_operator_with_numbers(self, db_pool, setup_test_views) -> None:
         """Test regex matching with numeric patterns."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -131,7 +131,9 @@ class TestStringFilterRegex:
         assert results[0]["name"] == "Widget123"
 
     @pytest.mark.asyncio
-    async def test_imatches_operator_case_insensitive_regex(self, db_pool, setup_test_views):
+    async def test_imatches_operator_case_insensitive_regex(
+        self, db_pool, setup_test_views
+    ) -> None:
         """Test case-insensitive regex matching with imatches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -147,7 +149,7 @@ class TestStringFilterRegex:
         assert all(r["name"].lower().startswith("widget") for r in results)
 
     @pytest.mark.asyncio
-    async def test_not_matches_operator_negative_regex(self, db_pool, setup_test_views):
+    async def test_not_matches_operator_negative_regex(self, db_pool, setup_test_views) -> None:
         """Test negative regex matching with not_matches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 

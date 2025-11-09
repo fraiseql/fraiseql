@@ -32,7 +32,7 @@ async def get_status(info) -> Status:
 
 
 @pytest.fixture(autouse=True)
-def reset_events():
+def reset_events() -> None:
     """Reset lifecycle events before each test."""
     global lifecycle_events
     lifecycle_events = []
@@ -60,7 +60,7 @@ def test_custom_lifespan() -> None:
     """Test that custom lifespan is called and integrated."""
 
     @asynccontextmanager
-    async def custom_lifespan(app: FastAPI):
+    async def custom_lifespan(app: FastAPI) -> None:
         """Custom lifespan that sets up additional resources."""
         # Startup
         lifecycle_events.append("custom_startup")
@@ -120,7 +120,7 @@ def test_custom_lifespan_with_context_getter() -> None:
     """Test custom lifespan combined with custom context getter."""
 
     @asynccontextmanager
-    async def custom_lifespan(app: FastAPI):
+    async def custom_lifespan(app: FastAPI) -> None:
         """Custom lifespan that sets up resources."""
         app.state.shared_data = {"initialized": True, "count": 0}
         yield
@@ -158,7 +158,7 @@ def test_lifespan_error_handling() -> None:
     """Test that errors in custom lifespan are handled properly."""
 
     @asynccontextmanager
-    async def failing_lifespan(app: FastAPI):
+    async def failing_lifespan(app: FastAPI) -> None:
         """Lifespan that fails during startup."""
         lifecycle_events.append("failing_startup")
         msg = "Startup failed!"
@@ -187,7 +187,7 @@ def test_lifespan_with_existing_app() -> None:
     """Test that custom lifespan works when extending existing app."""
 
     @asynccontextmanager
-    async def existing_app_lifespan(app: FastAPI):
+    async def existing_app_lifespan(app: FastAPI) -> None:
         """Lifespan for existing app."""
         app.state.from_existing = True
         yield

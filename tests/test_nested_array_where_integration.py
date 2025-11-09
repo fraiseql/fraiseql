@@ -11,8 +11,8 @@ import pytest
 
 import fraiseql
 from fraiseql.fields import fraise_field
-from fraiseql.types import fraise_input, fraise_type
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+from fraiseql.types import fraise_type
 
 
 # Mock PrintServer type for testing
@@ -39,9 +39,8 @@ class NetworkConfiguration:
 class TestNestedArrayWhereIntegration:
     """Integration tests for nested array Where filtering in FraiseQL resolvers."""
 
-    def test_field_resolver_accepts_where_parameter(self):
+    def test_field_resolver_accepts_where_parameter(self) -> None:
         """Test that field resolvers can be created with where parameters for nested arrays."""
-
         # Create a WhereInput type for PrintServer
         PrintServerWhereInput = create_graphql_where_input(PrintServer)
 
@@ -63,9 +62,8 @@ class TestNestedArrayWhereIntegration:
             if hasattr(print_servers_field, "where_input_type"):
                 assert print_servers_field.where_input_type == PrintServerWhereInput
 
-    def test_graphql_resolver_generation_fails_for_where_parameter(self):
+    def test_graphql_resolver_generation_fails_for_where_parameter(self) -> None:
         """Test that GraphQL schema generation fails when where parameter is attempted."""
-
         # Try to create a query that would use where parameters
         try:
 
@@ -86,7 +84,7 @@ class TestNestedArrayWhereIntegration:
             # Expected - where parameter support doesn't exist yet
             pass
 
-    def test_nested_field_resolver_creation_without_where_support(self):
+    def test_nested_field_resolver_creation_without_where_support(self) -> None:
         """Test that current nested field resolvers don't support where parameters."""
         from fraiseql.core.nested_field_resolver import create_smart_nested_field_resolver
 
@@ -104,9 +102,8 @@ class TestNestedArrayWhereIntegration:
         assert "info" in param_names
         assert "where" not in param_names  # This is the key assertion - no where support yet
 
-    def test_fraise_field_accepts_where_parameters(self):
+    def test_fraise_field_accepts_where_parameters(self) -> None:
         """Test that fraise_field now accepts where-related parameters."""
-
         # These should all work now that where support is implemented
         field1 = fraise_field(where_input_type=dict)
         assert field1.where_input_type == dict
@@ -117,7 +114,7 @@ class TestNestedArrayWhereIntegration:
         field3 = fraise_field(nested_where_type=PrintServer)
         assert field3.nested_where_type == PrintServer
 
-    def test_graphql_schema_generation_for_nested_arrays_without_where(self):
+    def test_graphql_schema_generation_for_nested_arrays_without_where(self) -> None:
         """Test current state - nested arrays work but without where filtering."""
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
 
@@ -133,9 +130,8 @@ class TestNestedArrayWhereIntegration:
         except Exception as e:
             pytest.fail(f"Basic nested array schema generation should work: {e}")
 
-    def test_attempt_to_use_where_parameter_in_query_fails(self):
+    def test_attempt_to_use_where_parameter_in_query_fails(self) -> None:
         """Test that attempting to use where parameters in queries fails gracefully."""
-
         # Create a mock query that tries to use where parameter
         network_config = NetworkConfiguration(
             id=uuid.uuid4(),

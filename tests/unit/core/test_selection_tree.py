@@ -1,7 +1,5 @@
 """Tests for selection tree building with materialized path pattern."""
 
-import pytest
-
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.core.selection_tree import FieldSelection, build_selection_tree
 
@@ -9,7 +7,7 @@ from fraiseql.core.selection_tree import FieldSelection, build_selection_tree
 class TestFieldSelectionDataClass:
     """Test the FieldSelection data structure."""
 
-    def test_field_selection_creation(self):
+    def test_field_selection_creation(self) -> None:
         """Test that FieldSelection can be created with required fields."""
         selection = FieldSelection(
             path=["id"],
@@ -23,7 +21,7 @@ class TestFieldSelectionDataClass:
         assert selection.type_name == "UUID"
         assert selection.is_nested_object is False
 
-    def test_field_selection_nested_path(self):
+    def test_field_selection_nested_path(self) -> None:
         """Test FieldSelection with nested path."""
         selection = FieldSelection(
             path=["equipment", "name"],
@@ -39,7 +37,7 @@ class TestFieldSelectionDataClass:
 class TestBuildSelectionTreeSimpleAliases:
     """Test building selection tree with simple (non-nested) aliases."""
 
-    def test_builds_selection_with_simple_aliases(self):
+    def test_builds_selection_with_simple_aliases(self) -> None:
         """Test that aliases are preserved with materialized paths."""
         # Simulate: query { users { userId: id, fullName: name } }
         field_paths = [
@@ -77,7 +75,7 @@ class TestBuildSelectionTreeSimpleAliases:
         assert name_sel.type_name == "String"
         assert name_sel.is_nested_object is False
 
-    def test_builds_selection_without_aliases(self):
+    def test_builds_selection_without_aliases(self) -> None:
         """Test that field names are used as aliases when no alias provided."""
         # Simulate: query { users { id, name } }
         field_paths = [
@@ -106,7 +104,7 @@ class TestBuildSelectionTreeSimpleAliases:
 class TestBuildSelectionTreeNestedAliases:
     """Test building selection tree with nested object aliases."""
 
-    def test_builds_selection_with_nested_aliases(self):
+    def test_builds_selection_with_nested_aliases(self) -> None:
         """Test nested aliases use materialized paths."""
         # Simulate: query {
         #   assignments {
@@ -124,10 +122,10 @@ class TestBuildSelectionTreeNestedAliases:
 
         mock_registry = Mock()
 
-        def get_field_type(type_name, field_name):
+        def get_field_type(type_name, field_name) -> None:
             if type_name == "Assignment" and field_name == "equipment":
                 return Mock(type_name="Equipment", is_nested_object=True)
-            elif type_name == "Equipment" and field_name == "name":
+            if type_name == "Equipment" and field_name == "name":
                 return Mock(type_name="String", is_nested_object=False)
             return None
 
@@ -154,7 +152,7 @@ class TestBuildSelectionTreeNestedAliases:
         assert name_sel.type_name == "String"
         assert name_sel.is_nested_object is False
 
-    def test_handles_deep_nesting(self):
+    def test_handles_deep_nesting(self) -> None:
         """Test deeply nested paths (3+ levels)."""
         # Simulate: query {
         #   users {
@@ -175,12 +173,12 @@ class TestBuildSelectionTreeNestedAliases:
 
         mock_registry = Mock()
 
-        def get_field_type(type_name, field_name):
+        def get_field_type(type_name, field_name) -> None:
             if type_name == "User" and field_name == "profile":
                 return Mock(type_name="Profile", is_nested_object=True)
-            elif type_name == "Profile" and field_name == "settings":
+            if type_name == "Profile" and field_name == "settings":
                 return Mock(type_name="Settings", is_nested_object=True)
-            elif type_name == "Settings" and field_name == "theme_dark_mode":
+            if type_name == "Settings" and field_name == "theme_dark_mode":
                 return Mock(type_name="Boolean", is_nested_object=False)
             return None
 
@@ -209,7 +207,7 @@ class TestBuildSelectionTreeNestedAliases:
 class TestBuildSelectionTreeEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_handles_empty_field_paths(self):
+    def test_handles_empty_field_paths(self) -> None:
         """Test with empty field path list."""
         from unittest.mock import Mock
 
@@ -223,7 +221,7 @@ class TestBuildSelectionTreeEdgeCases:
 
         assert selections == []
 
-    def test_handles_missing_schema_type(self):
+    def test_handles_missing_schema_type(self) -> None:
         """Test when schema registry doesn't have type info."""
         field_paths = [
             FieldPath(alias="unknownField", path=["unknown_field"]),
@@ -245,7 +243,7 @@ class TestBuildSelectionTreeEdgeCases:
         assert selections[0].type_name == "Unknown"
         assert selections[0].is_nested_object is False
 
-    def test_deduplicates_selections_by_path(self):
+    def test_deduplicates_selections_by_path(self) -> None:
         """Test that duplicate paths are deduplicated."""
         # Simulate: query {
         #   users {
@@ -265,10 +263,10 @@ class TestBuildSelectionTreeEdgeCases:
 
         mock_registry = Mock()
 
-        def get_field_type(type_name, field_name):
+        def get_field_type(type_name, field_name) -> None:
             if field_name == "equipment":
                 return Mock(type_name="Equipment", is_nested_object=True)
-            elif field_name == "id":
+            if field_name == "id":
                 return Mock(type_name="UUID", is_nested_object=False)
             return None
 

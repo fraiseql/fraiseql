@@ -1,14 +1,15 @@
 """Tests for nested type auto-generation."""
 
-import pytest
 from dataclasses import dataclass
 from uuid import UUID
+
+import pytest
 
 import fraiseql
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
 
 
-def test_nested_where_input_auto_generation():
+def test_nested_where_input_auto_generation() -> None:
     """Test that nested types automatically generate WhereInput."""
     clear_auto_generated_cache()
 
@@ -47,7 +48,7 @@ def test_nested_where_input_auto_generation():
             assert "CustomerWhereInput" in str(customer_type)
 
 
-def test_circular_reference_handling():
+def test_circular_reference_handling() -> None:
     """Test that circular references don't cause infinite loops."""
     # Self-referential types require advanced forward reference handling
     # This is a known limitation that would require:
@@ -57,7 +58,7 @@ def test_circular_reference_handling():
     pytest.skip("Self-referential types require advanced forward reference handling")
 
 
-def test_nested_type_uses_lazy_property():
+def test_nested_type_uses_lazy_property() -> None:
     """Test that nested type detection uses lazy properties when available."""
     clear_auto_generated_cache()
 
@@ -88,7 +89,7 @@ def test_nested_type_uses_lazy_property():
     assert employee_where is not None
 
 
-def test_deeply_nested_types():
+def test_deeply_nested_types() -> None:
     """Test that deeply nested types work correctly."""
     clear_auto_generated_cache()
 
@@ -125,7 +126,7 @@ def test_deeply_nested_types():
     assert "country" in city_where.__annotations__
 
 
-def test_multiple_nested_types_in_same_class():
+def test_multiple_nested_types_in_same_class() -> None:
     """Test a class with multiple nested type references."""
     clear_auto_generated_cache()
 
@@ -159,14 +160,16 @@ def test_multiple_nested_types_in_same_class():
     assert "product" in order_where.__annotations__
 
 
-def test_nested_type_with_forward_reference():
+def test_nested_type_with_forward_reference() -> None:
     """Test that forward references in nested types are handled."""
     # Forward references during decoration require special handling
     # For now, we define types in the correct order (dependencies first)
-    pytest.skip("Forward references during decoration require special handling - use correct definition order instead")
+    pytest.skip(
+        "Forward references during decoration require special handling - use correct definition order instead"
+    )
 
 
-def test_nested_where_input_can_be_instantiated():
+def test_nested_where_input_can_be_instantiated() -> None:
     """Test that generated nested WhereInput can actually be used."""
     clear_auto_generated_cache()
 

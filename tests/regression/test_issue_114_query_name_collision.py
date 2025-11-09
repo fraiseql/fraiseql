@@ -15,8 +15,6 @@ Actual (bug):
 - Returns list[Router] instead of int
 """
 
-import uuid
-
 import pytest
 from graphql import GraphQLInt, GraphQLList, GraphQLString
 
@@ -25,7 +23,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
 @pytest.fixture
-def clean_registry():
+def clean_registry() -> None:
     """Clean the schema registry before and after each test."""
     from fraiseql.gql.builders.registry import SchemaRegistry
     from fraiseql.mutations.decorators import clear_mutation_registries
@@ -51,7 +49,7 @@ class TestIssue114QueryNameCollision:
     resolver instead of the routers_count resolver.
     """
 
-    def test_schema_has_distinct_fields_for_similar_query_names(self, clean_registry):
+    def test_schema_has_distinct_fields_for_similar_query_names(self, clean_registry) -> None:
         """Schema should have separate fields for routers and routersCount."""
 
         # Define Router type
@@ -89,15 +87,17 @@ class TestIssue114QueryNameCollision:
 
         # routers should return list of Router
         routers_field = fields["routers"]
-        assert isinstance(routers_field.type, GraphQLList), \
+        assert isinstance(routers_field.type, GraphQLList), (
             f"routers should return list, got {type(routers_field.type)}"
+        )
 
         # routersCount should return int
         routers_count_field = fields["routersCount"]
-        assert routers_count_field.type == GraphQLInt, \
+        assert routers_count_field.type == GraphQLInt, (
             f"routersCount should return Int, got {routers_count_field.type}"
+        )
 
-    def test_schema_has_distinct_fields_for_prefix_variations(self, clean_registry):
+    def test_schema_has_distinct_fields_for_prefix_variations(self, clean_registry) -> None:
         """Schema should distinguish between device, devices, devicesCount, deviceStatus."""
 
         @query
@@ -136,7 +136,7 @@ class TestIssue114QueryNameCollision:
         assert fields["devicesCount"].type == GraphQLInt
         assert fields["deviceStatus"].type == GraphQLString
 
-    def test_snake_case_to_camel_case_naming_is_unique(self, clean_registry):
+    def test_snake_case_to_camel_case_naming_is_unique(self, clean_registry) -> None:
         """snake_case names should convert to unique camelCase GraphQL field names."""
 
         @query

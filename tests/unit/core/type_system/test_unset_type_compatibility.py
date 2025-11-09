@@ -13,7 +13,7 @@ from fraiseql.types.definitions import UNSET, UnsetType
 
 
 @pytest.mark.unit
-def test_unset_singleton():
+def test_unset_singleton() -> None:
     """Test that UNSET implements singleton pattern."""
     # Create multiple instances
     unset1 = UnsetType()
@@ -25,7 +25,7 @@ def test_unset_singleton():
     assert unset2 is UNSET
 
 
-def test_unset_boolean_behavior():
+def test_unset_boolean_behavior() -> None:
     """Test UNSET boolean behavior."""
     assert not UNSET
     assert not bool(UNSET)
@@ -35,13 +35,13 @@ def test_unset_boolean_behavior():
         pytest.fail("UNSET should be falsy")
 
 
-def test_unset_string_representations():
+def test_unset_string_representations() -> None:
     """Test UNSET string representations."""
     assert str(UNSET) == ""
     assert repr(UNSET) == "UNSET"
 
 
-def test_unset_identity_checks():
+def test_unset_identity_checks() -> None:
     """Test that identity checks work correctly."""
     value = UNSET
     assert value is UNSET
@@ -51,7 +51,7 @@ def test_unset_identity_checks():
     assert UNSET is not None
 
 
-def test_unset_type_annotations():
+def test_unset_type_annotations() -> None:
     """Test that UNSET works with various type annotations."""
     # These should not raise type errors with pyright/mypy
 
@@ -84,7 +84,7 @@ class SampleInput:
     optional_dict: dict[str, int] | None = UNSET
 
 
-def test_input_class_with_unset_defaults():
+def test_input_class_with_unset_defaults() -> None:
     """Test that input classes work with UNSET defaults."""
     # Create instance with only required field
     obj = SampleInput(required_field="test")
@@ -113,7 +113,7 @@ def test_input_class_with_unset_defaults():
     assert obj2.optional_dict is UNSET
 
 
-def test_unset_vs_none_distinction():
+def test_unset_vs_none_distinction() -> None:
     """Test that we can distinguish between UNSET and None."""
     values = [UNSET, None, "", 0, False, []]
 
@@ -126,7 +126,7 @@ def test_unset_vs_none_distinction():
     assert UNSET is not None
 
 
-def test_unset_in_collections():
+def test_unset_in_collections() -> None:
     """Test UNSET behavior in collections."""
     # List with UNSET
     lst = [1, UNSET, None, "test"]

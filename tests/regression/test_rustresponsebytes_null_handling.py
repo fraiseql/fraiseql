@@ -29,7 +29,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_rustresponsebytes_null_returns_none_not_error(db_pool):
+async def test_rustresponsebytes_null_returns_none_not_error(db_pool) -> None:
     """Test that query returning None doesn't cause RustResponseBytes type error.
 
     REPRODUCES THE BUG:
@@ -116,15 +116,15 @@ async def test_rustresponsebytes_null_returns_none_not_error(db_pool):
     rustresponse_errors = [err for err in errors if "RustResponseBytes" in str(err.message)]
 
     # EXPECTED AFTER FIX: No RustResponseBytes type errors
-    assert (
-        not rustresponse_errors
-    ), f"Should not have RustResponseBytes type error (bug detected): {rustresponse_errors}"
+    assert not rustresponse_errors, (
+        f"Should not have RustResponseBytes type error (bug detected): {rustresponse_errors}"
+    )
 
     # EXPECTED AFTER FIX: Query succeeds with null result
     assert result.data is not None, f"Query should succeed, got errors: {errors}"
-    assert (
-        result.data["testUserNullable"] is None
-    ), f"Should return null for non-existent record, got: {result.data}"
+    assert result.data["testUserNullable"] is None, (
+        f"Should return null for non-existent record, got: {result.data}"
+    )
 
     # Cleanup
     async with db_pool.connection() as conn:
@@ -135,7 +135,7 @@ async def test_rustresponsebytes_null_returns_none_not_error(db_pool):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_rustresponsebytes_non_null_still_works(db_pool):
+async def test_rustresponsebytes_non_null_still_works(db_pool) -> None:
     """Test that non-null results still return RustResponseBytes (not None).
 
     This ensures the null detection doesn't incorrectly identify non-null
@@ -173,7 +173,9 @@ async def test_rustresponsebytes_non_null_still_works(db_pool):
 
     # Should return RustResponseBytes (not None)
     assert result is not None, "Non-null query should not return None"
-    assert isinstance(result, RustResponseBytes), f"Should return RustResponseBytes, got: {type(result)}"
+    assert isinstance(result, RustResponseBytes), (
+        f"Should return RustResponseBytes, got: {type(result)}"
+    )
 
     # Verify the content is not the null pattern
     assert not _is_rust_response_null(result), "Non-null data should not be detected as null"

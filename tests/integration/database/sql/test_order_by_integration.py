@@ -38,7 +38,7 @@ class Allocation:
 class TestOrderByIntegration:
     """Test ORDER BY integration with GraphQL queries."""
 
-    def test_combined_where_and_order_by(self):
+    def test_combined_where_and_order_by(self) -> None:
         """Test using WHERE and ORDER BY together."""
         # Create input types
         MachineWhereInput = create_graphql_where_input(Machine)
@@ -70,7 +70,7 @@ class TestOrderByIntegration:
         assert ("allocated_at", "desc") in fields
         assert ("machine.name", "asc") in fields
 
-    def test_graphql_query_example(self):
+    def test_graphql_query_example(self) -> None:
         """Demonstrate how it would work in a GraphQL query."""
         # Create input types
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -126,7 +126,7 @@ class TestOrderByIntegration:
         #   }
         # }
 
-    def test_multiple_sort_criteria(self):
+    def test_multiple_sort_criteria(self) -> None:
         """Test ordering by multiple fields with proper precedence."""
         MachineOrderByInput = create_graphql_order_by_input(Machine)
 
@@ -150,7 +150,7 @@ class TestOrderByIntegration:
         assert "data -> 'name' ASC" in sql_string
         assert "data -> 'last_maintenance' DESC" in sql_string
 
-    def test_order_by_with_pagination(self):
+    def test_order_by_with_pagination(self) -> None:
         """Test ORDER BY with pagination patterns."""
         AllocationOrderByInput = create_graphql_order_by_input(Allocation)
 
@@ -168,7 +168,7 @@ class TestOrderByIntegration:
         assert "data -> 'allocated_at' DESC" in sql_string
         assert "data -> 'id' ASC" in sql_string
 
-    def test_dynamic_order_by_from_user_input(self):
+    def test_dynamic_order_by_from_user_input(self) -> None:
         """Test building order by from dynamic user input."""
         MachineOrderByInput = create_graphql_order_by_input(Machine)
 

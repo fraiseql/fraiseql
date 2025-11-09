@@ -14,7 +14,7 @@ from fraiseql.graphql.execute import execute_graphql
 
 
 @pytest.mark.asyncio
-async def test_execute_graphql_detects_rustresponsebytes():
+async def test_execute_graphql_detects_rustresponsebytes() -> None:
     """Test that execute_graphql() returns RustResponseBytes directly when detected.
 
     🔴 RED Phase: This test should FAIL initially because execute_graphql()
@@ -37,7 +37,7 @@ async def test_execute_graphql_detects_rustresponsebytes():
 
     # Define a resolver that returns RustResponseBytes
     # This simulates repo.find() returning RustResponseBytes
-    def resolve_products(root, info):
+    def resolve_products(root, info) -> None:
         return rust_response
 
     # Define a Product type
@@ -46,7 +46,7 @@ async def test_execute_graphql_detects_rustresponsebytes():
         fields={
             "id": GraphQLField(GraphQLString),
             "name": GraphQLField(GraphQLString),
-        }
+        },
     )
 
     # Create a schema where the resolver returns list[Product] but actually returns RustResponseBytes
@@ -80,14 +80,15 @@ async def test_execute_graphql_detects_rustresponsebytes():
 
 
 @pytest.mark.asyncio
-async def test_execute_graphql_normal_execution_unchanged():
+async def test_execute_graphql_normal_execution_unchanged() -> None:
     """Test that normal GraphQL execution still works as before.
 
     This ensures backwards compatibility - resolvers that return normal values
     should still get ExecutionResult as before.
     """
+
     # Define a resolver that returns a normal string
-    def resolve_hello(root, info):
+    def resolve_hello(root, info) -> None:
         return "Hello, World!"
 
     # Create a minimal GraphQL schema
@@ -123,7 +124,7 @@ async def test_execute_graphql_normal_execution_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_execute_graphql_handles_resolver_errors_with_rustresponsebytes():
+async def test_execute_graphql_handles_resolver_errors_with_rustresponsebytes() -> None:
     """Test that resolver errors are handled properly with RustResponseBytes.
 
     🔴 RED Phase (Cycle 1.2): Test that if a resolver throws an error but also
@@ -139,7 +140,7 @@ async def test_execute_graphql_handles_resolver_errors_with_rustresponsebytes():
     rust_response = RustResponseBytes(mock_response)
 
     # Define a resolver that first returns RustResponseBytes, then errors
-    async def resolve_products(root, info):
+    async def resolve_products(root, info) -> None:
         call_count["count"] += 1
         if call_count["count"] == 1:
             # First field succeeds with RustResponseBytes
@@ -153,7 +154,7 @@ async def test_execute_graphql_handles_resolver_errors_with_rustresponsebytes():
         fields={
             "id": GraphQLField(GraphQLString),
             "name": GraphQLField(GraphQLString),
-        }
+        },
     )
 
     # Create schema with two fields - one succeeds, one fails

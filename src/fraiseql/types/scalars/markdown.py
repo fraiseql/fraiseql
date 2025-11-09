@@ -49,7 +49,7 @@ MarkdownScalar = GraphQLScalarType(
 
 
 class MarkdownField(str, ScalarMarker):
-    """Markdown formatted text content.
+    r"""Markdown formatted text content.
 
     This scalar accepts any string as markdown content:
     - No validation performed

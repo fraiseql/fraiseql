@@ -32,7 +32,7 @@ class NetworkDevice:
 class TestNetworkAddressFilter:
     """Test enhanced NetworkAddressFilter functionality."""
 
-    def test_filter_type_assignment(self):
+    def test_filter_type_assignment(self) -> None:
         """Test that IP address types get NetworkAddressFilter."""
         type_hints = get_type_hints(NetworkDevice)
 
@@ -41,7 +41,7 @@ class TestNetworkAddressFilter:
         assert _get_filter_type_for_field(type_hints["network"]) == NetworkAddressFilter
         assert _get_filter_type_for_field(type_hints["gateway"]) == NetworkAddressFilter
 
-    def test_basic_operators_available(self):
+    def test_basic_operators_available(self) -> None:
         """Test that basic operators are still available."""
         operators = [
             attr
@@ -54,7 +54,7 @@ class TestNetworkAddressFilter:
         for op in basic_ops:
             assert op in operators, f"Basic operator '{op}' missing from NetworkAddressFilter"
 
-    def test_network_operators_available(self):
+    def test_network_operators_available(self) -> None:
         """Test that network-specific operators are available."""
         operators = [
             attr
@@ -67,7 +67,7 @@ class TestNetworkAddressFilter:
         for op in network_ops:
             assert op in operators, f"Network operator '{op}' missing from NetworkAddressFilter"
 
-    def test_problematic_operators_excluded(self):
+    def test_problematic_operators_excluded(self) -> None:
         """Test that problematic string operators are not present."""
         operators = [
             attr
@@ -86,7 +86,7 @@ class TestNetworkAddressFilter:
 class TestIPAddressValidation:
     """Test IP address validation and parsing utilities."""
 
-    def test_valid_ipv4_addresses(self):
+    def test_valid_ipv4_addresses(self) -> None:
         """Test validation of valid IPv4 addresses."""
         from fraiseql.sql.network_utils import is_ipv4, validate_ip_address
 
@@ -104,7 +104,7 @@ class TestIPAddressValidation:
             assert validate_ip_address(ip), f"Valid IPv4 address {ip} failed validation"
             assert is_ipv4(ip), f"IPv4 address {ip} not detected as IPv4"
 
-    def test_valid_ipv6_addresses(self):
+    def test_valid_ipv6_addresses(self) -> None:
         """Test validation of valid IPv6 addresses."""
         from fraiseql.sql.network_utils import is_ipv6, validate_ip_address
 
@@ -121,7 +121,7 @@ class TestIPAddressValidation:
             assert validate_ip_address(ip), f"Valid IPv6 address {ip} failed validation"
             assert is_ipv6(ip), f"IPv6 address {ip} not detected as IPv6"
 
-    def test_invalid_ip_addresses(self):
+    def test_invalid_ip_addresses(self) -> None:
         """Test rejection of invalid IP addresses."""
         from fraiseql.sql.network_utils import validate_ip_address
 
@@ -139,7 +139,7 @@ class TestIPAddressValidation:
         for ip in invalid_ips:
             assert not validate_ip_address(ip), f"Invalid IP address {ip} passed validation"
 
-    def test_private_network_detection(self):
+    def test_private_network_detection(self) -> None:
         """Test detection of RFC 1918 private networks."""
         from fraiseql.sql.network_utils import is_private_ip
 
@@ -169,7 +169,7 @@ class TestIPAddressValidation:
         for ip in public_ips:
             assert not is_private_ip(ip), f"Public IP {ip} detected as private"
 
-    def test_subnet_matching(self):
+    def test_subnet_matching(self) -> None:
         """Test CIDR subnet matching."""
         from fraiseql.sql.network_utils import ip_in_subnet
 
@@ -189,7 +189,7 @@ class TestIPAddressValidation:
                 f"ip_in_subnet({ip}, {subnet}) = {result}, expected {expected}"
             )
 
-    def test_ip_range_matching(self):
+    def test_ip_range_matching(self) -> None:
         """Test IP range matching."""
         from fraiseql.sql.network_utils import ip_in_range
 
@@ -213,7 +213,7 @@ class TestIPAddressValidation:
 class TestNetworkFilterSQL:
     """Test SQL generation for network filtering operations."""
 
-    def test_subnet_filter_sql(self):
+    def test_subnet_filter_sql(self) -> None:
         """Test SQL generation for subnet filtering."""
         from fraiseql.sql.network_utils import generate_subnet_sql
 
@@ -223,7 +223,7 @@ class TestNetworkFilterSQL:
         assert "<<=" in sql or "inet" in sql.lower()
         assert "192.168.1.0/24" in params
 
-    def test_range_filter_sql(self):
+    def test_range_filter_sql(self) -> None:
         """Test SQL generation for IP range filtering."""
         from fraiseql.sql.network_utils import generate_range_sql
 
@@ -236,7 +236,7 @@ class TestNetworkFilterSQL:
         assert "192.168.1.1" in params
         assert "192.168.1.100" in params
 
-    def test_private_ip_filter_sql(self):
+    def test_private_ip_filter_sql(self) -> None:
         """Test SQL generation for private IP filtering."""
         from fraiseql.sql.network_utils import generate_private_ip_sql
 
@@ -246,7 +246,7 @@ class TestNetworkFilterSQL:
         assert "10.0.0.0/8" in sql or "192.168.0.0/16" in sql or "172.16.0.0/12" in sql
         assert "inet" in sql.lower()
 
-    def test_ipv4_filter_sql(self):
+    def test_ipv4_filter_sql(self) -> None:
         """Test SQL generation for IPv4 filtering."""
         from fraiseql.sql.network_utils import generate_ipv4_sql
 
@@ -259,7 +259,7 @@ class TestNetworkFilterSQL:
 class TestNetworkFilterIntegration:
     """Test integration of network filtering with FraiseQL."""
 
-    def test_where_input_generation(self):
+    def test_where_input_generation(self) -> None:
         """Test that NetworkDevice generates proper where input with network operators."""
         WhereInput = create_graphql_where_input(NetworkDevice)
 
@@ -276,7 +276,7 @@ class TestNetworkFilterIntegration:
         assert hasattr(network_filter, "inSubnet")
         assert hasattr(network_filter, "isPrivate")
 
-    def test_network_filter_field_access(self):
+    def test_network_filter_field_access(self) -> None:
         """Test that network filter fields are accessible."""
         filter_instance = NetworkAddressFilter()
 
@@ -295,7 +295,7 @@ class TestNetworkFilterIntegration:
         assert hasattr(filter_instance, "isIPv4")
         assert hasattr(filter_instance, "isIPv6")
 
-    def test_backwards_compatibility(self):
+    def test_backwards_compatibility(self) -> None:
         """Test that basic operations still work."""
         # Basic filtering should still work
         filter_instance = NetworkAddressFilter()
@@ -315,7 +315,7 @@ class TestNetworkFilterIntegration:
 class TestIPRangeInput:
     """Test the IPRange input type used for range filtering."""
 
-    def test_ip_range_structure(self):
+    def test_ip_range_structure(self) -> None:
         """Test that IPRange input has correct structure."""
         from fraiseql.sql.graphql_where_generator import IPRange
 
@@ -324,7 +324,7 @@ class TestIPRangeInput:
         assert ip_range.from_ == "192.168.1.1"
         assert ip_range.to == "192.168.1.100"
 
-    def test_ip_range_validation(self):
+    def test_ip_range_validation(self) -> None:
         """Test validation of IP range inputs."""
         from fraiseql.sql.network_utils import validate_ip_range
 
@@ -354,7 +354,7 @@ class TestNetworkOperatorIntegration:
     """Test that network operators work correctly in the SQL generation pipeline."""
 
     @pytest.mark.asyncio
-    async def test_subnet_operator_sql_generation(self):
+    async def test_subnet_operator_sql_generation(self) -> None:
         """Test that inSubnet generates correct SQL."""
         from psycopg.sql import SQL
 
@@ -375,7 +375,7 @@ class TestNetworkOperatorIntegration:
         assert "<<=" in sql_str or "inet" in sql_str.lower()
 
     @pytest.mark.asyncio
-    async def test_range_operator_sql_generation(self):
+    async def test_range_operator_sql_generation(self) -> None:
         """Test that inRange generates correct SQL."""
         from psycopg.sql import SQL
 
@@ -393,7 +393,7 @@ class TestNetworkOperatorIntegration:
         assert (">=" in sql_str and "<=" in sql_str) or "between" in sql_str.lower()
 
     @pytest.mark.asyncio
-    async def test_private_ip_operator_sql_generation(self):
+    async def test_private_ip_operator_sql_generation(self) -> None:
         """Test that isPrivate generates correct SQL."""
         from psycopg.sql import SQL
 

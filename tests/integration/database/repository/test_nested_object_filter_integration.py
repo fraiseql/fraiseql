@@ -6,6 +6,9 @@ from datetime import datetime
 
 import pytest
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import *  # noqa: F403
+
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
@@ -15,9 +18,6 @@ from fraiseql.sql import (
     UUIDFilter,
     create_graphql_where_input,
 )
-
-# Import database fixtures
-from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 # Define test types
 
@@ -41,7 +41,7 @@ class Allocation:
 class TestNestedObjectFilterIntegration:
     """Test nested object filtering works end-to-end."""
 
-    def test_nested_filter_conversion_to_sql(self):
+    def test_nested_filter_conversion_to_sql(self) -> None:
         """Test that nested filters are properly converted to SQL where conditions."""
         # Create where input types
         MachineWhereInput = create_graphql_where_input(Machine)
@@ -93,7 +93,7 @@ class TestNestedObjectFilterIntegration:
             f"Expected root-level data access for status field, but got: {sql_str}"
         )
 
-    def test_nested_filter_with_none_values(self):
+    def test_nested_filter_with_none_values(self) -> None:
         """Test that None values in nested filters are handled correctly."""
         create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -107,7 +107,7 @@ class TestNestedObjectFilterIntegration:
         assert sql_where.machine == {}  # No filter on machine
         assert sql_where.status == {"eq": "pending"}
 
-    def test_deeply_nested_filtering(self):
+    def test_deeply_nested_filtering(self) -> None:
         """Test multiple levels of nested filtering."""
 
         @fraiseql.type
@@ -163,7 +163,7 @@ class TestNestedObjectFilterIntegration:
             f"Expected deeply nested path for machine.location.city, but got: {sql_str}"
         )
 
-    def test_mixed_scalar_and_nested_filters(self):
+    def test_mixed_scalar_and_nested_filters(self) -> None:
         """Test mixing scalar and nested object filters."""
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -185,7 +185,7 @@ class TestNestedObjectFilterIntegration:
         assert sql_where.status == {"in": ["active", "pending"]}
         assert sql_where.machine is not None
 
-    def test_empty_nested_filter(self):
+    def test_empty_nested_filter(self) -> None:
         """Test that empty nested filters are handled correctly."""
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -207,7 +207,7 @@ class TestNestedObjectFilterIntegration:
         assert sql_where.machine.name == {}
         assert sql_where.machine.is_current == {}
 
-    def test_nested_camelcase_to_snake_case_conversion_in_sql(self):
+    def test_nested_camelcase_to_snake_case_conversion_in_sql(self) -> None:
         """Test that camelCase field names are converted to snake_case in nested JSONB paths.
 
         This is a regression test for Issue #111:
@@ -233,7 +233,6 @@ class TestNestedObjectFilterIntegration:
         sql = sql_where.to_sql()
 
         # Get the actual SQL string by rendering it
-        from psycopg import sql as psycopg_sql
 
         # Use as_string with a mock connection to render the SQL
         try:
@@ -257,7 +256,7 @@ class TestNestedObjectFilterIntegration:
             f"Generated SQL: {sql_str}"
         )
 
-    def test_nested_multiple_camelcase_fields_conversion(self):
+    def test_nested_multiple_camelcase_fields_conversion(self) -> None:
         """Test that multiple camelCase fields in nested objects are all converted to snake_case.
 
         Regression test for Issue #111 with multiple nested fields.
@@ -309,7 +308,7 @@ class TestNestedObjectFilterIntegration:
         assert "'deviceName'" not in sql_str
 
 
-def _parse_rust_response(result):
+def _parse_rust_response(result) -> None:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -337,7 +336,7 @@ class TestNestedObjectFilterDatabase:
     """
 
     @pytest.fixture
-    async def setup_test_data(self, db_pool):
+    async def setup_test_data(self, db_pool) -> None:
         """Set up test tables and data for nested object filtering tests."""
         async with db_pool.connection() as conn:
             # Clean up any existing test data
@@ -434,7 +433,9 @@ class TestNestedObjectFilterDatabase:
             await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
 
     @pytest.mark.asyncio
-    async def test_nested_boolean_filter_returns_correct_results(self, db_pool, setup_test_data):
+    async def test_nested_boolean_filter_returns_correct_results(
+        self, db_pool, setup_test_data
+    ) -> None:
         """Test that filtering on nested boolean field returns correct database results.
 
         This is the CRITICAL end-to-end test for Issue #111.
@@ -480,7 +481,9 @@ class TestNestedObjectFilterDatabase:
         assert results[0]["device"]["isActive"] is False
 
     @pytest.mark.asyncio
-    async def test_nested_filter_combined_with_top_level_filter(self, db_pool, setup_test_data):
+    async def test_nested_filter_combined_with_top_level_filter(
+        self, db_pool, setup_test_data
+    ) -> None:
         """Test combining nested object filter with top-level field filter.
 
         Regression test for the specific pattern mentioned in Issue #111.
@@ -518,7 +521,7 @@ class TestNestedObjectFilterDatabase:
         assert results[0]["device"]["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_nested_filter_with_camelcase_input(self, db_pool, setup_test_data):
+    async def test_nested_filter_with_camelcase_input(self, db_pool, setup_test_data) -> None:
         """Test that camelCase field names in dict-based where clauses are converted to snake_case.
 
         This tests the scenario where GraphQL arguments come through with camelCase field names
@@ -570,7 +573,9 @@ class TestNestedObjectFilterDatabase:
         assert results[0]["device"]["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_multiple_nested_fields_in_dict_where_clause(self, db_pool, setup_test_data):
+    async def test_multiple_nested_fields_in_dict_where_clause(
+        self, db_pool, setup_test_data
+    ) -> None:
         """Test that dict-based where clauses with multiple nested fields work correctly.
 
         This tests the scenario: {device: {is_active: {eq: true}, device_name: {contains: "router"}}}

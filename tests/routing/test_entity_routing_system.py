@@ -14,7 +14,7 @@ class TestEntityRoutingSystem:
     """Test the complete entity routing system."""
 
     @pytest.fixture
-    def test_schema(self):
+    def test_schema(self) -> None:
         """Create a test GraphQL schema."""
         schema_def = """
             type Query {
@@ -55,7 +55,7 @@ class TestEntityRoutingSystem:
         return build_schema(schema_def)
 
     @pytest.fixture
-    def routing_config(self):
+    def routing_config(self) -> None:
         """Create entity routing configuration."""
         return EntityRoutingConfig(
             turbo_entities=["allocation", "contract", "machine"],
@@ -65,21 +65,21 @@ class TestEntityRoutingSystem:
         )
 
     @pytest.fixture
-    def fraiseql_config_with_routing(self, routing_config):
+    def fraiseql_config_with_routing(self, routing_config) -> None:
         """Create FraiseQLConfig with entity routing."""
         return FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/test",
             entity_routing=routing_config,
         )
 
-    def test_entity_routing_config_creation(self, routing_config):
+    def test_entity_routing_config_creation(self, routing_config) -> None:
         """Test EntityRoutingConfig can be created and validated."""
         assert routing_config.turbo_entities == ["allocation", "contract", "machine"]
         assert routing_config.normal_entities == ["dns_server", "gateway"]
         assert routing_config.mixed_query_strategy == "normal"
         assert routing_config.auto_routing_enabled is True
 
-    def test_entity_routing_config_validation(self):
+    def test_entity_routing_config_validation(self) -> None:
         """Test EntityRoutingConfig validates overlapping entities."""
         with pytest.raises(ValueError, match="Entities cannot be in both turbo and normal lists"):
             EntityRoutingConfig(
@@ -87,7 +87,7 @@ class TestEntityRoutingSystem:
                 normal_entities=["shared_entity"],
             )
 
-    def test_fraiseql_config_integration(self, routing_config):
+    def test_fraiseql_config_integration(self, routing_config) -> None:
         """Test FraiseQLConfig integrates with entity routing."""
         config = FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/test",
@@ -98,7 +98,7 @@ class TestEntityRoutingSystem:
         assert isinstance(config.entity_routing, EntityRoutingConfig)
         assert config.entity_routing.turbo_entities == ["allocation", "contract", "machine"]
 
-    def test_entity_extractor(self, test_schema):
+    def test_entity_extractor(self, test_schema) -> None:
         """Test EntityExtractor can analyze GraphQL queries."""
         extractor = EntityExtractor(test_schema)
 
@@ -122,7 +122,7 @@ class TestEntityRoutingSystem:
         assert result.operation_type == "query"
         assert len(result.analysis_errors) == 0
 
-    def test_query_router_turbo_entities(self, test_schema, routing_config):
+    def test_query_router_turbo_entities(self, test_schema, routing_config) -> None:
         """Test QueryRouter routes turbo entities to TURBO mode."""
         extractor = EntityExtractor(test_schema)
         router = QueryRouter(routing_config, extractor)
@@ -140,7 +140,7 @@ class TestEntityRoutingSystem:
         mode = router.determine_execution_mode(query)
         assert mode == ExecutionMode.TURBO
 
-    def test_query_router_normal_entities(self, test_schema, routing_config):
+    def test_query_router_normal_entities(self, test_schema, routing_config) -> None:
         """Test QueryRouter routes normal entities to NORMAL mode."""
         extractor = EntityExtractor(test_schema)
         router = QueryRouter(routing_config, extractor)
@@ -158,7 +158,7 @@ class TestEntityRoutingSystem:
         mode = router.determine_execution_mode(query)
         assert mode == ExecutionMode.NORMAL
 
-    def test_query_router_mixed_entities(self, test_schema, routing_config):
+    def test_query_router_mixed_entities(self, test_schema, routing_config) -> None:
         """Test QueryRouter handles mixed entities with strategy."""
         extractor = EntityExtractor(test_schema)
         router = QueryRouter(routing_config, extractor)
@@ -173,7 +173,7 @@ class TestEntityRoutingSystem:
         mode = router.determine_execution_mode(query)
         assert mode == ExecutionMode.NORMAL
 
-    def test_mode_selector_integration(self, test_schema, fraiseql_config_with_routing):
+    def test_mode_selector_integration(self, test_schema, fraiseql_config_with_routing) -> None:
         """Test ModeSelector integrates with entity routing."""
         mode_selector = ModeSelector(fraiseql_config_with_routing)
 
@@ -193,7 +193,9 @@ class TestEntityRoutingSystem:
         mode = mode_selector.select_mode(query, {}, {})
         assert mode == ExecutionMode.TURBO
 
-    def test_mode_hint_overrides_entity_routing(self, test_schema, fraiseql_config_with_routing):
+    def test_mode_hint_overrides_entity_routing(
+        self, test_schema, fraiseql_config_with_routing
+    ) -> None:
         """Test that mode hints take precedence over entity routing."""
         mode_selector = ModeSelector(fraiseql_config_with_routing)
 
@@ -214,7 +216,7 @@ class TestEntityRoutingSystem:
         mode = mode_selector.select_mode(query, {}, {})
         assert mode == ExecutionMode.NORMAL
 
-    def test_disabled_entity_routing(self, test_schema):
+    def test_disabled_entity_routing(self, test_schema) -> None:
         """Test behavior when entity routing is disabled."""
         config = FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/test",
@@ -239,7 +241,7 @@ class TestEntityRoutingSystem:
         mode = mode_selector.select_mode(query, {}, {})
         assert mode == ExecutionMode.NORMAL
 
-    def test_routing_metrics(self, test_schema, routing_config):
+    def test_routing_metrics(self, test_schema, routing_config) -> None:
         """Test QueryRouter provides useful metrics."""
         extractor = EntityExtractor(test_schema)
         router = QueryRouter(routing_config, extractor)

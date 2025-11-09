@@ -16,7 +16,7 @@ from fraiseql.types.scalars.url import (
 class TestURLSerialization:
     """Test URL serialization."""
 
-    def test_serialize_valid_urls(self):
+    def test_serialize_valid_urls(self) -> None:
         """Test serializing valid HTTP/HTTPS URLs."""
         assert serialize_url("https://example.com") == "https://example.com"
         assert serialize_url("http://api.example.com/v1/users") == "http://api.example.com/v1/users"
@@ -26,11 +26,11 @@ class TestURLSerialization:
             == "https://subdomain.example.com/path/to/resource"
         )
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_url(None) is None
 
-    def test_serialize_invalid_url(self):
+    def test_serialize_invalid_url(self) -> None:
         """Test serializing invalid URLs raises error."""
         # Missing protocol
         with pytest.raises(GraphQLError, match="Invalid URL"):
@@ -56,7 +56,7 @@ class TestURLSerialization:
 class TestURLParsing:
     """Test URL parsing from variables."""
 
-    def test_parse_valid_url(self):
+    def test_parse_valid_url(self) -> None:
         """Test parsing valid URLs."""
         assert parse_url_value("https://example.com") == "https://example.com"
         assert (
@@ -64,7 +64,7 @@ class TestURLParsing:
         )
         assert parse_url_value("https://example.com:8080/path") == "https://example.com:8080/path"
 
-    def test_parse_invalid_url(self):
+    def test_parse_invalid_url(self) -> None:
         """Test parsing invalid URLs raises error."""
         with pytest.raises(GraphQLError, match="Invalid URL"):
             parse_url_value("example.com")
@@ -75,7 +75,7 @@ class TestURLParsing:
         with pytest.raises(GraphQLError, match="Invalid URL"):
             parse_url_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="URL must be a string"):
             parse_url_value(123)
@@ -90,7 +90,7 @@ class TestURLParsing:
 class TestURLField:
     """Test URLField class."""
 
-    def test_create_valid_url_field(self):
+    def test_create_valid_url_field(self) -> None:
         """Test creating URLField with valid values."""
         url = URLField("https://example.com")
         assert url == "https://example.com"
@@ -99,7 +99,7 @@ class TestURLField:
         url = URLField("http://api.example.com/v1/users")
         assert url == "http://api.example.com/v1/users"
 
-    def test_create_invalid_url_field(self):
+    def test_create_invalid_url_field(self) -> None:
         """Test creating URLField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid URL"):
             URLField("example.com")
@@ -114,7 +114,7 @@ class TestURLField:
 class TestURLLiteralParsing:
     """Test parsing URL from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid URL literals."""
         assert (
             parse_url_literal(StringValueNode(value="https://example.com")) == "https://example.com"
@@ -124,7 +124,7 @@ class TestURLLiteralParsing:
             == "http://api.example.com/v1/users"
         )
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid URL format literals."""
         with pytest.raises(GraphQLError, match="Invalid URL"):
             parse_url_literal(StringValueNode(value="example.com"))
@@ -132,7 +132,7 @@ class TestURLLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid URL"):
             parse_url_literal(StringValueNode(value="ftp://example.com"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="URL must be a string"):
             parse_url_literal(IntValueNode(value="123"))

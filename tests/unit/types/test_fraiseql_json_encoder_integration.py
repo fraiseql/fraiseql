@@ -5,7 +5,6 @@ method for serialization, which is essential for GraphQL response serialization.
 """
 
 import json
-import pytest
 
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.types.errors import Error
@@ -14,7 +13,7 @@ from fraiseql.types.errors import Error
 class TestFraiseQLJSONEncoderIntegration:
     """Test FraiseQLJSONEncoder properly handles Error objects with __json__ method."""
 
-    def test_fraiseql_json_encoder_uses_error_json_method(self):
+    def test_fraiseql_json_encoder_uses_error_json_method(self) -> None:
         """Test that FraiseQLJSONEncoder uses Error.__json__() method for serialization."""
         error = Error(
             message="Test encoder integration",
@@ -39,7 +38,7 @@ class TestFraiseQLJSONEncoderIntegration:
         assert result == expected
         assert isinstance(result, dict)
 
-    def test_fraiseql_json_encoder_full_serialization(self):
+    def test_fraiseql_json_encoder_full_serialization(self) -> None:
         """Test full JSON serialization using FraiseQLJSONEncoder with Error objects."""
         error = Error(
             message="Full serialization test",
@@ -60,7 +59,7 @@ class TestFraiseQLJSONEncoderIntegration:
         assert parsed["details"]["nested"]["key"] == "value"
         assert parsed["details"]["array"] == [1, 2, 3]
 
-    def test_fraiseql_json_encoder_error_list_serialization(self):
+    def test_fraiseql_json_encoder_error_list_serialization(self) -> None:
         """Test serialization of lists containing Error objects."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
@@ -76,7 +75,7 @@ class TestFraiseQLJSONEncoderIntegration:
         assert parsed[0]["code"] == 400
         assert parsed[1]["details"]["info"] == "test"
 
-    def test_fraiseql_json_encoder_complex_graphql_response(self):
+    def test_fraiseql_json_encoder_complex_graphql_response(self) -> None:
         """Test serialization of complex GraphQL-style response with Error objects."""
         # Simulate a GraphQL mutation error response
         error_response = {
@@ -124,7 +123,7 @@ class TestFraiseQLJSONEncoderIntegration:
         assert error2["message"] == "Password too weak"
         assert error2["details"]["requirements"] == ["uppercase", "numbers", "symbols"]
 
-    def test_fraiseql_json_encoder_error_none_details(self):
+    def test_fraiseql_json_encoder_error_none_details(self) -> None:
         """Test Error serialization when details is None."""
         error = Error(
             message="No details error",
@@ -141,7 +140,7 @@ class TestFraiseQLJSONEncoderIntegration:
         assert parsed["identifier"] == "no_details"
         assert parsed["details"] is None
 
-    def test_fraiseql_json_encoder_respects_error_json_method(self):
+    def test_fraiseql_json_encoder_respects_error_json_method(self) -> None:
         """Test that encoder specifically calls Error.__json__() not generic attribute extraction."""
         error = Error(
             message="Method validation",
@@ -154,7 +153,7 @@ class TestFraiseQLJSONEncoderIntegration:
         original_json = error.__json__
         call_count = 0
 
-        def mock_json():
+        def mock_json() -> None:
             nonlocal call_count
             call_count += 1
             return original_json()

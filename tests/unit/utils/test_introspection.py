@@ -14,7 +14,7 @@ from fraiseql.utils.introspection import _describe_fields, describe_type
 class TestIntrospectionUtils:
     """Test introspection utility functions."""
 
-    def test_describe_type_basic(self):
+    def test_describe_type_basic(self) -> None:
         """Test basic type description functionality."""
 
         # Create a mock class with FraiseQL definition
@@ -62,7 +62,7 @@ class TestIntrospectionUtils:
         assert "id" in result["fields"]
         assert "name" in result["fields"]
 
-    def test_describe_type_input_type(self):
+    def test_describe_type_input_type(self) -> None:
         """Test description of input types."""
 
         class MockInputType:
@@ -88,7 +88,7 @@ class TestIntrospectionUtils:
         assert result["kw_only"] is True
         assert result["sql_source"] is None
 
-    def test_describe_type_invalid_type(self):
+    def test_describe_type_invalid_type(self) -> None:
         """Test describe_type with invalid type (no FraiseQL definition)."""
 
         class RegularClass:
@@ -97,7 +97,7 @@ class TestIntrospectionUtils:
         with pytest.raises(TypeError, match="is not a valid FraiseQL type"):
             describe_type(RegularClass)
 
-    def test_describe_type_with_actual_fraiseql_type(self):
+    def test_describe_type_with_actual_fraiseql_type(self) -> None:
         """Test describe_type with actual FraiseQL decorated type."""
 
         @fraiseql.type
@@ -119,7 +119,7 @@ class TestIntrospectionUtils:
         name_field = result["fields"]["name"]
         assert name_field["type"] == str
 
-    def test_describe_fields_function(self):
+    def test_describe_fields_function(self) -> None:
         """Test _describe_fields helper function."""
         # Create mock fields
         field1 = MagicMock(spec=FraiseQLField)
@@ -160,12 +160,12 @@ class TestIntrospectionUtils:
         assert name_desc["default_factory"] == str
         assert name_desc["description"] == "Name field"
 
-    def test_describe_fields_empty(self):
+    def test_describe_fields_empty(self) -> None:
         """Test _describe_fields with empty fields."""
         result = _describe_fields({}, {})
         assert result == {}
 
-    def test_describe_fields_no_default(self):
+    def test_describe_fields_no_default(self) -> None:
         """Test _describe_fields with field that has no default."""
         field = MagicMock(spec=FraiseQLField)
         field.purpose = "data"
@@ -179,7 +179,7 @@ class TestIntrospectionUtils:
         assert result["test"]["default"] is None
         assert result["test"]["default_factory"] is None
 
-    def test_describe_type_with_complex_fields(self):
+    def test_describe_type_with_complex_fields(self) -> None:
         """Test describe_type with complex field types."""
         from typing import Optional
 
@@ -194,7 +194,7 @@ class TestIntrospectionUtils:
         assert "tags" in result["fields"]
         assert "optional_field" in result["fields"]
 
-    def test_describe_type_error_message(self):
+    def test_describe_type_error_message(self) -> None:
         """Test that error message includes class name."""
 
         class TestClass:

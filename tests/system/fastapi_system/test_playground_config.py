@@ -12,7 +12,7 @@ from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 @pytest.mark.unit
 @asynccontextmanager
-async def noop_lifespan(app: FastAPI):
+async def noop_lifespan(app: FastAPI) -> None:
     """No-op lifespan for tests that don't need a database."""
     yield
 
@@ -34,7 +34,7 @@ class QueryRoot:
         return "test_value"
 
 
-def test_graphiql_default(clear_registry):
+def test_graphiql_default(clear_registry) -> None:
     """Test that GraphiQL is the default playground tool."""
     app = create_fraiseql_app(
         database_url="postgresql://localhost/test", types=[User, QueryRoot], production=False
@@ -48,7 +48,7 @@ def test_graphiql_default(clear_registry):
         assert "Apollo Sandbox" not in response.text
 
 
-def test_apollo_sandbox_config(clear_registry):
+def test_apollo_sandbox_config(clear_registry) -> None:
     """Test Apollo Sandbox configuration."""
     app = create_fraiseql_app(
         database_url="postgresql://localhost/test",
@@ -67,7 +67,7 @@ def test_apollo_sandbox_config(clear_registry):
         assert "graphiql.min.js" not in response.text
 
 
-def test_graphiql_explicit_config(clear_registry):
+def test_graphiql_explicit_config(clear_registry) -> None:
     """Test explicit GraphiQL configuration."""
     app = create_fraiseql_app(
         database_url="postgresql://localhost/test",
@@ -85,7 +85,7 @@ def test_graphiql_explicit_config(clear_registry):
         assert "graphiql.min.js" in response.text
 
 
-def test_playground_disabled_in_production(clear_registry):
+def test_playground_disabled_in_production(clear_registry) -> None:
     """Test that playground is disabled in production."""
     app = create_fraiseql_app(
         database_url="postgresql://localhost/test",
@@ -100,7 +100,7 @@ def test_playground_disabled_in_production(clear_registry):
         assert response.status_code == 404  # Not found in production
 
 
-def test_playground_tool_env_var(monkeypatch):
+def test_playground_tool_env_var(monkeypatch) -> None:
     """Test playground tool configuration via environment variable."""
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://localhost/test")
     monkeypatch.setenv("FRAISEQL_PLAYGROUND_TOOL", "apollo-sandbox")
@@ -109,7 +109,7 @@ def test_playground_tool_env_var(monkeypatch):
     assert config.playground_tool == "apollo-sandbox"
 
 
-def test_invalid_playground_tool():
+def test_invalid_playground_tool() -> None:
     """Test that invalid playground tool raises error."""
     with pytest.raises(ValueError, match="playground_tool"):
         FraiseQLConfig(database_url="postgresql://localhost/test", playground_tool="invalid-tool")

@@ -20,14 +20,14 @@ from fraiseql.types.definitions import UNSET
 
 @pytest.mark.unit
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear the schema registry before each test."""
     SchemaRegistry.get_instance().clear()
     yield
     SchemaRegistry.get_instance().clear()
 
 
-def test_email_address_in_input_type():
+def test_email_address_in_input_type() -> None:
     """Test that EmailAddress scalar works in GraphQL input types."""
 
     @fraiseql.input
@@ -62,7 +62,7 @@ def test_email_address_in_input_type():
     assert schema is not None
 
 
-def test_ip_address_in_mutation_return():
+def test_ip_address_in_mutation_return() -> None:
     """Test that IpAddress scalar properly serializes in mutation returns."""
 
     @fraiseql.type
@@ -104,7 +104,7 @@ def test_ip_address_in_mutation_return():
     assert router_data["gatewayIp"] == "192.168.1.1"
 
 
-def test_all_network_scalars_in_input_types():
+def test_all_network_scalars_in_input_types() -> None:
     """Test that all network scalars work in GraphQL input types."""
 
     @fraiseql.input
@@ -145,7 +145,7 @@ def test_all_network_scalars_in_input_types():
     assert schema is not None
 
 
-def test_all_network_scalars_in_output_types():
+def test_all_network_scalars_in_output_types() -> None:
     """Test that all network scalars properly serialize in output types."""
 
     @fraiseql.type
@@ -195,7 +195,7 @@ def test_all_network_scalars_in_output_types():
     assert device_data["hostname"] == "device.local"
 
 
-def test_network_scalars_with_null_values():
+def test_network_scalars_with_null_values() -> None:
     """Test network scalars handle null values correctly."""
 
     @fraiseql.input

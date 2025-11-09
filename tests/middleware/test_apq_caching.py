@@ -1,21 +1,19 @@
 """Tests for APQ cached response support in middleware."""
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.storage.backends.memory import MemoryAPQBackend
-from fraiseql.storage.backends.factory import create_apq_backend
 
 
 class MockGraphQLSchema:
     """Mock GraphQL schema for testing."""
 
-    pass
-
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> None:
     """Create a mock config with APQ caching enabled."""
     return FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -26,13 +24,13 @@ def mock_config():
 
 
 @pytest.fixture
-def mock_backend():
+def mock_backend() -> None:
     """Create a mock APQ backend for testing."""
     return MemoryAPQBackend()
 
 
 @pytest.fixture
-def mock_request():
+def mock_request() -> None:
     """Create a mock GraphQL request with APQ."""
     return Mock(
         query=None,
@@ -43,13 +41,13 @@ def mock_request():
 
 
 @pytest.fixture
-def mock_http_request():
+def mock_http_request() -> None:
     """Create a mock HTTP request."""
     return Mock(headers={})
 
 
 @pytest.fixture
-def mock_context():
+def mock_context() -> None:
     """Create a mock GraphQL context."""
     return {"user": {"id": 1}, "authenticated": True}
 
@@ -76,7 +74,9 @@ def test_apq_cache_hit_returns_cached_response(
     assert result == cached_response
 
 
-def test_apq_cache_miss_falls_back_to_query_execution(mock_config, mock_backend, mock_request):
+def test_apq_cache_miss_falls_back_to_query_execution(
+    mock_config, mock_backend, mock_request
+) -> None:
     """Test that cache miss falls back to normal query execution."""
     # Setup: Store only query, no cached response
     hash_value = "abc123hash"
@@ -93,7 +93,7 @@ def test_apq_cache_miss_falls_back_to_query_execution(mock_config, mock_backend,
     assert result is None  # Cache miss, should fall back to normal execution
 
 
-def test_apq_cache_disabled_returns_none(mock_config, mock_backend, mock_request):
+def test_apq_cache_disabled_returns_none(mock_config, mock_backend, mock_request) -> None:
     """Test that caching is bypassed when disabled in config."""
     # Setup: Store both query and cached response
     hash_value = "abc123hash"
@@ -114,7 +114,7 @@ def test_apq_cache_disabled_returns_none(mock_config, mock_backend, mock_request
     assert result is None
 
 
-def test_apq_cache_response_storage(mock_config, mock_backend):
+def test_apq_cache_response_storage(mock_config, mock_backend) -> None:
     """Test storing responses in cache after execution."""
     hash_value = "abc123hash"
     response = {"data": {"user": {"id": 123, "name": "John Doe"}}}
@@ -128,7 +128,7 @@ def test_apq_cache_response_storage(mock_config, mock_backend):
     assert cached_response == response
 
 
-def test_apq_cache_response_storage_disabled(mock_config, mock_backend):
+def test_apq_cache_response_storage_disabled(mock_config, mock_backend) -> None:
     """Test that response storage is skipped when caching disabled."""
     hash_value = "abc123hash"
     response = {"data": {"user": {"id": 123}}}
@@ -145,7 +145,7 @@ def test_apq_cache_response_storage_disabled(mock_config, mock_backend):
     assert cached_response is None
 
 
-def test_apq_cache_error_responses_not_cached(mock_config, mock_backend):
+def test_apq_cache_error_responses_not_cached(mock_config, mock_backend) -> None:
     """Test that error responses are not cached."""
     hash_value = "abc123hash"
     error_response = {
@@ -161,7 +161,7 @@ def test_apq_cache_error_responses_not_cached(mock_config, mock_backend):
     assert cached_response is None
 
 
-def test_apq_cache_partial_responses_not_cached(mock_config, mock_backend):
+def test_apq_cache_partial_responses_not_cached(mock_config, mock_backend) -> None:
     """Test that responses with errors are not cached."""
     hash_value = "abc123hash"
     partial_response = {
@@ -178,7 +178,7 @@ def test_apq_cache_partial_responses_not_cached(mock_config, mock_backend):
     assert cached_response is None
 
 
-def test_get_apq_backend_factory_integration(mock_config):
+def test_get_apq_backend_factory_integration(mock_config) -> None:
     """Test integration with backend factory."""
     from fraiseql.middleware.apq_caching import get_apq_backend
 
@@ -187,7 +187,7 @@ def test_get_apq_backend_factory_integration(mock_config):
     assert isinstance(backend, MemoryAPQBackend)
 
 
-def test_get_apq_backend_singleton_behavior(mock_config):
+def test_get_apq_backend_singleton_behavior(mock_config) -> None:
     """Test that get_apq_backend returns singleton instance per config."""
     from fraiseql.middleware.apq_caching import get_apq_backend
 
@@ -198,7 +198,7 @@ def test_get_apq_backend_singleton_behavior(mock_config):
     assert backend1 is backend2
 
 
-def test_apq_cache_with_variables_affects_caching():
+def test_apq_cache_with_variables_affects_caching() -> None:
     """Test that request variables affect cache key (future enhancement)."""
     # This test documents expected behavior for variable-aware caching
     # Current implementation caches by query hash only

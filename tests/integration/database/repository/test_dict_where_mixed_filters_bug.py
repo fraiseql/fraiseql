@@ -10,7 +10,7 @@ causing it to carry state between iterations.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -42,7 +42,7 @@ class RouterConfig:
     machine: Optional[Machine] = None
 
 
-def _parse_rust_response(result):
+def _parse_rust_response(result) -> None:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -67,7 +67,7 @@ class TestDictWhereMixedFiltersBug:
     """Test suite to reproduce and fix the dict WHERE mixed filters bug."""
 
     @pytest.fixture
-    async def setup_test_tables(self, db_pool):
+    async def setup_test_tables(self, db_pool) -> None:
         """Create test tables for machines and router configs."""
         # Register types for views
         register_type_for_view("test_machine_view", Machine)
@@ -186,7 +186,7 @@ class TestDictWhereMixedFiltersBug:
             await conn.execute("DROP TABLE IF EXISTS test_machines")
 
     @pytest.mark.asyncio
-    async def test_dict_where_with_nested_filter_only(self, db_pool, setup_test_tables):
+    async def test_dict_where_with_nested_filter_only(self, db_pool, setup_test_tables) -> None:
         """Test dict WHERE with only nested object filter works correctly."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
         machine_1_id = setup_test_tables["machine_1_id"]
@@ -202,7 +202,7 @@ class TestDictWhereMixedFiltersBug:
         assert all(str(r["machineId"]) == str(machine_1_id) for r in results)
 
     @pytest.mark.asyncio
-    async def test_dict_where_with_direct_filter_only(self, db_pool, setup_test_tables):
+    async def test_dict_where_with_direct_filter_only(self, db_pool, setup_test_tables) -> None:
         """Test dict WHERE with only direct field filter works correctly."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -220,8 +220,7 @@ class TestDictWhereMixedFiltersBug:
     async def test_dict_where_with_mixed_nested_and_direct_filters_BUG(
         self, db_pool, setup_test_tables
     ):
-        """
-        REPRODUCES BUG: Test dict WHERE with both nested object AND direct field filters.
+        """REPRODUCES BUG: Test dict WHERE with both nested object AND direct field filters.
 
         This test will FAIL due to the is_nested_object variable scoping bug.
         When fixed, it should pass by correctly applying both filters.
@@ -257,8 +256,7 @@ class TestDictWhereMixedFiltersBug:
     async def test_dict_where_with_multiple_direct_filters_after_nested(
         self, db_pool, setup_test_tables
     ):
-        """
-        Test dict WHERE with nested filter followed by multiple direct filters.
+        """Test dict WHERE with nested filter followed by multiple direct filters.
 
         This is an edge case that further demonstrates the bug: when multiple
         direct filters follow a nested filter, all of them may be affected.
@@ -286,9 +284,10 @@ class TestDictWhereMixedFiltersBug:
         assert results[0]["configName"] == "config-v2"
 
     @pytest.mark.asyncio
-    async def test_dict_where_with_direct_filter_before_nested(self, db_pool, setup_test_tables):
-        """
-        Test dict WHERE with direct filter BEFORE nested filter.
+    async def test_dict_where_with_direct_filter_before_nested(
+        self, db_pool, setup_test_tables
+    ) -> None:
+        """Test dict WHERE with direct filter BEFORE nested filter.
 
         This tests if the order matters. Due to dict iteration order (Python 3.7+),
         this should be predictable, but the bug might not manifest if direct comes first.

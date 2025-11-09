@@ -30,7 +30,7 @@ class UpdateRouterInputNew:
     location: str | None = UNSET
 
 
-def test_partial_update_issue_demonstration():
+def test_partial_update_issue_demonstration() -> None:
     """Demonstrate the before/after behavior of the partial update fix."""
     # Simulate the user's scenario: only updating IP address
 
@@ -59,7 +59,7 @@ def test_partial_update_issue_demonstration():
     assert new_dict["ip_address"] == "192.168.1.100"
 
 
-def test_explicit_null_vs_unset():
+def test_explicit_null_vs_unset() -> None:
     """Test the difference between explicit null and UNSET."""
     # Explicitly setting a field to None
     input_explicit_null = UpdateRouterInputNew(
@@ -85,7 +85,7 @@ def test_explicit_null_vs_unset():
     assert "hostname" not in dict_unset  # UNSET is excluded
 
 
-def test_real_world_scenario():
+def test_real_world_scenario() -> None:
     """Test a realistic scenario with multiple fields."""
     # Scenario: Update IP and clear location, leave hostname and MAC unchanged
     input_obj = UpdateRouterInputNew(

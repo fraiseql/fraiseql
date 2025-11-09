@@ -1,14 +1,14 @@
 """Tests for Turbo CLI commands."""
 
 import json
+
 import pytest
-from pathlib import Path
-from click.testing import CliRunner
+
 from fraiseql.cli.main import cli
 
 
 @pytest.fixture
-def sample_graphql_query(tmp_path):
+def sample_graphql_query(tmp_path) -> None:
     """Create a sample GraphQL query file."""
     query_content = """
 query GetUser($id: ID!) {
@@ -25,7 +25,7 @@ query GetUser($id: ID!) {
 
 
 @pytest.fixture
-def sample_graphql_queries_json(tmp_path):
+def sample_graphql_queries_json(tmp_path) -> None:
     """Create a JSON file with multiple queries."""
     queries = {
         "queries": [
@@ -42,7 +42,7 @@ def sample_graphql_queries_json(tmp_path):
 
 
 @pytest.fixture
-def sample_single_query_json(tmp_path):
+def sample_single_query_json(tmp_path) -> None:
     """Create a JSON file with a single query."""
     query = {"operationName": "GetUser", "query": "query GetUser { user { id name } }"}
     json_file = tmp_path / "single_query.json"
@@ -51,7 +51,7 @@ def sample_single_query_json(tmp_path):
 
 
 @pytest.fixture
-def sample_query_list_json(tmp_path):
+def sample_query_list_json(tmp_path) -> None:
     """Create a JSON file with query list (no 'queries' key)."""
     queries = [
         {"operationName": "Query1", "query": "query Query1 { field1 }"},
@@ -63,7 +63,7 @@ def sample_query_list_json(tmp_path):
 
 
 @pytest.fixture
-def sample_view_mapping(tmp_path):
+def sample_view_mapping(tmp_path) -> None:
     """Create a sample view mapping file."""
     mapping = {"User": "v_users", "Post": "v_posts", "Comment": "v_comments"}
     mapping_file = tmp_path / "mapping.json"
@@ -72,7 +72,7 @@ def sample_view_mapping(tmp_path):
 
 
 @pytest.fixture
-def invalid_graphql_query(tmp_path):
+def invalid_graphql_query(tmp_path) -> None:
     """Create an invalid GraphQL query file."""
     invalid_content = "this is not valid GraphQL {{"
     query_file = tmp_path / "invalid.graphql"
@@ -84,20 +84,20 @@ def invalid_graphql_query(tmp_path):
 class TestTurboRegister:
     """Test the fraiseql turbo register command."""
 
-    def test_register_requires_query_file(self, cli_runner):
+    def test_register_requires_query_file(self, cli_runner) -> None:
         """Test that register requires a query file."""
         result = cli_runner.invoke(cli, ["turbo", "register"])
 
         assert result.exit_code != 0
         assert "Missing argument" in result.output or "Error" in result.output
 
-    def test_register_with_nonexistent_file(self, cli_runner):
+    def test_register_with_nonexistent_file(self, cli_runner) -> None:
         """Test register with nonexistent file."""
         result = cli_runner.invoke(cli, ["turbo", "register", "nonexistent.graphql"])
 
         assert result.exit_code != 0
 
-    def test_register_graphql_file(self, cli_runner, sample_graphql_query):
+    def test_register_graphql_file(self, cli_runner, sample_graphql_query) -> None:
         """Test registering queries from .graphql file."""
         result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_query)])
 
@@ -105,19 +105,21 @@ class TestTurboRegister:
         # We're testing the CLI command structure, not the full registration
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_json_file_with_queries_key(self, cli_runner, sample_graphql_queries_json):
+    def test_register_json_file_with_queries_key(
+        self, cli_runner, sample_graphql_queries_json
+    ) -> None:
         """Test registering queries from JSON file with 'queries' key."""
         result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_queries_json)])
 
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_json_file_single_query(self, cli_runner, sample_single_query_json):
+    def test_register_json_file_single_query(self, cli_runner, sample_single_query_json) -> None:
         """Test registering single query from JSON file."""
         result = cli_runner.invoke(cli, ["turbo", "register", str(sample_single_query_json)])
 
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_json_file_query_list(self, cli_runner, sample_query_list_json):
+    def test_register_json_file_query_list(self, cli_runner, sample_query_list_json) -> None:
         """Test registering query list from JSON file."""
         result = cli_runner.invoke(cli, ["turbo", "register", str(sample_query_list_json)])
 
@@ -140,7 +142,7 @@ class TestTurboRegister:
 
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_with_output_file(self, cli_runner, sample_graphql_query, tmp_path):
+    def test_register_with_output_file(self, cli_runner, sample_graphql_query, tmp_path) -> None:
         """Test register with output file for results."""
         output_file = tmp_path / "results.json"
 
@@ -151,7 +153,7 @@ class TestTurboRegister:
         # Command should execute
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_dry_run_valid_query(self, cli_runner, sample_graphql_query):
+    def test_register_dry_run_valid_query(self, cli_runner, sample_graphql_query) -> None:
         """Test dry-run mode with valid query."""
         result = cli_runner.invoke(
             cli, ["turbo", "register", str(sample_graphql_query), "--dry-run"]
@@ -163,7 +165,7 @@ class TestTurboRegister:
         # In dry-run, should show validation result
         assert "Valid GraphQL" in result.output or "Invalid GraphQL" in result.output
 
-    def test_register_dry_run_invalid_query(self, cli_runner, invalid_graphql_query):
+    def test_register_dry_run_invalid_query(self, cli_runner, invalid_graphql_query) -> None:
         """Test dry-run mode with invalid query."""
         result = cli_runner.invoke(
             cli, ["turbo", "register", str(invalid_graphql_query), "--dry-run"]
@@ -196,7 +198,7 @@ class TestTurboRegister:
         assert result.exit_code == 0
         assert "Registering query" in result.output
 
-    def test_register_summary_output(self, cli_runner, sample_graphql_queries_json):
+    def test_register_summary_output(self, cli_runner, sample_graphql_queries_json) -> None:
         """Test that register shows summary of results."""
         result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_queries_json)])
 
@@ -208,28 +210,28 @@ class TestTurboRegister:
 class TestTurboList:
     """Test the fraiseql turbo list command."""
 
-    def test_list_default_format(self, cli_runner):
+    def test_list_default_format(self, cli_runner) -> None:
         """Test list command with default format."""
         result = cli_runner.invoke(cli, ["turbo", "list"])
 
         assert result.exit_code == 0
         assert "Registered queries" in result.output
 
-    def test_list_json_format(self, cli_runner):
+    def test_list_json_format(self, cli_runner) -> None:
         """Test list command with JSON format."""
         result = cli_runner.invoke(cli, ["turbo", "list", "--format", "json"])
 
         assert result.exit_code == 0
         assert "Registered queries" in result.output
 
-    def test_list_sql_format(self, cli_runner):
+    def test_list_sql_format(self, cli_runner) -> None:
         """Test list command with SQL format."""
         result = cli_runner.invoke(cli, ["turbo", "list", "--format", "sql"])
 
         assert result.exit_code == 0
         assert "Registered queries" in result.output
 
-    def test_list_invalid_format(self, cli_runner):
+    def test_list_invalid_format(self, cli_runner) -> None:
         """Test list command with invalid format."""
         result = cli_runner.invoke(cli, ["turbo", "list", "--format", "invalid"])
 
@@ -241,14 +243,14 @@ class TestTurboList:
 class TestTurboInspect:
     """Test the fraiseql turbo inspect command."""
 
-    def test_inspect_requires_hash(self, cli_runner):
+    def test_inspect_requires_hash(self, cli_runner) -> None:
         """Test that inspect requires a query hash."""
         result = cli_runner.invoke(cli, ["turbo", "inspect"])
 
         assert result.exit_code != 0
         assert "Missing argument" in result.output or "Error" in result.output
 
-    def test_inspect_with_hash(self, cli_runner):
+    def test_inspect_with_hash(self, cli_runner) -> None:
         """Test inspect with a query hash."""
         result = cli_runner.invoke(cli, ["turbo", "inspect", "abc123def456"])
 
@@ -256,7 +258,7 @@ class TestTurboInspect:
         assert "Query details" in result.output
         assert "abc123def456" in result.output
 
-    def test_inspect_with_sha256_hash(self, cli_runner):
+    def test_inspect_with_sha256_hash(self, cli_runner) -> None:
         """Test inspect with SHA-256 hash format."""
         sha_hash = "a" * 64  # 64 character hex string
         result = cli_runner.invoke(cli, ["turbo", "inspect", sha_hash])
@@ -269,7 +271,7 @@ class TestTurboInspect:
 class TestTurboLoadQueries:
     """Test the load_queries helper function."""
 
-    def test_load_graphql_file(self, sample_graphql_query):
+    def test_load_graphql_file(self, sample_graphql_query) -> None:
         """Test loading .graphql file."""
         from fraiseql.cli.commands.turbo import load_queries
 
@@ -279,7 +281,7 @@ class TestTurboLoadQueries:
         assert "query" in queries[0]
         assert "GetUser" in queries[0]["query"]
 
-    def test_load_json_with_queries_key(self, sample_graphql_queries_json):
+    def test_load_json_with_queries_key(self, sample_graphql_queries_json) -> None:
         """Test loading JSON file with 'queries' key."""
         from fraiseql.cli.commands.turbo import load_queries
 
@@ -289,7 +291,7 @@ class TestTurboLoadQueries:
         assert queries[0]["operationName"] == "GetUser"
         assert queries[1]["operationName"] == "GetPosts"
 
-    def test_load_json_single_query(self, sample_single_query_json):
+    def test_load_json_single_query(self, sample_single_query_json) -> None:
         """Test loading JSON file with single query."""
         from fraiseql.cli.commands.turbo import load_queries
 
@@ -298,7 +300,7 @@ class TestTurboLoadQueries:
         assert len(queries) == 1
         assert queries[0]["operationName"] == "GetUser"
 
-    def test_load_json_query_list(self, sample_query_list_json):
+    def test_load_json_query_list(self, sample_query_list_json) -> None:
         """Test loading JSON file with query list."""
         from fraiseql.cli.commands.turbo import load_queries
 
@@ -308,7 +310,7 @@ class TestTurboLoadQueries:
         assert queries[0]["operationName"] == "Query1"
         assert queries[1]["operationName"] == "Query2"
 
-    def test_load_unsupported_format(self, tmp_path):
+    def test_load_unsupported_format(self, tmp_path) -> None:
         """Test loading unsupported file format."""
         from fraiseql.cli.commands.turbo import load_queries
 
@@ -325,7 +327,7 @@ class TestTurboLoadQueries:
 class TestTurboHelp:
     """Test Turbo command help output."""
 
-    def test_turbo_help(self, cli_runner):
+    def test_turbo_help(self, cli_runner) -> None:
         """Test turbo command help."""
         result = cli_runner.invoke(cli, ["turbo", "--help"])
 
@@ -335,7 +337,7 @@ class TestTurboHelp:
         assert "list" in result.output
         assert "inspect" in result.output
 
-    def test_turbo_register_help(self, cli_runner):
+    def test_turbo_register_help(self, cli_runner) -> None:
         """Test turbo register command help."""
         result = cli_runner.invoke(cli, ["turbo", "register", "--help"])
 
@@ -345,14 +347,14 @@ class TestTurboHelp:
         assert "--output" in result.output
         assert "--dry-run" in result.output
 
-    def test_turbo_list_help(self, cli_runner):
+    def test_turbo_list_help(self, cli_runner) -> None:
         """Test turbo list command help."""
         result = cli_runner.invoke(cli, ["turbo", "list", "--help"])
 
         assert result.exit_code == 0
         assert "--format" in result.output
 
-    def test_turbo_inspect_help(self, cli_runner):
+    def test_turbo_inspect_help(self, cli_runner) -> None:
         """Test turbo inspect command help."""
         result = cli_runner.invoke(cli, ["turbo", "inspect", "--help"])
 
@@ -364,7 +366,7 @@ class TestTurboHelp:
 class TestTurboEdgeCases:
     """Test edge cases for turbo commands."""
 
-    def test_register_empty_graphql_file(self, cli_runner, tmp_path):
+    def test_register_empty_graphql_file(self, cli_runner, tmp_path) -> None:
         """Test registering empty GraphQL file."""
         empty_file = tmp_path / "empty.graphql"
         empty_file.write_text("")
@@ -374,7 +376,7 @@ class TestTurboEdgeCases:
         # Should handle gracefully
         assert result.exit_code == 0
 
-    def test_register_malformed_json(self, cli_runner, tmp_path):
+    def test_register_malformed_json(self, cli_runner, tmp_path) -> None:
         """Test registering malformed JSON file."""
         malformed_json = tmp_path / "malformed.json"
         malformed_json.write_text("{invalid json")
@@ -384,7 +386,7 @@ class TestTurboEdgeCases:
         # Should show error
         assert result.exit_code != 0
 
-    def test_register_with_missing_view_mapping(self, cli_runner, sample_graphql_query):
+    def test_register_with_missing_view_mapping(self, cli_runner, sample_graphql_query) -> None:
         """Test register with nonexistent view mapping file."""
         result = cli_runner.invoke(
             cli,

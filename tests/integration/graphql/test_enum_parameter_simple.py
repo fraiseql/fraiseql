@@ -1,11 +1,12 @@
 """Simple test for enum parameter conversion bug."""
 
-import pytest
 from enum import Enum
-from typing import Optional
+
+import pytest
+from graphql import GraphQLResolveInfo
+
 import fraiseql
 from fraiseql.gql.resolver_wrappers import wrap_resolver
-from graphql import GraphQLResolveInfo
 
 
 @fraiseql.enum
@@ -22,7 +23,7 @@ async def sample_resolver(info: GraphQLResolveInfo, status: Status) -> str:
 
 
 @pytest.mark.asyncio
-async def test_enum_parameter_conversion_direct():
+async def test_enum_parameter_conversion_direct() -> None:
     """Test enum conversion directly in wrap_resolver."""
     # Wrap the resolver
     field = wrap_resolver(sample_resolver)
@@ -43,7 +44,7 @@ async def test_enum_parameter_conversion_direct():
 
 
 @pytest.mark.asyncio
-async def test_enum_instance_check():
+async def test_enum_instance_check() -> None:
     """Test that we can detect enum types."""
     from inspect import signature
 

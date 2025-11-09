@@ -1,19 +1,21 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+
 from fraiseql.db import FraiseQLRepository
 
 
 class TestExists:
     """Test suite for exists() method."""
 
-    def test_exists_method_exists(self):
+    def test_exists_method_exists(self) -> None:
         """Test that exists() method exists on FraiseQLRepository."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "exists")
         assert callable(db.exists)
 
     @pytest.mark.asyncio
-    async def test_exists_returns_bool(self):
+    async def test_exists_returns_bool(self) -> None:
         """Test that exists() returns a boolean."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -33,7 +35,7 @@ class TestExists:
         assert isinstance(result, bool)
 
     @pytest.mark.asyncio
-    async def test_exists_true_when_records_exist(self):
+    async def test_exists_true_when_records_exist(self) -> None:
         """Test exists() returns True when records exist."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -52,7 +54,7 @@ class TestExists:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_exists_false_when_no_records(self):
+    async def test_exists_false_when_no_records(self) -> None:
         """Test exists() returns False when no records exist."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -71,7 +73,7 @@ class TestExists:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_exists_with_where_clause(self):
+    async def test_exists_with_where_clause(self) -> None:
         """Test exists() with WHERE filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -96,7 +98,7 @@ class TestExists:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_exists_with_tenant_id(self):
+    async def test_exists_with_tenant_id(self) -> None:
         """Test exists() with tenant_id filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -124,7 +126,7 @@ class TestExists:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_exists_calls_execute(self):
+    async def test_exists_calls_execute(self) -> None:
         """Test exists() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -146,7 +148,7 @@ class TestExists:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_exists_with_multiple_filters(self):
+    async def test_exists_with_multiple_filters(self) -> None:
         """Test exists() with multiple WHERE filters."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -175,14 +177,14 @@ class TestExists:
 class TestSum:
     """Test suite for sum() method."""
 
-    def test_sum_method_exists(self):
+    def test_sum_method_exists(self) -> None:
         """Test that sum() method exists on FraiseQLRepository."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "sum")
         assert callable(db.sum)
 
     @pytest.mark.asyncio
-    async def test_sum_returns_float(self):
+    async def test_sum_returns_float(self) -> None:
         """Test that sum() returns a float."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -201,7 +203,7 @@ class TestSum:
         assert isinstance(result, float)
 
     @pytest.mark.asyncio
-    async def test_sum_with_values(self):
+    async def test_sum_with_values(self) -> None:
         """Test sum() returns correct sum."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -220,7 +222,7 @@ class TestSum:
         assert result == 250.75
 
     @pytest.mark.asyncio
-    async def test_sum_returns_zero_when_no_records(self):
+    async def test_sum_returns_zero_when_no_records(self) -> None:
         """Test sum() returns 0.0 when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -239,7 +241,7 @@ class TestSum:
         assert result == 0.0
 
     @pytest.mark.asyncio
-    async def test_sum_with_where_clause(self):
+    async def test_sum_with_where_clause(self) -> None:
         """Test sum() with WHERE filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -263,7 +265,7 @@ class TestSum:
         assert result == 500.0
 
     @pytest.mark.asyncio
-    async def test_sum_with_tenant_id(self):
+    async def test_sum_with_tenant_id(self) -> None:
         """Test sum() with tenant_id filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -290,7 +292,7 @@ class TestSum:
         assert result == 750.0
 
     @pytest.mark.asyncio
-    async def test_sum_calls_execute(self):
+    async def test_sum_calls_execute(self) -> None:
         """Test sum() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -312,7 +314,7 @@ class TestSum:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_sum_requires_field_parameter(self):
+    async def test_sum_requires_field_parameter(self) -> None:
         """Test sum() requires field parameter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -325,14 +327,14 @@ class TestSum:
 class TestAvg:
     """Test suite for avg() method."""
 
-    def test_avg_method_exists(self):
+    def test_avg_method_exists(self) -> None:
         """Test that avg() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "avg")
         assert callable(db.avg)
 
     @pytest.mark.asyncio
-    async def test_avg_returns_float(self):
+    async def test_avg_returns_float(self) -> None:
         """Test that avg() returns a float."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -351,7 +353,7 @@ class TestAvg:
         assert isinstance(result, float)
 
     @pytest.mark.asyncio
-    async def test_avg_returns_zero_when_no_records(self):
+    async def test_avg_returns_zero_when_no_records(self) -> None:
         """Test avg() returns 0.0 when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -370,7 +372,7 @@ class TestAvg:
         assert result == 0.0
 
     @pytest.mark.asyncio
-    async def test_avg_calls_execute(self):
+    async def test_avg_calls_execute(self) -> None:
         """Test avg() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -395,14 +397,14 @@ class TestAvg:
 class TestMin:
     """Test suite for min() method."""
 
-    def test_min_method_exists(self):
+    def test_min_method_exists(self) -> None:
         """Test that min() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "min")
         assert callable(db.min)
 
     @pytest.mark.asyncio
-    async def test_min_returns_value(self):
+    async def test_min_returns_value(self) -> None:
         """Test that min() returns the minimum value."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -421,7 +423,7 @@ class TestMin:
         assert result == 9.99
 
     @pytest.mark.asyncio
-    async def test_min_returns_none_when_no_records(self):
+    async def test_min_returns_none_when_no_records(self) -> None:
         """Test min() returns None when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -440,7 +442,7 @@ class TestMin:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_min_calls_execute(self):
+    async def test_min_calls_execute(self) -> None:
         """Test min() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -465,14 +467,14 @@ class TestMin:
 class TestMax:
     """Test suite for max() method."""
 
-    def test_max_method_exists(self):
+    def test_max_method_exists(self) -> None:
         """Test that max() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "max")
         assert callable(db.max)
 
     @pytest.mark.asyncio
-    async def test_max_returns_value(self):
+    async def test_max_returns_value(self) -> None:
         """Test that max() returns the maximum value."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -491,7 +493,7 @@ class TestMax:
         assert result == 999.99
 
     @pytest.mark.asyncio
-    async def test_max_returns_none_when_no_records(self):
+    async def test_max_returns_none_when_no_records(self) -> None:
         """Test max() returns None when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -510,7 +512,7 @@ class TestMax:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_max_calls_execute(self):
+    async def test_max_calls_execute(self) -> None:
         """Test max() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -535,14 +537,14 @@ class TestMax:
 class TestDistinct:
     """Test suite for distinct() method."""
 
-    def test_distinct_method_exists(self):
+    def test_distinct_method_exists(self) -> None:
         """Test that distinct() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "distinct")
         assert callable(db.distinct)
 
     @pytest.mark.asyncio
-    async def test_distinct_returns_list(self):
+    async def test_distinct_returns_list(self) -> None:
         """Test that distinct() returns a list."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -561,7 +563,7 @@ class TestDistinct:
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
-    async def test_distinct_returns_unique_values(self):
+    async def test_distinct_returns_unique_values(self) -> None:
         """Test distinct() returns unique values."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -580,7 +582,7 @@ class TestDistinct:
         assert result == ["books", "electronics", "clothing"]
 
     @pytest.mark.asyncio
-    async def test_distinct_returns_empty_list_when_no_records(self):
+    async def test_distinct_returns_empty_list_when_no_records(self) -> None:
         """Test distinct() returns empty list when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -599,7 +601,7 @@ class TestDistinct:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_distinct_with_where_clause(self):
+    async def test_distinct_with_where_clause(self) -> None:
         """Test distinct() with WHERE filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -625,7 +627,7 @@ class TestDistinct:
         assert result == ["active", "pending"]
 
     @pytest.mark.asyncio
-    async def test_distinct_calls_execute(self):
+    async def test_distinct_calls_execute(self) -> None:
         """Test distinct() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -647,7 +649,7 @@ class TestDistinct:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_distinct_with_tenant_id(self):
+    async def test_distinct_with_tenant_id(self) -> None:
         """Test distinct() with tenant_id filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -677,14 +679,14 @@ class TestDistinct:
 class TestPluck:
     """Test suite for pluck() method."""
 
-    def test_pluck_method_exists(self):
+    def test_pluck_method_exists(self) -> None:
         """Test that pluck() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "pluck")
         assert callable(db.pluck)
 
     @pytest.mark.asyncio
-    async def test_pluck_returns_list(self):
+    async def test_pluck_returns_list(self) -> None:
         """Test that pluck() returns a list."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -711,7 +713,7 @@ class TestPluck:
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
-    async def test_pluck_returns_field_values(self):
+    async def test_pluck_returns_field_values(self) -> None:
         """Test pluck() returns field values."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -736,7 +738,7 @@ class TestPluck:
         assert result == ["user1@example.com", "user2@example.com", "user3@example.com"]
 
     @pytest.mark.asyncio
-    async def test_pluck_returns_empty_list_when_no_records(self):
+    async def test_pluck_returns_empty_list_when_no_records(self) -> None:
         """Test pluck() returns empty list when no records."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -755,7 +757,7 @@ class TestPluck:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_pluck_with_where_clause(self):
+    async def test_pluck_with_where_clause(self) -> None:
         """Test pluck() with WHERE filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -779,7 +781,7 @@ class TestPluck:
         assert result == ["active@example.com"]
 
     @pytest.mark.asyncio
-    async def test_pluck_calls_execute(self):
+    async def test_pluck_calls_execute(self) -> None:
         """Test pluck() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -801,7 +803,7 @@ class TestPluck:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_pluck_with_limit(self):
+    async def test_pluck_with_limit(self) -> None:
         """Test pluck() with limit parameter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -830,14 +832,14 @@ class TestPluck:
 class TestAggregate:
     """Test suite for aggregate() method."""
 
-    def test_aggregate_method_exists(self):
+    def test_aggregate_method_exists(self) -> None:
         """Test that aggregate() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "aggregate")
         assert callable(db.aggregate)
 
     @pytest.mark.asyncio
-    async def test_aggregate_returns_dict(self):
+    async def test_aggregate_returns_dict(self) -> None:
         """Test that aggregate() returns a dict."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -864,7 +866,7 @@ class TestAggregate:
         assert isinstance(result, dict)
 
     @pytest.mark.asyncio
-    async def test_aggregate_multiple_aggregations(self):
+    async def test_aggregate_multiple_aggregations(self) -> None:
         """Test aggregate() with multiple aggregations."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -906,7 +908,7 @@ class TestAggregate:
         }
 
     @pytest.mark.asyncio
-    async def test_aggregate_with_where_clause(self):
+    async def test_aggregate_with_where_clause(self) -> None:
         """Test aggregate() with WHERE filter."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -935,7 +937,7 @@ class TestAggregate:
         assert result == {"total": 750.0, "count": 2}
 
     @pytest.mark.asyncio
-    async def test_aggregate_calls_execute(self):
+    async def test_aggregate_calls_execute(self) -> None:
         """Test aggregate() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -958,7 +960,7 @@ class TestAggregate:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_aggregate_returns_empty_dict_when_no_aggregations(self):
+    async def test_aggregate_returns_empty_dict_when_no_aggregations(self) -> None:
         """Test aggregate() returns empty dict when no aggregations provided."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -970,14 +972,14 @@ class TestAggregate:
 class TestBatchExists:
     """Test suite for batch_exists() method."""
 
-    def test_batch_exists_method_exists(self):
+    def test_batch_exists_method_exists(self) -> None:
         """Test that batch_exists() method exists."""
         db = FraiseQLRepository(pool=MagicMock())
         assert hasattr(db, "batch_exists")
         assert callable(db.batch_exists)
 
     @pytest.mark.asyncio
-    async def test_batch_exists_returns_dict(self):
+    async def test_batch_exists_returns_dict(self) -> None:
         """Test that batch_exists() returns a dict."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1000,7 +1002,7 @@ class TestBatchExists:
         assert isinstance(result, dict)
 
     @pytest.mark.asyncio
-    async def test_batch_exists_all_exist(self):
+    async def test_batch_exists_all_exist(self) -> None:
         """Test batch_exists() when all IDs exist."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1024,7 +1026,7 @@ class TestBatchExists:
         assert result == {id1: True, id2: True, id3: True}
 
     @pytest.mark.asyncio
-    async def test_batch_exists_some_missing(self):
+    async def test_batch_exists_some_missing(self) -> None:
         """Test batch_exists() when some IDs are missing."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1049,7 +1051,7 @@ class TestBatchExists:
         assert result == {id1: True, id2: False, id3: True}
 
     @pytest.mark.asyncio
-    async def test_batch_exists_none_exist(self):
+    async def test_batch_exists_none_exist(self) -> None:
         """Test batch_exists() when no IDs exist."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1073,7 +1075,7 @@ class TestBatchExists:
         assert result == {id1: False, id2: False}
 
     @pytest.mark.asyncio
-    async def test_batch_exists_empty_list(self):
+    async def test_batch_exists_empty_list(self) -> None:
         """Test batch_exists() with empty ID list."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1082,7 +1084,7 @@ class TestBatchExists:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_batch_exists_calls_execute(self):
+    async def test_batch_exists_calls_execute(self) -> None:
         """Test batch_exists() calls execute with a query."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)
@@ -1108,7 +1110,7 @@ class TestBatchExists:
         assert mock_cursor.execute.called
 
     @pytest.mark.asyncio
-    async def test_batch_exists_custom_id_field(self):
+    async def test_batch_exists_custom_id_field(self) -> None:
         """Test batch_exists() with custom ID field."""
         pool = MagicMock()
         db = FraiseQLRepository(pool=pool)

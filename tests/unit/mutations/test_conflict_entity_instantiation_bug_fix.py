@@ -7,8 +7,8 @@ into the conflict_* fields of error classes.
 Bug Report: FraiseQL v0.7.10 Bug Report: Conflict Entity Instantiation Failure (Fixed in v0.7.11)
 """
 
-import uuid
 import pytest
+
 import fraiseql
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
@@ -49,7 +49,7 @@ class CreateLocationError:
 class TestConflictEntityInstantiationBugFix:
     """Test cases for the conflict entity instantiation bug fix."""
 
-    def test_conflict_entity_instantiation_regression_test(self):
+    def test_conflict_entity_instantiation_regression_test(self) -> None:
         """✅ Regression test: Ensure conflict entity instantiation works correctly.
 
         This test verifies the fix for the bug where conflict entities were not being
@@ -98,7 +98,7 @@ class TestConflictEntityInstantiationBugFix:
         # The conflict data should be available in extra_metadata for debugging
         # Note: this is just to verify the bug exists - we're checking the raw data structure
 
-    def test_conflict_entity_instantiation_should_work_when_fixed(self):
+    def test_conflict_entity_instantiation_should_work_when_fixed(self) -> None:
         """🟢 GREEN: Test that defines the expected behavior after the fix.
 
         This test will initially fail but should pass once we implement the fix.
@@ -144,7 +144,7 @@ class TestConflictEntityInstantiationBugFix:
         assert result.conflict_location.name == "21411-1 child"
         assert result.conflict_location.identifier == "test_create_location_deduplication.child"
 
-    def test_conflict_entity_manual_instantiation_works(self):
+    def test_conflict_entity_manual_instantiation_works(self) -> None:
         """✅ Control test: Verify that Location.from_dict works correctly.
 
         This test ensures that the entity's from_dict method works as expected,
@@ -164,7 +164,7 @@ class TestConflictEntityInstantiationBugFix:
         assert location.name == "21411-1 child"
         assert location.identifier == "test_create_location_deduplication.child"
 
-    def test_multiple_conflict_entity_types(self):
+    def test_multiple_conflict_entity_types(self) -> None:
         """Test that the fix works for different entity types as mentioned in the bug ticket."""
 
         @fraiseql.type

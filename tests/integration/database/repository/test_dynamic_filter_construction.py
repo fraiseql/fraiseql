@@ -6,28 +6,25 @@ the filters should be properly applied to the database query.
 Related issue: /tmp/fraiseql_filter_not_applied_issue.md
 """
 
-import pytest
-from enum import Enum
-from typing import Optional
-from uuid import UUID
 from decimal import Decimal
+
+import pytest
 
 pytestmark = pytest.mark.database
 
 # Import database fixtures
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @pytest.mark.asyncio
 class TestDynamicFilterConstruction:
     """Test suite for dynamic filter construction in repository find() method."""
 
-    async def test_dynamic_dict_filter_construction(self, db_pool):
+    async def test_dynamic_dict_filter_construction(self, db_pool) -> None:
         """Test that dictionary where clauses are properly processed when constructed dynamically."""
-
         # Set up test data
         async with db_pool.connection() as conn:
             # Create test table
@@ -106,9 +103,8 @@ class TestDynamicFilterConstruction:
         for r in results:
             assert r["isCurrent"] is True, f"Result has isCurrent={r['isCurrent']}, expected True"
 
-    async def test_merged_dict_filters(self, db_pool):
+    async def test_merged_dict_filters(self, db_pool) -> None:
         """Test merging multiple dynamic filters into a where clause."""
-
         # Set up test data
         async with db_pool.connection() as conn:
             # Create test table
@@ -213,9 +209,8 @@ class TestDynamicFilterConstruction:
         assert float(results[0]["price"]) == 149.99
         assert results[0]["isActive"] is True
 
-    async def test_empty_dict_where_to_populated(self, db_pool):
+    async def test_empty_dict_where_to_populated(self, db_pool) -> None:
         """Test that starting with empty dict and populating it works."""
-
         # Set up test data
         async with db_pool.connection() as conn:
             await conn.execute(
@@ -285,9 +280,8 @@ class TestDynamicFilterConstruction:
         assert len(results) == 2, f"Expected 2 active items, got {len(results)}"
         assert all(r["status"] == "active" for r in results)
 
-    async def test_complex_nested_dict_filters(self, db_pool):
+    async def test_complex_nested_dict_filters(self, db_pool) -> None:
         """Test complex dictionary filters with multiple operators."""
-
         # Set up test data
         async with db_pool.connection() as conn:
             await conn.execute(

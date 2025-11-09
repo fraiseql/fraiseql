@@ -4,9 +4,8 @@ These tests verify that the field name conversion works end-to-end with
 the complete FraiseQL stack, including SQL generation and type detection.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-from psycopg.sql import SQL, Composed
+from unittest.mock import MagicMock
+
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
@@ -15,12 +14,12 @@ from fraiseql.db import FraiseQLRepository
 class TestFieldNameMappingIntegration:
     """Integration tests for WHERE clause field name conversion."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test repository with mock pool."""
         self.mock_pool = MagicMock(spec=AsyncConnectionPool)
         self.repo = FraiseQLRepository(self.mock_pool)
 
-    def test_sql_generation_integration(self):
+    def test_sql_generation_integration(self) -> None:
         """Test that SQL generation works correctly with field name conversion.
 
         This focuses on the SQL generation layer without complex async mocking.
@@ -49,7 +48,7 @@ class TestFieldNameMappingIntegration:
         assert "192.168.1.1" in sql_str
         assert "router" in sql_str
 
-    def test_backward_compatibility_integration(self):
+    def test_backward_compatibility_integration(self) -> None:
         """Test that existing snake_case field names continue to work."""
         where_clause = {
             "ip_address": {"eq": "10.0.0.1"},  # snake_case (existing usage)
@@ -67,7 +66,7 @@ class TestFieldNameMappingIntegration:
         assert "10.0.0.1" in sql_str
         assert "active" in sql_str
 
-    def test_mixed_case_sql_generation(self):
+    def test_mixed_case_sql_generation(self) -> None:
         """Test mixed camelCase and snake_case fields in same query."""
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1"},  # camelCase (should be converted)
@@ -91,7 +90,7 @@ class TestFieldNameMappingIntegration:
         assert "ipAddress" not in sql_str
         assert "deviceName" not in sql_str
 
-    def test_complex_where_clause_field_conversion(self):
+    def test_complex_where_clause_field_conversion(self) -> None:
         """Test complex WHERE clauses with multiple operators per field."""
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1", "neq": "127.0.0.1"},
@@ -122,7 +121,7 @@ class TestFieldNameMappingIntegration:
         assert "65536" in sql_str
         assert "aa:bb:cc:dd:ee:ff" in sql_str
 
-    def test_field_conversion_with_type_detection(self):
+    def test_field_conversion_with_type_detection(self) -> None:
         """Test that field conversion works correctly with FraiseQL's type detection.
 
         This verifies that IP addresses, MAC addresses, and other special types
@@ -156,7 +155,7 @@ class TestFieldNameMappingIntegration:
         # Should contain the MAC value
         assert "aa:bb:cc:dd:ee:ff" in sql_str
 
-    def test_performance_validation(self):
+    def test_performance_validation(self) -> None:
         """Validate that field name conversion works correctly at scale."""
         # Create a moderately sized WHERE clause to test functionality at scale
         where_clause = {f"field{i}Name": {"eq": f"value{i}"} for i in range(5)}

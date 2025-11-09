@@ -6,11 +6,11 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 # Test types
@@ -29,7 +29,7 @@ class TestJSONBKeyExistence:
     """Test PostgreSQL JSONB key existence operators."""
 
     @pytest.fixture
-    async def setup_test_products(self, db_pool):
+    async def setup_test_products(self, db_pool) -> None:
         """Create test products with JSONB attributes."""
         # Register types for views (for development mode)
         register_type_for_view("test_products_view", Product)
@@ -80,7 +80,7 @@ class TestJSONBKeyExistence:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_has_key_operator(self, db_pool, setup_test_products):
+    async def test_has_key_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB ? operator for key existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -95,7 +95,7 @@ class TestJSONBKeyExistence:
         assert products[0]["name"] == "Laptop"
 
     @pytest.mark.asyncio
-    async def test_has_any_keys_operator(self, db_pool, setup_test_products):
+    async def test_has_any_keys_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB ?| operator for any key existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -111,7 +111,7 @@ class TestJSONBKeyExistence:
         assert names == {"Laptop", "Phone", "Tablet"}
 
     @pytest.mark.asyncio
-    async def test_has_all_keys_operator(self, db_pool, setup_test_products):
+    async def test_has_all_keys_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB ?& operator for all keys existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -131,7 +131,7 @@ class TestJSONBContainment:
     """Test PostgreSQL JSONB containment operators."""
 
     @pytest.fixture
-    async def setup_test_products(self, db_pool):
+    async def setup_test_products(self, db_pool) -> None:
         """Create test products with JSONB attributes."""
         register_type_for_view("test_products_view", Product)
 
@@ -177,7 +177,7 @@ class TestJSONBContainment:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_contains_operator(self, db_pool, setup_test_products):
+    async def test_contains_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB @> operator for containment."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -192,7 +192,7 @@ class TestJSONBContainment:
         assert products[0]["name"] == "Phone"
 
     @pytest.mark.asyncio
-    async def test_contained_by_operator(self, db_pool, setup_test_products):
+    async def test_contained_by_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB <@ operator for contained by."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -215,7 +215,7 @@ class TestJSONBJSONPath:
     """Test PostgreSQL JSONB JSONPath operators."""
 
     @pytest.fixture
-    async def setup_test_products(self, db_pool):
+    async def setup_test_products(self, db_pool) -> None:
         """Create test products with nested JSONB."""
         register_type_for_view("test_products_view", Product)
 
@@ -261,7 +261,7 @@ class TestJSONBJSONPath:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_path_exists_operator(self, db_pool, setup_test_products):
+    async def test_path_exists_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB @? operator for JSONPath existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -276,7 +276,7 @@ class TestJSONBJSONPath:
         assert products[0]["name"] == "Laptop"
 
     @pytest.mark.asyncio
-    async def test_path_match_operator(self, db_pool, setup_test_products):
+    async def test_path_match_operator(self, db_pool, setup_test_products) -> None:
         """Test JSONB @@ operator for JSONPath predicates."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 

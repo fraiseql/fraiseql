@@ -13,17 +13,18 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
-from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.core.rust_pipeline import RustResponseBytes
-from tests.unit.utils.test_response_utils import extract_graphql_data
+from fraiseql.db import FraiseQLRepository, register_type_for_view
 
 
 # Test types with JSONB data
 @fraiseql.type
 class TestProduct:
     """Product entity with JSONB data column."""
+
     id: str
     name: str
     brand: str  # Stored in JSONB data column
@@ -35,7 +36,7 @@ class TestJSONBRustDeserialization:
     """Test that Rust execution correctly deserializes JSONB entities."""
 
     @pytest.fixture
-    async def setup_test_data(self, db_pool):
+    async def setup_test_data(self, db_pool) -> None:
         """Create test table with JSONB data and register type."""
         # Register type with has_jsonb_data=True
         register_type_for_view(
@@ -43,7 +44,7 @@ class TestJSONBRustDeserialization:
             TestProduct,
             table_columns={"id", "name", "data"},
             has_jsonb_data=True,
-            jsonb_column="data"
+            jsonb_column="data",
         )
 
         async with db_pool.connection() as conn:
@@ -148,7 +149,7 @@ class TestJSONBRustDeserialization:
             # ASSERTION 4: Each item should be a dict, not RustResponseBytes
             for product in products:
                 assert not isinstance(product, RustResponseBytes), (
-                    f"Expected dict, got RustResponseBytes in list results"
+                    "Expected dict, got RustResponseBytes in list results"
                 )
 
         except Exception as e:

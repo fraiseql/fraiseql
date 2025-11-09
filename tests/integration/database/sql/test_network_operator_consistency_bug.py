@@ -4,7 +4,6 @@ This test reveals the bug where different operators generate inconsistent
 SQL for the same IP address field type.
 """
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy, NetworkOperatorStrategy
@@ -14,7 +13,7 @@ from fraiseql.types import IpAddress
 class TestNetworkOperatorConsistencyBug:
     """Test inconsistent SQL generation between operators."""
 
-    def test_eq_vs_insubnet_sql_consistency(self):
+    def test_eq_vs_insubnet_sql_consistency(self) -> None:
         """Test that eq and inSubnet generate consistent SQL for IP fields."""
         # Test field path representing JSONB IP address
         field_path = SQL("data->>'ip_address'")
@@ -42,7 +41,7 @@ class TestNetworkOperatorConsistencyBug:
         assert "data->>'ip_address'" in subnet_str, "inSubnet should reference the JSONB field"
         assert "::inet" in eq_str or "::inet" in subnet_str, "At least one should cast to inet"
 
-    def test_private_vs_eq_consistency(self):
+    def test_private_vs_eq_consistency(self) -> None:
         """Test consistency between isPrivate and eq operators."""
         field_path = SQL("data->>'ip_address'")
 
@@ -62,7 +61,7 @@ class TestNetworkOperatorConsistencyBug:
         if "host(" in eq_str and "host(" not in private_str:
             pass
 
-    def test_demonstration_of_actual_bug(self):
+    def test_demonstration_of_actual_bug(self) -> None:
         """Demonstrate the actual bug with concrete SQL examples."""
         field_path = SQL("data->>'ip_address'")
 
@@ -93,7 +92,7 @@ class TestNetworkOperatorConsistencyBug:
 class TestSQLBehaviorWithPostgreSQL:
     """Test SQL behavior differences that could explain the bug."""
 
-    def test_field_type_detection_issue(self):
+    def test_field_type_detection_issue(self) -> None:
         """Test if the issue is in field type detection for network operators."""
         from fraiseql.sql.operator_strategies import get_operator_registry
 

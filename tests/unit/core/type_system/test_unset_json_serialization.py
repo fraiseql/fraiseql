@@ -18,7 +18,7 @@ from fraiseql.types.definitions import UNSET
 
 
 @pytest.mark.unit
-def test_fraiseql_json_encoder_handles_unset():
+def test_fraiseql_json_encoder_handles_unset() -> None:
     """Test that FraiseQLJSONEncoder properly serializes UNSET values."""
     encoder = FraiseQLJSONEncoder()
 
@@ -32,7 +32,7 @@ def test_fraiseql_json_encoder_handles_unset():
     assert result == {"field1": "value", "field2": None, "field3": None}
 
 
-def test_fraiseql_json_encoder_handles_nested_unset():
+def test_fraiseql_json_encoder_handles_nested_unset() -> None:
     """Test that FraiseQLJSONEncoder handles UNSET in nested structures."""
     encoder = FraiseQLJSONEncoder()
 
@@ -68,7 +68,7 @@ def test_fraiseql_json_encoder_handles_nested_unset():
     assert result == expected
 
 
-def test_fraiseql_json_encoder_handles_unset_in_lists():
+def test_fraiseql_json_encoder_handles_unset_in_lists() -> None:
     """Test that FraiseQLJSONEncoder handles UNSET in list structures."""
     encoder = FraiseQLJSONEncoder()
 
@@ -95,7 +95,7 @@ def test_fraiseql_json_encoder_handles_unset_in_lists():
     assert result == expected
 
 
-def test_fraiseql_json_response_renders_unset():
+def test_fraiseql_json_response_renders_unset() -> None:
     """Test that FraiseQLJSONResponse properly renders UNSET values."""
     content = {
         "data": {
@@ -122,7 +122,7 @@ def test_fraiseql_json_response_renders_unset():
     assert result == expected
 
 
-def test_graphql_error_response_with_unset():
+def test_graphql_error_response_with_unset() -> None:
     """Test that GraphQL error responses can include UNSET values."""
     # Simulate a GraphQL error response that might include input with UNSET values
     error_response = {
@@ -178,7 +178,7 @@ class SampleInputWithUnset:
     optional_with_none: str | None = None
 
 
-def test_input_object_with_unset_serialization():
+def test_input_object_with_unset_serialization() -> None:
     """Test that input objects with UNSET fields serialize correctly."""
     # Create an input object where some fields have UNSET values
     input_obj = SampleInputWithUnset(
@@ -206,7 +206,7 @@ def test_input_object_with_unset_serialization():
     assert result == expected
 
 
-def test_clean_unset_values_function():
+def test_clean_unset_values_function() -> None:
     """Test that clean_unset_values utility function works correctly."""
     # Test simple cases
     assert clean_unset_values(UNSET) is None
@@ -245,7 +245,7 @@ def test_clean_unset_values_function():
     assert cleaned_list == expected_list
 
 
-def test_fraiseql_json_encoder_handles_ipaddress():
+def test_fraiseql_json_encoder_handles_ipaddress() -> None:
     """Test that FraiseQLJSONEncoder properly serializes IPv4Address and IPv6Address objects."""
     encoder = FraiseQLJSONEncoder()
 
@@ -280,7 +280,7 @@ def test_fraiseql_json_encoder_handles_ipaddress():
     assert result_list["servers"][1]["ip"] == "2001:db8::2"
 
 
-def test_fraiseql_json_response_with_ipaddress():
+def test_fraiseql_json_response_with_ipaddress() -> None:
     """Test that FraiseQLJSONResponse properly handles IPv4Address objects.
 
     This test reproduces the bug reported in FRAISEQL_IPV4ADDRESS_JSON_SERIALIZATION_BUG.md
@@ -313,7 +313,7 @@ def test_fraiseql_json_response_with_ipaddress():
     assert isinstance(result["data"]["createDnsServer"]["dnsServer"]["ipAddress"], str)
 
 
-def test_fraiseql_json_encoder_handles_fraiseql_types():
+def test_fraiseql_json_encoder_handles_fraiseql_types() -> None:
     """Test that FraiseQLJSONEncoder properly serializes @fraiseql.type decorated objects."""
 
     @fraiseql.type(sql_source="tv_user")
@@ -343,7 +343,7 @@ def test_fraiseql_json_encoder_handles_fraiseql_types():
     assert result["created_at"] == "2024-01-15T10:30:00"
 
 
-def test_fraiseql_json_encoder_handles_nested_fraiseql_types():
+def test_fraiseql_json_encoder_handles_nested_fraiseql_types() -> None:
     """Test that FraiseQLJSONEncoder handles nested FraiseQL types."""
 
     @fraiseql.type(sql_source="tv_department")

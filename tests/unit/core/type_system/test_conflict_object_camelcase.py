@@ -50,7 +50,7 @@ class CreateNetworkError:
     conflict_object: NetworkConfiguration | None = None
 
 
-def test_conflict_object_snake_case_in_extra_metadata():
+def test_conflict_object_snake_case_in_extra_metadata() -> None:
     """Test that conflict_object in extra_metadata is not transformed to camelCase."""
     # Create a mutation result with conflict_object in extra_metadata
     dns_server_id = uuid.uuid4()
@@ -82,7 +82,7 @@ def test_conflict_object_snake_case_in_extra_metadata():
     assert result.conflict_object.ip_address == "8.8.8.8"
 
 
-def test_specific_conflict_entity_alternative():
+def test_specific_conflict_entity_alternative() -> None:
     """Test using specific conflict entity names like conflict_dns_server."""
 
     @failure
@@ -122,7 +122,7 @@ def test_specific_conflict_entity_alternative():
     assert result.conflict_dns_server.ip_address == "8.8.4.4"
 
 
-def test_camelcase_field_names_should_work():
+def test_camelcase_field_names_should_work() -> None:
     """Test that camelCase field names in failure types should be matched."""
 
     @failure

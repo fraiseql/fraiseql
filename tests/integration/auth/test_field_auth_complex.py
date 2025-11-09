@@ -19,18 +19,18 @@ from fraiseql.security.field_auth import (
 class TestComplexFieldAuthorization:
     """Test complex field authorization scenarios."""
 
-    def test_nested_permission_checks(self):
+    def test_nested_permission_checks(self) -> None:
         """Test deeply nested permission checks."""
 
         # Create nested permission checks
         # Permission checks receive (info, *args, **kwargs) but can ignore extra args
-        def is_authenticated(info, *args, **kwargs):
+        def is_authenticated(info, *args, **kwargs) -> None:
             return info.context.get("user") is not None
 
-        def is_admin(info, *args, **kwargs):
+        def is_admin(info, *args, **kwargs) -> None:
             return info.context.get("user", {}).get("role") == "admin"
 
-        def is_owner(info, *args, **kwargs):
+        def is_owner(info, *args, **kwargs) -> None:
             return info.context.get("user", {}).get("""id""") == info.context.get(
                 "resource_owner_id"
             )
@@ -78,7 +78,7 @@ class TestComplexFieldAuthorization:
         assert resolver(resource, info) == "secret"
 
     @pytest.mark.asyncio
-    async def test_async_permission_with_database_check(self):
+    async def test_async_permission_with_database_check(self) -> None:
         """Test async permissions that query database."""
 
         # Mock database check
@@ -127,7 +127,7 @@ class TestComplexFieldAuthorization:
         result = await resolver(company, info)
         assert result["revenue"] == 1000000
 
-    def test_permission_with_field_arguments(self):
+    def test_permission_with_field_arguments(self) -> None:
         """Test permissions that depend on field arguments."""
 
         def can_access_user_data(info, *args, **kwargs) -> bool:
@@ -180,11 +180,11 @@ class TestComplexFieldAuthorization:
         result = resolver(query, info, user_id=2)
         assert result["id"] == 2
 
-    def test_rate_limiting_permission(self):
+    def test_rate_limiting_permission(self) -> None:
         """Test permission check with rate limiting."""
 
         class RateLimiter:
-            def __init__(self, max_requests: int = 10):
+            def __init__(self, max_requests: int = 10) -> None:
                 self.requests = {}
                 self.max_requests = max_requests
 
@@ -226,7 +226,7 @@ class TestComplexFieldAuthorization:
         assert "Rate limit exceeded" in str(exc.value)
 
     @pytest.mark.asyncio
-    async def test_mixed_sync_async_permissions(self):
+    async def test_mixed_sync_async_permissions(self) -> None:
         """Test mixing sync and async permission checks."""
 
         # Sync check
@@ -270,10 +270,10 @@ class TestComplexFieldAuthorization:
         result = await resolver(content, info)
         assert result == "premium content"
 
-    def test_context_based_field_visibility(self):
+    def test_context_based_field_visibility(self) -> None:
         """Test fields that are conditionally visible based on context."""
 
-        def can_see_field(field_name: str):
+        def can_see_field(field_name: str) -> None:
             """Factory for field-specific permission checks."""
 
             def check(info, *args, **kwargs) -> bool:
@@ -321,15 +321,15 @@ class TestComplexFieldAuthorization:
         assert FlexibleObject.phone(obj, info) == "+1234567890"
         assert FlexibleObject.address(obj, info) == "123 Main St"
 
-    def test_permission_with_custom_error_codes(self):
+    def test_permission_with_custom_error_codes(self) -> None:
         """Test permissions that return specific error codes."""
 
         class CustomAuthError(FieldAuthorizationError):
-            def __init__(self, message: str, code: str):
+            def __init__(self, message: str, code: str) -> None:
                 super().__init__(message)
                 self.extensions = {"code": code, "type": "AUTHORIZATION_ERROR"}
 
-        def check_subscription_tier(required_tier: str):
+        def check_subscription_tier(required_tier: str) -> None:
             def check(info, *args, **kwargs) -> bool:
                 user = info.context.get("user", {})
                 user_tier = user.get("tier", "free")

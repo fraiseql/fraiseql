@@ -1,15 +1,16 @@
 """Test that auto-generated types work in GraphQL schema."""
 
-import pytest
 from dataclasses import dataclass
 from uuid import UUID
+
+import pytest
 
 import fraiseql
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
 
 
 @pytest.mark.integration
-def test_auto_generated_types_in_schema():
+def test_auto_generated_types_in_schema() -> None:
     """Test that auto-generated WhereInput types appear in GraphQL schema."""
     clear_auto_generated_cache()
 
@@ -23,7 +24,7 @@ def test_auto_generated_types_in_schema():
     @fraiseql.query
     async def products_schema_test(
         where: ProductSchemaTest.WhereInput | None = None,
-        order_by: ProductSchemaTest.OrderBy | None = None
+        order_by: ProductSchemaTest.OrderBy | None = None,
     ) -> list[ProductSchemaTest]:
         """Query products with auto-generated filters."""
         # Dummy implementation for schema test
@@ -57,7 +58,7 @@ def test_auto_generated_types_in_schema():
 
 
 @pytest.mark.integration
-def test_auto_generated_nested_types_in_schema():
+def test_auto_generated_nested_types_in_schema() -> None:
     """Test that nested auto-generated types work in GraphQL schema."""
     clear_auto_generated_cache()
 
@@ -99,7 +100,7 @@ def test_auto_generated_nested_types_in_schema():
 
 
 @pytest.mark.integration
-def test_auto_generated_types_with_multiple_queries():
+def test_auto_generated_types_with_multiple_queries() -> None:
     """Test that auto-generated types work with multiple queries using same type."""
     clear_auto_generated_cache()
 
@@ -137,7 +138,7 @@ def test_auto_generated_types_with_multiple_queries():
 
 
 @pytest.mark.integration
-def test_auto_generated_types_introspection():
+def test_auto_generated_types_introspection() -> None:
     """Test that auto-generated types can be introspected via GraphQL."""
     clear_auto_generated_cache()
 
@@ -179,6 +180,7 @@ def test_auto_generated_types_introspection():
     """
 
     from graphql import graphql_sync
+
     result = graphql_sync(schema, introspection_query)
 
     # Should not have errors
@@ -191,7 +193,7 @@ def test_auto_generated_types_introspection():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_auto_generated_types_with_actual_query_execution():
+async def test_auto_generated_types_with_actual_query_execution() -> None:
     """Test that auto-generated WhereInput can be used as parameter in query signature.
 
     Note: This is a schema test. The actual query execution with database operations

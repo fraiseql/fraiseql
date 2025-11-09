@@ -6,8 +6,6 @@ various type annotation patterns used in GraphQL schema generation.
 
 from typing import Union
 
-import pytest
-
 from fraiseql.utils.annotations import (
     get_non_optional_type,
     is_optional_type,

@@ -4,42 +4,42 @@ These tests validate the complete SQL output to ensure it generates syntacticall
 correct PostgreSQL queries that can actually be executed.
 """
 
+import re
+
 import pytest
 from psycopg.sql import SQL
-import re
 
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.sql.where_generator import build_operator_composed
 
 
-def render_composed_to_sql(composed):
+def render_composed_to_sql(composed) -> None:
     """Render a Composed object to actual SQL string with parameter placeholders."""
     try:
         # Use psycopg's as_string method which renders actual SQL
         return composed.as_string(None)
     except Exception:
         # Fallback: manually render the structure
-        def render_part(part):
+        def render_part(part) -> None:
             if hasattr(part, "as_string"):
                 return part.as_string(None)
-            elif hasattr(part, "string"):  # SQL object
+            if hasattr(part, "string"):  # SQL object
                 return part.string
-            elif hasattr(part, "seq"):  # Nested Composed
+            if hasattr(part, "seq"):  # Nested Composed
                 return "".join(render_part(p) for p in part.seq)
-            else:  # Literal
-                return "%s"  # Parameter placeholder
+            # Literal
+            return "%s"  # Parameter placeholder
 
         if hasattr(composed, "seq"):
             return "".join(render_part(part) for part in composed.seq)
-        else:
-            return render_part(composed)
+        return render_part(composed)
 
 
 @pytest.mark.regression
 class TestCompleteSQLValidation:
     """Validate complete SQL output for syntactic correctness."""
 
-    def test_numeric_where_clause_full_sql(self):
+    def test_numeric_where_clause_full_sql(self) -> None:
         """Test that numeric operations generate valid complete SQL."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -75,11 +75,10 @@ class TestCompleteSQLValidation:
             # The format should be: ((data ->> 'port'))::numeric [operator] [value]
             # or: (data ->> 'port')::numeric [operator] [value]
             numeric_pattern = r"\(\(?data ->> 'port'\)?\)::numeric"
-            import re
 
             assert re.search(numeric_pattern, sql), f"Invalid numeric casting pattern in: {sql}"
 
-    def test_boolean_where_clause_full_sql(self):
+    def test_boolean_where_clause_full_sql(self) -> None:
         """Test that boolean operations generate valid complete SQL."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -110,7 +109,7 @@ class TestCompleteSQLValidation:
             # Validate parentheses balance
             assert sql.count("(") == sql.count(")"), f"Unbalanced parentheses in: {sql}"
 
-    def test_hostname_where_clause_full_sql(self):
+    def test_hostname_where_clause_full_sql(self) -> None:
         """Test that hostname operations generate valid complete SQL without ltree casting."""
         from fraiseql.types import Hostname
 
@@ -142,7 +141,7 @@ class TestCompleteSQLValidation:
                 f"Missing expected operator '{expected_operator}' in: {sql}"
             )
 
-    def test_mixed_where_clause_full_sql(self):
+    def test_mixed_where_clause_full_sql(self) -> None:
         """Test complex WHERE clauses with multiple conditions."""
         # Test using build_operator_composed for mixing conditions
         age_path = SQL("data->>'age'")
@@ -168,7 +167,7 @@ class TestCompleteSQLValidation:
         assert "::boolean" not in active_sql, f"Should not use boolean casting in: {active_sql}"
         assert "=" in active_sql, f"Missing equals operator in: {active_sql}"
 
-    def test_sql_injection_resistance_full_sql(self):
+    def test_sql_injection_resistance_full_sql(self) -> None:
         """Test that the complete SQL is injection-resistant."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'comment')")
@@ -201,7 +200,7 @@ class TestCompleteSQLValidation:
             )
             assert sql.endswith("'"), f"Should end with closing quote: {sql}"
 
-    def test_complex_list_operations_full_sql(self):
+    def test_complex_list_operations_full_sql(self) -> None:
         """Test that complex list operations generate valid SQL."""
         registry = get_operator_registry()
 
@@ -244,7 +243,7 @@ class TestCompleteSQLValidation:
             # Validate parentheses balance
             assert sql.count("(") == sql.count(")"), f"Unbalanced parentheses in: {sql}"
 
-    def test_postgresql_syntax_compliance(self):
+    def test_postgresql_syntax_compliance(self) -> None:
         """Test that generated SQL follows PostgreSQL syntax rules."""
         registry = get_operator_registry()
 
@@ -278,7 +277,7 @@ class TestCompleteSQLValidation:
 
             # 4. Proper operator spacing
             if " = " in sql:
-                assert not " =  " in sql and not "=  " in sql, (
+                assert " =  " not in sql and "=  " not in sql, (
                     f"Improper operator spacing in: {sql}"
                 )
 

@@ -5,10 +5,6 @@ to ensure camelCase→snake_case conversion works consistently for both direct
 and nested input objects.
 """
 
-import pytest
-from typing import Any
-from uuid import UUID, uuid4
-
 import fraiseql
 from fraiseql.types.definitions import UNSET
 
@@ -41,7 +37,7 @@ class CompanyInput:
     location: LocationInput | None = UNSET  # Nested nested input object
 
 
-def test_direct_input_field_names():
+def test_direct_input_field_names() -> None:
     """Test that direct input object has correct field names."""
     # Simulate how GraphQL would pass arguments
     address = AddressInput(
@@ -60,7 +56,7 @@ def test_direct_input_field_names():
     assert address.country_code == "US"
 
 
-def test_sql_generator_serialization():
+def test_sql_generator_serialization() -> None:
     """Test SQL generator serialization for both direct and nested inputs."""
     from fraiseql.mutations.sql_generator import _serialize_value
 
@@ -86,7 +82,7 @@ def test_sql_generator_serialization():
     assert serialized["country_code"] == "US"
 
 
-def test_nested_input_serialization():
+def test_nested_input_serialization() -> None:
     """Test that nested input objects get serialized correctly."""
     from fraiseql.mutations.sql_generator import _serialize_value
 
@@ -123,7 +119,7 @@ def test_nested_input_serialization():
     assert address_data["country_code"] == "CA"
 
 
-def test_deeply_nested_input_serialization():
+def test_deeply_nested_input_serialization() -> None:
     """Test that deeply nested input objects work correctly."""
     from fraiseql.mutations.sql_generator import _serialize_value
 
@@ -169,7 +165,7 @@ def test_deeply_nested_input_serialization():
     assert address_data["country_code"] == "UK"
 
 
-def test_raw_dict_conversion():
+def test_raw_dict_conversion() -> None:
     """Test that raw dictionaries (simulating GraphQL input) get converted correctly."""
     from fraiseql.mutations.sql_generator import _serialize_value
 
@@ -198,7 +194,7 @@ def test_raw_dict_conversion():
     assert serialized["country_code"] == "DE"
 
 
-def test_mixed_nested_dict_conversion():
+def test_mixed_nested_dict_conversion() -> None:
     """Test conversion when we have mixed FraiseQL objects and raw dicts."""
     from fraiseql.mutations.sql_generator import _serialize_value
 
@@ -233,7 +229,7 @@ def test_mixed_nested_dict_conversion():
     assert address_data["street_name"] == "Maple Street"
 
 
-def test_coercion_from_camel_case():
+def test_coercion_from_camel_case() -> None:
     """Test that the coercion system properly converts camelCase GraphQL input."""
     from fraiseql.types.coercion import coerce_input
 
@@ -255,10 +251,10 @@ def test_coercion_from_camel_case():
     assert address.country_code == "JP"
 
 
-def test_end_to_end_pipeline():
+def test_end_to_end_pipeline() -> None:
     """Test the complete pipeline: GraphQL input → coercion → serialization."""
-    from fraiseql.types.coercion import coerce_input
     from fraiseql.mutations.sql_generator import _serialize_value
+    from fraiseql.types.coercion import coerce_input
 
     # Step 1: Simulate GraphQL input (camelCase)
     graphql_input = {

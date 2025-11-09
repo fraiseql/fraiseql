@@ -37,7 +37,7 @@ class NetworkDevice:
 class TestRestrictedFilterTypes:
     """Test that restricted filter types are correctly assigned and configured."""
 
-    def test_exotic_types_get_restricted_filters(self):
+    def test_exotic_types_get_restricted_filters(self) -> None:
         """Test that exotic scalar types are assigned restricted filters."""
         type_hints = get_type_hints(NetworkDevice)
 
@@ -51,7 +51,7 @@ class TestRestrictedFilterTypes:
         # Standard types should still use standard filters
         assert _get_filter_type_for_field(type_hints["name"]) == StringFilter
 
-    def test_network_address_filter_restrictions(self):
+    def test_network_address_filter_restrictions(self) -> None:
         """Test that NetworkAddressFilter excludes problematic operators."""
         # Get available operators (exclude private/special attributes)
         operators = [
@@ -72,7 +72,7 @@ class TestRestrictedFilterTypes:
         assert "startswith" not in operators
         assert "endswith" not in operators
 
-    def test_mac_address_filter_restrictions(self):
+    def test_mac_address_filter_restrictions(self) -> None:
         """Test that MacAddressFilter excludes problematic operators."""
         operators = [
             attr
@@ -92,7 +92,7 @@ class TestRestrictedFilterTypes:
         assert "startswith" not in operators
         assert "endswith" not in operators
 
-    def test_ltree_filter_restrictions(self):
+    def test_ltree_filter_restrictions(self) -> None:
         """Test that LTreeFilter has conservative operator set with ltree-specific operators."""
         operators = [
             attr
@@ -118,7 +118,7 @@ class TestRestrictedFilterTypes:
         assert "startswith" not in operators
         assert "endswith" not in operators
 
-    def test_generated_where_input_uses_restricted_filters(self):
+    def test_generated_where_input_uses_restricted_filters(self) -> None:
         """Test that generated GraphQL where input uses restricted filters."""
         WhereInput = create_graphql_where_input(NetworkDevice)
 
@@ -138,7 +138,7 @@ class TestRestrictedFilterTypes:
         assert mac_filter_type == MacAddressFilter
         assert path_filter_type == LTreeFilter
 
-    def test_standard_types_unchanged(self):
+    def test_standard_types_unchanged(self) -> None:
         """Test that standard Python types are not affected by restrictions."""
 
         @dataclass
@@ -161,7 +161,7 @@ class TestRestrictedFilterTypes:
         # Should be able to create instance without issues
         assert where_input is not None
 
-    def test_filter_instantiation(self):
+    def test_filter_instantiation(self) -> None:
         """Test that all restricted filters can be instantiated correctly."""
         # Test that we can create instances of all restricted filters
         network_filter = NetworkAddressFilter()
@@ -179,7 +179,7 @@ class TestRestrictedFilterTypes:
         assert ltree_filter.neq is None
         assert ltree_filter.isnull is None
 
-    def test_backwards_compatibility(self):
+    def test_backwards_compatibility(self) -> None:
         """Ensure existing code continues to work."""
 
         # Test that old usage patterns still work

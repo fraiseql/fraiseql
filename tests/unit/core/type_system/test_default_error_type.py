@@ -9,7 +9,7 @@ import fraiseql
 class TestDefaultErrorType:
     """Test that FraiseQL provides a default Error type out of the box."""
 
-    def test_error_type_is_available_from_main_import(self):
+    def test_error_type_is_available_from_main_import(self) -> None:
         """Test that Error type is importable from main fraiseql module."""
         # This should work without custom Error type definition
         from fraiseql import Error
@@ -24,7 +24,7 @@ class TestDefaultErrorType:
         expected_fields = {"message", "code", "identifier", "details"}
         assert expected_fields.issubset(field_names)
 
-    def test_error_type_can_be_instantiated(self):
+    def test_error_type_can_be_instantiated(self) -> None:
         """Test that default Error type works like FraiseQL's custom one."""
         from fraiseql import Error
 
@@ -37,7 +37,7 @@ class TestDefaultErrorType:
         assert error.identifier == "test_error"
         assert error.details == {"field": "value"}
 
-    def test_error_type_details_optional(self):
+    def test_error_type_details_optional(self) -> None:
         """Test that details field is optional."""
         from fraiseql import Error
 
@@ -53,7 +53,7 @@ class TestDefaultErrorType:
 class TestDefaultMutationResultBase:
     """Test that FraiseQL provides a default MutationResultBase."""
 
-    def test_mutation_result_base_available(self):
+    def test_mutation_result_base_available(self) -> None:
         """Test that MutationResultBase is available from main import."""
         from fraiseql import MutationResultBase
 
@@ -66,7 +66,7 @@ class TestDefaultMutationResultBase:
         expected_fields = {"status", "message", "errors"}
         assert expected_fields.issubset(field_names)
 
-    def test_mutation_result_base_can_be_used(self):
+    def test_mutation_result_base_can_be_used(self) -> None:
         """Test that MutationResultBase works for common patterns."""
         from fraiseql import MutationResultBase
 
@@ -82,7 +82,7 @@ class TestDefaultMutationResultBase:
         assert hasattr(TestSuccess, "__fraiseql_definition__")
         assert hasattr(TestError, "__fraiseql_definition__")
 
-    def test_mutation_result_base_inheritance_works(self):
+    def test_mutation_result_base_inheritance_works(self) -> None:
         """Test that inheriting from MutationResultBase provides expected fields."""
         from fraiseql import MutationResultBase
 
@@ -106,7 +106,7 @@ class TestDefaultMutationResultBase:
 class TestImprovedDefaultErrorConfig:
     """Test that DEFAULT_ERROR_CONFIG is more FraiseQL-friendly."""
 
-    def test_default_error_config_includes_fraiseql_patterns(self):
+    def test_default_error_config_includes_fraiseql_patterns(self) -> None:
         """Test that default config handles noop: and blocked: as data."""
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 
@@ -118,7 +118,7 @@ class TestImprovedDefaultErrorConfig:
         expected_success = {"success", "completed", "ok", "done", "updated", "created", "deleted"}
         assert expected_success.issubset(DEFAULT_ERROR_CONFIG.success_keywords)
 
-    def test_default_config_works_with_error_auto_population(self):
+    def test_default_config_works_with_error_auto_population(self) -> None:
         """Test that default config properly populates error arrays."""
         from fraiseql import Error
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
@@ -157,7 +157,7 @@ class TestImprovedDefaultErrorConfig:
 class TestPlugAndPlayIntegration:
     """Test that FraiseQL patterns work with minimal configuration."""
 
-    def test_simple_mutation_with_defaults(self):
+    def test_simple_mutation_with_defaults(self) -> None:
         """Test creating a mutation using only FraiseQL defaults."""
         from fraiseql import MutationResultBase
 
@@ -186,7 +186,7 @@ class TestPlugAndPlayIntegration:
         assert "status" in success_fields
         assert "message" in success_fields
 
-    def test_mutation_decorator_uses_better_defaults(self):
+    def test_mutation_decorator_uses_better_defaults(self) -> None:
         """Test that @mutation decorator uses improved defaults."""
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 

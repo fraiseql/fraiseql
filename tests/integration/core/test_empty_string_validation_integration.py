@@ -6,7 +6,6 @@ and real-world use cases.
 """
 
 import pytest
-from uuid import uuid4
 
 from fraiseql.types.fraise_input import fraise_input
 
@@ -19,7 +18,7 @@ class CreateUserInput:
 
 
 @pytest.mark.integration
-def test_nested_input_validation():
+def test_nested_input_validation() -> None:
     """Test that validation works in nested input scenarios."""
 
     @fraise_input
@@ -45,7 +44,7 @@ def test_nested_input_validation():
 
 
 @pytest.mark.integration
-def test_list_of_inputs_validation():
+def test_list_of_inputs_validation() -> None:
     """Test validation works when using lists of input objects."""
 
     @fraise_input
@@ -75,7 +74,7 @@ def test_list_of_inputs_validation():
 
 
 @pytest.mark.integration
-async def test_async_context_validation():
+async def test_async_context_validation() -> None:
     """Test that validation works in async contexts."""
 
     async def create_user_async(input_data: dict) -> CreateUserInput:
@@ -92,7 +91,7 @@ async def test_async_context_validation():
 
 
 @pytest.mark.integration
-def test_empty_string_validation_matches_issue_requirements():
+def test_empty_string_validation_matches_issue_requirements() -> None:
     """Test that validation matches the exact requirements from the GitHub issue."""
 
     @fraise_input
@@ -120,7 +119,7 @@ def test_empty_string_validation_matches_issue_requirements():
 
 
 @pytest.mark.integration
-def test_validation_error_format_matches_graphql_standards():
+def test_validation_error_format_matches_graphql_standards() -> None:
     """Test that error messages follow GraphQL error formatting expectations."""
 
     @fraise_input

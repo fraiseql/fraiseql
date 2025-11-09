@@ -47,8 +47,8 @@ def serialize_isin(value: Any) -> str | None:
 
     if not _ISIN_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid ISIN: {value}. Must be 12 characters (2 country + 9 security + 1 check digit) "
-            "(e.g., 'US0378331005', 'GB0002374006')"
+            f"Invalid ISIN: {value}. Must be 12 characters "
+            "(2 country + 9 security + 1 check digit) (e.g., 'US0378331005', 'GB0002374006')"
         )
 
     if not _validate_isin_check_digit(value_str):
@@ -66,8 +66,8 @@ def parse_isin_value(value: Any) -> str:
 
     if not _ISIN_REGEX.match(value_upper):
         raise GraphQLError(
-            f"Invalid ISIN: {value}. Must be 12 characters (2 country + 9 security + 1 check digit) "
-            "(e.g., 'US0378331005', 'GB0002374006')"
+            f"Invalid ISIN: {value}. Must be 12 characters "
+            "(2 country + 9 security + 1 check digit) (e.g., 'US0378331005', 'GB0002374006')"
         )
 
     if not _validate_isin_check_digit(value_upper):
@@ -124,8 +124,8 @@ class ISINField(str, ScalarMarker):
         value_upper = value.upper()
         if not _ISIN_REGEX.match(value_upper):
             raise ValueError(
-                f"Invalid ISIN: {value}. Must be 12 characters (2 country + 9 security + 1 check digit) "
-                "(e.g., 'US0378331005', 'GB0002374006')"
+                f"Invalid ISIN: {value}. Must be 12 characters "
+                "(2 country + 9 security + 1 check digit) (e.g., 'US0378331005', 'GB0002374006')"
             )
 
         if not _validate_isin_check_digit(value_upper):

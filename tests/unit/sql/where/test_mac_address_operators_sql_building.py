@@ -14,7 +14,7 @@ from fraiseql.sql.where.operators import mac_address
 class TestMACAddressSQLBuilding:
     """Test MAC address SQL building functions with proper PostgreSQL macaddr casting."""
 
-    def test_build_mac_equality_sql(self):
+    def test_build_mac_equality_sql(self) -> None:
         """Test MAC address equality SQL generation."""
         path_sql = SQL("data->>'mac_address'")
         mac_value = "00:11:22:33:44:55"
@@ -24,7 +24,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_inequality_sql(self):
+    def test_build_mac_inequality_sql(self) -> None:
         """Test MAC address inequality SQL generation."""
         path_sql = SQL("data->>'mac_address'")
         mac_value = "aa:bb:cc:dd:ee:ff"
@@ -34,7 +34,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'mac_address')::macaddr != 'aa:bb:cc:dd:ee:ff'::macaddr"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_in_list_sql(self):
+    def test_build_mac_in_list_sql(self) -> None:
         """Test MAC address IN list SQL generation."""
         path_sql = SQL("data->>'device_mac'")
         mac_list = ["00:11:22:33:44:55", "aa:bb:cc:dd:ee:ff", "ff:ee:dd:cc:bb:aa"]
@@ -44,7 +44,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'device_mac')::macaddr IN ('00:11:22:33:44:55'::macaddr, 'aa:bb:cc:dd:ee:ff'::macaddr, 'ff:ee:dd:cc:bb:aa'::macaddr)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_not_in_list_sql(self):
+    def test_build_mac_not_in_list_sql(self) -> None:
         """Test MAC address NOT IN list SQL generation."""
         path_sql = SQL("data->>'device_mac'")
         mac_list = ["00:11:22:33:44:55", "aa:bb:cc:dd:ee:ff"]
@@ -54,7 +54,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'device_mac')::macaddr NOT IN ('00:11:22:33:44:55'::macaddr, 'aa:bb:cc:dd:ee:ff'::macaddr)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_single_item_in_list(self):
+    def test_build_mac_single_item_in_list(self) -> None:
         """Test MAC address IN with single item."""
         path_sql = SQL("data->>'mac_address'")
         mac_list = ["00:11:22:33:44:55"]
@@ -64,7 +64,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'mac_address')::macaddr IN ('00:11:22:33:44:55'::macaddr)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_different_separators(self):
+    def test_build_mac_different_separators(self) -> None:
         """Test MAC address with different separators (- vs :)."""
         path_sql = SQL("data->>'mac_address'")
 
@@ -80,7 +80,7 @@ class TestMACAddressSQLBuilding:
         expected_colon = "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
         assert result_colon.as_string(None) == expected_colon
 
-    def test_build_mac_mixed_case(self):
+    def test_build_mac_mixed_case(self) -> None:
         """Test MAC address with mixed case (PostgreSQL normalizes)."""
         path_sql = SQL("data->>'mac_address'")
         mac_mixed = "AaBb:CcDd:EeFf"
@@ -90,7 +90,7 @@ class TestMACAddressSQLBuilding:
         expected_sql = "(data->>'mac_address')::macaddr = 'AaBb:CcDd:EeFf'::macaddr"
         assert result.as_string(None) == expected_sql
 
-    def test_build_mac_empty_list_handling(self):
+    def test_build_mac_empty_list_handling(self) -> None:
         """Test MAC address operators with empty lists."""
         path_sql = SQL("data->>'mac_address'")
         empty_list = []
@@ -109,14 +109,14 @@ class TestMACAddressSQLBuilding:
 class TestMACAddressValidation:
     """Test MAC address validation and error handling."""
 
-    def test_mac_in_requires_list(self):
+    def test_mac_in_requires_list(self) -> None:
         """Test that MAC IN operator requires a list."""
         path_sql = SQL("data->>'mac_address'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             mac_address.build_mac_in_sql(path_sql, "not-a-list")
 
-    def test_mac_notin_requires_list(self):
+    def test_mac_notin_requires_list(self) -> None:
         """Test that MAC NOT IN operator requires a list."""
         path_sql = SQL("data->>'mac_address'")
 

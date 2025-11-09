@@ -21,8 +21,8 @@ def serialize_stock_symbol(value: Any) -> str | None:
 
     if not _STOCK_SYMBOL_REGEX.match(value_str):
         raise GraphQLError(
-            f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters with optional class suffix "
-            "(e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
+            f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters "
+            "with optional class suffix (e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
         )
 
     return value_str
@@ -37,8 +37,8 @@ def parse_stock_symbol_value(value: Any) -> str:
 
     if not _STOCK_SYMBOL_REGEX.match(value_upper):
         raise GraphQLError(
-            f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters with optional class suffix "
-            "(e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
+            f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters "
+            "with optional class suffix (e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
         )
 
     return value_upper
@@ -90,7 +90,7 @@ class StockSymbolField(str, ScalarMarker):
         value_upper = value.upper()
         if not _STOCK_SYMBOL_REGEX.match(value_upper):
             raise ValueError(
-                f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters with optional class suffix "
-                "(e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
+                f"Invalid stock symbol: {value}. Must be 1-5 uppercase letters "
+                "with optional class suffix (e.g., 'AAPL', 'MSFT', 'BRK.A', 'BRK.B')"
             )
         return super().__new__(cls, value_upper)

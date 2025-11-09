@@ -4,8 +4,9 @@ Tests the count() method implementation following TDD methodology.
 This test should initially FAIL until the method is implemented.
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from fraiseql.db import FraiseQLRepository
 
@@ -14,7 +15,7 @@ class TestFraiseQLRepositoryCount:
     """Test suite for db.count() method."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         pool = MagicMock()
         connection = MagicMock()
@@ -34,16 +35,16 @@ class TestFraiseQLRepositoryCount:
         return pool, cursor
 
     @pytest.mark.asyncio
-    async def test_count_method_exists(self, mock_pool):
+    async def test_count_method_exists(self, mock_pool) -> None:
         """Test that count() method exists on FraiseQLRepository."""
         pool, _ = mock_pool
         db = FraiseQLRepository(pool)
 
-        assert hasattr(db, 'count'), "FraiseQLRepository should have count() method"
-        assert callable(getattr(db, 'count')), "count should be callable"
+        assert hasattr(db, "count"), "FraiseQLRepository should have count() method"
+        assert callable(db.count), "count should be callable"
 
     @pytest.mark.asyncio
-    async def test_count_returns_integer(self, mock_pool):
+    async def test_count_returns_integer(self, mock_pool) -> None:
         """Test that count() returns an integer."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (42,)
@@ -55,7 +56,7 @@ class TestFraiseQLRepositoryCount:
         assert result == 42
 
     @pytest.mark.asyncio
-    async def test_count_without_filters(self, mock_pool):
+    async def test_count_without_filters(self, mock_pool) -> None:
         """Test count() without any filters returns total count."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (100,)
@@ -67,22 +68,19 @@ class TestFraiseQLRepositoryCount:
         cursor.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_count_with_where_clause(self, mock_pool):
+    async def test_count_with_where_clause(self, mock_pool) -> None:
         """Test count() with where filter."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (25,)
 
         db = FraiseQLRepository(pool)
-        result = await db.count(
-            "v_users",
-            where={"status": {"eq": "active"}}
-        )
+        result = await db.count("v_users", where={"status": {"eq": "active"}})
 
         assert result == 25
         cursor.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_count_with_tenant_id(self, mock_pool):
+    async def test_count_with_tenant_id(self, mock_pool) -> None:
         """Test count() with tenant_id filter."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (15,)
@@ -93,24 +91,20 @@ class TestFraiseQLRepositoryCount:
         assert result == 15
 
     @pytest.mark.asyncio
-    async def test_count_with_multiple_filters(self, mock_pool):
+    async def test_count_with_multiple_filters(self, mock_pool) -> None:
         """Test count() with multiple where conditions."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (5,)
 
         db = FraiseQLRepository(pool)
         result = await db.count(
-            "v_users",
-            where={
-                "status": {"eq": "active"},
-                "role": {"eq": "admin"}
-            }
+            "v_users", where={"status": {"eq": "active"}, "role": {"eq": "admin"}}
         )
 
         assert result == 5
 
     @pytest.mark.asyncio
-    async def test_count_returns_zero_when_no_results(self, mock_pool):
+    async def test_count_returns_zero_when_no_results(self, mock_pool) -> None:
         """Test count() returns 0 when no records match."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (0,)
@@ -121,7 +115,7 @@ class TestFraiseQLRepositoryCount:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_count_returns_zero_when_fetchone_is_none(self, mock_pool):
+    async def test_count_returns_zero_when_fetchone_is_none(self, mock_pool) -> None:
         """Test count() returns 0 when cursor.fetchone() returns None."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = None
@@ -132,7 +126,7 @@ class TestFraiseQLRepositoryCount:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_count_uses_correct_sql_query(self, mock_pool):
+    async def test_count_uses_correct_sql_query(self, mock_pool) -> None:
         """Test that count() generates correct SQL COUNT(*) query."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (50,)
@@ -149,7 +143,7 @@ class TestFraiseQLRepositoryCount:
         assert "COUNT(*)" in sql_arg.upper(), f"SQL should contain COUNT(*), got: {sql_arg}"
 
     @pytest.mark.asyncio
-    async def test_count_signature_matches_find_api(self, mock_pool):
+    async def test_count_signature_matches_find_api(self, mock_pool) -> None:
         """Test that count() has similar signature to find() for consistency."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (10,)
@@ -158,32 +152,26 @@ class TestFraiseQLRepositoryCount:
 
         # Should accept same kwargs as find()
         result = await db.count(
-            "v_users",
-            where={"status": {"eq": "active"}},
-            tenant_id="tenant-123"
+            "v_users", where={"status": {"eq": "active"}}, tenant_id="tenant-123"
         )
 
         assert result == 10
 
     @pytest.mark.asyncio
-    async def test_count_with_complex_where_conditions(self, mock_pool):
+    async def test_count_with_complex_where_conditions(self, mock_pool) -> None:
         """Test count() with complex GraphQL-style where conditions."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (3,)
 
         db = FraiseQLRepository(pool)
         result = await db.count(
-            "v_products",
-            where={
-                "price": {"gt": 100, "lt": 500},
-                "category": {"eq": "electronics"}
-            }
+            "v_products", where={"price": {"gt": 100, "lt": 500}, "category": {"eq": "electronics"}}
         )
 
         assert result == 3
 
     @pytest.mark.asyncio
-    async def test_count_executes_query_in_connection_context(self, mock_pool):
+    async def test_count_executes_query_in_connection_context(self, mock_pool) -> None:
         """Test that count() properly uses connection and cursor contexts."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (7,)
@@ -199,7 +187,7 @@ class TestFraiseQLRepositoryCount:
         connection.cursor.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_count_with_view_name_only(self, mock_pool):
+    async def test_count_with_view_name_only(self, mock_pool) -> None:
         """Test count() with only view_name parameter (simplest case)."""
         pool, cursor = mock_pool
         cursor.fetchone.return_value = (200,)

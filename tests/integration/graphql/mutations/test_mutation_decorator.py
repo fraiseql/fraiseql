@@ -164,7 +164,7 @@ class TestMutationResolver:
         input_obj.email = "john@example.com"
 
         # Mock to_dict method
-        def mock_to_dict():
+        def mock_to_dict() -> None:
             return {"name": "John Doe", "email": "john@example.com"}
 
         input_obj.to_dict = mock_to_dict

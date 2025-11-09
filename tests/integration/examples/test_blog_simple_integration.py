@@ -21,7 +21,7 @@ pytestmark = [
 
 
 @pytest.mark.asyncio
-async def test_smart_dependencies_available(smart_dependencies):
+async def test_smart_dependencies_available(smart_dependencies) -> None:
     """Test that smart dependency management successfully provides all required dependencies."""
     # Verify that smart dependencies fixture provided dependency information
     assert smart_dependencies is not None
@@ -70,7 +70,7 @@ async def test_smart_dependencies_available(smart_dependencies):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_app_health(blog_simple_client):
+async def test_blog_simple_app_health(blog_simple_client) -> None:
     """Test that blog_simple app starts up and responds to health checks."""
     logger.info("Testing blog_simple app health endpoint")
     response = await blog_simple_client.get("/health")
@@ -84,7 +84,7 @@ async def test_blog_simple_app_health(blog_simple_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_home_endpoint(blog_simple_client):
+async def test_blog_simple_home_endpoint(blog_simple_client) -> None:
     """Test that blog_simple home endpoint returns expected information."""
     response = await blog_simple_client.get("/")
     assert response.status_code == 200
@@ -96,7 +96,7 @@ async def test_blog_simple_home_endpoint(blog_simple_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_graphql_introspection(blog_simple_graphql_client):
+async def test_blog_simple_graphql_introspection(blog_simple_graphql_client) -> None:
     """Test that GraphQL introspection works for blog_simple."""
     introspection_query = """
         query IntrospectionQuery {
@@ -127,7 +127,7 @@ async def test_blog_simple_graphql_introspection(blog_simple_graphql_client):
 
 @pytest.mark.skip(reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_basic_queries -v")
 @pytest.mark.asyncio
-async def test_blog_simple_basic_queries(blog_simple_graphql_client):
+async def test_blog_simple_basic_queries(blog_simple_graphql_client) -> None:
     """Test basic queries work without errors."""
     # Test posts query
     posts_query = """
@@ -166,7 +166,7 @@ async def test_blog_simple_basic_queries(blog_simple_graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_database_connectivity(blog_simple_repository):
+async def test_blog_simple_database_connectivity(blog_simple_repository) -> None:
     """Test that database connectivity works properly."""
     # Test basic database connection
     result = await blog_simple_repository.connection.execute("SELECT 1 as test")
@@ -176,7 +176,7 @@ async def test_blog_simple_database_connectivity(blog_simple_repository):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_seed_data(blog_simple_repository):
+async def test_blog_simple_seed_data(blog_simple_repository) -> None:
     """Test that seed data is properly loaded."""
     # Check that tb_user table exists and has data
     result = await blog_simple_repository.connection.execute(
@@ -202,7 +202,7 @@ async def test_blog_simple_seed_data(blog_simple_repository):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_mutations_structure(blog_simple_graphql_client):
+async def test_blog_simple_mutations_structure(blog_simple_graphql_client) -> None:
     """Test that mutations are properly structured."""
     # Test introspection for mutations
     mutation_query = """
@@ -241,7 +241,7 @@ async def test_blog_simple_mutations_structure(blog_simple_graphql_client):
 @pytest.mark.skip(reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_performance_baseline -v")
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_blog_simple_performance_baseline(blog_simple_graphql_client):
+async def test_blog_simple_performance_baseline(blog_simple_graphql_client) -> None:
     """Test basic performance baseline for blog_simple."""
     import time
 
@@ -271,7 +271,7 @@ async def test_blog_simple_performance_baseline(blog_simple_graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_blog_simple_error_handling(blog_simple_graphql_client):
+async def test_blog_simple_error_handling(blog_simple_graphql_client) -> None:
     """Test that error handling works properly."""
     # Test invalid query
     invalid_query = """

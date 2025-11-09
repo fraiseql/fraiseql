@@ -11,8 +11,9 @@ Related: /tmp/JSONB_ISSUE_ANALYSIS_PRINTOPTIM_VS_FRAISEQL.md
 """
 
 import json
-import pytest
 from uuid import UUID
+
+import pytest
 
 pytestmark = pytest.mark.database
 
@@ -22,14 +23,15 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.graphql.execute import execute_graphql
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.graphql.execute import execute_graphql
 
 
 # Test type with JSONB data
 @fraiseql.type
 class ProductWithJSONB:
     """Product entity with JSONB data column."""
+
     id: str
     name: str
     brand: str  # Stored in JSONB
@@ -39,9 +41,7 @@ class ProductWithJSONB:
 
 # GraphQL resolvers that return typed JSONB entities
 @fraiseql.query
-async def products_with_jsonb(
-    info, limit: int = 10
-) -> list[ProductWithJSONB]:
+async def products_with_jsonb(info, limit: int = 10) -> list[ProductWithJSONB]:
     """List query with typed return value - this should reproduce PrintOptim's issue.
 
     The resolver returns list[ProductWithJSONB] but repo.find() returns RustResponseBytes.
@@ -56,9 +56,7 @@ async def products_with_jsonb(
 
 
 @fraiseql.query
-async def product_with_jsonb(
-    info, id: UUID
-) -> ProductWithJSONB | None:
+async def product_with_jsonb(info, id: UUID) -> ProductWithJSONB | None:
     """Single query with typed return value.
 
     The resolver returns ProductWithJSONB | None but repo.find_one() returns RustResponseBytes.
@@ -112,7 +110,7 @@ class TestJSONBFullGraphQLExecution:
     """
 
     @pytest.fixture
-    async def setup_graphql_jsonb_test(self, db_pool):
+    async def setup_graphql_jsonb_test(self, db_pool) -> None:
         """Create test data and register types for GraphQL execution."""
         # Register type with has_jsonb_data=True
         register_type_for_view(
@@ -120,7 +118,7 @@ class TestJSONBFullGraphQLExecution:
             ProductWithJSONB,
             table_columns={"id", "name", "data"},
             has_jsonb_data=True,
-            jsonb_column="data"
+            jsonb_column="data",
         )
 
         async with db_pool.connection() as conn:
@@ -172,9 +170,7 @@ class TestJSONBFullGraphQLExecution:
             await conn.execute("DROP TABLE IF EXISTS test_products_graphql_jsonb")
 
     @pytest.mark.asyncio
-    async def test_graphql_list_query_with_jsonb_entities(
-        self, db_pool, setup_graphql_jsonb_test
-    ):
+    async def test_graphql_list_query_with_jsonb_entities(self, db_pool, setup_graphql_jsonb_test):
         """Test GraphQL list query with JSONB entities through typed resolver.
 
         This is the CRITICAL test that reproduces PrintOptim's issue:
@@ -194,9 +190,7 @@ class TestJSONBFullGraphQLExecution:
         If this test FAILS, it confirms PrintOptim's issue is real.
         If this test PASSES, our implementation already handles it correctly.
         """
-        schema = build_fraiseql_schema(
-            query_types=[products_with_jsonb]
-        )
+        schema = build_fraiseql_schema(query_types=[products_with_jsonb])
 
         query_str = """
             query GetProducts {
@@ -211,11 +205,7 @@ class TestJSONBFullGraphQLExecution:
         """
 
         # Use execute_graphql() which supports RustResponseBytes pass-through
-        result = await execute_graphql(
-            schema,
-            query_str,
-            context_value={"pool": db_pool}
-        )
+        result = await execute_graphql(schema, query_str, context_value={"pool": db_pool})
 
         # 🚀 RUST RESPONSE BYTES PATH:
         # execute_graphql() should return RustResponseBytes directly for repo.find() results
@@ -230,10 +220,12 @@ class TestJSONBFullGraphQLExecution:
             # The field name in RustResponseBytes is the view name (not the GraphQL field name)
             # This is because repo.find() doesn't have access to the GraphQL field name
             # For now, we accept either name
-            field_name = "productsWithJsonb" if "productsWithJsonb" in data["data"] else "test_products_graphql_jsonb_view"
-            assert field_name in data["data"], (
-                f"Expected '{field_name}' field in data: {data}"
+            field_name = (
+                "productsWithJsonb"
+                if "productsWithJsonb" in data["data"]
+                else "test_products_graphql_jsonb_view"
             )
+            assert field_name in data["data"], f"Expected '{field_name}' field in data: {data}"
 
             products = data["data"][field_name]
         else:
@@ -265,9 +257,7 @@ class TestJSONBFullGraphQLExecution:
         assert "price" in first_product
 
     @pytest.mark.asyncio
-    async def test_graphql_single_query_with_jsonb_entity(
-        self, db_pool, setup_graphql_jsonb_test
-    ):
+    async def test_graphql_single_query_with_jsonb_entity(self, db_pool, setup_graphql_jsonb_test):
         """Test GraphQL single-object query with JSONB entity through typed resolver.
 
         Similar to the list query test, but for single objects.
@@ -284,9 +274,7 @@ class TestJSONBFullGraphQLExecution:
             ❌ GraphQL-core tries to serialize RustResponseBytes as ProductWithJSONB
             ❌ Error: "Expected value of type 'ProductWithJSONB' but got: <RustResponseBytes instance>"
         """
-        schema = build_fraiseql_schema(
-            query_types=[product_with_jsonb]
-        )
+        schema = build_fraiseql_schema(query_types=[product_with_jsonb])
 
         query_str = """
             query GetProduct($id: ID!) {
@@ -305,7 +293,7 @@ class TestJSONBFullGraphQLExecution:
             schema,
             query_str,
             context_value={"pool": db_pool},
-            variable_values={"id": "gql-prod-001"}
+            variable_values={"id": "gql-prod-001"},
         )
 
         # 🚀 RUST RESPONSE BYTES PATH:
@@ -319,10 +307,12 @@ class TestJSONBFullGraphQLExecution:
             assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
 
             # The field name in RustResponseBytes is the view name (not the GraphQL field name)
-            field_name = "productWithJsonb" if "productWithJsonb" in data["data"] else "test_products_graphql_jsonb_view"
-            assert field_name in data["data"], (
-                f"Expected '{field_name}' field in data: {data}"
+            field_name = (
+                "productWithJsonb"
+                if "productWithJsonb" in data["data"]
+                else "test_products_graphql_jsonb_view"
             )
+            assert field_name in data["data"], f"Expected '{field_name}' field in data: {data}"
 
             product = data["data"][field_name]
         else:
@@ -356,9 +346,7 @@ class TestJSONBFullGraphQLExecution:
         assert product["brand"] == "Dell"
 
     @pytest.mark.asyncio
-    async def test_mutation_with_jsonb_entity(
-        self, db_pool, setup_graphql_jsonb_test
-    ):
+    async def test_mutation_with_jsonb_entity(self, db_pool, setup_graphql_jsonb_test):
         """Test GraphQL mutation with JSONB entity.
 
         PrintOptim reported that mutations work correctly while queries fail.
@@ -378,7 +366,7 @@ class TestJSONBFullGraphQLExecution:
         """
         schema = build_fraiseql_schema(
             query_types=[products_with_jsonb],  # Need at least one query
-            mutation_resolvers=[create_product_with_jsonb]
+            mutation_resolvers=[create_product_with_jsonb],
         )
 
         mutation_str = """
@@ -415,8 +403,8 @@ class TestJSONBFullGraphQLExecution:
                 "name": "Mutation Test Product",
                 "brand": "TestBrand",
                 "category": "TestCategory",
-                "price": 123.45
-            }
+                "price": 123.45,
+            },
         )
 
         # 🚀 RUST RESPONSE BYTES PATH:
@@ -429,10 +417,12 @@ class TestJSONBFullGraphQLExecution:
             assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
 
             # The field name should be the mutation name
-            field_name = "createProductWithJsonb" if "createProductWithJsonb" in data["data"] else "test_products_graphql_jsonb_view"
-            assert field_name in data["data"], (
-                f"Expected '{field_name}' field in data: {data}"
+            field_name = (
+                "createProductWithJsonb"
+                if "createProductWithJsonb" in data["data"]
+                else "test_products_graphql_jsonb_view"
             )
+            assert field_name in data["data"], f"Expected '{field_name}' field in data: {data}"
 
             product = data["data"][field_name]
         else:
@@ -447,7 +437,9 @@ class TestJSONBFullGraphQLExecution:
 
             # ASSERTION 2: Should have data
             assert result.data is not None, "Expected data in GraphQL mutation result"
-            assert "createProductWithJsonb" in result.data, "Expected 'createProductWithJsonb' field"
+            assert "createProductWithJsonb" in result.data, (
+                "Expected 'createProductWithJsonb' field"
+            )
 
             # ASSERTION 3: Should return created product
             product = result.data["createProductWithJsonb"]

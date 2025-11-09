@@ -50,7 +50,7 @@ class MutationTestError:
 class TestGraphQLErrorSerialization:
     """Test cases for GraphQL error serialization."""
 
-    def test_clean_fraise_types_single_object(self):
+    def test_clean_fraise_types_single_object(self) -> None:
         """Test cleaning a single @fraise_type object."""
         error = Error(
             message="Test error", code=400, identifier="test_error", details={"field": "name"}
@@ -65,7 +65,7 @@ class TestGraphQLErrorSerialization:
         assert cleaned["identifier"] == "test_error"
         assert cleaned["details"] == {"field": "name"}
 
-    def test_clean_fraise_types_list_of_objects(self):
+    def test_clean_fraise_types_list_of_objects(self) -> None:
         """Test cleaning a list containing @fraise_type objects."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
@@ -81,7 +81,7 @@ class TestGraphQLErrorSerialization:
         assert cleaned[0]["message"] == "Error 1"
         assert cleaned[1]["message"] == "Error 2"
 
-    def test_clean_fraise_types_nested_structure(self):
+    def test_clean_fraise_types_nested_structure(self) -> None:
         """Test cleaning nested data structures with @fraise_type objects."""
         error = Error(message="Nested error", code=409, identifier="nested")
 
@@ -102,7 +102,7 @@ class TestGraphQLErrorSerialization:
         assert error_dict["message"] == "Nested error"
         assert error_dict["code"] == 409
 
-    def test_clean_fraise_types_preserves_non_fraise_objects(self):
+    def test_clean_fraise_types_preserves_non_fraise_objects(self) -> None:
         """Test that non-@fraise_type objects are preserved."""
         data = {
             "string": "test",
@@ -118,7 +118,7 @@ class TestGraphQLErrorSerialization:
         assert cleaned == data
         assert cleaned is not data  # But different object
 
-    def test_serialize_fraise_types_in_result(self):
+    def test_serialize_fraise_types_in_result(self) -> None:
         """Test the ExecutionResult serialization wrapper."""
         error = Error(message="Test", code=400, identifier="test")
 
@@ -140,7 +140,7 @@ class TestGraphQLErrorSerialization:
         assert isinstance(error_dict, dict)
         assert error_dict["message"] == "Test"
 
-    def test_serialize_fraise_types_empty_result(self):
+    def test_serialize_fraise_types_empty_result(self) -> None:
         """Test serialization with empty result data."""
         execution_result = ExecutionResult(data=None, errors=None)
 
@@ -150,7 +150,7 @@ class TestGraphQLErrorSerialization:
         assert cleaned_result.data is None
         assert cleaned_result.errors is None
 
-    def test_mutation_error_autopop_integration(self):
+    def test_mutation_error_autopop_integration(self) -> None:
         """Test that error auto-population creates serializable objects."""
         # Simulate PostgreSQL function result
         result = {
@@ -193,7 +193,7 @@ class TestGraphQLErrorSerialization:
         assert error_dict["code"] == 409
         assert error_dict["identifier"] == "already_exists"
 
-    def test_json_serialization_after_cleaning(self):
+    def test_json_serialization_after_cleaning(self) -> None:
         """Test that cleaned objects can be JSON serialized."""
         import json
 
@@ -235,7 +235,7 @@ class TestGraphQLErrorSerialization:
         assert parsed["extensions"]["trace"] == "debug"
 
     @pytest.mark.asyncio
-    async def test_graphql_execution_integration(self):
+    async def test_graphql_execution_integration(self) -> None:
         """Test that the fix works in actual GraphQL execution context.
 
         This test would require a full GraphQL schema setup, but we can test
@@ -270,7 +270,7 @@ class TestGraphQLErrorSerialization:
         assert parsed["testMutation"]["errors"][0]["message"] == "GraphQL test"
         assert parsed["testMutation"]["errors"][0]["code"] == 500
 
-    def test_performance_with_large_structures(self):
+    def test_performance_with_large_structures(self) -> None:
         """Test that cleaning performance is reasonable with large structures."""
         import time
 
@@ -306,7 +306,7 @@ class TestGraphQLErrorSerialization:
         assert len(cleaned["mutations"][0]["result"]["errors"]) == 10
         assert isinstance(cleaned["mutations"][0]["result"]["errors"][0], dict)
 
-    def test_recursive_cleaning_safety(self):
+    def test_recursive_cleaning_safety(self) -> None:
         """Test that recursive cleaning handles circular references safely."""
         error = Error(message="Recursive test", code=400, identifier="recursive")
 

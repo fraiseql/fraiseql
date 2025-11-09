@@ -110,7 +110,7 @@ class MoneyField(str, ScalarMarker):
         elif isinstance(value, str):
             value_str = value
         else:
-            raise ValueError(f"Money must be a number or string, got {type(value).__name__}")
+            raise TypeError(f"Money must be a number or string, got {type(value).__name__}")
 
         if not _MONEY_REGEX.match(value_str):
             raise ValueError(

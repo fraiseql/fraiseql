@@ -15,7 +15,7 @@ from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder, FraiseQLJSONRespo
 class TestFraiseTypeJSONSerialization:
     """Test that @fraiseql.type decorated classes are JSON serializable."""
 
-    def test_fraiseql_type_direct_serialization_fails(self):
+    def test_fraiseql_type_direct_serialization_fails(self) -> None:
         """Test that direct JSON serialization currently fails (reproducing bug)."""
 
         @fraiseql.type(sql_source="tv_allocation")
@@ -35,7 +35,7 @@ class TestFraiseTypeJSONSerialization:
         with pytest.raises(TypeError, match="Object of type Allocation is not JSON serializable"):
             json.dumps(allocation)
 
-    def test_fraiseql_type_in_graphql_response_fails(self):
+    def test_fraiseql_type_in_graphql_response_fails(self) -> None:
         """Test that FraiseQL types in GraphQL responses fail to serialize (reproducing bug)."""
 
         @fraiseql.type(sql_source="tv_allocation")
@@ -58,7 +58,7 @@ class TestFraiseTypeJSONSerialization:
         with pytest.raises(TypeError, match="Object of type Allocation is not JSON serializable"):
             json.dumps(response_data)
 
-    def test_fraiseql_json_encoder_handles_fraiseql_types(self):
+    def test_fraiseql_json_encoder_handles_fraiseql_types(self) -> None:
         """Test that FraiseQLJSONEncoder should handle FraiseQL types (this will fail initially)."""
 
         @fraiseql.type(sql_source="tv_user")
@@ -94,7 +94,7 @@ class TestFraiseTypeJSONSerialization:
         assert result["created_at"] == "2024-01-15T10:30:00"
         assert result["is_active"] is True
 
-    def test_fraiseql_json_encoder_handles_nested_fraiseql_types(self):
+    def test_fraiseql_json_encoder_handles_nested_fraiseql_types(self) -> None:
         """Test that FraiseQLJSONEncoder handles nested FraiseQL types."""
 
         @fraiseql.type(sql_source="tv_department")
@@ -129,7 +129,7 @@ class TestFraiseTypeJSONSerialization:
         assert isinstance(result["department"], dict)
         assert result["department"]["name"] == "Engineering"
 
-    def test_fraiseql_json_encoder_handles_lists_of_fraiseql_types(self):
+    def test_fraiseql_json_encoder_handles_lists_of_fraiseql_types(self) -> None:
         """Test that FraiseQLJSONEncoder handles lists of FraiseQL types."""
 
         @fraiseql.type(sql_source="tv_product")
@@ -160,7 +160,7 @@ class TestFraiseTypeJSONSerialization:
         assert result["data"]["products"][0]["name"] == "Product 1"
         assert result["data"]["products"][1]["price"] == 25.50
 
-    def test_fraiseql_json_response_with_fraiseql_types(self):
+    def test_fraiseql_json_response_with_fraiseql_types(self) -> None:
         """Test that FraiseQLJSONResponse works with FraiseQL types."""
 
         @fraiseql.type(sql_source="tv_order")
@@ -186,7 +186,7 @@ class TestFraiseTypeJSONSerialization:
         assert result["data"]["order"]["total"] == 99.99
         assert result["data"]["order"]["created_at"] == "2024-01-15T14:30:00"
 
-    def test_fraiseql_type_without_dataclass_decorator(self):
+    def test_fraiseql_type_without_dataclass_decorator(self) -> None:
         """Test that FraiseQL types work without @dataclass decorator."""
 
         @fraiseql.type(sql_source="tv_simple")
@@ -209,7 +209,7 @@ class TestFraiseTypeJSONSerialization:
         assert result["name"] == "Test"
         assert "id" in result
 
-    def test_from_dict_method_exists_and_works(self):
+    def test_from_dict_method_exists_and_works(self) -> None:
         """Test that @fraiseql.type adds from_dict method correctly."""
 
         @fraiseql.type(sql_source="tv_test")
@@ -239,7 +239,7 @@ class TestFraiseTypeJSONSerialization:
         assert instance.name == "Test Name"
         assert instance.created_at == "2024-01-15T10:30:00"  # Type conversion handled
 
-    def test_fraiseql_type_has_required_attributes(self):
+    def test_fraiseql_type_has_required_attributes(self) -> None:
         """Test that @fraiseql.type adds required FraiseQL attributes."""
 
         @fraiseql.type(sql_source="tv_test")

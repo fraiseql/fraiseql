@@ -17,9 +17,8 @@ from typing import Optional
 
 import pytest
 
-import fraiseql
 from fraiseql.fields import fraise_field
-from fraiseql.types import fraise_input, fraise_type
+from fraiseql.types import fraise_type
 
 
 # Mock PrintServer type for testing (from the feature request document)
@@ -47,7 +46,7 @@ class NetworkConfiguration:
 class TestNestedArrayWhereFiltering:
     """Test nested array Where type filtering functionality."""
 
-    def test_where_input_type_generated_for_nested_array_elements(self):
+    def test_where_input_type_generated_for_nested_array_elements(self) -> None:
         """Test that WhereInput types are automatically generated for nested array elements."""
         # This should pass after implementation - checking that the Where type is created
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
@@ -75,12 +74,12 @@ class TestNestedArrayWhereFiltering:
 
         assert where_filter is not None
 
-    def test_nested_array_field_supports_where_parameter(self):
+    def test_nested_array_field_supports_where_parameter(self) -> None:
         """Test that nested array fields can accept where parameters in resolvers."""
         # This test will initially fail - need to implement where parameter support
 
         # Mock resolver function that should accept where parameter
-        async def mock_print_servers_resolver(parent, info, where=None):
+        async def mock_print_servers_resolver(parent, info, where=None) -> None:
             """Mock resolver that should handle where filtering."""
             servers = getattr(parent, "print_servers", [])
 
@@ -144,7 +143,7 @@ class TestNestedArrayWhereFiltering:
         assert result[0].hostname == "prod-server-01"
         assert result[0].ip_address == "192.168.1.10"
 
-    def test_multiple_filter_operators_on_nested_arrays(self):
+    def test_multiple_filter_operators_on_nested_arrays(self) -> None:
         """Test complex filtering with multiple operators on nested array elements."""
         # This will fail initially - need to implement operator support
 
@@ -184,7 +183,7 @@ class TestNestedArrayWhereFiltering:
         assert len(filtered) == 1
         assert filtered[0].hostname == "prod-web-01"
 
-    def test_enum_filtering_on_nested_arrays(self):
+    def test_enum_filtering_on_nested_arrays(self) -> None:
         """Test filtering nested arrays using enum/choice operators."""
         servers_data = [
             PrintServer(id=uuid.uuid4(), hostname="server-01", operating_system="Windows Server"),
@@ -209,7 +208,7 @@ class TestNestedArrayWhereFiltering:
         assert "Linux" in os_values
         assert "macOS" not in os_values
 
-    def test_null_filtering_on_nested_arrays(self):
+    def test_null_filtering_on_nested_arrays(self) -> None:
         """Test null/not null filtering on nested array elements."""
         servers_data = [
             PrintServer(
@@ -254,7 +253,7 @@ class TestNestedArrayWhereFiltering:
 # Helper functions for testing - these will be replaced by actual implementation
 
 
-def _matches_where_criteria(item, where_filter):
+def _matches_where_criteria(item, where_filter) -> None:
     """Helper function to test if an item matches where criteria."""
     # This is a simplified implementation for testing
     # Real implementation will be in the field resolver
@@ -278,33 +277,32 @@ def _matches_where_criteria(item, where_filter):
     return True
 
 
-def _apply_field_filter(item_value, filter_dict):
+def _apply_field_filter(item_value, filter_dict) -> None:
     """Apply field-level filtering logic."""
     if not isinstance(filter_dict, dict):
         return True
 
     for operator, filter_value in filter_dict.items():
-        if operator == "eq" and item_value != filter_value:
+        if (operator == "eq" and item_value != filter_value) or (
+            operator == "contains" and filter_value not in str(item_value)
+        ):
             return False
-        elif operator == "contains" and filter_value not in str(item_value):
+        if (
+            (operator == "startswith" and not str(item_value).startswith(filter_value))
+            or (operator == "gte" and item_value < filter_value)
+            or (operator == "lte" and item_value > filter_value)
+            or (operator == "in_" and item_value not in filter_value)
+        ):
             return False
-        elif operator == "startswith" and not str(item_value).startswith(filter_value):
-            return False
-        elif operator == "gte" and item_value < filter_value:
-            return False
-        elif operator == "lte" and item_value > filter_value:
-            return False
-        elif operator == "in_" and item_value not in filter_value:
-            return False
-        elif operator == "isnull":
-            if filter_value and item_value is not None:
-                return False
-            elif not filter_value and item_value is None:
+        if operator == "isnull":
+            if (filter_value and item_value is not None) or (
+                not filter_value and item_value is None
+            ):
                 return False
 
     return True
 
 
-def _apply_where_filter(items, where_filter):
+def _apply_where_filter(items, where_filter) -> None:
     """Apply where filter to a list of items."""
     return [item for item in items if _matches_where_criteria(item, where_filter)]

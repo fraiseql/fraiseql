@@ -17,11 +17,11 @@ pytestmark = pytest.mark.database
 # Import database fixtures for this database test
 
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 # Test types
@@ -55,7 +55,7 @@ class TestRepositoryWhereIntegration:
     """Test suite for repository where type integration."""
 
     @pytest.fixture
-    async def setup_test_views(self, db_pool):
+    async def setup_test_views(self, db_pool) -> None:
         """Create test views with proper structure."""
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
@@ -161,7 +161,7 @@ class TestRepositoryWhereIntegration:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_find_with_simple_where_equality(self, db_pool, setup_test_views):
+    async def test_find_with_simple_where_equality(self, db_pool, setup_test_views) -> None:
         """Test finding records with simple equality operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -183,7 +183,7 @@ class TestRepositoryWhereIntegration:
         assert result_dict["price"] == 19.99  # JSON numbers, not Decimal
 
     @pytest.mark.asyncio
-    async def test_find_with_comparison_operators(self, db_pool, setup_test_views):
+    async def test_find_with_comparison_operators(self, db_pool, setup_test_views) -> None:
         """Test finding records with comparison operators."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -204,7 +204,7 @@ class TestRepositoryWhereIntegration:
         assert all(r["stock"] <= 50 for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_multiple_operators(self, db_pool, setup_test_views):
+    async def test_find_with_multiple_operators(self, db_pool, setup_test_views) -> None:
         """Test finding records with multiple operators on same field."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -217,7 +217,7 @@ class TestRepositoryWhereIntegration:
         assert all(20 <= r["price"] < 100 for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_multiple_fields(self, db_pool, setup_test_views):
+    async def test_find_with_multiple_fields(self, db_pool, setup_test_views) -> None:
         """Test finding records with filters on multiple fields."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -230,7 +230,7 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] == "widgets" and r["isActive"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_null_handling(self, db_pool, setup_test_views):
+    async def test_find_with_null_handling(self, db_pool, setup_test_views) -> None:
         """Test finding records with null value handling."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -251,7 +251,7 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] is not None for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_date_filtering(self, db_pool, setup_test_views):
+    async def test_find_with_date_filtering(self, db_pool, setup_test_views) -> None:
         """Test finding records with date/datetime filtering."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -274,7 +274,7 @@ class TestRepositoryWhereIntegration:
         assert results[0]["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_find_one_with_where(self, db_pool, setup_test_views):
+    async def test_find_one_with_where(self, db_pool, setup_test_views) -> None:
         """Test find_one with where type filtering."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -318,7 +318,7 @@ class TestRepositoryWhereIntegration:
             assert actual_result.price == Decimal("29.99")
 
     @pytest.mark.asyncio
-    async def test_combining_where_with_kwargs(self, db_pool, setup_test_views):
+    async def test_combining_where_with_kwargs(self, db_pool, setup_test_views) -> None:
         """Test combining where type with additional kwargs filters."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -333,7 +333,7 @@ class TestRepositoryWhereIntegration:
         assert all(r["price"] < 100 and r["isActive"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_rust_pipeline_returns_valid_json(self, db_pool, setup_test_views):
+    async def test_rust_pipeline_returns_valid_json(self, db_pool, setup_test_views) -> None:
         """Test that Rust pipeline returns valid JSON."""
         repo = FraiseQLRepository(db_pool, context={"mode": "production"})
 
@@ -355,7 +355,7 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] == "widgets" for r in results)
 
     @pytest.mark.asyncio
-    async def test_empty_where_returns_all(self, db_pool, setup_test_views):
+    async def test_empty_where_returns_all(self, db_pool, setup_test_views) -> None:
         """Test that empty where object returns all records."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -367,7 +367,7 @@ class TestRepositoryWhereIntegration:
         assert len(results) == 4  # All products
 
     @pytest.mark.asyncio
-    async def test_unsupported_operator_is_ignored(self, db_pool, setup_test_views):
+    async def test_unsupported_operator_is_ignored(self, db_pool, setup_test_views) -> None:
         """Test that unsupported operators are ignored gracefully."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -382,7 +382,7 @@ class TestRepositoryWhereIntegration:
         assert results[0]["name"] == "Widget A"
 
     @pytest.mark.asyncio
-    async def test_complex_nested_where(self, db_pool, setup_test_views):
+    async def test_complex_nested_where(self, db_pool, setup_test_views) -> None:
         """Test complex scenarios with nested where conditions."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 

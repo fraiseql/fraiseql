@@ -1,9 +1,8 @@
-import pytest
 from fraiseql.core.graphql_type import convert_type_to_graphql_output
 from fraiseql.enterprise.audit.types import AuditEvent
 
 
-def test_audit_event_graphql_type():
+def test_audit_event_graphql_type() -> None:
     """Verify AuditEvent GraphQL type is properly defined."""
     gql_type = convert_type_to_graphql_output(AuditEvent)
 

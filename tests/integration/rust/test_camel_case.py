@@ -7,7 +7,7 @@ These tests should FAIL initially because the function doesn't exist yet.
 import pytest
 
 
-def test_transform_keys():
+def test_transform_keys() -> None:
     """Test batch transformation of dictionary keys.
 
     RED: This should fail with AttributeError (function doesn't exist)
@@ -33,7 +33,7 @@ def test_transform_keys():
     assert result == expected
 
 
-def test_transform_keys_nested():
+def test_transform_keys_nested() -> None:
     """Test transformation of nested dictionaries."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 
@@ -65,7 +65,7 @@ def test_transform_keys_nested():
     assert result == expected
 
 
-def test_transform_keys_with_lists():
+def test_transform_keys_with_lists() -> None:
     """Test transformation with lists of dictionaries."""
     from fraiseql import _fraiseql_rs as fraiseql_rs
 

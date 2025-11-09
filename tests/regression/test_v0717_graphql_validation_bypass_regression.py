@@ -13,11 +13,13 @@ Fixed in: v0.7.18 by changing coerce_input() to use cls(**coerced_data)
 instead of object.__new__() + manual attribute setting.
 """
 
-import pytest
-import fraiseql
-from fraiseql.types.coercion import coerce_input
 from typing import Optional
 from uuid import UUID
+
+import pytest
+
+import fraiseql
+from fraiseql.types.coercion import coerce_input
 
 
 @fraiseql.input
@@ -67,7 +69,7 @@ class CreateUserMutation:
 class TestV0717GraphQLValidationBypassRegression:
     """Test suite for the v0.7.17 GraphQL validation bypass regression fix."""
 
-    def test_direct_input_validation_still_works(self):
+    def test_direct_input_validation_still_works(self) -> None:
         """Test that direct FraiseQL input validation still works correctly.
 
         This verifies that our fix doesn't break the expected validation behavior
@@ -86,7 +88,7 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
             TestValidationInput(name="   ", email="john@example.com")  # Whitespace-only should fail
 
-    def test_coerce_input_function_calls_constructor(self):
+    def test_coerce_input_function_calls_constructor(self) -> None:
         """Test that coerce_input() now calls the class constructor for validation.
 
         This is the core fix - coerce_input() must call cls(**data) instead of
@@ -120,7 +122,7 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
             coerce_input(TestValidationInput, none_data)
 
-    def test_coerce_input_with_missing_required_fields(self):
+    def test_coerce_input_with_missing_required_fields(self) -> None:
         """Test that coerce_input() properly handles missing required fields."""
         # Missing required field should raise proper error
         incomplete_data = {
@@ -130,7 +132,7 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Missing required field 'email'"):
             coerce_input(TestValidationInput, incomplete_data)
 
-    def test_coerce_input_with_optional_fields(self):
+    def test_coerce_input_with_optional_fields(self) -> None:
         """Test that coerce_input() properly handles optional fields."""
         # Optional fields should work when omitted
         data_without_optional = {
@@ -153,7 +155,7 @@ class TestV0717GraphQLValidationBypassRegression:
         assert result.name == "Jane Doe"
         assert result.test_id is not None
 
-    def test_nested_input_coercion_validation(self):
+    def test_nested_input_coercion_validation(self) -> None:
         """Test that nested input objects also get proper validation through coercion."""
 
         @fraiseql.input
@@ -179,7 +181,7 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Field 'nested_name' cannot be empty"):
             coerce_input(ParentInput, invalid_nested_data)
 
-    def test_coerce_input_arguments_validation_integration(self):
+    def test_coerce_input_arguments_validation_integration(self) -> None:
         """Integration test for coerce_input_arguments function with validation.
 
         This test verifies that the GraphQL argument coercion process now
@@ -187,10 +189,9 @@ class TestV0717GraphQLValidationBypassRegression:
         This is the key integration point where the bug manifested.
         """
         from fraiseql.types.coercion import coerce_input_arguments
-        import inspect
 
         # Mock resolver function signature that matches GraphQL mutation resolvers
-        async def mock_create_user_resolver(info, input: CreateUserInput):
+        async def mock_create_user_resolver(info, input: CreateUserInput) -> None:
             """Mock resolver that would normally be called by GraphQL."""
             return CreateUserSuccess(name=input.name, message=f"Created {input.name}")
 
@@ -243,7 +244,7 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
             coerce_input_arguments(mock_create_user_resolver, none_raw_args)
 
-    def test_regression_case_from_bug_report(self):
+    def test_regression_case_from_bug_report(self) -> None:
         """Test the specific case from the bug report that was failing.
 
         This reproduces the exact scenario described in the bug report
@@ -264,7 +265,7 @@ class TestV0717GraphQLValidationBypassRegression:
         assert result.email == "test@example.com"
         assert result.password == "secretpass"
 
-    def test_fix_preserves_existing_functionality(self):
+    def test_fix_preserves_existing_functionality(self) -> None:
         """Test that the fix doesn't break any existing coercion functionality."""
 
         # Test default values work

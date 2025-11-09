@@ -7,8 +7,8 @@ in v0.7.15 with built-in to_dict() and __json__() methods for FraiseQL input obj
 import json
 
 import fraiseql
-from fraiseql.types.definitions import UNSET
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
+from fraiseql.types.definitions import UNSET
 
 
 @fraiseql.input
@@ -31,7 +31,7 @@ class CreateLocationInput:
 class TestNestedInputJSONSerializationFix:
     """Test JSON serialization fix for nested FraiseQL input objects."""
 
-    def test_fraiseql_input_has_to_dict_method(self):
+    def test_fraiseql_input_has_to_dict_method(self) -> None:
         """🟢 GREEN: FraiseQL input objects have to_dict() method."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="456", street_name="Oak Ave", postal_code="67890"
@@ -40,7 +40,7 @@ class TestNestedInputJSONSerializationFix:
         assert hasattr(nested_address, "to_dict")
         assert callable(nested_address.to_dict)
 
-    def test_fraiseql_input_has_json_method(self):
+    def test_fraiseql_input_has_json_method(self) -> None:
         """🟢 GREEN: FraiseQL input objects have __json__() method."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="456", street_name="Oak Ave", postal_code="67890"
@@ -49,7 +49,7 @@ class TestNestedInputJSONSerializationFix:
         assert hasattr(nested_address, "__json__")
         assert callable(nested_address.__json__)
 
-    def test_to_dict_excludes_unset_values(self):
+    def test_to_dict_excludes_unset_values(self) -> None:
         """🟢 GREEN: to_dict() method excludes UNSET values."""
         nested_address = CreateNestedPublicAddressInput(
             street_name="Oak Ave",
@@ -65,7 +65,7 @@ class TestNestedInputJSONSerializationFix:
         assert result["street_name"] == "Oak Ave"
         assert result["postal_code"] == "67890"
 
-    def test_to_dict_includes_set_values(self):
+    def test_to_dict_includes_set_values(self) -> None:
         """🟢 GREEN: to_dict() method includes all set values."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="123", street_name="Main St", postal_code="12345"
@@ -80,7 +80,7 @@ class TestNestedInputJSONSerializationFix:
         assert result["street_name"] == "Main St"
         assert result["postal_code"] == "12345"
 
-    def test_json_method_returns_dict(self):
+    def test_json_method_returns_dict(self) -> None:
         """🟢 GREEN: __json__() method returns dictionary."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="456", street_name="Oak Ave", postal_code="67890"
@@ -91,7 +91,7 @@ class TestNestedInputJSONSerializationFix:
         assert isinstance(result, dict)
         assert result == nested_address.to_dict()
 
-    def test_nested_fraiseql_input_works_with_custom_encoder(self):
+    def test_nested_fraiseql_input_works_with_custom_encoder(self) -> None:
         """🟢 GREEN: FraiseQL input objects work with FraiseQLJSONEncoder."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="456", street_name="Oak Ave", postal_code="67890"
@@ -111,7 +111,7 @@ class TestNestedInputJSONSerializationFix:
         assert parsed["address"]["street_name"] == "Oak Ave"
         assert parsed["address"]["postal_code"] == "67890"
 
-    def test_nested_object_to_dict_recursive_conversion(self):
+    def test_nested_object_to_dict_recursive_conversion(self) -> None:
         """🟢 GREEN: Nested objects are recursively converted to dictionaries."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="789", street_name="Elm St", postal_code="54321"
@@ -127,7 +127,7 @@ class TestNestedInputJSONSerializationFix:
         assert result["address"]["street_name"] == "Elm St"
         assert result["address"]["postal_code"] == "54321"
 
-    def test_nested_object_with_unset_field_conversion(self):
+    def test_nested_object_with_unset_field_conversion(self) -> None:
         """🟢 GREEN: Nested objects with UNSET fields work correctly."""
         nested_address = CreateNestedPublicAddressInput(
             street_name="Pine Ave",
@@ -147,7 +147,7 @@ class TestNestedInputJSONSerializationFix:
         assert "postal_code" in result["address"]
         assert "street_number" not in result["address"]  # UNSET excluded
 
-    def test_standard_json_serialization_now_works(self):
+    def test_standard_json_serialization_now_works(self) -> None:
         """🟢 GREEN: Standard JSON serialization now works with FraiseQL objects."""
         nested_address = CreateNestedPublicAddressInput(
             street_number="999", street_name="Test Ave", postal_code="11111"
@@ -161,7 +161,7 @@ class TestNestedInputJSONSerializationFix:
         assert parsed["street_name"] == "Test Ave"
         assert parsed["postal_code"] == "11111"
 
-    def test_unset_values_handled_by_encoder(self):
+    def test_unset_values_handled_by_encoder(self) -> None:
         """🟢 GREEN: UNSET values are properly handled by the JSON encoder."""
         from fraiseql.types.definitions import UNSET
 
@@ -169,7 +169,7 @@ class TestNestedInputJSONSerializationFix:
         result = json.dumps(UNSET, cls=FraiseQLJSONEncoder)
         assert result == "null"
 
-    def test_complex_nested_structure(self):
+    def test_complex_nested_structure(self) -> None:
         """🟢 GREEN: Complex nested structures work correctly."""
 
         @fraiseql.input

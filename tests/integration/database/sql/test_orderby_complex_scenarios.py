@@ -22,7 +22,7 @@ pytestmark = pytest.mark.unit
 class TestComplexOrderByScenarios:
     """Test complex OrderBy scenarios that mirror real-world GraphQL usage."""
 
-    def test_multiple_field_orderby_conversion(self):
+    def test_multiple_field_orderby_conversion(self) -> None:
         """Test conversion of multiple field OrderBy from GraphQL format."""
         # Typical multi-field sorting from GraphQL client
         graphql_input = [{"createdAt": "DESC"}, {"name": "ASC"}, {"status": "ASC"}]
@@ -38,7 +38,7 @@ class TestComplexOrderByScenarios:
         assert result.instructions[2].field == "status"
         assert result.instructions[2].direction == "asc"
 
-    def test_nested_field_orderby_conversion(self):
+    def test_nested_field_orderby_conversion(self) -> None:
         """Test conversion of nested field OrderBy with dot notation."""
         # Sorting by nested object properties
         graphql_input = [
@@ -58,7 +58,7 @@ class TestComplexOrderByScenarios:
         assert result.instructions[2].field == "created_at"
         assert result.instructions[2].direction == "desc"
 
-    def test_camelcase_heavy_orderby_conversion(self):
+    def test_camelcase_heavy_orderby_conversion(self) -> None:
         """Test conversion with heavy camelCase field names (realistic GraphQL)."""
         # Real-world GraphQL with camelCase field names
         graphql_input = [
@@ -81,7 +81,7 @@ class TestComplexOrderByScenarios:
         assert result.instructions[3].field == "is_active"
         assert result.instructions[3].direction == "desc"
 
-    def test_mixed_format_orderby_conversion(self):
+    def test_mixed_format_orderby_conversion(self) -> None:
         """Test conversion of mixed OrderBy formats (single dict with multiple fields + separate dicts)."""
         # Single dict with multiple fields + separate dicts
         graphql_input = [
@@ -115,7 +115,7 @@ class TestComplexOrderByScenarios:
         assert directions[assigned_to_idx] == "asc"
         assert directions[due_date_idx] == "asc"
 
-    def test_deep_nested_orderby_conversion(self):
+    def test_deep_nested_orderby_conversion(self) -> None:
         """Test conversion of deeply nested field OrderBy."""
         # Complex nested object sorting
         graphql_input = [
@@ -138,7 +138,7 @@ class TestComplexOrderByScenarios:
         assert result.instructions[3].field == "created_at"
         assert result.instructions[3].direction == "desc"
 
-    def test_multiple_field_sql_generation(self):
+    def test_multiple_field_sql_generation(self) -> None:
         """Test SQL generation for multiple field OrderBy - unit test only."""
         field_paths = [
             FieldPath(path=["id"], alias="id"),
@@ -165,7 +165,7 @@ class TestComplexOrderByScenarios:
         assert "name" in sql_str
         assert "ASC" in sql_str
 
-    def test_nested_field_sql_generation(self):
+    def test_nested_field_sql_generation(self) -> None:
         """Test SQL generation for nested field OrderBy with JSONB path operators."""
         field_paths = [
             FieldPath(path=["id"], alias="id"),
@@ -189,7 +189,7 @@ class TestComplexOrderByScenarios:
         assert "profile" in sql_str
         assert "first_name" in sql_str
 
-    def test_deep_nested_sql_generation(self):
+    def test_deep_nested_sql_generation(self) -> None:
         """Test SQL generation for deeply nested fields with multiple path levels."""
         field_paths = [FieldPath(path=["id"], alias="id")]
 
@@ -212,7 +212,7 @@ class TestComplexOrderByScenarios:
         assert "address" in sql_str
         assert "city" in sql_str
 
-    def test_fraiseql_backend_dns_servers_scenario(self):
+    def test_fraiseql_backend_dns_servers_scenario(self) -> None:
         """Test the exact scenario from FraiseQL Backend DNS servers."""
         # This is the real-world case that was failing
         graphql_input = [
@@ -243,7 +243,7 @@ class TestComplexOrderByScenarios:
             assert isinstance(direction, str)
             assert direction in ["asc", "desc"]
 
-    def test_enterprise_contract_management_scenario(self):
+    def test_enterprise_contract_management_scenario(self) -> None:
         """Test a complex enterprise scenario with multiple business entity sorting."""
         # Complex enterprise GraphQL query
         graphql_input = [
@@ -268,7 +268,7 @@ class TestComplexOrderByScenarios:
         assert "due_date" in fields
         assert "created_at" in fields
 
-    def test_mixed_case_directions_complex(self):
+    def test_mixed_case_directions_complex(self) -> None:
         """Test complex scenario with mixed case directions (real GraphQL client behavior)."""
         # Real GraphQL clients might send mixed case
         graphql_input = [
@@ -291,7 +291,7 @@ class TestComplexOrderByScenarios:
         assert directions[2] == "desc"  # DESC -> desc
         assert directions[3] == "asc"  # Asc -> asc (if handled)
 
-    def test_integration_graphql_to_sql_complex(self):
+    def test_integration_graphql_to_sql_complex(self) -> None:
         """Integration test: Complete GraphQL OrderBy → SQL transformation for complex scenario."""
         # Full integration test
         graphql_input = [
@@ -333,7 +333,7 @@ class TestComplexOrderByScenarios:
         assert "settings" in sql_str
         assert "last_modified_at" in sql_str
 
-    def test_error_recovery_complex_scenarios(self):
+    def test_error_recovery_complex_scenarios(self) -> None:
         """Test that complex scenarios handle errors gracefully."""
         # Test various error conditions with complex inputs
         error_cases = [

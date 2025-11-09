@@ -69,7 +69,7 @@ class TestIssue110RustMutationObjectReturn:
     """Test suite for GitHub issue #110."""
 
     @pytest.fixture
-    async def setup_database(self, db_connection_committed):
+    async def setup_database(self, db_connection_committed) -> None:
         """Set up test database schema and function."""
         conn = db_connection_committed
 
@@ -137,7 +137,7 @@ class TestIssue110RustMutationObjectReturn:
         return conn
 
     @pytest.fixture
-    def graphql_schema(self, clear_registry):
+    def graphql_schema(self, clear_registry) -> None:
         """Create GraphQL schema with the mutation."""
 
         # GraphQL requires a Query type with at least one field
@@ -152,23 +152,23 @@ class TestIssue110RustMutationObjectReturn:
         )
 
     @pytest.fixture
-    def mock_pool(self, setup_database):
+    def mock_pool(self, setup_database) -> None:
         """Create a mock pool for testing."""
 
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 class ConnContext:
-                    async def __aenter__(self):
+                    async def __aenter__(self) -> None:
                         return setup_database
 
-                    async def __aexit__(self, *args):
+                    async def __aexit__(self, *args) -> None:
                         pass
 
                 return ConnContext()
 
         return MockPool()
 
-    async def test_mutation_python_mode_works(self, graphql_schema, mock_pool):
+    async def test_mutation_python_mode_works(self, graphql_schema, mock_pool) -> None:
         """Test that mutation works in Python mode (control test)."""
         # Create repository with Python mode context
         repo = FraiseQLRepository(mock_pool, context={"mode": "normal"})
@@ -216,7 +216,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
-    async def test_mutation_rust_mode_works(self, graphql_schema, mock_pool):
+    async def test_mutation_rust_mode_works(self, graphql_schema, mock_pool) -> None:
         """Test that mutation works in Rust mode after fix.
 
         This test previously failed with 'missing a required argument: entity'.
@@ -268,7 +268,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
-    async def test_mutation_with_context_params_rust_mode(self, db_connection_committed):
+    async def test_mutation_with_context_params_rust_mode(self, db_connection_committed) -> None:
         """Test mutation with context parameters in Rust mode.
 
         This tests the exact pattern from issue #110 with context_params.
@@ -382,12 +382,12 @@ class TestIssue110RustMutationObjectReturn:
 
         # Test with Rust mode
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 class ConnContext:
-                    async def __aenter__(self):
+                    async def __aenter__(self) -> None:
                         return conn
 
-                    async def __aexit__(self, *args):
+                    async def __aexit__(self, *args) -> None:
                         pass
 
                 return ConnContext()
@@ -443,7 +443,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
-    async def test_mutation_with_machine_field_hint(self, db_connection_committed):
+    async def test_mutation_with_machine_field_hint(self, db_connection_committed) -> None:
         """Test mutation with metadata hint pointing to custom field name (e.g., 'machine').
 
         This tests the scenario from user's follow-up comment where:
@@ -550,12 +550,12 @@ class TestIssue110RustMutationObjectReturn:
 
         # Test with Rust mode (the problematic mode)
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 class ConnContext:
-                    async def __aenter__(self):
+                    async def __aenter__(self) -> None:
                         return conn
 
-                    async def __aexit__(self, *args):
+                    async def __aexit__(self, *args) -> None:
                         pass
 
                 return ConnContext()

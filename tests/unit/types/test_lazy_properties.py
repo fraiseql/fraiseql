@@ -1,18 +1,15 @@
 """Tests for lazy property auto-generation."""
 
-import pytest
 from dataclasses import dataclass
 from uuid import UUID
 
 import fraiseql
 from fraiseql.types.lazy_properties import (
-    LazyOrderByProperty,
-    LazyWhereInputProperty,
     clear_auto_generated_cache,
 )
 
 
-def test_lazy_where_input_property_caching():
+def test_lazy_where_input_property_caching() -> None:
     """Test that WhereInput is cached after first access."""
     clear_auto_generated_cache()
 
@@ -32,7 +29,7 @@ def test_lazy_where_input_property_caching():
     assert where_input_1 is where_input_2  # Same object (cached)
 
 
-def test_lazy_order_by_property_caching():
+def test_lazy_order_by_property_caching() -> None:
     """Test that OrderBy is cached after first access."""
     clear_auto_generated_cache()
 
@@ -51,7 +48,7 @@ def test_lazy_order_by_property_caching():
     assert order_by_1 is order_by_2
 
 
-def test_multiple_types_independent_caching():
+def test_multiple_types_independent_caching() -> None:
     """Test that different types have independent caches."""
     clear_auto_generated_cache()
 
@@ -73,8 +70,9 @@ def test_multiple_types_independent_caching():
     assert "TypeBWhereInput" in where_b.__name__
 
 
-def test_fraise_type_has_where_input_property():
+def test_fraise_type_has_where_input_property() -> None:
     """Test that @fraise_type adds WhereInput property."""
+
     @fraiseql.type(sql_source="test_table")
     @dataclass
     class TestType:
@@ -85,7 +83,7 @@ def test_fraise_type_has_where_input_property():
     assert hasattr(TestType, "OrderBy")
 
 
-def test_where_input_is_lazy():
+def test_where_input_is_lazy() -> None:
     """Test that WhereInput is not generated until accessed."""
     from fraiseql.types.lazy_properties import _auto_generated_cache
 
@@ -107,8 +105,9 @@ def test_where_input_is_lazy():
     assert where_input is not None
 
 
-def test_types_without_sql_source_no_auto_generation():
+def test_types_without_sql_source_no_auto_generation() -> None:
     """Test that pure types (no sql_source) don't get auto-generation."""
+
     @fraiseql.type
     @dataclass
     class PureType:
@@ -121,7 +120,7 @@ def test_types_without_sql_source_no_auto_generation():
     assert not hasattr(PureType, "OrderBy")
 
 
-def test_generated_where_input_has_expected_fields():
+def test_generated_where_input_has_expected_fields() -> None:
     """Test that generated WhereInput has fields from the original type."""
     clear_auto_generated_cache()
 
@@ -151,7 +150,7 @@ def test_generated_where_input_has_expected_fields():
     assert "NOT" in annotations
 
 
-def test_generated_order_by_has_expected_structure():
+def test_generated_order_by_has_expected_structure() -> None:
     """Test that generated OrderBy has expected structure."""
     clear_auto_generated_cache()
 

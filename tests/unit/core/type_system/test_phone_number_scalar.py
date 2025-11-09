@@ -16,18 +16,18 @@ from fraiseql.types.scalars.phone_number import (
 class TestPhoneNumberSerialization:
     """Test phone number serialization."""
 
-    def test_serialize_valid_phone_numbers(self):
+    def test_serialize_valid_phone_numbers(self) -> None:
         """Test serializing valid E.164 phone numbers."""
         assert serialize_phone_number("+1234567890") == "+1234567890"
         assert serialize_phone_number("+447911123456") == "+447911123456"
         assert serialize_phone_number("+15551234567") == "+15551234567"
         assert serialize_phone_number("+33123456789") == "+33123456789"
 
-    def test_serialize_none(self):
+    def test_serialize_none(self) -> None:
         """Test serializing None returns None."""
         assert serialize_phone_number(None) is None
 
-    def test_serialize_invalid_phone_number(self):
+    def test_serialize_invalid_phone_number(self) -> None:
         """Test serializing invalid phone numbers raises error."""
         # Missing +
         with pytest.raises(GraphQLError, match="Invalid phone number"):
@@ -61,13 +61,13 @@ class TestPhoneNumberSerialization:
 class TestPhoneNumberParsing:
     """Test phone number parsing from variables."""
 
-    def test_parse_valid_phone_number(self):
+    def test_parse_valid_phone_number(self) -> None:
         """Test parsing valid phone numbers."""
         assert parse_phone_number_value("+1234567890") == "+1234567890"
         assert parse_phone_number_value("+447911123456") == "+447911123456"
         assert parse_phone_number_value("+15551234567") == "+15551234567"
 
-    def test_parse_invalid_phone_number(self):
+    def test_parse_invalid_phone_number(self) -> None:
         """Test parsing invalid phone numbers raises error."""
         with pytest.raises(GraphQLError, match="Invalid phone number"):
             parse_phone_number_value("1234567890")
@@ -84,7 +84,7 @@ class TestPhoneNumberParsing:
         with pytest.raises(GraphQLError, match="Invalid phone number"):
             parse_phone_number_value("")
 
-    def test_parse_invalid_type(self):
+    def test_parse_invalid_type(self) -> None:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="Phone number must be a string"):
             parse_phone_number_value(1234567890)
@@ -99,7 +99,7 @@ class TestPhoneNumberParsing:
 class TestPhoneNumberField:
     """Test PhoneNumberField class."""
 
-    def test_create_valid_phone_number_field(self):
+    def test_create_valid_phone_number_field(self) -> None:
         """Test creating PhoneNumberField with valid values."""
         phone = PhoneNumberField("+1234567890")
         assert phone == "+1234567890"
@@ -108,7 +108,7 @@ class TestPhoneNumberField:
         phone = PhoneNumberField("+447911123456")
         assert phone == "+447911123456"
 
-    def test_create_invalid_phone_number_field(self):
+    def test_create_invalid_phone_number_field(self) -> None:
         """Test creating PhoneNumberField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid phone number"):
             PhoneNumberField("1234567890")
@@ -123,12 +123,12 @@ class TestPhoneNumberField:
 class TestPhoneNumberLiteralParsing:
     """Test parsing phone number from GraphQL literals."""
 
-    def test_parse_valid_literal(self):
+    def test_parse_valid_literal(self) -> None:
         """Test parsing valid phone number literals."""
         assert parse_phone_number_literal(StringValueNode(value="+1234567890")) == "+1234567890"
         assert parse_phone_number_literal(StringValueNode(value="+447911123456")) == "+447911123456"
 
-    def test_parse_invalid_literal_format(self):
+    def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid phone number format literals."""
         with pytest.raises(GraphQLError, match="Invalid phone number"):
             parse_phone_number_literal(StringValueNode(value="1234567890"))
@@ -136,7 +136,7 @@ class TestPhoneNumberLiteralParsing:
         with pytest.raises(GraphQLError, match="Invalid phone number"):
             parse_phone_number_literal(StringValueNode(value="+123456"))
 
-    def test_parse_non_string_literal(self):
+    def test_parse_non_string_literal(self) -> None:
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Phone number must be a string"):
             parse_phone_number_literal(IntValueNode(value="123"))

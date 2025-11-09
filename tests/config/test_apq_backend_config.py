@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
-def test_apq_backend_config_defaults():
+def test_apq_backend_config_defaults() -> None:
     """Test that APQ backend config has sensible defaults."""
     config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
 
@@ -17,7 +17,7 @@ def test_apq_backend_config_defaults():
     assert config.apq_backend_config == {}
 
 
-def test_apq_backend_config_memory():
+def test_apq_backend_config_memory() -> None:
     """Test memory backend configuration."""
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
@@ -31,7 +31,7 @@ def test_apq_backend_config_memory():
     assert config.apq_response_cache_ttl == 300
 
 
-def test_apq_backend_config_postgresql():
+def test_apq_backend_config_postgresql() -> None:
     """Test PostgreSQL backend configuration."""
     backend_config = {"table_prefix": "apq_", "connection_pool_size": 10}
 
@@ -47,7 +47,7 @@ def test_apq_backend_config_postgresql():
     assert config.apq_backend_config == backend_config
 
 
-def test_apq_backend_config_custom():
+def test_apq_backend_config_custom() -> None:
     """Test custom backend configuration."""
     backend_config = {
         "backend_class": "myapp.storage.CustomAPQBackend",
@@ -65,7 +65,7 @@ def test_apq_backend_config_custom():
     assert config.apq_backend_config == backend_config
 
 
-def test_apq_backend_config_redis():
+def test_apq_backend_config_redis() -> None:
     """Test Redis backend configuration."""
     backend_config = {
         "redis_url": "redis://localhost:6379",
@@ -83,7 +83,7 @@ def test_apq_backend_config_redis():
     assert config.apq_backend_config == backend_config
 
 
-def test_apq_backend_config_validation():
+def test_apq_backend_config_validation() -> None:
     """Test validation of APQ backend config fields."""
     # Valid backend names should work
     valid_backends = ["memory", "postgresql", "redis", "custom"]
@@ -101,7 +101,7 @@ def test_apq_backend_config_validation():
         )
 
 
-def test_apq_cache_ttl_validation():
+def test_apq_cache_ttl_validation() -> None:
     """Test validation of cache TTL values."""
     # Valid TTL values
     valid_ttls = [0, 1, 300, 3600, 86400]
@@ -117,7 +117,7 @@ def test_apq_cache_ttl_validation():
         FraiseQLConfig(database_url="postgresql://test@localhost/test", apq_response_cache_ttl=-1)
 
 
-def test_apq_config_environment_specific_defaults():
+def test_apq_config_environment_specific_defaults() -> None:
     """Test that APQ config has appropriate defaults for different environments."""
     # Development environment
     dev_config = FraiseQLConfig(
@@ -132,7 +132,7 @@ def test_apq_config_environment_specific_defaults():
     assert prod_config.apq_cache_responses is False  # Should remain conservative
 
 
-def test_apq_config_from_environment_variables(monkeypatch):
+def test_apq_config_from_environment_variables(monkeypatch) -> None:
     """Test reading APQ config from environment variables."""
     # Set environment variables
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://test@localhost/test")
@@ -147,7 +147,7 @@ def test_apq_config_from_environment_variables(monkeypatch):
     assert config.apq_response_cache_ttl == 1800
 
 
-def test_apq_backend_config_as_dict():
+def test_apq_backend_config_as_dict() -> None:
     """Test that backend config accepts complex dictionary structures."""
     complex_config = {
         "database": {"host": "localhost", "port": 5432, "database": "apq_cache"},

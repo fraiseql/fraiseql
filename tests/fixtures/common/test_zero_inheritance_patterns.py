@@ -14,7 +14,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 class TestZeroInheritancePatterns:
     """Test that FraiseQL patterns work without any inheritance at all."""
 
-    def test_completely_clean_mutation_definitions(self):
+    def test_completely_clean_mutation_definitions(self) -> None:
         """Test the cleanest possible mutation definitions."""
 
         # This is now the complete FraiseQL pattern - no inheritance needed!
@@ -43,7 +43,7 @@ class TestZeroInheritancePatterns:
         assert "contract" in success_fields
         assert "conflict_contract" in error_fields
 
-    def test_zero_config_fraiseql_workflow(self):
+    def test_zero_config_fraiseql_workflow(self) -> None:
         """Test complete FraiseQL workflow with zero custom configuration."""
 
         @fraiseql.input
@@ -139,7 +139,7 @@ class TestZeroInheritancePatterns:
                 assert len(parsed.errors) >= 1
                 assert parsed.errors[0].message == test_case["message"]
 
-    def test_explicit_fields_still_override_defaults(self):
+    def test_explicit_fields_still_override_defaults(self) -> None:
         """Test that explicit field definitions override auto-injection."""
 
         @fraiseql.success
@@ -160,7 +160,7 @@ class TestZeroInheritancePatterns:
         assert instance.errors == []
         assert instance.entity == {"id": "test"}
 
-    def test_migration_path_from_old_to_new_pattern(self):
+    def test_migration_path_from_old_to_new_pattern(self) -> None:
         """Show how easy it is to migrate from MutationResultBase to zero inheritance."""
 
         # Old pattern (still works but verbose)
@@ -181,7 +181,7 @@ class TestZeroInheritancePatterns:
         assert {"status", "message", "errors", "user"}.issubset(old_fields)
         assert {"status", "message", "errors", "user"}.issubset(new_fields)
 
-    def test_works_with_complex_fraiseql_mutations(self):
+    def test_works_with_complex_fraiseql_mutations(self) -> None:
         """Test that complex FraiseQL mutation patterns work seamlessly."""
 
         @fraiseql.input

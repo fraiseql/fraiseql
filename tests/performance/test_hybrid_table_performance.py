@@ -1,48 +1,45 @@
 """Performance benchmarks for hybrid table SQL generation."""
 
 import time
-from typing import Any
 
-import pytest
-
-from fraiseql.db import FraiseQLRepository, register_type_for_view, _table_metadata
+from fraiseql.db import FraiseQLRepository, _table_metadata, register_type_for_view
 
 
 class MockPool:
     """Mock connection pool for performance testing."""
 
-    def connection(self):
+    def connection(self) -> None:
         return MockConnection()
 
 
 class MockConnection:
     """Mock connection for performance testing."""
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args) -> None:
         pass
 
-    def cursor(self):
+    def cursor(self) -> None:
         return MockCursor()
 
 
 class MockCursor:
     """Mock cursor that simulates information_schema queries."""
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args) -> None:
         pass
 
-    async def execute(self, query, params=None):
+    async def execute(self, query, params=None) -> None:
         # Simulate slow information_schema query
         if "information_schema" in query:
             time.sleep(0.01)  # Simulate 10ms DB query
 
-    async def fetchall(self):
+    async def fetchall(self) -> None:
         # Return mock column data
         return [
             {"column_name": "id", "data_type": "uuid", "udt_name": "uuid"},
@@ -54,7 +51,7 @@ class MockCursor:
 class TestHybridPerformance:
     """Benchmark SQL generation performance for hybrid tables."""
 
-    def test_where_clause_generation_with_metadata(self):
+    def test_where_clause_generation_with_metadata(self) -> None:
         """Test WHERE clause generation speed with pre-registered metadata."""
         # Register with metadata (happens at import time normally)
         register_type_for_view(
@@ -88,7 +85,7 @@ class TestHybridPerformance:
         print(f"\n✅ Performance with metadata: {elapsed_ms:.2f}ms for 2000 field checks")
         print(f"   Average: {elapsed_ms / 2000:.4f}ms per field check")
 
-    def test_where_clause_generation_without_metadata(self):
+    def test_where_clause_generation_without_metadata(self) -> None:
         """Test WHERE clause generation speed without pre-registered metadata."""
         # Clear any existing metadata
         if "unknown_table" in _table_metadata:
@@ -118,9 +115,9 @@ class TestHybridPerformance:
         assert elapsed_ms < 20, f"WHERE clause generation took {elapsed_ms:.2f}ms for 2000 checks"
         print(f"\n⚠️  Performance without metadata: {elapsed_ms:.2f}ms for 2000 field checks")
         print(f"   Average: {elapsed_ms / 2000:.4f}ms per field check")
-        print(f"   Note: Falls back to heuristics which may be less accurate")
+        print("   Note: Falls back to heuristics which may be less accurate")
 
-    def test_metadata_memory_overhead(self):
+    def test_metadata_memory_overhead(self) -> None:
         """Test memory overhead of storing metadata at registration time."""
         import sys
 

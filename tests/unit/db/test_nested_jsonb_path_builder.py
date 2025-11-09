@@ -4,8 +4,8 @@ This module tests the generation of JSONB paths like data->'device'->>'is_active
 for nested field filters.
 """
 
-import pytest
 from unittest.mock import MagicMock
+
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
@@ -14,12 +14,12 @@ from fraiseql.db import FraiseQLRepository
 class TestNestedJSONBPathBuilder:
     """Test nested JSONB path building."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test repository with mock pool."""
         self.mock_pool = MagicMock(spec=AsyncConnectionPool)
         self.repo = FraiseQLRepository(self.mock_pool)
 
-    def test_build_nested_jsonb_path_method_exists(self):
+    def test_build_nested_jsonb_path_method_exists(self) -> None:
         """Test that the nested JSONB path building method exists.
 
         🔴 RED CYCLE: This will fail because method doesn't exist yet.
@@ -27,7 +27,7 @@ class TestNestedJSONBPathBuilder:
         # Check that the method exists
         assert hasattr(self.repo, "_build_nested_jsonb_path")
 
-    def test_build_nested_jsonb_path_basic_functionality(self):
+    def test_build_nested_jsonb_path_basic_functionality(self) -> None:
         """Test basic nested JSONB path building.
 
         🔴 RED CYCLE: This will fail until the method is implemented.
@@ -43,7 +43,7 @@ class TestNestedJSONBPathBuilder:
         assert "->" in sql_str
         assert "->>" in sql_str
 
-    def test_build_nested_jsonb_path_camelcase_conversion(self):
+    def test_build_nested_jsonb_path_camelcase_conversion(self) -> None:
         """Test that camelCase field names are converted to snake_case.
 
         🔴 RED CYCLE: camelCase conversion is critical for the fix.
@@ -59,7 +59,7 @@ class TestNestedJSONBPathBuilder:
         assert "deviceName" not in sql_str
         assert "isActive" not in sql_str
 
-    def test_build_nested_jsonb_path_snake_case_unchanged(self):
+    def test_build_nested_jsonb_path_snake_case_unchanged(self) -> None:
         """Test that snake_case field names remain unchanged."""
         # Test snake_case fields
         result = self.repo._build_nested_jsonb_path("device_name", "is_active")
@@ -69,7 +69,7 @@ class TestNestedJSONBPathBuilder:
         assert "'device_name'" in sql_str
         assert "'is_active'" in sql_str
 
-    def test_build_nested_jsonb_path_complex_camelcase(self):
+    def test_build_nested_jsonb_path_complex_camelcase(self) -> None:
         """Test complex camelCase conversions."""
         test_cases = [
             ("deviceName", "isActive", "'device_name'", "'is_active'"),
@@ -87,7 +87,7 @@ class TestNestedJSONBPathBuilder:
             assert parent_field not in sql_str
             assert nested_field not in sql_str
 
-    def test_build_nested_jsonb_path_structure(self):
+    def test_build_nested_jsonb_path_structure(self) -> None:
         """Test the exact SQL structure of generated paths."""
         result = self.repo._build_nested_jsonb_path("device", "is_active")
         sql_str = result.as_string(None)

@@ -107,7 +107,7 @@ class PercentageField(str, ScalarMarker):
         elif isinstance(value, str):
             value_str = value
         else:
-            raise ValueError(f"Percentage must be a number or string, got {type(value).__name__}")
+            raise TypeError(f"Percentage must be a number or string, got {type(value).__name__}")
 
         if not _PERCENTAGE_REGEX.match(value_str):
             raise ValueError(

@@ -8,7 +8,7 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 
 
 @pytest.fixture
-def clean_registry():
+def clean_registry() -> None:
     """Clean the schema registry before and after each test."""
     # Clear before test
     from fraiseql.gql.builders.registry import SchemaRegistry
@@ -60,7 +60,7 @@ async def health_check(info) -> str:
 class TestDefaultSchemaE2E:
     """End-to-end tests for default schema configuration."""
 
-    async def test_app_with_custom_default_mutation_schema(self, clean_registry):
+    async def test_app_with_custom_default_mutation_schema(self, clean_registry) -> None:
         """Test that creating an app with custom default schema works."""
         # Create config with custom default schema
         config = FraiseQLConfig(
@@ -91,7 +91,7 @@ class TestDefaultSchemaE2E:
         # Verify the mutation uses the custom default schema
         assert TestMutation.__fraiseql_mutation__.schema == "custom_app"
 
-    async def test_multiple_apps_with_different_defaults(self, clean_registry):
+    async def test_multiple_apps_with_different_defaults(self, clean_registry) -> None:
         """Test that multiple apps can have different default schemas."""
         # Create first app with one default
         config1 = FraiseQLConfig(
@@ -150,7 +150,7 @@ class TestDefaultSchemaE2E:
         # Verify second mutation uses app2 schema
         assert Mutation2.__fraiseql_mutation__.schema == "app2"
 
-    async def test_override_still_works_with_defaults(self, clean_registry):
+    async def test_override_still_works_with_defaults(self, clean_registry) -> None:
         """Test that explicit schema override still works when defaults are set."""
         # Create app with default schema
         config = FraiseQLConfig(

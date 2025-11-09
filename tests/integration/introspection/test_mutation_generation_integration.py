@@ -42,7 +42,7 @@ class TestMutationGenerationIntegration:
         return PostgresIntrospector(db_pool)
 
     @pytest.fixture
-    async def test_mutation_function(self, db_connection):
+    async def test_mutation_function(self, db_connection) -> None:
         """Create a test mutation function for introspection."""
         import uuid
 

@@ -6,18 +6,12 @@ from datetime import datetime
 
 import pytest
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import *  # noqa: F403
+
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.sql import (
-    BooleanFilter,
-    StringFilter,
-    UUIDFilter,
-    create_graphql_where_input,
-)
-
-# Import database fixtures
-from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 # Define test types
 
@@ -41,7 +35,7 @@ class Allocation:
 class TestNestedObjectFilterLogicalOperators:
     """Test logical operators (OR, AND, NOT) work within nested object filters."""
 
-    def test_nested_or_logical_operator(self):
+    def test_nested_or_logical_operator(self) -> None:
         """Test nested OR operator: {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}"""
         # This test validates that the dict structure is accepted
         # The actual functionality will be tested in database integration tests
@@ -59,7 +53,7 @@ class TestNestedObjectFilterLogicalOperators:
         # Currently the dict conversion will ignore the nested OR
         # but the structure validation should work
 
-    def test_nested_and_logical_operator(self):
+    def test_nested_and_logical_operator(self) -> None:
         """Test nested AND operator: {device: {AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}"""
         # This test validates that the dict structure is accepted
         where_dict = {
@@ -72,7 +66,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert isinstance(where_dict["device"]["AND"], list)
         assert len(where_dict["device"]["AND"]) == 2
 
-    def test_nested_not_logical_operator(self):
+    def test_nested_not_logical_operator(self) -> None:
         """Test nested NOT operator: {device: {NOT: {is_active: {eq: true}}}}"""
         # This test validates that the dict structure is accepted
         where_dict = {"device": {"NOT": {"is_active": {"eq": True}}}}
@@ -83,7 +77,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert isinstance(where_dict["device"]["NOT"], dict)
         assert "is_active" in where_dict["device"]["NOT"]
 
-    def test_top_level_or_with_nested_objects(self):
+    def test_top_level_or_with_nested_objects(self) -> None:
         """Test top-level OR with nested objects: {OR: [{device: {is_active: {eq: true}}}, {status: {eq: "pending"}}]}"""
         where_dict = {
             "OR": [{"device": {"is_active": {"eq": True}}}, {"status": {"eq": "pending"}}]
@@ -96,7 +90,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert "device" in where_dict["OR"][0]
         assert "status" in where_dict["OR"][1]
 
-    def test_mixed_logical_operators(self):
+    def test_mixed_logical_operators(self) -> None:
         """Test mixed logical operators: {device: {AND: [{is_active: {eq: true}}, {NOT: {name: {contains: "deprecated"}}}]}}"""
         where_dict = {
             "device": {
@@ -111,7 +105,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert len(where_dict["device"]["AND"]) == 2
         assert "NOT" in where_dict["device"]["AND"][1]
 
-    def test_camelcase_in_logical_operators(self):
+    def test_camelcase_in_logical_operators(self) -> None:
         """Test camelCase field names within logical operators: {device: {OR: [{isActive: {eq: true}}, {deviceName: {contains: "router"}}]}}"""
         where_dict = {
             "device": {
@@ -130,7 +124,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert "isActive" in where_dict["device"]["OR"][0]  # camelCase preserved in input
 
 
-def _parse_rust_response(result):
+def _parse_rust_response(result) -> None:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -154,7 +148,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
     """End-to-end database integration tests for logical operators in nested object filtering."""
 
     @pytest.fixture
-    async def setup_test_data(self, db_pool):
+    async def setup_test_data(self, db_pool) -> None:
         """Set up test tables and data for nested object filtering tests."""
         async with db_pool.connection() as conn:
             # Clean up any existing test data
@@ -271,7 +265,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
             await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
 
     @pytest.mark.asyncio
-    async def test_nested_or_returns_correct_results(self, db_pool, setup_test_data):
+    async def test_nested_or_returns_correct_results(self, db_pool, setup_test_data) -> None:
         """Test that nested OR operator returns correct database results.
 
         {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
@@ -328,7 +322,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
         )
 
     @pytest.mark.asyncio
-    async def test_nested_and_returns_correct_results(self, db_pool, setup_test_data):
+    async def test_nested_and_returns_correct_results(self, db_pool, setup_test_data) -> None:
         """Test that nested AND operator returns correct database results.
 
         {device: {AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
@@ -376,7 +370,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
         assert str(results[0]["id"]) == str(setup_test_data["active_router_id"])
 
     @pytest.mark.asyncio
-    async def test_nested_not_returns_correct_results(self, db_pool, setup_test_data):
+    async def test_nested_not_returns_correct_results(self, db_pool, setup_test_data) -> None:
         """Test that nested NOT operator returns correct database results.
 
         {device: {NOT: {is_active: {eq: true}}}}
@@ -422,7 +416,7 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
         assert str(results[0]["id"]) == str(setup_test_data["inactive_router_id"])
 
     @pytest.mark.asyncio
-    async def test_complex_nested_logical_expression(self, db_pool, setup_test_data):
+    async def test_complex_nested_logical_expression(self, db_pool, setup_test_data) -> None:
         """Test complex nested logical expression.
 
         {device: {OR: [{AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}, {AND: [{is_active: {eq: false}}, {name: {contains: "router"}}]}]}}

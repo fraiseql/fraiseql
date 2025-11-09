@@ -9,11 +9,12 @@ architecture, as they simulate how actual GraphQL clients deserialize JSON
 responses into typed objects.
 """
 
-from typing import TypeVar, Generic, Any, Type
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
+from typing import Any, Generic, Type, TypeVar
 
-from graphql import GraphQLSchema, ExecutionResult
+from graphql import ExecutionResult, GraphQLSchema
+
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.graphql.execute import execute_graphql
 
@@ -79,7 +80,7 @@ class GraphQLTestClient:
         ...         print(product.name)
     """
 
-    def __init__(self, schema: GraphQLSchema):
+    def __init__(self, schema: GraphQLSchema) -> None:
         """Initialize the test client with a GraphQL schema.
 
         Args:
@@ -138,14 +139,12 @@ class GraphQLTestClient:
                 if result.data is None:
                     # Complete failure - no data
                     return TypedGraphQLResponse(data=None, errors=errors)
-                else:
-                    # Partial success - has data and errors
-                    typed_data = self._deserialize(result.data, result_type)
-                    return TypedGraphQLResponse(data=typed_data, errors=errors)
-            else:
-                # Success - has data, no errors
+                # Partial success - has data and errors
                 typed_data = self._deserialize(result.data, result_type)
-                return TypedGraphQLResponse(data=typed_data, errors=None)
+                return TypedGraphQLResponse(data=typed_data, errors=errors)
+            # Success - has data, no errors
+            typed_data = self._deserialize(result.data, result_type)
+            return TypedGraphQLResponse(data=typed_data, errors=None)
 
         # Unexpected return type
         raise TypeError(f"Unexpected result type from execute_graphql: {type(result)}")
@@ -180,17 +179,14 @@ class GraphQLTestClient:
             item_type = result_type.__args__[0] if result_type.__args__ else Any
             if isinstance(data, list):
                 return [self._deserialize(item, item_type) for item in data]
-            else:
-                raise TypeError(f"Expected list data for {result_type}, got {type(data)}")
+            raise TypeError(f"Expected list data for {result_type}, got {type(data)}")
 
         # Handle dataclasses and FraiseQL types with __fraiseql_definition__
         if isinstance(data, dict):
             # Check if result_type is a dataclass
-            if hasattr(result_type, "__dataclass_fields__"):
-                # Create instance from dict
-                return result_type(**data)
-            # Check if result_type has __fraiseql_definition__ (FraiseQL type)
-            elif hasattr(result_type, "__fraiseql_definition__"):
+            if hasattr(result_type, "__dataclass_fields__") or hasattr(
+                result_type, "__fraiseql_definition__"
+            ):
                 # Create instance from dict
                 return result_type(**data)
 

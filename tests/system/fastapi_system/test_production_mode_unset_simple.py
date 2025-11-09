@@ -10,7 +10,7 @@ from fraiseql.types.definitions import UNSET
 class TestUnsetCleaning:
     """Test UNSET value cleaning functionality."""
 
-    def test_clean_unset_values_simple(self):
+    def test_clean_unset_values_simple(self) -> None:
         """Test basic UNSET cleaning."""
         data = {"valid": "value", "invalid": UNSET, "nested": {"good": 123, "bad": UNSET}}
 
@@ -21,7 +21,7 @@ class TestUnsetCleaning:
         assert cleaned["nested"]["good"] == 123
         assert cleaned["nested"]["bad"] is None
 
-    def test_clean_unset_values_list(self):
+    def test_clean_unset_values_list(self) -> None:
         """Test UNSET cleaning in lists."""
         data = [
             {"id": 1, "name": "John", "email": UNSET},
@@ -35,11 +35,11 @@ class TestUnsetCleaning:
         assert cleaned[0]["name"] == "John"
         assert cleaned[1]["email"] == "jane@example.com"
 
-    def test_clean_unset_direct_unset(self):
+    def test_clean_unset_direct_unset(self) -> None:
         """Test cleaning when the value itself is UNSET."""
         assert clean_unset_values(UNSET) is None
 
-    def test_clean_unset_preserves_other_values(self):
+    def test_clean_unset_preserves_other_values(self) -> None:
         """Test that non-UNSET values are preserved."""
         data = {
             "string": "test",
@@ -58,14 +58,14 @@ class TestUnsetCleaning:
 class TestProductionModeLogging:
     """Test production mode error logging improvements."""
 
-    def test_unset_error_detection(self):
+    def test_unset_error_detection(self) -> None:
         """Test that UNSET serialization errors are detected correctly."""
         error_message = "Object of type Unset is not JSON serializable"
 
         # This should match our error detection in the router
         assert "Unset is not JSON serializable" in error_message
 
-    def test_query_truncation_logic(self):
+    def test_query_truncation_logic(self) -> None:
         """Test query truncation for logging."""
         long_query = "{ " + "field " * 100 + "}"
 

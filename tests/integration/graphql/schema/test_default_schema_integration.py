@@ -11,7 +11,7 @@ from fraiseql.mutations.mutation_decorator import MutationDefinition
 
 
 @pytest.fixture
-def clean_registry():
+def clean_registry() -> None:
     """Clean the schema registry before and after each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -46,7 +46,7 @@ class TestError:
 class TestDefaultSchemaIntegration:
     """Integration tests for default schema configuration."""
 
-    def test_mutation_with_custom_default_schema(self, clean_registry):
+    def test_mutation_with_custom_default_schema(self, clean_registry) -> None:
         """Test that mutations use custom default schema from config."""
         # Create config with custom default schema
         config = FraiseQLConfig(
@@ -72,7 +72,7 @@ class TestDefaultSchemaIntegration:
         assert definition.schema == "app"
         assert definition.function_name == "create_test"
 
-    def test_multiple_mutations_with_different_schemas(self, clean_registry):
+    def test_multiple_mutations_with_different_schemas(self, clean_registry) -> None:
         """Test multiple mutations with different schema configurations."""
         # Set up config with default schema
         config = FraiseQLConfig(
@@ -108,7 +108,7 @@ class TestDefaultSchemaIntegration:
         assert CreatePublic.__fraiseql_mutation__.schema == "public"
 
     @pytest.mark.asyncio
-    async def test_resolver_uses_correct_schema_in_function_call(self, clean_registry):
+    async def test_resolver_uses_correct_schema_in_function_call(self, clean_registry) -> None:
         """Test that the resolver uses the correct schema when calling database functions."""
         # Set up config with custom default schema
         config = FraiseQLConfig(
@@ -156,7 +156,7 @@ class TestDefaultSchemaIntegration:
         assert isinstance(result, TestSuccess)
         assert result.message == "Data processed"
 
-    def test_schema_resolution_without_config(self, clean_registry):
+    def test_schema_resolution_without_config(self, clean_registry) -> None:
         """Test schema resolution when no config is set."""
         # Ensure no config is set
         registry = SchemaRegistry.get_instance()
@@ -172,7 +172,7 @@ class TestDefaultSchemaIntegration:
         # Should fall back to "public"
         assert TestDefault.__fraiseql_mutation__.schema == "public"
 
-    def test_changing_config_affects_new_mutations(self, clean_registry):
+    def test_changing_config_affects_new_mutations(self, clean_registry) -> None:
         """Test that changing config affects newly created mutations."""
         registry = SchemaRegistry.get_instance()
 

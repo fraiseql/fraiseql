@@ -110,13 +110,11 @@ class ExchangeRateField(str, ScalarMarker):
         elif isinstance(value, str):
             value_str = value
         else:
-            raise ValueError(
-                f"Exchange rate must be a number or string, got {type(value).__name__}"
-            )
+            raise TypeError(f"Exchange rate must be a number or string, got {type(value).__name__}")
 
         if not _EXCHANGE_RATE_REGEX.match(value_str):
             raise ValueError(
-                f"Invalid exchange rate: {value}. Must be positive numeric with up to 8 decimal places "
-                "(e.g., '1.23456789', '1234.5', '0.00001234')"
+                f"Invalid exchange rate: {value}. Must be positive numeric "
+                "with up to 8 decimal places (e.g., '1.23456789', '1234.5', '0.00001234')"
             )
         return super().__new__(cls, value_str)

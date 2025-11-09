@@ -4,26 +4,26 @@ Note: These tests require a PostgreSQL database and are designed to work
 with the existing FraiseQL database connection patterns.
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
-from fraiseql.fastapi.config import FraiseQLConfig
+import pytest
+
 from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> None:
     """Create a mock PostgreSQL backend config."""
     return {"table_prefix": "test_apq_", "auto_create_tables": True, "connection_timeout": 30}
 
 
 @pytest.fixture
-def mock_db_connection():
+def mock_db_connection() -> None:
     """Create a mock database connection."""
     return Mock()
 
 
-def test_postgresql_backend_initialization(mock_config):
+def test_postgresql_backend_initialization(mock_config) -> None:
     """Test PostgreSQL backend initialization."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -33,7 +33,7 @@ def test_postgresql_backend_initialization(mock_config):
     assert backend._responses_table == "test_apq_responses"
 
 
-def test_postgresql_backend_table_creation():
+def test_postgresql_backend_table_creation() -> None:
     """Test that PostgreSQL backend can create required tables."""
     config = {"table_prefix": "apq_", "auto_create_tables": True}
     backend = PostgreSQLAPQBackend(config)
@@ -53,7 +53,7 @@ def test_postgresql_backend_table_creation():
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query")
-def test_postgresql_backend_store_persisted_query(mock_execute, mock_config):
+def test_postgresql_backend_store_persisted_query(mock_execute, mock_config) -> None:
     """Test storing persisted queries in PostgreSQL."""
     # Disable auto table creation for this test
     mock_config["auto_create_tables"] = False
@@ -72,7 +72,7 @@ def test_postgresql_backend_store_persisted_query(mock_execute, mock_config):
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
-def test_postgresql_backend_get_persisted_query(mock_fetch, mock_config):
+def test_postgresql_backend_get_persisted_query(mock_fetch, mock_config) -> None:
     """Test retrieving persisted queries from PostgreSQL."""
     # Disable auto table creation for this test
     mock_config["auto_create_tables"] = False
@@ -94,7 +94,7 @@ def test_postgresql_backend_get_persisted_query(mock_fetch, mock_config):
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
-def test_postgresql_backend_get_persisted_query_not_found(mock_fetch, mock_config):
+def test_postgresql_backend_get_persisted_query_not_found(mock_fetch, mock_config) -> None:
     """Test retrieving non-existent persisted query."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -110,7 +110,7 @@ def test_postgresql_backend_get_persisted_query_not_found(mock_fetch, mock_confi
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query")
-def test_postgresql_backend_store_cached_response(mock_execute, mock_config):
+def test_postgresql_backend_store_cached_response(mock_execute, mock_config) -> None:
     """Test storing cached responses in PostgreSQL."""
     # Disable auto table creation for this test
     mock_config["auto_create_tables"] = False
@@ -131,7 +131,7 @@ def test_postgresql_backend_store_cached_response(mock_execute, mock_config):
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
-def test_postgresql_backend_get_cached_response(mock_fetch, mock_config):
+def test_postgresql_backend_get_cached_response(mock_fetch, mock_config) -> None:
     """Test retrieving cached responses from PostgreSQL."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -153,7 +153,7 @@ def test_postgresql_backend_get_cached_response(mock_fetch, mock_config):
 
 
 @patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
-def test_postgresql_backend_get_cached_response_not_found(mock_fetch, mock_config):
+def test_postgresql_backend_get_cached_response_not_found(mock_fetch, mock_config) -> None:
     """Test retrieving non-existent cached response."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -168,7 +168,7 @@ def test_postgresql_backend_get_cached_response_not_found(mock_fetch, mock_confi
     mock_fetch.assert_called_once()
 
 
-def test_postgresql_backend_connection_handling(mock_config):
+def test_postgresql_backend_connection_handling(mock_config) -> None:
     """Test database connection handling."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -178,7 +178,7 @@ def test_postgresql_backend_connection_handling(mock_config):
     assert callable(backend._get_connection)
 
 
-def test_postgresql_backend_error_handling(mock_config):
+def test_postgresql_backend_error_handling(mock_config) -> None:
     """Test error handling in PostgreSQL operations."""
     backend = PostgreSQLAPQBackend(mock_config)
 
@@ -194,7 +194,7 @@ def test_postgresql_backend_error_handling(mock_config):
         assert backend.get_cached_response("hash") is None
 
 
-def test_postgresql_backend_json_serialization(mock_config):
+def test_postgresql_backend_json_serialization(mock_config) -> None:
     """Test JSON serialization for cached responses."""
     backend = PostgreSQLAPQBackend(mock_config)
 

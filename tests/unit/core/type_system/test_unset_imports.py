@@ -11,12 +11,12 @@ from fraiseql.types.definitions import UNSET as UNSET_FROM_DEFINITIONS
 
 
 @pytest.mark.unit
-def test_unset_imports_are_same():
+def test_unset_imports_are_same() -> None:
     """Test that UNSET imported from different paths is the same object."""
     assert UNSET_FROM_PACKAGE is UNSET_FROM_DEFINITIONS
 
 
-def test_both_import_styles_work_with_types():
+def test_both_import_styles_work_with_types() -> None:
     """Test that both import styles work with type annotations."""
 
     @fraise_input

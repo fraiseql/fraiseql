@@ -14,7 +14,7 @@ from fraiseql.sql.operator_strategies import get_operator_registry
 class TestProductionFixValidation:
     """Validate that the production issue is fixed."""
 
-    def test_ip_equality_without_field_type_now_works(self):
+    def test_ip_equality_without_field_type_now_works(self) -> None:
         """GREEN: Test that IP equality now works without field_type (the production fix)."""
         registry = get_operator_registry()
 
@@ -35,7 +35,7 @@ class TestProductionFixValidation:
         # The result should now be: (data ->> 'ip_address')::inet = '8.8.8.8'
         # Instead of the broken: (data ->> 'ip_address') = '8.8.8.8'
 
-    def test_various_ip_formats_detected_correctly(self):
+    def test_various_ip_formats_detected_correctly(self) -> None:
         """Test that various IP address formats are detected correctly."""
         registry = get_operator_registry()
         strategy = registry.get_strategy("eq", field_type=None)
@@ -65,7 +65,7 @@ class TestProductionFixValidation:
             assert "::inet" in sql_str, f"IP {ip} not detected - missing inet casting"
             assert ip in sql_str, f"IP {ip} value missing from SQL"
 
-    def test_non_ip_strings_not_affected(self):
+    def test_non_ip_strings_not_affected(self) -> None:
         """Test that non-IP strings are not affected by the fix."""
         registry = get_operator_registry()
         strategy = registry.get_strategy("eq", field_type=None)
@@ -98,7 +98,7 @@ class TestProductionFixValidation:
             # Basic check - should be simple comparison
             assert " = " in sql_str, f"Should have simple equality for non-IP: {sql_str}"
 
-    def test_ip_in_operator_without_field_type(self):
+    def test_ip_in_operator_without_field_type(self) -> None:
         """Test that 'in' operator with IP addresses works without field_type."""
         registry = get_operator_registry()
         strategy = registry.get_strategy("in", field_type=None)
@@ -119,7 +119,7 @@ class TestProductionFixValidation:
         for ip in ip_list:
             assert ip in sql_str, f"IP {ip} missing from IN clause"
 
-    def test_mixed_list_handling(self):
+    def test_mixed_list_handling(self) -> None:
         """Test handling of mixed lists (some IPs, some not)."""
         registry = get_operator_registry()
         strategy = registry.get_strategy("in", field_type=None)
@@ -138,7 +138,7 @@ class TestProductionFixValidation:
         # This might cause issues with the non-IP values, but it's better than
         # missing IP comparisons
 
-    def test_backward_compatibility_with_field_type(self):
+    def test_backward_compatibility_with_field_type(self) -> None:
         """Test that the fix doesn't break existing behavior when field_type is provided."""
         from fraiseql.types import IpAddress
 
@@ -157,7 +157,7 @@ class TestProductionFixValidation:
         assert " = " in sql_str, "Should generate equality comparison"
         assert "'8.8.8.8'" in sql_str, "Should contain the IP address literal"
 
-    def test_production_scenario_exact_reproduction(self):
+    def test_production_scenario_exact_reproduction(self) -> None:
         """Test the exact production scenario that was failing."""
         # This reproduces the exact failing case from the deep dive document
 
@@ -189,7 +189,7 @@ class TestProductionFixValidation:
 class TestIPDetectionLogic:
     """Test the IP address detection logic specifically."""
 
-    def test_looks_like_ip_address_ipv4(self):
+    def test_looks_like_ip_address_ipv4(self) -> None:
         """Test IPv4 detection logic."""
         from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
 
@@ -208,7 +208,7 @@ class TestIPDetectionLogic:
         for ip in valid_ipv4:
             assert strategy._looks_like_ip_address_value(ip, "eq"), f"Should detect {ip} as IPv4"
 
-    def test_looks_like_ip_address_ipv6(self):
+    def test_looks_like_ip_address_ipv6(self) -> None:
         """Test IPv6 detection logic."""
         from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
 
@@ -219,7 +219,7 @@ class TestIPDetectionLogic:
         for ip in valid_ipv6:
             assert strategy._looks_like_ip_address_value(ip, "eq"), f"Should detect {ip} as IPv6"
 
-    def test_looks_like_ip_address_negative(self):
+    def test_looks_like_ip_address_negative(self) -> None:
         """Test that non-IPs are not detected as IPs."""
         from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
 

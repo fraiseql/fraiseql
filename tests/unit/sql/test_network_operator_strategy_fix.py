@@ -1,5 +1,4 @@
-"""
-Test suite for NetworkOperatorStrategy fix.
+"""Test suite for NetworkOperatorStrategy fix.
 
 This test verifies that the NetworkOperatorStrategy now properly supports
 basic comparison operators (eq, neq, in, notin) in addition to the existing
@@ -11,6 +10,7 @@ GitHub Issue: Network filtering partially broken in FraiseQL v0.5.5
 
 import pytest
 from psycopg.sql import SQL, Composed, Literal
+
 from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
 from fraiseql.types import IpAddress
 
@@ -18,12 +18,12 @@ from fraiseql.types import IpAddress
 class TestNetworkOperatorStrategy:
     """Test NetworkOperatorStrategy with basic operator support."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         self.strategy = NetworkOperatorStrategy()
         self.field_path = SQL("data->>'ip_address'")
 
-    def test_supported_operators_list(self):
+    def test_supported_operators_list(self) -> None:
         """Test that all expected operators are now supported."""
         expected_operators = [
             # Basic comparison operators (newly added)
@@ -49,7 +49,7 @@ class TestNetworkOperatorStrategy:
 
         assert self.strategy.operators == expected_operators
 
-    def test_can_handle_network_specific_without_field_type(self):
+    def test_can_handle_network_specific_without_field_type(self) -> None:
         """Test that network-specific operators work without field_type."""
         network_ops = [
             "inSubnet",
@@ -70,7 +70,7 @@ class TestNetworkOperatorStrategy:
                 f"Should handle {op} without field_type"
             )
 
-    def test_cannot_handle_basic_operators_without_field_type(self):
+    def test_cannot_handle_basic_operators_without_field_type(self) -> None:
         """Test that basic operators require field_type (delegated to generic strategies)."""
         basic_ops = ["eq", "neq", "in", "notin"]
 
@@ -79,7 +79,7 @@ class TestNetworkOperatorStrategy:
                 f"Should NOT handle {op} without field_type"
             )
 
-    def test_can_handle_all_operators_with_ip_field_type(self):
+    def test_can_handle_all_operators_with_ip_field_type(self) -> None:
         """Test that all operators work with IP address field type."""
         all_ops = [
             "eq",
@@ -104,7 +104,7 @@ class TestNetworkOperatorStrategy:
                 f"Should handle {op} with IpAddress field_type"
             )
 
-    def test_eq_operator_sql_generation(self):
+    def test_eq_operator_sql_generation(self) -> None:
         """Test SQL generation for eq operator."""
         result = self.strategy.build_sql(self.field_path, "eq", "8.8.8.8", IpAddress)
 
@@ -119,7 +119,7 @@ class TestNetworkOperatorStrategy:
 
         assert str(result) == str(expected)
 
-    def test_neq_operator_sql_generation(self):
+    def test_neq_operator_sql_generation(self) -> None:
         """Test SQL generation for neq operator."""
         result = self.strategy.build_sql(self.field_path, "neq", "8.8.8.8", IpAddress)
 
@@ -134,7 +134,7 @@ class TestNetworkOperatorStrategy:
 
         assert str(result) == str(expected)
 
-    def test_in_operator_sql_generation(self):
+    def test_in_operator_sql_generation(self) -> None:
         """Test SQL generation for in operator."""
         ip_list = ["8.8.8.8", "1.1.1.1", "9.9.9.9"]
         result = self.strategy.build_sql(self.field_path, "in", ip_list, IpAddress)
@@ -157,7 +157,7 @@ class TestNetworkOperatorStrategy:
 
         assert str(result) == str(expected)
 
-    def test_notin_operator_sql_generation(self):
+    def test_notin_operator_sql_generation(self) -> None:
         """Test SQL generation for notin operator."""
         ip_list = ["192.168.1.1", "10.0.0.1"]
         result = self.strategy.build_sql(self.field_path, "notin", ip_list, IpAddress)
@@ -177,17 +177,17 @@ class TestNetworkOperatorStrategy:
 
         assert str(result) == str(expected)
 
-    def test_in_operator_requires_list(self):
+    def test_in_operator_requires_list(self) -> None:
         """Test that in operator validates input is a list."""
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             self.strategy.build_sql(self.field_path, "in", "8.8.8.8", IpAddress)
 
-    def test_notin_operator_requires_list(self):
+    def test_notin_operator_requires_list(self) -> None:
         """Test that notin operator validates input is a list."""
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             self.strategy.build_sql(self.field_path, "notin", "8.8.8.8", IpAddress)
 
-    def test_network_operators_still_work(self):
+    def test_network_operators_still_work(self) -> None:
         """Test that existing network operators continue to work."""
         # Test inSubnet
         result = self.strategy.build_sql(self.field_path, "inSubnet", "192.168.0.0/16", IpAddress)
@@ -208,14 +208,14 @@ class TestNetworkOperatorStrategy:
         assert "<<= '192.168.0.0/16'::inet" in str(result)
         assert "<<= '172.16.0.0/12'::inet" in str(result)
 
-    def test_validates_field_type_for_non_ip_fields(self):
+    def test_validates_field_type_for_non_ip_fields(self) -> None:
         """Test that operator fails with non-IP field types."""
         with pytest.raises(
             ValueError, match="Network operator 'eq' can only be used with IP address fields"
         ):
             self.strategy.build_sql(self.field_path, "eq", "8.8.8.8", str)
 
-    def test_unsupported_operator_still_fails(self):
+    def test_unsupported_operator_still_fails(self) -> None:
         """Test that truly unsupported operators still fail appropriately."""
         assert not self.strategy.can_handle("like", IpAddress)
         assert not self.strategy.can_handle("regex", IpAddress)
@@ -225,12 +225,12 @@ class TestNetworkOperatorStrategy:
 class TestNetworkOperatorStrategyEdgeCases:
     """Test edge cases and error conditions."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         self.strategy = NetworkOperatorStrategy()
         self.field_path = SQL("data->>'ip_address'")
 
-    def test_empty_list_for_in_operator(self):
+    def test_empty_list_for_in_operator(self) -> None:
         """Test in operator with empty list."""
         result = self.strategy.build_sql(self.field_path, "in", [], IpAddress)
         expected = Composed(
@@ -238,7 +238,7 @@ class TestNetworkOperatorStrategyEdgeCases:
         )
         assert str(result) == str(expected)
 
-    def test_single_item_list_for_in_operator(self):
+    def test_single_item_list_for_in_operator(self) -> None:
         """Test in operator with single item list."""
         result = self.strategy.build_sql(self.field_path, "in", ["8.8.8.8"], IpAddress)
         expected = Composed(
@@ -252,7 +252,7 @@ class TestNetworkOperatorStrategyEdgeCases:
         )
         assert str(result) == str(expected)
 
-    def test_ipv6_addresses(self):
+    def test_ipv6_addresses(self) -> None:
         """Test that IPv6 addresses work with basic operators."""
         ipv6_addr = "2001:db8::1"
         result = self.strategy.build_sql(self.field_path, "eq", ipv6_addr, IpAddress)
@@ -268,7 +268,7 @@ class TestNetworkOperatorStrategyEdgeCases:
 
         assert str(result) == str(expected)
 
-    def test_private_ipv6_detection(self):
+    def test_private_ipv6_detection(self) -> None:
         """Test that private IP detection works with IPv6."""
         result = self.strategy.build_sql(self.field_path, "isPrivate", True, IpAddress)
         # The existing implementation should handle IPv6 private ranges
@@ -278,12 +278,12 @@ class TestNetworkOperatorStrategyEdgeCases:
 class TestBackwardCompatibility:
     """Test that the fix doesn't break existing functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         self.strategy = NetworkOperatorStrategy()
         self.field_path = SQL("data->>'ip_address'")
 
-    def test_all_original_operators_still_supported(self):
+    def test_all_original_operators_still_supported(self) -> None:
         """Test that all original network operators still work."""
         original_ops = ["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"]
 
@@ -294,7 +294,7 @@ class TestBackwardCompatibility:
             assert self.strategy.can_handle(op, IpAddress), f"Should handle {op} with IP field type"
             assert self.strategy.can_handle(op, None), f"Should handle {op} without field type"
 
-    def test_operator_precedence_unchanged(self):
+    def test_operator_precedence_unchanged(self) -> None:
         """Test that operator handling precedence hasn't changed."""
         # Network-specific operators should still be handled without field_type
         assert self.strategy.can_handle("inSubnet", None)

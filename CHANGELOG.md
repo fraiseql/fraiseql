@@ -37,6 +37,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parameter Validation**: Context params validated before PostgreSQL function calls
 - **Clear Conventions**: `auth_*` means "server-controlled authentication context"
 
+### ✨ New Scalar Types (50+ Types)
+
+**Phase 5: Comprehensive Scalar Type System** ✅ IMPLEMENTED
+
+**Financial & Trading Scalars:**
+- **CUSIP**: 9-character security identifier (3 digits + 5 alphanumeric + check digit)
+- **ISIN**: 12-character international security identifier (2 country + 9 security + check digit)
+- **SEDOL**: 7-character Stock Exchange Daily Official List identifier
+- **MIC**: Market Identifier Code (ISO 10383)
+- **LEI**: Legal Entity Identifier (20-character ISO standard)
+- **Money**: Currency amounts with 4 decimal precision
+- **Percentage**: Percentages between 0.00-100.00
+- **ExchangeRate**: Positive numeric exchange rates (up to 8 decimal places)
+- **CurrencyCode**: ISO 4217 currency codes
+- **StockSymbol**: Stock symbols with optional class suffixes (e.g., 'AAPL', 'BRK.A')
+
+**Network & Infrastructure Scalars:**
+- **IPv4/IPv6**: Internet Protocol addresses with subnet operations
+- **CIDR**: Classless Inter-Domain Routing notation
+- **MACAddress**: Media Access Control addresses
+- **Hostname**: Validated hostnames
+- **DomainName**: Domain names with validation
+- **Port**: Network ports (1-65535)
+- **EmailAddress**: RFC-compliant email addresses
+- **APIKey**: API keys and tokens
+- **HashSHA256**: SHA-256 hash values
+
+**Geospatial & Location Scalars:**
+- **Coordinate**: Latitude/longitude pairs with distance calculations
+- **Latitude/Longitude**: Individual geographic coordinates
+- **PostalCode**: Postal/ZIP codes
+- **Timezone**: IANA timezone identifiers
+
+**Business & Logistics Scalars:**
+- **ContainerNumber**: ISO 6346 shipping container identifiers
+- **FlightNumber**: IATA/ICAO flight number format
+- **TrackingNumber**: Package tracking numbers
+- **VIN**: Vehicle Identification Numbers (ISO 3779/3780)
+- **IBAN**: International Bank Account Numbers
+- **LicensePlate**: Vehicle license plates
+- **PhoneNumber**: International phone numbers
+- **LocaleCode**: BCP 47 locale identifiers
+- **LanguageCode**: ISO 639 language codes
+
+**Technical & Data Scalars:**
+- **UUID**: Universally Unique Identifiers
+- **JSON**: JSON data with validation
+- **Date/DateTime/Time**: Temporal values with validation
+- **DateRange**: PostgreSQL date ranges with overlap operations
+- **LTree**: Hierarchical tree structures with ancestor/descendant queries
+- **SemanticVersion**: Semantic versioning (MAJOR.MINOR.PATCH)
+- **Color**: Color values (hex, rgb, hsl)
+- **MIMEType**: MIME media types
+- **File/Image**: File and image references
+- **HTML/Markdown**: Rich text content
+- **Slug**: URL-friendly identifiers
+- **Duration**: Time durations
+
+**Key Features:**
+- **Validation**: All scalars include comprehensive input validation
+- **PostgreSQL Casting**: Automatic ::type casting for optimal query performance
+- **GraphQL Integration**: Full GraphQL schema support with descriptions
+- **Advanced Filtering**: 80+ specialized operators (ancestor_of, inSubnet, overlaps, etc.)
+- **Type Safety**: Compile-time type checking with mypy support
+
 ## [1.3.3] - 2025-01-07
 
 ### 🐛 Bug Fixes

@@ -13,13 +13,13 @@ from fraiseql.gql.builders.schema_composer import SchemaComposer
 class TestSchemaRegistry:
     """Test the SchemaRegistry functionality."""
 
-    def test_singleton_pattern(self):
+    def test_singleton_pattern(self) -> None:
         """Test that SchemaRegistry follows singleton pattern."""
         registry1 = SchemaRegistry.get_instance()
         registry2 = SchemaRegistry.get_instance()
         assert registry1 is registry2
 
-    def test_register_and_retrieve_type(self):
+    def test_register_and_retrieve_type(self) -> None:
         """Test registering and retrieving types."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -31,7 +31,7 @@ class TestSchemaRegistry:
         assert TestType in registry.types
         assert registry.types[TestType] == TestType
 
-    def test_register_query(self):
+    def test_register_query(self) -> None:
         """Test registering query functions."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -43,7 +43,7 @@ class TestSchemaRegistry:
         assert "test_query" in registry.queries
         assert registry.queries["test_query"] == test_query
 
-    def test_clear_registry(self):
+    def test_clear_registry(self) -> None:
         """Test that clear(): removes all registered items."""
         registry = SchemaRegistry.get_instance()
 
@@ -66,7 +66,7 @@ class TestSchemaRegistry:
 class TestQueryTypeBuilder:
     """Test the QueryTypeBuilder functionality."""
 
-    def test_build_empty_query_type_raises_error(self):
+    def test_build_empty_query_type_raises_error(self) -> None:
         """Test that building without any fields raises TypeError."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -76,7 +76,7 @@ class TestQueryTypeBuilder:
         with pytest.raises(TypeError, match="Type Query must define one or more fields"):
             builder.build()
 
-    def test_build_query_type_with_function(self):
+    def test_build_query_type_with_function(self) -> None:
         """Test building query type with registered query functions."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -97,7 +97,7 @@ class TestQueryTypeBuilder:
 class TestMutationTypeBuilder:
     """Test the MutationTypeBuilder functionality."""
 
-    def test_build_mutation_type(self):
+    def test_build_mutation_type(self) -> None:
         """Test building mutation type."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -119,7 +119,7 @@ class TestMutationTypeBuilder:
 class TestSchemaComposer:
     """Test the SchemaComposer functionality."""
 
-    def test_compose_schema_query_only(self):
+    def test_compose_schema_query_only(self) -> None:
         """Test composing schema with only queries."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -137,7 +137,7 @@ class TestSchemaComposer:
         assert schema.mutation_type is None
         assert schema.subscription_type is None
 
-    def test_compose_schema_with_mutations(self):
+    def test_compose_schema_with_mutations(self) -> None:
         """Test composing schema with queries and mutations."""
         registry = SchemaRegistry.get_instance()
         registry.clear()

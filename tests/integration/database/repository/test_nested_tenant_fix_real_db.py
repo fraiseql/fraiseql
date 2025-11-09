@@ -17,7 +17,7 @@ from fraiseql import query
 from fraiseql import type as fraiseql_type
 
 
-async def setup_test_database():
+async def setup_test_database() -> None:
     """Create a test database with the necessary schema."""
     # Get database connection details from environment
     import os
@@ -176,7 +176,7 @@ class Organization:
     status: str = "active"
 
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict) -> None:
         """Create Organization from dictionary."""
         return cls(
             id=data.get("id"),
@@ -197,7 +197,7 @@ class User:
     organization: Optional[Organization] = None  # This is EMBEDDED in data column
 
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict) -> None:
         """Create User from dictionary."""
         org_data = data.get("organization")
         org = None
@@ -214,7 +214,7 @@ class User:
 
 
 @pytest.mark.asyncio
-async def test_nested_organization_without_tenant_id():
+async def test_nested_organization_without_tenant_id() -> None:
     """Test that querying user with nested organization works without tenant_id."""
     # Skip in CI environment where database setup may differ
     import os
@@ -248,7 +248,7 @@ async def test_nested_organization_without_tenant_id():
         from fraiseql.cqrs.repository import CQRSRepository
 
         class TestRepository(CQRSRepository):
-            async def find_one(self, table: str, **kwargs):
+            async def find_one(self, table: str, **kwargs) -> None:
                 """Find one record from a table/view."""
                 where_conditions = []
                 params = []
@@ -373,7 +373,7 @@ async def test_nested_organization_without_tenant_id():
 
 
 @pytest.mark.asyncio
-async def test_comparison_with_and_without_embedded():
+async def test_comparison_with_and_without_embedded() -> None:
     """Compare behavior with embedded vs non-embedded organization data."""
     # Skip in CI environment where database setup may differ
     import os
@@ -425,7 +425,7 @@ async def test_comparison_with_and_without_embedded():
         from fraiseql.cqrs.repository import CQRSRepository
 
         class TestRepository(CQRSRepository):
-            async def find_one(self, table: str, **kwargs):
+            async def find_one(self, table: str, **kwargs) -> None:
                 """Find one record from a table/view."""
                 where_conditions = []
                 params = []

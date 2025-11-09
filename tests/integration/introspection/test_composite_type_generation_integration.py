@@ -7,13 +7,13 @@ IMPORTANT: These tests assume a SpecQL-generated schema exists in the database.
 """
 
 import pytest
+
 from fraiseql.introspection import AutoDiscovery
 
 
 @pytest.fixture
-async def specql_test_schema_exists(db_pool):
-    """
-    Verify SpecQL test schema exists in database.
+async def specql_test_schema_exists(db_pool) -> None:
+    """Verify SpecQL test schema exists in database.
 
     This fixture does NOT create the schema - it only checks if it exists.
     The schema should be created by:
@@ -35,11 +35,9 @@ async def specql_test_schema_exists(db_pool):
         if not exists[0]:
             pytest.skip("SpecQL test schema not found - run SpecQL or apply test schema SQL")
 
-    yield
-
 
 @pytest.mark.asyncio
-async def test_end_to_end_composite_type_generation(db_pool, specql_test_schema_exists):
+async def test_end_to_end_composite_type_generation(db_pool, specql_test_schema_exists) -> None:
     """Test complete flow from database to generated mutation.
 
     This test READS a SpecQL-generated database and verifies AutoFraiseQL
@@ -71,7 +69,7 @@ async def test_end_to_end_composite_type_generation(db_pool, specql_test_schema_
 
 
 @pytest.mark.asyncio
-async def test_context_params_auto_detection(db_pool, specql_test_schema_exists):
+async def test_context_params_auto_detection(db_pool, specql_test_schema_exists) -> None:
     """Test that context parameters are automatically detected.
 
     Verifies that input_tenant_id and input_user_id are auto-detected

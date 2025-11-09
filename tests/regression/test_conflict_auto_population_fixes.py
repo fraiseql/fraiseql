@@ -1,10 +1,9 @@
 """Phase 2: GREEN - Tests that verify conflict auto-population fixes work correctly."""
 
-import pytest
 import fraiseql
-from fraiseql.mutations.parser import parse_mutation_result, _populate_conflict_fields
-from fraiseql.mutations.types import MutationResult
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
+from fraiseql.mutations.parser import _populate_conflict_fields, parse_mutation_result
+from fraiseql.mutations.types import MutationResult
 
 
 @fraiseql.type
@@ -39,7 +38,7 @@ class CreateLocationError:
 class TestConflictAutoPopulationFixes:
     """Tests verifying that conflict auto-population fixes work correctly."""
 
-    def test_conflict_location_populated_with_snake_case_format(self):
+    def test_conflict_location_populated_with_snake_case_format(self) -> None:
         """GREEN TEST: Verifies that conflict_location is populated with snake_case format.
 
         This test verifies that the fix for snake_case format works:
@@ -71,7 +70,7 @@ class TestConflictAutoPopulationFixes:
         assert parsed_result.conflict_location.id == "loc-123"
         assert parsed_result.conflict_location.name == "Existing Location"
 
-    def test_no_typeerror_with_errors_array_format(self):
+    def test_no_typeerror_with_errors_array_format(self) -> None:
         """GREEN TEST: Verifies that errors array format no longer causes TypeError.
 
         This test verifies that the Error object instantiation fix works by
@@ -114,7 +113,7 @@ class TestConflictAutoPopulationFixes:
         assert parsed_result.errors is not None
         assert len(parsed_result.errors) > 0
 
-    def test_integration_parse_error_populate_conflict_works(self):
+    def test_integration_parse_error_populate_conflict_works(self) -> None:
         """GREEN TEST: Verifies that _parse_error + _populate_conflict_fields integration works.
 
         This test verifies that the integration between _parse_error and _populate_conflict_fields
@@ -152,7 +151,7 @@ class TestConflictAutoPopulationFixes:
         assert fields["conflict_location"].id == "loc-789"
         assert fields["conflict_location"].name == "Snake Case Location"
 
-    def test_both_formats_supported_for_backward_compatibility(self):
+    def test_both_formats_supported_for_backward_compatibility(self) -> None:
         """GREEN TEST: Verifies that both snake_case and camelCase formats work.
 
         This test verifies that we now support both formats for backward compatibility.
@@ -194,7 +193,7 @@ class TestConflictAutoPopulationFixes:
         assert "conflict_location" in camel_fields  # Still works
         assert camel_fields["conflict_location"].id == "camel-456"
 
-    def test_default_error_config_works_out_of_the_box(self):
+    def test_default_error_config_works_out_of_the_box(self) -> None:
         """GREEN TEST: Verifies that DEFAULT_ERROR_CONFIG works without any configuration.
 
         This test verifies that the PrintOptim backend can now remove conditional tests
@@ -237,7 +236,7 @@ class TestConflictAutoPopulationFixes:
         assert result.message == "Entity already exists"
         assert result.code == "conflict"
 
-    def test_multiple_conflict_fields_populated(self):
+    def test_multiple_conflict_fields_populated(self) -> None:
         """GREEN TEST: Verifies that multiple conflict_* fields can be populated."""
         result_data = {
             "status": "conflict",
@@ -267,7 +266,7 @@ class TestConflictAutoPopulationFixes:
         assert result.conflict_location.id == "multi-conflict"
         assert result.conflict_primary.id == "multi-conflict"
 
-    def test_graceful_handling_of_malformed_data(self):
+    def test_graceful_handling_of_malformed_data(self) -> None:
         """GREEN TEST: Verifies graceful handling of malformed conflict data."""
         result_data = {
             "status": "conflict",

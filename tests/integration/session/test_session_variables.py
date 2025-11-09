@@ -1,26 +1,17 @@
-"""
-Test session variables functionality in the Rust pipeline.
-"""
+"""Test session variables functionality in the Rust pipeline."""
 
-import json
-from contextlib import asynccontextmanager
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 from psycopg.sql import SQL, Literal
-
-from fraiseql.execution.mode_selector import ExecutionMode
-from fraiseql.db import FraiseQLRepository
-from fraiseql.fastapi.turbo import TurboRouter
 
 
 class TestSessionVariablesAcrossExecutionModes:
     """Test that session variables are set consistently in all execution modes."""
 
     @pytest.fixture
-    async def mock_pool_psycopg(self):
+    async def mock_pool_psycopg(self) -> None:
         """Create a mock psycopg pool with connection tracking."""
         mock_pool = MagicMock()
         mock_conn = AsyncMock()
@@ -29,10 +20,9 @@ class TestSessionVariablesAcrossExecutionModes:
         # Track executed SQL statements
         executed_statements = []
 
-        async def track_execute(sql, *args):
+        async def track_execute(sql, *args) -> None:
             # Store both raw SQL and string representation
             executed_statements.append(sql)
-            return None
 
         mock_cursor.execute = track_execute
         mock_cursor.fetchone = AsyncMock(return_value={"result": "test"})
@@ -54,7 +44,7 @@ class TestSessionVariablesAcrossExecutionModes:
         return mock_pool
 
     @pytest.fixture
-    async def mock_pool_asyncpg(self):
+    async def mock_pool_asyncpg(self) -> None:
         """Create a mock asyncpg pool with connection tracking."""
         mock_pool = AsyncMock(spec=["acquire"])
         mock_conn = AsyncMock()
@@ -62,9 +52,8 @@ class TestSessionVariablesAcrossExecutionModes:
         # Track executed SQL statements
         executed_statements = []
 
-        async def track_execute(sql, *args):
+        async def track_execute(sql, *args) -> None:
             executed_statements.append({"sql": sql, "args": args})
-            return None
 
         mock_conn.execute = track_execute
         mock_conn.fetchrow = AsyncMock(return_value={"result": "test"})
@@ -81,7 +70,7 @@ class TestSessionVariablesAcrossExecutionModes:
         return mock_pool
 
     @pytest.mark.asyncio
-    async def test_session_variables_work(self, mock_pool_psycopg):
+    async def test_session_variables_work(self, mock_pool_psycopg) -> None:
         """Test that session variables are set in TurboRouter execution mode."""
         tenant_id = str(uuid4())
         contact_id = str(uuid4())
@@ -96,14 +85,13 @@ class TestSessionVariablesAcrossExecutionModes:
         mock_cursor = AsyncMock()
         executed_statements = []
 
-        async def track_execute(sql, *args):
+        async def track_execute(sql, *args) -> None:
             # Handle both SQL objects and strings
             if hasattr(sql, "__sql__"):
                 sql_str = str(sql.as_string(mock_cursor))
             else:
                 sql_str = str(sql)
             executed_statements.append(sql_str)
-            return None
 
         mock_cursor.execute = track_execute
         mock_cursor.fetchall = AsyncMock(return_value=[{"result": "test"}])

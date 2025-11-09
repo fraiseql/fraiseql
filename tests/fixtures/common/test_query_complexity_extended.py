@@ -23,7 +23,7 @@ from fraiseql.analysis.complexity_config import (
 class TestComplexityScoreExtended:
     """Extended tests for ComplexityScore class."""
 
-    def test_cache_weight_boundaries(self):
+    def test_cache_weight_boundaries(self) -> None:
         """Test cache weight at different complexity boundaries."""
         # Very simple query
         score = ComplexityScore(field_count=1, max_depth=1)
@@ -43,7 +43,7 @@ class TestComplexityScoreExtended:
         )
         assert score.cache_weight > 3.0
 
-    def test_should_cache_custom_threshold(self):
+    def test_should_cache_custom_threshold(self) -> None:
         """Test should_cache with custom thresholds."""
         score = ComplexityScore(field_count=50, depth_score=50)
 
@@ -53,7 +53,7 @@ class TestComplexityScoreExtended:
         # Should cache with high threshold
         assert score.should_cache(threshold=500) is True
 
-    def test_total_score_components(self):
+    def test_total_score_components(self) -> None:
         """Test that all components contribute to total score."""
         # Base score
         score1 = ComplexityScore(field_count=10)
@@ -75,7 +75,7 @@ class TestComplexityScoreExtended:
 class TestQueryComplexityAnalyzerExtended:
     """Extended tests for QueryComplexityAnalyzer class."""
 
-    def test_analyzer_initialization(self):
+    def test_analyzer_initialization(self) -> None:
         """Test analyzer initialization with different configs."""
         # Default initialization
         analyzer1 = QueryComplexityAnalyzer()
@@ -93,7 +93,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert len(analyzer1.fragments) == 0
         assert analyzer1.current_depth == 0
 
-    def test_analyze_with_document_node(self):
+    def test_analyze_with_document_node(self) -> None:
         """Test analyze with pre-parsed DocumentNode."""
         query_str = "query { user { id name } }"
         document = parse(query_str)
@@ -104,7 +104,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert isinstance(score, ComplexityScore)
         assert score.field_count > 0
 
-    def test_inline_fragments(self):
+    def test_inline_fragments(self) -> None:
         """Test analysis of inline fragments."""
         query = """
         query GetContent {
@@ -128,7 +128,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert score.type_diversity >= 2  # At least Article and Video
         assert score.field_count >= 6
 
-    def test_multiple_operations(self):
+    def test_multiple_operations(self) -> None:
         """Test document with multiple operations."""
         query = """
         query GetUser {
@@ -152,7 +152,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert "Subscription" in analyzer.types_accessed
         assert score.type_diversity >= 3
 
-    def test_deeply_nested_arrays(self):
+    def test_deeply_nested_arrays(self) -> None:
         """Test scoring of deeply nested array fields."""
         query = """
         query {
@@ -178,7 +178,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert score.array_score > 100  # High due to nested arrays
         assert score.total_score > 150  # Adjust threshold based on actual scoring
 
-    def test_fragment_spread_handling(self):
+    def test_fragment_spread_handling(self) -> None:
         """Test handling of fragment spreads."""
         query = """
         fragment UserFields on User {
@@ -206,7 +206,7 @@ class TestQueryComplexityAnalyzerExtended:
         assert "UserFields" in analyzer.fragments
         # Fragment spread handling is simplified, but should still track fragments
 
-    def test_array_field_detection_patterns(self):
+    def test_array_field_detection_patterns(self) -> None:
         """Test array field pattern detection."""
         queries = [
             ("query { items { id } }", True),
@@ -229,7 +229,7 @@ class TestQueryComplexityAnalyzerExtended:
 class TestComplexityConfigExtended:
     """Extended tests for ComplexityConfig class."""
 
-    def test_preset_configs(self):
+    def test_preset_configs(self) -> None:
         """Test preset configuration values."""
         # Strict config
         assert STRICT_CONFIG.depth_multiplier == 2.0
@@ -244,7 +244,7 @@ class TestComplexityConfigExtended:
         # Balanced is default
         assert BALANCED_CONFIG.depth_multiplier == 1.5
 
-    def test_custom_config_in_analysis(self):
+    def test_custom_config_in_analysis(self) -> None:
         """Test using custom configs in analysis."""
         query = """
         query {
@@ -267,7 +267,7 @@ class TestComplexityConfigExtended:
         assert strict_score.total_score > relaxed_score.total_score
         assert strict_score.array_score > relaxed_score.array_score
 
-    def test_config_singleton_pattern(self):
+    def test_config_singleton_pattern(self) -> None:
         """Test config singleton management."""
         # Get default
         default1 = ComplexityConfig.get_default()
@@ -286,7 +286,7 @@ class TestComplexityConfigExtended:
         # Reset to normal default
         ComplexityConfig._default = None
 
-    def test_depth_penalty_bounds(self):
+    def test_depth_penalty_bounds(self) -> None:
         """Test depth penalty calculation with bounds."""
         config = ComplexityConfig(max_depth_penalty=50)
 
@@ -298,7 +298,7 @@ class TestComplexityConfigExtended:
         # Very deep should hit max
         assert config.calculate_depth_penalty(100) == 50
 
-    def test_array_penalty_calculation(self):
+    def test_array_penalty_calculation(self) -> None:
         """Test array penalty calculation."""
         config = ComplexityConfig()
 
@@ -311,7 +311,7 @@ class TestComplexityConfigExtended:
         deep = config.calculate_array_penalty(5, 2)
         assert deep > shallow
 
-    def test_cache_weight_boundaries(self):
+    def test_cache_weight_boundaries(self) -> None:
         """Test cache weight calculation at boundaries."""
         config = ComplexityConfig(
             simple_query_threshold=10, moderate_query_threshold=50, complex_query_threshold=200
@@ -329,7 +329,7 @@ class TestComplexityConfigExtended:
         assert weight > config.complex_query_weight
         assert weight == config.complex_query_weight * 2.0  # 400/200
 
-    def test_array_field_patterns_extended(self):
+    def test_array_field_patterns_extended(self) -> None:
         """Test extended array field pattern matching."""
         config = ComplexityConfig()
 
@@ -353,7 +353,7 @@ class TestComplexityConfigExtended:
 class TestCachingDecisionsExtended:
     """Extended tests for caching decision functions."""
 
-    def test_should_cache_with_configs(self):
+    def test_should_cache_with_configs(self) -> None:
         """Test cache decisions with different configs."""
         complex_query = """
         query {
@@ -376,7 +376,7 @@ class TestCachingDecisionsExtended:
         should_cache_relaxed, _ = should_cache_query(complex_query, config=RELAXED_CONFIG)
         # Relaxed has higher threshold
 
-    def test_cache_weight_with_schema(self):
+    def test_cache_weight_with_schema(self) -> None:
         """Test cache weight calculation with schema (None schema test)."""
         query = "query { user { name } }"
 
@@ -390,7 +390,7 @@ class TestCachingDecisionsExtended:
         assert isinstance(weight2, float)
         assert 0.1 <= weight1 <= 10.0
 
-    def test_edge_case_queries(self):
+    def test_edge_case_queries(self) -> None:
         """Test edge case queries."""
         # Simple query (empty selection is invalid GraphQL)
         simple_query = "query { __typename }"
@@ -416,7 +416,7 @@ class TestCachingDecisionsExtended:
 class TestAnalyzerStateManagement:
     """Test analyzer state management across multiple analyses."""
 
-    def test_analyzer_state_reset(self):
+    def test_analyzer_state_reset(self) -> None:
         """Test that analyzer properly resets state between analyses."""
         analyzer = QueryComplexityAnalyzer()
 

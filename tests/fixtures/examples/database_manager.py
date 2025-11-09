@@ -73,7 +73,7 @@ class ExampleConfig:
 class ExampleDatabaseManager:
     """Smart database management for example integration tests."""
 
-    def __init__(self, cache_dir: Optional[Path] = None, config: Optional[DatabaseConfig] = None):
+    def __init__(self, cache_dir: Optional[Path] = None, config: Optional[DatabaseConfig] = None) -> None:
         """Initialize database manager."""
         self.cache_dir = cache_dir or Path(__file__).parent
         self.config = config or DatabaseConfig()
@@ -94,7 +94,7 @@ class ExampleDatabaseManager:
                 return {}
         return {}
 
-    def _save_examples_cache(self):
+    def _save_examples_cache(self) -> None:
         """Save examples cache to disk."""
         try:
             with open(self.state_cache_file, "w") as f:
@@ -428,7 +428,7 @@ class ExampleDatabaseManager:
             validation_queries=[],
         )
 
-    def cleanup_test_databases(self, pattern: str = None):
+    def cleanup_test_databases(self, pattern: str = None) -> None:
         """Clean up test databases matching pattern."""
         if pattern is None:
             pattern = self.config.test_suffix

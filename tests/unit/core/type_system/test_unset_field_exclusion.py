@@ -35,12 +35,12 @@ class Router:
 class TestUnsetFieldExclusion:
     """Test that UNSET fields are properly excluded from mutation input."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         SchemaRegistry._instance = None
         SchemaConfig._instance = None
 
-    def test_unset_fields_are_excluded(self):
+    def test_unset_fields_are_excluded(self) -> None:
         """Test that fields with UNSET values are not included in the dictionary."""
         # Create input with only id and ip_address provided
         input_obj = UpdateRouterInput(
@@ -60,7 +60,7 @@ class TestUnsetFieldExclusion:
         assert "mac_address" not in result
         assert "location" not in result
 
-    def test_explicit_none_is_included(self):
+    def test_explicit_none_is_included(self) -> None:
         """Test that explicitly setting a field to None includes it in the dictionary."""
         # Create input with explicit None values
         input_obj = UpdateRouterInput(
@@ -84,7 +84,7 @@ class TestUnsetFieldExclusion:
         assert "mac_address" not in result
         assert "location" not in result
 
-    def test_all_fields_provided(self):
+    def test_all_fields_provided(self) -> None:
         """Test when all fields are explicitly provided."""
         # Create input with all fields
         input_obj = UpdateRouterInput(
@@ -107,7 +107,7 @@ class TestUnsetFieldExclusion:
             "location": "Server Room A",
         }
 
-    def test_partial_update_scenario(self):
+    def test_partial_update_scenario(self) -> None:
         """Test a realistic partial update scenario."""
         # Simulate updating only the IP address
         input_obj = UpdateRouterInput(
@@ -125,7 +125,7 @@ class TestUnsetFieldExclusion:
         # This dictionary can now be used in PostgreSQL functions
         # to perform partial updates without setting other fields to NULL
 
-    def test_clearing_optional_field(self):
+    def test_clearing_optional_field(self) -> None:
         """Test clearing an optional field by setting it to None."""
         # Clear the location field by explicitly setting to None
         input_obj = UpdateRouterInput(
@@ -147,7 +147,7 @@ class TestUnsetFieldExclusion:
 
 
 @pytest.mark.asyncio
-async def test_mutation_with_unset_fields():
+async def test_mutation_with_unset_fields() -> None:
     """Test that mutations correctly handle UNSET fields in practice."""
     from fraiseql.mutations.parser import parse_mutation_result
 

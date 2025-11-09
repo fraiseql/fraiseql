@@ -7,18 +7,18 @@ a SQL column (machine_id) and equivalent JSONB path (data->'machine'->>'id').
 Issue: FraiseQL v0.9.4 logs "Unsupported operator: id" and returns incorrect results.
 """
 
-import pytest
 import uuid
-from datetime import date
+
+import pytest
 
 pytestmark = pytest.mark.database
 
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.sql import create_graphql_where_input, UUIDFilter
-from tests.unit.utils.test_response_utils import extract_graphql_data
+from fraiseql.sql import UUIDFilter, create_graphql_where_input
 
 
 @fraiseql.type
@@ -52,7 +52,7 @@ class TestHybridTableNestedObjectFiltering:
     """Test that nested object filtering works correctly on hybrid tables."""
 
     @pytest.fixture
-    async def setup_hybrid_allocation_table(self, db_pool):
+    async def setup_hybrid_allocation_table(self, db_pool) -> None:
         """Create a hybrid allocation table matching the issue description."""
         async with db_pool.connection() as conn:
             # Create table with both SQL columns and JSONB data
@@ -215,7 +215,9 @@ class TestHybridTableNestedObjectFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_nested_object_filter_with_results(self, db_pool, setup_hybrid_allocation_table):
+    async def test_nested_object_filter_with_results(
+        self, db_pool, setup_hybrid_allocation_table
+    ) -> None:
         """Test nested filtering for a machine that has allocations."""
         test_data = setup_hybrid_allocation_table
 
@@ -246,7 +248,7 @@ class TestHybridTableNestedObjectFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_direct_sql_comparison(self, db_pool, setup_hybrid_allocation_table):
+    async def test_direct_sql_comparison(self, db_pool, setup_hybrid_allocation_table) -> None:
         """Verify that direct SQL works correctly, proving the issue is in FraiseQL."""
         test_data = setup_hybrid_allocation_table
 
@@ -274,7 +276,9 @@ class TestHybridTableNestedObjectFiltering:
                 assert len(jsonb_results) == 0, "JSONB path filtering also confirms 0 allocations"
 
     @pytest.mark.asyncio
-    async def test_multiple_nested_object_filters(self, db_pool, setup_hybrid_allocation_table):
+    async def test_multiple_nested_object_filters(
+        self, db_pool, setup_hybrid_allocation_table
+    ) -> None:
         """Test filtering with multiple nested object conditions."""
         test_data = setup_hybrid_allocation_table
 
@@ -305,7 +309,7 @@ class TestHybridTableNestedObjectFiltering:
         assert len(results) == test_data["machine2_allocations"]
 
     @pytest.mark.asyncio
-    async def test_dict_based_nested_filter(self, db_pool, setup_hybrid_allocation_table):
+    async def test_dict_based_nested_filter(self, db_pool, setup_hybrid_allocation_table) -> None:
         """Test using dictionary-based nested filters (common in GraphQL resolvers)."""
         test_data = setup_hybrid_allocation_table
 

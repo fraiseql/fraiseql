@@ -15,7 +15,7 @@ from fraiseql.types import Coordinate
 class TestCoordinateFilterOperations:
     """Test coordinate filtering with proper PostgreSQL POINT type handling."""
 
-    def test_coordinate_eq_operation(self):
+    def test_coordinate_eq_operation(self) -> None:
         """Test coordinate equality operation with POINT casting."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -30,7 +30,7 @@ class TestCoordinateFilterOperations:
         # Should convert (lat, lng) to POINT(lng, lat)
         assert " -122.6,45.5" in sql_str, "Wrong coordinate order"
 
-    def test_coordinate_neq_operation(self):
+    def test_coordinate_neq_operation(self) -> None:
         """Test coordinate inequality operation."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -43,7 +43,7 @@ class TestCoordinateFilterOperations:
         assert "!=" in sql_str
         assert "POINT( -122.3425,47.6097)" in sql_str
 
-    def test_coordinate_in_operation(self):
+    def test_coordinate_in_operation(self) -> None:
         """Test coordinate IN operation with multiple coordinates."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -64,7 +64,7 @@ class TestCoordinateFilterOperations:
         assert "POINT( -122.3425,47.6097)" in sql_str
         assert "POINT( -74.006,40.7128)" in sql_str
 
-    def test_coordinate_notin_operation(self):
+    def test_coordinate_notin_operation(self) -> None:
         """Test coordinate NOT IN operation."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -79,7 +79,7 @@ class TestCoordinateFilterOperations:
         assert "POINT(0,0)" in sql_str
         assert "POINT(180,90)" in sql_str
 
-    def test_coordinate_distance_within_operation(self):
+    def test_coordinate_distance_within_operation(self) -> None:
         """Test coordinate distance filtering with Haversine (default method)."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -101,7 +101,7 @@ class TestCoordinateFilterOperations:
         assert "6371000" in sql_str, "Missing Earth radius constant"
         assert "1000" in sql_str, "Wrong distance"
 
-    def test_coordinate_edge_cases(self):
+    def test_coordinate_edge_cases(self) -> None:
         """Test coordinate operations with edge cases."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -121,7 +121,7 @@ class TestCoordinateFilterOperations:
         sql = registry.build_sql(path_sql=path_sql, op="eq", val=date_line, field_type=Coordinate)
         assert "POINT(180,0)" in sql.as_string(None)
 
-    def test_coordinate_type_validation(self):
+    def test_coordinate_type_validation(self) -> None:
         """Test that coordinate operations require Coordinate field type."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -142,7 +142,7 @@ class TestCoordinateFilterOperations:
         sql_str = sql.as_string(None)
         assert "::point" not in sql_str, "Should not use point casting for non-Coordinate types"
 
-    def test_coordinate_distance_within_validation(self):
+    def test_coordinate_distance_within_validation(self) -> None:
         """Test distance_within operator parameter validation."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")
@@ -211,7 +211,7 @@ class TestCoordinateFilterOperations:
                 field_type=Coordinate,
             )
 
-    def test_coordinate_vs_other_types(self):
+    def test_coordinate_vs_other_types(self) -> None:
         """Test that coordinate operations differ from other field types."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'location'")
@@ -237,7 +237,7 @@ class TestCoordinateFilterOperations:
         assert "::point" not in string_sql_str
         assert "POINT(" not in string_sql_str
 
-    def test_coordinate_distance_method_selection(self):
+    def test_coordinate_distance_method_selection(self) -> None:
         """Test that distance method can be configured via environment variable."""
         import os
 
@@ -279,7 +279,7 @@ class TestCoordinateFilterOperations:
         # Cleanup
         os.environ.pop("FRAISEQL_COORDINATE_DISTANCE_METHOD", None)
 
-    def test_coordinate_operator_availability(self):
+    def test_coordinate_operator_availability(self) -> None:
         """Test which operators are available for coordinate fields."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'coordinates'")

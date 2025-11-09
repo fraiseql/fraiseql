@@ -9,9 +9,7 @@ These tests complement the existing SQL generation tests by verifying the
 complete repository layer integration works correctly for all specialized types.
 """
 
-import pytest
 from unittest.mock import Mock
-from datetime import date
 
 from fraiseql.db import FraiseQLRepository
 
@@ -19,7 +17,7 @@ from fraiseql.db import FraiseQLRepository
 class TestSpecializedTypesRepositoryIntegration:
     """Test repository integration with FraiseQL's specialized types."""
 
-    def test_ip_address_repository_integration(self):
+    def test_ip_address_repository_integration(self) -> None:
         """Test IP address filtering works through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -45,7 +43,7 @@ class TestSpecializedTypesRepositoryIntegration:
                 f"IP address should use ::inet casting: {condition_str}"
             )
 
-    def test_mac_address_repository_integration(self):
+    def test_mac_address_repository_integration(self) -> None:
         """Test MAC address filtering works through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -70,7 +68,7 @@ class TestSpecializedTypesRepositoryIntegration:
                 f"Should reference MAC field: {condition_str}"
             )
 
-    def test_ltree_repository_integration(self):
+    def test_ltree_repository_integration(self) -> None:
         """Test LTree hierarchical path filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -97,7 +95,7 @@ class TestSpecializedTypesRepositoryIntegration:
             else:
                 assert condition is not None, f"Should generate SQL for LTree field {field}"
 
-    def test_hostname_repository_integration(self):
+    def test_hostname_repository_integration(self) -> None:
         """Test hostname filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -120,7 +118,7 @@ class TestSpecializedTypesRepositoryIntegration:
             assert condition is not None, f"Should generate SQL for hostname field {field}"
             # Hostname filtering should work with text-based operations
 
-    def test_port_repository_integration(self):
+    def test_port_repository_integration(self) -> None:
         """Test port number filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -143,7 +141,7 @@ class TestSpecializedTypesRepositoryIntegration:
             assert condition is not None, f"Should generate SQL for port field {field}"
             # Numeric operations should work correctly
 
-    def test_date_repository_integration(self):
+    def test_date_repository_integration(self) -> None:
         """Test date filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -166,7 +164,7 @@ class TestSpecializedTypesRepositoryIntegration:
             assert condition is not None, f"Should generate SQL for date field {field}"
             # Date operations should use appropriate casting/formatting
 
-    def test_daterange_repository_integration(self):
+    def test_daterange_repository_integration(self) -> None:
         """Test DateRange filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -191,7 +189,7 @@ class TestSpecializedTypesRepositoryIntegration:
             else:
                 assert condition is not None, f"Should generate SQL for daterange field {field}"
 
-    def test_email_address_repository_integration(self):
+    def test_email_address_repository_integration(self) -> None:
         """Test email address filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -214,7 +212,7 @@ class TestSpecializedTypesRepositoryIntegration:
             assert condition is not None, f"Should generate SQL for email field {field}"
             # Email should support text-based operations
 
-    def test_cidr_repository_integration(self):
+    def test_cidr_repository_integration(self) -> None:
         """Test CIDR network filtering through repository layer."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -236,7 +234,7 @@ class TestSpecializedTypesRepositoryIntegration:
             assert condition is not None, f"Should generate SQL for CIDR field {field}"
             # CIDR should ideally use ::cidr or ::inet casting
 
-    def test_mixed_specialized_types_integration(self):
+    def test_mixed_specialized_types_integration(self) -> None:
         """Test that multiple specialized types work correctly together."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)
@@ -269,7 +267,7 @@ class TestSpecializedTypesRepositoryIntegration:
         ip_sql = next(sql for field, sql in results if "ip" in field)
         assert "::inet" in ip_sql, f"IP address should use ::inet casting: {ip_sql}"
 
-    def test_fallback_behavior_for_unknown_operators(self):
+    def test_fallback_behavior_for_unknown_operators(self) -> None:
         """Test graceful fallback when operator strategies don't support certain operators."""
         mock_pool = Mock()
         db = FraiseQLRepository(mock_pool)

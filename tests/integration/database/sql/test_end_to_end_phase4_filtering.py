@@ -5,16 +5,16 @@ of the WHERE clause building system, from field detection through SQL generation
 """
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.sql.where.core.field_detection import FieldType
 from fraiseql.sql.where.operators import get_operator_function
-from psycopg.sql import SQL
 
 
 class TestHostnameEndToEndIntegration:
     """Test Hostname operators in full integration context."""
 
-    def test_hostname_field_type_operators(self):
+    def test_hostname_field_type_operators(self) -> None:
         """Test that all expected Hostname operators are available."""
         expected_operators = {"eq", "neq", "in", "notin"}
 
@@ -22,7 +22,7 @@ class TestHostnameEndToEndIntegration:
             func = get_operator_function(FieldType.HOSTNAME, op)
             assert callable(func), f"Hostname operator '{op}' should return a callable function"
 
-    def test_hostname_operators_integration(self):
+    def test_hostname_operators_integration(self) -> None:
         """Test Hostname operators generate correct SQL in full context."""
         path_sql = SQL("data->>'server_hostname'")
 
@@ -38,7 +38,7 @@ class TestHostnameEndToEndIntegration:
         expected = "data->>'server_hostname' IN ('web.example.com', 'api.example.com')"
         assert result.as_string(None) == expected
 
-    def test_hostname_dns_formats_integration(self):
+    def test_hostname_dns_formats_integration(self) -> None:
         """Test Hostname operators with various DNS formats."""
         path_sql = SQL("data->>'hostname'")
 
@@ -52,7 +52,7 @@ class TestHostnameEndToEndIntegration:
 class TestEmailEndToEndIntegration:
     """Test Email operators in full integration context."""
 
-    def test_email_field_type_operators(self):
+    def test_email_field_type_operators(self) -> None:
         """Test that all expected Email operators are available."""
         expected_operators = {"eq", "neq", "in", "notin"}
 
@@ -60,7 +60,7 @@ class TestEmailEndToEndIntegration:
             func = get_operator_function(FieldType.EMAIL, op)
             assert callable(func), f"Email operator '{op}' should return a callable function"
 
-    def test_email_operators_integration(self):
+    def test_email_operators_integration(self) -> None:
         """Test Email operators generate correct SQL in full context."""
         path_sql = SQL("data->>'user_email'")
 
@@ -76,7 +76,7 @@ class TestEmailEndToEndIntegration:
         expected = "data->>'user_email' NOT IN ('test@example.com', 'temp@example.com')"
         assert result.as_string(None) == expected
 
-    def test_email_complex_addresses_integration(self):
+    def test_email_complex_addresses_integration(self) -> None:
         """Test Email operators with complex email addresses."""
         path_sql = SQL("data->>'email'")
 
@@ -90,7 +90,7 @@ class TestEmailEndToEndIntegration:
 class TestPortEndToEndIntegration:
     """Test Port operators in full integration context."""
 
-    def test_port_field_type_operators(self):
+    def test_port_field_type_operators(self) -> None:
         """Test that all expected Port operators are available."""
         expected_operators = {"eq", "neq", "in", "notin", "gt", "gte", "lt", "lte"}
 
@@ -98,7 +98,7 @@ class TestPortEndToEndIntegration:
             func = get_operator_function(FieldType.PORT, op)
             assert callable(func), f"Port operator '{op}' should return a callable function"
 
-    def test_port_basic_operators_integration(self):
+    def test_port_basic_operators_integration(self) -> None:
         """Test Port basic operators generate correct SQL in full context."""
         path_sql = SQL("data->>'server_port'")
 
@@ -114,7 +114,7 @@ class TestPortEndToEndIntegration:
         expected = "(data->>'server_port')::integer IN (80, 443, 8080)"
         assert result.as_string(None) == expected
 
-    def test_port_comparison_operators_integration(self):
+    def test_port_comparison_operators_integration(self) -> None:
         """Test Port comparison operators in full context."""
         path_sql = SQL("data->>'service_port'")
 
@@ -130,7 +130,7 @@ class TestPortEndToEndIntegration:
         expected = "(data->>'service_port')::integer <= 49151"
         assert result.as_string(None) == expected
 
-    def test_port_range_queries_integration(self):
+    def test_port_range_queries_integration(self) -> None:
         """Test Port operators for range queries."""
         path_sql = SQL("data->>'port'")
 
@@ -150,7 +150,7 @@ class TestPortEndToEndIntegration:
 class TestPhase4IntegratedScenarios:
     """Test Phase 4 operators in realistic integrated scenarios."""
 
-    def test_server_configuration_filtering(self):
+    def test_server_configuration_filtering(self) -> None:
         """Test integrated server configuration filtering."""
         # Hostname filter
         hostname_func = get_operator_function(FieldType.HOSTNAME, "in")
@@ -166,7 +166,7 @@ class TestPhase4IntegratedScenarios:
         port_expected = "(data->>'port')::integer >= 8000"
         assert port_result.as_string(None) == port_expected
 
-    def test_user_contact_filtering(self):
+    def test_user_contact_filtering(self) -> None:
         """Test integrated user contact information filtering."""
         # Email domain filtering
         email_func = get_operator_function(FieldType.EMAIL, "neq")
@@ -174,7 +174,7 @@ class TestPhase4IntegratedScenarios:
         email_expected = "data->>'email' != 'test@example.com'"
         assert email_result.as_string(None) == email_expected
 
-    def test_network_service_filtering(self):
+    def test_network_service_filtering(self) -> None:
         """Test integrated network service filtering."""
         # Service ports
         port_func = get_operator_function(FieldType.PORT, "in")
@@ -183,7 +183,7 @@ class TestPhase4IntegratedScenarios:
         port_expected = "(data->>'service_port')::integer IN (22, 80, 443, 3306, 5432)"
         assert port_result.as_string(None) == port_expected
 
-    def test_phase4_error_handling_integration(self):
+    def test_phase4_error_handling_integration(self) -> None:
         """Test Phase 4 operator error handling in integration context."""
         # Test Hostname IN requires list
         hostname_func = get_operator_function(FieldType.HOSTNAME, "in")
@@ -200,7 +200,7 @@ class TestPhase4IntegratedScenarios:
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             port_func(SQL("data->>'port'"), 8080)
 
-    def test_phase4_operator_coverage_integration(self):
+    def test_phase4_operator_coverage_integration(self) -> None:
         """Test that all Phase 4 operators are properly integrated."""
         # Hostname operators
         hostname_ops = {"eq", "neq", "in", "notin"}
@@ -220,7 +220,7 @@ class TestPhase4IntegratedScenarios:
             func = get_operator_function(FieldType.PORT, op)
             assert callable(func), f"Port {op} not integrated"
 
-    def test_phase4_casting_consistency(self):
+    def test_phase4_casting_consistency(self) -> None:
         """Test that Phase 4 operators use consistent casting patterns."""
         path_sql = SQL("data->>'field'")
 
