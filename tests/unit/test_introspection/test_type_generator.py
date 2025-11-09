@@ -89,16 +89,25 @@ class TestTypeGenerator:
 
     async def test_introspect_jsonb_column_with_data(self, type_generator) -> None:
         """Test JSONB introspection when view has data."""
-        # Mock database connection
+        # Mock database connection (psycopg style)
         mock_conn = AsyncMock()
-        mock_row = MagicMock()
-        mock_row.__getitem__.return_value = {
+
+        # Mock check for 'data' column (should return non-None to indicate it exists)
+        check_result = AsyncMock()
+        check_result.fetchone = AsyncMock(return_value=("data",))
+
+        # Mock data query result
+        data_result = AsyncMock()
+        mock_data = {
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Test User",
             "age": 25,
             "active": True,
         }
-        mock_conn.fetchrow.return_value = mock_row
+        data_result.fetchone = AsyncMock(return_value=(mock_data,))
+
+        # execute() is called twice: first for column check, then for data query
+        mock_conn.execute = AsyncMock(side_effect=[check_result, data_result])
 
         @asynccontextmanager
         async def mock_connection() -> None:
@@ -122,9 +131,19 @@ class TestTypeGenerator:
 
     async def test_introspect_jsonb_column_empty_view(self, type_generator) -> None:
         """Test JSONB introspection when view is empty."""
-        # Mock database connection - no data
+        # Mock database connection - no data (psycopg style)
         mock_conn = AsyncMock()
-        mock_conn.fetchrow.return_value = None  # Empty view
+
+        # Mock check for 'data' column (exists)
+        check_result = AsyncMock()
+        check_result.fetchone = AsyncMock(return_value=("data",))
+
+        # Mock data query - empty result
+        data_result = AsyncMock()
+        data_result.fetchone = AsyncMock(return_value=None)  # Empty view
+
+        # execute() is called twice: first for column check, then for data query
+        mock_conn.execute = AsyncMock(side_effect=[check_result, data_result])
 
         # Mock the fallback introspection
         from unittest.mock import patch
@@ -151,20 +170,16 @@ class TestTypeGenerator:
     async def test_introspect_view_definition(self, type_generator) -> None:
         """Test view definition introspection fallback."""
         mock_conn = AsyncMock()
+
+        # Mock result (psycopg style)
+        result_mock = AsyncMock()
         mock_rows = [
             ("id", "uuid", "NO"),
             ("name", "text", "YES"),
             ("created_at", "timestamp", "NO"),
         ]
-        mock_conn.fetch.return_value = mock_rows
-
-        # Create proper async context manager mock
-        mock_cm = AsyncMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_conn)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-
-        mock_pool = AsyncMock()
-        mock_pool.connection.return_value = mock_cm
+        result_mock.fetchall = AsyncMock(return_value=mock_rows)
+        mock_conn.execute = AsyncMock(return_value=result_mock)
 
         result = await type_generator._introspect_view_definition("v_test", "public", mock_conn)
 
