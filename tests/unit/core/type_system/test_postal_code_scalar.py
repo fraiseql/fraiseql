@@ -30,21 +30,21 @@ class TestPostalCodeSerialization:
 
     def test_serialize_invalid_postal_code(self) -> None:
         """Test serializing invalid postal codes raises error."""
-        # Too short
+        # Too short (less than 3 characters)
         with pytest.raises(GraphQLError, match="Invalid postal code"):
-            serialize_postal_code("1234")
+            serialize_postal_code("12")
 
-        # Starts with space
+        # Too long (more than 10 characters)
         with pytest.raises(GraphQLError, match="Invalid postal code"):
-            serialize_postal_code(" 12345")
+            serialize_postal_code("12345678901")
 
-        # Ends with space
-        with pytest.raises(GraphQLError, match="Invalid postal code"):
-            serialize_postal_code("12345 ")
-
-        # Empty
+        # Empty string
         with pytest.raises(GraphQLError, match="Invalid postal code"):
             serialize_postal_code("")
+
+        # Special characters not allowed
+        with pytest.raises(GraphQLError, match="Invalid postal code"):
+            serialize_postal_code("123@45")
 
 
 class TestPostalCodeParsing:
@@ -58,9 +58,15 @@ class TestPostalCodeParsing:
 
     def test_parse_invalid_postal_code(self) -> None:
         """Test parsing invalid postal codes raises error."""
+        # Too short
         with pytest.raises(GraphQLError, match="Invalid postal code"):
-            parse_postal_code_value("1234")
+            parse_postal_code_value("12")
 
+        # Too long
+        with pytest.raises(GraphQLError, match="Invalid postal code"):
+            parse_postal_code_value("12345678901")
+
+        # Empty string
         with pytest.raises(GraphQLError, match="Invalid postal code"):
             parse_postal_code_value("")
 
@@ -90,9 +96,15 @@ class TestPostalCodeField:
 
     def test_create_invalid_postal_code_field(self) -> None:
         """Test creating PostalCodeField with invalid values raises error."""
+        # Too short
         with pytest.raises(ValueError, match="Invalid postal code"):
-            PostalCodeField("1234")
+            PostalCodeField("12")
 
+        # Too long
+        with pytest.raises(ValueError, match="Invalid postal code"):
+            PostalCodeField("12345678901")
+
+        # Empty string
         with pytest.raises(ValueError, match="Invalid postal code"):
             PostalCodeField("")
 
@@ -107,9 +119,15 @@ class TestPostalCodeLiteralParsing:
 
     def test_parse_invalid_literal_format(self) -> None:
         """Test parsing invalid postal code format literals."""
+        # Too short
         with pytest.raises(GraphQLError, match="Invalid postal code"):
-            parse_postal_code_literal(StringValueNode(value="1234"))
+            parse_postal_code_literal(StringValueNode(value="12"))
 
+        # Too long
+        with pytest.raises(GraphQLError, match="Invalid postal code"):
+            parse_postal_code_literal(StringValueNode(value="12345678901"))
+
+        # Empty string
         with pytest.raises(GraphQLError, match="Invalid postal code"):
             parse_postal_code_literal(StringValueNode(value=""))
 
