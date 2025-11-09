@@ -8,16 +8,20 @@ Each export is a `GraphQLScalarType` used directly in schema definitions.
 
 Exports:
 - CIDRScalar: CIDR notation for IP network ranges.
+- CoordinateScalar: Geographic coordinates (latitude, longitude).
 - DateRangeScalar: PostgreSQL daterange values.
 - DateScalar: ISO 8601 calendar date.
 - DateTimeScalar: ISO 8601 datetime with timezone awareness.
 - HostnameScalar: DNS hostnames (RFC 1123 compliant).
 - IpAddressScalar: IPv4 and IPv6 addresses as strings.
-- SubnetMaskScalar: CIDR-style subnet masks.
 - JSONScalar: Arbitrary JSON-serializable values.
+- LanguageCodeScalar: ISO 639-1 two-letter language codes.
+- LocaleCodeScalar: BCP 47 locale codes (language-REGION format).
 - LTreeScalar: PostgreSQL ltree path type.
 - MacAddressScalar: Hardware MAC addresses.
 - PortScalar: Network port number (1-65535).
+- SubnetMaskScalar: CIDR-style subnet masks.
+- TimezoneScalar: IANA timezone database identifiers.
 - UUIDScalar: RFC 4122 UUID values.
 """
 
@@ -29,9 +33,12 @@ from .datetime import DateTimeScalar
 from .hostname import HostnameScalar
 from .ip_address import IpAddressScalar, SubnetMaskScalar
 from .json import JSONScalar
+from .language_code import LanguageCodeScalar
+from .locale_code import LocaleCodeScalar
 from .ltree import LTreeScalar
 from .mac_address import MacAddressScalar
 from .port import PortScalar
+from .timezone import TimezoneScalar
 from .uuid import UUIDScalar
 
 __all__ = [
@@ -44,8 +51,11 @@ __all__ = [
     "IpAddressScalar",
     "JSONScalar",
     "LTreeScalar",
+    "LanguageCodeScalar",
+    "LocaleCodeScalar",
     "MacAddressScalar",
     "PortScalar",
     "SubnetMaskScalar",
+    "TimezoneScalar",
     "UUIDScalar",
 ]

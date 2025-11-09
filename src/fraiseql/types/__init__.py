@@ -43,9 +43,12 @@ from .scalars.graphql_utils import convert_scalar_to_graphql
 from .scalars.hostname import HostnameField as Hostname
 from .scalars.ip_address import IpAddressField as IpAddress
 from .scalars.json import JSONField as JSON  # noqa: N814
+from .scalars.language_code import LanguageCodeField as LanguageCode
+from .scalars.locale_code import LocaleCodeField as LocaleCode
 from .scalars.ltree import LTreeField as LTree
 from .scalars.mac_address import MacAddressField as MacAddress
 from .scalars.port import PortField as Port
+from .scalars.timezone import TimezoneField as Timezone
 from .scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Aliases for decorators
@@ -69,10 +72,13 @@ __all__ = [
     "Hostname",
     "IpAddress",
     "LTree",
+    "LanguageCode",
+    "LocaleCode",
     "MacAddress",
     "PageInfo",
     "PaginatedResponse",
     "Port",
+    "Timezone",
     "convert_scalar_to_graphql",
     "create_connection",
     "date_range_validator",
