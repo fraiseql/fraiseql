@@ -209,11 +209,22 @@ class MutationDefinition:
         resolver.__fraiseql_mutation__ = self
 
         # Set proper annotations for the resolver
-        # We use Union of success and error types as the return type
-        from typing import Union
+        # We use FraiseUnion wrapper for success/error result unions
+        from typing import Annotated
+
+        from fraiseql.mutations.decorators import FraiseUnion
 
         if self.success_type and self.error_type:
-            return_type = Union[self.success_type, self.error_type]
+            # Create union name from success type (e.g., CreateUserSuccess -> CreateUserResult)
+            success_name = getattr(self.success_type, "__name__", "Success")
+            base_name = success_name.removesuffix("Success")
+            union_name = f"{base_name}Result"
+
+            # Wrap in FraiseUnion to indicate this is a result union
+            return_type = Annotated[
+                self.success_type | self.error_type,
+                FraiseUnion(union_name),
+            ]
         else:
             return_type = self.success_type or self.error_type
 
