@@ -215,16 +215,21 @@ class MutationDefinition:
         from fraiseql.mutations.decorators import FraiseUnion
 
         if self.success_type and self.error_type:
-            # Create union name from success type (e.g., CreateUserSuccess -> CreateUserResult)
-            success_name = getattr(self.success_type, "__name__", "Success")
-            base_name = success_name.removesuffix("Success")
-            union_name = f"{base_name}Result"
+            # Check if success and error types are the same (single result type pattern)
+            if self.success_type is self.error_type:
+                # Single result type used for both success and error - no union needed
+                return_type = self.success_type
+            else:
+                # Create union name from success type (e.g., CreateUserSuccess -> CreateUserResult)
+                success_name = getattr(self.success_type, "__name__", "Success")
+                base_name = success_name.removesuffix("Success")
+                union_name = f"{base_name}Result"
 
-            # Wrap in FraiseUnion to indicate this is a result union
-            return_type = Annotated[
-                self.success_type | self.error_type,
-                FraiseUnion(union_name),
-            ]
+                # Wrap in FraiseUnion to indicate this is a result union
+                return_type = Annotated[
+                    self.success_type | self.error_type,
+                    FraiseUnion(union_name),
+                ]
         else:
             return_type = self.success_type or self.error_type
 
