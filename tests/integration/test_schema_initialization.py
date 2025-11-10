@@ -15,6 +15,7 @@ import pytest
 from fraiseql import _fraiseql_rs, query
 from fraiseql.core.schema_serializer import SchemaSerializer
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.mutations.decorators import clear_mutation_registries
 from fraiseql.types import fraise_type
 
 
@@ -24,6 +25,10 @@ class TestSchemaRegistryInitialization:
     Note: The schema registry is a global singleton, so it can only be
     initialized once per test session. Tests are ordered to handle this.
     """
+
+    def setup_method(self) -> None:
+        """Clear mutation registries before each test to avoid pollution."""
+        clear_mutation_registries()
 
     def test_01_initialize_simple_schema(self) -> None:
         """Test that schema can be initialized from Python with simple types.

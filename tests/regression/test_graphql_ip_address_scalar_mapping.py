@@ -72,8 +72,6 @@ def test_ip_address_scalar_mapping() -> None:
     schema = build_fraiseql_schema(
         query_types=[
             CreateDnsServerInput,
-            CreateDnsServerSuccess,
-            CreateDnsServerError,
             health_check,
         ],
         mutation_resolvers=[CreateDnsServer],
@@ -121,8 +119,6 @@ def test_graphql_validation_with_ip_address_scalar() -> None:
     schema = build_fraiseql_schema(
         query_types=[
             CreateDnsServerInput,
-            CreateDnsServerSuccess,
-            CreateDnsServerError,
             health_check,
         ],
         mutation_resolvers=[CreateDnsServer],
@@ -221,7 +217,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
 
     # Build schema
     schema = build_fraiseql_schema(
-        query_types=[ServerConfigInput, ServerConfigSuccess, ServerConfigError, test_query],
+        query_types=[ServerConfigInput, test_query],
         mutation_resolvers=[ConfigureServer],
         camel_case_fields=True,
     )

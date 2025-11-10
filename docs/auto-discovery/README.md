@@ -55,8 +55,4 @@ This automatically generates:
 
 ## Documentation Sections
 
-- [Type Annotations](./type-annotations.md) - How to annotate database views
-- [Mutation Annotations](./mutation-annotations.md) - How to create mutations from functions
-- [Migration Guide](./migration-guide.md) - Moving from manual to auto-discovery
-- [Best Practices](./best-practices.md) - Naming conventions and patterns
-- [Troubleshooting](./troubleshooting.md) - Common issues and solutions
+For complete documentation on AutoFraiseQL, see the [AutoFraiseQL guide](../autofraiseql/README.md).
