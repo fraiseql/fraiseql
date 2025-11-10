@@ -53,6 +53,6 @@ This automatically generates:
 
 3. Your GraphQL API is ready!
 
-## Documentation Sections
+## Complete Documentation
 
-For complete documentation on AutoFraiseQL, see the [AutoFraiseQL guide](../autofraiseql/README.md).
+For complete documentation on AutoFraiseQL, including advanced features, configuration options, and best practices, see the [AutoFraiseQL guide](../autofraiseql/README.md).
