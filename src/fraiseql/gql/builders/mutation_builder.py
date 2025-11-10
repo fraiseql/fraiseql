@@ -51,7 +51,8 @@ class MutationTypeBuilder:
         fields = {}
 
         for name, fn in self.registry.mutations.items():
-            hints = get_type_hints(fn)
+            # Use include_extras=True to preserve Annotated metadata (like FraiseUnion)
+            hints = get_type_hints(fn, include_extras=True)
 
             if "return" not in hints:
                 msg = f"Mutation resolver '{name}' is missing a return type annotation."
