@@ -9,26 +9,6 @@
 
 **📍 You are here: Main FraiseQL Framework (v1.4.1) - Production Stable**
 
-### 🎉 What's New in v1.4.1
-
-**PostgreSQL Comments → GraphQL Descriptions** 🆕
-- Database comments automatically become GraphQL schema documentation
-- `COMMENT ON VIEW` → Type descriptions
-- `COMMENT ON FUNCTION` → Mutation descriptions
-- Zero configuration required
-
-**50+ Enterprise Scalars** 🆕
-- Financial: CUSIP, ISIN, SEDOL, MIC, LEI, Money, Percentage, ExchangeRate
-- Network: IPv4/IPv6, CIDR, MACAddress, Hostname, DomainName, Port
-- Geospatial: Coordinate, Latitude, Longitude with distance calculations
-- Business: ContainerNumber, FlightNumber, TrackingNumber, VIN, IBAN
-- [See full scalar list](#specialized-type-system)
-
-**Auth Context Enhancement** 🛡️
-- New `auth_*` prefix for authentication parameters (server-controlled)
-- Auth params excluded from GraphQL input schema for security
-- Clear separation between auth context and business input
-
 ---
 
 ## **GraphQL for the LLM era. Simple. Powerful. Rust-fast.**
