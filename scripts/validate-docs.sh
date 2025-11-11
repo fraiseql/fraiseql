@@ -139,7 +139,13 @@ validate_links() {
             log_warning "$file: $file_errors broken links"
         fi
 
-    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -not -path "*/dev/audits/*" -print0)
+    done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
+        -not -path "*/archive/*" \
+        -not -path "*/dev/audits/*" \
+        -not -path "*/.venv/*" \
+        -not -path "*/venv/*" \
+        -not -path "*/node_modules/*" \
+        -print0)
 
     if [[ $errors -eq 0 ]]; then
         log_success "All $total_files markdown files have valid internal links"
@@ -467,7 +473,13 @@ validate_code_syntax() {
         # Clean up
         rm -f "$temp_file"
 
-    done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -not -path "*/dev/audits/*" -print0)
+    done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
+        -not -path "*/archive/*" \
+        -not -path "*/dev/audits/*" \
+        -not -path "*/.venv/*" \
+        -not -path "*/venv/*" \
+        -not -path "*/node_modules/*" \
+        -print0)
 
     if [[ $errors -eq 0 ]]; then
         if [[ $warnings -gt 0 ]]; then

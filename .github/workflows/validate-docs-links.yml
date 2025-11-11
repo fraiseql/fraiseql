@@ -1,0 +1,47 @@
+name: Validate Documentation Links
+
+# Validate internal links in markdown files to prevent broken documentation
+# This workflow runs on all markdown changes to catch link issues early
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - 'examples/**/*.md'
+      - 'scripts/validate-docs.sh'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - 'examples/**/*.md'
+      - 'scripts/validate-docs.sh'
+
+concurrency:
+  group: validate-links-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-links:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate internal links
+        run: |
+          chmod +x scripts/validate-docs.sh
+          ./scripts/validate-docs.sh links
+
+      - name: Report results
+        if: failure()
+        run: |
+          echo "::error::Documentation link validation failed. Please fix broken links before merging."
+          exit 1

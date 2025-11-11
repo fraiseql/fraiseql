@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.4.0) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.4.1) - Production Stable**
 
-### 🎉 What's New in v1.4.0
+### 🎉 What's New in v1.4.1
 
 **PostgreSQL Comments → GraphQL Descriptions** 🆕
 - Database comments automatically become GraphQL schema documentation
@@ -1131,9 +1131,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.4.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.4.1** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.3.4** | Superseded | Legacy | Use v1.4.0 | ⚠️ Migrate |
+| **v1.3.4** | Superseded | Legacy | Use v1.4.1 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
