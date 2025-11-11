@@ -198,7 +198,7 @@ AutoFraiseQL provides comprehensive observability:
 
 ## 🤝 Contributing
 
-AutoFraiseQL is part of the FraiseQL framework. See the main [contributing guide](../CONTRIBUTING.md) for development setup and contribution guidelines.
+AutoFraiseQL is part of the FraiseQL framework. See the main [contributing guide](../../CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## 📄 License
 
