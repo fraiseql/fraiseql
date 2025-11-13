@@ -6,11 +6,10 @@ automatically converted to SQL ORDER BY clauses.
 """
 
 from dataclasses import make_dataclass
-from enum import Enum
 from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 
-from fraiseql import fraise_enum, fraise_input
-from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
+from fraiseql import fraise_input
+from fraiseql.sql.order_by_generator import OrderBy, OrderBySet, OrderDirection
 
 # Type variable for generic types
 T = TypeVar("T")
@@ -21,13 +20,36 @@ _order_by_input_cache: dict[type, type] = {}
 _generation_stack: set[type] = set()
 
 
-# Order direction enum
-@fraise_enum
-class OrderDirection(Enum):
-    """Order direction for sorting."""
+# Import OrderDirection from order_by_generator
 
-    ASC = "asc"
-    DESC = "desc"
+
+@fraise_input
+class VectorOrderBy:
+    """Order by input for vector/embedding fields using pgvector distance operators.
+
+    Allows ordering query results by vector similarity/distance using PostgreSQL
+    pgvector operators. Distance values are returned raw from PostgreSQL.
+
+    Fields:
+        cosine_distance: Order by cosine distance (0.0 = identical, 2.0 = opposite)
+        l2_distance: Order by L2/Euclidean distance (0.0 = identical, ∞ = different)
+        l1_distance: Order by L1/Manhattan distance (sum of absolute differences)
+        inner_product: Order by negative inner product (more negative = more similar)
+        hamming_distance: Order by Hamming distance for bit vectors
+        jaccard_distance: Order by Jaccard distance for bit vectors
+
+    Example:
+        orderBy: { embedding: { l1_distance: [0.1, 0.2, 0.3] } }
+        orderBy: { fingerprint: { hamming_distance: "101010" } }
+        # Orders by distance to the given vector (ASC = most similar first)
+    """
+
+    cosine_distance: list[float] | None = None
+    l2_distance: list[float] | None = None
+    l1_distance: list[float] | None = None
+    inner_product: list[float] | None = None
+    hamming_distance: str | None = None  # bit string like "101010"
+    jaccard_distance: str | None = None  # bit string like "111000"
 
 
 @fraise_input
@@ -62,6 +84,17 @@ def _is_fraiseql_type(field_type: type) -> bool:
     return hasattr(field_type, "__fraiseql_definition__")
 
 
+def _normalize_order_direction(direction: Any) -> OrderDirection:
+    """Convert various direction inputs to OrderDirection enum."""
+    if isinstance(direction, OrderDirection):
+        return direction
+    if hasattr(direction, "value"):  # Enum-like
+        return OrderDirection.ASC if direction.value == "asc" else OrderDirection.DESC
+    if isinstance(direction, str):
+        return OrderDirection.ASC if direction.upper() == "ASC" else OrderDirection.DESC
+    return OrderDirection.ASC  # Default
+
+
 def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     """Convert GraphQL order by input to SQL OrderBySet."""
     if order_by_input is None:
@@ -71,11 +104,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
 
     # Handle single OrderByItem
     if hasattr(order_by_input, "field") and hasattr(order_by_input, "direction"):
-        direction = (
-            order_by_input.direction.value
-            if hasattr(order_by_input.direction, "value")
-            else order_by_input.direction
-        )
+        direction = _normalize_order_direction(order_by_input.direction)
         instructions.append(OrderBy(field=order_by_input.field, direction=direction))
         return OrderBySet(instructions=instructions)
 
@@ -84,9 +113,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
         for item in order_by_input:
             # Handle OrderByItem objects
             if hasattr(item, "field") and hasattr(item, "direction"):
-                direction = (
-                    item.direction.value if hasattr(item.direction, "value") else item.direction
-                )
+                direction = _normalize_order_direction(item.direction)
                 instructions.append(OrderBy(field=item.field, direction=direction))
             # Handle dictionary items like {'ipAddress': 'asc'}
             elif isinstance(item, dict):
@@ -97,16 +124,9 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
 
                         snake_field_name = to_snake_case(field_name)
 
-                        # Handle OrderDirection enum
-                        if isinstance(value, OrderDirection):
-                            instructions.append(
-                                OrderBy(field=snake_field_name, direction=value.value)
-                            )
-                        # Handle string direction (GraphQL might pass "ASC" or "DESC" as strings)
-                        elif isinstance(value, str) and value.upper() in ["ASC", "DESC"]:
-                            instructions.append(
-                                OrderBy(field=snake_field_name, direction=value.lower())
-                            )
+                        # Handle OrderDirection enum or string
+                        direction = _normalize_order_direction(value)
+                        instructions.append(OrderBy(field=snake_field_name, direction=direction))
         return OrderBySet(instructions=instructions) if instructions else None
 
     # Handle object with field-specific order directions
@@ -118,12 +138,61 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                 value = getattr(obj, field_name)
                 if value is not None:
                     field_path = f"{prefix}.{field_name}" if prefix else field_name
-                    # If it's an OrderDirection enum, use it
-                    if isinstance(value, OrderDirection):
-                        instructions.append(OrderBy(field=field_path, direction=value.value))
-                    # Handle string direction (e.g., "ASC" or "DESC")
-                    elif isinstance(value, str) and value.upper() in ["ASC", "DESC"]:
-                        instructions.append(OrderBy(field=field_path, direction=value.lower()))
+                    # Check if this is a VectorOrderBy input
+                    if hasattr(value, "__gql_fields__") and hasattr(value, "cosine_distance"):
+                        # This is a VectorOrderBy - check which distance operator is set
+                        if value.cosine_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.cosine_distance",
+                                    direction=OrderDirection.ASC,  # ASC for vectors
+                                    value=value.cosine_distance,
+                                )
+                            )
+                        elif value.l2_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.l2_distance",
+                                    direction=OrderDirection.ASC,
+                                    value=value.l2_distance,
+                                )
+                            )
+                        elif value.l1_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.l1_distance",
+                                    direction=OrderDirection.ASC,
+                                    value=value.l1_distance,
+                                )
+                            )
+                        elif value.inner_product is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.inner_product",
+                                    direction=OrderDirection.ASC,
+                                    value=value.inner_product,
+                                )
+                            )
+                        elif value.hamming_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.hamming_distance",
+                                    direction=OrderDirection.ASC,
+                                    value=value.hamming_distance,
+                                )
+                            )
+                        elif value.jaccard_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.jaccard_distance",
+                                    direction=OrderDirection.ASC,
+                                    value=value.jaccard_distance,
+                                )
+                            )
+                    # If it's an OrderDirection enum or string, use it
+                    if isinstance(value, (OrderDirection, str)):
+                        direction = _normalize_order_direction(value)
+                        instructions.append(OrderBy(field=field_path, direction=direction))
                     # If it's a nested order by input, process recursively
                     elif hasattr(value, "__gql_fields__"):
                         process_order_by(value, field_path)
@@ -143,12 +212,37 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
                     snake_field_name = to_snake_case(field_name)
                     field_path = f"{prefix}.{snake_field_name}" if prefix else snake_field_name
 
-                    # Handle OrderDirection enum
-                    if isinstance(value, OrderDirection):
-                        instructions.append(OrderBy(field=field_path, direction=value.value))
-                    # Handle string direction (GraphQL might pass "ASC" or "DESC" as strings)
-                    elif isinstance(value, str) and value.upper() in ["ASC", "DESC"]:
-                        instructions.append(OrderBy(field=field_path, direction=value.lower()))
+                    # Handle OrderDirection enum or string
+                    if isinstance(value, (OrderDirection, str)):
+                        direction = _normalize_order_direction(value)
+                        instructions.append(OrderBy(field=field_path, direction=direction))
+                    # Check if this is a VectorOrderBy input
+                    elif hasattr(value, "__gql_fields__") and hasattr(value, "cosine_distance"):
+                        # This is a VectorOrderBy - check which distance operator is set
+                        if value.cosine_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.cosine_distance",
+                                    direction=OrderDirection.ASC,  # ASC for vectors
+                                    value=value.cosine_distance,
+                                )
+                            )
+                        elif value.l2_distance is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.l2_distance",
+                                    direction=OrderDirection.ASC,
+                                    value=value.l2_distance,
+                                )
+                            )
+                        elif value.inner_product is not None:
+                            instructions.append(
+                                OrderBy(
+                                    field=f"{field_path}.inner_product",
+                                    direction=OrderDirection.ASC,
+                                    value=value.inner_product,
+                                )
+                            )
                     # Handle nested dict
                     elif isinstance(value, dict):
                         process_dict_order_by(value, field_path)
@@ -231,6 +325,29 @@ def create_graphql_order_by_input(cls: type, name: str | None = None) -> type:
             # Skip private fields
             if field_name.startswith("_"):
                 continue
+
+            # Check for vector/embedding fields by name pattern (BEFORE nested type check)
+            # This allows list[float] to map to VectorOrderBy for embeddings
+            field_lower = field_name.lower()
+            vector_patterns = [
+                "embedding",
+                "vector",
+                "_embedding",
+                "_vector",
+                "embedding_vector",
+                "embeddingvector",
+                "text_embedding",
+                "textembedding",
+                "image_embedding",
+                "imageembedding",
+            ]
+            if any(pattern in field_lower for pattern in vector_patterns):
+                # Check if it's actually a list type
+                origin = get_origin(field_type)
+                if origin is list:
+                    field_definitions.append((field_name, Optional[VectorOrderBy], None))
+                    field_defaults[field_name] = None
+                    continue
 
             # Check if this is a nested FraiseQL type
             if _is_fraiseql_type(field_type):

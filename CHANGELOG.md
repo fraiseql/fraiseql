@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 New Features
 
+**PostgreSQL pgvector Support** ✨ NEW
+- **6 Vector Distance Operators**: Full support for pgvector's distance functions
+  - `cosine_distance` (<=>): Semantic search, text embeddings (0.0 = identical, 2.0 = opposite)
+  - `l2_distance` (<->): Euclidean similarity, spatial data (0.0 = identical, ∞ = different)
+  - `l1_distance` (<+>): Manhattan distance, sparse vectors, grid-based distances
+  - `inner_product` (<#>): Learned similarity metrics, dot product (more negative = more similar)
+  - `hamming_distance` (<~>): Binary vector similarity, fingerprints, hashing (bit type)
+  - `jaccard_distance` (<%>): Set similarity, tags, categories (bit type)
+- **WHERE Clause Integration**: Filter by vector similarity with composable filters
+- **ORDER BY Support**: Sort results by vector distance with GraphQL input objects
+- **VectorFilter GraphQL Input**: Type-safe vector filtering in GraphQL schema
+- **VectorOrderBy GraphQL Input**: Type-safe vector ordering in GraphQL schema
+- **Binary Vector Support**: Native support for bit vectors (Hamming, Jaccard distances)
+- **Field Detection**: Automatic vector field detection via naming patterns (embedding, vector, etc.)
+- **PostgreSQL-First Philosophy**: Thin layer over pgvector, raw distances returned (no conversion)
+- **Performance Optimized**: Works with HNSW and IVFFlat indexes for fast similarity search
+- **Zero Breaking Changes**: Optional feature, fully backward compatible
+
 **GraphQL Cascade with Field Selection** ✨ NEW
 - **Automatic Cache Updates**: Mutations can now include cascade data for automatic client cache updates
 - **Field Selection**: Clients can request specific cascade fields to reduce payload size
@@ -23,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📚 Documentation
 
+**pgvector Documentation:**
+- **Feature Guide**: `docs/features/pgvector.md` - Complete setup, usage, and performance guide
+- **Semantic Search Examples**: `docs/examples/semantic-search.md` - RAG, recommendations, hybrid search
+- **Implementation Plan**: `docs/planning/pgvector-implementation-plan.md` - Development methodology
+- **Working Example**: `examples/vector_search/` - Complete vector search application
+
+**GraphQL Cascade Documentation:**
 - **Complete Cascade Guide**: `docs/features/graphql-cascade.md`
 - **Field Selection Implementation**: `GRAPHQL_CASCADE_FIELD_SELECTION_RUST_IMPLEMENTATION_PLAN.md`
 - **Migration Guide**: `docs/migration/cascade-adoption.md`
@@ -39,9 +64,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧪 Testing
 
+**pgvector Tests:**
+- **13 Integration Tests**: Complete end-to-end vector functionality (all passing)
+- **Unit Tests**: Vector operator SQL generation, field detection, type validation
+- **Schema Tests**: GraphQL VectorFilter and VectorOrderBy type validation
+- **PostgreSQL Integration**: Real pgvector extension testing with HNSW indexes
+- **Binary Vector Tests**: Hamming and Jaccard distance with bit vectors
+- **Performance Tests**: HNSW index usage verification
+
+**GraphQL Cascade Tests:**
 - **Comprehensive Test Suite**: Unit tests, integration tests, and performance benchmarks
 - **Client Integration Tests**: Apollo Client cache update validation
 - **Error Handling**: Robust handling of malformed cascade data
+
+### 🎯 Use Cases Enabled
+
+**pgvector Use Cases:**
+- **Semantic Search**: Find documents by meaning, not keywords (RAG systems)
+- **Recommendation Systems**: Product/content similarity with embeddings
+- **Image Search**: Visual similarity using image embeddings
+- **Fingerprint Matching**: Binary fingerprint comparison with Hamming distance
+- **Tag Similarity**: Category/tag matching with Jaccard distance
+- **Hybrid Search**: Combine vector similarity with full-text search and filters
+
+### 🔧 Internal Improvements
+
+**Vector Implementation:**
+- **Vector Operators Module**: `src/fraiseql/sql/where/operators/vectors.py` - All 6 pgvector operators
+- **GraphQL Where Generator**: VectorFilter input type with type discrimination (float vs bit)
+- **GraphQL Order By Generator**: VectorOrderBy input type with proper SQL conversion
+- **Field Detection**: Pattern-based vector field recognition in `where/core/field_detection.py`
+- **Type Safety**: Vector type validation with proper list[float] and str (bit) handling
 
 ## [1.4.0] - 2025-11-08
 

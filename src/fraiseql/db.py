@@ -1661,6 +1661,17 @@ class FraiseQLRepository:
                         # OrderBySet.to_sql() already includes "ORDER BY " prefix
                         query_parts.append(SQL(" "))
                         query_parts.append(order_sql)
+            elif isinstance(order_by, dict):
+                # Convert dict-style order by input to SQL OrderBySet
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                sql_order_by_obj = _convert_order_by_input_to_sql(order_by)
+                if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
+                    order_sql = sql_order_by_obj.to_sql()
+                    if order_sql:
+                        # OrderBySet.to_sql() already includes "ORDER BY " prefix
+                        query_parts.append(SQL(" "))
+                        query_parts.append(order_sql)
             elif isinstance(order_by, str):
                 query_parts.extend([SQL(" ORDER BY "), SQL(order_by)])
 

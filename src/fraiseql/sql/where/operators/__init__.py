@@ -27,6 +27,7 @@ from . import (
     nulls,
     port,
     text,
+    vectors,
 )
 
 # Simple operator mapping - much cleaner than complex strategy pattern
@@ -198,6 +199,13 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.JSONB, "path_match"): jsonb.build_path_match_sql,
     (FieldType.JSONB, "get_path"): jsonb.build_get_path_sql,
     (FieldType.JSONB, "get_path_text"): jsonb.build_get_path_text_sql,
+    # Vector operators for PostgreSQL pgvector distance operations
+    (FieldType.VECTOR, "cosine_distance"): vectors.build_cosine_distance_sql,
+    (FieldType.VECTOR, "l2_distance"): vectors.build_l2_distance_sql,
+    (FieldType.VECTOR, "l1_distance"): vectors.build_l1_distance_sql,
+    (FieldType.VECTOR, "inner_product"): vectors.build_inner_product_sql,
+    (FieldType.VECTOR, "hamming_distance"): vectors.build_hamming_distance_sql,
+    (FieldType.VECTOR, "jaccard_distance"): vectors.build_jaccard_distance_sql,
 }
 
 
@@ -224,7 +232,11 @@ def get_operator_function(
     if (FieldType.ANY, operator) in OPERATOR_MAP:
         return OPERATOR_MAP[(FieldType.ANY, operator)]
 
-    raise ValueError(f"Unsupported operator '{operator}' for field type '{field_type.value}'")
+    available_ops = [op for ft, op in OPERATOR_MAP if ft == field_type]
+    raise ValueError(
+        f"Unsupported operator '{operator}' for field type '{field_type.value}'. "
+        f"Available operators for this type: {available_ops}"
+    )
 
 
 # Export filter classes for GraphQL schema generation

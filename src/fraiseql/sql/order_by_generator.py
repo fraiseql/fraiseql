@@ -22,35 +22,50 @@ with dynamic query generators.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from enum import Enum
 
 from psycopg import sql
 
-OrderDirection = Literal["asc", "desc"]
+
+class OrderDirection(Enum):
+    """Order direction for sorting."""
+
+    ASC = "asc"
+    DESC = "desc"
 
 
 @dataclass(frozen=True)
 class OrderBy:
-    """Single ORDER BY clause with JSONB type preservation.
+    """Single ORDER BY clause with JSONB type preservation and vector distance support.
 
     Generates PostgreSQL ORDER BY clauses using JSONB extraction (data -> 'field')
     to maintain proper type-based sorting. This ensures numeric fields are sorted
     numerically rather than lexicographically.
 
+    For vector distance operations, supports pgvector operators:
+    - cosine_distance: Cosine distance (0.0 = identical, 2.0 = opposite)
+    - l2_distance: L2/Euclidean distance (0.0 = identical, ∞ = different)
+    - inner_product: Negative inner product (more negative = more similar)
+
     Attributes:
         field: The field name or nested path (e.g., 'amount' or 'profile.age')
+               For vector distance: 'embedding.cosine_distance'
         direction: Sort direction ('asc' or 'desc')
+        value: Optional value for vector distance operations (list[float])
 
     Examples:
         OrderBy('amount') -> "data -> 'amount' ASC"
         OrderBy('profile.age', 'desc') -> "data -> 'profile' -> 'age' DESC"
+        OrderBy('embedding.cosine_distance', 'asc', [0.1, 0.2, 0.3]) ->
+            "(data -> 'embedding') <=> '[0.1,0.2,0.3]'::vector ASC"
     """
 
     field: str
-    direction: OrderDirection = "asc"
+    direction: OrderDirection = OrderDirection.ASC
+    value: list[float] | None = None
 
     def to_sql(self) -> sql.Composed:
-        """Generate ORDER BY clause using JSONB numeric extraction.
+        """Generate ORDER BY clause using JSONB numeric extraction or vector distance.
 
         Uses data -> 'field' instead of data ->> 'field' to preserve proper
         numeric ordering. JSONB extraction (data->'field') maintains the
@@ -59,19 +74,95 @@ class OrderBy:
 
         For nested fields like 'profile.age', uses:
         data -> 'profile' -> 'age' (all JSONB extraction)
+
+        For vector distance operations like 'embedding.cosine_distance', uses:
+        (data -> 'embedding') <=> '[0.1,0.2,...]'::vector
         """
+        # Check if this is a vector distance operation
+        if "." in self.field and self.value is not None:
+            parts = self.field.split(".")
+            if len(parts) == 2:  # field.operator format
+                field_name, operator = parts
+                if operator in ("cosine_distance", "l2_distance", "inner_product"):
+                    return self._build_vector_distance_sql(field_name, operator, self.value)
+
+        # Standard JSONB extraction for regular fields
         path = self.field.split(".")
         json_path = sql.SQL(" -> ").join(sql.Literal(p) for p in path[:-1])
         last_key = sql.Literal(path[-1])
         if path[:-1]:
-            # For nested fields: data -> 'profile' -> 'age' (all JSONB)
-            data_expr = sql.SQL("data -> ") + json_path + sql.SQL(" -> ") + last_key
+            # For nested fields: t -> 'profile' -> 'age' (all JSONB)
+            # Note: 't' is the table alias used in SELECT row_to_json(t)::text FROM table AS t
+            data_expr = sql.SQL("t -> ") + json_path + sql.SQL(" -> ") + last_key
         else:
-            # For simple fields: data -> 'field' (JSONB)
-            data_expr = sql.SQL("data -> ") + last_key
+            # For simple fields: t -> 'field' (JSONB)
+            data_expr = sql.SQL("t -> ") + last_key
 
-        direction_sql = sql.SQL(self.direction.upper())
+        direction_sql = sql.SQL(self.direction.value.upper())
         return data_expr + sql.SQL(" ") + direction_sql
+
+    def _build_vector_distance_sql(
+        self, field_name: str, operator: str, value: list[float]
+    ) -> sql.Composed:
+        """Build SQL for vector distance ordering.
+
+        Generates: (data -> 'field') <operator> '[v1,v2,...]'::vector ASC/DESC
+
+        Args:
+            field_name: The vector field name (e.g., 'embedding')
+            operator: The distance operator ('cosine_distance', 'l2_distance', 'inner_product')
+            value: The vector to compare against
+
+        Returns:
+            SQL fragment for vector distance ordering
+        """
+        # Map operator names to PostgreSQL operators and data types
+        if operator == "cosine_distance":
+            pg_operator_sql = sql.SQL("<=>")
+            type_cast = sql.SQL("::vector")
+            literal_value = "[" + ",".join(str(v) for v in value) + "]"
+        elif operator == "l2_distance":
+            pg_operator_sql = sql.SQL("<->")
+            type_cast = sql.SQL("::vector")
+            literal_value = "[" + ",".join(str(v) for v in value) + "]"
+        elif operator == "l1_distance":
+            pg_operator_sql = sql.SQL("<+>")
+            type_cast = sql.SQL("::vector")
+            literal_value = "[" + ",".join(str(v) for v in value) + "]"
+        elif operator == "inner_product":
+            pg_operator_sql = sql.SQL("<#>")
+            type_cast = sql.SQL("::vector")
+            literal_value = "[" + ",".join(str(v) for v in value) + "]"
+        elif operator == "hamming_distance":
+            pg_operator_sql = sql.SQL("<~>")
+            type_cast = sql.SQL("::bit")
+            literal_value = str(value)  # value is already a string for binary operators
+        elif operator == "jaccard_distance":
+            pg_operator_sql = sql.SQL("<%>")
+            type_cast = sql.SQL("::bit")
+            literal_value = str(value)  # value is already a string for binary operators
+        else:
+            raise ValueError(f"Unknown vector distance operator: {operator}")
+
+        # Build SQL: (t."field") <operator> 'literal'::type ASC
+        # Note: 't' is the table alias used in SELECT row_to_json(t)::text FROM table AS t
+
+        direction_sql = sql.SQL("ASC") if self.direction == OrderDirection.ASC else sql.SQL("DESC")
+        return sql.Composed(
+            [
+                sql.SQL("("),
+                sql.SQL("t."),
+                sql.Identifier(field_name),
+                sql.SQL(")"),
+                sql.SQL(" "),
+                pg_operator_sql,
+                sql.SQL(" "),
+                sql.Literal(literal_value),
+                type_cast,
+                sql.SQL(" "),
+                direction_sql,
+            ]
+        )
 
 
 @dataclass(frozen=True)

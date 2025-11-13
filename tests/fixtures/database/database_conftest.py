@@ -70,7 +70,7 @@ def postgres_container() -> None:
         return
 
     container = PostgresContainer(
-        image="postgres:16-alpine",
+        image="pgvector/pgvector:pg16",
         username="fraiseql",
         password="fraiseql",
         dbname="fraiseql_test",

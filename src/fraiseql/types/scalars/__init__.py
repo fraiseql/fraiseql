@@ -87,6 +87,7 @@ from .timezone import TimezoneScalar
 from .tracking_number import TrackingNumberScalar
 from .url import URLScalar
 from .uuid import UUIDScalar
+from .vector import VectorScalar
 from .vin import VINScalar
 
 __all__ = [
@@ -143,4 +144,5 @@ __all__ = [
     "URLScalar",
     "UUIDScalar",
     "VINScalar",
+    "VectorScalar",
 ]

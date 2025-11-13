@@ -32,6 +32,14 @@ class Employee:
 
 
 @fraiseql.type
+class Document:
+    id: uuid.UUID
+    title: str
+    embedding: list[float]  # Vector field
+    created_at: datetime
+
+
+@fraiseql.type
 class Company:
     id: uuid.UUID
     name: str
@@ -126,9 +134,9 @@ class TestGraphQLOrderByGenerator:
         assert sql_order_by is not None
         assert len(sql_order_by.instructions) == 2
         assert sql_order_by.instructions[0].field == "name"
-        assert sql_order_by.instructions[0].direction == "asc"
+        assert sql_order_by.instructions[0].direction == OrderDirection.ASC
         assert sql_order_by.instructions[1].field == "created_at"
-        assert sql_order_by.instructions[1].direction == "desc"
+        assert sql_order_by.instructions[1].direction == OrderDirection.DESC
 
     def test_sql_conversion_nested(self) -> None:
         """Test converting nested order by to SQL."""
@@ -152,9 +160,9 @@ class TestGraphQLOrderByGenerator:
         fields_and_directions = [
             (instr.field, instr.direction) for instr in sql_order_by.instructions
         ]
-        assert ("name", "asc") in fields_and_directions
-        assert ("department.name", "desc") in fields_and_directions
-        assert ("department.created_at", "asc") in fields_and_directions
+        assert ("name", OrderDirection.ASC) in fields_and_directions
+        assert ("department.name", OrderDirection.DESC) in fields_and_directions
+        assert ("department.created_at", OrderDirection.ASC) in fields_and_directions
 
     def test_circular_reference_handling(self) -> None:
         """Test that circular references don't cause infinite recursion."""
@@ -230,11 +238,69 @@ class TestGraphQLOrderByGenerator:
         assert sql_order_by is not None
         assert len(sql_order_by.instructions) == 3
         assert sql_order_by.instructions[0].field == "name"
-        assert sql_order_by.instructions[0].direction == "asc"
+        assert sql_order_by.instructions[0].direction == OrderDirection.ASC
         assert sql_order_by.instructions[1].field == "age"
-        assert sql_order_by.instructions[1].direction == "desc"
+        assert sql_order_by.instructions[1].direction == OrderDirection.DESC
         assert sql_order_by.instructions[2].field == "department.name"
-        assert sql_order_by.instructions[2].direction == "asc"
+        assert sql_order_by.instructions[2].direction == OrderDirection.ASC
+
+    def test_vector_order_by_input_generation(self) -> None:
+        """Test generating order by input for types with vector fields."""
+        from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
+
+        # Clear cache
+        from fraiseql.sql.graphql_order_by_generator import _generation_stack, _order_by_input_cache
+
+        _order_by_input_cache.clear()
+        _generation_stack.clear()
+
+        # Create order by input for Document (which has embedding field)
+        DocumentOrderByInput = create_graphql_order_by_input(Document)
+
+        # Check fields
+        fields = DocumentOrderByInput.__dataclass_fields__
+        assert "id" in fields
+        assert "title" in fields
+        assert "embedding" in fields
+        assert "created_at" in fields
+
+        # Check that embedding field has VectorOrderBy type
+        embedding_field = fields["embedding"]
+        import typing
+
+        if hasattr(typing, "get_args"):
+            args = typing.get_args(embedding_field.type)
+            if args:
+                # Should be Optional[VectorOrderBy]
+                assert args[0] == VectorOrderBy
+
+    def test_vector_order_by_usage(self) -> None:
+        """Test using vector order by input."""
+        from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
+
+        DocumentOrderByInput = create_graphql_order_by_input(Document)
+
+        # Create order by with vector distance
+        vector_order_by = VectorOrderBy(cosine_distance=[0.1, 0.2, 0.3])
+        order_by = DocumentOrderByInput(title=OrderDirection.ASC, embedding=vector_order_by)
+
+        # Convert to SQL
+        from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+        sql_order_by = _convert_order_by_input_to_sql(order_by)
+
+        assert sql_order_by is not None
+        assert len(sql_order_by.instructions) == 2
+
+        # Check title ordering
+        title_instruction = next(i for i in sql_order_by.instructions if i.field == "title")
+        assert title_instruction.direction == OrderDirection.ASC
+
+        # Check embedding ordering
+        embedding_instruction = next(i for i in sql_order_by.instructions if "embedding" in i.field)
+        assert embedding_instruction.field == "embedding.cosine_distance"
+        assert embedding_instruction.value == [0.1, 0.2, 0.3]
+        assert embedding_instruction.direction == OrderDirection.ASC
 
     def test_empty_order_by(self) -> None:
         """Test handling empty order by input."""

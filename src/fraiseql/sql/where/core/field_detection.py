@@ -30,6 +30,7 @@ class FieldType(Enum):
     EMAIL = "email"
     PORT = "port"
     FULLTEXT = "fulltext"
+    VECTOR = "vector"
 
     def is_ip_address(self) -> bool:
         """Check if this field type is IP address."""
@@ -406,6 +407,25 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
         or field_lower.startswith(("port_", "port"))
     ):
         return FieldType.PORT
+
+    # Vector embedding patterns - handle both snake_case and camelCase
+    # NOTE: Vector detection must come BEFORE fulltext detection to take precedence
+    vector_patterns = [
+        "embedding",
+        "vector",
+        "_embedding",
+        "_vector",
+        "embedding_vector",
+        "embeddingvector",
+        "text_embedding",
+        "textembedding",
+        "image_embedding",
+        "imageembedding",
+    ]
+
+    # Check vector pattern matches
+    if any(pattern in field_lower for pattern in vector_patterns):
+        return FieldType.VECTOR
 
     # Full-text search patterns - handle both snake_case and camelCase
     fulltext_patterns = [
