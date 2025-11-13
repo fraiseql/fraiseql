@@ -437,13 +437,21 @@ CREATE INDEX ON your_table USING hnsw (embedding vector_cosine_ops);
 
 ## 🔮 Future Enhancements
 
-Planned for future releases (see `docs/planning/pgvector-phase2-implementation-plan.md`):
+The following advanced pgvector features are planned for future releases:
 
-- Sparse vector support (`sparsevec` type)
-- Half-precision vectors (`halfvec` type)
-- Vector aggregation functions
-- Custom distance functions
-- Vector quantization for reduced memory usage
+- **Sparse vector support** (`sparsevec` type) - Optimized storage for high-dimensional sparse embeddings
+- **Half-precision vectors** (`halfvec` type) - Reduced memory usage with 16-bit floats
+- **Vector aggregation functions** - AVG, SUM, and other aggregate operations on vectors
+- **Custom distance functions** - User-defined similarity metrics
+- **Vector quantization** - Advanced compression techniques for reduced memory usage
+
+**Note**: The following features were initially planned for Phase 2 but are **already included in v1.5.0**:
+- ✅ L1/Manhattan distance (`<+>` operator) - Completed and tested
+- ✅ Hamming distance (`<~>` operator) - Binary vector support
+- ✅ Jaccard distance (`<%>` operator) - Set similarity for binary vectors
+- ✅ Complete ORDER BY vector distance support - All operators working
+
+See `docs/planning/pgvector-phase2-implementation-plan.md` for implementation details.
 
 ## 🙏 Acknowledgments
 
