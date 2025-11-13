@@ -45,7 +45,7 @@ class TestNestedObjectFilterDetection:
 
         🟢 GREEN CYCLE: After the fix, nested filters on any field should work.
         This test verifies that {"device": {"is_active": {"eq": True}}} generates
-        the correct JSONB path: data -> 'device' ->> 'is_active' = 'true'
+        the correct JSONB path: t -> 'device' ->> 'is_active' = 'true'
         """
         # This now WORKS - nested filter on 'is_active' field
         where_dict = {"device": {"is_active": {"eq": True}}}

@@ -107,7 +107,7 @@ class TestNestedObjectFilterEdgeCases:
 
         # Should contain both FK column access and JSONB path access
         # FK: machine_id column
-        # JSONB: data -> 'machine' ->> 'name'
+        # JSONB: t -> 'machine' ->> 'name'
         assert "machine_id" in sql_str or "machine" in sql_str, (
             f"Expected FK column or JSONB path for machine fields, but got: {sql_str}"
         )
@@ -159,8 +159,8 @@ class TestNestedObjectFilterEdgeCases:
         if sql is not None:
             sql_str = str(sql)
             # Check that deeply nested paths are generated
-            # Should be: data -> 'machine' -> 'location' ->> 'city'
-            assert "data -> 'machine' -> 'location'" in sql_str, (
+            # Should be: t -> 'machine' -> 'location' ->> 'city'
+            assert "t -> 'machine' -> 'location'" in sql_str, (
                 f"Expected deeply nested path for machine.location.city, but got: {sql_str}"
             )
 

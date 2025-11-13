@@ -333,8 +333,8 @@ class TestGraphQLOrderByGenerator:
 
         # Should generate valid ORDER BY clause with JSONB extraction
         assert "ORDER BY" in sql_string
-        assert "data -> 'name' ASC" in sql_string
-        assert "data -> 'created_at' DESC" in sql_string
+        assert "t -> 'name' ASC" in sql_string
+        assert "t -> 'created_at' DESC" in sql_string
 
     def test_integration_with_repository(self) -> None:
         """Test how order by would integrate with repository pattern."""

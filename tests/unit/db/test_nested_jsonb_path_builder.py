@@ -35,7 +35,7 @@ class TestNestedJSONBPathBuilder:
         # Test building path for device.is_active
         result = self.repo._build_nested_jsonb_path("device", "is_active")
 
-        # Should generate SQL like: data -> 'device' ->> 'is_active'
+        # Should generate SQL like: t -> 'device' ->> 'is_active'
         sql_str = result.as_string(None)
         assert "data" in sql_str
         assert "'device'" in sql_str
@@ -92,7 +92,7 @@ class TestNestedJSONBPathBuilder:
         result = self.repo._build_nested_jsonb_path("device", "is_active")
         sql_str = result.as_string(None)
 
-        # Should follow pattern: data -> 'parent' ->> 'nested'
+        # Should follow pattern: t -> 'parent' ->> 'nested'
         # Note: The exact SQL structure depends on psycopg implementation
         # but should contain the key elements
         assert sql_str is not None
