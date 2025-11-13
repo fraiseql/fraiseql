@@ -36,11 +36,11 @@ class TestNumericOrderingBug:
         """
         # Create order by for a numeric field
         order_by = OrderBy(field="amount", direction=OrderDirection.ASC)
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # What it SHOULD generate for numeric fields (CORRECT)
         # This test will fail until we fix the implementation
-        assert sql == "t -> 'amount' ASC", (
+        assert sql == "data -> 'amount' ASC", (
             f"Expected numeric JSONB extraction, got text extraction: {sql}"
         )
 
@@ -52,10 +52,10 @@ class TestNumericOrderingBug:
                 OrderBy(field="quantity", direction="desc"),
             ]
         )
-        sql = order_by_set.to_sql().as_string(None)
+        sql = order_by_set.to_sql("data").as_string(None)
 
         # Now FIXED - uses JSONB extraction for proper numeric ordering
-        expected_correct = "ORDER BY t -> 'amount' ASC, t -> 'quantity' DESC"
+        expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'quantity' DESC"
         assert sql == expected_correct
 
     def test_mixed_field_types_ordering(self) -> None:
@@ -71,19 +71,19 @@ class TestNumericOrderingBug:
                 OrderBy(field="identifier", direction="desc"),  # Uses JSONB extraction
             ]
         )
-        sql = order_by_set.to_sql().as_string(None)
+        sql = order_by_set.to_sql("data").as_string(None)
 
         # FIXED - both use JSONB extraction which preserves types
-        expected_correct = "ORDER BY t -> 'amount' ASC, t -> 'identifier' DESC"
+        expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'identifier' DESC"
         assert sql == expected_correct
 
     def test_nested_numeric_field_ordering_bug(self) -> None:
         """Test numeric ordering bug with nested fields."""
         order_by = OrderBy(field="pricing.amount", direction="desc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # Should use JSONB extraction for nested numeric fields (CORRECT)
-        assert sql == "t -> 'pricing' -> 'amount' DESC", (
+        assert sql == "data -> 'pricing' -> 'amount' DESC", (
             f"Expected full JSONB extraction, got: {sql}"
         )
 
@@ -113,10 +113,10 @@ class TestNumericOrderingRealWorld:
     def test_decimal_precision_ordering_bug(self) -> None:
         """Test ordering bug with high-precision decimal values."""
         order_by = OrderBy(field="precise_amount", direction="asc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # FIXED - now uses JSONB extraction which preserves numeric precision
-        assert sql == "t -> 'precise_amount' ASC"
+        assert sql == "data -> 'precise_amount' ASC"
 
         # This now correctly handles values like:
         # 123.456, 123.5, 123.45678
@@ -129,14 +129,14 @@ class TestNumericOrderingRealWorld:
         has better performance characteristics for numeric operations.
         """
         order_by = OrderBy(field="amount", direction="asc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
-        # FIXED: t -> 'amount' (JSONB extraction)
+        # FIXED: data -> 'amount' (JSONB extraction)
         # - Better index utilization potential
         # - Native numeric comparison in PostgreSQL
         # - More efficient for numeric operations
         # - Preserves original data types
-        assert "t -> 'amount'" in sql
+        assert "data -> 'amount'" in sql
         assert "data ->> 'amount'" not in sql
 
 

@@ -233,12 +233,12 @@ class MockApolloClient:
         self.mutate = AsyncMock()
 
     def writeFragment(self, options):
-        """Mock cache write operation."""
-        pass
+        """Mock cache write operation - forwards to cache mock."""
+        return self.cache.writeFragment(options)
 
     def evict(self, options):
-        """Mock cache eviction."""
-        pass
+        """Mock cache eviction - forwards to cache mock."""
+        return self.cache.evict(options)
 
 
 def test_apollo_client_cascade_integration():

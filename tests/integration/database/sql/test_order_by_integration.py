@@ -98,7 +98,7 @@ class TestOrderByIntegration:
 
             # For test, just verify the SQL generation
             if sql_order_by:
-                sql_string = sql_order_by.to_sql().as_string(None)
+                sql_string = sql_order_by.to_sql("data").as_string(None)
                 assert "ORDER BY" in sql_string
 
             return []  # Mock return
@@ -143,12 +143,12 @@ class TestOrderByIntegration:
         assert len(sql_order_by.instructions) == 3
 
         # Generate SQL to verify format
-        sql_string = sql_order_by.to_sql().as_string(None)
+        sql_string = sql_order_by.to_sql("data").as_string(None)
         assert "ORDER BY" in sql_string
         # Updated to use table alias for proper type handling
-        assert "t -> 'is_current' DESC" in sql_string
-        assert "t -> 'name' ASC" in sql_string
-        assert "t -> 'last_maintenance' DESC" in sql_string
+        assert "data -> 'is_current' DESC" in sql_string
+        assert "data -> 'name' ASC" in sql_string
+        assert "data -> 'last_maintenance' DESC" in sql_string
 
     def test_order_by_with_pagination(self) -> None:
         """Test ORDER BY with pagination patterns."""
@@ -161,12 +161,12 @@ class TestOrderByIntegration:
         )
 
         sql_order_by = order_by._to_sql_order_by()
-        sql_string = sql_order_by.to_sql().as_string(None)
+        sql_string = sql_order_by.to_sql("data").as_string(None)
 
         # This ensures consistent pagination even if allocated_at has duplicates
         # Updated to use JSONB extraction
-        assert "t -> 'allocated_at' DESC" in sql_string
-        assert "t -> 'id' ASC" in sql_string
+        assert "data -> 'allocated_at' DESC" in sql_string
+        assert "data -> 'id' ASC" in sql_string
 
     def test_dynamic_order_by_from_user_input(self) -> None:
         """Test building order by from dynamic user input."""

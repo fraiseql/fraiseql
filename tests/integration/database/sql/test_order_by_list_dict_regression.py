@@ -173,13 +173,13 @@ class TestOrderByListDictRegression:
 
         assert result is not None
 
-        sql = result.to_sql()
+        sql = result.to_sql("data")
         sql_str = sql.as_string(None)
 
         # Should generate proper JSONB ORDER BY clause with JSONB extraction
         assert "ORDER BY" in sql_str
-        assert "t -> 'ip_address' ASC" in sql_str
-        assert "t -> 'server_name' DESC" in sql_str
+        assert "data -> 'ip_address' ASC" in sql_str
+        assert "data -> 'server_name' DESC" in sql_str
 
     def test_backward_compatibility_with_dicts(self) -> None:
         """Test that single dict input still works (not in list)."""

@@ -56,10 +56,10 @@ def test_real_world_graphql_order_by_usage() -> None:
     assert sql_order_by is not None
 
     # Verify SQL generation with JSONB extraction
-    sql_string = sql_order_by.to_sql().as_string(None)
+    sql_string = sql_order_by.to_sql("data").as_string(None)
     assert "ORDER BY" in sql_string
-    assert "t -> 'name' DESC" in sql_string
-    assert "t -> 'department' -> 'name' ASC" in sql_string
+    assert "data -> 'name' DESC" in sql_string
+    assert "data -> 'department' -> 'name' ASC" in sql_string
 
 
 def test_simple_order_by_dict() -> None:
