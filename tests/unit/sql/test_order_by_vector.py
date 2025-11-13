@@ -16,7 +16,7 @@ def test_order_by_cosine_distance() -> None:
         field="embedding.cosine_distance", direction=OrderDirection.ASC, value=[0.1, 0.2, 0.3]
     )
     result = ob.to_sql().as_string(None)
-    expected = "(data -> 'embedding') <=> '[0.1,0.2,0.3]'::vector ASC"
+    expected = "(t.\"embedding\") <=> '[0.1,0.2,0.3]'::vector ASC"
     assert result == expected
 
 
@@ -24,7 +24,7 @@ def test_order_by_l2_distance() -> None:
     """Test ORDER BY with L2 distance generates correct SQL."""
     ob = OrderBy(field="embedding.l2_distance", direction=OrderDirection.ASC, value=[0.1, 0.2, 0.3])
     result = ob.to_sql().as_string(None)
-    expected = "(data -> 'embedding') <-> '[0.1,0.2,0.3]'::vector ASC"
+    expected = "(t.\"embedding\") <-> '[0.1,0.2,0.3]'::vector ASC"
     assert result == expected
 
 
@@ -34,7 +34,7 @@ def test_order_by_inner_product() -> None:
         field="embedding.inner_product", direction=OrderDirection.ASC, value=[0.1, 0.2, 0.3]
     )
     result = ob.to_sql().as_string(None)
-    expected = "(data -> 'embedding') <#> '[0.1,0.2,0.3]'::vector ASC"
+    expected = "(t.\"embedding\") <#> '[0.1,0.2,0.3]'::vector ASC"
     assert result == expected
 
 
@@ -42,7 +42,7 @@ def test_order_by_vector_asc_default() -> None:
     """Test that ASC is default direction for vector distance ordering."""
     ob = OrderBy(field="text_embedding.cosine_distance", value=[0.1, 0.2])
     result = ob.to_sql().as_string(None)
-    expected = "(data -> 'text_embedding') <=> '[0.1,0.2]'::vector ASC"
+    expected = "(t.\"text_embedding\") <=> '[0.1,0.2]'::vector ASC"
     assert result == expected
 
 
@@ -50,5 +50,5 @@ def test_order_by_vector_desc() -> None:
     """Test DESC direction for vector distance ordering."""
     ob = OrderBy(field="embedding.cosine_distance", direction=OrderDirection.DESC, value=[0.1, 0.2])
     result = ob.to_sql().as_string(None)
-    expected = "(data -> 'embedding') <=> '[0.1,0.2]'::vector DESC"
+    expected = "(t.\"embedding\") <=> '[0.1,0.2]'::vector DESC"
     assert result == expected
