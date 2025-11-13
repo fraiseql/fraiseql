@@ -26,7 +26,10 @@ from enum import Enum
 
 from psycopg import sql
 
+from fraiseql import fraise_enum
 
+
+@fraise_enum
 class OrderDirection(Enum):
     """Order direction for sorting."""
 
