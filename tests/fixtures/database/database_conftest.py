@@ -138,11 +138,12 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
     async with pool.connection() as conn:
         await conn.execute(
             """
-            -- Enable required extensions
-            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-            CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-            CREATE EXTENSION IF NOT EXISTS "ltree";
-        """
+                -- Enable required extensions
+                CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+                CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+                CREATE EXTENSION IF NOT EXISTS "ltree";
+                CREATE EXTENSION IF NOT EXISTS "vector";
+            """
         )
         # Try to create pg_fraiseql_cache extension (optional)
         try:
