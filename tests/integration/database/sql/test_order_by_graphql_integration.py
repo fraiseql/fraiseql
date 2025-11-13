@@ -73,7 +73,7 @@ def test_simple_order_by_dict() -> None:
     assert sql_order_by is not None
     assert len(sql_order_by.instructions) == 1
     assert sql_order_by.instructions[0].field == "name"
-    assert sql_order_by.instructions[0].direction == "desc"
+    assert sql_order_by.instructions[0].direction == OrderDirection.DESC
 
 
 def test_enum_values_in_dict() -> None:

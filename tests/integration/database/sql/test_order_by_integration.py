@@ -67,8 +67,8 @@ class TestOrderByIntegration:
         # Check order by has correct instructions
         assert len(sql_order_by.instructions) == 2
         fields = [(i.field, i.direction) for i in sql_order_by.instructions]
-        assert ("allocated_at", "desc") in fields
-        assert ("machine.name", "asc") in fields
+        assert ("allocated_at", OrderDirection.DESC) in fields
+        assert ("machine.name", OrderDirection.ASC) in fields
 
     def test_graphql_query_example(self) -> None:
         """Demonstrate how it would work in a GraphQL query."""
@@ -193,4 +193,4 @@ class TestOrderByIntegration:
         sql_order_by = order_by._to_sql_order_by()
         assert len(sql_order_by.instructions) == 1
         assert sql_order_by.instructions[0].field == "name"
-        assert sql_order_by.instructions[0].direction == "asc"
+        assert sql_order_by.instructions[0].direction == OrderDirection.ASC

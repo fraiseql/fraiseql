@@ -48,8 +48,8 @@ class TestOrderByListDictRegression:
         assert instruction.field == "ip_address", (
             f"Field should be snake_case, got {instruction.field}"
         )
-        assert instruction.direction == "asc", (
-            f"Direction should be lowercase, got {instruction.direction}"
+        assert instruction.direction == OrderDirection.ASC, (
+            f"Direction should be OrderDirection.ASC, got {instruction.direction}"
         )
 
     def test_multiple_fields_in_list(self) -> None:
@@ -67,9 +67,9 @@ class TestOrderByListDictRegression:
 
         # Check field name conversion and direction normalization
         expected = [
-            ("ip_address", "asc"),
-            ("server_name", "desc"),
-            ("is_active", "asc"),  # ASC -> asc
+            ("ip_address", OrderDirection.ASC),
+            ("server_name", OrderDirection.DESC),
+            ("is_active", OrderDirection.ASC),  # ASC -> asc
         ]
 
         actual = [(instr.field, instr.direction) for instr in result.instructions]
@@ -101,12 +101,12 @@ class TestOrderByListDictRegression:
     def test_direction_case_normalization(self) -> None:
         """Test that direction strings are normalized to lowercase."""
         test_cases = [
-            ("asc", "asc"),
-            ("desc", "desc"),
-            ("ASC", "asc"),
-            ("DESC", "desc"),
-            ("Asc", "asc"),
-            ("Desc", "desc"),
+            ("asc", OrderDirection.ASC),
+            ("desc", OrderDirection.DESC),
+            ("ASC", OrderDirection.ASC),
+            ("DESC", OrderDirection.DESC),
+            ("Asc", OrderDirection.ASC),
+            ("Desc", OrderDirection.DESC),
         ]
 
         for input_direction, expected_direction in test_cases:
@@ -143,14 +143,13 @@ class TestOrderByListDictRegression:
 
         result = _convert_order_by_input_to_sql(order_by_input)
 
-        # Should only include the valid instruction
-        if result:
-            # Only valid directions should be included
-            assert len(result.instructions) == 1
-            assert result.instructions[0].field == "server_name"
-        else:
-            # Or it might return None if no valid instructions
-            assert result is None
+        # Invalid directions default to ASC, so both should be included
+        assert result is not None
+        assert len(result.instructions) == 2
+        assert result.instructions[0].field == "ip_address"
+        assert result.instructions[0].direction == OrderDirection.DESC  # invalid -> DESC
+        assert result.instructions[1].field == "server_name"
+        assert result.instructions[1].direction == OrderDirection.ASC
 
     def test_empty_list(self) -> None:
         """Test that empty list returns None."""
@@ -191,7 +190,7 @@ class TestOrderByListDictRegression:
         assert result is not None
         assert len(result.instructions) == 1
         assert result.instructions[0].field == "ip_address"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
 
     def test_generated_input_types_still_work(self) -> None:
         """Test that FraiseQL-generated input types still work after the fix."""
@@ -209,7 +208,7 @@ class TestOrderByListDictRegression:
         assert result is not None
         assert len(result.instructions) == 1
         assert result.instructions[0].field == "ip_address"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
 
     def test_multiple_fields_single_dict(self) -> None:
         """Test multiple fields in a single dictionary."""
@@ -223,8 +222,8 @@ class TestOrderByListDictRegression:
         fields = {instr.field: instr.direction for instr in result.instructions}
         assert "ip_address" in fields
         assert "server_name" in fields
-        assert fields["ip_address"] == "asc"
-        assert fields["server_name"] == "desc"
+        assert fields["ip_address"] == OrderDirection.ASC
+        assert fields["server_name"] == OrderDirection.DESC
 
 
 class TestOrderByIntegrationRegression:

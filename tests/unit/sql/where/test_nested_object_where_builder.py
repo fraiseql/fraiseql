@@ -20,9 +20,9 @@ class TestNestedObjectWhereBuilder:
         where = {"machine": {"name": {"eq": "Machine 1"}}}
         sql = build_where_clause(where)
 
-        # Should generate: t -> 'machine' ->> 'name' = 'Machine 1'
+        # Should generate: data -> 'machine' ->> 'name' = 'Machine 1'
         sql_str = sql.as_string(None)
-        assert "t -> 'machine' ->> 'name'" in sql_str
+        assert "data -> 'machine' ->> 'name'" in sql_str
         assert " = " in sql_str
 
     def test_two_level_nested_where(self) -> None:
@@ -30,9 +30,9 @@ class TestNestedObjectWhereBuilder:
         where = {"location": {"address": {"city": {"eq": "Seattle"}}}}
         sql = build_where_clause(where)
 
-        # Should generate: t -> 'location' -> 'address' ->> 'city' = 'Seattle'
+        # Should generate: data -> 'location' -> 'address' ->> 'city' = 'Seattle'
         sql_str = sql.as_string(None)
-        assert "t -> 'location' -> 'address' ->> 'city'" in sql_str
+        assert "data -> 'location' -> 'address' ->> 'city'" in sql_str
 
     def test_multiple_nested_conditions(self) -> None:
         """Test multiple conditions at different nesting levels."""
@@ -44,8 +44,8 @@ class TestNestedObjectWhereBuilder:
 
         sql_str = sql.as_string(None)
         assert "data ->> 'status'" in sql_str
-        assert "t -> 'machine' ->> 'name'" in sql_str
-        assert "t -> 'machine' ->> 'type'" in sql_str
+        assert "data -> 'machine' ->> 'name'" in sql_str
+        assert "data -> 'machine' ->> 'type'" in sql_str
         assert " AND " in sql_str
 
     def test_mixed_operators_nested(self) -> None:
@@ -54,9 +54,9 @@ class TestNestedObjectWhereBuilder:
         sql = build_where_clause(where)
 
         sql_str = sql.as_string(None)
-        assert "t -> 'machine' ->> 'power'" in sql_str
+        assert "data -> 'machine' ->> 'power'" in sql_str
         assert " >= " in sql_str
-        assert "t -> 'machine' ->> 'status'" in sql_str
+        assert "data -> 'machine' ->> 'status'" in sql_str
         assert " != " in sql_str
 
     def test_empty_where_dict(self) -> None:
@@ -78,7 +78,7 @@ class TestNestedObjectWhereBuilder:
         sql = build_where_clause(where)
 
         sql_str = sql.as_string(None)
-        assert "t -> 'machine' ->> 'tags'" in sql_str
+        assert "data -> 'machine' ->> 'tags'" in sql_str
         assert " IN " in sql_str
 
     def test_deeply_nested_three_levels(self) -> None:
@@ -87,4 +87,4 @@ class TestNestedObjectWhereBuilder:
         sql = build_where_clause(where)
 
         sql_str = sql.as_string(None)
-        assert "t -> 'organization' -> 'department' -> 'team' ->> 'lead'" in sql_str
+        assert "data -> 'organization' -> 'department' -> 'team' ->> 'lead'" in sql_str

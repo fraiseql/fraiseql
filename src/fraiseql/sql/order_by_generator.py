@@ -64,8 +64,11 @@ class OrderBy:
     direction: OrderDirection = OrderDirection.ASC
     value: list[float] | None = None
 
-    def to_sql(self) -> sql.Composed:
+    def to_sql(self, table_ref: str = "t") -> sql.Composed:
         """Generate ORDER BY clause using JSONB numeric extraction or vector distance.
+
+        Args:
+            table_ref: Table alias or column name to use for JSONB access (default: "t")
 
         Uses data -> 'field' instead of data ->> 'field' to preserve proper
         numeric ordering. JSONB extraction (data->'field') maintains the
@@ -73,10 +76,10 @@ class OrderBy:
         converts everything to text causing lexicographic sorting.
 
         For nested fields like 'profile.age', uses:
-        data -> 'profile' -> 'age' (all JSONB extraction)
+        {table_ref} -> 'profile' -> 'age' (all JSONB extraction)
 
         For vector distance operations like 'embedding.cosine_distance', uses:
-        (data -> 'embedding') <=> '[0.1,0.2,...]'::vector
+        ({table_ref} -> 'embedding') <=> '[0.1,0.2,...]'::vector
         """
         # Check if this is a vector distance operation
         if "." in self.field and self.value is not None:
@@ -84,34 +87,41 @@ class OrderBy:
             if len(parts) == 2:  # field.operator format
                 field_name, operator = parts
                 if operator in ("cosine_distance", "l2_distance", "inner_product"):
-                    return self._build_vector_distance_sql(field_name, operator, self.value)
+                    return self._build_vector_distance_sql(
+                        field_name, operator, self.value, table_ref
+                    )
 
         # Standard JSONB extraction for regular fields
         path = self.field.split(".")
         json_path = sql.SQL(" -> ").join(sql.Literal(p) for p in path[:-1])
         last_key = sql.Literal(path[-1])
         if path[:-1]:
-            # For nested fields: t -> 'profile' -> 'age' (all JSONB)
-            # Note: 't' is the table alias used in SELECT row_to_json(t)::text FROM table AS t
-            data_expr = sql.SQL("t -> ") + json_path + sql.SQL(" -> ") + last_key
+            # For nested fields: {table_ref} -> 'profile' -> 'age' (all JSONB)
+            data_expr = sql.SQL(table_ref + " -> ") + json_path + sql.SQL(" -> ") + last_key
         else:
-            # For simple fields: t -> 'field' (JSONB)
-            data_expr = sql.SQL("t -> ") + last_key
+            # For simple fields: {table_ref} -> 'field' (JSONB)
+            data_expr = sql.SQL(table_ref + " -> ") + last_key
 
-        direction_sql = sql.SQL(self.direction.value.upper())
+        # Handle both OrderDirection enum and string directions
+        if isinstance(self.direction, OrderDirection):
+            direction_str = self.direction.value.upper()
+        else:
+            direction_str = str(self.direction).upper()
+        direction_sql = sql.SQL(direction_str)
         return data_expr + sql.SQL(" ") + direction_sql
 
     def _build_vector_distance_sql(
-        self, field_name: str, operator: str, value: list[float]
+        self, field_name: str, operator: str, value: list[float], table_ref: str = "t"
     ) -> sql.Composed:
         """Build SQL for vector distance ordering.
 
-        Generates: (data -> 'field') <operator> '[v1,v2,...]'::vector ASC/DESC
+        Generates: ({table_ref}."field") <operator> '[0.1,0.2,...]'::vector
 
         Args:
             field_name: The vector field name (e.g., 'embedding')
             operator: The distance operator ('cosine_distance', 'l2_distance', 'inner_product')
             value: The vector to compare against
+            table_ref: Table alias or column name to use for field access
 
         Returns:
             SQL fragment for vector distance ordering
@@ -144,14 +154,18 @@ class OrderBy:
         else:
             raise ValueError(f"Unknown vector distance operator: {operator}")
 
-        # Build SQL: (t."field") <operator> 'literal'::type ASC
-        # Note: 't' is the table alias used in SELECT row_to_json(t)::text FROM table AS t
+        # Build SQL: ({table_ref}."field") <operator> 'literal'::type ASC
 
-        direction_sql = sql.SQL("ASC") if self.direction == OrderDirection.ASC else sql.SQL("DESC")
+        # Handle both OrderDirection enum and string directions
+        if isinstance(self.direction, OrderDirection):
+            direction_str = "ASC" if self.direction == OrderDirection.ASC else "DESC"
+        else:
+            direction_str = str(self.direction).upper()
+        direction_sql = sql.SQL(direction_str)
         return sql.Composed(
             [
                 sql.SQL("("),
-                sql.SQL("t."),
+                sql.SQL(table_ref + "."),
                 sql.Identifier(field_name),
                 sql.SQL(")"),
                 sql.SQL(" "),
@@ -176,8 +190,11 @@ class OrderBySet:
 
     instructions: Sequence[OrderBy]
 
-    def to_sql(self) -> sql.Composed:
+    def to_sql(self, table_ref: str = "t") -> sql.Composed:
         """Compile the ORDER BY instructions into a psycopg SQL Composed object.
+
+        Args:
+            table_ref: Table alias or column name to use for field access (default: "t")
 
         Returns:
             A `psycopg.sql.Composed` instance representing the full ORDER BY
@@ -185,5 +202,5 @@ class OrderBySet:
         """
         if not self.instructions:
             return sql.Composed([])  # Return empty Composed to satisfy Pyright
-        clauses = sql.SQL(", ").join(instr.to_sql() for instr in self.instructions)
+        clauses = sql.SQL(", ").join(instr.to_sql(table_ref) for instr in self.instructions)
         return sql.SQL("ORDER BY ") + clauses
