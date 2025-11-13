@@ -9,21 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 New Features
 
-**GraphQL Cascade** ✨ NEW
+**GraphQL Cascade with Field Selection** ✨ NEW
 - **Automatic Cache Updates**: Mutations can now include cascade data for automatic client cache updates
+- **Field Selection**: Clients can request specific cascade fields to reduce payload size
+- **Type Filtering**: Include/exclude specific entity types in cascade data
+- **Entity Field Selection**: GraphQL inline fragments for entity field selection
+- **Rust-Powered Filtering**: High-performance cascade filtering in Rust (<0.5ms)
 - **Side Effect Tracking**: Track all data modifications in mutation responses
 - **PostgreSQL Integration**: Native JSONB cascade data construction
 - **Client Agnostic**: Works with Apollo Client, Relay, and custom GraphQL clients
 - **Zero Breaking Changes**: Fully backward compatible with existing mutations
-- **Performance Optimized**: < 0.1ms processing overhead for typical payloads
+- **Performance Optimized**: Minimal overhead for typical payloads
 
 ### 📚 Documentation
 
 - **Complete Cascade Guide**: `docs/features/graphql-cascade.md`
+- **Field Selection Implementation**: `GRAPHQL_CASCADE_FIELD_SELECTION_RUST_IMPLEMENTATION_PLAN.md`
 - **Migration Guide**: `docs/migration/cascade-adoption.md`
 - **Best Practices**: `docs/guides/cascade-best-practices.md`
 - **Working Example**: `examples/graphql-cascade/`
 - **Performance Benchmarks**: `benchmarks/cascade_performance_benchmark.py`
+
+### 🦀 Rust Enhancements
+
+- **Cascade Filtering Module**: New `fraiseql_rs::cascade` module for high-performance filtering
+- **Zero-Copy JSON Manipulation**: Efficient cascade data filtering using `serde_json::Value`
+- **Python Integration**: Seamless Rust function call from Python mutation decorators
+- **Type Safety**: Comprehensive Rust unit tests (20+ test cases)
 
 ### 🧪 Testing
 

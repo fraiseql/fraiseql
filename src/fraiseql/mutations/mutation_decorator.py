@@ -158,10 +158,36 @@ class MutationDefinition:
 
             # Check for cascade data if enabled
             if self.enable_cascade:
+                # Extract cascade field selections from GraphQL query
+                cascade_data = None
                 if "_cascade" in result:
-                    parsed_result.__cascade__ = result["_cascade"]
+                    cascade_data = result["_cascade"]
                 elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
-                    parsed_result.__cascade__ = parsed_result.extra_metadata["_cascade"]
+                    cascade_data = parsed_result.extra_metadata["_cascade"]
+
+                if cascade_data:
+                    # Try to filter cascade data based on GraphQL selections
+                    try:
+                        from fraiseql.mutations.cascade_selections import extract_cascade_selections
+
+                        cascade_selections = extract_cascade_selections(info)
+
+                        if cascade_selections:
+                            # Filter using Rust
+                            filtered_cascade = _filter_cascade_rust(
+                                cascade_data, cascade_selections
+                            )
+                            parsed_result.__cascade__ = filtered_cascade
+                        else:
+                            # No selections - return all cascade data
+                            parsed_result.__cascade__ = cascade_data
+                    except Exception as e:
+                        # Fallback: return unfiltered cascade data
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Cascade filtering failed, using unfiltered data: {e}")
+                        parsed_result.__cascade__ = cascade_data
 
             # Return the parsed result directly - let GraphQL handle object resolution
             # Serialization will be handled at the JSON encoding stage
@@ -678,3 +704,30 @@ def _to_dict(obj: Any) -> dict[str, Any]:
         return obj
     msg = f"Cannot convert {type(obj)} to dictionary"
     raise TypeError(msg)
+
+
+def _filter_cascade_rust(cascade_data: dict, selections_json: str) -> dict:
+    """Filter cascade data using Rust implementation.
+
+    Args:
+        cascade_data: Raw cascade data from PostgreSQL
+        selections_json: JSON string of field selections from GraphQL query
+
+    Returns:
+        Filtered cascade data dict
+
+    Raises:
+        Exception: If Rust filtering fails (handled by caller)
+    """
+    import json
+
+    from fraiseql import fraiseql_rs
+
+    # Convert cascade data to JSON
+    cascade_json = json.dumps(cascade_data, separators=(",", ":"))
+
+    # Call Rust filter
+    filtered_json = fraiseql_rs.filter_cascade_data(cascade_json, selections_json)
+
+    # Parse back to dict
+    return json.loads(filtered_json)
