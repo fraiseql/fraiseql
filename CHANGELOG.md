@@ -5,6 +5,32 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-11-13
+
+### 🚀 New Features
+
+**GraphQL Cascade** ✨ NEW
+- **Automatic Cache Updates**: Mutations can now include cascade data for automatic client cache updates
+- **Side Effect Tracking**: Track all data modifications in mutation responses
+- **PostgreSQL Integration**: Native JSONB cascade data construction
+- **Client Agnostic**: Works with Apollo Client, Relay, and custom GraphQL clients
+- **Zero Breaking Changes**: Fully backward compatible with existing mutations
+- **Performance Optimized**: < 0.1ms processing overhead for typical payloads
+
+### 📚 Documentation
+
+- **Complete Cascade Guide**: `docs/features/graphql-cascade.md`
+- **Migration Guide**: `docs/migration/cascade-adoption.md`
+- **Best Practices**: `docs/guides/cascade-best-practices.md`
+- **Working Example**: `examples/graphql-cascade/`
+- **Performance Benchmarks**: `benchmarks/cascade_performance_benchmark.py`
+
+### 🧪 Testing
+
+- **Comprehensive Test Suite**: Unit tests, integration tests, and performance benchmarks
+- **Client Integration Tests**: Apollo Client cache update validation
+- **Error Handling**: Robust handling of malformed cascade data
+
 ## [1.4.0] - 2025-11-08
 
 ### 🚀 New Features
@@ -4340,3 +4366,6 @@ For migration from beta versions, please refer to the documentation.
 [0.1.2]: https://github.com/fraiseql/fraiseql/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fraiseql/fraiseql/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0
+[1.5.0]: https://github.com/fraiseql/fraiseql/compare/v1.4.1...v1.5.0
+[1.4.1]: https://github.com/fraiseql/fraiseql/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/fraiseql/fraiseql/compare/v1.3.4...v1.4.0

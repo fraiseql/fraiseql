@@ -13,7 +13,7 @@ import uvicorn
 from fastapi import FastAPI
 
 import fraiseql
-from fraiseql import gql
+from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.mutations import mutation
 
 
@@ -65,15 +65,53 @@ class CreatePostError:
 
 
 # Queries
-@gql.query
-class GetPosts:
-    result: List[PostWithAuthor]
+@fraiseql.query
+async def getPosts(info) -> List[PostWithAuthor]:
+    """Get all posts with author information."""
+    db = info.context["db"]
+    from fraiseql.db import DatabaseQuery
+
+    query = DatabaseQuery(
+        """
+        SELECT
+            jsonb_build_object(
+                'id', p.id,
+                'title', p.title,
+                'content', p.content,
+                'author', jsonb_build_object(
+                    'id', u.id,
+                    'name', u.name,
+                    'post_count', u.post_count,
+                    'created_at', u.created_at
+                ),
+                'created_at', p.created_at
+            ) as data
+        FROM tb_post p
+        JOIN tb_user u ON p.author_id = u.id
+        ORDER BY p.created_at DESC
+    """,
+        [],
+    )
+    result = await db.run(query)
+    return [PostWithAuthor(**row["data"]) for row in result]
 
 
-@gql.query
-class GetUser:
-    input: str  # user ID
-    result: User
+@fraiseql.query
+async def getUser(info, id: str) -> User:
+    """Get a user by ID."""
+    db = info.context["db"]
+    from fraiseql.db import DatabaseQuery
+
+    query = DatabaseQuery(
+        """
+        SELECT data FROM v_user WHERE id = %s
+    """,
+        [id],
+    )
+    result = await db.run(query)
+    if result:
+        return User(**result[0]["data"])
+    return None
 
 
 # Mutations
@@ -84,14 +122,16 @@ class CreatePost:
     error: CreatePostError
 
 
-# FastAPI app
-app = FastAPI(title="GraphQL Cascade Example")
-
-# Add GraphQL endpoint
-app.add_route("/graphql", gql.graphql_app, methods=["GET", "POST"])
-
-# Add GraphiQL
-app.add_route("/graphiql", gql.graphiql_app, methods=["GET"])
+# Create FraiseQL app
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/cascade_example",
+    types=[CreatePostInput, Post, User, PostWithAuthor, CreatePostSuccess, CreatePostError],
+    queries=[getPosts, getUser],
+    mutations=[CreatePost],
+    title="GraphQL Cascade Example",
+    description="Demonstrates GraphQL Cascade functionality for automatic cache updates",
+    production=False,  # Enable GraphQL playground
+)
 
 
 @app.get("/")

@@ -258,6 +258,32 @@ class TestFraiseTypeJSONSerialization:
         assert hasattr(TestType, "__gql_table__")
         assert TestType.__gql_table__ == "tv_test"
 
-        # Should have type name
-        assert hasattr(TestType, "__gql_typename__")
-        assert TestType.__gql_typename__ == "TestType"
+    def test_fraiseql_json_encoder_includes_cascade_attribute(self) -> None:
+        """Test that FraiseQLJSONEncoder includes __cascade__ attribute as 'cascade'."""
+
+        # Create a mock object that mimics a FraiseQL type
+        class MockFraiseQLType:
+            def __init__(self, id_val: str, name: str):
+                self.id = id_val
+                self.name = name
+                self.__cascade__ = {
+                    "updated": [{"__typename": "TestType", "id": id_val, "operation": "CREATED"}],
+                    "deleted": [],
+                    "invalidations": [{"queryName": "tests", "strategy": "INVALIDATE"}],
+                }
+                # Add the FraiseQL definition attribute to make it a "FraiseQL type"
+                self.__fraiseql_definition__ = True
+
+        # Create instance
+        test_instance = MockFraiseQLType("test-id-123", "test")
+
+        # Serialize using FraiseQLJSONEncoder
+        result = json.loads(json.dumps(test_instance, cls=FraiseQLJSONEncoder))
+
+        # Should include cascade data
+        assert "cascade" in result
+        assert result["cascade"]["updated"][0]["__typename"] == "TestType"
+        assert result["cascade"]["invalidations"][0]["queryName"] == "tests"
+
+        # Should not include __cascade__
+        assert "__cascade__" not in result

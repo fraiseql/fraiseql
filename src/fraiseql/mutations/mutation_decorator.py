@@ -24,6 +24,7 @@ class MutationDefinition:
         schema: str | None = None,
         context_params: dict[str, str] | None = None,
         error_config: MutationErrorConfig | None = None,
+        enable_cascade: bool = False,
     ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
@@ -34,6 +35,7 @@ class MutationDefinition:
 
         self.context_params = context_params or {}
         self.error_config = error_config
+        self.enable_cascade = enable_cascade
 
         # Get type hints
         hints = get_type_hints(mutation_class)
@@ -154,6 +156,13 @@ class MutationDefinition:
                 self.error_config,
             )
 
+            # Check for cascade data if enabled
+            if self.enable_cascade:
+                if "_cascade" in result:
+                    parsed_result.__cascade__ = result["_cascade"]
+                elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
+                    parsed_result.__cascade__ = parsed_result.extra_metadata["_cascade"]
+
             # Return the parsed result directly - let GraphQL handle object resolution
             # Serialization will be handled at the JSON encoding stage
 
@@ -246,6 +255,7 @@ def mutation(
     schema: str | None = None,
     context_params: dict[str, str] | None = None,
     error_config: MutationErrorConfig | None = None,
+    enable_cascade: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
     """Decorator to define GraphQL mutations with PostgreSQL function backing.
 
@@ -259,6 +269,7 @@ def mutation(
         schema: PostgreSQL schema containing the function (defaults to "graphql")
         context_params: Maps GraphQL context keys to PostgreSQL function parameter names
         error_config: Optional configuration for error detection behavior
+        enable_cascade: Enable GraphQL cascade functionality to include side effects in response
 
     Returns:
         Decorated mutation with automatic PostgreSQL function integration
@@ -604,7 +615,9 @@ def mutation(
         # Otherwise, it's a class-based mutation
         cls = cls_or_fn
         # Create mutation definition
-        definition = MutationDefinition(cls, function, schema, context_params, error_config)
+        definition = MutationDefinition(
+            cls, function, schema, context_params, error_config, enable_cascade
+        )
 
         # Store definition on the class
         cls.__fraiseql_mutation__ = definition

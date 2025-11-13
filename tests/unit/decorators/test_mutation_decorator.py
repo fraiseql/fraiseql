@@ -81,6 +81,27 @@ class TestMutationDefinition:
         definition = CreateUser.__fraiseql_mutation__
         assert definition.schema == "mutations"
 
+    def test_enable_cascade_parameter(self) -> None:
+        """Test mutation with enable_cascade parameter."""
+
+        @mutation(enable_cascade=True)
+        class CreateUserWithCascade:
+            input: SampleInput
+            success: SampleSuccess
+            error: SampleError
+
+        definition = CreateUserWithCascade.__fraiseql_mutation__
+        assert definition.enable_cascade is True
+
+        @mutation(enable_cascade=False)
+        class CreateUserWithoutCascade:
+            input: SampleInput
+            success: SampleSuccess
+            error: SampleError
+
+        definition = CreateUserWithoutCascade.__fraiseql_mutation__
+        assert definition.enable_cascade is False
+
     def test_missing_input_type_raises_error(self) -> None:
         """Test that missing input type raises TypeError."""
         with pytest.raises(TypeError, match="must define 'input' type"):
@@ -215,6 +236,78 @@ class TestMutationResolver:
         assert isinstance(result, SampleError)
         assert result.message == "Email already exists"
         assert result.code == "validation_error"
+
+    @pytest.mark.asyncio
+    async def test_resolver_passthrough_cascade_when_enabled(self) -> None:
+        """Test that resolver passes through cascade data when enabled."""
+
+        @mutation(enable_cascade=True)
+        class CreateUserWithCascade:
+            input: SampleInput
+            success: SampleSuccess
+            error: SampleError
+
+        resolver = CreateUserWithCascade.__fraiseql_resolver__
+
+        # Mock response with cascade data
+        cascade_data = {
+            "updated": [{"__typename": "User", "id": "123", "operation": "CREATED"}],
+            "deleted": [],
+            "invalidations": [{"queryName": "users", "strategy": "INVALIDATE"}],
+        }
+
+        mock_db = AsyncMock()
+        mock_db.execute_function.return_value = {
+            "success": True,
+            "message": "User created",
+            "data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+            "_cascade": cascade_data,
+        }
+
+        info = Mock()
+        info.context = {"db": mock_db}
+
+        input_obj = Mock()
+        input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
+
+        # Call resolver
+        result = await resolver(info, input_obj)
+
+        # Verify cascade data is attached
+        assert hasattr(result, "__cascade__")
+        assert result.__cascade__ == cascade_data
+
+    @pytest.mark.asyncio
+    async def test_resolver_ignores_cascade_when_disabled(self) -> None:
+        """Test that resolver ignores cascade data when disabled."""
+
+        @mutation(enable_cascade=False)
+        class CreateUserWithoutCascade:
+            input: SampleInput
+            success: SampleSuccess
+            error: SampleError
+
+        resolver = CreateUserWithoutCascade.__fraiseql_resolver__
+
+        # Mock response with cascade data
+        mock_db = AsyncMock()
+        mock_db.execute_function.return_value = {
+            "success": True,
+            "data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+            "_cascade": {"updated": [], "deleted": []},
+        }
+
+        info = Mock()
+        info.context = {"db": mock_db}
+
+        input_obj = Mock()
+        input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
+
+        # Call resolver
+        result = await resolver(info, input_obj)
+
+        # Verify cascade data is NOT attached
+        assert not hasattr(result, "__cascade__")
 
     @pytest.mark.asyncio
     async def test_resolver_missing_database_raises_error(self) -> None:

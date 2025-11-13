@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.4.1) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.5.0) - Production Stable**
 
 ---
 
@@ -44,6 +44,7 @@ app = create_fraiseql_app(
 - 🔒 **Secure by design** - Explicit field contracts prevent data leaks
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
+- 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 
 ## 🤔 Is this for me?
@@ -1111,9 +1112,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.4.1** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.5.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.3.4** | Superseded | Legacy | Use v1.4.1 | ⚠️ Migrate |
+| **v1.4.1** | Superseded | Legacy | Use v1.5.0 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

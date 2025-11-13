@@ -30,11 +30,31 @@ class MutationResult:
     @classmethod
     def from_db_row(cls, row: dict[str, Any]) -> "MutationResult":
         """Create from database row result."""
+        # Handle both formats:
+        # 1. Legacy format: status, message, object_data
+        # 2. New format: success, data, error
+
+        if "success" in row:
+            # New format
+            status = "success" if row.get("success") else "error"
+            message = row.get("message", "")
+            object_data = row.get("data")
+            extra_metadata = row.get("extra_metadata", {})
+            # Include _cascade in extra_metadata if present
+            if "_cascade" in row:
+                extra_metadata["_cascade"] = row["_cascade"]
+        else:
+            # Legacy format
+            status = row.get("status", "")
+            message = row.get("message", "")
+            object_data = row.get("object_data")
+            extra_metadata = row.get("extra_metadata")
+
         return cls(
             id=row.get("id"),
             updated_fields=row.get("updated_fields"),
-            status=row.get("status", ""),
-            message=row.get("message", ""),
-            object_data=row.get("object_data"),
-            extra_metadata=row.get("extra_metadata"),
+            status=status,
+            message=message,
+            object_data=object_data,
+            extra_metadata=extra_metadata,
         )
