@@ -142,9 +142,15 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
                 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
                 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
                 CREATE EXTENSION IF NOT EXISTS "ltree";
-                CREATE EXTENSION IF NOT EXISTS "vector";
             """
         )
+        # Try to create vector extension (required for pgvector support)
+        try:
+            await conn.execute('CREATE EXTENSION IF NOT EXISTS "vector";')
+        except Exception as e:
+            # Vector extension not available, this will cause test failures
+            print(f"WARNING: Failed to create vector extension: {e}")
+            raise  # Re-raise to fail early if vector extension is required
         # Try to create pg_fraiseql_cache extension (optional)
         try:
             await conn.execute('CREATE EXTENSION IF NOT EXISTS "pg_fraiseql_cache";')
