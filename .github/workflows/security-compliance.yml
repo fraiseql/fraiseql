@@ -15,6 +15,11 @@ concurrency:
   group: security-compliance-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  security-events: write  # Required for uploading SARIF to Code Scanning
+  actions: read
+
 jobs:
   secrets-scan:
     name: Secrets Detection
