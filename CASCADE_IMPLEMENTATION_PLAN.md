@@ -1,7 +1,8 @@
 # Cascade Feature - Full Implementation Plan
 
-**Status**: 🟡 Partially Implemented (Infrastructure Ready)
+**Status**: 🟢 Phase 1 Complete | 🟡 Phase 2 Pending
 **Date**: 2025-11-14
+**Last Updated**: 2025-11-14 (Phase 1 Complete)
 **For**: Dumb Agent Execution
 
 ---
@@ -17,10 +18,11 @@ The **Cascade feature** allows GraphQL mutations to return **side effect data** 
 **Current State**:
 - ✅ **Infrastructure**: Decorators, parsers, type definitions all exist
 - ✅ **Tests**: Test structure and fixtures ready
-- ❌ **Integration**: Cascade data not exposed in GraphQL schema
-- ❌ **Rust filtering**: `filter_cascade_data()` function not implemented in fraiseql-rs
+- ✅ **Phase 1 COMPLETE**: Cascade data exposed in GraphQL schema (commit: bed418b)
+- ❌ **Phase 2 PENDING**: Rust filtering `filter_cascade_data()` not implemented
 
-**What's Missing**: 2 main components to make it work end-to-end
+**What's Done**: Phase 1 - GraphQL schema integration (4 files changed, 175 lines added)
+**What's Remaining**: Phase 2 - Rust cascade filtering (~200 lines Rust code)
 
 ---
 
