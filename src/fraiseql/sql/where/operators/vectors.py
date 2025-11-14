@@ -99,7 +99,7 @@ def build_sparse_cosine_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Co
     dimension = max(indices) + 1 if indices else 0
 
     # Create sparse vector literal in pgvector format: {index1:value1,index2:value2,...}/dimension
-    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values))
+    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values, strict=True))
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(
@@ -108,17 +108,21 @@ def build_sparse_cosine_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Co
 
 
 def build_sparse_l2_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Composed:
-    """Build SQL for sparse vector L2/Euclidean distance using PostgreSQL <-> operator.
+    """Build SQL for sparse vector L2 distance using PostgreSQL <-> operator.
 
-    Generates: column <-> '{1:0.1,3:0.2,5:0.3}/dimension'::sparsevec
-    Returns distance: 0.0 (identical) to ∞ (very different)
+    Args:
+        path_sql: SQL fragment for the vector column path
+        value: Sparse vector value with 'indices' and 'values' keys
+
+    Returns:
+        Composed SQL fragment for the distance calculation
     """
     # Convert sparse vector dict to pgvector format
     indices = value["indices"]
     values = value["values"]
     dimension = max(indices) + 1 if indices else 0
 
-    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values))
+    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values, strict=True))
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(
@@ -129,6 +133,13 @@ def build_sparse_l2_distance_sql(path_sql: SQL, value: dict[str, Any]) -> Compos
 def build_sparse_inner_product_sql(path_sql: SQL, value: dict[str, Any]) -> Composed:
     """Build SQL for sparse vector inner product using PostgreSQL <#> operator.
 
+    Args:
+        path_sql: SQL fragment for the vector column path
+        value: Sparse vector value with 'indices' and 'values' keys
+
+    Returns:
+        Composed SQL fragment for the inner product calculation
+
     Generates: column <#> '{1:0.1,3:0.2,5:0.3}/dimension'::sparsevec
     Returns negative inner product: more negative = more similar
     """
@@ -137,7 +148,7 @@ def build_sparse_inner_product_sql(path_sql: SQL, value: dict[str, Any]) -> Comp
     values = value["values"]
     dimension = max(indices) + 1 if indices else 0
 
-    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values))
+    elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, values, strict=True))
     sparse_literal = f"{{{elements}}}/{dimension}"
 
     return Composed(

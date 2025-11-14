@@ -140,7 +140,7 @@ class OrderBy:
             indices = value["indices"]
             vals = value["values"]
             dimension = max(indices) + 1 if indices else 0
-            elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, vals))
+            elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, vals, strict=True))
             literal_value = f"{{{elements}}}/{dimension}"
             type_cast = sql.SQL("::sparsevec")
 

@@ -367,7 +367,9 @@ class VectorFilter:
         )
         # Sparse vector example:
         documents(
-            where: { sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } } }
+            where: {
+                sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } }
+            }
         )
     """
 

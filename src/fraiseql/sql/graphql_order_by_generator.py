@@ -41,7 +41,9 @@ class VectorOrderBy:
 
     Example:
         orderBy: { embedding: { l1_distance: [0.1, 0.2, 0.3] } }
-        orderBy: { sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } } }
+        orderBy: {
+            sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } }
+        }
         orderBy: { fingerprint: { hamming_distance: "101010" } }
         # Orders by distance to the given vector (ASC = most similar first)
     """

@@ -242,7 +242,7 @@ async def seed_sample_data():
 
         for doc in sample_docs:
             # Create document
-            doc_id = await conn.fetchval(
+            _ = await conn.fetchval(
                 "SELECT fn_create_document($1, $2)", doc["title"], doc["content"]
             )
 

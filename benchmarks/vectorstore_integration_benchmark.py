@@ -82,12 +82,12 @@ class MemoryProfiler:
     def __init__(self):
         self.snapshots = []
 
-    def start(self):
+    def start(self) -> None:
         """Start memory profiling."""
         tracemalloc.start()
         self.snapshots = []
 
-    def snapshot(self, label: str):
+    def snapshot(self, label: str) -> None:
         """Take a memory snapshot."""
         current, peak = tracemalloc.get_traced_memory()
         self.snapshots.append(
@@ -123,7 +123,7 @@ class MemoryProfiler:
 class VectorStoreBenchmark:
     """Comprehensive benchmark suite for vector store integrations."""
 
-    def __init__(self, db_pool, config: Optional[BenchmarkConfig] = None):
+    def __init__(self, db_pool: Any, config: Optional[BenchmarkConfig] = None):
         self.db_pool = db_pool
         self.config = config or BenchmarkConfig()
         self.results = []
@@ -193,7 +193,7 @@ class VectorStoreBenchmark:
         return langchain_docs, llamaindex_docs
 
     async def benchmark_insertion(
-        self, framework: str, vectorstore, documents: List[Any], batch_size: int
+        self, framework: str, vectorstore: Any, documents: List[Any], batch_size: int
     ) -> BenchmarkResult:
         """Benchmark document insertion performance."""
         self.profiler.start()
@@ -259,7 +259,7 @@ class VectorStoreBenchmark:
         )
 
     async def benchmark_search(
-        self, framework: str, vectorstore, query_count: int = 100
+        self, framework: str, vectorstore: Any, query_count: int = 100
     ) -> BenchmarkResult:
         """Benchmark vector search performance."""
         self.profiler.start()
@@ -326,7 +326,11 @@ class VectorStoreBenchmark:
         )
 
     async def benchmark_concurrent_load(
-        self, framework: str, vectorstore, concurrent_users: int = 10, operations_per_user: int = 50
+        self,
+        framework: str,
+        vectorstore: Any,
+        concurrent_users: int = 10,
+        operations_per_user: int = 50,
     ) -> BenchmarkResult:
         """Benchmark concurrent load performance."""
         self.profiler.start()
@@ -513,7 +517,7 @@ class VectorStoreBenchmark:
 
         return report
 
-    async def cleanup_tables(self, *table_names: str):
+    async def cleanup_tables(self, *table_names: str) -> None:
         """Clean up test tables."""
         async with self.db_pool.connection() as conn:
             for table in table_names:
@@ -604,7 +608,7 @@ class VectorStoreBenchmark:
         return report
 
 
-async def main():
+async def main() -> None:
     """Run benchmark suite."""
     # This would normally get a database pool from your application
     # For now, we'll create a mock to show the structure

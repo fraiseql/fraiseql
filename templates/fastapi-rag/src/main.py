@@ -175,7 +175,6 @@ class MutationRoot:
         chunks = text_splitter.split_text(input.content)
 
         # Create embeddings and store chunks
-        embeddings = OpenAIEmbeddings()
 
         # Prepare documents for vector store
         langchain_docs = []
