@@ -11,27 +11,19 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set working directory
 WORKDIR /build
 
 # Copy dependency files first for better caching
-COPY pyproject.toml README.md Cargo.toml Cargo.lock ./
+COPY pyproject.toml README.md ./
 COPY src ./src
-COPY fraiseql_rs ./fraiseql_rs
 
-# Build wheel with Rust extensions
+# Build wheel
 RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    pip install maturin && \
-    maturin build --release --strip
+    pip install build && \
+    python -m build --wheel
 
 # Stage 2: Runtime
 FROM python:3.13-slim AS runtime
@@ -54,7 +46,7 @@ RUN groupadd -r fraiseql && useradd -r -g fraiseql fraiseql
 WORKDIR /app
 
 # Copy wheel from builder
-COPY --from=builder /build/target/wheels/*.whl /tmp/
+COPY --from=builder /build/dist/*.whl /tmp/
 
 # Install FraiseQL and production dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
