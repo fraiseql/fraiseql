@@ -12,6 +12,11 @@ concurrency:
   group: quality-gate-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  security-events: write  # Required for uploading SARIF to Code Scanning
+  actions: read
+
 jobs:
   test:
     name: Tests
