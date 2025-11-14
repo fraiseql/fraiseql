@@ -103,6 +103,22 @@ class MutationTypeBuilder:
             else:
                 description = _clean_docstring(fn.__doc__)
 
+            # Check if this mutation has cascade enabled
+            has_cascade = False
+            if hasattr(fn, "__fraiseql_mutation__"):
+                mutation_def = fn.__fraiseql_mutation__
+                has_cascade = getattr(mutation_def, "enable_cascade", False)
+
+            # If cascade is enabled, we need to modify the return type
+            if has_cascade:
+                # Import cascade type resolver
+                from fraiseql.mutations.cascade_types import add_cascade_to_union_type
+
+                # Modify the return type to include cascade field in Success branch
+                gql_return_type = add_cascade_to_union_type(
+                    cast("GraphQLOutputType", gql_return_type), fn.__fraiseql_mutation__
+                )
+
             fields[graphql_field_name] = GraphQLField(
                 type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,

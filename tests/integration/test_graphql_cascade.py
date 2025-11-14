@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-@pytest.mark.skip(reason="Cascade feature not fully implemented - requires mutation resolver integration")
 def test_cascade_end_to_end(cascade_client):
     """Test complete cascade flow from PostgreSQL function to GraphQL response.
 
@@ -49,9 +48,7 @@ def test_cascade_end_to_end(cascade_client):
     }
     """
 
-    variables = {
-        "input": {"title": "Test Post", "content": "Test content", "authorId": "user-123"}
-    }
+    variables = {"input": {"title": "Test Post", "content": "Test content", "authorId": "user-123"}}
 
     response = cascade_client.post(
         "/graphql", json={"query": mutation_query, "variables": variables}

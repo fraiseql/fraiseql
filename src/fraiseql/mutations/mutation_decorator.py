@@ -192,6 +192,14 @@ class MutationDefinition:
             # Return the parsed result directly - let GraphQL handle object resolution
             # Serialization will be handled at the JSON encoding stage
 
+            # IMPORTANT: Add cascade resolver if enabled
+            if self.enable_cascade and hasattr(parsed_result, "__cascade__"):
+                # Attach a resolver for the cascade field
+                def resolve_cascade(obj: Any, info: Any) -> Any:
+                    return getattr(obj, "__cascade__", None)
+
+                parsed_result.__resolve_cascade__ = resolve_cascade
+
             # DEBUG: Check if errors field is being set correctly for enterprise compatibility
             if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
                 class_name = parsed_result.__class__.__name__
