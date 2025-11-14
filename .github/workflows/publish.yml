@@ -222,6 +222,104 @@ jobs:
           fi
         done
 
+    - name: Verify Python modules in wheels
+      run: |
+        echo "=== Verifying critical Python modules are included ==="
+        for whl in dist/*manylinux*.whl dist/*linux*.whl; do
+          if [ -f "$whl" ]; then
+            echo "Checking $whl for vector modules..."
+
+            # Check for vector scalar
+            unzip -l "$whl" | grep "fraiseql/types/scalars/vector.py" || {
+              echo "ERROR: Missing fraiseql/types/scalars/vector.py in $whl"
+              exit 1
+            }
+            echo "✓ Vector scalar found"
+
+            # Check for vector operators
+            unzip -l "$whl" | grep "fraiseql/sql/where/operators/vectors.py" || {
+              echo "ERROR: Missing fraiseql/sql/where/operators/vectors.py in $whl"
+              exit 1
+            }
+            echo "✓ Vector operators found"
+
+            # Check for other critical modules
+            unzip -l "$whl" | grep "fraiseql/types/scalars/__init__.py" || {
+              echo "ERROR: Missing fraiseql/types/scalars/__init__.py in $whl"
+              exit 1
+            }
+            echo "✓ Scalars __init__ found"
+
+            unzip -l "$whl" | grep "fraiseql/sql/where/operators/__init__.py" || {
+              echo "ERROR: Missing fraiseql/sql/where/operators/__init__.py in $whl"
+              exit 1
+            }
+            echo "✓ Operators __init__ found"
+
+            echo "✅ All critical Python modules present in $whl"
+          fi
+        done
+
+    - name: Set up Python for import testing
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Test imports from built wheels
+      run: |
+        echo "=== Testing module imports from wheels ==="
+        for whl in dist/*cp313*manylinux*.whl dist/*cp313*linux*.whl; do
+          if [ -f "$whl" ]; then
+            echo "Testing imports from $whl..."
+
+            # Create test script
+            cat > test_imports.py << 'EOF'
+        import sys
+
+        # Test vector scalar import
+        try:
+            from fraiseql.types.scalars.vector import VectorScalar, HalfVectorScalar, SparseVectorScalar
+            print("✓ Vector scalars imported successfully")
+            print(f"  VectorScalar: {VectorScalar}")
+            print(f"  HalfVectorScalar: {HalfVectorScalar}")
+            print(f"  SparseVectorScalar: {SparseVectorScalar}")
+        except ImportError as e:
+            print(f"✗ Failed to import vector scalars: {e}")
+            sys.exit(1)
+
+        # Test vector operators import
+        try:
+            from fraiseql.sql.where.operators import vectors
+            funcs = [f for f in dir(vectors) if 'distance' in f.lower()]
+            print(f"✓ Vector operators imported successfully")
+            print(f"  Distance functions: {funcs[:5]}")
+        except ImportError as e:
+            print(f"✗ Failed to import vector operators: {e}")
+            sys.exit(1)
+
+        # Test exports from __init__.py
+        try:
+            from fraiseql.types.scalars import VectorScalar as VS
+            print("✓ VectorScalar exported from fraiseql.types.scalars")
+        except ImportError as e:
+            print(f"✗ VectorScalar not exported from fraiseql.types.scalars: {e}")
+            sys.exit(1)
+
+        print("\n✅ All vector module imports successful!")
+        EOF
+
+            # Install wheel and test imports
+            pip install "$whl" --force-reinstall --no-deps
+            python test_imports.py || {
+              echo "ERROR: Import test failed for $whl"
+              exit 1
+            }
+
+            echo "✅ Import test passed for $whl"
+            break  # Only test first cp313 wheel
+          fi
+        done
+
     - name: List all artifacts
       run: |
         echo "=== Built Artifacts ==="
