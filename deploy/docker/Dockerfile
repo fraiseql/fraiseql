@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip download --no-deps --dest /tmp fraiseql-confiture>=0.1.0 && \
     cd /tmp && \
     tar -xzf fraiseql_confiture-*.tar.gz && \
-    cd fraiseql-confiture-*/ && \
+    cd fraiseql_confiture-*/ && \
     python -m build --wheel && \
     mv dist/*.whl /build/dist/
 
