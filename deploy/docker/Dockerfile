@@ -11,17 +11,25 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set working directory
 WORKDIR /build
 
 # Copy dependency files first for better caching
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY fraiseql_rs ./fraiseql_rs
 
 # Build wheel
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
     pip install build && \
     python -m build --wheel
 
