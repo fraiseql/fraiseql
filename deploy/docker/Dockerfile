@@ -26,18 +26,13 @@ COPY pyproject.toml README.md Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY fraiseql_rs ./fraiseql_rs
 
-# Build fraiseql-confiture wheel first (no cp313-manylinux on PyPI yet)
+# Download fraiseql-confiture cp312 wheel (compatible with Python 3.13)
+# Note: PyPI doesn't have cp313-manylinux yet, using cp312 which is ABI-compatible
 RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    pip install build maturin && \
     mkdir -p /build/dist && \
-    pip download --no-deps --dest /tmp fraiseql-confiture>=0.1.0 && \
-    cd /tmp && \
-    tar -xzf fraiseql_confiture-*.tar.gz && \
-    cd fraiseql_confiture-*/ && \
-    python -m build --wheel && \
-    mv dist/*.whl /build/dist/
+    pip download --no-deps --only-binary=:all: --dest /build/dist \
+        --platform manylinux_2_34_x86_64 --python-version 312 \
+        fraiseql-confiture>=0.1.0
 
 # Build FraiseQL wheel
 RUN --mount=type=cache,target=/root/.cache/pip \
