@@ -59,7 +59,7 @@ RUN pip install --no-cache-dir \
     && rm -rf /tmp/*.whl
 
 # Copy entrypoint script
-COPY docker/entrypoint.sh /usr/local/bin/
+COPY deploy/docker/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Create app directory and set permissions
