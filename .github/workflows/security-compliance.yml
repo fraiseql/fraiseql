@@ -111,43 +111,39 @@ jobs:
         path: python-licenses.md
 
   container-security:
-    name: Container Security Scan
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
+     name: Container Security Scan
+     runs-on: ubuntu-latest
+     steps:
+     - uses: actions/checkout@v4
 
-    - name: Build test container
-      run: |
-        # Use BuildX for modern Docker builds
-        docker buildx create --use --name fraiseql-builder --driver docker-container || true
-        docker buildx build \
-          --file deploy/docker/Dockerfile \
-          --tag fraiseql:test \
-          --load \
-          --cache-from type=gha \
-          --cache-to type=gha,mode=max \
-          .
+     - name: Build test container
+       run: |
+         # Build container for security scanning
+         docker build \
+           --file deploy/docker/Dockerfile \
+           --tag fraiseql:test \
+           .
 
-    - name: Scan container with Trivy
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'image'
-        scan-ref: 'fraiseql:test'
-        format: 'sarif'
-        output: 'trivy-container-results.sarif'
-        severity: 'CRITICAL,HIGH'
-        exit-code: 1
+     - name: Scan container with Trivy
+       uses: aquasecurity/trivy-action@master
+       with:
+         scan-type: 'image'
+         scan-ref: 'fraiseql:test'
+         format: 'sarif'
+         output: 'trivy-container-results.sarif'
+         severity: 'CRITICAL,HIGH'
+         exit-code: 1
 
-    - name: Upload Trivy container scan results
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-container-results.sarif'
+     - name: Upload Trivy container scan results
+       uses: github/codeql-action/upload-sarif@v3
+       if: always()
+       with:
+         sarif_file: 'trivy-container-results.sarif'
 
-    - name: Container Security Scan
-      run: |
-        echo "✅ Container security scanning completed with Trivy above"
-        echo "Dockle scan removed - Trivy provides comprehensive container scanning"
+     - name: Container Security Scan
+       run: |
+         echo "✅ Container security scanning completed with Trivy above"
+         echo "Dockle scan removed - Trivy provides comprehensive container scanning"
 
   dependency-audit:
     name: Dependency Audit

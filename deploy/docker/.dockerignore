@@ -66,3 +66,6 @@ Thumbs.db
 !pyproject.toml
 !README.md
 !deploy/docker/entrypoint.sh
+!fraiseql_rs/
+!Cargo.toml
+!Cargo.lock
