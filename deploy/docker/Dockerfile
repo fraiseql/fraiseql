@@ -26,11 +26,22 @@ COPY pyproject.toml README.md Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY fraiseql_rs ./fraiseql_rs
 
-# Build wheel
+# Build fraiseql-confiture wheel first (no cp313-manylinux on PyPI yet)
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
-    pip install build && \
+    pip install build maturin && \
+    pip download --no-deps --dest /build/confiture fraiseql-confiture>=0.1.0 && \
+    cd /build/confiture && \
+    tar -xzf fraiseql-confiture-*.tar.gz && \
+    cd fraiseql-confiture-*/ && \
+    python -m build --wheel && \
+    cp dist/*.whl /build/dist/
+
+# Build FraiseQL wheel
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
     python -m build --wheel
 
 # Stage 2: Runtime
