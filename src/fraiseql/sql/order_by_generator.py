@@ -23,6 +23,7 @@ with dynamic query generators.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from psycopg import sql
 
@@ -114,7 +115,11 @@ class OrderBy:
         return data_expr + sql.SQL(" ") + direction_sql
 
     def _build_vector_distance_sql(
-        self, field_name: str, operator: str, value: list[float], table_ref: str = "t"
+        self,
+        field_name: str,
+        operator: str,
+        value: list[float] | dict[str, Any],
+        table_ref: str = "t",
     ) -> sql.Composed:
         """Build SQL for vector distance ordering.
 
@@ -130,32 +135,48 @@ class OrderBy:
             SQL fragment for vector distance ordering
         """
         # Map operator names to PostgreSQL operators and data types
-        if operator == "cosine_distance":
-            pg_operator_sql = sql.SQL("<=>")
-            type_cast = sql.SQL("::vector")
-            literal_value = "[" + ",".join(str(v) for v in value) + "]"
-        elif operator == "l2_distance":
-            pg_operator_sql = sql.SQL("<->")
-            type_cast = sql.SQL("::vector")
-            literal_value = "[" + ",".join(str(v) for v in value) + "]"
-        elif operator == "l1_distance":
-            pg_operator_sql = sql.SQL("<+>")
-            type_cast = sql.SQL("::vector")
-            literal_value = "[" + ",".join(str(v) for v in value) + "]"
-        elif operator == "inner_product":
-            pg_operator_sql = sql.SQL("<#>")
-            type_cast = sql.SQL("::vector")
-            literal_value = "[" + ",".join(str(v) for v in value) + "]"
-        elif operator == "hamming_distance":
-            pg_operator_sql = sql.SQL("<~>")
-            type_cast = sql.SQL("::bit")
-            literal_value = str(value)  # value is already a string for binary operators
-        elif operator == "jaccard_distance":
-            pg_operator_sql = sql.SQL("<%>")
-            type_cast = sql.SQL("::bit")
-            literal_value = str(value)  # value is already a string for binary operators
+        if isinstance(value, dict):
+            # Sparse vector handling
+            indices = value["indices"]
+            vals = value["values"]
+            dimension = max(indices) + 1 if indices else 0
+            elements = ",".join(f"{idx}:{val}" for idx, val in zip(indices, vals))
+            literal_value = f"{{{elements}}}/{dimension}"
+            type_cast = sql.SQL("::sparsevec")
+
+            if operator == "cosine_distance":
+                pg_operator_sql = sql.SQL("<=>")
+            elif operator == "l2_distance":
+                pg_operator_sql = sql.SQL("<->")
+            elif operator == "inner_product":
+                pg_operator_sql = sql.SQL("<#>")
+            else:
+                raise ValueError(f"Unsupported sparse vector operator: {operator}")
         else:
-            raise ValueError(f"Unknown vector distance operator: {operator}")
+            # Dense vector handling
+            literal_value = "[" + ",".join(str(v) for v in value) + "]"
+            if operator == "cosine_distance":
+                pg_operator_sql = sql.SQL("<=>")
+                type_cast = sql.SQL("::vector")
+            elif operator == "l2_distance":
+                pg_operator_sql = sql.SQL("<->")
+                type_cast = sql.SQL("::vector")
+            elif operator == "l1_distance":
+                pg_operator_sql = sql.SQL("<+>")
+                type_cast = sql.SQL("::vector")
+            elif operator == "inner_product":
+                pg_operator_sql = sql.SQL("<#>")
+                type_cast = sql.SQL("::vector")
+            elif operator == "hamming_distance":
+                pg_operator_sql = sql.SQL("<~>")
+                type_cast = sql.SQL("::bit")
+                literal_value = str(value)  # value is already a string for binary operators
+            elif operator == "jaccard_distance":
+                pg_operator_sql = sql.SQL("<%>")
+                type_cast = sql.SQL("::bit")
+                literal_value = str(value)  # value is already a string for binary operators
+            else:
+                raise ValueError(f"Unknown vector distance operator: {operator}")
 
         # Build SQL: ({table_ref}."field") <operator> 'literal'::type ASC
 

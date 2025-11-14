@@ -10,6 +10,7 @@ from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type
 
 from fraiseql import fraise_input
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet, OrderDirection
+from fraiseql.types.scalars.vector import HalfVectorField, QuantizedVectorField, SparseVectorField
 
 # Type variable for generic types
 T = TypeVar("T")
@@ -31,23 +32,28 @@ class VectorOrderBy:
     pgvector operators. Distance values are returned raw from PostgreSQL.
 
     Fields:
-        cosine_distance: Order by cosine distance (0.0 = identical, 2.0 = opposite)
-        l2_distance: Order by L2/Euclidean distance (0.0 = identical, ∞ = different)
-        l1_distance: Order by L1/Manhattan distance (sum of absolute differences)
-        inner_product: Order by negative inner product (more negative = more similar)
+        cosine_distance: Order by cosine distance (accepts dense or sparse vectors)
+        l2_distance: Order by L2/Euclidean distance (accepts dense or sparse vectors)
+        l1_distance: Order by L1/Manhattan distance (accepts dense or sparse vectors)
+        inner_product: Order by negative inner product (accepts dense or sparse vectors)
         hamming_distance: Order by Hamming distance for bit vectors
         jaccard_distance: Order by Jaccard distance for bit vectors
 
     Example:
         orderBy: { embedding: { l1_distance: [0.1, 0.2, 0.3] } }
+        orderBy: { sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } } }
         orderBy: { fingerprint: { hamming_distance: "101010" } }
         # Orders by distance to the given vector (ASC = most similar first)
     """
 
-    cosine_distance: list[float] | None = None
-    l2_distance: list[float] | None = None
-    l1_distance: list[float] | None = None
-    inner_product: list[float] | None = None
+    cosine_distance: list[float] | dict[str, Any] | None = None
+    l2_distance: list[float] | dict[str, Any] | None = None
+    l1_distance: list[float] | dict[str, Any] | None = None
+    inner_product: list[float] | dict[str, Any] | None = None
+    custom_distance: dict[str, Any] | None = (
+        None  # {function: "my_distance_func", parameters: [...]}
+    )
+    vector_norm: Any | None = None  # For norm calculations
     hamming_distance: str | None = None  # bit string like "101010"
     jaccard_distance: str | None = None  # bit string like "111000"
 
@@ -342,9 +348,13 @@ def create_graphql_order_by_input(cls: type, name: str | None = None) -> type:
                 "imageembedding",
             ]
             if any(pattern in field_lower for pattern in vector_patterns):
-                # Check if it's actually a list type
+                # Check if it's actually a list type or vector field types
                 origin = get_origin(field_type)
-                if origin is list:
+                if origin is list or field_type in (
+                    HalfVectorField,
+                    SparseVectorField,
+                    QuantizedVectorField,
+                ):
                     field_definitions.append((field_name, Optional[VectorOrderBy], None))
                     field_defaults[field_name] = None
                     continue

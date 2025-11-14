@@ -29,13 +29,15 @@ class TestVectorFilterSchema:
 
     def test_vector_filter_field_types(self) -> None:
         """Should have proper GraphQL field types for vector operations."""
-        # Red cycle - this will fail initially
-        # The fields should be list[float] types
+        # The fields should support both dense vectors (list[float]) and sparse vectors (Dict)
         hints = typing.get_type_hints(VectorFilter)
 
-        assert hints.get("cosine_distance") == typing.Optional[list[float]]
-        assert hints.get("l2_distance") == typing.Optional[list[float]]
-        assert hints.get("inner_product") == typing.Optional[list[float]]
+        # Vector distance fields support both dense and sparse formats
+        expected_vector_type = typing.Union[list[float], typing.Dict[str, typing.Any], None]
+        assert hints.get("cosine_distance") == expected_vector_type
+        assert hints.get("l2_distance") == expected_vector_type
+        assert hints.get("l1_distance") == expected_vector_type
+        assert hints.get("inner_product") == expected_vector_type
         assert hints.get("isnull") == typing.Optional[bool]
 
     def test_vector_filter_docstring(self) -> None:

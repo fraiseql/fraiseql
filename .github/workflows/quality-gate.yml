@@ -201,23 +201,132 @@ jobs:
     - name: Install dependencies
       run: |
         uv venv
-        uv pip install bandit
+        uv pip install bandit safety
     - name: Run bandit security scan
-      run: uv run bandit -r src/ -f json || true
+      run: uv run bandit -r src/ -f json -o bandit-results.json || true
+    - name: Run safety dependency vulnerability scan
+      run: uv run safety check --output json --save-json safety-results.json || true
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'FraiseQL'
+        path: '.'
+        format: 'ALL'
+        args: >
+          --enableRetired
+          --enableExperimental
+          --nvdValidForHours 24
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
         scan-ref: '.'
-        format: 'table'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
       continue-on-error: true
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    - name: Archive security scan results
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: security-scan-results
+        path: |
+          bandit-results.json
+          safety-results.json
+          reports/
+
+  performance:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_perf
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup environment and install dependencies
+      run: |
+        uv venv
+        uv pip install setuptools wheel psycopg
+
+    - name: Run CI performance benchmarks
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+        BENCHMARK_OUTPUT: current-results.json
+        BENCHMARK_BASELINE: performance-baseline.json
+      run: |
+        echo "=== Running CI Performance Benchmarks ==="
+        uv run python scripts/ci-cd/performance_benchmark.py
+
+    - name: Check for performance regressions
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+      run: |
+        echo "=== Checking for Performance Regressions ==="
+        if [ -f "performance-baseline.json" ]; then
+          uv run python scripts/ci-cd/check_performance_regression.py current-results.json performance-baseline.json
+        else
+          echo "ℹ️  No baseline found - establishing new baseline for future comparisons"
+          cp current-results.json performance-baseline.json
+        fi
+
+    - name: Update performance baseline (main branch only)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "=== Updating Performance Baseline ==="
+        # Only update baseline on main branch to establish new performance expectations
+        cp current-results.json performance-baseline.json
+        echo "✅ Performance baseline updated for main branch"
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v5
+      with:
+        name: performance-results
+        path: |
+          current-results.json
+          performance-baseline.json
 
   # Quality gate summary job - this job fails if any quality check fails
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [test, lint, security]
+    needs: [test, lint, security, performance]
     if: always()
     steps:
       - name: Check quality gate status
@@ -233,6 +342,10 @@ jobs:
           fi
           if [[ "${{ needs.security.result }}" != "success" ]]; then
             echo "❌ Security checks failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.performance.result }}" != "success" ]]; then
+            echo "❌ Performance regression detected - Quality gate blocked"
             exit 1
           fi
           echo "✅ All quality checks passed - Quality gate open"
