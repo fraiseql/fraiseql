@@ -1020,6 +1020,12 @@ fraiseql generate types        # Generate TypeScript definitions
 # Database utilities
 fraiseql sql analyze <query>   # Analyze query performance
 fraiseql sql explain <query>   # Show PostgreSQL execution plan
+
+# Vector database management
+fraiseql vector list           # List all tables with vector fields
+fraiseql vector inspect <table>   # Inspect vector configuration
+fraiseql vector validate <table> <column>  # Validate vector data
+fraiseql vector create-index <table> <column>  # Generate index SQL
 ```
 
 ---
@@ -1029,6 +1035,7 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 - **[Documentation](https://fraiseql.dev)** - Complete guides and API reference
 - **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications and patterns
 - **[Architecture](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Design decisions and trade-offs
+- **[Embeddings Workflow Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/embeddings-workflow.md)** - Complete RAG and vector search workflow
 - **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
   - **[Benchmark Methodology](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
   - **[Reproduction Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself

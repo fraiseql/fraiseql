@@ -8,5 +8,6 @@ from fraiseql.cli.commands.init import init as init_command
 from fraiseql.cli.commands.migrate import migrate
 from fraiseql.cli.commands.sql import sql
 from fraiseql.cli.commands.turbo import turbo
+from fraiseql.cli.commands.vector import vector
 
-__all__ = ["check", "dev", "doctor", "generate", "init_command", "migrate", "sql", "turbo"]
+__all__ = ["check", "dev", "doctor", "generate", "init_command", "migrate", "sql", "turbo", "vector"]
