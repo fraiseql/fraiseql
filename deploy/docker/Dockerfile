@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # Multi-stage Dockerfile for FraiseQL
 # Optimized for production with security best practices
 
@@ -19,7 +21,8 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 
 # Build wheel
-RUN pip install --no-cache-dir build && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install build && \
     python -m build --wheel
 
 # Stage 2: Runtime
@@ -46,7 +49,8 @@ WORKDIR /app
 COPY --from=builder /build/dist/*.whl /tmp/
 
 # Install FraiseQL and production dependencies
-RUN pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install \
     /tmp/*.whl \
     uvicorn[standard] \
     gunicorn \

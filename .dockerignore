@@ -43,9 +43,13 @@ docker-compose*.yml
 Dockerfile*
 .dockerignore
 
-# Environment
+# Environment and Virtual Environments
 .env
 .env.*
+.venv/
+venv/
+ENV/
+env/
 !.env.example
 
 # Database
@@ -57,9 +61,39 @@ Dockerfile*
 *.log
 logs/
 
-# OS
+# OS and temporary files
 .DS_Store
 Thumbs.db
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Rust build artifacts
+fraiseql_rs/target/
+fraiseql_rs/Cargo.lock
+
+# Archive and planning files
+archive/
+dev/
+
+# Benchmarks and performance data
+benchmarks/
+
+# Examples (keep only essential ones)
+examples/
+!examples/minimal/
+
+# Grafana dashboards
+grafana/
+
+# Scripts (keep only essential deployment scripts)
+scripts/
+!scripts/deployment/
+
+# Templates
+templates/
 
 # Keep these for build
 !src/

@@ -118,7 +118,15 @@ jobs:
 
     - name: Build test container
       run: |
-        docker build -f deploy/docker/Dockerfile -t fraiseql:test .
+        # Use BuildX for modern Docker builds
+        docker buildx create --use --name fraiseql-builder --driver docker-container || true
+        docker buildx build \
+          --file deploy/docker/Dockerfile \
+          --tag fraiseql:test \
+          --load \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
+          .
 
     - name: Scan container with Trivy
       uses: aquasecurity/trivy-action@master
