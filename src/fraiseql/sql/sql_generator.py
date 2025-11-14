@@ -450,13 +450,29 @@ def _convert_order_by_to_tuples(order_by: Any) -> list[tuple[str, str]] | None:
 
             order_by_set = _convert_order_by_input_to_sql(order_by)
             if order_by_set:
-                return [(instr.field, instr.direction) for instr in order_by_set.instructions]
+                return [
+                    (
+                        instr.field,
+                        instr.direction.value
+                        if hasattr(instr.direction, "value")
+                        else str(instr.direction),
+                    )
+                    for instr in order_by_set.instructions
+                ]
         except (ImportError, AttributeError):
             pass
 
     # OrderBySet object
     if hasattr(order_by, "instructions"):
-        return [(instr.field, instr.direction) for instr in order_by.instructions]
+        return [
+            (
+                instr.field,
+                instr.direction.value
+                if hasattr(instr.direction, "value")
+                else str(instr.direction),
+            )
+            for instr in order_by.instructions
+        ]
 
     return None
 
@@ -624,8 +640,12 @@ def build_sql_query(
                     expr = SQL("{}->{}").format(expr, part)
                 expr = SQL("{}->>{}").format(expr, sql.Literal(path_parts[-1]))
 
-            # Add direction (ASC/DESC)
-            order_expr = expr + SQL(" ") + SQL(direction.upper())
+            # Add direction (ASC/DESC) - handle both strings and OrderDirection enums
+            if hasattr(direction, "value"):
+                direction_str = direction.value.upper()
+            else:
+                direction_str = str(direction).upper()
+            order_expr = expr + SQL(" ") + SQL(direction_str)
             order_by_parts.append(order_expr)
 
         query_parts.append(SQL(" ORDER BY "))

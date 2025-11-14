@@ -1644,10 +1644,14 @@ class FraiseQLRepository:
             if where_sql_parts:
                 query_parts.extend([SQL(" WHERE "), SQL(" AND ").join(where_sql_parts)])
 
+        # Determine table reference for ORDER BY
+        # For JSONB tables, use the column name; for non-JSONB tables, use table alias "t"
+        table_ref = jsonb_column if jsonb_column is not None else "t"
+
         # Add ORDER BY
         if order_by:
             if hasattr(order_by, "to_sql"):
-                order_sql = order_by.to_sql()
+                order_sql = order_by.to_sql(table_ref)
                 if order_sql:
                     # OrderBySet.to_sql() already includes "ORDER BY " prefix
                     query_parts.append(SQL(" "))
@@ -1656,7 +1660,18 @@ class FraiseQLRepository:
                 # Convert GraphQL OrderByInput to SQL OrderBySet, then get SQL
                 sql_order_by_obj = order_by._to_sql_order_by()
                 if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
-                    order_sql = sql_order_by_obj.to_sql()
+                    order_sql = sql_order_by_obj.to_sql(table_ref)
+                    if order_sql:
+                        # OrderBySet.to_sql() already includes "ORDER BY " prefix
+                        query_parts.append(SQL(" "))
+                        query_parts.append(order_sql)
+            elif isinstance(order_by, dict):
+                # Convert dict-style order by input to SQL OrderBySet
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                sql_order_by_obj = _convert_order_by_input_to_sql(order_by)
+                if sql_order_by_obj and hasattr(sql_order_by_obj, "to_sql"):
+                    order_sql = sql_order_by_obj.to_sql(table_ref)
                     if order_sql:
                         # OrderBySet.to_sql() already includes "ORDER BY " prefix
                         query_parts.append(SQL(" "))

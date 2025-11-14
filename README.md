@@ -46,6 +46,7 @@ app = create_fraiseql_app(
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
+- 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 
 ## 🤔 Is this for me?
 
@@ -842,7 +843,7 @@ query {
 - SemanticVersion, Color, MIMEType, File, Image - Specialized formats
 - HTML, Markdown - Rich text content
 
-**Advanced Filtering:** Full-text search, JSONB queries, array operations, regex on all types
+**Advanced Filtering:** Full-text search, JSONB queries, array operations, regex, vector similarity search on all types
 
 #### Scalar Type Usage Examples
 

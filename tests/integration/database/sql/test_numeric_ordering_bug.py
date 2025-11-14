@@ -13,7 +13,7 @@ import uuid
 import pytest
 
 import fraiseql
-from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
+from fraiseql.sql.order_by_generator import OrderBy, OrderBySet, OrderDirection
 
 
 @fraiseql.type
@@ -35,8 +35,8 @@ class TestNumericOrderingBug:
         ACTUAL BEHAVIOR: Currently uses text extraction causing lexicographic ordering
         """
         # Create order by for a numeric field
-        order_by = OrderBy(field="amount", direction="asc")
-        sql = order_by.to_sql().as_string(None)
+        order_by = OrderBy(field="amount", direction=OrderDirection.ASC)
+        sql = order_by.to_sql("data").as_string(None)
 
         # What it SHOULD generate for numeric fields (CORRECT)
         # This test will fail until we fix the implementation
@@ -52,7 +52,7 @@ class TestNumericOrderingBug:
                 OrderBy(field="quantity", direction="desc"),
             ]
         )
-        sql = order_by_set.to_sql().as_string(None)
+        sql = order_by_set.to_sql("data").as_string(None)
 
         # Now FIXED - uses JSONB extraction for proper numeric ordering
         expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'quantity' DESC"
@@ -71,7 +71,7 @@ class TestNumericOrderingBug:
                 OrderBy(field="identifier", direction="desc"),  # Uses JSONB extraction
             ]
         )
-        sql = order_by_set.to_sql().as_string(None)
+        sql = order_by_set.to_sql("data").as_string(None)
 
         # FIXED - both use JSONB extraction which preserves types
         expected_correct = "ORDER BY data -> 'amount' ASC, data -> 'identifier' DESC"
@@ -80,7 +80,7 @@ class TestNumericOrderingBug:
     def test_nested_numeric_field_ordering_bug(self) -> None:
         """Test numeric ordering bug with nested fields."""
         order_by = OrderBy(field="pricing.amount", direction="desc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # Should use JSONB extraction for nested numeric fields (CORRECT)
         assert sql == "data -> 'pricing' -> 'amount' DESC", (
@@ -113,7 +113,7 @@ class TestNumericOrderingRealWorld:
     def test_decimal_precision_ordering_bug(self) -> None:
         """Test ordering bug with high-precision decimal values."""
         order_by = OrderBy(field="precise_amount", direction="asc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # FIXED - now uses JSONB extraction which preserves numeric precision
         assert sql == "data -> 'precise_amount' ASC"
@@ -129,7 +129,7 @@ class TestNumericOrderingRealWorld:
         has better performance characteristics for numeric operations.
         """
         order_by = OrderBy(field="amount", direction="asc")
-        sql = order_by.to_sql().as_string(None)
+        sql = order_by.to_sql("data").as_string(None)
 
         # FIXED: data -> 'amount' (JSONB extraction)
         # - Better index utilization potential

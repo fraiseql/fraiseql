@@ -70,7 +70,7 @@ def postgres_container() -> None:
         return
 
     container = PostgresContainer(
-        image="postgres:16-alpine",
+        image="pgvector/pgvector:pg16",
         username="fraiseql",
         password="fraiseql",
         dbname="fraiseql_test",
@@ -138,12 +138,28 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
     async with pool.connection() as conn:
         await conn.execute(
             """
-            -- Enable required extensions
-            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-            CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-            CREATE EXTENSION IF NOT EXISTS "ltree";
-        """
+                -- Enable required extensions
+                CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+                CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+                CREATE EXTENSION IF NOT EXISTS "ltree";
+            """
         )
+        # Try to create vector extension (required for pgvector support)
+        try:
+            # First check if vector extension is available
+            result = await conn.execute(
+                "SELECT name FROM pg_available_extensions WHERE name = 'vector'"
+            )
+            if await result.fetchone():
+                await conn.execute('CREATE EXTENSION IF NOT EXISTS "vector";')
+                print("✅ Vector extension created successfully")
+            else:
+                print("⚠️  Vector extension not available in this PostgreSQL installation")
+                print("   Vector-related tests will be skipped")
+        except Exception as e:
+            # Vector extension not available or creation failed
+            print(f"⚠️  Vector extension setup failed: {e}")
+            print("   Vector-related tests will be skipped")
         # Try to create pg_fraiseql_cache extension (optional)
         try:
             await conn.execute('CREATE EXTENSION IF NOT EXISTS "pg_fraiseql_cache";')

@@ -1,5 +1,6 @@
 """Initialize a new FraiseQL project."""
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import click
 @click.argument("project_name")
 @click.option(
     "--template",
-    type=click.Choice(["basic", "blog", "ecommerce"]),
+    type=click.Choice(["basic", "blog", "ecommerce", "fastapi-rag"]),
     default="basic",
     help="Project template to use",
 )
@@ -147,6 +148,8 @@ typeCheckingMode = "strict"
         create_blog_template(project_path)
     elif template == "ecommerce":
         create_ecommerce_template(project_path)
+    elif template == "fastapi-rag":
+        create_fastapi_rag_template(project_path)
 
     # Create README
     readme_content = f"""# {project_name}
@@ -410,3 +413,22 @@ def create_ecommerce_template(project_path: Path) -> None:
     # For brevity, using basic template for now
     create_basic_template(project_path)
     click.echo("Note: E-commerce template uses basic structure for now")
+
+
+def create_fastapi_rag_template(project_path: Path) -> None:
+    """Create a FastAPI + LangChain RAG template."""
+    template_path = Path(__file__).parent.parent.parent.parent.parent / "templates" / "fastapi-rag"
+
+    # Copy all template files to project directory
+    for item in template_path.iterdir():
+        if item.is_file():
+            shutil.copy2(item, project_path / item.name)
+        elif item.is_dir():
+            shutil.copytree(item, project_path / item.name, dirs_exist_ok=True)
+
+    # Remove the default .env and replace with .env.example
+    if (project_path / ".env").exists():
+        (project_path / ".env").unlink()
+    shutil.move(project_path / ".env.example", project_path / ".env")
+
+    click.echo("✅ Created FastAPI RAG template with LangChain integration")

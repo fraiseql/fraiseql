@@ -30,6 +30,9 @@ class FieldType(Enum):
     EMAIL = "email"
     PORT = "port"
     FULLTEXT = "fulltext"
+    VECTOR = "vector"
+    SPARSE_VECTOR = "sparse_vector"
+    QUANTIZED_VECTOR = "quantized_vector"
 
     def is_ip_address(self) -> bool:
         """Check if this field type is IP address."""
@@ -55,6 +58,7 @@ class FieldType(Enum):
             from fraiseql.types.scalars.date import DateField
             from fraiseql.types.scalars.daterange import DateRangeField
             from fraiseql.types.scalars.datetime import DateTimeField
+            from fraiseql.types.scalars.vector import QuantizedVectorField, SparseVectorField
 
             type_mapping = {
                 IpAddress: cls.IP_ADDRESS,
@@ -64,6 +68,8 @@ class FieldType(Enum):
                 DateRangeField: cls.DATE_RANGE,
                 DateTimeField: cls.DATETIME,
                 DateField: cls.DATE,
+                SparseVectorField: cls.SPARSE_VECTOR,
+                QuantizedVectorField: cls.QUANTIZED_VECTOR,
             }
 
             if python_type in type_mapping:
@@ -406,6 +412,25 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
         or field_lower.startswith(("port_", "port"))
     ):
         return FieldType.PORT
+
+    # Vector embedding patterns - handle both snake_case and camelCase
+    # NOTE: Vector detection must come BEFORE fulltext detection to take precedence
+    vector_patterns = [
+        "embedding",
+        "vector",
+        "_embedding",
+        "_vector",
+        "embedding_vector",
+        "embeddingvector",
+        "text_embedding",
+        "textembedding",
+        "image_embedding",
+        "imageembedding",
+    ]
+
+    # Check vector pattern matches
+    if any(pattern in field_lower for pattern in vector_patterns):
+        return FieldType.VECTOR
 
     # Full-text search patterns - handle both snake_case and camelCase
     fulltext_patterns = [

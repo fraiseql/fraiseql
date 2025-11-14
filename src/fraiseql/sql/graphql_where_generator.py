@@ -8,12 +8,13 @@ GraphQL resolvers and are automatically converted to SQL where types.
 from dataclasses import make_dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Dict, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
 from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
 from fraiseql.sql.where_generator import safe_create_where_type
+from fraiseql.types.scalars.vector import HalfVectorField, QuantizedVectorField, SparseVectorField
 
 # Type variable for generic filter types
 T = TypeVar("T")
@@ -334,6 +335,63 @@ class JSONBFilter:
     path_match: str | None = None  # @@ operator
 
 
+@fraise_input
+class VectorFilter:
+    """PostgreSQL pgvector field filter operations.
+
+    Exposes native pgvector distance operators transparently:
+
+    Float Vector Operators (vector/halfvec):
+    - cosine_distance: Cosine distance (0.0 = identical, 2.0 = opposite)
+    - l2_distance: L2/Euclidean distance (0.0 = identical, ∞ = very different)
+    - l1_distance: L1/Manhattan distance (sum of absolute differences)
+    - inner_product: Negative inner product (more negative = more similar)
+
+    Sparse Vector Operators (sparsevec):
+    - cosine_distance: Sparse cosine distance (accepts sparse vector dict)
+    - l2_distance: Sparse L2 distance (accepts sparse vector dict)
+    - inner_product: Sparse inner product (accepts sparse vector dict)
+
+    Binary Vector Operators (bit):
+    - hamming_distance: Hamming distance for bit vectors (count differing bits)
+    - jaccard_distance: Jaccard distance for set similarity (1 - intersection/union)
+
+    Distance values are returned raw from PostgreSQL (no conversion).
+    Requires pgvector extension: CREATE EXTENSION vector;
+
+    Example:
+        documents(
+            where: { embedding: { l1_distance: [0.1, 0.2, ...] } }
+            orderBy: { embedding: { hamming_distance: "101010" } }
+            limit: 10
+        )
+        # Sparse vector example:
+        documents(
+            where: {
+                sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } }
+            }
+        )
+    """
+
+    # Float vector operators (accept both dense and sparse formats)
+    cosine_distance: list[float] | Dict[str, Any] | None = None
+    l2_distance: list[float] | Dict[str, Any] | None = None
+    l1_distance: list[float] | Dict[str, Any] | None = None
+    inner_product: list[float] | Dict[str, Any] | None = None
+
+    # Custom distance operators
+    custom_distance: Dict[str, Any] | None = (
+        None  # {function: "my_distance_func", parameters: [...]}
+    )
+    vector_norm: Any | None = None  # For norm calculations
+
+    # Binary vector operators
+    hamming_distance: str | None = None  # bit string like "101010"
+    jaccard_distance: str | None = None  # bit string like "111000"
+
+    isnull: bool | None = None
+
+
 def _get_filter_type_for_field(
     field_type: type, parent_class: type | None = None, field_name: str | None = None
 ) -> type:
@@ -370,6 +428,28 @@ def _get_filter_type_for_field(
         ]
         if any(pattern in field_lower for pattern in fulltext_patterns):
             return FullTextFilter
+
+    # Check for vector/embedding fields by name pattern (BEFORE list type checking)
+    # This allows list[float] to map to VectorFilter for embeddings
+    if field_name:
+        field_lower = field_name.lower()
+        vector_patterns = [
+            "embedding",
+            "vector",
+            "_embedding",
+            "_vector",
+            "embedding_vector",
+            "embeddingvector",
+            "text_embedding",
+            "textembedding",
+            "image_embedding",
+            "imageembedding",
+        ]
+        # Check if it's a vector field (pattern match + list type or vector field types)
+        if (origin is list and any(pattern in field_lower for pattern in vector_patterns)) or (
+            field_type in (HalfVectorField, SparseVectorField, QuantizedVectorField)
+        ):
+            return VectorFilter
 
     # Check if it's a List type
     if origin is list:

@@ -5,31 +5,103 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Fixed table alias inconsistency in SQL generation causing "column t does not exist" errors
+  - JSONB tables now consistently use `data ->` for field access in ORDER BY clauses
+  - Resolves CI failures in PR#135
+
 ## [1.5.0] - 2025-11-13
 
 ### 🚀 New Features
 
-**GraphQL Cascade** ✨ NEW
+**PostgreSQL pgvector Support** ✨ NEW
+- **6 Vector Distance Operators**: Full support for pgvector's distance functions
+  - `cosine_distance` (<=>): Semantic search, text embeddings (0.0 = identical, 2.0 = opposite)
+  - `l2_distance` (<->): Euclidean similarity, spatial data (0.0 = identical, ∞ = different)
+  - `l1_distance` (<+>): Manhattan distance, sparse vectors, grid-based distances
+  - `inner_product` (<#>): Learned similarity metrics, dot product (more negative = more similar)
+  - `hamming_distance` (<~>): Binary vector similarity, fingerprints, hashing (bit type)
+  - `jaccard_distance` (<%>): Set similarity, tags, categories (bit type)
+- **WHERE Clause Integration**: Filter by vector similarity with composable filters
+- **ORDER BY Support**: Sort results by vector distance with GraphQL input objects
+- **VectorFilter GraphQL Input**: Type-safe vector filtering in GraphQL schema
+- **VectorOrderBy GraphQL Input**: Type-safe vector ordering in GraphQL schema
+- **Binary Vector Support**: Native support for bit vectors (Hamming, Jaccard distances)
+- **Field Detection**: Automatic vector field detection via naming patterns (embedding, vector, etc.)
+- **PostgreSQL-First Philosophy**: Thin layer over pgvector, raw distances returned (no conversion)
+- **Performance Optimized**: Works with HNSW and IVFFlat indexes for fast similarity search
+- **Zero Breaking Changes**: Optional feature, fully backward compatible
+
+**GraphQL Cascade with Field Selection** ✨ NEW
 - **Automatic Cache Updates**: Mutations can now include cascade data for automatic client cache updates
+- **Field Selection**: Clients can request specific cascade fields to reduce payload size
+- **Type Filtering**: Include/exclude specific entity types in cascade data
+- **Entity Field Selection**: GraphQL inline fragments for entity field selection
+- **Rust-Powered Filtering**: High-performance cascade filtering in Rust (<0.5ms)
 - **Side Effect Tracking**: Track all data modifications in mutation responses
 - **PostgreSQL Integration**: Native JSONB cascade data construction
 - **Client Agnostic**: Works with Apollo Client, Relay, and custom GraphQL clients
 - **Zero Breaking Changes**: Fully backward compatible with existing mutations
-- **Performance Optimized**: < 0.1ms processing overhead for typical payloads
+- **Performance Optimized**: Minimal overhead for typical payloads
 
 ### 📚 Documentation
 
+**pgvector Documentation:**
+- **Feature Guide**: `docs/features/pgvector.md` - Complete setup, usage, and performance guide
+- **Semantic Search Examples**: `docs/examples/semantic-search.md` - RAG, recommendations, hybrid search
+- **Implementation Plan**: `docs/planning/pgvector-implementation-plan.md` - Development methodology
+- **Working Example**: `examples/vector_search/` - Complete vector search application
+
+**GraphQL Cascade Documentation:**
 - **Complete Cascade Guide**: `docs/features/graphql-cascade.md`
+- **Field Selection Implementation**: `GRAPHQL_CASCADE_FIELD_SELECTION_RUST_IMPLEMENTATION_PLAN.md`
 - **Migration Guide**: `docs/migration/cascade-adoption.md`
 - **Best Practices**: `docs/guides/cascade-best-practices.md`
 - **Working Example**: `examples/graphql-cascade/`
 - **Performance Benchmarks**: `benchmarks/cascade_performance_benchmark.py`
 
+### 🦀 Rust Enhancements
+
+- **Cascade Filtering Module**: New `fraiseql_rs::cascade` module for high-performance filtering
+- **Zero-Copy JSON Manipulation**: Efficient cascade data filtering using `serde_json::Value`
+- **Python Integration**: Seamless Rust function call from Python mutation decorators
+- **Type Safety**: Comprehensive Rust unit tests (20+ test cases)
+
 ### 🧪 Testing
 
+**pgvector Tests:**
+- **13 Integration Tests**: Complete end-to-end vector functionality (all passing)
+- **Unit Tests**: Vector operator SQL generation, field detection, type validation
+- **Schema Tests**: GraphQL VectorFilter and VectorOrderBy type validation
+- **PostgreSQL Integration**: Real pgvector extension testing with HNSW indexes
+- **Binary Vector Tests**: Hamming and Jaccard distance with bit vectors
+- **Performance Tests**: HNSW index usage verification
+
+**GraphQL Cascade Tests:**
 - **Comprehensive Test Suite**: Unit tests, integration tests, and performance benchmarks
 - **Client Integration Tests**: Apollo Client cache update validation
 - **Error Handling**: Robust handling of malformed cascade data
+
+### 🎯 Use Cases Enabled
+
+**pgvector Use Cases:**
+- **Semantic Search**: Find documents by meaning, not keywords (RAG systems)
+- **Recommendation Systems**: Product/content similarity with embeddings
+- **Image Search**: Visual similarity using image embeddings
+- **Fingerprint Matching**: Binary fingerprint comparison with Hamming distance
+- **Tag Similarity**: Category/tag matching with Jaccard distance
+- **Hybrid Search**: Combine vector similarity with full-text search and filters
+
+### 🔧 Internal Improvements
+
+**Vector Implementation:**
+- **Vector Operators Module**: `src/fraiseql/sql/where/operators/vectors.py` - All 6 pgvector operators
+- **GraphQL Where Generator**: VectorFilter input type with type discrimination (float vs bit)
+- **GraphQL Order By Generator**: VectorOrderBy input type with proper SQL conversion
+- **Field Detection**: Pattern-based vector field recognition in `where/core/field_detection.py`
+- **Type Safety**: Vector type validation with proper list[float] and str (bit) handling
 
 ## [1.4.0] - 2025-11-08
 

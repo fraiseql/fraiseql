@@ -67,8 +67,8 @@ class TestOrderByIntegration:
         # Check order by has correct instructions
         assert len(sql_order_by.instructions) == 2
         fields = [(i.field, i.direction) for i in sql_order_by.instructions]
-        assert ("allocated_at", "desc") in fields
-        assert ("machine.name", "asc") in fields
+        assert ("allocated_at", OrderDirection.DESC) in fields
+        assert ("machine.name", OrderDirection.ASC) in fields
 
     def test_graphql_query_example(self) -> None:
         """Demonstrate how it would work in a GraphQL query."""
@@ -98,7 +98,7 @@ class TestOrderByIntegration:
 
             # For test, just verify the SQL generation
             if sql_order_by:
-                sql_string = sql_order_by.to_sql().as_string(None)
+                sql_string = sql_order_by.to_sql("data").as_string(None)
                 assert "ORDER BY" in sql_string
 
             return []  # Mock return
@@ -143,9 +143,9 @@ class TestOrderByIntegration:
         assert len(sql_order_by.instructions) == 3
 
         # Generate SQL to verify format
-        sql_string = sql_order_by.to_sql().as_string(None)
+        sql_string = sql_order_by.to_sql("data").as_string(None)
         assert "ORDER BY" in sql_string
-        # Updated to use JSONB extraction for proper type handling
+        # Updated to use table alias for proper type handling
         assert "data -> 'is_current' DESC" in sql_string
         assert "data -> 'name' ASC" in sql_string
         assert "data -> 'last_maintenance' DESC" in sql_string
@@ -161,7 +161,7 @@ class TestOrderByIntegration:
         )
 
         sql_order_by = order_by._to_sql_order_by()
-        sql_string = sql_order_by.to_sql().as_string(None)
+        sql_string = sql_order_by.to_sql("data").as_string(None)
 
         # This ensures consistent pagination even if allocated_at has duplicates
         # Updated to use JSONB extraction
@@ -193,4 +193,4 @@ class TestOrderByIntegration:
         sql_order_by = order_by._to_sql_order_by()
         assert len(sql_order_by.instructions) == 1
         assert sql_order_by.instructions[0].field == "name"
-        assert sql_order_by.instructions[0].direction == "asc"
+        assert sql_order_by.instructions[0].direction == OrderDirection.ASC

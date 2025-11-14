@@ -3,6 +3,7 @@ use pyo3::types::PyDict;
 
 // Sub-modules
 mod camel_case;
+pub mod cascade;
 pub mod core;
 mod json;
 pub mod json_transform;
@@ -247,6 +248,34 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
     Ok(())
 }
 
+/// Filter GraphQL Cascade data based on field selections
+///
+/// This function filters cascade data (updated entities, deletions, invalidations)
+/// based on GraphQL query field selections to reduce response payload size.
+///
+/// Examples:
+///     >>> cascade_json = '{"updated": [{"__typename": "Post", "id": "1"}]}'
+///     >>> selections = '{"fields": ["updated"], "updated": {"include": ["Post"]}}'
+///     >>> result = filter_cascade_data(cascade_json, selections)
+///
+/// Args:
+///     cascade_json: JSON string of cascade data from PostgreSQL
+///     selections_json: Optional JSON string of GraphQL field selections
+///
+/// Returns:
+///     Filtered cascade data as JSON string
+///
+/// Raises:
+///     ValueError: If JSON is malformed or filtering fails
+#[pyfunction]
+#[pyo3(signature = (cascade_json, selections_json=None))]
+pub fn filter_cascade_data(
+    cascade_json: &str,
+    selections_json: Option<&str>,
+) -> PyResult<String> {
+    cascade::filter_cascade_data(cascade_json, selections_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+}
 
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
@@ -278,6 +307,7 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "test_function",
         "build_graphql_response",
         "initialize_schema_registry",
+        "filter_cascade_data",
     ])?;
 
     // Add functions
@@ -291,6 +321,9 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add schema registry initialization
     m.add_function(wrap_pyfunction!(initialize_schema_registry, m)?)?;
+
+    // Add cascade filtering
+    m.add_function(wrap_pyfunction!(filter_cascade_data, m)?)?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;

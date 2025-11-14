@@ -12,6 +12,7 @@ import pytest
 
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+from fraiseql.sql.order_by_generator import OrderDirection
 from fraiseql.sql.sql_generator import build_sql_query
 
 # Mark all tests in this module as unit tests (no database required)
@@ -32,11 +33,9 @@ class TestComplexOrderByScenarios:
         assert result is not None
         assert len(result.instructions) == 3
         assert result.instructions[0].field == "created_at"
-        assert result.instructions[0].direction == "desc"
-        assert result.instructions[1].field == "name"
-        assert result.instructions[1].direction == "asc"
-        assert result.instructions[2].field == "status"
-        assert result.instructions[2].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.DESC
+        assert result.instructions[1].direction == OrderDirection.ASC
+        assert result.instructions[2].direction == OrderDirection.ASC
 
     def test_nested_field_orderby_conversion(self) -> None:
         """Test conversion of nested field OrderBy with dot notation."""
@@ -52,11 +51,11 @@ class TestComplexOrderByScenarios:
         assert result is not None
         assert len(result.instructions) == 3
         assert result.instructions[0].field == "profile.first_name"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
         assert result.instructions[1].field == "profile.last_name"
-        assert result.instructions[1].direction == "asc"
+        assert result.instructions[1].direction == OrderDirection.ASC
         assert result.instructions[2].field == "created_at"
-        assert result.instructions[2].direction == "desc"
+        assert result.instructions[2].direction == OrderDirection.DESC
 
     def test_camelcase_heavy_orderby_conversion(self) -> None:
         """Test conversion with heavy camelCase field names (realistic GraphQL)."""
@@ -73,13 +72,13 @@ class TestComplexOrderByScenarios:
         assert result is not None
         assert len(result.instructions) == 4
         assert result.instructions[0].field == "ip_address"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
         assert result.instructions[1].field == "last_connected_at"
-        assert result.instructions[1].direction == "desc"
+        assert result.instructions[1].direction == OrderDirection.DESC
         assert result.instructions[2].field == "organization_name"
-        assert result.instructions[2].direction == "asc"
+        assert result.instructions[2].direction == OrderDirection.ASC
         assert result.instructions[3].field == "is_active"
-        assert result.instructions[3].direction == "desc"
+        assert result.instructions[3].direction == OrderDirection.DESC
 
     def test_mixed_format_orderby_conversion(self) -> None:
         """Test conversion of mixed OrderBy formats (single dict with multiple fields + separate dicts)."""
@@ -110,10 +109,10 @@ class TestComplexOrderByScenarios:
         assigned_to_idx = fields.index("assigned_to")
         due_date_idx = fields.index("due_date")
 
-        assert directions[priority_idx] == "desc"
-        assert directions[urgency_idx] == "desc"
-        assert directions[assigned_to_idx] == "asc"
-        assert directions[due_date_idx] == "asc"
+        assert directions[priority_idx] == OrderDirection.DESC
+        assert directions[urgency_idx] == OrderDirection.DESC
+        assert directions[assigned_to_idx] == OrderDirection.ASC
+        assert directions[due_date_idx] == OrderDirection.ASC
 
     def test_deep_nested_orderby_conversion(self) -> None:
         """Test conversion of deeply nested field OrderBy."""
@@ -130,13 +129,13 @@ class TestComplexOrderByScenarios:
         assert result is not None
         assert len(result.instructions) == 4
         assert result.instructions[0].field == "user.profile.address.city"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
         assert result.instructions[1].field == "user.profile.first_name"
-        assert result.instructions[1].direction == "asc"
+        assert result.instructions[1].direction == OrderDirection.ASC
         assert result.instructions[2].field == "organization.settings.timezone"
-        assert result.instructions[2].direction == "asc"
+        assert result.instructions[2].direction == OrderDirection.ASC
         assert result.instructions[3].field == "created_at"
-        assert result.instructions[3].direction == "desc"
+        assert result.instructions[3].direction == OrderDirection.DESC
 
     def test_multiple_field_sql_generation(self) -> None:
         """Test SQL generation for multiple field OrderBy - unit test only."""
@@ -228,11 +227,11 @@ class TestComplexOrderByScenarios:
 
         # Verify exact field transformations
         assert result.instructions[0].field == "ip_address"
-        assert result.instructions[0].direction == "asc"
+        assert result.instructions[0].direction == OrderDirection.ASC
         assert result.instructions[1].field == "organization_name"
-        assert result.instructions[1].direction == "asc"
+        assert result.instructions[1].direction == OrderDirection.ASC
         assert result.instructions[2].field == "last_connected_at"
-        assert result.instructions[2].direction == "desc"
+        assert result.instructions[2].direction == OrderDirection.DESC
 
         # Test that these can be safely unpacked (the original error case)
         tuples = [(instr.field, instr.direction) for instr in result.instructions]
@@ -240,8 +239,7 @@ class TestComplexOrderByScenarios:
         # This should not raise "not enough values to unpack" error
         for field, direction in tuples:
             assert isinstance(field, str)
-            assert isinstance(direction, str)
-            assert direction in ["asc", "desc"]
+            assert isinstance(direction, OrderDirection)
 
     def test_enterprise_contract_management_scenario(self) -> None:
         """Test a complex enterprise scenario with multiple business entity sorting."""
@@ -283,13 +281,13 @@ class TestComplexOrderByScenarios:
         assert result is not None
         assert len(result.instructions) == 4
 
-        # All directions should be normalized to lowercase
+        # All directions should be OrderDirection enums
         directions = [instr.direction for instr in result.instructions]
-        assert all(d in ["asc", "desc"] for d in directions)
-        assert directions[0] == "desc"  # DESC -> desc
-        assert directions[1] == "asc"  # asc -> asc
-        assert directions[2] == "desc"  # DESC -> desc
-        assert directions[3] == "asc"  # Asc -> asc (if handled)
+        assert all(isinstance(d, OrderDirection) for d in directions)
+        assert directions[0] == OrderDirection.DESC  # DESC -> DESC
+        assert directions[1] == OrderDirection.ASC  # asc -> ASC
+        assert directions[2] == OrderDirection.DESC  # DESC -> DESC
+        assert directions[3] == OrderDirection.ASC  # Asc -> ASC
 
     def test_integration_graphql_to_sql_complex(self) -> None:
         """Integration test: Complete GraphQL OrderBy → SQL transformation for complex scenario."""
@@ -357,4 +355,4 @@ class TestComplexOrderByScenarios:
                 for instr in result.instructions:
                     assert hasattr(instr, "field")
                     assert hasattr(instr, "direction")
-                    assert instr.direction in ["asc", "desc"]
+                    assert isinstance(instr.direction, OrderDirection)

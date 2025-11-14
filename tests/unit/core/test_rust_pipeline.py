@@ -114,7 +114,10 @@ def test_build_graphql_response_single_object() -> None:
     assert '"userName":"Alice"' in result
 
 
-@pytest.mark.skip(reason="Field projection with field_paths not implemented in schema-aware path")
+@pytest.mark.skip(
+    reason="Legacy field_paths projection not supported in schema-aware pipeline. "
+    "Use field_selections with aliases instead. See docs/rust/RUST_FIELD_PROJECTION.md"
+)
 def test_build_graphql_response_with_projection() -> None:
     """Test field projection.
 
@@ -195,7 +198,7 @@ def test_build_graphql_response_with_field_selections_and_aliases() -> None:
 
 
 @pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/unit/core/test_rust_pipeline_v2.py::test_build_graphql_response_with_nested_object_aliases -v"
+    reason="Schema registry singleton - only one initialization per process. Test passes individually but fails in full test run. Run with: pytest tests/unit/core/test_rust_pipeline.py::test_build_graphql_response_with_nested_object_aliases -v"
 )
 def test_build_graphql_response_with_nested_object_aliases() -> None:
     """Test field selections with nested object aliases.
