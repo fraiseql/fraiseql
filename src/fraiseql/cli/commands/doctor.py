@@ -187,7 +187,6 @@ def check_configuration(verbose: bool) -> int:
     # Check pyproject.toml
     try:
         import tomllib
-
         from pathlib import Path
 
         with Path("pyproject.toml").open("rb") as f:
@@ -364,7 +363,7 @@ def check_integrations(verbose: bool) -> int:
 
     # Check LangChain integration
     try:
-        from fraiseql.integrations.langchain import FraiseQLVectorStore  # noqa: F401
+        from fraiseql.integrations.langchain import FraiseQLVectorStore
 
         click.echo("  ✅ LangChain integration available")
     except ImportError:
