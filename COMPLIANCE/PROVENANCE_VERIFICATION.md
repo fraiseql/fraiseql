@@ -9,6 +9,13 @@
 
 This guide provides detailed instructions for verifying the supply chain integrity of FraiseQL releases using SLSA provenance attestations and cryptographic checksums.
 
+**📌 Recommended Verification Order:**
+1. **Cryptographic Signatures** (Highest Security) - See [Artifact Signature Verification Guide](ARTIFACT_SIGNATURE_VERIFICATION.md)
+2. **SLSA Provenance** (This Guide) - Supply chain traceability
+3. **SHA256 Checksums** (Basic Integrity) - Included below
+
+For the strongest security guarantees, use Cosign signature verification in addition to provenance verification.
+
 ## Prerequisites
 
 - **curl** or **wget** - Download artifacts

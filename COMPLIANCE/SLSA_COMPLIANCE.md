@@ -12,6 +12,23 @@ FraiseQL implements **SLSA Level 2** provenance attestations to ensure supply ch
 **Current SLSA Level**: ✅ **Level 2** (Build Provenance)
 **Target SLSA Level**: Level 3 (Hardened Builds) - Roadmap item
 
+## Supply Chain Security Measures
+
+FraiseQL implements multiple layers of supply chain security:
+
+| Security Measure | Status | Documentation |
+|-----------------|--------|---------------|
+| **SLSA Provenance** | ✅ Level 2 | This document |
+| **Artifact Signing** | ✅ Cosign (Sigstore) | [ARTIFACT_SIGNATURE_VERIFICATION.md](ARTIFACT_SIGNATURE_VERIFICATION.md) |
+| **SBOM Generation** | ✅ CycloneDX 1.5 | [SBOM_PROCESS.md](EO_14028/SBOM_PROCESS.md) |
+| **SHA256 Checksums** | ✅ Automated | [PROVENANCE_VERIFICATION.md](PROVENANCE_VERIFICATION.md) |
+
+**Recommended Verification Workflow:**
+1. **Verify Cosign Signature** - Strongest cryptographic guarantee
+2. **Verify SLSA Provenance** - Build traceability and materials
+3. **Verify SHA256 Checksums** - Basic integrity check
+4. **Validate SBOM** - Dependency transparency
+
 ## What is SLSA?
 
 SLSA (pronounced "salsa") is a security framework addressing supply chain attacks. It provides four levels of increasing assurance:
