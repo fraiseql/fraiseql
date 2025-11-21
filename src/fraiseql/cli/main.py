@@ -6,7 +6,7 @@ import click
 
 from fraiseql import __version__
 
-from .commands import check, dev, doctor, generate, init_command, migrate, sql, turbo
+from .commands import check, dev, doctor, generate, init_command, migrate, sbom, sql, turbo
 
 
 @click.group()
@@ -29,6 +29,7 @@ cli.add_command(check)
 cli.add_command(sql)
 cli.add_command(turbo)
 cli.add_command(migrate)
+cli.add_command(sbom.sbom_cli)
 
 
 def main() -> None:
