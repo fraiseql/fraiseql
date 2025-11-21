@@ -1,0 +1,208 @@
+name: SBOM Generation
+
+# Generate Software Bill of Materials (SBOM) for federal compliance (EO 14028)
+# Runs on releases and can be manually triggered
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to generate SBOM for (e.g., 1.5.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Required to upload release assets
+  id-token: write  # Required for Cosign keyless signing
+
+jobs:
+  generate-sbom:
+    name: Generate & Sign SBOM
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install ".[dev]"
+
+    - name: Determine version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION="${{ github.event.release.tag_name }}"
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generating SBOM for version: $VERSION"
+
+    - name: Generate SBOM (JSON)
+      run: |
+        uv run fraiseql sbom generate \
+          --output "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
+          --format json \
+          --component-name "fraiseql" \
+          --component-version "${{ steps.version.outputs.version }}" \
+          --supplier-name "Evolution Digitale" \
+          --supplier-url "https://github.com/fraiseql/fraiseql" \
+          --supplier-contact "lionel.hamayon@evolution-digitale.fr" \
+          --author "Lionel Hamayon" \
+          --verbose
+
+    - name: Validate SBOM
+      run: |
+        uv run fraiseql sbom validate \
+          --input "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
+          --verbose
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign SBOM with Cosign (keyless)
+      run: |
+        cosign sign-blob --yes \
+          "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
+          --output-signature "fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig" \
+          --output-certificate "fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem"
+
+        echo "✅ SBOM signed with Cosign (keyless)"
+        echo "   Signature: fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig"
+        echo "   Certificate: fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem"
+
+    - name: Generate SHA256 checksums
+      run: |
+        sha256sum "fraiseql-${{ steps.version.outputs.version }}-sbom.json" > \
+          "fraiseql-${{ steps.version.outputs.version }}-sbom.json.sha256"
+
+        echo "✅ SHA256 checksum generated"
+
+    - name: Create SBOM artifact bundle
+      run: |
+        mkdir -p sbom-artifacts
+        cp fraiseql-${{ steps.version.outputs.version }}-sbom.json sbom-artifacts/
+        cp fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig sbom-artifacts/
+        cp fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem sbom-artifacts/
+        cp fraiseql-${{ steps.version.outputs.version }}-sbom.json.sha256 sbom-artifacts/
+
+        # Create README for verification
+        cat > sbom-artifacts/README.md << 'EOF'
+        # FraiseQL SBOM Verification
+
+        ## Files Included
+
+        - `fraiseql-${{ steps.version.outputs.version }}-sbom.json` - CycloneDX SBOM (JSON format)
+        - `fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig` - Cosign signature (keyless)
+        - `fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem` - Cosign certificate
+        - `fraiseql-${{ steps.version.outputs.version }}-sbom.json.sha256` - SHA256 checksum
+
+        ## Verify SBOM Integrity
+
+        ### 1. Verify SHA256 Checksum
+        ```bash
+        sha256sum -c fraiseql-${{ steps.version.outputs.version }}-sbom.json.sha256
+        ```
+
+        ### 2. Verify Cosign Signature
+        ```bash
+        cosign verify-blob \
+          --signature fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig \
+          --certificate fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem \
+          --certificate-identity-regexp "https://github.com/fraiseql/fraiseql" \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+          fraiseql-${{ steps.version.outputs.version }}-sbom.json
+        ```
+
+        ### 3. Validate SBOM Schema
+        ```bash
+        # Using CycloneDX CLI
+        cyclonedx validate --input-file fraiseql-${{ steps.version.outputs.version }}-sbom.json
+
+        # Or using FraiseQL CLI
+        pip install fraiseql
+        fraiseql sbom validate --input fraiseql-${{ steps.version.outputs.version }}-sbom.json
+        ```
+
+        ## SBOM Compliance
+
+        This SBOM complies with:
+        - **Executive Order 14028** (May 2021) - Software supply chain security
+        - **CycloneDX 1.5 Specification** - OWASP SBOM standard
+        - **NIST SP 800-161** - Cyber Supply Chain Risk Management
+
+        ## For Federal Procurement Officers
+
+        This SBOM provides:
+        1. ✅ Complete dependency inventory
+        2. ✅ License compliance information
+        3. ✅ Cryptographic integrity verification (SHA256 + Cosign)
+        4. ✅ Machine-readable format (CycloneDX JSON)
+        5. ✅ Vulnerability database integration (Package URLs)
+
+        ## Questions?
+
+        For SBOM-related questions or federal procurement inquiries:
+        - Email: security@fraiseql.com
+        - Repository: https://github.com/fraiseql/fraiseql
+        - Documentation: https://fraiseql.readthedocs.io
+        EOF
+
+    - name: Upload SBOM artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: sbom-artifacts-${{ steps.version.outputs.version }}
+        path: sbom-artifacts/
+        retention-days: 90
+
+    - name: Attach SBOM to Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          fraiseql-${{ steps.version.outputs.version }}-sbom.json
+          fraiseql-${{ steps.version.outputs.version }}-sbom.json.sig
+          fraiseql-${{ steps.version.outputs.version }}-sbom.json.pem
+          fraiseql-${{ steps.version.outputs.version }}-sbom.json.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Summary
+      run: |
+        echo "## 📋 SBOM Generation Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Format**: CycloneDX 1.5 (JSON)" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Signed**: Cosign keyless (Sigstore)" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Compliance**: EO 14028, NIST SP 800-161" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Count components
+        COMPONENT_COUNT=$(jq '.components | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
+        echo "📦 **Total Components**: $COMPONENT_COUNT" >> $GITHUB_STEP_SUMMARY
+
+        # Check for copyleft licenses
+        COPYLEFT_COUNT=$(jq '[.components[].licenses[]?.license.id | select(contains("GPL") and (contains("LGPL") | not))] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
+        if [ "$COPYLEFT_COUNT" -gt 0 ]; then
+          echo "⚠️  **Copyleft Components**: $COPYLEFT_COUNT (review required)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✅ **No Copyleft Licenses**: Federal-friendly" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📥 Download Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "SBOM artifacts available in workflow artifacts section" >> $GITHUB_STEP_SUMMARY
