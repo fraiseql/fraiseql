@@ -6,30 +6,37 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry">
+        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
       
       
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.dev/docs/features/">
+        <link rel="canonical" href="https://fraiseql.readthedocs.io/features/">
       
       
+        <link rel="prev" href="../tutorials/production-deployment/">
+      
+      
+        <link rel="next" href="pgvector/">
+      
+      
+        
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
       
-        <title>FraiseQL Feature Matrix - FraiseQL Documentation</title>
+        <title>Feature Matrix - FraiseQL Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.618322db.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -54,7 +61,6 @@
 
     
     
-    
   </head>
   
   
@@ -65,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -90,7 +96,9 @@
     
       
 
-<header class="md-header" data-md-component="header">
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href=".." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
       
@@ -112,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              FraiseQL Feature Matrix
+              Feature Matrix
             
           </span>
         </div>
@@ -125,7 +133,7 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
     
       <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
@@ -135,7 +143,7 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
     
       <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
@@ -169,6 +177,11 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -197,7 +210,7 @@
         <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
   </div>
   <div class="md-source__repository">
     fraiseql/fraiseql
@@ -207,14 +220,8 @@
     
   </nav>
   
-</header>
     
-    <div class="md-container" data-md-component="container">
       
-      
-        
-          
-            
 <nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
   <div class="md-grid">
     <ul class="md-tabs__list">
@@ -243,17 +250,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../getting-started/" class="md-tabs__link">
+          
   
   
     
   
-  Quickstart
+  Getting Started
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -272,6 +282,30 @@
     
   
   Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Features
 
         </a>
       </li>
@@ -309,13 +343,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="../performance/" class="md-tabs__link">
+        <a href="../guides/filtering/" class="md-tabs__link">
           
   
   
     
   
-  Performance
+  Guides
 
         </a>
       </li>
@@ -353,6 +387,28 @@
     
     
       <li class="md-tabs__item">
+        <a href="../performance/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
         <a href="../production/deployment/" class="md-tabs__link">
           
   
@@ -374,14 +430,68 @@
   
     
     
+      
+  
+  
+  
+  
+    
+    
       <li class="md-tabs__item">
-        <a href="../api-reference/database/" class="md-tabs__link">
+        <a href="../reference/database/" class="md-tabs__link">
           
   
   
     
   
-  API Reference
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../migration/v0-to-v1/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Migration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
 
         </a>
       </li>
@@ -392,7 +502,13 @@
     </ul>
   </div>
 </nav>
-          
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
         
       
       <main class="md-main" data-md-component="main">
@@ -424,7 +540,7 @@
       <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
   </div>
   <div class="md-source__repository">
     fraiseql/fraiseql
@@ -446,9 +562,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Home
+  
+
     
   </span>
+  
   
 
       </a>
@@ -462,18 +583,162 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../getting-started/quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Quickstart
+    
+  
+    5-Minute Quickstart
+  
+
     
   </span>
   
+  
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/first-hour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Hour Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -516,9 +781,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Tutorials
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -527,7 +797,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
-            Tutorials
+            
+  
+    Tutorials
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -543,9 +817,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Beginner Learning Path
+  
+
     
   </span>
+  
   
 
       </a>
@@ -566,9 +845,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Blog API Tutorial
+  
+
     
   </span>
+  
   
 
       </a>
@@ -589,9 +873,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Production Deployment
+  
+
     
   </span>
+  
   
 
       </a>
@@ -611,74 +900,102 @@
       
   
   
+    
   
   
+  
     
     
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
+          <div class="md-nav__link md-nav__container">
+            <a href="./" class="md-nav__link md-nav__link--active">
+              
   
   
   <span class="md-ellipsis">
-    Core Concepts
+    
+  
+    Features
+  
+
     
   </span>
   
+  
 
-            <span class="md-nav__icon md-icon"></span>
-          </label>
+            </a>
+            
+              
+              <label class="md-nav__link md-nav__link--active" for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
-            Core Concepts
+            
+  
+    Features
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
               
+            
+              
                 
   
   
   
   
     <li class="md-nav__item">
-      <a href="../core/fraiseql-philosophy/" class="md-nav__link">
+      <a href="pgvector/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    FraiseQL Philosophy
+    
+  
+    pgvector (Vector Search)
+  
+
     
   </span>
+  
   
 
       </a>
@@ -694,14 +1011,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../core/types-and-schema/" class="md-nav__link">
+      <a href="graphql-cascade/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Types & Schema
+    
+  
+    GraphQL Cascade
+  
+
     
   </span>
+  
   
 
       </a>
@@ -717,14 +1039,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../core/queries-and-mutations/" class="md-nav__link">
+      <a href="../guides/langchain-integration/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Queries & Mutations
+    
+  
+    LangChain Integration
+  
+
     
   </span>
+  
   
 
       </a>
@@ -740,37 +1067,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../core/database-api/" class="md-nav__link">
+      <a href="../advanced/llm-integration.md" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Database API
+    
+  
+    LLM Integration
+  
+
     
   </span>
   
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../core/configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Configuration
-    
-  </span>
   
 
       </a>
@@ -796,7 +1105,15 @@
     
       
         
-          
+      
+        
+      
+        
+      
+        
+      
+        
+      
         
       
     
@@ -817,28 +1134,201 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
         
           
-          <div class="md-nav__link md-nav__container">
-            <a href="../performance/" class="md-nav__link ">
-              
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
-    Performance
+    
+  
+    Core Concepts
+  
+
     
   </span>
   
+  
 
-            </a>
-            
-          </div>
+            <span class="md-nav__icon md-icon"></span>
+          </label>
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Performance
+            
+  
+    Core Concepts
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types & Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queries & Mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/database-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/concepts-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
           </ul>
@@ -892,9 +1382,14 @@
   
   
   <span class="md-ellipsis">
-    Advanced
+    
+  
+    Guides
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -903,7 +1398,11 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
-            Advanced
+            
+  
+    Guides
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -914,14 +1413,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/authentication/" class="md-nav__link">
+      <a href="../guides/filtering/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Authentication
+    
+  
+    Filtering (Complete Guide)
+  
+
     
   </span>
+  
   
 
       </a>
@@ -937,14 +1441,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/multi-tenancy/" class="md-nav__link">
+      <a href="../guides/understanding-fraiseql/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Multi-Tenancy
+    
+  
+    Understanding FraiseQL
+  
+
     
   </span>
+  
   
 
       </a>
@@ -960,14 +1469,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/bounded-contexts/" class="md-nav__link">
+      <a href="../guides/cascade-best-practices/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Bounded Contexts
+    
+  
+    Cascade Best Practices
+  
+
     
   </span>
+  
   
 
       </a>
@@ -983,14 +1497,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/event-sourcing/" class="md-nav__link">
+      <a href="../guides/performance-guide/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Event Sourcing
+    
+  
+    Performance Guide
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1006,14 +1525,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/database-patterns/" class="md-nav__link">
+      <a href="../guides/troubleshooting/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Database Patterns
+    
+  
+    Troubleshooting
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1029,14 +1553,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced/llm-integration/" class="md-nav__link">
+      <a href="../guides/troubleshooting-decision-tree/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    LLM Integration
+    
+  
+    Troubleshooting Decision Tree
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1060,6 +1589,12 @@
   
     
     
+      
+        
+      
+        
+      
+        
       
         
       
@@ -1090,9 +1625,14 @@
   
   
   <span class="md-ellipsis">
-    Production
+    
+  
+    Advanced
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
@@ -1101,7 +1641,448 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
-            Production
+            
+  
+    Advanced
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Tenancy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bounded Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Sourcing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/advanced-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Performance
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/rust-pipeline-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rust Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/apq-optimization-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    APQ Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/cascade-invalidation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CASCADE Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1117,9 +2098,14 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Deployment
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1140,9 +2126,70 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Monitoring
+  
+
     
   </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/health-checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Checks
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -1163,9 +2210,293 @@
   
   
   <span class="md-ellipsis">
+    
+  
     Security
+  
+
     
   </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_10_1" id="__nav_10_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/quick-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Reference
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -1211,26 +2542,35 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
-    API Reference
+    
+  
+    Migration
+  
+
     
   </span>
+  
   
 
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
-            API Reference
+            
+  
+    Migration
+  
+
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1241,14 +2581,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../api-reference/database/" class="md-nav__link">
+      <a href="../migration/v0-to-v1/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Database API
+    
+  
+    v0 to v1
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1264,14 +2609,19 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config/" class="md-nav__link">
+      <a href="../migration/cascade-adoption/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Configuration
+    
+  
+    Cascade Adoption
+  
+
     
   </span>
+  
   
 
       </a>
@@ -1287,14 +2637,125 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/cli/" class="md-nav__link">
+      <a href="../guides/migrating-to-cascade/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    CLI Reference
+    
+  
+    Migrating to Cascade
+  
+
     
   </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../architecture/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decisions
+  
+
+    
+  </span>
+  
   
 
       </a>
@@ -1339,7 +2800,9 @@
         <li class="md-nav__item">
   <a href="#quick-feature-lookup" class="md-nav__link">
     <span class="md-ellipsis">
-      🎯 Quick Feature Lookup
+      
+        🎯 Quick Feature Lookup
+      
     </span>
   </a>
   
@@ -1348,7 +2811,9 @@
         <li class="md-nav__item">
   <a href="#core-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Core Features
+      
+        Core Features
+      
     </span>
   </a>
   
@@ -1357,7 +2822,9 @@
         <li class="md-nav__item">
   <a href="#database-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Database Features
+      
+        Database Features
+      
     </span>
   </a>
   
@@ -1366,7 +2833,9 @@
         <li class="md-nav__item">
   <a href="#advanced-query-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Advanced Query Features
+      
+        Advanced Query Features
+      
     </span>
   </a>
   
@@ -1375,7 +2844,9 @@
         <li class="md-nav__item">
   <a href="#performance-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Performance Features
+      
+        Performance Features
+      
     </span>
   </a>
   
@@ -1384,7 +2855,9 @@
         <li class="md-nav__item">
   <a href="#security-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Security Features
+      
+        Security Features
+      
     </span>
   </a>
   
@@ -1393,7 +2866,9 @@
         <li class="md-nav__item">
   <a href="#enterprise-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Enterprise Features
+      
+        Enterprise Features
+      
     </span>
   </a>
   
@@ -1402,7 +2877,9 @@
         <li class="md-nav__item">
   <a href="#real-time-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Real-Time Features
+      
+        Real-Time Features
+      
     </span>
   </a>
   
@@ -1411,7 +2888,9 @@
         <li class="md-nav__item">
   <a href="#monitoring-observability" class="md-nav__link">
     <span class="md-ellipsis">
-      Monitoring &amp; Observability
+      
+        Monitoring &amp; Observability
+      
     </span>
   </a>
   
@@ -1420,7 +2899,9 @@
         <li class="md-nav__item">
   <a href="#integration-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Integration Features
+      
+        Integration Features
+      
     </span>
   </a>
   
@@ -1429,7 +2910,9 @@
         <li class="md-nav__item">
   <a href="#development-tools" class="md-nav__link">
     <span class="md-ellipsis">
-      Development Tools
+      
+        Development Tools
+      
     </span>
   </a>
   
@@ -1438,7 +2921,48 @@
         <li class="md-nav__item">
   <a href="#deployment-support" class="md-nav__link">
     <span class="md-ellipsis">
-      Deployment Support
+      
+        Deployment Support
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ai-vector-features-v150" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI &amp; Vector Features (v1.5.0)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AI &amp; Vector Features (v1.5.0)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vector-distance-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vector Distance Operators
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-invalidation-features-v150" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache &amp; Invalidation Features (v1.5.0)
+      
     </span>
   </a>
   
@@ -1447,7 +2971,9 @@
         <li class="md-nav__item">
   <a href="#legend" class="md-nav__link">
     <span class="md-ellipsis">
-      Legend
+      
+        Legend
+      
     </span>
   </a>
   
@@ -1456,7 +2982,9 @@
         <li class="md-nav__item">
   <a href="#feature-request" class="md-nav__link">
     <span class="md-ellipsis">
-      Feature Request?
+      
+        Feature Request?
+      
     </span>
   </a>
   
@@ -1465,7 +2993,9 @@
         <li class="md-nav__item">
   <a href="#quick-links" class="md-nav__link">
     <span class="md-ellipsis">
-      Quick Links
+      
+        Quick Links
+      
     </span>
   </a>
   
@@ -1481,11 +3011,17 @@
           
           
             <div class="md-content" data-md-component="content">
+              
               <article class="md-content__inner md-typeset">
                 
                   
 
 
+  
+    <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/features/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
   
   
 
@@ -1545,7 +3081,7 @@
 <tr>
 <td><strong>Pagination</strong></td>
 <td>✅ Stable</td>
-<td><a href="../core/pagination.md">Pagination Guide</a></td>
+<td><a href="../core/database-api/">Database API</a></td>
 <td><a href="../../examples/ecommerce/">ecommerce</a></td>
 </tr>
 <tr>
@@ -1627,7 +3163,7 @@
 <tr>
 <td><strong>Nested Array Filtering</strong></td>
 <td>✅ Stable</td>
-<td><a href="../nested-array-filtering/">Nested Arrays</a></td>
+<td><a href="../guides/nested-array-filtering/">Nested Arrays</a></td>
 <td><a href="../../examples/specialized_types/">specialized_types</a></td>
 </tr>
 <tr>
@@ -1857,25 +3393,25 @@
 <tr>
 <td><strong>GraphQL Subscriptions</strong></td>
 <td>✅ Stable</td>
-<td><a href="../advanced/subscriptions.md">Subscriptions Guide</a></td>
+<td>See examples</td>
 <td><a href="../../examples/real_time_chat/">real_time_chat</a></td>
 </tr>
 <tr>
 <td><strong>WebSocket Support</strong></td>
 <td>✅ Stable</td>
-<td><a href="../advanced/subscriptions.md#websocket">Subscriptions Guide</a></td>
+<td>See examples</td>
 <td><a href="../../examples/real_time_chat/">real_time_chat</a></td>
 </tr>
 <tr>
 <td><strong>Presence Tracking</strong></td>
 <td>✅ Stable</td>
-<td><a href="../advanced/real-time.md#presence">Real-Time Guide</a></td>
+<td>See examples</td>
 <td><a href="../../examples/real_time_chat/">real_time_chat</a></td>
 </tr>
 <tr>
 <td><strong>LISTEN/NOTIFY (PostgreSQL)</strong></td>
 <td>✅ Stable</td>
-<td><a href="../advanced/real-time.md#listen-notify">Real-Time Guide</a></td>
+<td><a href="../advanced/database-patterns/">Database Patterns</a></td>
 <td><a href="../../examples/real_time_chat/">real_time_chat</a></td>
 </tr>
 </tbody>
@@ -1945,13 +3481,13 @@
 <tr>
 <td><strong>FastAPI Integration</strong></td>
 <td>✅ Stable</td>
-<td><a href="../integrations/fastapi.md">FastAPI Guide</a></td>
+<td>See examples</td>
 <td><a href="../../examples/fastapi/">fastapi</a></td>
 </tr>
 <tr>
 <td><strong>Starlette Integration</strong></td>
 <td>✅ Stable</td>
-<td><a href="../integrations/starlette.md">Starlette Guide</a></td>
+<td>See examples</td>
 <td><a href="../../examples/fastapi/">fastapi</a></td>
 </tr>
 <tr>
@@ -1963,7 +3499,7 @@
 <tr>
 <td><strong>TypeScript Client Generation</strong></td>
 <td>✅ Stable</td>
-<td><a href="../integrations/typescript.md">Client Generation</a></td>
+<td>See examples</td>
 <td><a href="../../examples/documented_api/">documented_api</a></td>
 </tr>
 </tbody>
@@ -2069,6 +3605,143 @@
 </tbody>
 </table>
 <hr />
+<h2 id="ai-vector-features-v150">AI &amp; Vector Features (v1.5.0)<a class="headerlink" href="#ai-vector-features-v150" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+<th>Documentation</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>pgvector Integration</strong></td>
+<td>✅ Stable</td>
+<td><a href="pgvector/">pgvector Guide</a></td>
+<td><a href="../../examples/vector_search/">vector_search</a></td>
+</tr>
+<tr>
+<td><strong>Vector Similarity Search</strong></td>
+<td>✅ Stable</td>
+<td><a href="pgvector/#distance-operators">pgvector Guide</a></td>
+<td><a href="../../examples/vector_search/">vector_search</a></td>
+</tr>
+<tr>
+<td><strong>GraphQL Cascade</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/">Cascade Guide</a></td>
+<td><a href="../../examples/graphql-cascade/">graphql-cascade</a></td>
+</tr>
+<tr>
+<td><strong>LangChain Integration</strong></td>
+<td>✅ Stable</td>
+<td><a href="../guides/langchain-integration/">LangChain Guide</a></td>
+<td><a href="../guides/langchain-integration/">Documentation</a></td>
+</tr>
+<tr>
+<td><strong>AI-Native Architecture</strong></td>
+<td>✅ Stable</td>
+<td><a href="ai-native/">AI-Native Guide</a></td>
+<td><a href="ai-native/">Documentation</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="vector-distance-operators">Vector Distance Operators<a class="headerlink" href="#vector-distance-operators" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>PostgreSQL</th>
+<th>Use Case</th>
+<th>Documentation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cosine_distance</code></td>
+<td><code>&lt;=&gt;</code></td>
+<td>Text similarity, semantic search</td>
+<td><a href="pgvector/#cosine-distance-cosine_distance">pgvector</a></td>
+</tr>
+<tr>
+<td><code>l2_distance</code></td>
+<td><code>&lt;-&gt;</code></td>
+<td>Euclidean distance, spatial</td>
+<td><a href="pgvector/#l2-distance-l2_distance">pgvector</a></td>
+</tr>
+<tr>
+<td><code>inner_product</code></td>
+<td><code>&lt;#&gt;</code></td>
+<td>Learned similarity metrics</td>
+<td><a href="pgvector/#inner-product-inner_product">pgvector</a></td>
+</tr>
+<tr>
+<td><code>l1_distance</code></td>
+<td><code>&lt;+&gt;</code></td>
+<td>Manhattan distance, sparse vectors</td>
+<td><a href="pgvector/#l1-distance-l1_distance">pgvector</a></td>
+</tr>
+<tr>
+<td><code>hamming_distance</code></td>
+<td><code>&lt;~&gt;</code></td>
+<td>Binary vectors, hashing</td>
+<td><a href="pgvector/#hamming-distance-hamming_distance">pgvector</a></td>
+</tr>
+<tr>
+<td><code>jaccard_distance</code></td>
+<td><code>&lt;%&gt;</code></td>
+<td>Set similarity, sparse binary</td>
+<td><a href="pgvector/#jaccard-distance-jaccard_distance">pgvector</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cache-invalidation-features-v150">Cache &amp; Invalidation Features (v1.5.0)<a class="headerlink" href="#cache-invalidation-features-v150" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+<th>Documentation</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CASCADE Invalidation</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/">Cascade Guide</a></td>
+<td><a href="../../examples/complete_cqrs_blog/">complete_cqrs_blog</a></td>
+</tr>
+<tr>
+<td><strong>PostgreSQL Function Pattern</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/#postgresql-function-pattern">PostgreSQL Pattern</a></td>
+<td>-</td>
+</tr>
+<tr>
+<td><strong>Cascade Structure</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/#cascade-structure">Cascade Structure</a></td>
+<td>-</td>
+</tr>
+<tr>
+<td><strong>Apollo Client Integration</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/#apollo-client">Client Integration</a></td>
+<td>-</td>
+</tr>
+<tr>
+<td><strong>Relay Integration</strong></td>
+<td>✅ Stable</td>
+<td><a href="graphql-cascade/#relay">Client Integration</a></td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <h2 id="legend">Legend<a class="headerlink" href="#legend" title="Permanent link">&para;</a></h2>
 <ul>
 <li>✅ <strong>Stable</strong>: Production-ready, fully documented</li>
@@ -2089,7 +3762,7 @@
 <hr />
 <h2 id="quick-links">Quick Links<a class="headerlink" href="#quick-links" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../quickstart/">Getting Started</a></strong> - Build your first API in 5 minutes</li>
+<li><strong><a href="../getting-started/quickstart/">Getting Started</a></strong> - Build your first API in 5 minutes</li>
 <li><strong><a href="../core/concepts-glossary/">Core Concepts</a></strong> - Understand FraiseQL's mental model</li>
 <li><strong><a href="../../examples/">Examples</a></strong> - Learn by example</li>
 <li><strong><a href="../production/">Production Deployment</a></strong> - Deploy to production</li>
@@ -2125,6 +3798,46 @@
       </main>
       
         <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../tutorials/production-deployment/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Production Deployment">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Production Deployment
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="pgvector/" class="md-footer__link md-footer__link--next" aria-label="Next: pgvector (Vector Search)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                pgvector (Vector Search)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -2182,10 +3895,11 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "search.share", "content.tabs.link", "content.code.annotation", "content.code.copy", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      <script src="../assets/javascripts/bundle.e71a0d61.min.js"></script>
       
     
   </body>
