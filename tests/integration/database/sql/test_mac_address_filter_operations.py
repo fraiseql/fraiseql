@@ -15,7 +15,7 @@ from fraiseql.types import MacAddress
 class TestMacAddressFilterOperations:
     """Test MAC address filtering with proper PostgreSQL macaddr type handling."""
 
-    def test_mac_address_eq_with_different_formats(self):
+    def test_mac_address_eq_with_different_formats(self) -> None:
         """Test MAC address equality with different input formats."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -38,7 +38,7 @@ class TestMacAddressFilterOperations:
             assert "::macaddr" in sql_str, f"Missing macaddr cast for format {mac_format}"
             assert mac_format in sql_str
 
-    def test_mac_address_case_insensitive_comparison(self):
+    def test_mac_address_case_insensitive_comparison(self) -> None:
         """Test that MAC address comparison is case insensitive."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -59,7 +59,7 @@ class TestMacAddressFilterOperations:
             # Should use macaddr casting for case-insensitive comparison
             assert "::macaddr" in sql_str, f"Missing macaddr cast for case {mac_case}"
 
-    def test_mac_address_in_list_with_mixed_formats(self):
+    def test_mac_address_in_list_with_mixed_formats(self) -> None:
         """Test MAC address IN operation with mixed formats."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -81,7 +81,7 @@ class TestMacAddressFilterOperations:
         for mac in mixed_macs:
             assert mac in sql_str
 
-    def test_mac_address_neq_operation(self):
+    def test_mac_address_neq_operation(self) -> None:
         """Test MAC address not-equal operation."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -95,7 +95,7 @@ class TestMacAddressFilterOperations:
         assert "!=" in sql_str
         assert "00:11:22:33:44:55" in sql_str
 
-    def test_mac_address_nin_operation(self):
+    def test_mac_address_nin_operation(self) -> None:
         """Test MAC address NOT IN operation."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -112,7 +112,7 @@ class TestMacAddressFilterOperations:
         for mac in excluded_macs:
             assert mac in sql_str
 
-    def test_mac_address_isnull_operation(self):
+    def test_mac_address_isnull_operation(self) -> None:
         """Test MAC address NULL check operations."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -129,7 +129,7 @@ class TestMacAddressFilterOperations:
         )
         assert "IS NOT NULL" in str(sql_not_null)
 
-    def test_mac_address_filter_excludes_pattern_operators(self):
+    def test_mac_address_filter_excludes_pattern_operators(self) -> None:
         """Test that MacAddressFilter doesn't include problematic pattern operators."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
@@ -143,7 +143,7 @@ class TestMacAddressFilterOperations:
             ):
                 registry.build_sql(path_sql=path_sql, op=op, val="00:11", field_type=MacAddress)
 
-    def test_mac_address_vs_string_field_behavior(self):
+    def test_mac_address_vs_string_field_behavior(self) -> None:
         """Test that MAC address fields get different treatment than string fields."""
         registry = get_operator_registry()
         path_sql = SQL("data->>'some_field'")
@@ -162,7 +162,7 @@ class TestMacAddressFilterOperations:
         string_sql_str = str(string_sql)
         assert "::macaddr" not in string_sql_str
 
-    def test_mac_address_normalization_in_sql_generation(self):
+    def test_mac_address_normalization_in_sql_generation(self) -> None:
         """Test that SQL properly handles MAC address format normalization.
 
         This test should pass once MacAddressOperatorStrategy is implemented.

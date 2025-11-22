@@ -3,8 +3,9 @@
 Tests the constraint evaluation logic used by the @requires_permission directive.
 """
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 
 async def evaluate_constraints(constraints: dict, context: dict, field_args: dict) -> bool:
@@ -38,7 +39,7 @@ async def evaluate_constraints(constraints: dict, context: dict, field_args: dic
 
 
 @pytest.mark.asyncio
-async def test_constraint_own_data_only_allows_own_data():
+async def test_constraint_own_data_only_allows_own_data() -> None:
     """Test own_data_only constraint allows access to own data."""
     user_id = uuid4()
     context = {"user_id": user_id}
@@ -51,7 +52,7 @@ async def test_constraint_own_data_only_allows_own_data():
 
 
 @pytest.mark.asyncio
-async def test_constraint_own_data_only_denies_other_data():
+async def test_constraint_own_data_only_denies_other_data() -> None:
     """Test own_data_only constraint denies access to other user's data."""
     user_id = uuid4()
     other_user_id = uuid4()
@@ -66,7 +67,7 @@ async def test_constraint_own_data_only_denies_other_data():
 
 
 @pytest.mark.asyncio
-async def test_constraint_tenant_scoped_allows_same_tenant():
+async def test_constraint_tenant_scoped_allows_same_tenant() -> None:
     """Test tenant_scoped constraint allows access within same tenant."""
     tenant_id = uuid4()
     context = {"tenant_id": tenant_id}
@@ -79,7 +80,7 @@ async def test_constraint_tenant_scoped_allows_same_tenant():
 
 
 @pytest.mark.asyncio
-async def test_constraint_tenant_scoped_denies_different_tenant():
+async def test_constraint_tenant_scoped_denies_different_tenant() -> None:
     """Test tenant_scoped constraint denies access to different tenant."""
     tenant_id = uuid4()
     other_tenant_id = uuid4()
@@ -94,7 +95,7 @@ async def test_constraint_tenant_scoped_denies_different_tenant():
 
 
 @pytest.mark.asyncio
-async def test_constraint_max_records_allows_under_limit():
+async def test_constraint_max_records_allows_under_limit() -> None:
     """Test max_records constraint allows queries under the limit."""
     context = {}
     field_args = {"limit": 50}
@@ -106,7 +107,7 @@ async def test_constraint_max_records_allows_under_limit():
 
 
 @pytest.mark.asyncio
-async def test_constraint_max_records_denies_over_limit():
+async def test_constraint_max_records_denies_over_limit() -> None:
     """Test max_records constraint denies queries over the limit."""
     context = {}
     field_args = {"limit": 150}
@@ -118,7 +119,7 @@ async def test_constraint_max_records_denies_over_limit():
 
 
 @pytest.mark.asyncio
-async def test_constraint_max_records_uses_first_as_fallback():
+async def test_constraint_max_records_uses_first_as_fallback() -> None:
     """Test max_records constraint uses 'first' parameter as fallback for limit."""
     context = {}
     field_args = {"first": 150}  # GraphQL pagination uses 'first'
@@ -130,7 +131,7 @@ async def test_constraint_max_records_uses_first_as_fallback():
 
 
 @pytest.mark.asyncio
-async def test_constraint_department_only_allows_same_department():
+async def test_constraint_department_only_allows_same_department() -> None:
     """Test department_only constraint allows access within same department."""
     dept_id = uuid4()
     context = {"department_id": dept_id}
@@ -143,7 +144,7 @@ async def test_constraint_department_only_allows_same_department():
 
 
 @pytest.mark.asyncio
-async def test_constraint_department_only_denies_different_department():
+async def test_constraint_department_only_denies_different_department() -> None:
     """Test department_only constraint denies access to different department."""
     dept_id = uuid4()
     other_dept_id = uuid4()
@@ -158,7 +159,7 @@ async def test_constraint_department_only_denies_different_department():
 
 
 @pytest.mark.asyncio
-async def test_multiple_constraints_all_must_pass():
+async def test_multiple_constraints_all_must_pass() -> None:
     """Test that all constraints must pass for access to be granted."""
     user_id = uuid4()
     tenant_id = uuid4()
@@ -185,7 +186,7 @@ async def test_multiple_constraints_all_must_pass():
 
 
 @pytest.mark.asyncio
-async def test_no_constraints_always_allows():
+async def test_no_constraints_always_allows() -> None:
     """Test that no constraints always allows access."""
     context = {}
     field_args = {"any": "data"}

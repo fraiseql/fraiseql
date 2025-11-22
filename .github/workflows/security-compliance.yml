@@ -1,0 +1,333 @@
+name: Security & Compliance
+
+# Comprehensive security and compliance checks
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-compliance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write  # Required for uploading SARIF to Code Scanning
+  actions: read
+
+jobs:
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  license-scan:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install license scanning tools
+      run: |
+        uv venv
+        uv pip install pip-licenses
+
+    - name: Scan Python package licenses
+      run: |
+        echo "=== Python Package Licenses ==="
+        uv run pip-licenses --format=markdown --output-file=python-licenses.md
+        cat python-licenses.md
+
+    - name: Check for GPL licenses
+      run: |
+        # Check for GPL licenses (excluding LGPL and multi-licensed packages)
+        # Multi-licensed packages like docutils (BSD/GPL/Public Domain) are acceptable
+        # if they offer at least one permissive license option
+
+        MULTI_LICENSED_OK=(
+          "docutils"  # BSD/GPL/Public Domain - we use BSD
+        )
+
+        # Get packages with GPL in license
+        GPL_PACKAGES=$(grep -i "GPL" python-licenses.md | grep -v -i "LGPL" || true)
+
+        if [ -n "$GPL_PACKAGES" ]; then
+          echo "Checking GPL-licensed packages..."
+
+          # Check each package
+          STRICT_GPL=""
+          while IFS= read -r line; do
+            PACKAGE_NAME=$(echo "$line" | cut -d'|' -f2 | tr -d ' ')
+
+            # Check if it's in our multi-licensed allow list
+            IS_ALLOWED=false
+            for allowed in "${MULTI_LICENSED_OK[@]}"; do
+              if [[ "$PACKAGE_NAME" == "$allowed" ]]; then
+                IS_ALLOWED=true
+                echo "✅ $PACKAGE_NAME: Multi-licensed (acceptable alternative available)"
+                break
+              fi
+            done
+
+            if ! $IS_ALLOWED; then
+              STRICT_GPL="$STRICT_GPL\n$line"
+            fi
+          done <<< "$GPL_PACKAGES"
+
+          if [ -n "$STRICT_GPL" ]; then
+            echo "❌ Strict GPL-licensed packages found:"
+            echo -e "$STRICT_GPL"
+            exit 1
+          else
+            echo "✅ All GPL packages have acceptable license alternatives"
+          fi
+        else
+          echo "✅ No GPL licenses found"
+        fi
+
+    - name: Upload license report
+      uses: actions/upload-artifact@v5
+      with:
+        name: license-report
+        path: python-licenses.md
+
+  container-security:
+     name: Container Security Scan
+     runs-on: ubuntu-latest
+     steps:
+     - uses: actions/checkout@v4
+
+     - name: Build test container
+       run: |
+         # Build container for security scanning
+         docker build \
+           --file deploy/docker/Dockerfile \
+           --tag fraiseql:test \
+           .
+
+     - name: Scan container with Trivy
+       uses: aquasecurity/trivy-action@master
+       with:
+         scan-type: 'image'
+         scan-ref: 'fraiseql:test'
+         format: 'sarif'
+         output: 'trivy-container-results.sarif'
+         severity: 'CRITICAL,HIGH'
+         exit-code: 0  # Don't fail on vulnerabilities, just report them
+
+     - name: Upload Trivy container scan results
+       uses: github/codeql-action/upload-sarif@v4
+       if: always()
+       with:
+         sarif_file: 'trivy-container-results.sarif'
+
+     - name: Container Security Scan
+       run: |
+         echo "✅ Container security scanning completed with Trivy above"
+         echo "Dockle scan removed - Trivy provides comprehensive container scanning"
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Audit Python dependencies
+      run: |
+        uv venv
+        uv pip install ".[dev,all]"
+        uv run pip-audit --format json --output audit-results.json || true
+
+    - name: Check for critical vulnerabilities
+      run: |
+        if [ -f audit-results.json ]; then
+          # Check for CRITICAL or HIGH severity vulnerabilities
+          if jq -e '.vulnerabilities[] | select(.severity == "CRITICAL" or .severity == "HIGH")' audit-results.json > /dev/null; then
+            echo "🚨 Critical or high-severity vulnerabilities found!"
+            jq '.vulnerabilities[] | select(.severity == "CRITICAL" or .severity == "HIGH")' audit-results.json
+            exit 1
+          else
+            echo "✅ No critical or high-severity vulnerabilities found"
+          fi
+        else
+          echo "⚠️  pip-audit did not generate results file"
+        fi
+
+    - name: Upload audit results
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: dependency-audit-results
+        path: audit-results.json
+
+  compliance-check:
+    name: Compliance Validation
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check security policy exists
+      run: |
+        if [ ! -f "SECURITY.md" ]; then
+          echo "❌ SECURITY.md file is missing"
+          exit 1
+        fi
+        echo "✅ Security policy exists"
+
+    - name: Check for security headers in nginx config
+      run: |
+        if grep -q "add_header X-Frame-Options" deploy/nginx-fraiseql.conf; then
+          echo "✅ Security headers found in nginx config"
+        else
+          echo "⚠️  Security headers not found in nginx config"
+        fi
+
+    - name: Validate secrets are not committed
+      run: |
+        # Check for common secret patterns (excluding legitimate code patterns)
+        # This check looks for actual secrets, not just the words "password", "token", etc.
+
+        # Exclude legitimate uses:
+        # - Function parameters and variable names (e.g., "password: str")
+        # - Type hints and field definitions
+        # - Documentation and examples
+        # - Error handling and logging
+        # - Database URL utilities (handling passwords, not storing them)
+
+        # Files to completely skip (legitimate password/token handling)
+        SKIP_FILES=(
+          "src/fraiseql/utils/db_url.py"
+          "src/fraiseql/fields.py"
+          "src/fraiseql/monitoring/notifications.py"
+          "src/fraiseql/enterprise/crypto/signing.py"
+          "src/fraiseql/sql/sql_generator.py"
+          "src/fraiseql/cli/commands/init.py"
+          "src/fraiseql/cli/commands/migrate.py"
+          "src/fraiseql/auth/auth0.py"
+          "src/fraiseql/auth/auth0_with_revocation.py"
+          "src/fraiseql/auth/token_revocation.py"
+          "src/fraiseql/auth/native/tokens.py"
+          "src/fraiseql/auth/native/provider.py"
+          "src/fraiseql/auth/native/router.py"
+          "src/fraiseql/auth/native/__init__.py"
+          "src/fraiseql/auth/native/models.py"
+          "src/fraiseql/auth/base.py"
+          "src/fraiseql/enterprise/rbac/middleware.py"
+          "src/fraiseql/security/csrf_protection.py"
+        )
+
+        # Build find exclusion args
+        FIND_ARGS=""
+        for file in "${SKIP_FILES[@]}"; do
+          FIND_ARGS="$FIND_ARGS -not -path ./$file"
+        done
+
+        # Search for potential secrets (excluding the skipped files)
+        POTENTIAL_SECRETS=$(find src/ -type f \( -name "*.py" -o -name "*.yml" -o -name "*.yaml" \) $FIND_ARGS -exec grep -n -H -i "password\|secret\|token" {} \; | \
+          grep -v "password: str" | \
+          grep -v "password:" | \
+          grep -v "secret_key: str" | \
+          grep -v "token: str" | \
+          grep -v "access_token:" | \
+          grep -v "refresh_token:" | \
+          grep -v "def.*password" | \
+          grep -v "def.*token" | \
+          grep -v "def.*secret" | \
+          grep -v "KeyError" | \
+          grep -v "error_keywords" | \
+          grep -v "raise.*Error" | \
+          grep -v '"password"' | \
+          grep -v "'password'" | \
+          grep -v "# password" | \
+          grep -v "# token" | \
+          grep -v "# secret" | \
+          grep -v "description=" | \
+          grep -v "Example:" | \
+          grep -v "example" || true)
+
+        if [ -n "$POTENTIAL_SECRETS" ]; then
+          echo "⚠️  Potential secrets found (manual review needed):"
+          echo "$POTENTIAL_SECRETS"
+          echo ""
+          echo "If these are false positives (function parameters, type hints, etc.),"
+          echo "add them to SKIP_FILES in .github/workflows/security-compliance.yml"
+          # Don't fail - just warn
+          exit 0
+        else
+          echo "✅ No obvious secrets found in source code"
+        fi
+
+    - name: Check for required security files
+      run: |
+        required_files=("SECURITY.md" "LICENSE" "CODE_OF_CONDUCT.md")
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Required file $file is missing"
+            exit 1
+          fi
+        done
+        echo "✅ All required security and compliance files present"
+
+  security-gate:
+    name: Security Gate ✅
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, license-scan, container-security, dependency-audit, compliance-check]
+    if: always()
+    steps:
+      - name: Security compliance check
+        run: |
+          # Check if all security jobs passed
+          if [[ "${{ needs.secrets-scan.result }}" != "success" ]]; then
+            echo "❌ Secrets scan failed - Security gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.license-scan.result }}" != "success" ]]; then
+            echo "❌ License compliance failed - Security gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.container-security.result }}" != "success" ]]; then
+            echo "❌ Container security scan failed - Security gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.dependency-audit.result }}" != "success" ]]; then
+            echo "❌ Dependency audit failed - Security gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.compliance-check.result }}" != "success" ]]; then
+            echo "❌ Compliance validation failed - Security gate blocked"
+            exit 1
+          fi
+          echo "✅ All security and compliance checks passed - Security gate open"
+          echo "🔒 Code meets security and compliance standards"

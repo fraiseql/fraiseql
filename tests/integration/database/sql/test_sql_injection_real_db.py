@@ -34,7 +34,7 @@ class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
     @pytest.fixture
-    async def test_users(self, db_pool):
+    async def test_users(self, db_pool) -> None:
         """Create users table and test data within test transaction."""
         async with db_pool.connection() as db_connection:
             # Drop table if it exists to ensure clean state

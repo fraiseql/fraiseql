@@ -8,6 +8,7 @@ covering network entities, geographic entities, and service entities.
 """
 
 import pytest
+
 import fraiseql
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
@@ -151,7 +152,7 @@ class GenericSuccess:
 class TestAllEntityTypesConflictResolution:
     """Test conflict entity instantiation for all entity types mentioned in bug ticket."""
 
-    def test_location_conflict_entity_instantiation(self):
+    def test_location_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for Location entities (geographic entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -188,7 +189,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_location.identifier == "main.office.building"
         assert result.conflict_location.level == "building"
 
-    def test_dns_server_conflict_entity_instantiation(self):
+    def test_dns_server_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for DnsServer entities (network entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -225,7 +226,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_dns_server.ip_address == "8.8.8.8"
         assert result.conflict_dns_server.port == 53
 
-    def test_gateway_conflict_entity_instantiation(self):
+    def test_gateway_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for Gateway entities (network entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -262,7 +263,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_gateway.ip_address == "192.168.1.1"
         assert result.conflict_gateway.subnet == "192.168.1.0/24"
 
-    def test_router_conflict_entity_instantiation(self):
+    def test_router_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for Router entities (network entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -299,7 +300,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_router.model == "Cisco ASR9000"
         assert result.conflict_router.firmware_version == "7.3.2"
 
-    def test_smtp_server_conflict_entity_instantiation(self):
+    def test_smtp_server_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for SmtpServer entities (mail service entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -336,7 +337,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_smtp_server.hostname == "mail.company.com"
         assert result.conflict_smtp_server.port == 587
 
-    def test_file_server_conflict_entity_instantiation(self):
+    def test_file_server_conflict_entity_instantiation(self) -> None:
         """Test conflict resolution for FileServer entities (file service entities)."""
         mutation_result = {
             "updated_fields": [],
@@ -373,7 +374,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_file_server.hostname == "files.office.com"
         assert result.conflict_file_server.share_path == "/shared/documents"
 
-    def test_multiple_conflict_fields_single_entity_type(self):
+    def test_multiple_conflict_fields_single_entity_type(self) -> None:
         """Test that multiple conflict_* fields of the same type can be populated."""
 
         @fraiseql.failure
@@ -423,7 +424,7 @@ class TestAllEntityTypesConflictResolution:
         assert result.conflict_backup_location.id == "multi-location-123"
         assert result.conflict_backup_location.name == "Conflict Location"
 
-    def test_enterprise_pattern_compatibility(self):
+    def test_enterprise_pattern_compatibility(self) -> None:
         """Test that the fix maintains compatibility with enterprise patterns from the bug ticket."""
         # This test simulates the exact enterprise pattern from the bug ticket
         mutation_result = {

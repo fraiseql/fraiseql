@@ -15,6 +15,8 @@ async def get_user(info, id: UUID) -> User:
     return await db.find_one("v_user", where={"id": id})
 ```
 
+> **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories.md) for details on when to use each.
+
 ## Accessing the Database
 
 **In Resolvers**:
@@ -148,6 +150,91 @@ user = await db.find_one("v_user", where={"id": "nonexistent"})
 if user is None:
     raise GraphQLError("User not found")
 ```
+
+### count()
+
+**Purpose**: Count records matching filter criteria
+
+**Signature**:
+```python
+async def count(
+    view_name: str,
+    **kwargs: Any
+) -> int
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| view_name | str | Yes | Database view or table name |
+| where | dict \| WhereType \| None | No | Filter conditions |
+| **kwargs | Any | No | Additional filter conditions (e.g., tenant_id) |
+
+**Returns**: Integer count of matching records
+
+**Examples**:
+```python
+# Count all users
+total = await db.count("v_users")
+# Returns: 1523
+
+# Count with filter
+active_count = await db.count(
+    "v_users",
+    where={"status": {"eq": "active"}}
+)
+# Returns: 842
+
+# Count with tenant_id
+tenant_users = await db.count(
+    "v_users",
+    tenant_id="tenant-123"
+)
+# Returns: 67
+
+# Count with complex filters
+electronics_count = await db.count(
+    "v_products",
+    where={
+        "price": {"gt": 100, "lt": 500},
+        "category": {"eq": "electronics"},
+        "in_stock": {"eq": True}
+    }
+)
+# Returns: 23
+
+# In GraphQL resolver
+@query
+async def users_count(info, where: UserWhereInput | None = None) -> int:
+    """Count users with optional filtering."""
+    db = info.context["db"]
+    return await db.count("v_users", where=where)
+
+@query
+async def tenant_stats(info) -> TenantStats:
+    """Get statistics for current tenant."""
+    db = info.context["db"]
+    tenant_id = info.context["tenant_id"]
+
+    return TenantStats(
+        total_users=await db.count("v_users", tenant_id=tenant_id),
+        active_users=await db.count(
+            "v_users",
+            tenant_id=tenant_id,
+            where={"status": {"eq": "active"}}
+        ),
+        total_orders=await db.count("v_orders", tenant_id=tenant_id),
+    )
+```
+
+**Performance**:
+- Uses optimized `COUNT(*)` SQL query
+- Returns plain `int` (not `RustResponseBytes`)
+- Supports same filter syntax as `find()`
+- Efficient for large datasets
+
+**Note**: Unlike `find()` and `find_one()`, `count()` returns a plain Python `int` instead of `RustResponseBytes` because count is a simple scalar value.
 
 ## Pagination Methods
 

@@ -13,7 +13,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 class TestFraiseQLStyleMutations:
     """Test that FraiseQL patterns work seamlessly with FraiseQL defaults."""
 
-    def test_simple_mutation_with_defaults_only(self):
+    def test_simple_mutation_with_defaults_only(self) -> None:
         """Test creating a mutation using only FraiseQL built-in types."""
         from fraiseql import MutationResultBase
 
@@ -48,7 +48,7 @@ class TestFraiseQLStyleMutations:
         assert "contract" in success_fields
         assert "conflict_contract" in error_fields
 
-    def test_mutation_decorator_with_improved_defaults(self):
+    def test_mutation_decorator_with_improved_defaults(self) -> None:
         """Test that @fraiseql.mutation uses the improved DEFAULT_ERROR_CONFIG."""
         from fraiseql import MutationResultBase
 
@@ -71,7 +71,7 @@ class TestFraiseQLStyleMutations:
         assert "created" in DEFAULT_ERROR_CONFIG.success_keywords
         assert "cancelled" in DEFAULT_ERROR_CONFIG.success_keywords
 
-    def test_error_auto_population_with_default_types(self):
+    def test_error_auto_population_with_default_types(self) -> None:
         """Test that error auto-population works with FraiseQL's default types."""
         from fraiseql import Error, MutationResultBase
 
@@ -114,7 +114,7 @@ class TestFraiseQLStyleMutations:
         assert error.identifier == "already_exists"
         assert error.details == {"conflictId": "existing-id"}
 
-    def test_no_custom_base_class_needed(self):
+    def test_no_custom_base_class_needed(self) -> None:
         """Test that FraiseQL works with standard base classes."""
         from fraiseql import MutationResultBase
 
@@ -147,7 +147,7 @@ class TestFraiseQLStyleMutations:
         # Should work with FraiseQL's standard mutation patterns
         assert hasattr(CreateUser, "__fraiseql_mutation__")
 
-    def test_all_error_patterns_supported(self):
+    def test_all_error_patterns_supported(self) -> None:
         """Test that all error patterns work with framework defaults."""
         from fraiseql import Error, MutationResultBase
 
@@ -195,7 +195,7 @@ class TestFraiseQLStyleMutations:
                 assert len(parsed.errors) >= 1
                 assert isinstance(parsed.errors[0], Error)
 
-    def test_default_config_comprehensive(self):
+    def test_default_config_comprehensive(self) -> None:
         """Test that DEFAULT_ERROR_CONFIG is comprehensive for framework patterns."""
         # The enhanced DEFAULT_ERROR_CONFIG should handle all framework needs
         assert "noop:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes

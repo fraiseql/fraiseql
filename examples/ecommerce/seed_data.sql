@@ -4,7 +4,7 @@
 SET search_path TO ecommerce, public;
 
 -- Sample users
-INSERT INTO users (email, password_hash, name, phone, is_verified) VALUES
+INSERT INTO tb_user (email, password_hash, name, phone, is_verified) VALUES
 ('john.doe@example.com', crypt('password123', gen_salt('bf', 8)), 'John Doe', '+1234567890', true),
 ('jane.smith@example.com', crypt('password123', gen_salt('bf', 8)), 'Jane Smith', '+1234567891', true),
 ('bob.wilson@example.com', crypt('password123', gen_salt('bf', 8)), 'Bob Wilson', '+1234567892', false);
@@ -21,7 +21,7 @@ SELECT
     '10001',
     'US',
     true
-FROM users u WHERE u.email = 'john.doe@example.com';
+FROM tb_user u WHERE u.email = 'john.doe@example.com';
 
 INSERT INTO addresses (user_id, label, street1, city, state, postal_code, country, is_default)
 SELECT
@@ -33,7 +33,7 @@ SELECT
     '10002',
     'US',
     false
-FROM users u WHERE u.email = 'john.doe@example.com';
+FROM tb_user u WHERE u.email = 'john.doe@example.com';
 
 -- Sample products
 INSERT INTO products (sku, name, description, category, price, compare_at_price, inventory_count, images, tags) VALUES
@@ -97,7 +97,7 @@ DECLARE
     addr_id UUID;
 BEGIN
     -- Get John's ID and address
-    SELECT u.id INTO user_id FROM users u WHERE u.email = 'john.doe@example.com';
+    SELECT u.id INTO user_id FROM tb_user u WHERE u.email = 'john.doe@example.com';
     SELECT a.id INTO addr_id FROM addresses a WHERE a.user_id = user_id AND a.is_default = true;
 
     -- Create a delivered order
@@ -149,7 +149,7 @@ SELECT
     'Excellent laptop!',
     'This laptop exceeded my expectations. Fast, reliable, and great battery life.',
     true
-FROM products p, users u
+FROM products p, tb_user u
 WHERE p.sku = 'LAPTOP-001' AND u.email = 'john.doe@example.com';
 
 INSERT INTO reviews (product_id, user_id, rating, title, comment, is_verified)
@@ -158,7 +158,7 @@ SELECT
     'Good phone, but pricey',
     'Great features and camera quality. A bit expensive but worth it for the performance.',
     false
-FROM products p, users u
+FROM products p, tb_user u
 WHERE p.sku = 'PHONE-001' AND u.email = 'jane.smith@example.com';
 
 INSERT INTO reviews (product_id, user_id, rating, title, comment, is_verified)
@@ -167,18 +167,18 @@ SELECT
     'Amazing sound quality',
     'The noise cancellation is incredible. Perfect for long flights and work from home.',
     true
-FROM products p, users u
+FROM products p, tb_user u
 WHERE p.sku = 'HEADPHONE-001' AND u.email = 'john.doe@example.com';
 
 -- Sample wishlist items
 INSERT INTO wishlist_items (user_id, product_id)
 SELECT u.id, p.id
-FROM users u, products p
+FROM tb_user u, products p
 WHERE u.email = 'john.doe@example.com' AND p.sku IN ('LAPTOP-001', 'CHAIR-001');
 
 INSERT INTO wishlist_items (user_id, product_id)
 SELECT u.id, p.id
-FROM users u, products p
+FROM tb_user u, products p
 WHERE u.email = 'jane.smith@example.com' AND p.sku IN ('YOGA-001', 'BOOK-001');
 
 -- Update product inventory based on orders
@@ -193,7 +193,7 @@ SET inventory_count = inventory_count - COALESCE((
 
 -- Output summary
 SELECT 'Seed data created:' as message;
-SELECT COUNT(*) as users_count FROM users;
+SELECT COUNT(*) as users_count FROM tb_user;
 SELECT COUNT(*) as products_count FROM products;
 SELECT COUNT(*) as orders_count FROM orders;
 SELECT COUNT(*) as reviews_count FROM reviews;

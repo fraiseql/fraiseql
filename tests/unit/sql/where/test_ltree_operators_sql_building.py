@@ -14,7 +14,7 @@ from fraiseql.sql.where.operators import ltree
 class TestLTreeBasicOperators:
     """Test LTree basic operators SQL building with proper PostgreSQL ltree casting."""
 
-    def test_build_ltree_equality_sql(self):
+    def test_build_ltree_equality_sql(self) -> None:
         """Test LTree equality SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_value = "top.science.astrophysics"
@@ -24,7 +24,7 @@ class TestLTreeBasicOperators:
         expected_sql = "(data->>'category_path')::ltree = 'top.science.astrophysics'::ltree"
         assert result.as_string(None) == expected_sql
 
-    def test_build_ltree_inequality_sql(self):
+    def test_build_ltree_inequality_sql(self) -> None:
         """Test LTree inequality SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_value = "top.technology.computing"
@@ -34,7 +34,7 @@ class TestLTreeBasicOperators:
         expected_sql = "(data->>'category_path')::ltree != 'top.technology.computing'::ltree"
         assert result.as_string(None) == expected_sql
 
-    def test_build_ltree_in_list_sql(self):
+    def test_build_ltree_in_list_sql(self) -> None:
         """Test LTree IN list SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_list = ["top.science.physics", "top.science.chemistry", "top.technology.computing"]
@@ -44,7 +44,7 @@ class TestLTreeBasicOperators:
         expected_sql = "(data->>'category_path')::ltree IN ('top.science.physics'::ltree, 'top.science.chemistry'::ltree, 'top.technology.computing'::ltree)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_ltree_not_in_list_sql(self):
+    def test_build_ltree_not_in_list_sql(self) -> None:
         """Test LTree NOT IN list SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_list = ["top.science.physics", "top.science.chemistry"]
@@ -54,7 +54,7 @@ class TestLTreeBasicOperators:
         expected_sql = "(data->>'category_path')::ltree NOT IN ('top.science.physics'::ltree, 'top.science.chemistry'::ltree)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_ltree_single_item_in_list(self):
+    def test_build_ltree_single_item_in_list(self) -> None:
         """Test LTree IN with single item."""
         path_sql = SQL("data->>'category_path'")
         ltree_list = ["top.science.astrophysics"]
@@ -64,7 +64,7 @@ class TestLTreeBasicOperators:
         expected_sql = "(data->>'category_path')::ltree IN ('top.science.astrophysics'::ltree)"
         assert result.as_string(None) == expected_sql
 
-    def test_build_ltree_empty_list_handling(self):
+    def test_build_ltree_empty_list_handling(self) -> None:
         """Test LTree operators with empty lists."""
         path_sql = SQL("data->>'category_path'")
         empty_list = []
@@ -83,7 +83,7 @@ class TestLTreeBasicOperators:
 class TestLTreeHierarchicalOperators:
     """Test LTree hierarchical operators with PostgreSQL ltree-specific syntax."""
 
-    def test_build_ancestor_of_sql(self):
+    def test_build_ancestor_of_sql(self) -> None:
         """Test LTree ancestor_of (@>) SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_value = "top.science"
@@ -93,7 +93,7 @@ class TestLTreeHierarchicalOperators:
         expected_sql = "(data->>'category_path')::ltree @> 'top.science'::ltree"
         assert result.as_string(None) == expected_sql
 
-    def test_build_descendant_of_sql(self):
+    def test_build_descendant_of_sql(self) -> None:
         """Test LTree descendant_of (<@) SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltree_value = "top.science.astrophysics.black_holes"
@@ -105,7 +105,7 @@ class TestLTreeHierarchicalOperators:
         )
         assert result.as_string(None) == expected_sql
 
-    def test_build_matches_lquery_sql(self):
+    def test_build_matches_lquery_sql(self) -> None:
         """Test LTree matches_lquery (~) SQL generation."""
         path_sql = SQL("data->>'category_path'")
         lquery_pattern = "science.*"
@@ -115,7 +115,7 @@ class TestLTreeHierarchicalOperators:
         expected_sql = "(data->>'category_path')::ltree ~ 'science.*'::lquery"
         assert result.as_string(None) == expected_sql
 
-    def test_build_matches_ltxtquery_sql(self):
+    def test_build_matches_ltxtquery_sql(self) -> None:
         """Test LTree matches_ltxtquery (?) SQL generation."""
         path_sql = SQL("data->>'category_path'")
         ltxtquery_pattern = "astrophysics"
@@ -125,7 +125,7 @@ class TestLTreeHierarchicalOperators:
         expected_sql = "(data->>'category_path')::ltree ? 'astrophysics'::ltxtquery"
         assert result.as_string(None) == expected_sql
 
-    def test_hierarchical_operators_complex_paths(self):
+    def test_hierarchical_operators_complex_paths(self) -> None:
         """Test hierarchical operators with complex nested paths."""
         path_sql = SQL("data->>'navigation_path'")
 
@@ -147,21 +147,21 @@ class TestLTreeHierarchicalOperators:
 class TestLTreeValidation:
     """Test LTree validation and error handling."""
 
-    def test_ltree_in_requires_list(self):
+    def test_ltree_in_requires_list(self) -> None:
         """Test that LTree IN operator requires a list."""
         path_sql = SQL("data->>'category_path'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             ltree.build_ltree_in_sql(path_sql, "not-a-list")
 
-    def test_ltree_notin_requires_list(self):
+    def test_ltree_notin_requires_list(self) -> None:
         """Test that LTree NOT IN operator requires a list."""
         path_sql = SQL("data->>'category_path'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             ltree.build_ltree_notin_sql(path_sql, "not-a-list")
 
-    def test_ltree_path_formats(self):
+    def test_ltree_path_formats(self) -> None:
         """Test LTree operators with various path formats."""
         path_sql = SQL("data->>'category_path'")
 
@@ -177,7 +177,7 @@ class TestLTreeValidation:
         expected_numbers = "(data->>'category_path')::ltree = 'top.version_2.release_1'::ltree"
         assert result_numbers.as_string(None) == expected_numbers
 
-    def test_ltree_single_level_paths(self):
+    def test_ltree_single_level_paths(self) -> None:
         """Test LTree operators with single-level paths."""
         path_sql = SQL("data->>'category_path'")
         single_level = "root"

@@ -5,14 +5,48 @@ fraiseql-rs Rust extension for high-performance JSON transformation.
 """
 
 import logging
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
-try:
-    import fraiseql_rs
-except ImportError as e:
-    raise ImportError(
-        "fraiseql-rs is required but not installed. Install it with: pip install fraiseql-rs"
-    ) from e
+
+# Lazy-load the Rust extension to avoid circular import issues
+# The fraiseql package re-exports _fraiseql_rs in its __init__.py
+def _get_fraiseql_rs():
+    """Lazy-load the Rust extension module."""
+    try:
+        from fraiseql import _fraiseql_rs
+
+        return _fraiseql_rs
+    except ImportError as e:
+        raise ImportError(
+            "fraiseql Rust extension is not available. "
+            "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
+        ) from e
+
+
+# Create a namespace object that lazy-loads functions
+class _FraiseQLRs:
+    _module = None
+
+    @staticmethod
+    def to_camel_case(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.to_camel_case(*args, **kwargs)
+
+    @staticmethod
+    def transform_json(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.transform_json(*args, **kwargs)
+
+    @staticmethod
+    def build_graphql_response(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)
+
+
+fraiseql_rs = _FraiseQLRs()
 
 logger = logging.getLogger(__name__)
 

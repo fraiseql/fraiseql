@@ -37,7 +37,7 @@ async def allocation_workaround(info, id_: UUID) -> Allocation | None:
 
 
 class TestIdParameterIssue:
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -47,7 +47,7 @@ class TestIdParameterIssue:
         registry.register_query(allocation)
         registry.register_query(allocation_workaround)
 
-    def test_query_with_id_parameter(self):
+    def test_query_with_id_parameter(self) -> None:
         """Test that queries can use 'id' as a parameter name."""
         # Create schema
         registry = SchemaRegistry.get_instance()
@@ -67,7 +67,7 @@ class TestIdParameterIssue:
         id_arg = allocation_field.args["id"]
         assert id_arg is not None
 
-    def test_query_with_id_underscore_parameter(self):
+    def test_query_with_id_underscore_parameter(self) -> None:
         """Test that queries with id_ parameter work."""
         # Create schema
         registry = SchemaRegistry.get_instance()
@@ -86,7 +86,7 @@ class TestIdParameterIssue:
         # This is the key question - what does GraphQL see?
 
     @pytest.mark.asyncio
-    async def test_resolver_execution_with_id(self):
+    async def test_resolver_execution_with_id(self) -> None:
         """Test that the resolver can be called with id parameter."""
         from graphql import graphql
 

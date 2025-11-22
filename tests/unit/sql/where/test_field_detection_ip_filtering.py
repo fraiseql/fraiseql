@@ -5,25 +5,26 @@ detecting IP address fields and values correctly.
 """
 
 import pytest
+
 from fraiseql.sql.where.core.field_detection import FieldType, detect_field_type
 
 
 class TestIPAddressFieldDetection:
     """Test IP address field detection functionality."""
 
-    def test_detect_ip_from_field_name_snake_case(self):
+    def test_detect_ip_from_field_name_snake_case(self) -> None:
         """Should detect IP fields from snake_case field names."""
         # Red cycle - this will fail initially
         result = detect_field_type("ip_address", "192.168.1.1", None)
         assert result == FieldType.IP_ADDRESS
 
-    def test_detect_ip_from_field_name_camel_case(self):
+    def test_detect_ip_from_field_name_camel_case(self) -> None:
         """Should detect IP fields from camelCase field names."""
         # Red cycle - this will fail initially
         result = detect_field_type("ipAddress", "192.168.1.1", None)
         assert result == FieldType.IP_ADDRESS
 
-    def test_detect_ip_from_field_name_variations(self):
+    def test_detect_ip_from_field_name_variations(self) -> None:
         """Should detect various IP field name patterns."""
         # Red cycle - this will fail initially
         ip_field_names = [
@@ -40,7 +41,7 @@ class TestIPAddressFieldDetection:
             result = detect_field_type(field_name, "10.0.0.1", None)
             assert result == FieldType.IP_ADDRESS, f"Failed for field: {field_name}"
 
-    def test_detect_ip_from_value_ipv4(self):
+    def test_detect_ip_from_value_ipv4(self) -> None:
         """Should detect IP addresses from IPv4 values."""
         # Red cycle - this will fail initially
         ipv4_values = [
@@ -55,7 +56,7 @@ class TestIPAddressFieldDetection:
             result = detect_field_type("some_field", ip_value, None)
             assert result == FieldType.IP_ADDRESS, f"Failed for IP: {ip_value}"
 
-    def test_detect_ip_from_value_ipv6(self):
+    def test_detect_ip_from_value_ipv6(self) -> None:
         """Should detect IP addresses from IPv6 values."""
         # Red cycle - this will fail initially
         ipv6_values = [
@@ -69,7 +70,7 @@ class TestIPAddressFieldDetection:
             result = detect_field_type("some_field", ip_value, None)
             assert result == FieldType.IP_ADDRESS, f"Failed for IPv6: {ip_value}"
 
-    def test_detect_ip_from_value_cidr(self):
+    def test_detect_ip_from_value_cidr(self) -> None:
         """Should detect CIDR networks as IP address type."""
         # Red cycle - this will fail initially
         cidr_values = [
@@ -83,7 +84,7 @@ class TestIPAddressFieldDetection:
             result = detect_field_type("network", cidr_value, None)
             assert result == FieldType.IP_ADDRESS, f"Failed for CIDR: {cidr_value}"
 
-    def test_detect_non_ip_values(self):
+    def test_detect_non_ip_values(self) -> None:
         """Should NOT detect non-IP values as IP addresses."""
         # Red cycle - this will fail initially
         non_ip_values = [
@@ -99,7 +100,7 @@ class TestIPAddressFieldDetection:
             result = detect_field_type("some_field", value, None)
             assert result != FieldType.IP_ADDRESS, f"Incorrectly detected as IP: {value}"
 
-    def test_detect_from_python_type(self):
+    def test_detect_from_python_type(self) -> None:
         """Should detect IP fields from Python type hints."""
         # Red cycle - this will fail initially
         try:
@@ -110,7 +111,7 @@ class TestIPAddressFieldDetection:
         except ImportError:
             pytest.skip("IpAddressField not available")
 
-    def test_detect_ip_list_values(self):
+    def test_detect_ip_list_values(self) -> None:
         """Should detect IP addresses in list values."""
         # Red cycle - this will fail initially
         ip_list = ["192.168.1.1", "10.0.0.1", "172.16.0.1"]

@@ -5,9 +5,9 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)
+[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.1.0) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.6.0) - Production Stable**
 
 ---
 
@@ -44,7 +44,9 @@ app = create_fraiseql_app(
 - 🔒 **Secure by design** - Explicit field contracts prevent data leaks
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
+- 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
+- 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 
 ## 🤔 Is this for me?
 
@@ -64,7 +66,7 @@ app = create_fraiseql_app(
 - Are building your first GraphQL API (start with simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
 
-*See [detailed audience guide](docs/strategic/AUDIENCES.md) for complete user profiles.*
+*See [detailed audience guide](dev/architecture/audiences.md) for complete user profiles.*
 
 ---
 
@@ -403,7 +405,7 @@ class CreateUser:
 
 **Quick links:**
 
-- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
+- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md) - 10-minute architecture overview
 - [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
 - [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
 - [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
@@ -673,7 +675,7 @@ FraiseQL implements Command Query Responsibility Segregation:
 - `fn_*` - Business logic, validation, side effects
 - `tb_*` - Base tables for data storage
 
-**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)**
+**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)**
 
 ### Key Innovations
 
@@ -814,16 +816,84 @@ query {
 }
 ```
 
-**Supported specialized types:**
+**50+ Specialized Scalar Types:**
 
-- **Network:** IPv4, IPv6, CIDR, MACAddress with subnet operations
-- **Hierarchical:** LTree with ancestor/descendant queries
-- **Temporal:** DateRange with overlap/containment
-- **Geospatial:** Coordinate (latitude/longitude) with distance calculations
-- **Standard:** EmailAddress, UUID, JSON with validation
-- **Nested Arrays:** Complete AND/OR/NOT logical operators
+**Financial & Trading:**
+- CUSIP, ISIN, SEDOL, MIC, LEI - Security identifiers
+- Money, Percentage, ExchangeRate - Financial values
+- CurrencyCode, StockSymbol - Trading symbols
 
-**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/nested-array-filtering.md)**
+**Network & Infrastructure:**
+- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
+- Hostname, DomainName, Port, EmailAddress - Internet identifiers
+- APIKey, HashSHA256 - Security tokens
+
+**Geospatial & Location:**
+- Coordinate, Latitude, Longitude - Geographic coordinates with distance calculations
+- PostalCode, Timezone - Location data
+
+**Business & Logistics:**
+- ContainerNumber, FlightNumber, TrackingNumber, VIN - Asset identifiers
+- IBAN, LicensePlate - Financial & vehicle identifiers
+- PhoneNumber, LocaleCode, LanguageCode - Contact & localization
+
+**Technical & Data:**
+- UUID, JSON, Date, DateTime, Time, DateRange - Standard types with validation
+- LTree - Hierarchical data with ancestor/descendant queries
+- SemanticVersion, Color, MIMEType, File, Image - Specialized formats
+- HTML, Markdown - Rich text content
+
+**Advanced Filtering:** Full-text search, JSONB queries, array operations, regex, vector similarity search on all types
+
+#### Scalar Type Usage Examples
+
+```python
+from fraiseql import type
+from fraiseql.types import (
+    EmailAddress, PhoneNumber, Money, Percentage,
+    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
+)
+
+@type(sql_source="v_financial_data")
+class FinancialRecord:
+    id: int
+    email: EmailAddress           # Validated email addresses
+    phone: PhoneNumber           # International phone numbers
+    balance: Money               # Currency amounts with precision
+    margin: Percentage           # Percentages (0.00-100.00)
+    security_id: CUSIP | ISIN    # Financial instrument identifiers
+
+@type(sql_source="v_network_devices")
+class NetworkDevice:
+    id: int
+    ip_address: IPv4             # IPv4 addresses with subnet operations
+    mac_address: MACAddress      # MAC addresses with validation
+    location: LTree              # Hierarchical location paths
+    maintenance_window: DateRange # Date ranges with overlap queries
+```
+
+```graphql
+# Advanced filtering with specialized types
+query {
+  financialRecords(where: {
+    balance: { gte: "1000.00" }           # Money comparison
+    margin: { between: ["5.0", "15.0"] }   # Percentage range
+    security_id: { eq: "037833100" }       # CUSIP validation
+  }) {
+    id balance margin security_id
+  }
+
+  networkDevices(where: {
+    ip_address: { inSubnet: "192.168.1.0/24" }  # CIDR operations
+    location: { ancestor_of: "US.CA.SF" }       # LTree hierarchy
+    maintenance_window: { overlaps: "[2024-01-01,2024-12-31)" }
+  }) {
+    id ip_address location
+  }
+}
+```
+
+**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/nested-array-filtering.md)**
 
 ### Enterprise Security
 
@@ -900,17 +970,17 @@ fraiseql dev
 
 ### Next Steps
 
-**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** - Build a complete blog API (60 minutes, hands-on)
-**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)** - Architecture deep dive (10 minute read)
-**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/quickstart.md)** - Copy, paste, run
+**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
+**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
+**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
 **📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
 
 ### Prerequisites
 
-- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
+- **Python 3.13+** (required for Rust pipeline integration and advanced type features)
 - **PostgreSQL 13+**
 
-**[📖 Detailed Installation Guide](INSTALLATION.md)** - Platform-specific instructions, troubleshooting
+**[📖 Detailed Installation Guide](docs/getting-started/installation.md)** - Platform-specific instructions, troubleshooting
 
 ---
 
@@ -962,7 +1032,7 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 - **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
   - **[Benchmark Methodology](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
   - **[Reproduction Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
-- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/troubleshooting.md)** - Common issues and solutions
 
 ---
 
@@ -1043,18 +1113,18 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.1.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.6.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v0.11.5** | Superseded | Legacy | Use v1.1.0 | ⚠️ Migrate |
+| **v1.5.0** | Superseded | Legacy | Use v1.6.0 | ⚠️ Migrate |
 
-**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
+**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
 **Migration Guides:**
 
 - [v1 to v2 Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/migration/v1-to-v2.md) - Unified Rust-first architecture
 - [Monitoring Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/production/monitoring.md) - From Redis and Sentry
 
-**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)**
+**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)**
 
 ---
 

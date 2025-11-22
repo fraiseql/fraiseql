@@ -12,7 +12,7 @@ from fraiseql.sql.sql_generator import build_sql_query
 class TestBuildSqlQuery:
     """Test the build_sql_query function comprehensively."""
 
-    def test_basic_query_no_json_output(self):
+    def test_basic_query_no_json_output(self) -> None:
         """Test basic query without JSON output."""
         field_paths = [FieldPath(path=["name"], alias="name"), FieldPath(path=["age"], alias="age")]
 
@@ -24,7 +24,7 @@ class TestBuildSqlQuery:
         assert "data->'age' AS \"age\"" in sql_str  # age is numeric, uses -> for type preservation
         assert 'FROM "users"' in sql_str
 
-    def test_basic_query_with_json_output(self):
+    def test_basic_query_with_json_output(self) -> None:
         """Test basic query with JSON output."""
         field_paths = [
             FieldPath(path=["name"], alias="name"),
@@ -39,7 +39,7 @@ class TestBuildSqlQuery:
         assert "'email', data->>'email'" in sql_str
         assert "AS result" in sql_str
 
-    def test_nested_field_paths(self):
+    def test_nested_field_paths(self) -> None:
         """Test query with nested field paths."""
         field_paths = [
             FieldPath(path=["id"], alias="id"),
@@ -54,7 +54,7 @@ class TestBuildSqlQuery:
         assert "data->'profile'->>'avatar'" in sql_str
         assert "data->'settings'->'theme'->>'color'" in sql_str
 
-    def test_with_typename(self):
+    def test_with_typename(self) -> None:
         """Test query with typename included."""
         field_paths = [FieldPath(path=["id"], alias="id"), FieldPath(path=["name"], alias="name")]
 
@@ -63,7 +63,7 @@ class TestBuildSqlQuery:
 
         assert "'__typename', 'User'" in sql_str
 
-    def test_with_where_clause(self):
+    def test_with_where_clause(self) -> None:
         """Test query with WHERE clause."""
         field_paths = [FieldPath(path=["name"], alias="name")]
         where_clause = SQL("data->>'is_active' = 'true'")
@@ -73,7 +73,7 @@ class TestBuildSqlQuery:
 
         assert "WHERE data->>'is_active' = 'true'" in sql_str
 
-    def test_with_order_by_single_field(self):
+    def test_with_order_by_single_field(self) -> None:
         """Test query with ORDER BY single field."""
         field_paths = [FieldPath(path=["name"], alias="name")]
         order_by = [("name", "ASC")]
@@ -83,7 +83,7 @@ class TestBuildSqlQuery:
 
         assert "ORDER BY data->>'name' ASC" in sql_str
 
-    def test_with_order_by_multiple_fields(self):
+    def test_with_order_by_multiple_fields(self) -> None:
         """Test query with ORDER BY multiple fields."""
         field_paths = [FieldPath(path=["name"], alias="name"), FieldPath(path=["age"], alias="age")]
         order_by = [("age", "DESC"), ("name", "ASC")]
@@ -93,7 +93,7 @@ class TestBuildSqlQuery:
 
         assert "ORDER BY data->>'age' DESC, data->>'name' ASC" in sql_str
 
-    def test_with_order_by_nested_field(self):
+    def test_with_order_by_nested_field(self) -> None:
         """Test query with ORDER BY on nested fields."""
         field_paths = [FieldPath(path=["name"], alias="name")]
         order_by = [("profile.created_at", "DESC")]
@@ -103,7 +103,7 @@ class TestBuildSqlQuery:
 
         assert "ORDER BY data->'profile'->>'created_at' DESC" in sql_str
 
-    def test_with_group_by_single_field(self):
+    def test_with_group_by_single_field(self) -> None:
         """Test query with GROUP BY single field."""
         field_paths = [FieldPath(path=["department"], alias="department")]
         group_by = ["department"]
@@ -113,7 +113,7 @@ class TestBuildSqlQuery:
 
         assert "GROUP BY data->>'department'" in sql_str
 
-    def test_with_group_by_multiple_fields(self):
+    def test_with_group_by_multiple_fields(self) -> None:
         """Test query with GROUP BY multiple fields."""
         field_paths = [
             FieldPath(path=["department"], alias="department"),
@@ -126,7 +126,7 @@ class TestBuildSqlQuery:
 
         assert "GROUP BY data->>'department', data->>'role'" in sql_str
 
-    def test_with_group_by_nested_field(self):
+    def test_with_group_by_nested_field(self) -> None:
         """Test query with GROUP BY on nested fields."""
         field_paths = [FieldPath(path=["name"], alias="name")]
         group_by = ["profile.country", "profile.city"]
@@ -136,7 +136,7 @@ class TestBuildSqlQuery:
 
         assert "GROUP BY data->'profile'->>'country', data->'profile'->>'city'" in sql_str
 
-    def test_with_all_clauses(self):
+    def test_with_all_clauses(self) -> None:
         """Test query with WHERE, GROUP BY, and ORDER BY clauses."""
         field_paths = [
             FieldPath(path=["department"], alias="department"),
@@ -165,7 +165,7 @@ class TestBuildSqlQuery:
         assert group_pos > where_pos
         assert order_pos > group_pos
 
-    def test_auto_camel_case_disabled(self):
+    def test_auto_camel_case_disabled(self) -> None:
         """Test query without auto camel case conversion."""
         field_paths = [FieldPath(path=["user_name"], alias="userName")]
 
@@ -175,7 +175,7 @@ class TestBuildSqlQuery:
         # Should use the path as-is
         assert "data->>'user_name'" in sql_str
 
-    def test_auto_camel_case_enabled(self):
+    def test_auto_camel_case_enabled(self) -> None:
         """Test query with auto camel case conversion."""
         field_paths = [FieldPath(path=["userName"], alias="userName")]
         order_by = [("firstName", "ASC")]
@@ -191,7 +191,7 @@ class TestBuildSqlQuery:
         assert "ORDER BY data->>'firstName' ASC" in sql_str
         assert "GROUP BY data->>'departmentId'" in sql_str
 
-    def test_auto_camel_case_with_nested_fields(self):
+    def test_auto_camel_case_with_nested_fields(self) -> None:
         """Test auto camel case with nested field paths."""
         field_paths = [FieldPath(path=["userProfile", "firstName"], alias="firstName")]
         order_by = [("userProfile.lastName", "ASC")]
@@ -207,7 +207,7 @@ class TestBuildSqlQuery:
         assert "ORDER BY data->'userProfile'->>'lastName' ASC" in sql_str
         assert "GROUP BY data->'userProfile'->>'departmentId'" in sql_str
 
-    def test_empty_field_paths(self):
+    def test_empty_field_paths(self) -> None:
         """Test query with empty field paths."""
         field_paths = []
 
@@ -217,7 +217,7 @@ class TestBuildSqlQuery:
         # Should still generate valid SQL
         assert 'SELECT jsonb_build_object() AS result FROM "users"' in sql_str
 
-    def test_special_characters_in_field_names(self):
+    def test_special_characters_in_field_names(self) -> None:
         """Test query with special characters in field names."""
         field_paths = [
             FieldPath(path=["field-with-dash"], alias="fieldWithDash"),
@@ -233,7 +233,7 @@ class TestBuildSqlQuery:
         assert "'field.with.dots'" in sql_str
         assert "'field with spaces'" in sql_str
 
-    def test_complex_nested_structure(self):
+    def test_complex_nested_structure(self) -> None:
         """Test query with complex nested structure."""
         field_paths = [
             FieldPath(path=["data", "items", "0", "value"], alias="firstItemValue"),
@@ -248,7 +248,7 @@ class TestBuildSqlQuery:
         assert "data->'data'->'items'->'0'->'value'" in sql_str
         assert "data->'meta'->'tags'->>'primary'" in sql_str
 
-    def test_table_name_escaping(self):
+    def test_table_name_escaping(self) -> None:
         """Test query with table name that needs escaping."""
         field_paths = [FieldPath(path=["id"], alias="id")]
 
@@ -259,7 +259,7 @@ class TestBuildSqlQuery:
         # Should properly escape table name
         assert 'FROM "user-accounts"' in sql_str
 
-    def test_field_alias_different_from_path(self):
+    def test_field_alias_different_from_path(self) -> None:
         """Test query where field alias differs from path."""
         field_paths = [
             FieldPath(path=["internal_id"], alias="id"),
@@ -275,7 +275,7 @@ class TestBuildSqlQuery:
         assert "'name', data->>'display_name'" in sql_str
         assert "'emailAddress', data->'contact'->>'email'" in sql_str
 
-    def test_non_json_output_formatting(self):
+    def test_non_json_output_formatting(self) -> None:
         """Test query formatting without JSON output."""
         field_paths = [
             FieldPath(path=["id"], alias="id"),
@@ -294,7 +294,7 @@ class TestBuildSqlQuery:
 class TestEdgeCasesAndErrors:
     """Test edge cases and error conditions."""
 
-    def test_single_field_query(self):
+    def test_single_field_query(self) -> None:
         """Test query with single field."""
         field_paths = [FieldPath(path=["id"], alias="id")]
 
@@ -303,7 +303,7 @@ class TestEdgeCasesAndErrors:
 
         assert "jsonb_build_object('id', data->>'id') AS result" in sql_str
 
-    def test_very_deep_nesting(self):
+    def test_very_deep_nesting(self) -> None:
         """Test query with very deep field nesting."""
         field_paths = [
             FieldPath(
@@ -318,7 +318,7 @@ class TestEdgeCasesAndErrors:
         expected = "data->'level1'->'level2'->'level3'->'level4'->'level5'->'value'"
         assert expected in sql_str
 
-    def test_numeric_field_paths(self):
+    def test_numeric_field_paths(self) -> None:
         """Test query with numeric indices in field paths."""
         field_paths = [
             FieldPath(path=["items", "0"], alias="firstItem"),

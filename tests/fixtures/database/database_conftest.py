@@ -45,7 +45,7 @@ _container_cache = {}
 
 
 @pytest.fixture(scope="session")
-def postgres_container():
+def postgres_container() -> None:
     """🚀 UNIFIED CONTAINER: Single PostgreSQL instance for ALL tests.
 
     This is the heart of our unified container approach:
@@ -70,7 +70,7 @@ def postgres_container():
         return
 
     container = PostgresContainer(
-        image="postgres:16-alpine",
+        image="pgvector/pgvector:pg16",
         username="fraiseql",
         password="fraiseql",
         dbname="fraiseql_test",
@@ -110,7 +110,7 @@ def postgres_url(postgres_container) -> str:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool, None]:
+async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
     """🔄 SHARED CONNECTION POOL: Efficient connection reuse across tests.
 
     Part of the unified container approach:
@@ -138,12 +138,28 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
     async with pool.connection() as conn:
         await conn.execute(
             """
-            -- Enable required extensions
-            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-            CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-            CREATE EXTENSION IF NOT EXISTS "ltree";
-        """
+                -- Enable required extensions
+                CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+                CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+                CREATE EXTENSION IF NOT EXISTS "ltree";
+            """
         )
+        # Try to create vector extension (required for pgvector support)
+        try:
+            # First check if vector extension is available
+            result = await conn.execute(
+                "SELECT name FROM pg_available_extensions WHERE name = 'vector'"
+            )
+            if await result.fetchone():
+                await conn.execute('CREATE EXTENSION IF NOT EXISTS "vector";')
+                print("✅ Vector extension created successfully")
+            else:
+                print("⚠️  Vector extension not available in this PostgreSQL installation")
+                print("   Vector-related tests will be skipped")
+        except Exception as e:
+            # Vector extension not available or creation failed
+            print(f"⚠️  Vector extension setup failed: {e}")
+            print("   Vector-related tests will be skipped")
         # Try to create pg_fraiseql_cache extension (optional)
         try:
             await conn.execute('CREATE EXTENSION IF NOT EXISTS "pg_fraiseql_cache";')
@@ -159,7 +175,7 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
 
 
 @pytest_asyncio.fixture
-async def db_connection(db_pool) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+async def db_connection(db_pool) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Provide an isolated database connection for each test.
 
     This fixture provides a connection with automatic transaction rollback
@@ -180,18 +196,18 @@ async def db_connection(db_pool) -> AsyncGenerator[psycopg.AsyncConnection, None
 
 
 @pytest_asyncio.fixture
-async def db_cursor(db_connection):
+async def db_cursor(db_connection) -> None:
     """Provide a cursor for simple database operations."""
     async with db_connection.cursor() as cur:
         yield cur
 
 
 @pytest.fixture
-def create_test_table():
+def create_test_table() -> None:
     """Factory fixture to create test tables."""
     created_tables = []
 
-    async def _create_table(conn: psycopg.AsyncConnection, table_name: str, schema: str):
+    async def _create_table(conn: psycopg.AsyncConnection, table_name: str, schema: str) -> None:
         """Create a test table with the given schema."""
         await conn.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
         await conn.execute(schema)
@@ -204,11 +220,11 @@ def create_test_table():
 
 
 @pytest.fixture
-def create_test_view():
+def create_test_view() -> None:
     """Factory fixture to create test views."""
     created_views = []
 
-    async def _create_view(conn: psycopg.AsyncConnection, view_name: str, query: str):
+    async def _create_view(conn: psycopg.AsyncConnection, view_name: str, query: str) -> None:
         """Create a test view with the given query."""
         await conn.execute(f"DROP VIEW IF EXISTS {view_name} CASCADE")
         await conn.execute(f"CREATE VIEW {view_name} AS {query}")
@@ -221,14 +237,14 @@ def create_test_view():
 
 
 @pytest.fixture
-def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
+def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool) -> None:
     """Factory fixture to create FraiseQL apps with real database connection.
 
     This fixture provides a factory function that creates properly configured
     FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
 
     Usage:
-        def test_something(create_fraiseql_app_with_db):
+        def test_something(create_fraiseql_app_with_db) -> None:
             app = create_fraiseql_app_with_db(
                 types=[MyType],
                 queries=[my_query],
@@ -240,7 +256,7 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
     from fraiseql.fastapi.app import create_fraiseql_app
     from fraiseql.fastapi.dependencies import set_db_pool
 
-    def _create_app(**kwargs):
+    def _create_app(**kwargs) -> None:
         """Create a FraiseQL app with proper database URL and pool."""
         # Use the real database URL from the container
         kwargs.setdefault("database_url", postgres_url)
@@ -258,7 +274,7 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
 
 # Alternative fixtures for tests that need committed data
 @pytest_asyncio.fixture
-async def db_connection_committed(db_pool) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+async def db_connection_committed(db_pool) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Provide a database connection with committed changes.
 
     Use this fixture when you need changes to persist across queries

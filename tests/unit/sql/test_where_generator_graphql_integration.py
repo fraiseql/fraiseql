@@ -4,16 +4,17 @@ This test suite verifies that the WHERE generator properly integrates with
 GraphQL field type extraction to enable network operator functionality.
 """
 
-import pytest
-from unittest.mock import Mock
 from dataclasses import dataclass
 from typing import get_type_hints
+from unittest.mock import Mock
 
-from fraiseql.types import IpAddress, MacAddress
+import pytest
+
 from fraiseql.sql.where_generator import (
-    create_where_type_with_graphql_context,
     _build_where_to_sql,
+    create_where_type_with_graphql_context,
 )
+from fraiseql.types import IpAddress, MacAddress
 
 
 @dataclass
@@ -29,7 +30,7 @@ class MockNetworkEntity:
 class TestWhereGeneratorGraphQLIntegration:
     """Test WHERE generator integration with GraphQL field type extraction."""
 
-    def test_create_where_type_with_graphql_context(self):
+    def test_create_where_type_with_graphql_context(self) -> None:
         """Test creation of WHERE type with GraphQL context support."""
         # Mock GraphQL info
         mock_info = Mock()
@@ -49,7 +50,7 @@ class TestWhereGeneratorGraphQLIntegration:
         assert hasattr(instance, "ip_address")
         assert hasattr(instance, "mac_address")
 
-    def test_where_type_graphql_context_field_extraction(self):
+    def test_where_type_graphql_context_field_extraction(self) -> None:
         """Test that WHERE type uses GraphQL context for field type extraction."""
         # Mock GraphQL info
         mock_info = Mock()
@@ -73,7 +74,7 @@ class TestWhereGeneratorGraphQLIntegration:
         assert "ip_address" in sql_str
         assert "8.8.8.8" in sql_str
 
-    def test_build_where_to_sql_with_graphql_context(self):
+    def test_build_where_to_sql_with_graphql_context(self) -> None:
         """Test _build_where_to_sql with GraphQL context parameter."""
         # Mock GraphQL info
         mock_info = Mock()
@@ -106,7 +107,7 @@ class TestWhereGeneratorGraphQLIntegration:
         # Should contain IP address filter
         assert "192.168.1.1" in sql_str
 
-    def test_graphql_context_enhances_field_type_detection(self):
+    def test_graphql_context_enhances_field_type_detection(self) -> None:
         """Test that GraphQL context enhances field type detection beyond type hints."""
 
         @dataclass
@@ -140,7 +141,7 @@ class TestWhereGeneratorGraphQLIntegration:
         assert "10.0.0.1" in sql_str
         assert "00:11:22:33:44:55" in sql_str
 
-    def test_graphql_context_fallback_graceful(self):
+    def test_graphql_context_fallback_graceful(self) -> None:
         """Test that GraphQL context integration fails gracefully."""
         # Test with None GraphQL info
         where_type = create_where_type_with_graphql_context(MockNetworkEntity, None)
@@ -154,7 +155,7 @@ class TestWhereGeneratorGraphQLIntegration:
         assert sql is not None
         assert "8.8.8.8" in str(sql)
 
-    def test_backwards_compatibility_maintained(self):
+    def test_backwards_compatibility_maintained(self) -> None:
         """Test that the enhancement maintains backwards compatibility."""
         from fraiseql.sql.where_generator import safe_create_where_type
 
@@ -182,10 +183,9 @@ class TestWhereGeneratorGraphQLIntegration:
 class TestNetworkOperatorIntegration:
     """Test integration with network operator strategies."""
 
-    def test_network_field_uses_network_operator_strategy(self):
+    def test_network_field_uses_network_operator_strategy(self) -> None:
         """Test that network fields use NetworkOperatorStrategy through GraphQL context."""
         # This test verifies the end-to-end integration
-        from fraiseql.sql.operator_strategies import get_operator_registry
 
         # Mock GraphQL context that would have network field information
         mock_info = Mock()
@@ -211,7 +211,7 @@ class TestNetworkOperatorIntegration:
         # Should contain the IP address
         assert "203.0.113.1" in sql_str
 
-    def test_comparison_with_original_behavior(self):
+    def test_comparison_with_original_behavior(self) -> None:
         """Test comparison between original and enhanced behavior."""
         from fraiseql.sql.where_generator import safe_create_where_type
 

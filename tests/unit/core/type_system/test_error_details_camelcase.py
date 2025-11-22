@@ -26,7 +26,7 @@ class MutationError:
     errors: list[Error] | None = None
 
 
-def test_error_details_camelcase_transformation():
+def test_error_details_camelcase_transformation() -> None:
     """Test that error details from extra_metadata are transformed to camelCase."""
     # Enable camelCase fields
     config = SchemaConfig.get_instance()
@@ -103,7 +103,7 @@ def test_error_details_camelcase_transformation():
         config.camel_case_fields = original_setting
 
 
-def test_error_details_snake_case_preserved():
+def test_error_details_snake_case_preserved() -> None:
     """Test that error details keep snake_case when camelCase is disabled."""
     # Disable camelCase fields
     config = SchemaConfig.get_instance()

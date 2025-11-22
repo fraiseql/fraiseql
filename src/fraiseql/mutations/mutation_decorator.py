@@ -24,6 +24,7 @@ class MutationDefinition:
         schema: str | None = None,
         context_params: dict[str, str] | None = None,
         error_config: MutationErrorConfig | None = None,
+        enable_cascade: bool = False,
     ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
@@ -34,6 +35,7 @@ class MutationDefinition:
 
         self.context_params = context_params or {}
         self.error_config = error_config
+        self.enable_cascade = enable_cascade
 
         # Get type hints
         hints = get_type_hints(mutation_class)
@@ -154,8 +156,49 @@ class MutationDefinition:
                 self.error_config,
             )
 
+            # Check for cascade data if enabled
+            if self.enable_cascade:
+                # Extract cascade field selections from GraphQL query
+                cascade_data = None
+                if "_cascade" in result:
+                    cascade_data = result["_cascade"]
+                elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
+                    cascade_data = parsed_result.extra_metadata["_cascade"]
+
+                if cascade_data:
+                    # Try to filter cascade data based on GraphQL selections
+                    try:
+                        from fraiseql.mutations.cascade_selections import extract_cascade_selections
+
+                        cascade_selections = extract_cascade_selections(info)
+
+                        if cascade_selections:
+                            # Filter using Rust
+                            filtered_cascade = _filter_cascade_rust(
+                                cascade_data, cascade_selections
+                            )
+                            parsed_result.__cascade__ = filtered_cascade
+                        else:
+                            # No selections - return all cascade data
+                            parsed_result.__cascade__ = cascade_data
+                    except Exception as e:
+                        # Fallback: return unfiltered cascade data
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Cascade filtering failed, using unfiltered data: {e}")
+                        parsed_result.__cascade__ = cascade_data
+
             # Return the parsed result directly - let GraphQL handle object resolution
             # Serialization will be handled at the JSON encoding stage
+
+            # IMPORTANT: Add cascade resolver if enabled
+            if self.enable_cascade and hasattr(parsed_result, "__cascade__"):
+                # Attach a resolver for the cascade field
+                def resolve_cascade(obj: Any, info: Any) -> Any:
+                    return getattr(obj, "__cascade__", None)
+
+                parsed_result.__resolve_cascade__ = resolve_cascade
 
             # DEBUG: Check if errors field is being set correctly for enterprise compatibility
             if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
@@ -209,11 +252,27 @@ class MutationDefinition:
         resolver.__fraiseql_mutation__ = self
 
         # Set proper annotations for the resolver
-        # We use Union of success and error types as the return type
-        from typing import Union
+        # We use FraiseUnion wrapper for success/error result unions
+        from typing import Annotated
+
+        from fraiseql.mutations.decorators import FraiseUnion
 
         if self.success_type and self.error_type:
-            return_type = Union[self.success_type, self.error_type]
+            # Check if success and error types are the same (single result type pattern)
+            if self.success_type is self.error_type:
+                # Single result type used for both success and error - no union needed
+                return_type = self.success_type
+            else:
+                # Create union name from success type (e.g., CreateUserSuccess -> CreateUserResult)
+                success_name = getattr(self.success_type, "__name__", "Success")
+                base_name = success_name.removesuffix("Success")
+                union_name = f"{base_name}Result"
+
+                # Wrap in FraiseUnion to indicate this is a result union
+                return_type = Annotated[
+                    self.success_type | self.error_type,
+                    FraiseUnion(union_name),
+                ]
         else:
             return_type = self.success_type or self.error_type
 
@@ -230,6 +289,7 @@ def mutation(
     schema: str | None = None,
     context_params: dict[str, str] | None = None,
     error_config: MutationErrorConfig | None = None,
+    enable_cascade: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
     """Decorator to define GraphQL mutations with PostgreSQL function backing.
 
@@ -243,6 +303,7 @@ def mutation(
         schema: PostgreSQL schema containing the function (defaults to "graphql")
         context_params: Maps GraphQL context keys to PostgreSQL function parameter names
         error_config: Optional configuration for error detection behavior
+        enable_cascade: Enable GraphQL cascade functionality to include side effects in response
 
     Returns:
         Decorated mutation with automatic PostgreSQL function integration
@@ -588,7 +649,9 @@ def mutation(
         # Otherwise, it's a class-based mutation
         cls = cls_or_fn
         # Create mutation definition
-        definition = MutationDefinition(cls, function, schema, context_params, error_config)
+        definition = MutationDefinition(
+            cls, function, schema, context_params, error_config, enable_cascade
+        )
 
         # Store definition on the class
         cls.__fraiseql_mutation__ = definition
@@ -649,3 +712,30 @@ def _to_dict(obj: Any) -> dict[str, Any]:
         return obj
     msg = f"Cannot convert {type(obj)} to dictionary"
     raise TypeError(msg)
+
+
+def _filter_cascade_rust(cascade_data: dict, selections_json: str) -> dict:
+    """Filter cascade data using Rust implementation.
+
+    Args:
+        cascade_data: Raw cascade data from PostgreSQL
+        selections_json: JSON string of field selections from GraphQL query
+
+    Returns:
+        Filtered cascade data dict
+
+    Raises:
+        Exception: If Rust filtering fails (handled by caller)
+    """
+    import json
+
+    from fraiseql import fraiseql_rs
+
+    # Convert cascade data to JSON
+    cascade_json = json.dumps(cascade_data, separators=(",", ":"))
+
+    # Call Rust filter
+    filtered_json = fraiseql_rs.filter_cascade_data(cascade_json, selections_json)
+
+    # Parse back to dict
+    return json.loads(filtered_json)

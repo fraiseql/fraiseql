@@ -10,21 +10,21 @@ from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 
 # Test types for context parameter mutations
 class CreateLocationInput:
-    def __init__(self, name: str, address: str):
+    def __init__(self, name: str, address: str) -> None:
         self.name = name
         self.address = address
 
-    def to_dict(self):
+    def to_dict(self) -> None:
         return {"name": self.name, "address": self.address}
 
 
 class CreateLocationSuccess:
-    def __init__(self, location_id: UUID):
+    def __init__(self, location_id: UUID) -> None:
         self.location_id = location_id
 
 
 class CreateLocationError:
-    def __init__(self, message: str, code: str):
+    def __init__(self, message: str, code: str) -> None:
         self.message = message
         self.code = code
 
@@ -43,7 +43,7 @@ class CreateLocation:
 class TestContextParameters:
     """Test context parameter functionality."""
 
-    def test_mutation_definition_with_context_params(self):
+    def test_mutation_definition_with_context_params(self) -> None:
         """Test MutationDefinition stores context parameters correctly."""
         context_params = {"tenant_id": "input_pk_organization", "user": "input_created_by"}
 
@@ -53,14 +53,14 @@ class TestContextParameters:
         assert definition.function_name == "create_location"
         assert definition.schema == "app"
 
-    def test_mutation_definition_without_context_params(self):
+    def test_mutation_definition_without_context_params(self) -> None:
         """Test MutationDefinition works without context parameters."""
         definition = MutationDefinition(CreateLocation, "create_location", "app")
 
         assert definition.context_params == {}
 
     @pytest.mark.asyncio
-    async def test_resolver_with_context_params(self):
+    async def test_resolver_with_context_params(self) -> None:
         """Test resolver extracts context parameters and calls database correctly."""
         # Create mock database - return simple dict to avoid parser issues
         mock_db = AsyncMock()
@@ -68,7 +68,7 @@ class TestContextParameters:
 
         # Create mock user context
         class MockUserContext:
-            def __init__(self, user_id: str):
+            def __init__(self, user_id: str) -> None:
                 self.user_id = user_id
 
         mock_user = MockUserContext("user-123")
@@ -113,7 +113,7 @@ class TestContextParameters:
         assert input_dict["address"] == "123 Test St"
 
     @pytest.mark.asyncio
-    async def test_resolver_without_context_params(self):
+    async def test_resolver_without_context_params(self) -> None:
         """Test resolver falls back to original execute_function without context."""
         # Create mock database - return simple dict to avoid parser issues
         mock_db = AsyncMock()
@@ -141,7 +141,7 @@ class TestContextParameters:
         mock_db.execute_function_with_context.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_resolver_missing_context_parameter(self):
+    async def test_resolver_missing_context_parameter(self) -> None:
         """Test resolver raises error when required context parameter is missing."""
         # Create mock database
         mock_db = AsyncMock()
@@ -163,7 +163,7 @@ class TestContextParameters:
         with pytest.raises(RuntimeError, match="Required context parameter 'tenant_id' not found"):
             await resolver(mock_info, input_data)
 
-    def test_decorator_with_context_params(self):
+    def test_decorator_with_context_params(self) -> None:
         """Test @mutation decorator accepts context_params parameter."""
         # This test verifies the decorator was applied correctly
         assert hasattr(CreateLocation, "__fraiseql_mutation__")

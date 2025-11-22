@@ -65,6 +65,29 @@ class APQStorageBackend(ABC):
             context: Optional request context containing user/tenant information
         """
 
+    def register_queries(self, queries: list[str]) -> dict[str, str]:
+        """Register multiple queries for persisted query mode.
+
+        This method computes the SHA256 hash for each query and stores them
+        in the backend. Use this for build-time registration of allowed queries
+        when using apq_mode='required'.
+
+        Args:
+            queries: List of GraphQL query strings to register
+
+        Returns:
+            Dict mapping hash -> query for all registered queries
+        """
+        from fraiseql.storage.apq_store import compute_query_hash
+
+        result: dict[str, str] = {}
+        for query in queries:
+            hash_value = compute_query_hash(query)
+            if hash_value not in result:  # Avoid duplicate storage
+                self.store_persisted_query(hash_value, query)
+                result[hash_value] = query
+        return result
+
     def extract_tenant_id(self, context: Optional[dict[str, Any]]) -> Optional[str]:
         """Extract tenant_id from various context structures.
 

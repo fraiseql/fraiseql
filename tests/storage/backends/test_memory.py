@@ -1,18 +1,16 @@
 """Tests for APQ memory storage backend."""
 
-import pytest
-
-from fraiseql.storage.backends.memory import MemoryAPQBackend
 from fraiseql.storage.backends.base import APQStorageBackend
+from fraiseql.storage.backends.memory import MemoryAPQBackend
 
 
-def test_memory_backend_implements_interface():
+def test_memory_backend_implements_interface() -> None:
     """Test that MemoryAPQBackend implements APQStorageBackend interface."""
     backend = MemoryAPQBackend()
     assert isinstance(backend, APQStorageBackend)
 
 
-def test_memory_backend_store_and_retrieve_query():
+def test_memory_backend_store_and_retrieve_query() -> None:
     """Test storing and retrieving persisted queries."""
     backend = MemoryAPQBackend()
 
@@ -30,7 +28,7 @@ def test_memory_backend_store_and_retrieve_query():
     assert retrieved == query
 
 
-def test_memory_backend_store_and_retrieve_cached_response():
+def test_memory_backend_store_and_retrieve_cached_response() -> None:
     """Test storing and retrieving cached responses."""
     backend = MemoryAPQBackend()
 
@@ -48,7 +46,7 @@ def test_memory_backend_store_and_retrieve_cached_response():
     assert retrieved == response
 
 
-def test_memory_backend_multiple_queries():
+def test_memory_backend_multiple_queries() -> None:
     """Test storing multiple different queries."""
     backend = MemoryAPQBackend()
 
@@ -68,7 +66,7 @@ def test_memory_backend_multiple_queries():
         assert retrieved == expected_query
 
 
-def test_memory_backend_multiple_responses():
+def test_memory_backend_multiple_responses() -> None:
     """Test storing multiple different cached responses."""
     backend = MemoryAPQBackend()
 
@@ -88,7 +86,7 @@ def test_memory_backend_multiple_responses():
         assert retrieved == expected_response
 
 
-def test_memory_backend_overwrite_query():
+def test_memory_backend_overwrite_query() -> None:
     """Test overwriting existing persisted query."""
     backend = MemoryAPQBackend()
 
@@ -105,7 +103,7 @@ def test_memory_backend_overwrite_query():
     assert backend.get_persisted_query(hash_value) == query2
 
 
-def test_memory_backend_overwrite_response():
+def test_memory_backend_overwrite_response() -> None:
     """Test overwriting existing cached response."""
     backend = MemoryAPQBackend()
 
@@ -122,7 +120,7 @@ def test_memory_backend_overwrite_response():
     assert backend.get_cached_response(hash_value) == response2
 
 
-def test_memory_backend_separate_storages():
+def test_memory_backend_separate_storages() -> None:
     """Test that query and response storage are separate."""
     backend = MemoryAPQBackend()
 
@@ -139,7 +137,7 @@ def test_memory_backend_separate_storages():
     assert backend.get_cached_response(hash_value) == response
 
 
-def test_memory_backend_edge_cases():
+def test_memory_backend_edge_cases() -> None:
     """Test edge cases for memory backend."""
     backend = MemoryAPQBackend()
 
@@ -155,7 +153,7 @@ def test_memory_backend_edge_cases():
     assert backend.get_cached_response("test") == {}
 
 
-def test_memory_backend_isolation():
+def test_memory_backend_isolation() -> None:
     """Test that different backend instances are isolated."""
     backend1 = MemoryAPQBackend()
     backend2 = MemoryAPQBackend()
@@ -173,9 +171,9 @@ def test_memory_backend_isolation():
     assert backend2.get_persisted_query(hash_value) == query2
 
 
-def test_memory_backend_backward_compatibility():
+def test_memory_backend_backward_compatibility() -> None:
     """Test backward compatibility with existing apq_store functions."""
-    from fraiseql.storage.apq_store import store_persisted_query, get_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, get_persisted_query, store_persisted_query
 
     # Clear existing storage
     clear_storage()

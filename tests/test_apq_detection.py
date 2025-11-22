@@ -1,10 +1,9 @@
 """Tests for APQ request detection functionality."""
 
-import pytest
 from fraiseql.fastapi.routers import GraphQLRequest
 
 
-def test_detect_apq_request():
+def test_detect_apq_request() -> None:
     """Test detection of APQ requests vs normal GraphQL requests."""
     # This test will fail until we implement is_apq_request function
     from fraiseql.middleware.apq import is_apq_request
@@ -18,7 +17,7 @@ def test_detect_apq_request():
     assert is_apq_request(normal_request) == False
 
 
-def test_detect_apq_request_with_both_query_and_hash():
+def test_detect_apq_request_with_both_query_and_hash() -> None:
     """Test APQ detection when both query and hash are present."""
     from fraiseql.middleware.apq import is_apq_request
 
@@ -29,7 +28,7 @@ def test_detect_apq_request_with_both_query_and_hash():
     assert is_apq_request(apq_request) == True
 
 
-def test_detect_apq_request_with_non_apq_extensions():
+def test_detect_apq_request_with_non_apq_extensions() -> None:
     """Test APQ detection with non-APQ extensions."""
     from fraiseql.middleware.apq import is_apq_request
 
@@ -38,7 +37,7 @@ def test_detect_apq_request_with_non_apq_extensions():
     assert is_apq_request(request) == False
 
 
-def test_detect_apq_request_no_extensions():
+def test_detect_apq_request_no_extensions() -> None:
     """Test APQ detection with no extensions."""
     from fraiseql.middleware.apq import is_apq_request
 
@@ -47,7 +46,7 @@ def test_detect_apq_request_no_extensions():
     assert is_apq_request(request) == False
 
 
-def test_detect_apq_request_empty_extensions():
+def test_detect_apq_request_empty_extensions() -> None:
     """Test APQ detection with empty extensions."""
     from fraiseql.middleware.apq import is_apq_request
 
@@ -56,7 +55,7 @@ def test_detect_apq_request_empty_extensions():
     assert is_apq_request(request) == False
 
 
-def test_get_apq_hash():
+def test_get_apq_hash() -> None:
     """Test extracting APQ hash from request."""
     from fraiseql.middleware.apq import get_apq_hash
 
@@ -69,7 +68,7 @@ def test_get_apq_hash():
     assert get_apq_hash(normal_request) is None
 
 
-def test_is_apq_hash_only_request():
+def test_is_apq_hash_only_request() -> None:
     """Test detecting hash-only APQ requests."""
     from fraiseql.middleware.apq import is_apq_hash_only_request
 
@@ -86,7 +85,7 @@ def test_is_apq_hash_only_request():
     assert is_apq_hash_only_request(normal) == False
 
 
-def test_is_apq_with_query_request():
+def test_is_apq_with_query_request() -> None:
     """Test detecting APQ requests that include query."""
     from fraiseql.middleware.apq import is_apq_with_query_request
 

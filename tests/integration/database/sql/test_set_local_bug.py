@@ -10,7 +10,7 @@ from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
 @pytest.mark.asyncio
-async def test_set_local_with_timeout_should_not_use_prepared_statement():
+async def test_set_local_with_timeout_should_not_use_prepared_statement() -> None:
     """Test that SET LOCAL statement_timeout doesn't use prepared statement parameters."""
     # Create a mock pool and connection
     mock_pool = AsyncMock(spec=AsyncConnectionPool)
@@ -56,7 +56,7 @@ async def test_set_local_with_timeout_should_not_use_prepared_statement():
 
 
 @pytest.mark.asyncio
-async def test_execute_function_set_local_bug():
+async def test_execute_function_set_local_bug() -> None:
     """Test that execute_function also has the SET LOCAL bug."""
     # Create a mock pool and connection
     mock_pool = MagicMock()  # Not AsyncMock to control attributes,
@@ -99,7 +99,7 @@ async def test_execute_function_set_local_bug():
 
 
 @pytest.mark.asyncio
-async def test_no_timeout_skips_set_local():
+async def test_no_timeout_skips_set_local() -> None:
     """Test that when query_timeout is None, SET LOCAL is not executed."""
     # Create a mock pool and connection
     mock_pool = AsyncMock(spec=AsyncConnectionPool)

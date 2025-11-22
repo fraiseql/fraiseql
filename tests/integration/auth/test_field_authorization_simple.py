@@ -11,7 +11,7 @@ from fraiseql.security.field_auth import FieldAuthorizationError
 
 
 @pytest.mark.security
-def test_field_authorization_in_graphql():
+def test_field_authorization_in_graphql() -> None:
     """Test field authorization in actual GraphQL execution."""
 
     @fraiseql.type
@@ -53,10 +53,10 @@ def test_field_authorization_in_graphql():
     assert result.data == {"currentUser": {"name": "John Doe", "email": None}}
 
 
-def test_simple_permission_check():
+def test_simple_permission_check() -> None:
     """Test a simple permission check function."""
 
-    def is_admin(context):
+    def is_admin(context) -> None:
         return context.get("is_admin", False)
 
     # Admin context
@@ -72,7 +72,7 @@ def test_simple_permission_check():
     assert is_admin(empty_context) is False
 
 
-def test_field_authorization_error():
+def test_field_authorization_error() -> None:
     """Test FieldAuthorizationError properties."""
     error = FieldAuthorizationError("Custom error message")
     assert str(error) == "Custom error message"

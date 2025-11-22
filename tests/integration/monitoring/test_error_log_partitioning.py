@@ -1,12 +1,13 @@
 """Tests for PostgreSQL table partitioning in monitoring module."""
 
-import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 
 @pytest.fixture
-async def partitioned_db(db_pool):
+async def partitioned_db(db_pool) -> None:
     """Set up partitioned schema for testing."""
     # Read and execute partitioned schema
     with open("src/fraiseql/monitoring/schema.sql") as f:
@@ -39,7 +40,7 @@ class TestErrorOccurrencePartitioning:
     """Test monthly partitioning of error occurrences."""
 
     @pytest.mark.asyncio
-    async def test_partitions_created_automatically(self, partitioned_db):
+    async def test_partitions_created_automatically(self, partitioned_db) -> None:
         """Test that initial partitions are created."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -66,7 +67,7 @@ class TestErrorOccurrencePartitioning:
                     assert len(partition) == len("tb_error_occurrence_2024_01")
 
     @pytest.mark.asyncio
-    async def test_write_to_correct_partition(self, partitioned_db):
+    async def test_write_to_correct_partition(self, partitioned_db) -> None:
         """Test that data goes to correct partition based on timestamp."""
         error_id = str(uuid4())
 
@@ -132,7 +133,7 @@ class TestErrorOccurrencePartitioning:
                 assert "tb_error_occurrence_" in partition2
 
     @pytest.mark.asyncio
-    async def test_create_partition_function(self, partitioned_db):
+    async def test_create_partition_function(self, partitioned_db) -> None:
         """Test manual partition creation function."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -167,7 +168,7 @@ class TestErrorOccurrencePartitioning:
                 assert exists is True
 
     @pytest.mark.asyncio
-    async def test_ensure_partitions_function(self, partitioned_db):
+    async def test_ensure_partitions_function(self, partitioned_db) -> None:
         """Test automatic partition creation function."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -188,7 +189,7 @@ class TestErrorOccurrencePartitioning:
                     assert created is True
 
     @pytest.mark.asyncio
-    async def test_partition_pruning_query(self, partitioned_db):
+    async def test_partition_pruning_query(self, partitioned_db) -> None:
         """Test that partition pruning works for date-based queries."""
         error_id = str(uuid4())
 
@@ -242,7 +243,7 @@ class TestErrorOccurrencePartitioning:
                 assert "tb_error_occurrence" in str(explain_json)
 
     @pytest.mark.asyncio
-    async def test_get_partition_stats(self, partitioned_db):
+    async def test_get_partition_stats(self, partitioned_db) -> None:
         """Test partition statistics function."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -275,7 +276,7 @@ class TestPartitionRetention:
         "management SQL function."
     )
     @pytest.mark.asyncio
-    async def test_drop_old_partitions_function(self, partitioned_db):
+    async def test_drop_old_partitions_function(self, partitioned_db) -> None:
         """Test dropping old partitions based on retention policy."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -338,7 +339,7 @@ class TestSchemaVersioning:
     """Test schema version tracking."""
 
     @pytest.mark.asyncio
-    async def test_schema_version_table_exists(self, partitioned_db):
+    async def test_schema_version_table_exists(self, partitioned_db) -> None:
         """Test that schema version tracking table exists."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -356,7 +357,7 @@ class TestSchemaVersioning:
                 assert exists is True
 
     @pytest.mark.asyncio
-    async def test_monitoring_schema_version(self, partitioned_db):
+    async def test_monitoring_schema_version(self, partitioned_db) -> None:
         """Test that monitoring module version is tracked."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -381,7 +382,7 @@ class TestNotificationLogPartitioning:
     """Test notification log partitioning."""
 
     @pytest.mark.asyncio
-    async def test_notification_log_is_partitioned(self, partitioned_db):
+    async def test_notification_log_is_partitioned(self, partitioned_db) -> None:
         """Test that notification log uses partitioning."""
         async with partitioned_db.connection() as conn:
             async with conn.cursor() as cur:
@@ -408,7 +409,7 @@ class TestBackwardsCompatibility:
     """Test that code works with partitioned schema."""
 
     @pytest.mark.asyncio
-    async def test_error_tracker_with_partitions(self, partitioned_db):
+    async def test_error_tracker_with_partitions(self, partitioned_db) -> None:
         """Test that error tracker works with partitioned schema."""
         from fraiseql.monitoring import init_error_tracker
 

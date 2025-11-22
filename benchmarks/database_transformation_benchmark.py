@@ -163,7 +163,7 @@ async def run_database_benchmark() -> None:
 
         # Import Rust transformer
         try:
-            import fraiseql_rs
+            from fraiseql import fraiseql_rs
 
             rust_available = True
         except ImportError:

@@ -14,13 +14,13 @@ from fraiseql.analysis.complexity_config import (
 class TestComplexityConfig:
     """Test ComplexityConfig functionality."""
 
-    def test_default_config_singleton(self):
+    def test_default_config_singleton(self) -> None:
         """Test that get_default returns singleton instance."""
         config1 = ComplexityConfig.get_default()
         config2 = ComplexityConfig.get_default()
         assert config1 is config2
 
-    def test_set_default_config(self):
+    def test_set_default_config(self) -> None:
         """Test setting custom default config."""
         custom_config = ComplexityConfig(depth_multiplier=3.0)
         ComplexityConfig.set_default(custom_config)
@@ -32,7 +32,7 @@ class TestComplexityConfig:
         # Reset to default
         ComplexityConfig._default = None
 
-    def test_array_field_detection(self):
+    def test_array_field_detection(self) -> None:
         """Test array field detection logic."""
         config = ComplexityConfig()
 
@@ -55,7 +55,7 @@ class TestComplexityConfig:
         assert config.is_array_field("s") is False  # Too short
         assert config.is_array_field("as") is False  # Too short
 
-    def test_depth_penalty_calculation(self):
+    def test_depth_penalty_calculation(self) -> None:
         """Test depth penalty calculation with bounds."""
         config = ComplexityConfig(depth_multiplier=2.0, max_depth_penalty=100)
 
@@ -72,7 +72,7 @@ class TestComplexityConfig:
         assert config.calculate_depth_penalty(20) == 100  # Capped at max
         assert config.calculate_depth_penalty(100) == 100  # Still capped
 
-    def test_depth_penalty_overflow_prevention(self):
+    def test_depth_penalty_overflow_prevention(self) -> None:
         """Test that depth penalty prevents integer overflow."""
         config = ComplexityConfig(depth_multiplier=10.0, max_depth_penalty=1000)
 
@@ -84,7 +84,7 @@ class TestComplexityConfig:
         result = config.calculate_depth_penalty(999999)
         assert result == 1000
 
-    def test_array_penalty_calculation(self):
+    def test_array_penalty_calculation(self) -> None:
         """Test array penalty calculation."""
         config = ComplexityConfig(array_field_multiplier=10, array_depth_factor=1.5)
 
@@ -106,7 +106,7 @@ class TestComplexityConfig:
         expected = int(5 * 10 * (1.5**3))  # 168
         assert penalty == expected
 
-    def test_cache_weight_calculation(self):
+    def test_cache_weight_calculation(self) -> None:
         """Test cache weight calculation for different scores."""
         config = ComplexityConfig()
 
@@ -127,7 +127,7 @@ class TestComplexityConfig:
         assert config.get_cache_weight(400) == 4.0  # 2x threshold
         assert config.get_cache_weight(600) == 6.0  # 3x threshold
 
-    def test_preset_configurations(self):
+    def test_preset_configurations(self) -> None:
         """Test preset configuration values."""
         # STRICT config
         assert STRICT_CONFIG.depth_multiplier == 2.0
@@ -144,7 +144,7 @@ class TestComplexityConfig:
         assert RELAXED_CONFIG.array_field_multiplier == 5
         assert RELAXED_CONFIG.complex_query_threshold == 500
 
-    def test_custom_array_patterns(self):
+    def test_custom_array_patterns(self) -> None:
         """Test custom array field patterns."""
         # Use lowercase patterns since the method converts to lowercase
         config = ComplexityConfig(array_field_patterns=["foolist", "barcollection", "customarray"])
@@ -164,7 +164,7 @@ class TestComplexityConfig:
         # Plural detection still works
         assert config.is_array_field("users") is True
 
-    def test_config_boundaries(self):
+    def test_config_boundaries(self) -> None:
         """Test configuration with boundary values."""
         # Test with zero/negative values
         config = ComplexityConfig(base_field_cost=0, depth_multiplier=0.0, array_field_multiplier=0)

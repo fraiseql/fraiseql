@@ -9,7 +9,7 @@ from graphql import FieldNode
 from fraiseql.mutations.selection_filter import filter_mutation_result
 
 
-def create_field_node_mock(name, alias=None, selections=None):
+def create_field_node_mock(name, alias=None, selections=None) -> None:
     """Create a properly configured FieldNode mock."""
     mock = MagicMock(spec=FieldNode)
     mock.name.value = name
@@ -25,7 +25,7 @@ def create_field_node_mock(name, alias=None, selections=None):
 class TestSelectionFilter:
     """Test selection filter functionality."""
 
-    def test_filter_mutation_result_simple_fields(self):
+    def test_filter_mutation_result_simple_fields(self) -> None:
         """Test filtering with simple field selection."""
         # Mock GraphQL info with simple field selection
         mock_info = MagicMock()
@@ -55,7 +55,7 @@ class TestSelectionFilter:
         assert filtered["id"] == "123"
         assert filtered["name"] == "John Doe"
 
-    def test_filter_mutation_result_nested_fields(self):
+    def test_filter_mutation_result_nested_fields(self) -> None:
         """Test filtering with nested field selection."""
         # Mock GraphQL info with nested selection
         mock_info = MagicMock()
@@ -102,7 +102,7 @@ class TestSelectionFilter:
         assert "age" not in user
         assert "profile" not in user
 
-    def test_filter_mutation_result_missing_fields(self):
+    def test_filter_mutation_result_missing_fields(self) -> None:
         """Test filtering when requested fields are missing from data."""
         mock_info = MagicMock()
         mock_field_node = MagicMock()
@@ -122,7 +122,7 @@ class TestSelectionFilter:
         assert "missing_field" not in filtered
         assert "name" not in filtered  # Not requested
 
-    def test_filter_mutation_result_empty_selection(self):
+    def test_filter_mutation_result_empty_selection(self) -> None:
         """Test filtering with empty selection set."""
         mock_info = MagicMock()
         mock_field_node = MagicMock()
@@ -136,7 +136,7 @@ class TestSelectionFilter:
         # Should return empty dict
         assert filtered == {}
 
-    def test_filter_mutation_result_no_field_nodes(self):
+    def test_filter_mutation_result_no_field_nodes(self) -> None:
         """Test filtering when no field nodes are present."""
         mock_info = MagicMock()
         mock_info.field_nodes = []
@@ -148,7 +148,7 @@ class TestSelectionFilter:
         # Should return original data when no selection info
         assert filtered == result_data
 
-    def test_filter_mutation_result_list_data(self):
+    def test_filter_mutation_result_list_data(self) -> None:
         """Test filtering with list data in results."""
         mock_info = MagicMock()
         mock_field_node = MagicMock()
@@ -174,7 +174,7 @@ class TestSelectionFilter:
         assert "metadata" not in filtered
         assert filtered["tags"] == ["python", "graphql", "testing"]
 
-    def test_filter_mutation_result_complex_nesting(self):
+    def test_filter_mutation_result_complex_nesting(self) -> None:
         """Test filtering with deeply nested structures."""
         mock_info = MagicMock()
         mock_field_node = MagicMock()
@@ -221,7 +221,7 @@ class TestSelectionFilter:
         assert "email" not in author
         assert "profile" not in author
 
-    def test_filter_mutation_result_dataclass_compatibility(self):
+    def test_filter_mutation_result_dataclass_compatibility(self) -> None:
         """Test that filtering works with dataclass-serialized data."""
         from dataclasses import asdict, dataclass
 

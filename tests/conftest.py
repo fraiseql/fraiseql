@@ -28,7 +28,7 @@ except ImportError:
 
 
 @pytest.fixture
-def clear_registry():
+def clear_registry() -> None:
     """Clear the registry before and after each test."""
     if not FRAISEQL_AVAILABLE:
         pytest.skip("FraiseQL not available - skipping registry fixture")
@@ -52,7 +52,7 @@ def clear_registry():
 
 
 @pytest.fixture
-def use_snake_case():
+def use_snake_case() -> None:
     """Fixture to use snake_case field names in tests."""
     if not FRAISEQL_AVAILABLE:
         pytest.skip("FraiseQL not available - skipping snake_case fixture")

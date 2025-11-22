@@ -25,7 +25,7 @@ class DnsServer:
 class TestJSONBNetworkFilteringBug:
     """Reproduce the JSONB network filtering bug described in the issue."""
 
-    def test_where_input_generation_has_network_operators(self):
+    def test_where_input_generation_has_network_operators(self) -> None:
         """Test that DnsServer generates proper where input with network operators."""
         WhereInput = create_graphql_where_input(DnsServer)
 
@@ -53,7 +53,7 @@ class TestJSONBNetworkFilteringBug:
 class TestRootCauseInvestigation:
     """Additional tests to investigate the root cause."""
 
-    async def test_sql_generation_for_jsonb_network_field(self):
+    async def test_sql_generation_for_jsonb_network_field(self) -> None:
         """Test SQL generation for network filtering on JSONB fields."""
         from psycopg.sql import SQL
 
@@ -74,7 +74,7 @@ class TestRootCauseInvestigation:
         assert "<<=" in sql_str, "Should use PostgreSQL subnet operator"
         assert "192.168.1.0/24" in sql_str, "Should include subnet parameter"
 
-    async def test_eq_operator_sql_generation(self):
+    async def test_eq_operator_sql_generation(self) -> None:
         """Test SQL generation for eq operator on JSONB network field."""
         from psycopg.sql import SQL
 

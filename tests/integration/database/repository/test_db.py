@@ -14,17 +14,17 @@ class TestFraiseQLRepository:
     """Test suite for FraiseQLRepository class."""
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create a mock connection pool."""
         return AsyncMock(spec=AsyncConnectionPool)
 
     @pytest.fixture
-    def repository(self, mock_pool):
+    def repository(self, mock_pool) -> None:
         """Create a repository instance with mocked pool."""
         # Disable query timeout for tests to avoid SET LOCAL calls
         return FraiseQLRepository(pool=mock_pool, context={"query_timeout": None})
 
-    def _setup_mocks(self, mock_pool, mock_cursor):
+    def _setup_mocks(self, mock_pool, mock_cursor) -> None:
         """Helper to set up the mock connection and cursor properly."""
         # Mock cursor context manager
         mock_cursor_cm = Mock()

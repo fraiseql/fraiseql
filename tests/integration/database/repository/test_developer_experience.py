@@ -1,6 +1,5 @@
 """Tests for developer experience improvements."""
 
-import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,7 +22,7 @@ from fraiseql.validation import (
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear registry before each test to avoid type conflicts."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -54,7 +53,7 @@ class User:
 class TestEnhancedExceptions:
     """Test the enhanced exception classes."""
 
-    def test_partial_instantiation_error(self):
+    def test_partial_instantiation_error(self) -> None:
         """Test PartialInstantiationError with context and hints."""
         error = PartialInstantiationError(
             type_name="User",
@@ -71,7 +70,7 @@ class TestEnhancedExceptions:
         assert "Available fields: id, name" in error_str
         assert "Check that your database view" in error_str
 
-    def test_where_clause_error(self):
+    def test_where_clause_error(self) -> None:
         """Test WhereClauseError with operator hints."""
         error = WhereClauseError(
             """Invalid operator '_between' for field 'age'""",
@@ -85,7 +84,7 @@ class TestEnhancedExceptions:
         assert "WHERE_CLAUSE_ERROR" in error_str
         assert "Supported operators: _eq, _neq, _gt, _gte, _lt, _lte" in error_str
 
-    def test_query_validation_error_with_typo_hint(self):
+    def test_query_validation_error_with_typo_hint(self) -> None:
         """Test QueryValidationError with typo suggestions."""
         error = QueryValidationError(
             """Invalid fields requested""",
@@ -99,7 +98,7 @@ class TestEnhancedExceptions:
         assert "Valid fields for User: age, email, id, name" in error_str
         # Note: The typo detection would need the fields to match case-insensitively
 
-    def test_database_query_error_with_hints(self):
+    def test_database_query_error_with_hints(self) -> None:
         """Test DatabaseQueryError with helpful hints."""
         error = DatabaseQueryError(
             """relation 'users_view' does not exist""",
@@ -117,7 +116,7 @@ class TestEnhancedExceptions:
 class TestPartialInstantiationWithErrors:
     """Test partial instantiation with better error handling."""
 
-    def test_create_partial_instance_success(self):
+    def test_create_partial_instance_success(self) -> None:
         """Test successful partial instantiation."""
         data = {"id": 1, "name": "John"}
         user = create_partial_instance(User, data)
@@ -129,7 +128,7 @@ class TestPartialInstantiationWithErrors:
         assert user.__fraiseql_partial__ is True
         assert user.__fraiseql_fields__ == {"id", "name"}
 
-    def test_create_partial_instance_with_invalid_type(self):
+    def test_create_partial_instance_with_invalid_type(self) -> None:
         """Test partial instantiation with type mismatch."""
         # This depends on how strict the type checking is
         # Some type mismatches might be caught, others might not
@@ -137,7 +136,7 @@ class TestPartialInstantiationWithErrors:
         user = create_partial_instance(User, data)
         assert user.age == 25
 
-    def test_debug_partial_instance(self):
+    def test_debug_partial_instance(self) -> None:
         """Test debug output for partial instances."""
         data = {"id": 1, "name": "Alice"}
         user = create_partial_instance(User, data)
@@ -155,7 +154,7 @@ class TestPartialInstantiationWithErrors:
 class TestValidationUtilities:
     """Test validation utilities."""
 
-    def test_validate_where_input_valid(self):
+    def test_validate_where_input_valid(self) -> None:
         """Test validation of valid where input."""
         where_input = {
             "name": {"_eq": "John"},
@@ -166,7 +165,7 @@ class TestValidationUtilities:
         errors = validate_where_input(where_input, User)
         assert errors == []
 
-    def test_validate_where_input_unknown_field(self):
+    def test_validate_where_input_unknown_field(self) -> None:
         """Test validation with unknown field."""
         where_input = {"unknown_field": {"_eq": "value"}}
 
@@ -175,7 +174,7 @@ class TestValidationUtilities:
         assert "Unknown field 'unknown_field'" in errors[0]
         assert "Available fields:" in errors[0]
 
-    def test_validate_where_input_invalid_operator(self):
+    def test_validate_where_input_invalid_operator(self) -> None:
         """Test validation with invalid operator."""
         where_input = {"name": {"_invalid": "value"}}
 
@@ -183,7 +182,7 @@ class TestValidationUtilities:
         assert len(errors) == 1
         assert "Unknown operator '_invalid'" in errors[0]
 
-    def test_validate_where_input_type_mismatch(self):
+    def test_validate_where_input_type_mismatch(self) -> None:
         """Test validation with operator type mismatch."""
         # String operator on non-string field
         where_input = {"age": {"_like": "%25%"}}
@@ -193,7 +192,7 @@ class TestValidationUtilities:
         assert "String operator '_like'" in errors[0]
         assert "can only be used with string fields" in errors[0]
 
-    def test_validate_where_input_strict_mode(self):
+    def test_validate_where_input_strict_mode(self) -> None:
         """Test validation in strict mode raises exceptions."""
         where_input = {"invalid_field": {"_eq": "value"}}
 
@@ -202,7 +201,7 @@ class TestValidationUtilities:
 
         assert "Unknown field 'invalid_field'" in str(exc_info.value)
 
-    def test_validate_where_input_case_sensitivity_hint(self):
+    def test_validate_where_input_case_sensitivity_hint(self) -> None:
         """Test validation provides case sensitivity hints."""
         where_input = {"EMAIL": {"_eq": "test@example.com"}}
 
@@ -210,7 +209,7 @@ class TestValidationUtilities:
         assert len(errors) == 1
         assert "Did you mean 'email' instead of 'EMAIL'?" in errors[0]
 
-    def test_get_type_fields(self):
+    def test_get_type_fields(self) -> None:
         """Test field extraction from types."""
         fields = _get_type_fields(User)
         assert fields == {"id", "name", "email", "age", "active"}
@@ -219,7 +218,7 @@ class TestValidationUtilities:
 class TestQueryComplexity:
     """Test query complexity validation."""
 
-    def test_validate_query_complexity_simple(self):
+    def test_validate_query_complexity_simple(self) -> None:
         """Test complexity calculation for simple queries."""
         # This would need a mock GraphQLResolveInfo object
         # For now, we just test the function exists and returns expected types

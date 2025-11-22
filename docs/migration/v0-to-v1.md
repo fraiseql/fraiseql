@@ -302,9 +302,9 @@ Note: v0.11.x will continue to receive security updates for 6 months after v1.0 
 
 ## Getting Help
 
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
+- [GitHub Discussions](../discussions)
 - [Documentation](https://docs.fraiseql.com)
-- [Issue Tracker](https://github.com/fraiseql/fraiseql/issues)
+- [Issue Tracker](../issues)
 
 ## Next Steps
 

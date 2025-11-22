@@ -3,10 +3,10 @@
 import pytest
 
 
-def test_apq_query_storage():
+def test_apq_query_storage() -> None:
     """Test storing and retrieving persisted queries by hash."""
     # This test will fail until we implement the storage functions
-    from fraiseql.storage.apq_store import store_persisted_query, get_persisted_query
+    from fraiseql.storage.apq_store import get_persisted_query, store_persisted_query
 
     query = "{ users { id name } }"
     hash_value = "ecf4edb46db40b5132295c0291d62fb65d6759a9eedfa4d5d612dd5ec54a6b38"
@@ -19,7 +19,7 @@ def test_apq_query_storage():
     assert retrieved == query
 
 
-def test_apq_query_storage_missing_key():
+def test_apq_query_storage_missing_key() -> None:
     """Test retrieving non-existent persisted query."""
     from fraiseql.storage.apq_store import get_persisted_query
 
@@ -27,9 +27,9 @@ def test_apq_query_storage_missing_key():
     assert result is None
 
 
-def test_apq_query_storage_overwrite():
+def test_apq_query_storage_overwrite() -> None:
     """Test overwriting existing persisted query."""
-    from fraiseql.storage.apq_store import store_persisted_query, get_persisted_query
+    from fraiseql.storage.apq_store import get_persisted_query, store_persisted_query
 
     hash_value = "test_hash_123"
     query1 = "{ users }"
@@ -44,9 +44,9 @@ def test_apq_query_storage_overwrite():
     assert get_persisted_query(hash_value) == query2
 
 
-def test_apq_query_storage_multiple_queries():
+def test_apq_query_storage_multiple_queries() -> None:
     """Test storing multiple different queries."""
-    from fraiseql.storage.apq_store import store_persisted_query, get_persisted_query
+    from fraiseql.storage.apq_store import get_persisted_query, store_persisted_query
 
     queries = {
         "hash1": "{ users { id } }",
@@ -64,9 +64,9 @@ def test_apq_query_storage_multiple_queries():
         assert retrieved == expected_query
 
 
-def test_apq_query_storage_clear():
+def test_apq_query_storage_clear() -> None:
     """Test clearing the APQ storage."""
-    from fraiseql.storage.apq_store import store_persisted_query, get_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, get_persisted_query, store_persisted_query
 
     # Store a query
     store_persisted_query("test_hash", "{ hello }")
@@ -79,7 +79,7 @@ def test_apq_query_storage_clear():
     assert get_persisted_query("test_hash") is None
 
 
-def test_apq_storage_validation_errors():
+def test_apq_storage_validation_errors() -> None:
     """Test storage validation catches invalid inputs."""
     from fraiseql.storage.apq_store import store_persisted_query
 
@@ -100,7 +100,7 @@ def test_apq_storage_validation_errors():
         store_persisted_query("test_hash", "   ")
 
 
-def test_compute_query_hash():
+def test_compute_query_hash() -> None:
     """Test query hash computation."""
     from fraiseql.storage.apq_store import compute_query_hash
 
@@ -119,9 +119,9 @@ def test_compute_query_hash():
     assert compute_query_hash(different_query) != hash_result
 
 
-def test_get_storage_stats():
+def test_get_storage_stats() -> None:
     """Test storage statistics."""
-    from fraiseql.storage.apq_store import store_persisted_query, get_storage_stats, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, get_storage_stats, store_persisted_query
 
     # Clear storage first
     clear_storage()
@@ -141,7 +141,7 @@ def test_get_storage_stats():
     assert stats["total_size_bytes"] > 0
 
 
-def test_get_persisted_query_edge_cases():
+def test_get_persisted_query_edge_cases() -> None:
     """Test edge cases for query retrieval."""
     from fraiseql.storage.apq_store import get_persisted_query
 

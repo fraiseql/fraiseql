@@ -7,39 +7,39 @@ This test should FAIL initially because the module doesn't exist yet.
 import pytest
 
 
-def test_fraiseql_rs_module_exists():
+def test_fraiseql_rs_module_exists() -> None:
     """Test that fraiseql_rs module can be imported.
 
     RED: This should fail with ModuleNotFoundError
     GREEN: After creating the Rust module, this should pass
     """
     try:
-        import fraiseql_rs
+        from fraiseql import fraiseql_rs
 
         assert fraiseql_rs is not None
     except ModuleNotFoundError as e:
         pytest.fail(f"fraiseql_rs module not found: {e}")
 
 
-def test_fraiseql_rs_has_version():
+def test_fraiseql_rs_has_version() -> None:
     """Test that fraiseql_rs module has __version__ attribute.
 
     RED: This should fail because module doesn't exist
     GREEN: After creating the module with version, this should pass
     """
-    import fraiseql_rs
+    from fraiseql import fraiseql_rs
 
     assert hasattr(fraiseql_rs, "__version__")
     assert isinstance(fraiseql_rs.__version__, str)
     assert len(fraiseql_rs.__version__) > 0
 
 
-def test_fraiseql_rs_version_format():
+def test_fraiseql_rs_version_format() -> None:
     """Test that version follows semantic versioning.
 
     Expected format: X.Y.Z or X.Y.Z-suffix
     """
-    import fraiseql_rs
+    from fraiseql import fraiseql_rs
 
     version = fraiseql_rs.__version__
     # Basic semver check: should have at least X.Y.Z

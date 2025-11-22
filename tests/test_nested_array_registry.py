@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Tests for the nested array registry system and decorators."""
 
-import pytest
-
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
     auto_nested_array_filters,
@@ -37,11 +35,11 @@ class TestNetworkDevice:
 class TestNestedArrayRegistry:
     """Test the nested array registry system."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         clear_registry()
 
-    def test_manual_registration(self):
+    def test_manual_registration(self) -> None:
         """Test manual registration of nested array filters."""
 
         @fraise_type
@@ -57,7 +55,7 @@ class TestNestedArrayRegistry:
         assert not is_nested_array_filterable(NetworkConfig, "nonexistent")
         assert get_nested_array_filter(NetworkConfig, "nonexistent") is None
 
-    def test_auto_nested_array_filters_decorator(self):
+    def test_auto_nested_array_filters_decorator(self) -> None:
         """Test the @auto_nested_array_filters decorator."""
 
         @auto_nested_array_filters
@@ -80,7 +78,7 @@ class TestNestedArrayRegistry:
         assert not is_nested_array_filterable(AutoNetworkConfig, "hostname")
         assert not is_nested_array_filterable(AutoNetworkConfig, "tags")
 
-    def test_nested_array_filterable_decorator(self):
+    def test_nested_array_filterable_decorator(self) -> None:
         """Test the @nested_array_filterable decorator with specific fields."""
 
         @nested_array_filterable("servers")  # Only register servers, not devices
@@ -95,7 +93,7 @@ class TestNestedArrayRegistry:
         assert get_nested_array_filter(SelectiveNetworkConfig, "servers") == TestPrintServer
         assert get_nested_array_filter(SelectiveNetworkConfig, "devices") is None
 
-    def test_nested_array_filterable_multiple_fields(self):
+    def test_nested_array_filterable_multiple_fields(self) -> None:
         """Test @nested_array_filterable with multiple field names."""
 
         @nested_array_filterable("servers", "devices")
@@ -110,7 +108,7 @@ class TestNestedArrayRegistry:
         assert is_nested_array_filterable(MultiSelectiveConfig, "devices")
         assert not is_nested_array_filterable(MultiSelectiveConfig, "other_stuff")
 
-    def test_enable_nested_array_filtering_function(self):
+    def test_enable_nested_array_filtering_function(self) -> None:
         """Test the enable_nested_array_filtering function."""
 
         @fraise_type
@@ -124,7 +122,7 @@ class TestNestedArrayRegistry:
         assert is_nested_array_filterable(ManualEnableConfig, "servers")
         assert is_nested_array_filterable(ManualEnableConfig, "devices")
 
-    def test_list_registered_filters(self):
+    def test_list_registered_filters(self) -> None:
         """Test listing all registered filters."""
 
         @auto_nested_array_filters
@@ -148,7 +146,7 @@ class TestNestedArrayRegistry:
         assert filters[config_a_key]["servers"] == "TestPrintServer"
         assert filters[config_b_key]["devices"] == "TestNetworkDevice"
 
-    def test_registry_isolation_by_type(self):
+    def test_registry_isolation_by_type(self) -> None:
         """Test that different types don't interfere with each other."""
 
         @fraise_type
@@ -166,7 +164,7 @@ class TestNestedArrayRegistry:
         assert get_nested_array_filter(ConfigA, "items") == TestPrintServer
         assert get_nested_array_filter(ConfigB, "items") == TestNetworkDevice
 
-    def test_clear_registry(self):
+    def test_clear_registry(self) -> None:
         """Test that clear_registry removes all registrations."""
 
         @auto_nested_array_filters
@@ -182,7 +180,7 @@ class TestNestedArrayRegistry:
         assert not is_nested_array_filterable(TestConfig, "servers")
         assert list_registered_filters() == {}
 
-    def test_decorator_error_handling(self):
+    def test_decorator_error_handling(self) -> None:
         """Test that decorators handle errors gracefully."""
 
         # This should not crash even if type hints fail

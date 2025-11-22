@@ -3,15 +3,16 @@
 Tests for role inheritance computation using PostgreSQL recursive CTEs.
 """
 
-import pytest
-from uuid import uuid4
 from pathlib import Path
+from uuid import uuid4
+
+import pytest
+
 from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
-from fraiseql.enterprise.rbac.models import Role
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def ensure_rbac_schema(db_pool):
+async def ensure_rbac_schema(db_pool) -> None:
     """Ensure RBAC schema exists before running tests."""
     # Check if roles table exists
     async with db_pool.connection() as conn:
@@ -34,7 +35,7 @@ async def ensure_rbac_schema(db_pool):
                 await conn.commit()
 
 
-async def test_role_inheritance_chain(db_repo):
+async def test_role_inheritance_chain(db_repo) -> None:
     """Verify role inherits permissions from parent roles."""
     # Create role chain: admin -> manager -> developer -> junior_dev
     hierarchy = RoleHierarchy(db_repo)
@@ -56,7 +57,7 @@ async def test_role_inheritance_chain(db_repo):
     assert True  # Basic import test
 
 
-async def test_hierarchy_validation(db_repo):
+async def test_hierarchy_validation(db_repo) -> None:
     """Test hierarchy validation (cycle detection)."""
     hierarchy = RoleHierarchy(db_repo)
 
@@ -66,7 +67,7 @@ async def test_hierarchy_validation(db_repo):
     assert hasattr(hierarchy, "get_hierarchy_depth")
 
 
-async def test_get_inherited_roles_method_exists(db_repo):
+async def test_get_inherited_roles_method_exists(db_repo) -> None:
     """Verify the get_inherited_roles method exists and is callable."""
     hierarchy = RoleHierarchy(db_repo)
 

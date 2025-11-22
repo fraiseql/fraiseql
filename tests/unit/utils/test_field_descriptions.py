@@ -4,22 +4,20 @@ from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
 
-import pytest
-
 from fraiseql import fraise_field, fraise_type
 from fraiseql.utils.field_descriptions import (
-    extract_field_descriptions,
-    apply_auto_descriptions,
-    _extract_inline_comments,
-    _extract_docstring_descriptions,
     _extract_annotation_descriptions,
+    _extract_docstring_descriptions,
+    _extract_inline_comments,
+    apply_auto_descriptions,
+    extract_field_descriptions,
 )
 
 
 class TestInlineCommentExtraction:
     """Test extraction of field descriptions from inline comments."""
 
-    def test_no_inline_comments_for_dynamic_classes(self):
+    def test_no_inline_comments_for_dynamic_classes(self) -> None:
         """Test that dynamically created classes don't have source available."""
 
         @fraise_type
@@ -33,7 +31,7 @@ class TestInlineCommentExtraction:
         # Dynamic classes won't have source code available
         assert descriptions == {}
 
-    def test_regex_pattern_matching(self):
+    def test_regex_pattern_matching(self) -> None:
         """Test the regex pattern used for inline comment extraction."""
         import re
 
@@ -67,7 +65,7 @@ class TestInlineCommentExtraction:
 class TestDocstringExtraction:
     """Test extraction of field descriptions from class docstrings."""
 
-    def test_fields_section_extraction(self):
+    def test_fields_section_extraction(self) -> None:
         """Test extraction from Fields: section in docstring."""
 
         @fraise_type
@@ -94,7 +92,7 @@ class TestDocstringExtraction:
         assert descriptions["email"] == "User's email address"
         assert descriptions["status"] == "Current account status"
 
-    def test_attributes_section_extraction(self):
+    def test_attributes_section_extraction(self) -> None:
         """Test extraction from Attributes: section in docstring."""
 
         @fraise_type
@@ -118,7 +116,7 @@ class TestDocstringExtraction:
         assert descriptions["name"] == "Product name"
         assert descriptions["price"] == "Price in USD"
 
-    def test_args_section_extraction(self):
+    def test_args_section_extraction(self) -> None:
         """Test extraction from Args: section (for input types)."""
 
         @fraise_type
@@ -142,7 +140,7 @@ class TestDocstringExtraction:
         assert descriptions["email"] == "User's email address"
         assert descriptions["password"] == "User's password"
 
-    def test_no_docstring(self):
+    def test_no_docstring(self) -> None:
         """Test extraction when no docstring is present."""
 
         @fraise_type
@@ -154,7 +152,7 @@ class TestDocstringExtraction:
         descriptions = _extract_docstring_descriptions(Order)
         assert descriptions == {}
 
-    def test_docstring_without_fields_section(self):
+    def test_docstring_without_fields_section(self) -> None:
         """Test extraction when docstring has no Fields: section."""
 
         @fraise_type
@@ -172,7 +170,7 @@ class TestDocstringExtraction:
 class TestAnnotationExtraction:
     """Test extraction of descriptions from Annotated type hints."""
 
-    def test_annotated_descriptions(self):
+    def test_annotated_descriptions(self) -> None:
         """Test extraction from Annotated type hints."""
 
         @fraise_type
@@ -192,7 +190,7 @@ class TestAnnotationExtraction:
             assert descriptions["email"] == "Email address for communication"
         assert "age" not in descriptions
 
-    def test_mixed_annotations(self):
+    def test_mixed_annotations(self) -> None:
         """Test extraction with mix of annotated and regular fields."""
 
         @fraise_type
@@ -212,7 +210,7 @@ class TestAnnotationExtraction:
         assert "id" not in descriptions
         assert "price" not in descriptions
 
-    def test_no_annotated_fields(self):
+    def test_no_annotated_fields(self) -> None:
         """Test extraction when no Annotated fields are present."""
 
         @fraise_type
@@ -229,7 +227,7 @@ class TestAnnotationExtraction:
 class TestIntegratedExtraction:
     """Test the complete extract_field_descriptions function."""
 
-    def test_docstring_extraction_works(self):
+    def test_docstring_extraction_works(self) -> None:
         """Test that descriptions are extracted from docstring sources."""
 
         @fraise_type
@@ -253,7 +251,7 @@ class TestIntegratedExtraction:
         assert descriptions["name"] == "User's full name"
         assert descriptions["status"] == "Account status"
 
-    def test_docstring_priority_over_annotations(self):
+    def test_docstring_priority_over_annotations(self) -> None:
         """Test that inline comments take priority over docstring descriptions."""
 
         @fraise_type
@@ -276,7 +274,7 @@ class TestIntegratedExtraction:
 class TestAutoDescriptionApplication:
     """Test the apply_auto_descriptions function."""
 
-    def test_applies_to_fields_without_descriptions(self):
+    def test_applies_to_fields_without_descriptions(self) -> None:
         """Test that auto descriptions are applied only to fields without explicit descriptions."""
 
         @fraise_type
@@ -293,7 +291,7 @@ class TestAutoDescriptionApplication:
         assert fields["name"].description == "Explicit name description"  # Unchanged
         assert fields["email"].description == "User email address"
 
-    def test_preserves_explicit_descriptions(self):
+    def test_preserves_explicit_descriptions(self) -> None:
         """Test that explicit descriptions are not overwritten."""
 
         @fraise_type
@@ -315,7 +313,7 @@ class TestAutoDescriptionApplication:
         assert fields["price"].description == "Price in USD"  # Auto-applied
         assert fields["id"].description is None  # No description available
 
-    def test_handles_missing_gql_fields(self):
+    def test_handles_missing_gql_fields(self) -> None:
         """Test that function handles classes without __gql_fields__."""
 
         class RegularClass:
@@ -328,7 +326,7 @@ class TestAutoDescriptionApplication:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_malformed_source_code(self):
+    def test_malformed_source_code(self) -> None:
         """Test that extraction gracefully handles when source code is unavailable."""
 
         # This is hard to test directly, but the function should handle OSError, TypeError, etc.
@@ -340,7 +338,7 @@ class TestEdgeCases:
         descriptions = _extract_inline_comments(DynamicClass)
         assert descriptions == {}
 
-    def test_docstring_with_complex_field_types(self):
+    def test_docstring_with_complex_field_types(self) -> None:
         """Test extraction with complex field types from docstring."""
 
         @fraise_type
@@ -367,7 +365,7 @@ class TestEdgeCases:
         assert descriptions["metadata"] == "Key-value metadata"
         assert descriptions["optional_field"] == "Optional string field"
 
-    def test_inheritance_with_descriptions(self):
+    def test_inheritance_with_descriptions(self) -> None:
         """Test that field descriptions work with class inheritance."""
 
         @fraise_type
@@ -405,7 +403,7 @@ class TestEdgeCases:
 class TestIntegrationWithExistingFramework:
     """Test integration with existing fraiseql features."""
 
-    def test_graphql_schema_generation_with_auto_descriptions(self):
+    def test_graphql_schema_generation_with_auto_descriptions(self) -> None:
         """Test that auto descriptions appear in generated GraphQL schema."""
 
         @fraise_type
@@ -435,7 +433,7 @@ class TestIntegrationWithExistingFramework:
         assert gql_type.fields["name"].description == "Full display name"
         assert gql_type.fields["email"].description == "Contact email address"
 
-    def test_backward_compatibility(self):
+    def test_backward_compatibility(self) -> None:
         """Test that existing code without auto descriptions still works."""
 
         @fraise_type

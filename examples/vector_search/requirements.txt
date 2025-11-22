@@ -1,0 +1,4 @@
+fraiseql
+pgvector
+fastapi
+uvicorn

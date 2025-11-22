@@ -10,20 +10,20 @@ from psycopg.sql import SQL
 # Import Port operator functions
 from fraiseql.sql.where.operators.port import (
     build_port_eq_sql,
-    build_port_neq_sql,
-    build_port_in_sql,
-    build_port_notin_sql,
     build_port_gt_sql,
     build_port_gte_sql,
+    build_port_in_sql,
     build_port_lt_sql,
     build_port_lte_sql,
+    build_port_neq_sql,
+    build_port_notin_sql,
 )
 
 
 class TestPortBasicOperators:
     """Test basic Port operators (eq, neq, in, notin)."""
 
-    def test_build_port_equality_sql(self):
+    def test_build_port_equality_sql(self) -> None:
         """Test Port equality operator with proper integer handling."""
         path_sql = SQL("data->>'server_port'")
         value = 8080
@@ -33,7 +33,7 @@ class TestPortBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_inequality_sql(self):
+    def test_build_port_inequality_sql(self) -> None:
         """Test Port inequality operator with proper integer handling."""
         path_sql = SQL("data->>'server_port'")
         value = 22
@@ -43,7 +43,7 @@ class TestPortBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_in_list_sql(self):
+    def test_build_port_in_list_sql(self) -> None:
         """Test Port IN list with multiple port values."""
         path_sql = SQL("data->>'server_port'")
         value = [80, 443, 8080]
@@ -53,7 +53,7 @@ class TestPortBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_not_in_list_sql(self):
+    def test_build_port_not_in_list_sql(self) -> None:
         """Test Port NOT IN list with multiple port values."""
         path_sql = SQL("data->>'server_port'")
         value = [22, 23, 3389]
@@ -63,7 +63,7 @@ class TestPortBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_single_item_in_list(self):
+    def test_build_port_single_item_in_list(self) -> None:
         """Test Port IN list with single value."""
         path_sql = SQL("data->>'server_port'")
         value = [3306]
@@ -73,7 +73,7 @@ class TestPortBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_common_ports(self):
+    def test_build_port_common_ports(self) -> None:
         """Test Port operators with common well-known ports."""
         path_sql = SQL("data->>'port'")
 
@@ -92,7 +92,7 @@ class TestPortBasicOperators:
         expected_ssh = "(data->>'port')::integer = 22"
         assert result_ssh.as_string(None) == expected_ssh
 
-    def test_build_port_empty_list_handling(self):
+    def test_build_port_empty_list_handling(self) -> None:
         """Test Port operators handle empty lists gracefully."""
         path_sql = SQL("data->>'port'")
         value = []
@@ -109,7 +109,7 @@ class TestPortBasicOperators:
 class TestPortComparisonOperators:
     """Test Port comparison operators (gt, gte, lt, lte)."""
 
-    def test_build_port_greater_than_sql(self):
+    def test_build_port_greater_than_sql(self) -> None:
         """Test Port greater than operator."""
         path_sql = SQL("data->>'port'")
         value = 1024
@@ -119,7 +119,7 @@ class TestPortComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_greater_than_equal_sql(self):
+    def test_build_port_greater_than_equal_sql(self) -> None:
         """Test Port greater than or equal operator."""
         path_sql = SQL("data->>'port'")
         value = 1024
@@ -129,7 +129,7 @@ class TestPortComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_less_than_sql(self):
+    def test_build_port_less_than_sql(self) -> None:
         """Test Port less than operator."""
         path_sql = SQL("data->>'port'")
         value = 49152
@@ -139,7 +139,7 @@ class TestPortComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_port_less_than_equal_sql(self):
+    def test_build_port_less_than_equal_sql(self) -> None:
         """Test Port less than or equal operator."""
         path_sql = SQL("data->>'port'")
         value = 49152
@@ -149,7 +149,7 @@ class TestPortComparisonOperators:
 
         assert result.as_string(None) == expected
 
-    def test_port_range_queries(self):
+    def test_port_range_queries(self) -> None:
         """Test Port range queries with comparison operators."""
         path_sql = SQL("data->>'service_port'")
 
@@ -176,21 +176,21 @@ class TestPortComparisonOperators:
 class TestPortValidation:
     """Test Port operator validation and error handling."""
 
-    def test_port_in_requires_list(self):
+    def test_port_in_requires_list(self) -> None:
         """Test that Port 'in' operator requires a list."""
         path_sql = SQL("data->>'port'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_port_in_sql(path_sql, 8080)
 
-    def test_port_notin_requires_list(self):
+    def test_port_notin_requires_list(self) -> None:
         """Test that Port 'notin' operator requires a list."""
         path_sql = SQL("data->>'port'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_port_notin_sql(path_sql, 8080)
 
-    def test_port_boundary_values(self):
+    def test_port_boundary_values(self) -> None:
         """Test Port operators with boundary values."""
         path_sql = SQL("data->>'port'")
 
@@ -204,7 +204,7 @@ class TestPortValidation:
         expected_max = "(data->>'port')::integer = 65535"
         assert result_max.as_string(None) == expected_max
 
-    def test_port_common_service_ports(self):
+    def test_port_common_service_ports(self) -> None:
         """Test Port operators with common service ports."""
         path_sql = SQL("data->>'port'")
 
@@ -234,7 +234,7 @@ class TestPortValidation:
         expected = "(data->>'port')::integer IN (20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 993, 995, 1433, 3306, 5432, 6379, 8080, 9200)"
         assert result.as_string(None) == expected
 
-    def test_port_high_range_ports(self):
+    def test_port_high_range_ports(self) -> None:
         """Test Port operators with high-range port numbers."""
         path_sql = SQL("data->>'port'")
 

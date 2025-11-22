@@ -1,11 +1,13 @@
 """Test that store_response_in_cache passes context correctly."""
 
 from unittest.mock import Mock
-from fraiseql.middleware.apq_caching import store_response_in_cache
+
 from tests.integration.test_apq_context_propagation import ContextCapturingBackend
 
+from fraiseql.middleware.apq_caching import store_response_in_cache
 
-def test_store_response_passes_context():
+
+def test_store_response_passes_context() -> None:
     """Test that store_response_in_cache passes context to backend."""
     backend = ContextCapturingBackend()
 

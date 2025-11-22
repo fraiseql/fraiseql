@@ -12,7 +12,7 @@ from fraiseql.security.field_auth import authorize_field
 
 
 @pytest.mark.security
-def test_field_authorization_basic():
+def test_field_authorization_basic() -> None:
     """Test basic field authorization with GraphQL execution."""
 
     @fraiseql.type
@@ -52,7 +52,7 @@ def test_field_authorization_basic():
     assert result.data == {"getUser": {"name": "John Doe", "email": None}}
 
 
-def test_field_authorization_with_custom_message():
+def test_field_authorization_with_custom_message() -> None:
     """Test field authorization with custom error message."""
 
     @fraiseql.type
@@ -89,7 +89,7 @@ def test_field_authorization_with_custom_message():
     assert "Admin access required to view phone number" in str(result.errors[0])
 
 
-def test_field_authorization_multiple_fields():
+def test_field_authorization_multiple_fields() -> None:
     """Test authorization on multiple fields."""
 
     @fraiseql.type
@@ -182,7 +182,7 @@ def test_field_authorization_multiple_fields():
     }
 
 
-def test_field_authorization_with_owner_check():
+def test_field_authorization_with_owner_check() -> None:
     """Test field authorization that checks ownership."""
 
     @fraiseql.type
@@ -237,7 +237,7 @@ def test_field_authorization_with_owner_check():
     assert result.data["userProfile"]["privateNotes"] == "Private notes for user 123"
 
 
-def test_field_authorization_async():
+def test_field_authorization_async() -> None:
     """Test field authorization with async fields."""
     import asyncio
 

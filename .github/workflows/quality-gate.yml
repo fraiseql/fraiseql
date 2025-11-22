@@ -12,6 +12,11 @@ concurrency:
   group: quality-gate-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  security-events: write  # Required for uploading SARIF to Code Scanning
+  actions: read
+
 jobs:
   test:
     name: Tests
@@ -19,7 +24,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: fraiseql
           POSTGRES_PASSWORD: fraiseql
@@ -52,36 +57,33 @@ jobs:
         toolchain: stable
 
     - name: Install maturin
-      run: pip install maturin
+      run: uv tool install maturin
 
-    - name: Create virtual environment and install dependencies
+    - name: Setup environment and install dependencies
       run: |
-        # Create virtual environment
-        python -m venv .venv
-        source .venv/bin/activate
+        # Create virtual environment with uv
+        uv venv
 
-        # Verify venv is active
-        which python
-        python --version
+        # Install build dependencies first (required for some packages like thrift)
+        uv pip install setuptools wheel
 
-        # Install dependencies with uv
-        uv pip install -e ".[dev,all]" --no-cache
+        # Install all dependencies
+        uv pip install ".[dev,all]"
 
-        # Verify installation
-        python -c "import fraiseql_rs; print(f'fraiseql_rs functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
+        # Build and install Rust extension with modern maturin+uv integration
+        uv run maturin develop --uv
 
     - name: Verify Environment
       run: |
-        source .venv/bin/activate
         echo "=== Environment Verification ==="
-        python --version
+        uv run python --version
         uv --version
-        pytest --version
+        uv run pytest --version
         rustc --version
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
-        python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
         echo "=== Rust Extension Verification ==="
-        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
     - name: Run core tests
       env:
@@ -94,13 +96,12 @@ jobs:
         # Environment variables for pytest configuration
         PYTEST_CURRENT_TEST: ""
       run: |
-        source .venv/bin/activate
         echo "=== Starting Core Tests ==="
         echo "Environment variables:"
         printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
         echo "Running pytest with explicit configuration..."
 
-        python -m pytest tests/ \
+        uv run pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
@@ -123,19 +124,18 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
-        source .venv/bin/activate
         echo "=== Validating Network Filtering Bug Fix ==="
         echo "This validates the core bug fix from PR #25"
 
         echo "Testing JSONB network filtering bug fix..."
-        python -m pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v --tb=short || {
+        uv run pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v --tb=short || {
           echo "❌ CRITICAL: Network filtering tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
         }
 
         echo "Testing network address filtering functionality..."
-        python -m pytest tests/integration/database/sql/test_network_address_filtering.py -v --tb=short || {
+        uv run pytest tests/integration/database/sql/test_network_address_filtering.py -v --tb=short || {
           echo "❌ CRITICAL: Network address filtering tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
@@ -155,9 +155,8 @@ jobs:
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
-        source .venv/bin/activate
         echo "=== Running Example Integration Tests ==="
-        python -m pytest tests/integration/examples/ -v --tb=short || {
+        uv run pytest tests/integration/examples/ -v --tb=short || {
           echo "❌ Example integration tests failed"
           echo "This may indicate issues with example configurations or database setup"
           exit 1
@@ -185,11 +184,13 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
     - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
+      run: |
+        uv venv
+        uv pip install ruff
     - name: Run ruff check (includes type checking)
-      run: ruff check .
+      run: uv run ruff check .
     - name: Run ruff format check
-      run: ruff format --check .
+      run: uv run ruff format --check .
 
   security:
     name: Security
@@ -203,25 +204,134 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
     - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
-    - name: Run bandit security scan
       run: |
-        pip install bandit
-        bandit -r src/ -f json || true
+        uv venv
+        uv pip install bandit safety
+    - name: Run bandit security scan
+      run: uv run bandit -r src/ -f json -o bandit-results.json || true
+    - name: Run safety dependency vulnerability scan
+      run: uv run safety check --output json --save-json safety-results.json || true
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'FraiseQL'
+        path: '.'
+        format: 'ALL'
+        args: >
+          --enableRetired
+          --enableExperimental
+          --nvdValidForHours 24
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
         scan-ref: '.'
-        format: 'table'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
       continue-on-error: true
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    - name: Archive security scan results
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: security-scan-results
+        path: |
+          bandit-results.json
+          safety-results.json
+          reports/
+
+  performance:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_perf
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup environment and install dependencies
+      run: |
+        uv venv
+        uv pip install setuptools wheel psycopg
+
+    - name: Run CI performance benchmarks
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+        BENCHMARK_OUTPUT: current-results.json
+        BENCHMARK_BASELINE: performance-baseline.json
+      run: |
+        echo "=== Running CI Performance Benchmarks ==="
+        uv run python scripts/ci-cd/performance_benchmark.py
+
+    - name: Check for performance regressions
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+      run: |
+        echo "=== Checking for Performance Regressions ==="
+        if [ -f "performance-baseline.json" ]; then
+          uv run python scripts/ci-cd/check_performance_regression.py current-results.json performance-baseline.json
+        else
+          echo "ℹ️  No baseline found - establishing new baseline for future comparisons"
+          cp current-results.json performance-baseline.json
+        fi
+
+    - name: Update performance baseline (main branch only)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "=== Updating Performance Baseline ==="
+        # Only update baseline on main branch to establish new performance expectations
+        cp current-results.json performance-baseline.json
+        echo "✅ Performance baseline updated for main branch"
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v5
+      with:
+        name: performance-results
+        path: |
+          current-results.json
+          performance-baseline.json
 
   # Quality gate summary job - this job fails if any quality check fails
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [test, lint, security]
+    needs: [test, lint, security, performance]
     if: always()
     steps:
       - name: Check quality gate status
@@ -237,6 +347,10 @@ jobs:
           fi
           if [[ "${{ needs.security.result }}" != "success" ]]; then
             echo "❌ Security checks failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.performance.result }}" != "success" ]]; then
+            echo "❌ Performance regression detected - Quality gate blocked"
             exit 1
           fi
           echo "✅ All quality checks passed - Quality gate open"

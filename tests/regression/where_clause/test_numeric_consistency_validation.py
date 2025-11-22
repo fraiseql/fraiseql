@@ -14,7 +14,7 @@ from fraiseql.sql.operator_strategies import get_operator_registry
 class TestNumericCastingConsistency:
     """Validate that numeric operations are consistent across all operators."""
 
-    def test_numeric_consistency_across_operators(self):
+    def test_numeric_consistency_across_operators(self) -> None:
         """All numeric operations should use ::numeric casting consistently."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -41,7 +41,7 @@ class TestNumericCastingConsistency:
                 f"Operator '{op}' should use ::numeric casting for consistency. Got: {sql_str}"
             )
 
-    def test_numeric_comparison_correctness(self):
+    def test_numeric_comparison_correctness(self) -> None:
         """Validate that numeric casting produces correct comparison behavior."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -65,7 +65,7 @@ class TestNumericCastingConsistency:
             assert "::numeric" in sql_str, f"Numeric comparison {op} needs casting"
             assert f"Literal({value})" in sql_str, f"Should compare with literal {value}"
 
-    def test_boolean_text_consistency(self):
+    def test_boolean_text_consistency(self) -> None:
         """Validate that boolean operations use text comparison consistently."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -98,7 +98,7 @@ class TestNumericCastingConsistency:
                     "Should convert boolean list items to strings"
                 )
 
-    def test_mixed_operations_production_scenario(self):
+    def test_mixed_operations_production_scenario(self) -> None:
         """Test the realistic scenario that caused the original confusion."""
         registry = get_operator_registry()
         jsonb_port_path = SQL("(data ->> 'port')")
@@ -133,7 +133,7 @@ class TestNumericCastingConsistency:
 class TestCastingEdgeCases:
     """Test edge cases that could break the casting logic."""
 
-    def test_boolean_subclass_of_int_handled(self):
+    def test_boolean_subclass_of_int_handled(self) -> None:
         """Ensure bool values don't get numeric casting (bool is subclass of int)."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'flag')")
@@ -152,7 +152,7 @@ class TestCastingEdgeCases:
         assert "::boolean" not in sql_str, "Bool should not get boolean casting"
         assert "Literal('true')" in sql_str, "Bool should convert to text"
 
-    def test_numeric_list_operations(self):
+    def test_numeric_list_operations(self) -> None:
         """Test that list operations maintain numeric casting consistency."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")

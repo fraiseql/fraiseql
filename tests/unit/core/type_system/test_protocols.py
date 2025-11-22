@@ -14,7 +14,7 @@ from fraiseql.types.protocols import FraiseQLInputType, FraiseQLOutputType
 class TestFraiseQLProtocols:
     """Test FraiseQL type protocols."""
 
-    def test_output_type_protocol_attributes(self):
+    def test_output_type_protocol_attributes(self) -> None:
         """Test that FraiseQLOutputType protocol defines required attributes."""
 
         # Create a mock class that implements the protocol
@@ -34,7 +34,7 @@ class TestFraiseQLProtocols:
         assert output_type.__gql_fields__ == {"id": "UUID", "name": "str"}
         assert hasattr(output_type.__fraiseql_definition__, "_spec_class")
 
-    def test_input_type_protocol_attributes(self):
+    def test_input_type_protocol_attributes(self) -> None:
         """Test that FraiseQLInputType protocol defines required attributes."""
 
         # Create a mock class that implements the protocol
@@ -50,7 +50,7 @@ class TestFraiseQLProtocols:
         assert input_type.__gql_fields__ == {"name": "str", "email": "str"}
         assert hasattr(input_type.__fraiseql_definition__, "_spec_class")
 
-    def test_output_type_protocol_table_optional(self):
+    def test_output_type_protocol_table_optional(self) -> None:
         """Test that __gql_table__ can be None for output types."""
 
         class MockOutputTypeNoTable:
@@ -63,7 +63,7 @@ class TestFraiseQLProtocols:
         output_type: FraiseQLOutputType = MockOutputTypeNoTable()
         assert output_type.__gql_table__ is None
 
-    def test_protocol_fields_typing(self):
+    def test_protocol_fields_typing(self) -> None:
         """Test that protocol fields accept proper types."""
 
         class MockCompleteType:
@@ -86,7 +86,7 @@ class TestFraiseQLProtocols:
         input_type: FraiseQLInputType = MockCompleteType()
         assert input_type.__gql_typename__ == "ComplexType"
 
-    def test_protocol_inheritance_compatibility(self):
+    def test_protocol_inheritance_compatibility(self) -> None:
         """Test that real FraiseQL types can be used as protocol types."""
         from fraiseql.types.fraise_input import fraise_input
 
@@ -115,7 +115,7 @@ class TestFraiseQLProtocols:
         assert user_typename == "User"
         assert input_typename == "CreateUserInput"
 
-    def test_protocol_field_access(self):
+    def test_protocol_field_access(self) -> None:
         """Test that protocol fields can be accessed properly."""
 
         class MockTypeWithComplexFields:
@@ -141,7 +141,7 @@ class TestFraiseQLProtocols:
         assert isinstance(fields["complex_field"], dict)
         assert fields["complex_field"]["nullable"] is True
 
-    def test_protocol_with_minimal_implementation(self):
+    def test_protocol_with_minimal_implementation(self) -> None:
         """Test protocols with minimal required implementations."""
 
         # Minimal output type

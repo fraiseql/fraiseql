@@ -40,7 +40,6 @@ async def user(info, id: uuid.UUID) -> Optional[User]:
     repo = info.context["db"]
 
     # Query the database directly
-    from psycopg.sql import SQL, Literal
 
     query = repo._build_find_one_query(
         "v_user", where={"id": str(id)}, field_paths=None, jsonb_column="data"
@@ -108,7 +107,7 @@ async def posts(info, limit: int = 10) -> list[Post]:
 
 
 @pytest_asyncio.fixture
-async def setup_typename_test_data(db_connection):
+async def setup_typename_test_data(db_connection) -> None:
     """Set up real database with JSONB for typename tests following trinity pattern."""
     async with db_connection.cursor() as cur:
         # Drop existing objects to ensure clean state
@@ -184,7 +183,7 @@ async def setup_typename_test_data(db_connection):
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_typename_test_data, clear_registry):
+def graphql_client(db_pool, setup_typename_test_data, clear_registry) -> None:
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool
@@ -200,7 +199,7 @@ def graphql_client(db_pool, setup_typename_test_data, clear_registry):
     return TestClient(app)
 
 
-def test_typename_injected_in_single_object_response(graphql_client):
+def test_typename_injected_in_single_object_response(graphql_client) -> None:
     """Test that __typename is injected in single object query responses."""
     query = """
     query GetUser {
@@ -224,7 +223,7 @@ def test_typename_injected_in_single_object_response(graphql_client):
     assert result["data"]["user"]["name"] == "Alice"
 
 
-def test_typename_injected_in_list_response(graphql_client):
+def test_typename_injected_in_list_response(graphql_client) -> None:
     """Test that __typename is injected in list query responses."""
     query = """
     query GetUsers {
@@ -252,7 +251,7 @@ def test_typename_injected_in_list_response(graphql_client):
         assert "email" in user
 
 
-def test_typename_injected_in_mixed_query_response(graphql_client):
+def test_typename_injected_in_mixed_query_response(graphql_client) -> None:
     """Test that __typename is injected correctly in queries with different types."""
     query = """
     query GetMixedData {
@@ -286,7 +285,7 @@ def test_typename_injected_in_mixed_query_response(graphql_client):
     assert result["data"]["posts"][0]["__typename"] == "Post"
 
 
-def test_typename_injected_when_query_returns_null(graphql_client):
+def test_typename_injected_when_query_returns_null(graphql_client) -> None:
     """Test that __typename handling works even when query returns null."""
     query = """
     query GetNonExistentUser {

@@ -14,7 +14,7 @@ from fraiseql.sql.operator_strategies import get_operator_registry
 class TestPreciseSQLValidation:
     """Validate actual rendered SQL output for correctness."""
 
-    def test_numeric_casting_renders_valid_sql(self):
+    def test_numeric_casting_renders_valid_sql(self) -> None:
         """Test that numeric operations render to valid PostgreSQL syntax."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -28,15 +28,15 @@ class TestPreciseSQLValidation:
             rendered_sql = result.as_string(None)
         except Exception:
             # Fallback: manually render the structure
-            def render_part(part):
+            def render_part(part) -> None:
                 if hasattr(part, "as_string"):
                     return part.as_string(None)
-                elif hasattr(part, "string"):  # SQL object
+                if hasattr(part, "string"):  # SQL object
                     return part.string
-                elif hasattr(part, "seq"):  # Nested Composed
+                if hasattr(part, "seq"):  # Nested Composed
                     return "".join(render_part(p) for p in part.seq)
-                else:  # Literal
-                    return "%s"  # Parameter placeholder
+                # Literal
+                return "%s"  # Parameter placeholder
 
             if hasattr(result, "seq"):
                 rendered_sql = "".join(render_part(part) for part in result.seq)
@@ -60,7 +60,7 @@ class TestPreciseSQLValidation:
             f"Unbalanced parentheses in: {rendered_sql}"
         )
 
-    def test_boolean_comparison_renders_valid_sql(self):
+    def test_boolean_comparison_renders_valid_sql(self) -> None:
         """Test that boolean operations render to valid text comparison SQL."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'is_active')")
@@ -80,7 +80,7 @@ class TestPreciseSQLValidation:
         # Ensure proper operator
         assert "SQL(' = ')" in sql_str, "Should use equality operator"
 
-    def test_hostname_comparison_no_ltree_casting(self):
+    def test_hostname_comparison_no_ltree_casting(self) -> None:
         """Test that hostname comparison doesn't incorrectly use ltree casting."""
         from fraiseql.types import Hostname
 
@@ -98,7 +98,7 @@ class TestPreciseSQLValidation:
         assert "Literal('printserver01.local')" in sql_str, "Should contain hostname value"
         assert "::ltree" not in sql_str, "Should NOT use ltree casting (this was the bug!)"
 
-    def test_list_operations_have_correct_structure(self):
+    def test_list_operations_have_correct_structure(self) -> None:
         """Test that IN operations have proper SQL structure."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'port')")
@@ -117,7 +117,7 @@ class TestPreciseSQLValidation:
         assert "Literal(80)" in sql_str, "Should have first literal"
         assert "Literal(443)" in sql_str, "Should have second literal"
 
-    def test_composed_sql_has_balanced_structure(self):
+    def test_composed_sql_has_balanced_structure(self) -> None:
         """Test that complex composed SQL maintains proper structure."""
         registry = get_operator_registry()
 
@@ -146,7 +146,7 @@ class TestPreciseSQLValidation:
                 f"open={open_count}, close={close_count}, sql={sql_str}"
             )
 
-    def test_no_sql_injection_in_structure(self):
+    def test_no_sql_injection_in_structure(self) -> None:
         """Test that potentially malicious values are properly contained."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'comment')")
@@ -168,7 +168,7 @@ class TestPreciseSQLValidation:
             f"Raw SQL injection detected outside of Literal: {sql_str}"
         )
 
-    def test_type_consistency_validation(self):
+    def test_type_consistency_validation(self) -> None:
         """Test that the same operation type produces consistent results."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'score')")

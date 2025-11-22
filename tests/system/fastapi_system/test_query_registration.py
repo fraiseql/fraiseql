@@ -74,7 +74,7 @@ class QueryRoot:
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear registry before each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

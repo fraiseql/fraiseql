@@ -66,7 +66,7 @@ class EnvironmentConfig:
 class EnvironmentDetector:
     """Detect environment and select appropriate testing strategy."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize environment detector."""
         self._cached_environment = None
         self._cached_config = None

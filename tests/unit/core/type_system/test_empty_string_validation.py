@@ -10,11 +10,12 @@ While accepting:
 """
 
 import pytest
+
 from fraiseql.types.fraise_input import fraise_input
 
 
 @pytest.mark.unit
-def test_required_string_rejects_empty_string():
+def test_required_string_rejects_empty_string() -> None:
     """Required string fields should reject empty strings."""
 
     @fraise_input
@@ -27,7 +28,7 @@ def test_required_string_rejects_empty_string():
 
 
 @pytest.mark.unit
-def test_required_string_rejects_whitespace_only():
+def test_required_string_rejects_whitespace_only() -> None:
     """Required string fields should reject whitespace-only strings."""
 
     @fraise_input
@@ -40,7 +41,7 @@ def test_required_string_rejects_whitespace_only():
 
 
 @pytest.mark.unit
-def test_required_string_rejects_tab_and_newline():
+def test_required_string_rejects_tab_and_newline() -> None:
     """Required string fields should reject tab/newline-only strings."""
 
     @fraise_input
@@ -61,7 +62,7 @@ def test_required_string_rejects_tab_and_newline():
 
 
 @pytest.mark.unit
-def test_required_string_accepts_valid_strings():
+def test_required_string_accepts_valid_strings() -> None:
     """Required string fields should accept non-empty strings."""
 
     @fraise_input
@@ -80,7 +81,7 @@ def test_required_string_accepts_valid_strings():
 
 
 @pytest.mark.unit
-def test_optional_string_allows_none():
+def test_optional_string_allows_none() -> None:
     """Optional string fields should allow None values."""
 
     @fraise_input
@@ -97,7 +98,7 @@ def test_optional_string_allows_none():
 
 
 @pytest.mark.unit
-def test_optional_string_accepts_empty_when_provided():
+def test_optional_string_accepts_empty_when_provided() -> None:
     """Optional string fields should accept empty strings (they will be converted to None)."""
 
     @fraise_input
@@ -117,7 +118,7 @@ def test_optional_string_accepts_empty_when_provided():
 
 
 @pytest.mark.unit
-def test_multiple_required_strings():
+def test_multiple_required_strings() -> None:
     """Multiple required string fields should all be validated."""
 
     @fraise_input
@@ -139,7 +140,7 @@ def test_multiple_required_strings():
 
 
 @pytest.mark.unit
-def test_mixed_string_and_non_string_fields():
+def test_mixed_string_and_non_string_fields() -> None:
     """String validation should only apply to string fields."""
 
     @fraise_input
@@ -160,7 +161,7 @@ def test_mixed_string_and_non_string_fields():
 
 
 @pytest.mark.unit
-def test_error_message_includes_field_name():
+def test_error_message_includes_field_name() -> None:
     """Error message should clearly identify which field is invalid."""
 
     @fraise_input
@@ -177,7 +178,7 @@ def test_error_message_includes_field_name():
 
 
 @pytest.mark.unit
-def test_inheritance_preserves_string_validation():
+def test_inheritance_preserves_string_validation() -> None:
     """String validation should work with inherited input types."""
 
     @fraise_input

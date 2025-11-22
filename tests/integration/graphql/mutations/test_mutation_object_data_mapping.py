@@ -56,7 +56,7 @@ class TestMutationObjectDataMapping:
     """Test mutation object_data mapping in production mode."""
 
     @pytest.fixture
-    async def setup_database(self, db_connection_committed):
+    async def setup_database(self, db_connection_committed) -> None:
         """Set up test database schema and function."""
         conn = db_connection_committed
 
@@ -125,7 +125,7 @@ class TestMutationObjectDataMapping:
         return conn
 
     @pytest.fixture
-    def graphql_schema(self, clear_registry):
+    def graphql_schema(self, clear_registry) -> None:
         """Create GraphQL schema with the mutation."""
 
         # GraphQL requires a Query type with at least one field
@@ -138,16 +138,16 @@ class TestMutationObjectDataMapping:
         )
 
     @pytest.fixture
-    def mock_pool_production(self, setup_database):
+    def mock_pool_production(self, setup_database) -> None:
         """Create a mock pool for production mode."""
 
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 class ConnContext:
-                    async def __aenter__(self):
+                    async def __aenter__(self) -> None:
                         return setup_database
 
-                    async def __aexit__(self, *args):
+                    async def __aexit__(self, *args) -> None:
                         pass
 
                 return ConnContext()
@@ -155,16 +155,16 @@ class TestMutationObjectDataMapping:
         return MockPool()
 
     @pytest.fixture
-    def mock_pool_development(self, setup_database):
+    def mock_pool_development(self, setup_database) -> None:
         """Create a mock pool for development mode."""
 
         class MockPool:
-            def connection(self):
+            def connection(self) -> None:
                 class ConnContext:
-                    async def __aenter__(self):
+                    async def __aenter__(self) -> None:
                         return setup_database
 
-                    async def __aexit__(self, *args):
+                    async def __aexit__(self, *args) -> None:
                         pass
 
                 return ConnContext()

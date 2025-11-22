@@ -63,11 +63,10 @@ jobs:
         # Check that all major docs exist
         required_docs=(
           "README.md"
-          "INSTALLATION.md"
           "CONTRIBUTING.md"
-          "AUDIENCES.md"
-          "VERSION_STATUS.md"
-          "docs/TESTING_CHECKLIST.md"
+          "dev/architecture/audiences.md"
+          "docs/reference/testing-checklist.md"
+          "docs/getting-started/installation.md"
         )
 
         for doc in "${required_docs[@]}"; do
@@ -208,7 +207,7 @@ jobs:
         fi
 
         # Step 2: Check if quickstart is accessible
-        if [[ ! -f "docs/quickstart.md" ]]; then
+        if [[ ! -f "docs/getting-started/quickstart.md" ]]; then
           echo "Quickstart documentation missing"
           exit 1
         fi

@@ -19,7 +19,7 @@ from fraiseql.sql.where_generator import (
 class TestBuildOperatorComposed:
     """Test the build_operator_composed function comprehensively."""
 
-    def test_equality_operator(self):
+    def test_equality_operator(self) -> None:
         """Test equality operator with various types."""
         path_sql = SQL("data->>'name'")
 
@@ -35,13 +35,13 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "eq", True)
         assert isinstance(result, Composed)
 
-    def test_inequality_operator(self):
+    def test_inequality_operator(self) -> None:
         """Test not-equal operator."""
         path_sql = SQL("data->>'age'")
         result = build_operator_composed(path_sql, "neq", 25)
         assert isinstance(result, Composed)
 
-    def test_comparison_operators(self):
+    def test_comparison_operators(self) -> None:
         """Test greater than, less than operators."""
         path_sql = SQL("data->>'score'")
 
@@ -61,7 +61,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "lte", 75)
         assert isinstance(result, Composed)
 
-    def test_string_operators(self):
+    def test_string_operators(self) -> None:
         """Test string-specific operators."""
         path_sql = SQL("data->>'name'")
 
@@ -77,7 +77,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "matches", "John")
         assert isinstance(result, Composed)
 
-    def test_list_operators(self):
+    def test_list_operators(self) -> None:
         """Test list/array operators."""
         path_sql = SQL("data->>'tags'")
 
@@ -89,7 +89,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "notin", ["go", "rust"])
         assert isinstance(result, Composed)
 
-    def test_null_operators(self):
+    def test_null_operators(self) -> None:
         """Test null checking operators."""
         path_sql = SQL("data->>'optional_field'")
 
@@ -101,7 +101,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "isnull", False)
         assert isinstance(result, Composed)
 
-    def test_type_casting_numeric(self):
+    def test_type_casting_numeric(self) -> None:
         """Test type casting for numeric comparisons."""
         path_sql = SQL("data->>'price'")
 
@@ -117,7 +117,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "lt", Decimal("199.99"))
         assert isinstance(result, Composed)
 
-    def test_type_casting_datetime(self):
+    def test_type_casting_datetime(self) -> None:
         """Test type casting for datetime comparisons."""
         path_sql = SQL("data->>'created_at'")
 
@@ -131,7 +131,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "eq", d)
         assert isinstance(result, Composed)
 
-    def test_type_casting_boolean(self):
+    def test_type_casting_boolean(self) -> None:
         """Test type casting for boolean comparisons."""
         path_sql = SQL("data->>'is_active'")
 
@@ -143,7 +143,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "neq", False)
         assert isinstance(result, Composed)
 
-    def test_depth_operators(self):
+    def test_depth_operators(self) -> None:
         """Test depth operators for ltree-like operations."""
         path_sql = SQL("data->>'path'")
 
@@ -155,7 +155,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "depth_gt", 2)
         assert isinstance(result, Composed)
 
-    def test_advanced_operators(self):
+    def test_advanced_operators(self) -> None:
         """Test advanced JSONB operators."""
         path_sql = SQL("data->>'config'")
 
@@ -167,7 +167,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "strictly_contains", {"key": "value"})
         assert isinstance(result, Composed)
 
-    def test_unsupported_operator(self):
+    def test_unsupported_operator(self) -> None:
         """Test behavior with unsupported operator."""
         path_sql = SQL("data->>'field'")
 
@@ -178,7 +178,7 @@ class TestBuildOperatorComposed:
 class TestSafeCreateWhereType:
     """Test dynamic filter type creation."""
 
-    def test_create_simple_filter_type(self):
+    def test_create_simple_filter_type(self) -> None:
         """Test creating a filter type for simple dataclass."""
 
         @dataclass
@@ -198,7 +198,7 @@ class TestSafeCreateWhereType:
         assert hasattr(filter_instance, "name")
         assert hasattr(filter_instance, "email")
 
-    def test_create_filter_with_optional_fields(self):
+    def test_create_filter_with_optional_fields(self) -> None:
         """Test creating filter type with optional fields."""
 
         @dataclass
@@ -216,7 +216,7 @@ class TestSafeCreateWhereType:
         assert hasattr(filter_instance, "content")
         assert hasattr(filter_instance, "published")
 
-    def test_filter_type_to_sql(self):
+    def test_filter_type_to_sql(self) -> None:
         """Test that created filter types implement to_sql method."""
 
         @dataclass
@@ -233,7 +233,7 @@ class TestSafeCreateWhereType:
         assert hasattr(filter_instance, "to_sql")
         assert callable(filter_instance.to_sql)
 
-    def test_filter_type_with_complex_types(self):
+    def test_filter_type_with_complex_types(self) -> None:
         """Test filter type creation with complex field types."""
 
         @dataclass
@@ -253,7 +253,7 @@ class TestSafeCreateWhereType:
         assert hasattr(filter_instance, "tags")
         assert hasattr(filter_instance, "metadata")
 
-    def test_filter_inheritance(self):
+    def test_filter_inheritance(self) -> None:
         """Test filter type with inheritance."""
 
         @dataclass
@@ -279,7 +279,7 @@ class TestSafeCreateWhereType:
 class TestDynamicTypeProtocol:
     """Test the DynamicType protocol."""
 
-    def test_protocol_compliance(self):
+    def test_protocol_compliance(self) -> None:
         """Test that objects can implement the protocol."""
 
         class CustomFilter:
@@ -289,7 +289,7 @@ class TestDynamicTypeProtocol:
         filter_instance = CustomFilter()
         assert isinstance(filter_instance, DynamicType)
 
-    def test_protocol_method_signature(self):
+    def test_protocol_method_signature(self) -> None:
         """Test protocol method signature requirements."""
 
         class InvalidFilter:
@@ -304,7 +304,7 @@ class TestDynamicTypeProtocol:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_build_operator_with_none_value(self):
+    def test_build_operator_with_none_value(self) -> None:
         """Test operator building with None values."""
         path_sql = SQL("data->>'field'")
 
@@ -312,13 +312,13 @@ class TestEdgeCases:
         result = build_operator_composed(path_sql, "eq", None)
         assert isinstance(result, Composed)
 
-    def test_build_operator_with_empty_string(self):
+    def test_build_operator_with_empty_string(self) -> None:
         """Test operator building with empty string."""
         path_sql = SQL("data->>'field'")
         result = build_operator_composed(path_sql, "eq", "")
         assert isinstance(result, Composed)
 
-    def test_build_operator_with_complex_nested_value(self):
+    def test_build_operator_with_complex_nested_value(self) -> None:
         """Test operator with complex nested values."""
         path_sql = SQL("data->>'config'")
         complex_value = {"nested": {"key": "value"}}
@@ -326,7 +326,7 @@ class TestEdgeCases:
         result = build_operator_composed(path_sql, "eq", complex_value)
         assert isinstance(result, Composed)
 
-    def test_edge_case_operators(self):
+    def test_edge_case_operators(self) -> None:
         """Test edge case operator handling."""
         path_sql = SQL("data->>'field'")
 
@@ -334,7 +334,7 @@ class TestEdgeCases:
         result = build_operator_composed(path_sql, "eq", None)
         assert isinstance(result, Composed)
 
-    def test_filter_type_caching(self):
+    def test_filter_type_caching(self) -> None:
         """Test that filter types are cached properly."""
 
         @dataclass

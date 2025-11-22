@@ -6,13 +6,14 @@ This module tests the new enum-based introspection policy that replaces
 the old boolean-based system for cleaner configuration.
 """
 
+from typing import Optional
+
 from fastapi.testclient import TestClient
 from graphql import GraphQLResolveInfo
 
 from fraiseql import query
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 from fraiseql.auth.base import AuthProvider, UserContext
-from typing import Optional
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
 @pytest.mark.security
@@ -39,7 +40,7 @@ class TestAuthProvider(AuthProvider):
 class TestIntrospectionPolicyEnum:
     """Test the IntrospectionPolicy enum and its integration."""
 
-    def test_introspection_policy_enum_exists(self):
+    def test_introspection_policy_enum_exists(self) -> None:
         """RED: IntrospectionPolicy enum should exist with correct values."""
         from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -48,7 +49,7 @@ class TestIntrospectionPolicyEnum:
         assert IntrospectionPolicy.PUBLIC == "public"
         assert IntrospectionPolicy.AUTHENTICATED == "authenticated"
 
-    def test_config_has_introspection_policy_field(self):
+    def test_config_has_introspection_policy_field(self) -> None:
         """RED: FraiseQLConfig should have introspection_policy field."""
         from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -60,7 +61,7 @@ class TestIntrospectionPolicyEnum:
         assert hasattr(config, "introspection_policy")
         assert config.introspection_policy == IntrospectionPolicy.AUTHENTICATED
 
-    def test_introspection_policy_default_public(self):
+    def test_introspection_policy_default_public(self) -> None:
         """RED: introspection_policy should default to PUBLIC for backward compatibility."""
         from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -70,7 +71,7 @@ class TestIntrospectionPolicyEnum:
 
         assert config.introspection_policy == IntrospectionPolicy.PUBLIC
 
-    def test_introspection_policy_string_values(self):
+    def test_introspection_policy_string_values(self) -> None:
         """RED: IntrospectionPolicy should accept string values."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -79,7 +80,7 @@ class TestIntrospectionPolicyEnum:
 
         assert config.introspection_policy == "authenticated"
 
-    def test_introspection_policy_environment_variable(self):
+    def test_introspection_policy_environment_variable(self) -> None:
         """RED: introspection_policy should be configurable via environment variable."""
         import os
 
@@ -96,7 +97,7 @@ class TestIntrospectionPolicyEnum:
             if "FRAISEQL_INTROSPECTION_POLICY" in os.environ:
                 del os.environ["FRAISEQL_INTROSPECTION_POLICY"]
 
-    def test_introspection_policy_production_default(self):
+    def test_introspection_policy_production_default(self) -> None:
         """RED: introspection_policy should default to DISABLED in production."""
         from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -111,7 +112,7 @@ class TestIntrospectionPolicyEnum:
 class TestIntrospectionPolicyBehavior:
     """Test the actual behavior of different introspection policies."""
 
-    def test_disabled_policy_blocks_all_introspection(self):
+    def test_disabled_policy_blocks_all_introspection(self) -> None:
         """RED: DISABLED policy should block introspection for everyone."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -136,7 +137,7 @@ class TestIntrospectionPolicyBehavior:
                 "introspection" in error.get("message", "").lower() for error in data["errors"]
             )
 
-    def test_public_policy_allows_all_introspection(self):
+    def test_public_policy_allows_all_introspection(self) -> None:
         """RED: PUBLIC policy should allow introspection for everyone."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -160,7 +161,7 @@ class TestIntrospectionPolicyBehavior:
             assert "data" in data
             assert data["data"]["__schema"]["queryType"]["name"] == "Query"
 
-    def test_authenticated_policy_blocks_unauthenticated_users(self):
+    def test_authenticated_policy_blocks_unauthenticated_users(self) -> None:
         """RED: AUTHENTICATED policy should block introspection for unauthenticated users."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -188,7 +189,7 @@ class TestIntrospectionPolicyBehavior:
                 for error in data["errors"]
             )
 
-    def test_authenticated_policy_allows_authenticated_users(self):
+    def test_authenticated_policy_allows_authenticated_users(self) -> None:
         """RED: AUTHENTICATED policy should allow introspection for authenticated users."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -217,7 +218,7 @@ class TestIntrospectionPolicyBehavior:
             assert "data" in data
             assert data["data"]["__schema"]["queryType"]["name"] == "Query"
 
-    def test_authenticated_policy_with_invalid_token_blocks_introspection(self):
+    def test_authenticated_policy_with_invalid_token_blocks_introspection(self) -> None:
         """RED: AUTHENTICATED policy should block introspection for users with invalid tokens."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -249,7 +250,7 @@ class TestIntrospectionPolicyBehavior:
                 for error in data["errors"]
             )
 
-    def test_regular_queries_work_with_all_policies(self):
+    def test_regular_queries_work_with_all_policies(self) -> None:
         """Regular queries should work regardless of introspection policy."""
         for policy in ["disabled", "public", "authenticated"]:
             config = FraiseQLConfig(

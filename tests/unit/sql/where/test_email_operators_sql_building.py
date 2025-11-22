@@ -10,8 +10,8 @@ from psycopg.sql import SQL
 # Import Email operator functions
 from fraiseql.sql.where.operators.email import (
     build_email_eq_sql,
-    build_email_neq_sql,
     build_email_in_sql,
+    build_email_neq_sql,
     build_email_notin_sql,
 )
 
@@ -19,7 +19,7 @@ from fraiseql.sql.where.operators.email import (
 class TestEmailBasicOperators:
     """Test basic Email operators (eq, neq, in, notin)."""
 
-    def test_build_email_equality_sql(self):
+    def test_build_email_equality_sql(self) -> None:
         """Test Email equality operator with proper text handling."""
         path_sql = SQL("data->>'user_email'")
         value = "user@example.com"
@@ -29,7 +29,7 @@ class TestEmailBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_email_inequality_sql(self):
+    def test_build_email_inequality_sql(self) -> None:
         """Test Email inequality operator with proper text handling."""
         path_sql = SQL("data->>'user_email'")
         value = "old@example.com"
@@ -39,7 +39,7 @@ class TestEmailBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_email_in_list_sql(self):
+    def test_build_email_in_list_sql(self) -> None:
         """Test Email IN list with multiple email values."""
         path_sql = SQL("data->>'user_email'")
         value = ["admin@example.com", "user@example.com", "support@example.com"]
@@ -49,7 +49,7 @@ class TestEmailBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_email_not_in_list_sql(self):
+    def test_build_email_not_in_list_sql(self) -> None:
         """Test Email NOT IN list with multiple email values."""
         path_sql = SQL("data->>'user_email'")
         value = ["test@example.com", "temp@example.com"]
@@ -59,7 +59,7 @@ class TestEmailBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_email_single_item_in_list(self):
+    def test_build_email_single_item_in_list(self) -> None:
         """Test Email IN list with single value."""
         path_sql = SQL("data->>'user_email'")
         value = ["single@example.com"]
@@ -69,7 +69,7 @@ class TestEmailBasicOperators:
 
         assert result.as_string(None) == expected
 
-    def test_build_email_different_formats(self):
+    def test_build_email_different_formats(self) -> None:
         """Test Email operators with different email formats."""
         path_sql = SQL("data->>'email'")
 
@@ -88,7 +88,7 @@ class TestEmailBasicOperators:
         expected_complex = "data->>'email' = 'user.123+tag@sub.example-site.org'"
         assert result_complex.as_string(None) == expected_complex
 
-    def test_build_email_empty_list_handling(self):
+    def test_build_email_empty_list_handling(self) -> None:
         """Test Email operators handle empty lists gracefully."""
         path_sql = SQL("data->>'email'")
         value = []
@@ -101,7 +101,7 @@ class TestEmailBasicOperators:
         expected_notin = "data->>'email' NOT IN ()"
         assert result_notin.as_string(None) == expected_notin
 
-    def test_build_email_case_handling(self):
+    def test_build_email_case_handling(self) -> None:
         """Test Email operators with different case formats."""
         path_sql = SQL("data->>'email'")
 
@@ -118,21 +118,21 @@ class TestEmailBasicOperators:
 class TestEmailValidation:
     """Test Email operator validation and error handling."""
 
-    def test_email_in_requires_list(self):
+    def test_email_in_requires_list(self) -> None:
         """Test that Email 'in' operator requires a list."""
         path_sql = SQL("data->>'email'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_email_in_sql(path_sql, "user@example.com")
 
-    def test_email_notin_requires_list(self):
+    def test_email_notin_requires_list(self) -> None:
         """Test that Email 'notin' operator requires a list."""
         path_sql = SQL("data->>'email'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_email_notin_sql(path_sql, "user@example.com")
 
-    def test_email_formats_supported(self):
+    def test_email_formats_supported(self) -> None:
         """Test that various valid email formats are supported."""
         path_sql = SQL("data->>'email'")
 
@@ -151,7 +151,7 @@ class TestEmailValidation:
             expected = f"data->>'email' = '{email}'"
             assert result.as_string(None) == expected
 
-    def test_email_special_characters(self):
+    def test_email_special_characters(self) -> None:
         """Test Email with special characters and edge cases."""
         path_sql = SQL("data->>'email'")
 
@@ -169,7 +169,7 @@ class TestEmailValidation:
             expected = f"data->>'email' = '{email}'"
             assert result.as_string(None) == expected
 
-    def test_email_long_addresses(self):
+    def test_email_long_addresses(self) -> None:
         """Test Email with longer addresses and domains."""
         path_sql = SQL("data->>'email'")
 

@@ -149,7 +149,7 @@ async def main() -> None:
 
         # Import Rust
         try:
-            import fraiseql_rs
+            from fraiseql import fraiseql_rs
 
             rust_available = True
         except ImportError:

@@ -21,7 +21,7 @@ class DnsServer:
 class TestNetworkFilteringFix:
     """Test that our fix resolves the reported network filtering issues."""
 
-    def test_network_operator_selection_with_ip_types(self):
+    def test_network_operator_selection_with_ip_types(self) -> None:
         """Test that network operators are properly selected for IP address fields."""
         registry = get_operator_registry()
 
@@ -37,7 +37,7 @@ class TestNetworkFilteringFix:
         strategy = registry.get_strategy("isPrivate", IpAddress)
         assert strategy.__class__.__name__ == "NetworkOperatorStrategy"
 
-    def test_fixed_sql_generation_for_network_operators(self):
+    def test_fixed_sql_generation_for_network_operators(self) -> None:
         """Test that network operators generate consistent SQL."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -61,7 +61,7 @@ class TestNetworkFilteringFix:
         assert "172.16.0.0/12" in private_str
         assert "<<=" in private_str
 
-    def test_eq_operator_vs_network_operators_consistency(self):
+    def test_eq_operator_vs_network_operators_consistency(self) -> None:
         """Test that eq and network operators can coexist properly."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -84,7 +84,7 @@ class TestNetworkFilteringFix:
         assert "host(" in eq_str or "=" in eq_str  # eq operator
         assert "<<=" in subnet_str  # subnet operator
 
-    def test_where_type_generation_includes_network_operators(self):
+    def test_where_type_generation_includes_network_operators(self) -> None:
         """Test that where type generation includes network operators for IP fields."""
         WhereType = safe_create_where_type(DnsServer)
 
@@ -100,7 +100,7 @@ class TestNetworkFilteringFix:
         # We can't easily test this without creating a full instance, but we can check
         # that the type was created correctly by the GraphQL where generator
 
-    def test_network_operators_reject_non_ip_fields(self):
+    def test_network_operators_reject_non_ip_fields(self) -> None:
         """Test that network operators properly reject non-IP field types."""
         get_operator_registry()
 
@@ -118,7 +118,7 @@ class TestNetworkFilteringFix:
         # Should reject int types
         assert not network_strategy.can_handle("inSubnet", int)
 
-    def test_regression_reported_issue_patterns(self):
+    def test_regression_reported_issue_patterns(self) -> None:
         """Test the specific patterns from the reported issue."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")

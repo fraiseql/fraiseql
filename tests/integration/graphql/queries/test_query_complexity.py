@@ -16,14 +16,14 @@ from fraiseql.gql.complexity import (
 class TestFieldComplexity:
     """Test field-level complexity calculations."""
 
-    def test_scalar_field_complexity(self):
+    def test_scalar_field_complexity(self) -> None:
         """Test complexity of scalar fields."""
         # Scalar fields have base complexity of 1
         assert calculate_field_complexity("id", is_list=False) == 1
         assert calculate_field_complexity("name", is_list=False) == 1
         assert calculate_field_complexity("age", is_list=False) == 1
 
-    def test_list_field_complexity(self):
+    def test_list_field_complexity(self) -> None:
         """Test complexity of list fields."""
         # List fields without nested = 1 + (size * 0) = 1
         assert calculate_field_complexity("items", is_list=True, estimated_size=10) == 1
@@ -35,14 +35,14 @@ class TestFieldComplexity:
             == 31
         )
 
-    def test_list_field_with_limit(self):
+    def test_list_field_with_limit(self) -> None:
         """Test complexity when list has explicit limit."""
         # Should use actual limit instead of estimate
         assert calculate_field_complexity("items", is_list=True, limit=5) == 1
         # With nested complexity
         assert calculate_field_complexity("users", is_list=True, limit=5, nested_complexity=2) == 11
 
-    def test_nested_object_complexity(self):
+    def test_nested_object_complexity(self) -> None:
         """Test complexity of nested objects."""
         # Object fields add their child complexity
         nested_complexity = 5  # Sum of nested field complexities
@@ -53,7 +53,7 @@ class TestFieldComplexity:
             == 6
         )
 
-    def test_custom_multiplier(self):
+    def test_custom_multiplier(self) -> None:
         """Test field with custom complexity multiplier."""
         # Some fields might be more expensive (e.g., computed fields)
         assert calculate_field_complexity("computed_field", multiplier=3) == 3
@@ -74,7 +74,7 @@ class TestQueryComplexityAnalyzer:
     """Test the main query complexity analyzer."""
 
     @pytest.fixture
-    def analyzer(self):
+    def analyzer(self) -> None:
         """Create analyzer with default config."""
         config = ComplexityConfig(
             max_complexity=1000,
@@ -87,7 +87,7 @@ class TestQueryComplexityAnalyzer:
         )
         return QueryComplexityAnalyzer(config)
 
-    def test_simple_query_complexity(self, analyzer):
+    def test_simple_query_complexity(self, analyzer) -> None:
         """Test complexity of simple query."""
         query = """
         query {
@@ -105,7 +105,7 @@ class TestQueryComplexityAnalyzer:
         assert complexity.depth == 2
         assert complexity.field_count == 4
 
-    def test_list_query_complexity(self, analyzer):
+    def test_list_query_complexity(self, analyzer) -> None:
         """Test complexity of query with lists."""
         query = """
         query {
@@ -126,7 +126,7 @@ class TestQueryComplexityAnalyzer:
         assert exc_info.value.complexity == 1151
         assert "exceeds maximum complexity" in str(exc_info.value)
 
-    def test_query_exceeds_max_complexity(self, analyzer):
+    def test_query_exceeds_max_complexity(self, analyzer) -> None:
         """Test query that exceeds maximum complexity."""
         query = """
         query {
@@ -151,7 +151,7 @@ class TestQueryComplexityAnalyzer:
         assert "exceeds maximum complexity" in str(exc_info.value)
         assert exc_info.value.complexity > 1000
 
-    def test_query_exceeds_max_depth(self, analyzer):
+    def test_query_exceeds_max_depth(self, analyzer) -> None:
         """Test query that exceeds maximum depth."""
         query = """
         query {
@@ -186,7 +186,7 @@ class TestQueryComplexityAnalyzer:
         assert "exceeds maximum depth" in str(exc_info.value)
         assert exc_info.value.depth > 10
 
-    def test_fragment_complexity(self, analyzer):
+    def test_fragment_complexity(self, analyzer) -> None:
         """Test complexity calculation with fragments."""
         query = """
         query {
@@ -218,7 +218,7 @@ class TestQueryComplexityAnalyzer:
         # users is a list: 1 + 20 * (3 + 1 + 10 * 3) = 1 + 20 * 34 = 681
         assert complexity.total_score == 681
 
-    def test_custom_field_multipliers(self, analyzer):
+    def test_custom_field_multipliers(self, analyzer) -> None:
         """Test fields with custom complexity multipliers."""
         query = """
         query {
@@ -243,7 +243,7 @@ class TestQueryComplexityAnalyzer:
         # Total: 25 + 12 = 37
         assert complexity.total_score == 37
 
-    def test_introspection_query_blocked(self, analyzer):
+    def test_introspection_query_blocked(self, analyzer) -> None:
         """Test that introspection queries can be blocked."""
         analyzer.config.allow_introspection = False
 
@@ -261,7 +261,7 @@ class TestQueryComplexityAnalyzer:
 
         assert "Introspection queries are not allowed" in str(exc_info.value)
 
-    def test_variables_in_complexity(self, analyzer):
+    def test_variables_in_complexity(self, analyzer) -> None:
         """Test complexity calculation with variables."""
         query = """
         query GetUsers($limit: Int = 10) {
@@ -281,7 +281,7 @@ class TestQueryComplexityAnalyzer:
         # users is a list, so: 1 + 50 * 2 = 101
         assert complexity.total_score == 101
 
-    def test_complexity_info_object(self, analyzer):
+    def test_complexity_info_object(self, analyzer) -> None:
         """Test the complexity info object returned."""
         query = """
         query {
@@ -308,13 +308,13 @@ class TestComplexityIntegration:
     """Test integration with FraiseQL execution."""
 
     @pytest.mark.asyncio
-    async def test_query_rejected_before_execution(self):
+    async def test_query_rejected_before_execution(self) -> None:
         """Test that complex queries are rejected before database execution."""
         # This would test actual integration with query execution
         # For now, it's a placeholder showing intended behavior
 
     @pytest.mark.asyncio
-    async def test_complexity_included_in_response_extensions(self):
+    async def test_complexity_included_in_response_extensions(self) -> None:
         """Test that complexity info can be included in GraphQL response."""
         # This would test that complexity calculations can be exposed
         # in the response extensions for debugging
@@ -323,7 +323,7 @@ class TestComplexityIntegration:
 class TestQueryComplexityConfig:
     """Test configuration options for complexity analysis."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default configuration values."""
         config = ComplexityConfig()
 
@@ -333,7 +333,7 @@ class TestQueryComplexityConfig:
         assert config.enabled is True
         assert config.include_in_response is False
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom configuration."""
         config = ComplexityConfig(
             max_complexity=5000,
@@ -353,7 +353,7 @@ class TestQueryComplexityConfig:
         assert config.include_in_response is True
         assert config.allow_introspection is False
 
-    def test_disabled_complexity_checking(self):
+    def test_disabled_complexity_checking(self) -> None:
         """Test that complexity checking can be disabled."""
         config = ComplexityConfig(enabled=False)
         analyzer = QueryComplexityAnalyzer(config)

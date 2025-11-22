@@ -37,30 +37,30 @@ class SampleModel:
 class TestBuildOperatorComposed:
     """Test the build_operator_composed function with all operators."""
 
-    def test_eq_operator(self):
+    def test_eq_operator(self) -> None:
         """Test equality operator."""
         path_sql = SQL("data->>'name'")
         result = build_operator_composed(path_sql, "eq", "test")
         assert isinstance(result, Composed)
         assert "=" in result.as_string(None)
 
-    def test_neq_operator(self):
+    def test_neq_operator(self) -> None:
         """Test not equal operator."""
         path_sql = SQL("data->>'name'")
         result = build_operator_composed(path_sql, "neq", "test")
         assert isinstance(result, Composed)
         assert "!=" in result.as_string(None)
 
-    def test_like_operator(self):
+    def test_like_operator(self) -> None:
         """Test LIKE operator."""
         # Like operator doesn't exist in FraiseQL - skip this test
         # The startswith operator is used instead
 
-    def test_ilike_operator(self):
+    def test_ilike_operator(self) -> None:
         """Test ILIKE operator."""
         # ILike operator doesn't exist in FraiseQL - skip this test
 
-    def test_numeric_operators(self):
+    def test_numeric_operators(self) -> None:
         """Test numeric comparison operators."""
         path_sql = SQL("data->>'age'")
 
@@ -80,7 +80,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "lte", 21)
         assert " <= " in result.as_string(None)
 
-    def test_isnull_operator(self):
+    def test_isnull_operator(self) -> None:
         """Test IS NULL and IS NOT NULL operators."""
         path_sql = SQL("data->>'optional'")
 
@@ -92,7 +92,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "isnull", False)
         assert "IS NOT NULL" in result.as_string(None)
 
-    def test_jsonb_operators(self):
+    def test_jsonb_operators(self) -> None:
         """Test JSONB-specific operators."""
         path_sql = SQL("data")
 
@@ -124,7 +124,7 @@ class TestBuildOperatorComposed:
         result_str = " ".join(parts)
         assert " ?| " in result_str  # JSONB uses ?| for array element existence check
 
-    def test_regex_operators(self):
+    def test_regex_operators(self) -> None:
         """Test regex operators."""
         path_sql = SQL("data->>'name'")
 
@@ -137,7 +137,7 @@ class TestBuildOperatorComposed:
         assert "LIKE" in result.as_string(None)
         assert "test%" in result.as_string(None)
 
-    def test_in_operator_with_different_types(self):
+    def test_in_operator_with_different_types(self) -> None:
         """Test IN operator with various value types."""
         path_sql = SQL("data->>'value'")
 
@@ -164,13 +164,13 @@ class TestBuildOperatorComposed:
         assert "true" in sql_str.lower()
         assert "false" in sql_str.lower()
 
-    def test_in_operator_invalid_type(self):
+    def test_in_operator_invalid_type(self) -> None:
         """Test IN operator with invalid type raises TypeError."""
         path_sql = SQL("data->>'value'")
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             build_operator_composed(path_sql, "in", "not a list")
 
-    def test_notin_operator(self):
+    def test_notin_operator(self) -> None:
         """Test NOT IN operator."""
         path_sql = SQL("data->>'value'")
 
@@ -187,13 +187,13 @@ class TestBuildOperatorComposed:
         assert "true" in sql_str.lower()
         assert "false" in sql_str.lower()
 
-    def test_notin_operator_invalid_type(self):
+    def test_notin_operator_invalid_type(self) -> None:
         """Test NOT IN operator with invalid type raises TypeError."""
         path_sql = SQL("data->>'value'")
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_operator_composed(path_sql, "notin", "not a list")
 
-    def test_ltree_operators(self):
+    def test_ltree_operators(self) -> None:
         """Test ltree-specific operators."""
         path_sql = SQL("path")
 
@@ -216,7 +216,7 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "isdescendant", "root.branch")
         assert " <@ " in result.as_string(None)
 
-    def test_strictly_contains_operator(self):
+    def test_strictly_contains_operator(self) -> None:
         """Test strictly contains operator (contains but not equal)."""
         path_sql = SQL("data")
         result = build_operator_composed(path_sql, "strictly_contains", {"key": "value"})
@@ -233,7 +233,7 @@ class TestBuildOperatorComposed:
         assert " AND " in result_str
         assert " != " in result_str
 
-    def test_boolean_value_handling(self):
+    def test_boolean_value_handling(self) -> None:
         """Test boolean value conversion to proper SQL."""
         path_sql = SQL("data->>'is_active'")
 
@@ -247,7 +247,7 @@ class TestBuildOperatorComposed:
         sql_str = result.as_string(None)
         assert "= 'false'" in sql_str  # Text literal for JSONB consistency
 
-    def test_uuid_value_handling(self):
+    def test_uuid_value_handling(self) -> None:
         """Test UUID value handling with type hints."""
         path_sql = SQL("data->>'id'")
         test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
@@ -256,7 +256,7 @@ class TestBuildOperatorComposed:
         sql_str = result.as_string(None)
         assert "::uuid" in sql_str
 
-    def test_datetime_value_handling(self):
+    def test_datetime_value_handling(self) -> None:
         """Test datetime value handling."""
         path_sql = SQL("data->>'created_at'")
         test_dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -266,7 +266,7 @@ class TestBuildOperatorComposed:
         # Check for the datetime value being present rather than exact type casting
         assert "2024-01-01" in sql_str
 
-    def test_date_value_handling(self):
+    def test_date_value_handling(self) -> None:
         """Test date value handling."""
         path_sql = SQL("data->>'birth_date'")
         test_date = date(2024, 1, 1)
@@ -275,7 +275,7 @@ class TestBuildOperatorComposed:
         sql_str = result.as_string(None)
         assert "::date" in sql_str
 
-    def test_unsupported_operator(self):
+    def test_unsupported_operator(self) -> None:
         """Test unsupported operator raises ValueError."""
         path_sql = SQL("data->>'value'")
         with pytest.raises(ValueError, match="Unsupported operator 'invalid_op'"):
@@ -285,25 +285,25 @@ class TestBuildOperatorComposed:
 class TestUnwrapType:
     """Test the unwrap_type function."""
 
-    def test_unwrap_optional(self):
+    def test_unwrap_optional(self) -> None:
         """Test unwrapping Optional types."""
         assert unwrap_type(Optional[str]) is str
         assert unwrap_type(Optional[int]) is int
         assert unwrap_type(Optional[uuid.UUID]) is uuid.UUID
 
-    def test_unwrap_union_with_none(self):
+    def test_unwrap_union_with_none(self) -> None:
         """Test unwrapping Union types with None."""
         # The unwrap_type function doesn't unwrap Union types, it returns them unchanged
         assert unwrap_type(str | None) == (str | None)
         assert unwrap_type(int | None) == (int | None)
 
-    def test_no_unwrap_needed(self):
+    def test_no_unwrap_needed(self) -> None:
         """Test types that don't need unwrapping."""
         assert unwrap_type(str) == str
         assert unwrap_type(int) == int
         assert unwrap_type(list[str]) == list[str]
 
-    def test_complex_union(self):
+    def test_complex_union(self) -> None:
         """Test complex Union types are not unwrapped."""
         union_type = str | int | None
         # Should not unwrap because there are multiple non-None types
@@ -313,7 +313,7 @@ class TestUnwrapType:
 class TestSafeCreateWhereType:
     """Test the safe_create_where_type function."""
 
-    def test_basic_where_type_creation(self):
+    def test_basic_where_type_creation(self) -> None:
         """Test creating a basic WHERE type."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -327,7 +327,7 @@ class TestSafeCreateWhereType:
         assert hasattr(instance, "age")
         assert hasattr(instance, "to_sql")
 
-    def test_where_type_with_simple_filters(self):
+    def test_where_type_with_simple_filters(self) -> None:
         """Test WHERE type with simple equality filters."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -355,7 +355,7 @@ class TestSafeCreateWhereType:
             f"Boolean fields should not use ::boolean casting, found in: {sql_str}"
         )
 
-    def test_where_type_with_complex_filters(self):
+    def test_where_type_with_complex_filters(self) -> None:
         """Test WHERE type with complex filters."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -380,7 +380,7 @@ class TestSafeCreateWhereType:
         assert " IN (" in sql_str
         assert "::date" in sql_str
 
-    def test_where_type_with_null_filters(self):
+    def test_where_type_with_null_filters(self) -> None:
         """Test WHERE type with null checks."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -393,7 +393,7 @@ class TestSafeCreateWhereType:
         assert "(data ->> 'optional_field') IS NULL" in sql_str
         assert "(data ->> 'name') IS NOT NULL" in sql_str
 
-    def test_where_type_with_multiple_operators_same_field(self):
+    def test_where_type_with_multiple_operators_same_field(self) -> None:
         """Test WHERE type with multiple operators on the same field."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -420,7 +420,7 @@ class TestSafeCreateWhereType:
         # Validate balanced parentheses
         assert sql_str.count("(") == sql_str.count(")"), f"Unbalanced parentheses in: {sql_str}"
 
-    def test_where_type_empty_filter(self):
+    def test_where_type_empty_filter(self) -> None:
         """Test WHERE type with no filters returns None."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -428,7 +428,7 @@ class TestSafeCreateWhereType:
         sql = where.to_sql()
         assert sql is None
 
-    def test_where_type_with_none_values(self):
+    def test_where_type_with_none_values(self) -> None:
         """Test WHERE type ignores None values in filter dicts."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -446,7 +446,7 @@ class TestSafeCreateWhereType:
         expected_sql = "(data ->> 'age')::numeric > 21"
         assert sql_str == expected_sql, f"Expected: {expected_sql}, got: {sql_str}"
 
-    def test_where_type_caching(self):
+    def test_where_type_caching(self) -> None:
         """Test that safe_create_where_type uses caching."""
         WhereType1 = safe_create_where_type(SampleModel)
         WhereType2 = safe_create_where_type(SampleModel)
@@ -454,7 +454,7 @@ class TestSafeCreateWhereType:
         # Should return the same cached type
         assert WhereType1 is WhereType2
 
-    def test_nested_dynamic_type(self):
+    def test_nested_dynamic_type(self) -> None:
         """Test WHERE type with nested dynamic type filters."""
 
         # Define Child first to avoid forward reference issues
@@ -488,7 +488,7 @@ class TestSafeCreateWhereType:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_invalid_field_type_in_filter(self):
+    def test_invalid_field_type_in_filter(self) -> None:
         """Test handling of non-dict filter values."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -505,7 +505,7 @@ class TestEdgeCases:
         assert "name" not in sql_str
         assert "(data ->> 'age')::numeric > 21" in sql_str
 
-    def test_unsupported_operators_ignored(self):
+    def test_unsupported_operators_ignored(self) -> None:
         """Test that unsupported operators are silently ignored."""
         WhereType = safe_create_where_type(SampleModel)
 
@@ -521,6 +521,6 @@ class TestEdgeCases:
 
 
 @pytest.fixture
-def sample_where_type():
+def sample_where_type() -> None:
     """Provide a sample WHERE type for testing."""
     return safe_create_where_type(SampleModel)

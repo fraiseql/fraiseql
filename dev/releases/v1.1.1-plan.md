@@ -1,0 +1,508 @@
+# FraiseQL v1.1.1 Release Plan - PHASED TDD APPROACH
+
+**Task Complexity**: Complex - Multi-file, architecture changes, CI/CD fixes
+**Methodology**: Phased TDD Development
+
+---
+
+## Executive Summary
+
+FraiseQL v1.1.1 is a **critical bug fix release** that bundles the Rust extension (`fraiseql-rs`) into the main wheel to fix PyPI installation issues (#103). The release is currently **BLOCKED** by CI/CD failures due to incorrect maturin build configuration.
+
+**Key Changes Since v1.1.0:**
+1. Bundle fraiseql-rs into main wheel using maturin
+2. Fix Python version requirement (3.11+ instead of 3.13+)
+3. Update CI workflows for bundled Rust extension
+4. Add multi-platform wheel builds (Linux, macOS, Windows)
+
+**Current Status:**
+- ❌ Tag `v1.1.1` exists but CI failed
+- ❌ Not published to PyPI (latest is v1.1.0)
+- ❌ Version still shows 1.1.0 in pyproject.toml
+- ❌ CHANGELOG not updated
+
+**Root Cause of Failure:**
+```
+💥 maturin failed
+  Caused by: Can't find /home/runner/work/fraiseql/fraiseql/Cargo.toml
+```
+
+The workflow attempts `maturin build --release --out dist` from the project root, but:
+- `Cargo.toml` is in `fraiseql_rs/Cargo.toml` (workspace member)
+- Root has `pyproject.toml` with `build-backend = "hatchling.build"` (NOT maturin)
+- Maturin needs to be run from `fraiseql_rs/` OR with `-m fraiseql_rs/Cargo.toml`
+
+---
+
+## PHASES
+
+### Phase 1: Root Cause Analysis & Design ✅ COMPLETED
+
+**Objective**: Understand the build system mismatch and design the correct architecture
+
+#### TDD Cycle:
+
+1. **RED**: ✅ Existing CI tests fail
+   - Test: GitHub Actions workflow for v1.1.1 tag
+   - Expected failure: Maturin can't find Cargo.toml
+   - Actual failure: Confirmed in runs 18994990399, 18994961448
+
+2. **GREEN**: ✅ Analysis complete
+   - **Finding 1**: Mixed build backends
+     - Root: `pyproject.toml` uses `hatchling.build`
+     - Workspace member: `fraiseql_rs/pyproject.toml` uses `maturin`
+
+   - **Finding 2**: Wrong maturin invocation location
+     - CI runs: `maturin build --release --out dist` from root
+     - Cargo.toml location: `fraiseql_rs/Cargo.toml`
+
+   - **Finding 3**: Architecture options
+     - **Option A**: Root Cargo.toml workspace (proper Rust workspace)
+     - **Option B**: Run maturin from fraiseql_rs/ subdirectory
+     - **Option C**: Use maturin's `-m` flag to specify manifest path
+
+3. **REFACTOR**: ✅ Design chosen
+   - **Decision**: Use **Option C** - maturin with `-m` flag
+   - **Reasoning**:
+     - ✅ Minimal changes to existing structure
+     - ✅ Preserves uv workspace setup in pyproject.toml
+     - ✅ CI already has Rust toolchain installed
+     - ✅ Matches PyO3/maturin-action@v1 approach in build-wheels job
+   - **Confidence**: 9/10
+
+4. **QA**: ✅ Design validated
+   - [x] Reviewed existing workflows
+   - [x] Confirmed PyO3/maturin-action works (used in build-wheels job)
+   - [x] Identified fix: Change `maturin build` to `maturin build -m fraiseql_rs/Cargo.toml`
+   - [x] Local maturin available (v1.9.6)
+
+---
+
+### Phase 2: Fix Build Configuration
+
+**Objective**: Update maturin commands to use correct Cargo.toml path
+
+#### TDD Cycle:
+
+1. **RED**: Write test for correct build
+   - Test file: Local build verification
+   - Expected behavior: `maturin build -m fraiseql_rs/Cargo.toml --release -o dist` succeeds
+   - Current state: Untested with correct path
+
+2. **GREEN**: Implement minimal fix
+   - Files to modify:
+     - `.github/workflows/publish.yml:60,120,152` (3 jobs: test, lint, security)
+   - Minimal implementation:
+     ```yaml
+     # Change from:
+     maturin build --release --out dist
+
+     # Change to:
+     maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+     ```
+   - **Critical**: Only fix the test/lint/security jobs (lines 60, 120, 152)
+   - **Do NOT change**: build-wheels job (line 184) - already uses PyO3/maturin-action correctly
+
+3. **REFACTOR**: Ensure consistency
+   - Verify all three jobs use identical maturin command
+   - Check output directory consistency (`--out dist` vs `-o dist`)
+   - Ensure proper venv activation sequence
+
+4. **QA**: Verify phase completion
+   - [ ] Local build test passes
+   - [ ] All maturin commands use `-m fraiseql_rs/Cargo.toml`
+   - [ ] No regression in build-wheels job
+   - [ ] Changes committed
+
+---
+
+### Phase 3: Update Version & Documentation
+
+**Objective**: Properly version v1.1.1 and document the release
+
+#### TDD Cycle:
+
+1. **RED**: Version validation test
+   - Test: Check `pyproject.toml` version matches tag
+   - Expected: Version should be "1.1.1"
+   - Current: Version is "1.1.0" ❌
+
+2. **GREEN**: Update version numbers
+   - Files to modify:
+     - `pyproject.toml:7` - Change version to "1.1.1"
+     - `CHANGELOG.md` - Add v1.1.1 section
+
+   - CHANGELOG entry:
+     ```markdown
+     ## [1.1.1] - 2025-11-01
+
+     ### 🐛 Critical Bug Fixes
+
+     **PyPI Installation Fixed** (#103)
+     - Bundled fraiseql-rs Rust extension into main wheel using maturin
+     - Removed fraiseql-rs from dependencies (no longer separate package)
+     - Fixed CI workflows to build bundled extension correctly
+     - Added multi-platform wheel builds (Linux x86_64, macOS x86_64/ARM64, Windows x86_64)
+
+     **Python Version Requirement Corrected**
+     - Fixed Python version requirement to 3.11+ (was incorrectly 3.13+)
+     - Codebase uses `typing.Self` which requires Python 3.11+
+     - Widens compatibility to Python 3.11 and 3.12 users
+     - Added comprehensive tox testing infrastructure for Python 3.11, 3.12, 3.13
+
+     ### 🔧 Build System Changes
+
+     - Migrated from pure Python wheel to platform-specific wheels with bundled Rust
+     - CI now builds wheels for:
+       - Linux: x86_64 (manylinux)
+       - macOS: x86_64 (Intel), aarch64 (Apple Silicon)
+       - Windows: x86_64
+
+     ### 📦 Installation Improvements
+
+     Users can now install directly from PyPI without needing Rust toolchain:
+     ```bash
+     pip install fraiseql==1.1.1
+     ```
+
+     Previously would fail with:
+     ```
+     ERROR: Could not find a version that satisfies the requirement fraiseql-rs
+     ```
+
+     ### ✅ Migration Notes
+
+     **No code changes required** - This is a packaging fix only.
+
+     If you previously had issues installing v1.1.0, simply upgrade:
+     ```bash
+     pip install --upgrade fraiseql==1.1.1
+     ```
+     ```
+
+3. **REFACTOR**: Documentation cleanup
+   - Verify CHANGELOG formatting
+   - Check all references to version numbers
+   - Update README if needed (currently shows v1.1.0)
+
+4. **QA**: Documentation validated
+   - [ ] Version in pyproject.toml = 1.1.1
+   - [ ] CHANGELOG includes v1.1.1 entry
+   - [ ] All version references consistent
+   - [ ] Markdown properly formatted
+
+---
+
+### Phase 4: Local Build Verification
+
+**Objective**: Verify the build works locally before pushing to CI
+
+#### TDD Cycle:
+
+1. **RED**: Build must succeed locally
+   - Test command: `maturin build -m fraiseql_rs/Cargo.toml --release -o dist`
+   - Expected: Wheel file created in `dist/`
+   - Expected filename: `fraiseql-1.1.1-cp313-cp313-linux_x86_64.whl` (or similar)
+
+2. **GREEN**: Execute build
+   - Clean previous build: `rm -rf dist/ build/`
+   - Run maturin build with correct path
+   - Verify wheel created
+   - Check wheel contents: `unzip -l dist/fraiseql-*.whl | grep _fraiseql_rs`
+   - Expected: Should find `fraiseql/_fraiseql_rs.*.so` inside
+
+3. **REFACTOR**: Test installation
+   - Create clean venv: `python -m venv /tmp/test-fraiseql`
+   - Install built wheel: `pip install dist/fraiseql-*.whl[dev]`
+   - Test import: `python -c "from fraiseql import _fraiseql_rs; print(_fraiseql_rs.__version__)"`
+   - Run quick test: `pytest tests/unit/core/test_rust_pipeline_v2.py -v`
+
+4. **QA**: Build validation complete
+   - [ ] Wheel builds successfully
+   - [ ] Wheel contains bundled Rust extension
+   - [ ] Installation works in clean venv
+   - [ ] Rust extension imports correctly
+   - [ ] Core tests pass with bundled extension
+
+---
+
+### Phase 5: Fix CI/CD Workflows
+
+**Objective**: Update GitHub Actions to build and test correctly
+
+#### TDD Cycle:
+
+1. **RED**: CI must pass for v1.1.1
+   - Test: GitHub Actions workflow
+   - Current state: Failing (runs 18994990399, 18994961448)
+   - Expected: All jobs pass (test, lint, security, build-wheels, publish)
+
+2. **GREEN**: Update workflow files
+   - File: `.github/workflows/publish.yml`
+
+   - **Change 1**: Test job (line 60)
+     ```yaml
+     # Before:
+     maturin build --release --out dist
+
+     # After:
+     maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+     ```
+
+   - **Change 2**: Lint job (line 120)
+     ```yaml
+     # Before:
+     maturin build --release --out dist
+
+     # After:
+     maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+     ```
+
+   - **Change 3**: Security job (line 152)
+     ```yaml
+     # Before:
+     maturin build --release --out dist
+
+     # After:
+     maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+     ```
+
+   - **NO CHANGE**: build-wheels job (line 184-189)
+     - Already correct: Uses `PyO3/maturin-action@v1` with `--find-interpreter`
+     - Action handles Cargo.toml discovery automatically
+
+3. **REFACTOR**: Workflow improvements
+   - Review entire workflow for consistency
+   - Check matrix strategy (ubuntu-latest, macos-latest, windows-latest)
+   - Verify dependency between jobs (needs: [test, lint, security])
+   - Ensure proper artifact upload/download
+
+4. **QA**: Workflow validated
+   - [ ] All maturin build commands use `-m fraiseql_rs/Cargo.toml`
+   - [ ] build-wheels job unchanged (uses PyO3/maturin-action)
+   - [ ] Job dependencies correct
+   - [ ] Artifact handling proper
+   - [ ] Changes committed
+
+---
+
+### Phase 6: Re-tag and Test Release
+
+**Objective**: Delete old tag, create new one, and verify CI passes
+
+#### TDD Cycle:
+
+1. **RED**: Current v1.1.1 tag points to failing CI
+   - Tag: v1.1.1 at commit febbf99
+   - CI status: Failed ❌
+   - Solution: Must re-tag after fixes
+
+2. **GREEN**: Delete and recreate tag
+   - Delete local tag: `git tag -d v1.1.1`
+   - Delete remote tag: `git push origin :refs/tags/v1.1.1`
+   - Commit all fixes
+   - Create new tag:
+     ```bash
+     git tag -a v1.1.1 -m "Release v1.1.1: Fix PyPI installation by bundling Rust extension
+
+     - Bundle fraiseql-rs into main wheel using maturin
+     - Fix maturin build commands to use correct Cargo.toml path
+     - Fix Python version requirement to 3.11+ (was 3.13+)
+     - Add multi-platform wheel builds (Linux, macOS, Windows)
+     - Update CI workflows to build and test bundled extension
+
+     Fixes #103"
+     ```
+   - Push tag: `git push origin v1.1.1`
+
+3. **REFACTOR**: Monitor CI
+   - Watch GitHub Actions: `gh run watch`
+   - Or check: `gh run list --workflow=publish.yml --limit 1`
+   - Expected jobs:
+     1. ✅ Tests (Required for Release)
+     2. ✅ Lint (Required for Release)
+     3. ✅ Security (Required for Release)
+     4. ✅ Build wheels (ubuntu, macos, windows)
+     5. ✅ Publish to PyPI
+
+4. **QA**: Release validation
+   - [ ] All CI jobs pass
+   - [ ] Wheels built for all platforms
+   - [ ] Published to PyPI
+   - [ ] Can install: `pip install fraiseql==1.1.1`
+   - [ ] Bundled extension works
+
+---
+
+### Phase 7: Post-Release Validation
+
+**Objective**: Verify v1.1.1 is live and working for users
+
+#### TDD Cycle:
+
+1. **RED**: Installation test in fresh environment
+   - Environment: Clean Python 3.11, 3.12, 3.13 venvs
+   - Test: `pip install fraiseql==1.1.1`
+   - Expected: Should succeed on all three Python versions
+
+2. **GREEN**: Verify across platforms
+   - Test installations:
+     ```bash
+     # Python 3.11
+     python3.11 -m venv /tmp/test-311
+     source /tmp/test-311/bin/activate
+     pip install fraiseql==1.1.1
+     python -c "from fraiseql import _fraiseql_rs; print(_fraiseql_rs.__version__)"
+     deactivate
+
+     # Python 3.12
+     python3.12 -m venv /tmp/test-312
+     source /tmp/test-312/bin/activate
+     pip install fraiseql==1.1.1
+     python -c "from fraiseql import _fraiseql_rs; print(_fraiseql_rs.__version__)"
+     deactivate
+
+     # Python 3.13
+     python3.13 -m venv /tmp/test-313
+     source /tmp/test-313/bin/activate
+     pip install fraiseql==1.1.1
+     python -c "from fraiseql import _fraiseql_rs; print(_fraiseql_rs.__version__)"
+     deactivate
+     ```
+
+3. **REFACTOR**: Update documentation
+   - Verify PyPI page shows v1.1.1: https://pypi.org/project/fraiseql/
+   - Check all wheels uploaded (should be 6+):
+     - Linux: `fraiseql-1.1.1-cp311-cp311-manylinux_*.whl`
+     - Linux: `fraiseql-1.1.1-cp312-cp312-manylinux_*.whl`
+     - Linux: `fraiseql-1.1.1-cp313-cp313-manylinux_*.whl`
+     - macOS: `fraiseql-1.1.1-cp3*-macosx_*.whl` (x86_64 and arm64)
+     - Windows: `fraiseql-1.1.1-cp3*-win_amd64.whl`
+   - Update README.md if version badges need updating
+
+4. **QA**: Release complete
+   - [ ] PyPI shows v1.1.1 as latest
+   - [ ] All platform wheels available
+   - [ ] Installation works on Python 3.11, 3.12, 3.13
+   - [ ] Bundled Rust extension imports correctly
+   - [ ] GitHub release created (auto or manual)
+   - [ ] Documentation up-to-date
+
+---
+
+## Success Criteria
+
+- [x] Root cause identified (maturin can't find Cargo.toml)
+- [x] Build architecture designed (-m fraiseql_rs/Cargo.toml)
+- [ ] Local build succeeds with bundled Rust extension
+- [ ] CI workflows updated and working
+- [ ] Version bumped to 1.1.1 in all files
+- [ ] CHANGELOG updated with v1.1.1 entry
+- [ ] Tag v1.1.1 created and pushed
+- [ ] All GitHub Actions jobs pass
+- [ ] Published to PyPI as v1.1.1
+- [ ] Installation works on Python 3.11, 3.12, 3.13
+- [ ] Multi-platform wheels available (Linux, macOS, Windows)
+- [ ] Bundled Rust extension functional
+
+---
+
+## Commands Reference
+
+### Local Development
+```bash
+# Clean build
+rm -rf dist/ build/
+
+# Build wheel with bundled Rust
+maturin build -m fraiseql_rs/Cargo.toml --release -o dist
+
+# Test in clean venv
+python -m venv /tmp/test-install
+source /tmp/test-install/bin/activate
+pip install dist/fraiseql-*.whl[dev]
+python -c "from fraiseql import _fraiseql_rs; print(_fraiseql_rs.__version__)"
+pytest tests/unit/core/test_rust_pipeline_v2.py -v
+deactivate
+
+# Run full test suite
+uv run pytest
+```
+
+### Git Operations
+```bash
+# Delete old tag (if needed)
+git tag -d v1.1.1
+git push origin :refs/tags/v1.1.1
+
+# Create new tag
+git tag -a v1.1.1 -m "Release v1.1.1: Fix PyPI installation"
+git push origin v1.1.1
+
+# Check CI status
+gh run list --workflow=publish.yml --limit 5
+gh run watch
+```
+
+### PyPI Verification
+```bash
+# Check latest version
+pip index versions fraiseql
+
+# Install specific version
+pip install fraiseql==1.1.1
+
+# Verify bundled extension
+python -c "from fraiseql import _fraiseql_rs; print(dir(_fraiseql_rs))"
+```
+
+---
+
+## Risk Assessment
+
+### High Risk Items
+1. **Re-tagging v1.1.1**: Already exists remotely
+   - Mitigation: Delete remote tag first, communicate in commit message
+
+2. **Wheel compatibility**: Multiple platforms
+   - Mitigation: PyO3/maturin-action handles this, already working in build-wheels job
+
+### Medium Risk Items
+1. **Python 3.11/3.12 testing**: May not have locally
+   - Mitigation: CI matrix tests all versions, local testing on 3.13 sufficient
+
+2. **Breaking existing installs**: Users on v1.1.0
+   - Mitigation: Non-breaking change, just packaging fix
+
+### Low Risk Items
+1. **Documentation updates**: Minor changes
+2. **CHANGELOG formatting**: Standard format
+
+---
+
+## Timeline Estimate
+
+- **Phase 1**: ✅ Complete (1 hour) - Analysis done
+- **Phase 2**: 30 minutes - Fix build configuration
+- **Phase 3**: 30 minutes - Update versions and docs
+- **Phase 4**: 45 minutes - Local build verification
+- **Phase 5**: 30 minutes - Fix CI workflows
+- **Phase 6**: 45 minutes - Re-tag and monitor CI
+- **Phase 7**: 30 minutes - Post-release validation
+
+**Total**: ~4 hours (including CI wait times)
+
+---
+
+## Notes
+
+- This release is **critical** - v1.1.0 cannot be installed from PyPI due to missing fraiseql-rs
+- The fix is **simple** - just need to point maturin to the correct Cargo.toml
+- The approach is **proven** - build-wheels job already works with PyO3/maturin-action
+- The risk is **low** - we're fixing a broken release, can't make it worse
+
+---
+
+*Generated: 2025-11-01*
+*Methodology: Phased TDD Development*
+*Focus: Discipline • Quality • Predictable Progress*

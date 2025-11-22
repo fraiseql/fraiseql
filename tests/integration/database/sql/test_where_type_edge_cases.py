@@ -66,7 +66,7 @@ NestedWhere = safe_create_where_type(NestedLevel1)
 class TestComplexNestedWhereConditions:
     """Test complex nested where conditions."""
 
-    def test_deeply_nested_where_conditions(self):
+    def test_deeply_nested_where_conditions(self) -> None:
         """Test where conditions on deeply nested fields."""
         # Create nested where conditions
         where = NestedWhere(
@@ -81,7 +81,7 @@ class TestComplexNestedWhereConditions:
         assert "12345678" in sql_str  # UUID
         assert "test" in sql_str  # Contains text
 
-    def test_multiple_nested_operators(self):
+    def test_multiple_nested_operators(self) -> None:
         """Test multiple operators on nested fields."""
         where = ComplexWhere(
             age={"gte": 18, "lt": 65},  # Age range
@@ -102,7 +102,7 @@ class TestComplexNestedWhereConditions:
         assert ">= 0.00" in sql_str or ">= 0" in sql_str  # Balance check
         assert "::boolean = true" in sql_str or "'true'" in sql_str  # Boolean comparison
 
-    def test_complex_or_and_combinations(self):
+    def test_complex_or_and_combinations(self) -> None:
         """Test complex OR and AND combinations."""
         # Create conditions that would typically use OR/AND
         where = ComplexWhere(
@@ -126,7 +126,7 @@ class TestComplexNestedWhereConditions:
 class TestSQLInjectionPrevention:
     """Test SQL injection prevention with where types."""
 
-    def test_sql_injection_in_string_fields(self):
+    def test_sql_injection_in_string_fields(self) -> None:
         """Test SQL injection attempts in string fields."""
         # Various SQL injection attempts
         injection_attempts = [
@@ -157,7 +157,7 @@ class TestSQLInjectionPrevention:
             # The value should be properly quoted/escaped
             assert sql_str.count("'") % 2 == 0  # Even number of quotes (properly paired)
 
-    def test_sql_injection_in_numeric_fields(self):
+    def test_sql_injection_in_numeric_fields(self) -> None:
         """Test SQL injection in numeric fields."""
         # These should fail type validation or be handled safely
         numeric_injections = [
@@ -182,7 +182,7 @@ class TestSQLInjectionPrevention:
                 # Type validation prevented the injection
                 pass
 
-    def test_sql_injection_in_list_values(self):
+    def test_sql_injection_in_list_values(self) -> None:
         """Test SQL injection in list values."""
         where = ComplexWhere(
             name={"in": ["normal", "'; DROP TABLE users; --", "' OR 1=1"]},
@@ -198,7 +198,7 @@ class TestSQLInjectionPrevention:
         # The important thing is that they're not executable
         assert "'''; DROP TABLE users; --'" in sql_str or "'DROP TABLE users'" in sql_str
 
-    def test_sql_injection_with_special_characters(self):
+    def test_sql_injection_with_special_characters(self) -> None:
         """Test handling of special characters that could be used in injections."""
         special_chars = [
             "test\\'; DROP TABLE",  # Backslash escape attempt
@@ -229,7 +229,7 @@ class TestSQLInjectionPrevention:
 class TestPerformanceWithLargeDatasets:
     """Test where type performance with large datasets."""
 
-    def test_large_in_clause(self):
+    def test_large_in_clause(self) -> None:
         """Test performance with large IN clauses."""
         # Create a large list of values
         large_list = [f"user_{i}" for i in range(1000)]
@@ -246,7 +246,7 @@ class TestPerformanceWithLargeDatasets:
         # Check that SQL is not excessively long (might be optimized)
         assert len(sql_str) < 50000  # Reasonable limit
 
-    def test_many_conditions(self):
+    def test_many_conditions(self) -> None:
         """Test performance with many conditions."""
         # Create many conditions
         conditions = {
@@ -276,7 +276,7 @@ class TestPerformanceWithLargeDatasets:
         assert ">= 18" in sql_str
         assert "::boolean = true" in sql_str or "'true'" in sql_str
 
-    def test_deeply_nested_performance(self):
+    def test_deeply_nested_performance(self) -> None:
         """Test performance with deeply nested structures."""
         # Create simple where conditions - nested conditions aren't supported in this way
         where = NestedWhere(
@@ -294,7 +294,7 @@ class TestPerformanceWithLargeDatasets:
 class TestMixedOperatorTypes:
     """Test mixed operator types in where conditions."""
 
-    def test_all_comparison_operators(self):
+    def test_all_comparison_operators(self) -> None:
         """Test all available comparison operators."""
         test_date = date(2024, 1, 1)
         test_datetime = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -329,7 +329,7 @@ class TestMixedOperatorTypes:
             except Exception:
                 raise
 
-    def test_mixed_operators_same_field(self):
+    def test_mixed_operators_same_field(self) -> None:
         """Test multiple different operators on the same field."""
         # This might not be typical but should be handled
         where = ComplexWhere(
@@ -348,7 +348,7 @@ class TestMixedOperatorTypes:
         assert "> 0.0" in sql_str or "> 0" in sql_str
         assert "< 100.0" in sql_str or "< 100" in sql_str
 
-    def test_type_specific_operators(self):
+    def test_type_specific_operators(self) -> None:
         """Test operators that only make sense for specific types."""
         # String-specific operators
         string_where = ComplexWhere(
@@ -381,7 +381,7 @@ class TestMixedOperatorTypes:
 class TestEdgeCaseValues:
     """Test edge case values in where conditions."""
 
-    def test_empty_and_null_values(self):
+    def test_empty_and_null_values(self) -> None:
         """Test handling of empty strings, empty lists, and null values."""
         where = ComplexWhere(
             name={"eq": ""},  # Empty string
@@ -397,7 +397,7 @@ class TestEdgeCaseValues:
         # Should handle empty values appropriately
         assert "= ''" in sql_str  # Empty string comparison
 
-    def test_special_numeric_values(self):
+    def test_special_numeric_values(self) -> None:
         """Test special numeric values like infinity, NaN."""
         import math
 
@@ -423,7 +423,7 @@ class TestEdgeCaseValues:
                 # Some values might not be supported
                 pass
 
-    def test_unicode_and_special_strings(self):
+    def test_unicode_and_special_strings(self) -> None:
         """Test Unicode and special character strings."""
         special_strings = [
             "Hello 世界",  # Chinese
@@ -454,7 +454,7 @@ class TestEdgeCaseValues:
                     continue  # This is expected
                 raise
 
-    def test_boundary_values(self):
+    def test_boundary_values(self) -> None:
         """Test boundary values for different types."""
         where = ComplexWhere(
             age={"eq": 0},  # Zero

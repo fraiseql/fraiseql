@@ -21,7 +21,7 @@ class TestIPv4AddressValidation:
             "1.1.1.1",
         ],
     )
-    def test_valid_ipv4_addresses(self, valid_ip):
+    def test_valid_ipv4_addresses(self, valid_ip) -> None:
         """Test validation of valid IPv4 addresses."""
         assert is_ipv4_address(valid_ip) is True
 
@@ -45,11 +45,11 @@ class TestIPv4AddressValidation:
             "192.168.1.1.",  # Trailing dot
         ],
     )
-    def test_invalid_ipv4_addresses(self, invalid_ip):
+    def test_invalid_ipv4_addresses(self, invalid_ip) -> None:
         """Test validation of invalid IPv4 addresses."""
         assert is_ipv4_address(invalid_ip) is False
 
-    def test_ipv4_edge_cases(self):
+    def test_ipv4_edge_cases(self) -> None:
         """Test edge cases for IPv4 validation."""
         # Test boundary values
         assert is_ipv4_address("0.0.0.0") is True
@@ -103,7 +103,7 @@ class TestIPv4MaskLength:
             ("0.0.0.0", 0),  # /0 - default route
         ],
     )
-    def test_valid_netmask_lengths(self, netmask, expected_length):
+    def test_valid_netmask_lengths(self, netmask, expected_length) -> None:
         """Test calculation of netmask lengths for valid masks."""
         assert ipv4_mask_len(netmask) == expected_length
 
@@ -125,16 +125,16 @@ class TestIPv4MaskLength:
             "192.168.1.1",  # Valid IP but not a valid netmask
         ],
     )
-    def test_invalid_netmasks(self, invalid_netmask):
+    def test_invalid_netmasks(self, invalid_netmask) -> None:
         """Test that invalid netmasks raise ValueError."""
         with pytest.raises(ValueError, match="Invalid netmask"):
             ipv4_mask_len(invalid_netmask)
 
-    def test_zero_netmask(self):
+    def test_zero_netmask(self) -> None:
         """Test special case of 0.0.0.0 netmask."""
         assert ipv4_mask_len("0.0.0.0") == 0
 
-    def test_netmask_error_message(self):
+    def test_netmask_error_message(self) -> None:
         """Test that error message includes the invalid netmask."""
         invalid_mask = "255.255.255.253"
 
@@ -144,7 +144,7 @@ class TestIPv4MaskLength:
         assert invalid_mask in str(exc_info.value)
         assert "Invalid netmask" in str(exc_info.value)
 
-    def test_netmask_calculation_algorithm(self):
+    def test_netmask_calculation_algorithm(self) -> None:
         """Test the bit manipulation algorithm directly."""
         # Test some known cases to verify the algorithm
 
@@ -158,7 +158,7 @@ class TestIPv4MaskLength:
         # This should have 12 consecutive 1s from the left
         assert ipv4_mask_len("255.240.0.0") == 12
 
-    def test_common_subnet_masks(self):
+    def test_common_subnet_masks(self) -> None:
         """Test commonly used subnet masks."""
         common_masks = {
             "255.255.255.0": 24,  # Most common

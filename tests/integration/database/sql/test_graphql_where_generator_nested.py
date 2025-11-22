@@ -100,7 +100,7 @@ class User:
 class TestNestedObjectFiltering:
     """Test nested object filtering in GraphQL where inputs."""
 
-    def test_simple_nested_object_filter(self):
+    def test_simple_nested_object_filter(self) -> None:
         """Test that nested object fields get proper filter types instead of StringFilter."""
         # Clear the cache first to ensure clean state
         from fraiseql.sql.graphql_where_generator import _generation_stack, _where_input_cache
@@ -128,7 +128,7 @@ class TestNestedObjectFiltering:
                 assert actual_type == MachineWhereInput
                 assert actual_type != StringFilter
 
-    def test_nested_object_filter_usage(self):
+    def test_nested_object_filter_usage(self) -> None:
         """Test using nested filters in practice."""
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -147,7 +147,7 @@ class TestNestedObjectFiltering:
         assert where_input.machine.name.contains == "Server"
         assert where_input.status.eq == "active"
 
-    def test_deeply_nested_objects(self):
+    def test_deeply_nested_objects(self) -> None:
         """Test multiple levels of nesting."""
         # Create where inputs
         LocationWhereInput = create_graphql_where_input(Location)
@@ -163,7 +163,7 @@ class TestNestedObjectFiltering:
 
         assert where_input.machine.location.city.eq == "Seattle"
 
-    # def test_circular_reference_handling(self):
+    # def test_circular_reference_handling(self) -> None:
     #     """Test that circular references don't cause infinite recursion."""
     #     # This should not cause infinite recursion
     #     DepartmentWhereInput = create_graphql_where_input(Department)
@@ -177,7 +177,7 @@ class TestNestedObjectFiltering:
     #     assert "manager" in DepartmentWhereInput.__dataclass_fields__
     #     assert "department" in EmployeeWhereInput.__dataclass_fields__
 
-    def test_list_of_nested_objects(self):
+    def test_list_of_nested_objects(self) -> None:
         """Test filtering on lists of nested objects."""
         create_graphql_where_input(Tag)
         ProductWhereInput = create_graphql_where_input(Product)
@@ -186,7 +186,7 @@ class TestNestedObjectFiltering:
         # This test documents expected behavior
         assert "tags" in ProductWhereInput.__dataclass_fields__
 
-    def test_nested_filter_sql_conversion(self):
+    def test_nested_filter_sql_conversion(self) -> None:
         """Test that nested filters convert properly to SQL where clauses."""
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -203,7 +203,7 @@ class TestNestedObjectFiltering:
         # The nested filter should be converted to proper SQL conditions
         # Note: The exact SQL generation might need to handle JSON path expressions
 
-    def test_mixed_scalar_and_object_fields(self):
+    def test_mixed_scalar_and_object_fields(self) -> None:
         """Test types with both scalar and object fields."""
         AddressWhereInput = create_graphql_where_input(Address)
         UserWhereInput = create_graphql_where_input(User)
@@ -224,7 +224,7 @@ class TestNestedObjectFiltering:
         assert where.is_active.eq is True
         assert where.address.city.eq == "New York"
 
-    def test_none_handling_in_nested_filters(self):
+    def test_none_handling_in_nested_filters(self) -> None:
         """Test that None values are handled correctly in nested structures."""
         create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -235,7 +235,7 @@ class TestNestedObjectFiltering:
         sql_where = where_input._to_sql_where()
         assert sql_where.machine == {}  # No filter on machine
 
-    def test_error_message_improvement(self):
+    def test_error_message_improvement(self) -> None:
         """Test that error messages are clear when using incorrect filter types."""
         AllocationWhereInput = create_graphql_where_input(Allocation)
 

@@ -53,7 +53,7 @@ class TestApolloClientAPQDualHash:
         assert turbo_query.graphql_query == sample_query_with_params
         assert turbo_query.apollo_client_hash == apollo_client_hash
 
-    def test_turbo_query_without_apollo_client_hash(self, sample_query_with_params):
+    def test_turbo_query_without_apollo_client_hash(self, sample_query_with_params) -> None:
         """Test that apollo_client_hash is optional."""
         # Should work without apollo_client_hash (backward compatibility)
         turbo_query = TurboQuery(
@@ -126,7 +126,7 @@ class TestApolloClientAPQDualHash:
         # (internally it may track both hashes, but should only count as 1 query)
         assert len(registry) == 1
 
-    def test_dual_hash_same_hash_scenario(self, sample_query_with_params):
+    def test_dual_hash_same_hash_scenario(self, sample_query_with_params) -> None:
         """Test scenario where apollo_client_hash matches server hash."""
         registry = TurboRegistry()
 
@@ -152,7 +152,7 @@ class TestApolloClientAPQDualHash:
         # Should still only count as 1 entry
         assert len(registry) == 1
 
-    def test_get_by_hash_method(self, sample_query_with_params, apollo_client_hash):
+    def test_get_by_hash_method(self, sample_query_with_params, apollo_client_hash) -> None:
         """Test new get_by_hash method for direct hash lookup."""
         registry = TurboRegistry()
 
@@ -218,11 +218,11 @@ class TestApolloClientAPQDualHash:
         original_hash_query = registry.hash_query
         original_hash_query_raw = registry.hash_query_raw
 
-        def mock_hash_query(query):
+        def mock_hash_query(query) -> None:
             # Simulate query text hashing to apollo hash
             return apollo_client_hash
 
-        def mock_hash_query_raw(query):
+        def mock_hash_query_raw(query) -> None:
             # First try returns apollo hash, triggering the apollo mapping check
             return apollo_client_hash
 

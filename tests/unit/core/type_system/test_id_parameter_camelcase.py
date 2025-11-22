@@ -31,12 +31,12 @@ async def search_users(info, type: str = "active", class_: str = "premium") -> l
 
 
 class TestIdParameterWithCamelCase:
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         SchemaRegistry._instance = None
         SchemaConfig._instance = None
 
-    def test_id_parameter_with_camelcase_enabled(self):
+    def test_id_parameter_with_camelcase_enabled(self) -> None:
         """Test that 'id' parameter works with camelCase configuration."""
         # Enable camelCase
         config = SchemaConfig.get_instance()
@@ -79,7 +79,7 @@ class TestIdParameterWithCamelCase:
         assert "class" in search_field.args or "class_" in search_field.args
 
     @pytest.mark.asyncio
-    async def test_graphql_execution_with_reserved_keywords(self):
+    async def test_graphql_execution_with_reserved_keywords(self) -> None:
         """Test that GraphQL execution handles Python reserved keywords correctly."""
         from graphql import graphql
 
@@ -119,7 +119,7 @@ class TestIdParameterWithCamelCase:
                 # This confirms the issue - GraphQL passes 'id' but Python function expects 'id'
                 # and somehow there's a mismatch
 
-    def test_graphql_introspection(self):
+    def test_graphql_introspection(self) -> None:
         """Test GraphQL introspection to see parameter names."""
         from graphql import graphql_sync
 

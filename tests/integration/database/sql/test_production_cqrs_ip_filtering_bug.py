@@ -4,9 +4,6 @@ This test reproduces the exact issue reported in the PrintOptim Backend where
 IP filtering fails due to INET -> JSONB string conversion in CQRS patterns.
 """
 
-from decimal import Decimal
-from typing import Any
-
 from psycopg.sql import SQL
 
 import fraiseql
@@ -32,7 +29,7 @@ class DnsServerCQRS:
 class TestProductionCQRSIPFilteringBug:
     """Test the specific production CQRS IP filtering bug."""
 
-    def test_ip_address_detection_with_common_ips(self):
+    def test_ip_address_detection_with_common_ips(self) -> None:
         """Test IP detection with common IP addresses from production."""
         registry = get_operator_registry()
 
@@ -64,7 +61,7 @@ class TestProductionCQRSIPFilteringBug:
             assert "::inet" in in_str, f"IP list [{ip}] should be cast to inet: {in_str}"
             assert ip in in_str, f"IP {ip} should be in list SQL: {in_str}"
 
-    def test_ip_detection_with_edge_cases(self):
+    def test_ip_detection_with_edge_cases(self) -> None:
         """Test IP detection with edge cases that might occur in production."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -88,7 +85,7 @@ class TestProductionCQRSIPFilteringBug:
             else:  # IPv4
                 assert "::inet" in eq_str, f"IPv4 {ip} should be cast to inet: {eq_str}"
 
-    def test_non_ip_values_not_cast_to_inet(self):
+    def test_non_ip_values_not_cast_to_inet(self) -> None:
         """Test that non-IP values are not incorrectly cast to inet."""
         registry = get_operator_registry()
         field_path = SQL("data->>'some_field'")
@@ -111,7 +108,7 @@ class TestProductionCQRSIPFilteringBug:
                 f"Non-IP value '{value}' should not be cast to inet: {eq_str}"
             )
 
-    def test_mixed_list_filtering(self):
+    def test_mixed_list_filtering(self) -> None:
         """Test filtering with mixed IP and non-IP values in lists."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -125,7 +122,7 @@ class TestProductionCQRSIPFilteringBug:
         for ip in ip_list:
             assert ip in in_str, f"IP {ip} should be in list SQL: {in_str}"
 
-    def test_comparison_vs_network_operator_strategies(self):
+    def test_comparison_vs_network_operator_strategies(self) -> None:
         """Test that comparison and network strategies handle IPs consistently."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -153,7 +150,7 @@ class TestProductionCQRSIPFilteringBug:
         assert "=" in eq_str or "host(" in eq_str, f"Eq should use equality: {eq_str}"
         assert "<<=" in subnet_str, f"Subnet should use containment: {subnet_str}"
 
-    def test_production_jsonb_pattern_simulation(self):
+    def test_production_jsonb_pattern_simulation(self) -> None:
         """Simulate the exact production pattern that was failing."""
         registry = get_operator_registry()
 
@@ -181,7 +178,7 @@ class TestProductionCQRSIPFilteringBug:
         # Either both strings: data->>'ip_address' = '21.43.63.2'  (FAILS for INET data)
         # Or both inet: (data->>'ip_address')::inet = '21.43.63.2'::inet  (WORKS)
 
-    def test_list_filtering_production_scenario(self):
+    def test_list_filtering_production_scenario(self) -> None:
         """Test list filtering with production IPs."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")

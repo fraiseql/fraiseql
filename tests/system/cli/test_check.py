@@ -41,7 +41,7 @@ class User:
 class QueryRoot:
     users: list[User] = fraise_field(default_factory=list, description="All users")
 
-    async def resolve_users(self, info):
+    async def resolve_users(self, info) -> None:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])

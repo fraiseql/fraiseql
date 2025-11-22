@@ -1,10 +1,12 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from fraiseql.db import DatabaseQuery
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_audit_schema(db_pool):
+async def setup_audit_schema(db_pool) -> None:
     """Set up audit schema before running tests."""
     # Read the migration file
     migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
@@ -17,7 +19,7 @@ async def setup_audit_schema(db_pool):
             await conn.commit()
 
 
-async def test_audit_events_table_exists(db_repo):
+async def test_audit_events_table_exists(db_repo) -> None:
     """Verify audit_events table exists with correct schema."""
     result = await db_repo.run(
         DatabaseQuery(

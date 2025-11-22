@@ -12,7 +12,7 @@ from fraiseql.types.common_outputs import MUTATION_STATUS_MAP, MutationResultRow
 class TestMutationResultRow:
     """Test MutationResultRow dataclass functionality."""
 
-    def test_mutation_result_row_creation(self):
+    def test_mutation_result_row_creation(self) -> None:
         """Test basic MutationResultRow creation."""
         test_id = uuid.uuid4()
         result = MutationResultRow(
@@ -31,7 +31,7 @@ class TestMutationResultRow:
         assert result.object_data == {"name": "John", "email": "john@example.com"}
         assert result.extra_metadata == {"timestamp": "2023-01-01T00:00:00Z"}
 
-    def test_mutation_result_row_fields(self):
+    def test_mutation_result_row_fields(self) -> None:
         """Test MutationResultRow field definitions."""
         field_names = [f.name for f in fields(MutationResultRow)]
         expected_fields = {
@@ -44,7 +44,7 @@ class TestMutationResultRow:
         }
         assert set(field_names) == expected_fields
 
-    def test_mutation_result_row_field_types(self):
+    def test_mutation_result_row_field_types(self) -> None:
         """Test MutationResultRow field type annotations."""
         annotations = MutationResultRow.__annotations__
         assert annotations["id"] == uuid.UUID
@@ -54,7 +54,7 @@ class TestMutationResultRow:
         assert annotations["object_data"] == dict[str, typing.Any]
         assert annotations["extra_metadata"] == dict[str, typing.Any]
 
-    def test_mutation_result_row_empty_collections(self):
+    def test_mutation_result_row_empty_collections(self) -> None:
         """Test MutationResultRow with empty collections."""
         test_id = uuid.uuid4()
         result = MutationResultRow(
@@ -70,7 +70,7 @@ class TestMutationResultRow:
         assert result.object_data == {}
         assert result.extra_metadata == {}
 
-    def test_mutation_result_row_repr(self):
+    def test_mutation_result_row_repr(self) -> None:
         """Test MutationResultRow string representation."""
         test_id = uuid.uuid4()
         result = MutationResultRow(
@@ -87,7 +87,7 @@ class TestMutationResultRow:
         assert str(test_id) in repr_str
         assert "updated" in repr_str
 
-    def test_mutation_result_row_equality(self):
+    def test_mutation_result_row_equality(self) -> None:
         """Test MutationResultRow equality comparison."""
         test_id = uuid.uuid4()
 
@@ -125,7 +125,7 @@ class TestMutationResultRow:
 class TestMutationStatusMap:
     """Test mutation status mapping functionality."""
 
-    def test_status_map_structure(self):
+    def test_status_map_structure(self) -> None:
         """Test that MUTATION_STATUS_MAP has correct structure."""
         assert isinstance(MUTATION_STATUS_MAP, dict)
 
@@ -136,7 +136,7 @@ class TestMutationStatusMap:
             assert isinstance(http_status, int)
             assert 200 <= http_status <= 599  # Valid HTTP status range
 
-    def test_success_statuses(self):
+    def test_success_statuses(self) -> None:
         """Test success status mappings."""
         success_statuses = ["ok", "updated", "deleted"]
 
@@ -146,7 +146,7 @@ class TestMutationStatusMap:
             assert error_code is None
             assert http_status == 200
 
-    def test_noop_statuses(self):
+    def test_noop_statuses(self) -> None:
         """Test no-operation status mappings."""
         noop_statuses = ["""noop""", """noop:already_exists""", """noop:not_found"""]
 
@@ -164,7 +164,7 @@ class TestMutationStatusMap:
                 assert error_code == "not_found"
                 assert http_status == 404
 
-    def test_blocked_statuses(self):
+    def test_blocked_statuses(self) -> None:
         """Test blocked operation status mappings."""
         blocked_statuses = [
             "blocked:children",
@@ -178,7 +178,7 @@ class TestMutationStatusMap:
             assert error_code is not None
             assert http_status == 422
 
-    def test_validation_failure_status(self):
+    def test_validation_failure_status(self) -> None:
         """Test validation failure status mapping."""
         status = "failed:validation"
         assert status in MUTATION_STATUS_MAP
@@ -187,7 +187,7 @@ class TestMutationStatusMap:
         assert error_code == "invalid_input"
         assert http_status == 422
 
-    def test_technical_failure_status(self):
+    def test_technical_failure_status(self) -> None:
         """Test technical failure status mapping."""
         status = "failed:exception"
         assert status in MUTATION_STATUS_MAP
@@ -196,7 +196,7 @@ class TestMutationStatusMap:
         assert error_code == "error_internal"
         assert http_status == 500
 
-    def test_status_map_completeness(self):
+    def test_status_map_completeness(self) -> None:
         """Test that all expected status categories are covered."""
         all_statuses = set(MUTATION_STATUS_MAP.keys())
 
@@ -230,12 +230,12 @@ class TestMutationStatusMap:
             ("failed:exception", 500),
         ],
     )
-    def test_status_http_codes(self, status, expected_http):
+    def test_status_http_codes(self, status, expected_http) -> None:
         """Test specific status to HTTP code mappings."""
         error_code, http_status = MUTATION_STATUS_MAP[status]
         assert http_status == expected_http
 
-    def test_status_map_usage_example(self):
+    def test_status_map_usage_example(self) -> None:
         """Test typical usage pattern of status map."""
         # Simulate processing a mutation result
         mutation_status = "blocked:children"
@@ -251,7 +251,7 @@ class TestMutationStatusMap:
             is_error = http_status >= 400
             assert is_error is True
 
-    def test_jsontype_alias(self):
+    def test_jsontype_alias(self) -> None:
         """Test JSONType alias definition."""
         from fraiseql.types.common_outputs import JSONType
 

@@ -1,6 +1,7 @@
 """Unit tests for _populate_conflict_fields function."""
 
 import pytest
+
 import fraiseql
 from fraiseql.mutations.parser import _populate_conflict_fields
 from fraiseql.mutations.types import MutationResult
@@ -22,7 +23,7 @@ class TestEntity:
 class TestPopulateConflictFields:
     """Unit tests for the _populate_conflict_fields function."""
 
-    def test_populate_conflict_fields_basic_functionality(self):
+    def test_populate_conflict_fields_basic_functionality(self) -> None:
         """Test that _populate_conflict_fields correctly populates conflict_* fields."""
         # Setup test data
         result = MutationResult(
@@ -56,7 +57,7 @@ class TestPopulateConflictFields:
         assert fields["conflict_entity"].id == "test-id-123"
         assert fields["conflict_entity"].name == "Test Entity"
 
-    def test_populate_conflict_fields_no_extra_metadata(self):
+    def test_populate_conflict_fields_no_extra_metadata(self) -> None:
         """Test that function handles missing extra_metadata gracefully."""
         result = MutationResult()  # No extra_metadata
         annotations = {"conflict_entity": TestEntity | None}
@@ -66,7 +67,7 @@ class TestPopulateConflictFields:
         _populate_conflict_fields(result, annotations, fields)
         assert "conflict_entity" not in fields
 
-    def test_populate_conflict_fields_malformed_errors_structure(self):
+    def test_populate_conflict_fields_malformed_errors_structure(self) -> None:
         """Test that function handles malformed errors structure gracefully."""
         result = MutationResult(extra_metadata={"errors": "not-a-list"})  # Invalid structure
         annotations = {"conflict_entity": TestEntity | None}
@@ -75,7 +76,7 @@ class TestPopulateConflictFields:
         _populate_conflict_fields(result, annotations, fields)
         assert "conflict_entity" not in fields
 
-    def test_populate_conflict_fields_missing_conflict_object(self):
+    def test_populate_conflict_fields_missing_conflict_object(self) -> None:
         """Test that function handles missing conflictObject gracefully."""
         result = MutationResult(
             extra_metadata={
@@ -96,7 +97,7 @@ class TestPopulateConflictFields:
         _populate_conflict_fields(result, annotations, fields)
         assert "conflict_entity" not in fields
 
-    def test_populate_conflict_fields_skips_already_populated(self):
+    def test_populate_conflict_fields_skips_already_populated(self) -> None:
         """Test that function skips fields that are already populated."""
         result = MutationResult(
             extra_metadata={
@@ -121,9 +122,8 @@ class TestPopulateConflictFields:
         assert fields["conflict_entity"] is existing_entity
         assert fields["conflict_entity"].id == "existing-id"
 
-    def test_populate_conflict_fields_multiple_conflict_types(self):
+    def test_populate_conflict_fields_multiple_conflict_types(self) -> None:
         """Test that function can populate multiple different conflict_* fields."""
-
         result = MutationResult(
             extra_metadata={
                 "errors": [
@@ -155,7 +155,7 @@ class TestPopulateConflictFields:
         assert fields["conflict_entity"].id == "multi-test"
         assert fields["conflict_other"].id == "multi-test"
 
-    def test_populate_conflict_fields_handles_instantiation_errors(self):
+    def test_populate_conflict_fields_handles_instantiation_errors(self) -> None:
         """Test that function handles instantiation errors gracefully."""
 
         # Use a type that will cause _instantiate_type to fail
@@ -163,7 +163,7 @@ class TestPopulateConflictFields:
         class BadEntity:
             """Entity that will fail to instantiate properly."""
 
-            def __init__(self, **kwargs):
+            def __init__(self, **kwargs) -> None:
                 # This constructor signature won't work with _instantiate_type
                 raise ValueError("Constructor designed to fail")
 
@@ -192,7 +192,7 @@ class TestPopulateConflictFields:
         # Let's just check that the function completed successfully
         assert True  # If we get here, no exception was raised
 
-    def test_populate_conflict_fields_ignores_non_conflict_fields(self):
+    def test_populate_conflict_fields_ignores_non_conflict_fields(self) -> None:
         """Test that function only processes fields starting with 'conflict_'."""
         result = MutationResult(
             extra_metadata={

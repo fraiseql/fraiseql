@@ -156,8 +156,8 @@ make test  # Run full test suite
 - 📖 [Full Documentation](README.md) - Complete reference
 
 **Have questions?**
-- 💬 [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) - Ask questions
-- 📧 [Discussions](https://github.com/fraiseql/fraiseql/discussions) - Community help
+- 💬 [GitHub Issues](../issues) - Ask questions
+- 📧 [Discussions](../discussions) - Community help
 
 ---
 

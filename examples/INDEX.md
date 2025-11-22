@@ -170,7 +170,7 @@ example_name/
 ## 📖 Documentation Links
 
 - **[Main Documentation](../docs/)** - Complete FraiseQL documentation
-- **[Quick Start](../docs/quickstart.md)** - Getting started guide
+- **[Quick Start](../docs/getting-started/quickstart.md)** - Getting started guide
 - **[Core Concepts](../docs/core/)** - Fundamental concepts
 - **[Performance Guide](../docs/performance/)** - Optimization techniques
 - **[Production Deployment](../docs/production/)** - Production setup

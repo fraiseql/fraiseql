@@ -170,7 +170,7 @@ class TestSecurityBestPractices:
             "analytics.track_event",
         }
 
-        def is_function_whitelisted(function_name):
+        def is_function_whitelisted(function_name) -> None:
             return function_name in allowed_functions
 
         # Test allowed functions
@@ -191,7 +191,7 @@ class TestSecurityBestPractices:
         """Test validation of function signatures to ensure they match expected patterns."""
         import re
 
-        def validate_function_signature(function_name):
+        def validate_function_signature(function_name) -> None:
             # Pattern: schema_name.function_name where both parts are alphanumeric + underscores
             pattern = r"^[a-zA-Z][a-zA-Z0-9_]*\.[a-zA-Z][a-zA-Z0-9_]*$|^[a-zA-Z][a-zA-Z0-9_]*$"
             return bool(re.match(pattern, function_name))

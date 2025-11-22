@@ -13,7 +13,7 @@ from fraiseql.security.field_auth import FieldAuthorizationError, authorize_fiel
 class TestFieldAuthorization:
     """Test field-level authorization functionality."""
 
-    def test_field_auth_basic_error_handling(self):
+    def test_field_auth_basic_error_handling(self) -> None:
         """Test that FieldAuthorizationError can be raised and handled."""
         # Test that the error can be instantiated
         error = FieldAuthorizationError("Test error message")
@@ -23,7 +23,7 @@ class TestFieldAuthorization:
         error2 = FieldAuthorizationError()
         assert "Not authorized" in str(error2)
 
-    def test_field_auth_integration_with_graphql(self):
+    def test_field_auth_integration_with_graphql(self) -> None:
         """Test field authorization in actual GraphQL execution."""
         from graphql import graphql_sync
 

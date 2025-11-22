@@ -46,7 +46,7 @@ async def create_network(info, input: NetworkInput) -> Network:
 
 
 class TestCamelCaseInputTransformation:
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Clear registry before each test."""
         SchemaRegistry._instance = None
         SchemaConfig._instance = None
@@ -56,7 +56,7 @@ class TestCamelCaseInputTransformation:
         _graphql_type_cache.clear()
 
     @pytest.mark.asyncio
-    async def test_camelcase_input_fields_are_transformed(self):
+    async def test_camelcase_input_fields_are_transformed(self) -> None:
         """Test that camelCase input fields are transformed to snake_case."""
         from graphql import graphql
 
@@ -105,7 +105,7 @@ class TestCamelCaseInputTransformation:
         assert result.data["networkQuery"]["gatewayAddress"] == "192.168.1.1"
 
     @pytest.mark.asyncio
-    async def test_mutation_with_camelcase_input(self):
+    async def test_mutation_with_camelcase_input(self) -> None:
         """Test that mutations handle camelCase inputs correctly."""
         from graphql import graphql
 
@@ -152,7 +152,7 @@ class TestCamelCaseInputTransformation:
         assert result.data["createNetwork"]["ipAddress"] == "10.0.0.100"
         assert result.data["createNetwork"]["subnetMask"] == "255.255.0.0"
 
-    def test_introspection_shows_camelcase_fields(self):
+    def test_introspection_shows_camelcase_fields(self) -> None:
         """Test that GraphQL introspection shows camelCase field names."""
         from graphql import graphql_sync
 
@@ -200,7 +200,7 @@ class TestCamelCaseInputTransformation:
         assert "gateway_address" not in field_names
 
     @pytest.mark.asyncio
-    async def test_snake_case_with_camelcase_disabled(self):
+    async def test_snake_case_with_camelcase_disabled(self) -> None:
         """Test that snake_case is preserved when camelCase is disabled."""
         from graphql import graphql
 

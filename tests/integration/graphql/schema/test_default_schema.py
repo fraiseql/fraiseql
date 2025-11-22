@@ -10,7 +10,7 @@ from fraiseql.mutations.mutation_decorator import MutationDefinition
 
 @pytest.mark.unit
 @pytest.fixture
-def reset_registry():
+def reset_registry() -> None:
     """Reset the schema registry before each test."""
     registry = SchemaRegistry.get_instance()
     registry.queries.clear()
@@ -25,7 +25,7 @@ def reset_registry():
 class TestDefaultSchemaConfig:
     """Test default schema configuration in FraiseQLConfig."""
 
-    def test_config_has_default_schema_fields(self):
+    def test_config_has_default_schema_fields(self) -> None:
         """Test that FraiseQLConfig includes default schema fields."""
         config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
 
@@ -35,7 +35,7 @@ class TestDefaultSchemaConfig:
         assert config.default_mutation_schema == "public"
         assert config.default_query_schema == "public"
 
-    def test_config_allows_custom_default_schemas(self):
+    def test_config_allows_custom_default_schemas(self) -> None:
         """Test that custom default schemas can be set."""
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
@@ -50,7 +50,7 @@ class TestDefaultSchemaConfig:
 class TestMutationDefaultSchema:
     """Test that mutations use default schema when not specified."""
 
-    def test_mutation_uses_default_schema_when_not_specified(self, reset_registry):
+    def test_mutation_uses_default_schema_when_not_specified(self, reset_registry) -> None:
         """Test that mutations use default_mutation_schema when schema is not provided."""
         # Set up config with default schema
         config = FraiseQLConfig(
@@ -71,7 +71,7 @@ class TestMutationDefaultSchema:
         assert isinstance(definition, MutationDefinition)
         assert definition.schema == "app"
 
-    def test_mutation_explicit_schema_overrides_default(self, reset_registry):
+    def test_mutation_explicit_schema_overrides_default(self, reset_registry) -> None:
         """Test that explicit schema parameter overrides default."""
         # Set up config with default schema
         config = FraiseQLConfig(
@@ -92,7 +92,7 @@ class TestMutationDefaultSchema:
         assert isinstance(definition, MutationDefinition)
         assert definition.schema == "custom"
 
-    def test_mutation_fallback_when_no_config(self, reset_registry):
+    def test_mutation_fallback_when_no_config(self, reset_registry) -> None:
         """Test that mutations fall back to 'public' when no config is set."""
         registry = SchemaRegistry.get_instance()
         registry.config = None
@@ -113,7 +113,7 @@ class TestMutationDefaultSchema:
 class TestBackwardCompatibility:
     """Test backward compatibility with existing code."""
 
-    def test_existing_mutations_still_work(self, reset_registry):
+    def test_existing_mutations_still_work(self, reset_registry) -> None:
         """Test that existing mutations with explicit schema still work."""
 
         # This should work exactly as before
@@ -127,7 +127,7 @@ class TestBackwardCompatibility:
         assert isinstance(definition, MutationDefinition)
         assert definition.schema == "app"
 
-    def test_default_behavior_unchanged_when_no_default_set(self, reset_registry):
+    def test_default_behavior_unchanged_when_no_default_set(self, reset_registry) -> None:
         """Test that behavior uses public schema when no custom default is set."""
         config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
         registry = SchemaRegistry.get_instance()

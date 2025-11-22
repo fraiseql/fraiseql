@@ -13,7 +13,7 @@ class TestGenerateInsertJsonCall:
     """Test suite for SQL mutation query generation."""
 
     @pytest.fixture
-    def sample_input_type(self):
+    def sample_input_type(self) -> None:
         """Create a sample input type for testing."""
 
         @dataclass
@@ -64,10 +64,10 @@ class TestGenerateInsertJsonCall:
         )
 
         # Check context parameters are included
-        assert "input_tenant_id" in query.params
-        assert query.params["input_tenant_id"] == "org_123"
-        assert "input_contact_id" in query.params
-        assert query.params["input_contact_id"] == "user_456"
+        assert "auth_tenant_id" in query.params
+        assert query.params["auth_tenant_id"] == "org_123"
+        assert "auth_contact_id" in query.params
+        assert query.params["auth_contact_id"] == "user_456"
 
     def test_generate_mutation_with_empty_input(self, sample_input_type) -> None:
         """Test generating mutation with empty input (all None fields)."""
@@ -147,13 +147,13 @@ class TestGenerateInsertJsonCall:
         )
 
         # Check custom context parameters are included
-        assert "input_org_id" in query.params
-        assert query.params["input_org_id"] == "org_123"
-        assert "input_userId" in query.params
-        assert query.params["input_userId"] == "user_456"
+        assert "auth_org_id" in query.params
+        assert query.params["auth_org_id"] == "org_123"
+        assert "auth_userId" in query.params
+        assert query.params["auth_userId"] == "user_456"
         # Default keys should not be included
-        assert "input_tenant_id" not in query.params
-        assert "input_contact_id" not in query.params
+        assert "auth_tenant_id" not in query.params
+        assert "auth_contact_id" not in query.params
 
     def test_input_with_falsy_values(self, sample_input_type) -> None:
         """Test that falsy values are properly included in the mutation."""

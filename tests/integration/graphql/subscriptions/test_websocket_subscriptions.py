@@ -133,7 +133,7 @@ class TestWebSocketConnection:
         # Create async generator for subscription
         from graphql.execution import ExecutionResult
 
-        async def subscription_generator():
+        async def subscription_generator() -> None:
             yield ExecutionResult(data={"counter": 1})
             yield ExecutionResult(data={"counter": 2})
             yield ExecutionResult(data={"counter": 3})

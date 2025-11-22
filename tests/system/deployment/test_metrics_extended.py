@@ -19,7 +19,7 @@ from fraiseql.monitoring.metrics import (
 class TestMetricsConfig:
     """Test MetricsConfig class."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default metrics configuration."""
         config = MetricsConfig()
 
@@ -30,7 +30,7 @@ class TestMetricsConfig:
         assert hasattr(config, "exclude_paths")
         assert hasattr(config, "metrics_path")
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom metrics configuration."""
         custom_buckets = [0.1, 0.5, 1.0, 5.0]
         config = MetricsConfig(enabled=False, namespace="myapp", buckets=custom_buckets)
@@ -44,7 +44,7 @@ class TestFraiseQLMetrics:
     """Test FraiseQLMetrics class."""
 
     @pytest.fixture
-    def metrics(self):
+    def metrics(self) -> None:
         """Create metrics instance."""
         if PROMETHEUS_AVAILABLE:
             from prometheus_client import CollectorRegistry
@@ -55,7 +55,7 @@ class TestFraiseQLMetrics:
 
         return FraiseQLMetrics(registry=registry)
 
-    def test_metrics_initialization(self):
+    def test_metrics_initialization(self) -> None:
         """Test metrics initialization with custom config."""
         config = MetricsConfig(namespace="test_app")
         metrics = FraiseQLMetrics(config=config)
@@ -68,7 +68,7 @@ class TestFraiseQLMetrics:
         assert hasattr(metrics, "cache_hits")
         assert hasattr(metrics, "errors_total")
 
-    def test_record_query(self, metrics):
+    def test_record_query(self, metrics) -> None:
         """Test recording GraphQL query metrics."""
         # Record successful query
         metrics.record_query(
@@ -90,7 +90,7 @@ class TestFraiseQLMetrics:
             assert hasattr(metrics.query_total, "inc")
             assert hasattr(metrics.query_success, "inc")
 
-    def test_record_query_error(self, metrics):
+    def test_record_query_error(self, metrics) -> None:
         """Test recording failed query."""
         metrics.record_query(
             operation_type="query", operation_name="GetUser", duration_ms=500, success=False
@@ -103,7 +103,7 @@ class TestFraiseQLMetrics:
         else:
             assert hasattr(metrics.query_errors, "inc")
 
-    def test_record_mutation(self, metrics):
+    def test_record_mutation(self, metrics) -> None:
         """Test recording mutation metrics."""
         metrics.record_mutation(
             mutation_name="CreateUser", duration_ms=234, success=True, result_type="User"
@@ -121,7 +121,7 @@ class TestFraiseQLMetrics:
             assert hasattr(metrics.mutation_total, "inc")
             assert hasattr(metrics.mutation_success, "inc")
 
-    def test_record_mutation_error(self, metrics):
+    def test_record_mutation_error(self, metrics) -> None:
         """Test recording failed mutation."""
         metrics.record_mutation(
             mutation_name="CreateUser", duration_ms=100, success=False, error_type="ValidationError"
@@ -134,7 +134,7 @@ class TestFraiseQLMetrics:
         else:
             assert hasattr(metrics.mutation_errors, "inc")
 
-    def test_update_db_connections(self, metrics):
+    def test_update_db_connections(self, metrics) -> None:
         """Test updating database connection pool statistics."""
         metrics.update_db_connections(active=3, idle=7, total=10)
 
@@ -148,7 +148,7 @@ class TestFraiseQLMetrics:
             assert hasattr(metrics.db_connections_idle, "set")
             assert hasattr(metrics.db_connections_total, "set")
 
-    def test_record_db_query(self, metrics):
+    def test_record_db_query(self, metrics) -> None:
         """Test recording database query metrics."""
         metrics.record_db_query(query_type="SELECT", table_name="users", duration_ms=45)
 
@@ -160,7 +160,7 @@ class TestFraiseQLMetrics:
             assert hasattr(metrics.db_queries_total, "inc")
             assert hasattr(metrics.db_query_duration, "observe")
 
-    def test_record_cache_hit(self, metrics):
+    def test_record_cache_hit(self, metrics) -> None:
         """Test recording cache hit."""
         metrics.record_cache_hit("turbo_router")
 
@@ -171,7 +171,7 @@ class TestFraiseQLMetrics:
         else:
             assert hasattr(metrics.cache_hits, "inc")
 
-    def test_record_cache_miss(self, metrics):
+    def test_record_cache_miss(self, metrics) -> None:
         """Test recording cache miss."""
         metrics.record_cache_miss("dataloader")
 
@@ -182,7 +182,7 @@ class TestFraiseQLMetrics:
         else:
             assert hasattr(metrics.cache_misses, "inc")
 
-    def test_record_error(self, metrics):
+    def test_record_error(self, metrics) -> None:
         """Test recording errors."""
         metrics.record_error(
             error_type="ValidationError", error_code="INVALID_INPUT", operation="createUser"
@@ -195,7 +195,7 @@ class TestFraiseQLMetrics:
         else:
             assert hasattr(metrics.errors_total, "inc")
 
-    def test_record_response_time(self, metrics):
+    def test_record_response_time(self, metrics) -> None:
         """Test recording response time."""
         metrics.record_response_time(250.5)
 
@@ -222,7 +222,7 @@ class TestFraiseQLMetrics:
 class TestMetricsIntegration:
     """Test metrics integration functions."""
 
-    def test_setup_metrics(self):
+    def test_setup_metrics(self) -> None:
         """Test setting up global metrics."""
         from fastapi import FastAPI
 
@@ -241,7 +241,7 @@ class TestMetricsIntegration:
         # Should be retrievable
         assert get_metrics() is metrics
 
-    def test_get_metrics_without_setup(self):
+    def test_get_metrics_without_setup(self) -> None:
         """Test getting metrics without setup returns None."""
         # Reset global metrics
         import fraiseql.monitoring.metrics.integration
@@ -251,7 +251,7 @@ class TestMetricsIntegration:
         assert get_metrics() is None
 
     @pytest.mark.asyncio
-    async def test_with_metrics_decorator(self):
+    async def test_with_metrics_decorator(self) -> None:
         """Test metrics decorator for async functions."""
         from fastapi import FastAPI
 
@@ -259,7 +259,7 @@ class TestMetricsIntegration:
         metrics = setup_metrics(app)
 
         @with_metrics("query")
-        async def test_function():
+        async def test_function() -> None:
             await asyncio.sleep(0.01)
             return "result"
 
@@ -273,7 +273,7 @@ class TestMetricsIntegration:
             assert any(s.value > 0 for s in query_samples)
 
     @pytest.mark.asyncio
-    async def test_with_metrics_decorator_error(self):
+    async def test_with_metrics_decorator_error(self) -> None:
         """Test metrics decorator with function that raises error."""
         from fastapi import FastAPI
 
@@ -281,7 +281,7 @@ class TestMetricsIntegration:
         metrics = setup_metrics(app)
 
         @with_metrics("query")
-        async def failing_function():
+        async def failing_function() -> None:
             raise ValueError("Test error")
 
         with pytest.raises(ValueError):
@@ -293,7 +293,7 @@ class TestMetricsIntegration:
             assert len(error_samples) > 0
             assert any(s.value > 0 for s in error_samples)
 
-    def test_with_metrics_sync_function(self):
+    def test_with_metrics_sync_function(self) -> None:
         """Test metrics decorator with sync function."""
         from fastapi import FastAPI
 
@@ -301,7 +301,7 @@ class TestMetricsIntegration:
         setup_metrics(app)
 
         @with_metrics("sync_operation")
-        def sync_function():
+        def sync_function() -> None:
             return "sync_result"
 
         result = sync_function()
@@ -312,7 +312,7 @@ class TestMetricsMiddleware:
     """Test MetricsMiddleware for FastAPI."""
 
     @pytest.fixture
-    def middleware(self):
+    def middleware(self) -> None:
         """Create middleware instance."""
         app = MagicMock()
         config = MetricsConfig()
@@ -320,7 +320,7 @@ class TestMetricsMiddleware:
         return MetricsMiddleware(app, metrics, config)
 
     @pytest.mark.asyncio
-    async def test_middleware_records_metrics(self, middleware):
+    async def test_middleware_records_metrics(self, middleware) -> None:
         """Test middleware records HTTP metrics."""
         # Mock request and response
         request = MagicMock()
@@ -331,7 +331,7 @@ class TestMetricsMiddleware:
         response.status_code = 200
 
         # Mock call_next
-        async def call_next(req):
+        async def call_next(req) -> None:
             return response
 
         # Process request
@@ -347,21 +347,21 @@ class TestMetricsMiddleware:
             assert any(s.value > 0 for s in request_samples)
 
     @pytest.mark.asyncio
-    async def test_middleware_handles_errors(self, middleware):
+    async def test_middleware_handles_errors(self, middleware) -> None:
         """Test middleware handles errors properly."""
         request = MagicMock()
         request.method = "GET"
         request.url.path = "/error"
 
         # Mock call_next to raise error
-        async def call_next(req):
+        async def call_next(req) -> None:
             raise Exception("Test error")
 
         # Should propagate error
         with pytest.raises(Exception, match="Test error"):
             await middleware.dispatch(request, call_next)
 
-    def test_middleware_disabled(self):
+    def test_middleware_disabled(self) -> None:
         """Test middleware when metrics are disabled."""
         app = MagicMock()
         config = MetricsConfig(enabled=False)

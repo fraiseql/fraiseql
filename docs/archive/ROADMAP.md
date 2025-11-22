@@ -96,9 +96,9 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Feedback
 
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- [Feature Requests](https://github.com/fraiseql/fraiseql/issues/new?template=feature_request.md)
-- [Roadmap Discussions](https://github.com/fraiseql/fraiseql/discussions/categories/roadmap)
+- [GitHub Discussions](../discussions)
+- [Feature Requests](../issues/new?template=feature_request.md)
+- [Roadmap Discussions](../discussions/categories/roadmap)
 
 ## Version Support
 

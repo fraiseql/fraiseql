@@ -202,7 +202,7 @@ print(f"Total time: {duration*1000:.2f}ms")
 
 ## Advanced: Custom Rust Transformations
 
-For very specialized needs, you can extend fraiseql-rs. See [Contributing Guide](../development/CONTRIBUTING.md).
+For very specialized needs, you can extend fraiseql-rs. See [Contributing Guide](../../CONTRIBUTING.md).
 
 ## Summary
 

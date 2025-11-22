@@ -1,0 +1,102 @@
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+tests/
+
+# CI/CD (don't copy to image)
+.github/
+.gitlab-ci.yml
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Environment and Virtual Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Rust build artifacts
+fraiseql_rs/target/
+fraiseql_rs/Cargo.lock
+
+# Archive and planning files
+archive/
+dev/
+
+# Benchmarks and performance data
+benchmarks/
+
+# Examples (keep only essential ones)
+examples/
+!examples/minimal/
+
+# Grafana dashboards
+grafana/
+
+# Scripts (keep only essential deployment scripts)
+scripts/
+!scripts/deployment/
+
+# Templates
+templates/
+
+# Keep these for build
+!src/
+!pyproject.toml
+!README.md
+!deploy/docker/entrypoint.sh

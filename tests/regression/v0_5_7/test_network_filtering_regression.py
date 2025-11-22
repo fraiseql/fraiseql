@@ -73,7 +73,9 @@ class TestJSONBNetworkFilteringBug:
 
     @pytest.mark.database
     @pytest.mark.asyncio
-    async def test_cqrs_schema_setup(self, db_connection, create_test_table, create_test_view):
+    async def test_cqrs_schema_setup(
+        self, db_connection, create_test_table, create_test_view
+    ) -> None:
         """Set up the CQRS schema pattern that reproduces the bug."""
         # 1. Create command-side table (INET storage)
         command_table_schema = """
@@ -137,7 +139,7 @@ class TestJSONBNetworkFilteringBug:
 
     @pytest.mark.database
     @pytest.mark.asyncio
-    async def test_network_operator_sql_generation_with_jsonb(self, db_connection):
+    async def test_network_operator_sql_generation_with_jsonb(self, db_connection) -> None:
         """Test that network operators generate correct SQL for JSONB fields."""
         from fraiseql.sql.operator_strategies import get_operator_registry
 
@@ -186,7 +188,9 @@ class TestJSONBNetworkFilteringBug:
 
     @pytest.mark.database
     @pytest.mark.asyncio
-    async def test_graphql_network_filtering_bug_reproduction(self, create_fraiseql_app_with_db):
+    async def test_graphql_network_filtering_bug_reproduction(
+        self, create_fraiseql_app_with_db
+    ) -> None:
         """Test the complete GraphQL network filtering bug with real queries."""
         # Create FraiseQL app with our types
         app = create_fraiseql_app_with_db(
@@ -267,7 +271,7 @@ class TestJSONBNetworkFilteringBug:
                     assert len(subnet_results) > 0, "Subnet filtering should work"
 
     @pytest.mark.database
-    async def test_root_cause_investigation(self, db_connection):
+    async def test_root_cause_investigation(self, db_connection) -> None:
         """Investigate the root cause of the JSONB+INET filtering issue."""
         await self._setup_test_schema(db_connection)
 
@@ -344,7 +348,7 @@ class TestJSONBNetworkFilteringBug:
 
         # Diagnosis: Check if INET cast equality works correctly
 
-    async def _setup_test_schema(self, db_connection):
+    async def _setup_test_schema(self, db_connection) -> None:
         """Helper to set up test schema and data."""
         # Drop and recreate if exists
         await db_connection.execute("DROP TABLE IF EXISTS tenant_tb_dns_server CASCADE")
@@ -396,7 +400,7 @@ class TestJSONBNetworkFilteringBug:
 class TestFraiseQLNetworkOperatorStrategy:
     """Test FraiseQL's NetworkOperatorStrategy with JSONB fields."""
 
-    def test_network_operator_strategy_can_handle_ip_types(self):
+    def test_network_operator_strategy_can_handle_ip_types(self) -> None:
         """Test that NetworkOperatorStrategy recognizes IP address types."""
         from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
 
@@ -437,7 +441,7 @@ class TestFraiseQLNetworkOperatorStrategy:
 class TestJSONBFieldTypeMapping:
     """Test FraiseQL's handling of IP address types in JSONB fields."""
 
-    def test_where_input_generation_for_ip_fields(self):
+    def test_where_input_generation_for_ip_fields(self) -> None:
         """Test that IP address fields get proper NetworkAddressFilter types."""
         WhereInput = create_graphql_where_input(DnsServer)
         type_hints = get_type_hints(WhereInput)

@@ -1,14 +1,11 @@
 """Tests for APQ protocol handler functionality."""
 
-import pytest
-from fraiseql.fastapi.routers import GraphQLRequest
 
-
-def test_apq_protocol_responses():
+def test_apq_protocol_responses() -> None:
     """Test APQ protocol responses for missing/found queries."""
     # This test will fail until we implement the protocol handler
     from fraiseql.middleware.apq import handle_apq_request
-    from fraiseql.storage.apq_store import store_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, store_persisted_query
 
     # Clear storage for clean test
     clear_storage()
@@ -24,7 +21,7 @@ def test_apq_protocol_responses():
     assert "data" in found_response
 
 
-def test_apq_protocol_persisted_query_not_found_error():
+def test_apq_protocol_persisted_query_not_found_error() -> None:
     """Test specific APQ error format for missing queries."""
     from fraiseql.middleware.apq import handle_apq_request
     from fraiseql.storage.apq_store import clear_storage
@@ -44,10 +41,10 @@ def test_apq_protocol_persisted_query_not_found_error():
     }
 
 
-def test_apq_protocol_query_execution():
+def test_apq_protocol_query_execution() -> None:
     """Test APQ protocol executes found queries correctly."""
     from fraiseql.middleware.apq import handle_apq_request
-    from fraiseql.storage.apq_store import store_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, store_persisted_query
 
     clear_storage()
 
@@ -64,10 +61,10 @@ def test_apq_protocol_query_execution():
     assert "__typename" in response["data"]
 
 
-def test_apq_protocol_with_variables():
+def test_apq_protocol_with_variables() -> None:
     """Test APQ protocol handles variables correctly."""
     from fraiseql.middleware.apq import handle_apq_request
-    from fraiseql.storage.apq_store import store_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, store_persisted_query
 
     clear_storage()
 
@@ -85,7 +82,7 @@ def test_apq_protocol_with_variables():
     assert "data" in response or "errors" in response
 
 
-def test_apq_protocol_invalid_hash():
+def test_apq_protocol_invalid_hash() -> None:
     """Test APQ protocol handles invalid hash gracefully."""
     from fraiseql.middleware.apq import handle_apq_request
 
@@ -98,10 +95,10 @@ def test_apq_protocol_invalid_hash():
     assert response["errors"][0]["extensions"]["code"] == "PERSISTED_QUERY_NOT_FOUND"
 
 
-def test_apq_protocol_with_operation_name():
+def test_apq_protocol_with_operation_name() -> None:
     """Test APQ protocol handles operation names correctly."""
     from fraiseql.middleware.apq import handle_apq_request
-    from fraiseql.storage.apq_store import store_persisted_query, clear_storage
+    from fraiseql.storage.apq_store import clear_storage, store_persisted_query
 
     clear_storage()
 

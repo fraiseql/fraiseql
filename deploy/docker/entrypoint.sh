@@ -16,7 +16,7 @@ if [ -n "$DATABASE_URL" ]; then
     DB_PORT=$(echo $DATABASE_URL | sed -E 's/.*@([^:]+):([0-9]+).*/\2/')
 
     # Wait for database to be ready
-    until nc -z $DB_HOST $DB_PORT; do
+    until python3 -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('$DB_HOST', int('$DB_PORT'))); s.close()" 2>/dev/null; do
         echo "Database is unavailable - sleeping"
         sleep 1
     done

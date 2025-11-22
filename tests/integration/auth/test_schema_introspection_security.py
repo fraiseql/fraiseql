@@ -25,7 +25,7 @@ async def simple_test_query(info: GraphQLResolveInfo) -> str:
 class TestSchemaIntrospectionSecurity:
     """Test that schema introspection is properly secured."""
 
-    def test_current_introspection_behavior_in_development(self):
+    def test_current_introspection_behavior_in_development(self) -> None:
         """Document current introspection behavior in development - baseline for TDD."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -48,7 +48,7 @@ class TestSchemaIntrospectionSecurity:
             assert "__schema" in data["data"]
             assert data["data"]["__schema"]["queryType"]["name"] == "Query"
 
-    def test_current_introspection_behavior_in_production(self):
+    def test_current_introspection_behavior_in_production(self) -> None:
         """Document current introspection behavior in production - baseline for TDD."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -68,7 +68,7 @@ class TestSchemaIntrospectionSecurity:
             # TODO: This should fail (return error), but currently passes
             # This demonstrates the security issue
 
-    def test_introspection_disabled_in_production(self):
+    def test_introspection_disabled_in_production(self) -> None:
         """RED: Introspection should be blocked in production mode."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -96,7 +96,7 @@ class TestSchemaIntrospectionSecurity:
                 "introspection" in error.get("message", "").lower() for error in data["errors"]
             )
 
-    def test_introspection_enabled_in_development(self):
+    def test_introspection_enabled_in_development(self) -> None:
         """RED: Introspection should work in development mode."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -122,7 +122,7 @@ class TestSchemaIntrospectionSecurity:
             assert "data" in data
             assert data["data"]["__schema"]["queryType"]["name"] == "Query"
 
-    def test_introspection_configurable_override(self):
+    def test_introspection_configurable_override(self) -> None:
         """RED: Introspection should be configurable via explicit setting."""
         # Explicitly enable introspection in production (override default)
         from fraiseql.fastapi.config import IntrospectionPolicy
@@ -151,7 +151,7 @@ class TestSchemaIntrospectionSecurity:
             assert "errors" not in data
             assert "data" in data
 
-    def test_introspection_type_queries_blocked(self):
+    def test_introspection_type_queries_blocked(self) -> None:
         """RED: Type introspection queries should also be blocked in production."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -177,7 +177,7 @@ class TestSchemaIntrospectionSecurity:
                 "introspection" in error.get("message", "").lower() for error in data["errors"]
             )
 
-    def test_mixed_introspection_and_normal_query(self):
+    def test_mixed_introspection_and_normal_query(self) -> None:
         """RED: Mixed queries with introspection should be blocked in production."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -211,7 +211,7 @@ class TestSchemaIntrospectionSecurity:
                 "introspection" in error.get("message", "").lower() for error in data["errors"]
             )
 
-    def test_regular_queries_work_in_production(self):
+    def test_regular_queries_work_in_production(self) -> None:
         """Regular queries should still work in production when introspection is disabled."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -234,7 +234,7 @@ class TestSchemaIntrospectionSecurity:
             assert "data" in data
             assert data["data"]["simpleTestQuery"] == "test data"
 
-    def test_introspection_error_message_is_clear(self):
+    def test_introspection_error_message_is_clear(self) -> None:
         """Error message for blocked introspection should be clear and informative."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",

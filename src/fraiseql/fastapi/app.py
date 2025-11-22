@@ -22,6 +22,7 @@ from fraiseql.fastapi.dependencies import (
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.introspection import AutoDiscovery
 from fraiseql.utils import normalize_database_url
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,9 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("timestamptz", TextLoader)
         conn.adapters.register_loader("time", TextLoader)
         conn.adapters.register_loader("timetz", TextLoader)
+
+        # Note: row_factory cannot be set at connection level due to type constraints
+        # The row_factory=dict_row is set on each cursor creation in db.py
 
     async def check_connection(conn: AsyncConnection) -> None:
         """Validate connection is alive before reuse.
@@ -87,6 +91,67 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
     return pool
 
 
+async def discover_fraiseql_schema(
+    database_url: str,
+    view_pattern: str = "v_%",
+    function_pattern: str = "fn_%",
+    schemas: list[str] | None = None,
+) -> dict[str, list]:
+    """Discover GraphQL schema components from PostgreSQL database.
+
+    This function introspects the database and generates types, queries, and mutations
+    automatically from views and functions with @fraiseql annotations.
+
+    Args:
+        database_url: PostgreSQL connection URL
+        view_pattern: Pattern for view discovery (default: "v_%")
+        function_pattern: Pattern for function discovery (default: "fn_%")
+        schemas: List of schemas to search (default: ["public"])
+
+    Returns:
+        Dictionary with discovered components:
+        {
+            'types': [User, Post, ...],
+            'queries': [user, users, ...],
+            'mutations': [createUser, ...],
+        }
+
+    Example:
+        ```python
+        from fraiseql.fastapi import discover_fraiseql_schema
+
+        # Discover schema components
+        schema_components = await discover_fraiseql_schema(
+            "postgresql://user:pass@localhost/db"
+        )
+
+        # Use with create_fraiseql_app
+        app = create_fraiseql_app(
+            database_url="postgresql://user:pass@localhost/db",
+            types=schema_components['types'],
+            queries=schema_components['queries'],
+            mutations=schema_components['mutations'],
+        )
+        ```
+    """
+    import psycopg_pool
+
+    # Create connection pool
+    pool = psycopg_pool.AsyncConnectionPool(database_url, min_size=1, max_size=10)
+    await pool.open()
+
+    try:
+        # Initialize auto-discovery
+        auto_discovery = AutoDiscovery(pool)
+
+        # Discover all components
+        return await auto_discovery.discover_all(
+            view_pattern=view_pattern, function_pattern=function_pattern, schemas=schemas
+        )
+    finally:
+        await pool.close()
+
+
 def create_fraiseql_app(
     *,
     # Required configuration
@@ -95,6 +160,8 @@ def create_fraiseql_app(
     types: Sequence[type] = (),
     mutations: Sequence[Callable[..., Any]] = (),
     queries: Sequence[type] = (),
+    # Auto-discovery configuration
+    auto_discover: bool = False,
     # Optional configuration
     config: FraiseQLConfig | None = None,
     auth: Auth0Config | AuthProvider | None = None,
@@ -109,6 +176,8 @@ def create_fraiseql_app(
     # Development auth configuration
     dev_auth_username: str | None = None,
     dev_auth_password: str | None = None,
+    # Schema registry configuration
+    enable_schema_registry: bool = True,
     # FastAPI app to extend (optional)
     app: FastAPI | None = None,
 ) -> FastAPI:
@@ -119,6 +188,7 @@ def create_fraiseql_app(
         types: Sequence of FraiseQL types to register
         mutations: Sequence of mutation resolver functions
         queries: Sequence of query types (if not using default QueryRoot)
+        auto_discover: Enable automatic discovery of GraphQL schema from PostgreSQL metadata
         config: Full configuration object (overrides other params)
         auth: Authentication configuration or provider
         context_getter: Optional async function to build GraphQL context from request
@@ -129,6 +199,7 @@ def create_fraiseql_app(
         production: Whether to use production optimizations
         dev_auth_username: Override username for development auth (defaults to env var or "admin")
         dev_auth_password: Override password for development auth (defaults to env var)
+        enable_schema_registry: Whether to initialize Rust schema registry (default: True)
         app: Existing FastAPI app to extend (creates new if None)
 
     Returns:
@@ -150,6 +221,15 @@ def create_fraiseql_app(
                 api_identifier="https://api.myapp.com"
             ),
             production=True
+        )
+        ```
+
+        Auto-discovery example:
+        ```python
+        # Enable auto-discovery from PostgreSQL metadata
+        app = create_fraiseql_app(
+            database_url="postgresql://localhost/mydb",
+            auto_discover=True  # Discovers types/queries/mutations from database
         )
         ```
     """
@@ -214,7 +294,7 @@ def create_fraiseql_app(
             # Startup
             pool = await create_db_pool(
                 str(config.database_url),
-                min_size=1,
+                min_size=2,  # Keep 2 connections warm for better performance
                 max_size=config.database_pool_size,
                 timeout=config.database_pool_timeout,
             )
@@ -239,7 +319,7 @@ def create_fraiseql_app(
             # Startup - initialize database pool
             pool = await create_db_pool(
                 str(config.database_url),
-                min_size=1,
+                min_size=2,  # Keep 2 connections warm for better performance
                 max_size=config.database_pool_size,
                 timeout=config.database_pool_timeout,
             )
@@ -302,14 +382,158 @@ def create_fraiseql_app(
             password=config.dev_auth_password,
         )
 
+    # Auto-discover schema components if enabled
+    auto_types = []
+    auto_queries = []
+    auto_mutations = []
+
+    if auto_discover:
+        logger.info("Auto-discovery enabled - performing discovery during app creation")
+        # Perform synchronous discovery using the discover_fraiseql_schema function
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types.extend(discovered.get("types", []))
+            auto_queries.extend(discovered.get("queries", []))
+            auto_mutations.extend(discovered.get("mutations", []))
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+
+    if auto_discover:
+        logger.info("Auto-discovery enabled - performing discovery during app creation")
+        # Perform synchronous discovery using the discover_fraiseql_schema function
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types = discovered.get("types", [])
+            auto_queries = discovered.get("queries", [])
+            auto_mutations = discovered.get("mutations", [])
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+            auto_types = []
+            auto_queries = []
+            auto_mutations = []
+
+    if auto_discover:
+        logger.info("Auto-discovery enabled - performing synchronous discovery during app creation")
+        # For now, perform synchronous discovery using the discover_fraiseql_schema function
+        # This is a temporary solution until we can make the full async integration work
+        import asyncio
+
+        async def sync_discover():
+            return await discover_fraiseql_schema(
+                str(config.database_url),
+                view_pattern="v_%",
+                function_pattern="fn_%",
+                schemas=["public"],
+            )
+
+        # Run the async discovery in a new event loop
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            discovered = loop.run_until_complete(sync_discover())
+            loop.close()
+
+            auto_types = discovered.get("types", [])
+            auto_queries = discovered.get("queries", [])
+            auto_mutations = discovered.get("mutations", [])
+
+            logger.info(
+                f"Auto-discovery completed: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+        except Exception as e:
+            logger.error(f"Auto-discovery failed during app creation: {e}")
+            # Continue with empty auto-discovered components
+            auto_types = []
+            auto_queries = []
+            auto_mutations = []
+
     # Build GraphQL schema
     # Combine both types and queries - types define GraphQL types, queries define query functions
-    all_query_types = list(types) + list(queries)
+    all_query_types = list(types) + list(queries) + auto_types + auto_queries
+    all_mutations = list(mutations) + auto_mutations
+
     schema = build_fraiseql_schema(
         query_types=all_query_types,
-        mutation_resolvers=list(mutations),
+        mutation_resolvers=all_mutations,
         camel_case_fields=config.auto_camel_case,
     )
+
+    # Initialize Rust schema registry for type resolution
+    # This enables correct __typename for nested JSONB objects and field aliasing
+    if enable_schema_registry:
+        import json
+        import time
+
+        from fraiseql import _fraiseql_rs
+        from fraiseql.core.schema_serializer import SchemaSerializer
+
+        try:
+            start_time = time.time()
+
+            serializer = SchemaSerializer()
+            schema_ir = serializer.serialize_schema(schema)
+            schema_json = json.dumps(schema_ir)
+
+            _fraiseql_rs.initialize_schema_registry(schema_json)
+
+            initialization_time_ms = (time.time() - start_time) * 1000
+            type_count = len(schema.type_map)
+
+            logger.info(
+                "Schema registry initialized successfully: types=%d, time=%.2fms",
+                type_count,
+                initialization_time_ms,
+            )
+        except Exception as e:
+            # Log error but don't fail app startup - maintain backward compatibility
+            logger.warning(
+                "Failed to initialize schema registry (continuing with app startup): %s", str(e)
+            )
+    else:
+        logger.debug("Schema registry initialization disabled by feature flag")
 
     # Create TurboRegistry if enabled (regardless of environment)
     turbo_registry = None

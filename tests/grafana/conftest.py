@@ -27,12 +27,12 @@ KNOWN_EXCEPTIONS = {
 
 
 @pytest.fixture
-def known_exceptions():
+def known_exceptions() -> None:
     """Return known exceptions for test rules."""
     return KNOWN_EXCEPTIONS
 
 
-def is_known_exception(dashboard, panel, exception_type):
+def is_known_exception(dashboard, panel, exception_type) -> None:
     """Check if a query is a known exception to a test rule."""
     exceptions = KNOWN_EXCEPTIONS.get(exception_type, [])
     return (dashboard, panel) in exceptions

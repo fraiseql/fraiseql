@@ -23,7 +23,7 @@ from fraiseql.security.csrf_protection import (
 
 
 @pytest.fixture
-def csrf_config():
+def csrf_config() -> None:
     """Create test CSRF configuration."""
     return CSRFConfig(
         secret_key="test-secret-key-for-csrf-protection",
@@ -34,25 +34,25 @@ def csrf_config():
 
 
 @pytest.fixture
-def app():
+def app() -> None:
     """Create test FastAPI app."""
     app = FastAPI()
 
     @app.get("/test")
-    async def test_get():
+    async def test_get() -> None:
         return {"message": "success"}
 
     @app.post("/test")
-    async def test_post():
+    async def test_post() -> None:
         return {"message": "success"}
 
     @app.post("/graphql")
-    async def graphql_endpoint(request: Request):
+    async def graphql_endpoint(request: Request) -> None:
         await request.body()
         return {"data": {"test": "success"}}
 
     @app.get("/health")
-    async def health():
+    async def health() -> None:
         return {"status": "healthy"}
 
     return app
@@ -129,7 +129,7 @@ class TestCSRFTokenGenerator:
 
         # Various malformed tokens
         malformed_tokens = [
-            "" """abc""" """not-base64!@#""" "dGVzdA==",  # Valid base64 but wrong format
+            "" """abcnot-base64!@#""" "dGVzdA==",  # Valid base64 but wrong format
         ]
 
         for token in malformed_tokens:
@@ -140,7 +140,7 @@ class TestGraphQLCSRFValidator:
     """Test GraphQL CSRF validation."""
 
     @pytest.fixture
-    def validator(self, csrf_config):
+    def validator(self, csrf_config) -> None:
         """Create GraphQL CSRF validator."""
         return GraphQLCSRFValidator(csrf_config)
 
@@ -553,11 +553,11 @@ class TestCSRFTokenGeneratorExtended:
     """Test CSRF token generation and validation."""
 
     @pytest.fixture
-    def generator(self):
+    def generator(self) -> None:
         """Create token generator."""
         return CSRFTokenGenerator("test-secret-key", timeout=3600)
 
-    def test_generate_token_without_session(self, generator):
+    def test_generate_token_without_session(self, generator) -> None:
         """Test token generation without session ID."""
         token = generator.generate_token()
 
@@ -568,7 +568,7 @@ class TestCSRFTokenGeneratorExtended:
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
         assert ":" in decoded
 
-    def test_generate_token_with_session(self, generator):
+    def test_generate_token_with_session(self, generator) -> None:
         """Test token generation with session ID."""
         session_id = "test-session-123"
         token = generator.generate_token(session_id)
@@ -577,12 +577,12 @@ class TestCSRFTokenGeneratorExtended:
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
         assert session_id in decoded
 
-    def test_validate_token_success(self, generator):
+    def test_validate_token_success(self, generator) -> None:
         """Test successful token validation."""
         token = generator.generate_token()
         assert generator.validate_token(token) is True
 
-    def test_validate_token_with_session(self, generator):
+    def test_validate_token_with_session(self, generator) -> None:
         """Test token validation with session ID."""
         session_id = "test-session"
         token = generator.generate_token(session_id)
@@ -593,7 +593,7 @@ class TestCSRFTokenGeneratorExtended:
         # Should fail with wrong session ID
         assert generator.validate_token(token, "wrong-session") is False
 
-    def test_validate_token_invalid_format(self, generator):
+    def test_validate_token_invalid_format(self, generator) -> None:
         """Test validation with invalid token format."""
         # Invalid base64
         assert generator.validate_token("invalid-token") is False
@@ -602,7 +602,7 @@ class TestCSRFTokenGeneratorExtended:
         invalid_token = base64.urlsafe_b64encode(b"wrong:format").decode()
         assert generator.validate_token(invalid_token) is False
 
-    def test_validate_token_wrong_signature(self, generator):
+    def test_validate_token_wrong_signature(self, generator) -> None:
         """Test validation with tampered token."""
         # Generate valid token
         token = generator.generate_token()
@@ -616,7 +616,7 @@ class TestCSRFTokenGeneratorExtended:
 
         assert generator.validate_token(tampered_token) is False
 
-    def test_validate_token_expired(self, generator):
+    def test_validate_token_expired(self, generator) -> None:
         """Test validation with expired token."""
         # Create generator with short timeout
         short_generator = CSRFTokenGenerator("test-secret", timeout=1)
@@ -627,7 +627,7 @@ class TestCSRFTokenGeneratorExtended:
 
         assert short_generator.validate_token(token) is False
 
-    def test_token_with_bytes_secret(self):
+    def test_token_with_bytes_secret(self) -> None:
         """Test generator with bytes secret key."""
         generator = CSRFTokenGenerator(b"bytes-secret-key")
         token = generator.generate_token()
@@ -638,14 +638,14 @@ class TestGraphQLCSRFValidatorExtended:
     """Test GraphQL-specific CSRF validation."""
 
     @pytest.fixture
-    def validator(self):
+    def validator(self) -> None:
         """Create GraphQL CSRF validator."""
         config = CSRFConfig(
             secret_key="test-secret", require_for_mutations=True, require_for_subscriptions=False
         )
         return GraphQLCSRFValidator(config)
 
-    def test_extract_operation_type_mutation(self, validator):
+    def test_extract_operation_type_mutation(self, validator) -> None:
         """Test extracting mutation operation type."""
         bodies = [
             {"query": "mutation CreateUser { ... }"},
@@ -656,7 +656,7 @@ class TestGraphQLCSRFValidatorExtended:
         for body in bodies:
             assert validator._extract_operation_type(body) == "mutation"
 
-    def test_extract_operation_type_query(self, validator):
+    def test_extract_operation_type_query(self, validator) -> None:
         """Test extracting query operation type."""
         bodies = [
             {"query": "query GetUser { ... }"},
@@ -668,7 +668,7 @@ class TestGraphQLCSRFValidatorExtended:
         for body in bodies:
             assert validator._extract_operation_type(body) == "query"
 
-    def test_extract_operation_type_subscription(self, validator):
+    def test_extract_operation_type_subscription(self, validator) -> None:
         """Test extracting subscription operation type."""
         bodies = [
             {"query": "subscription OnMessage { ... }"},
@@ -678,7 +678,7 @@ class TestGraphQLCSRFValidatorExtended:
         for body in bodies:
             assert validator._extract_operation_type(body) == "subscription"
 
-    def test_extract_operation_type_invalid(self, validator):
+    def test_extract_operation_type_invalid(self, validator) -> None:
         """Test extracting operation type from invalid query."""
         bodies = [
             {"query": ""},
@@ -691,13 +691,13 @@ class TestGraphQLCSRFValidatorExtended:
             result = validator._extract_operation_type(body)
             assert result is None or result == "query"
 
-    def test_requires_csrf_protection(self, validator):
+    def test_requires_csrf_protection(self, validator) -> None:
         """Test checking if operation requires CSRF protection."""
         assert validator._requires_csrf_protection("mutation") is True
         assert validator._requires_csrf_protection("subscription") is False
         assert validator._requires_csrf_protection("query") is False
 
-    def test_requires_csrf_protection_custom_config(self):
+    def test_requires_csrf_protection_custom_config(self) -> None:
         """Test CSRF requirements with custom config."""
         config = CSRFConfig(
             secret_key="test", require_for_mutations=False, require_for_subscriptions=True
@@ -708,7 +708,7 @@ class TestGraphQLCSRFValidatorExtended:
         assert validator._requires_csrf_protection("subscription") is True
 
     @pytest.mark.asyncio
-    async def test_validate_request_success(self, validator):
+    async def test_validate_request_success(self, validator) -> None:
         """Test successful request validation."""
         # Mock request with valid token
         request = AsyncMock()
@@ -721,7 +721,7 @@ class TestGraphQLCSRFValidatorExtended:
             assert result is True
 
     @pytest.mark.asyncio
-    async def test_validate_request_mutation_no_token(self, validator):
+    async def test_validate_request_mutation_no_token(self, validator) -> None:
         """Test mutation request without CSRF token."""
         request = AsyncMock()
         request.headers = {}
@@ -731,7 +731,7 @@ class TestGraphQLCSRFValidatorExtended:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_validate_request_header_token(self, validator):
+    async def test_validate_request_header_token(self, validator) -> None:
         """Test validation with token in header."""
         request = AsyncMock()
         request.headers = {"x-csrf-token": "header-token"}
@@ -748,7 +748,7 @@ class TestGraphQLCSRFValidatorExtended:
             assert mock_validate.called
 
     @pytest.mark.asyncio
-    async def test_validate_request_cookie_token(self, validator):
+    async def test_validate_request_cookie_token(self, validator) -> None:
         """Test validation with token in cookie."""
         validator.config.storage = CSRFTokenStorage.COOKIE
 
@@ -767,7 +767,7 @@ class TestGraphQLCSRFValidatorExtended:
             assert mock_validate.called
 
     @pytest.mark.asyncio
-    async def test_check_referrer_header(self, validator):
+    async def test_check_referrer_header(self, validator) -> None:
         """Test referrer header checking through middleware."""
         # Create middleware instance for referrer checking
         config = CSRFConfig(
@@ -803,13 +803,13 @@ class TestCSRFProtectionMiddlewareExtended:
     """Extended test CSRF protection middleware."""
 
     @pytest.fixture
-    def app(self):
+    def app(self) -> None:
         """Create test app with middleware."""
         app = FastAPI()
         return app
 
     @pytest.fixture
-    def middleware(self, app):
+    def middleware(self, app) -> None:
         """Create middleware instance."""
         config = CSRFConfig(
             secret_key="test-secret", cookie_secure=False, exempt_paths={"/health", "/metrics"}
@@ -817,7 +817,7 @@ class TestCSRFProtectionMiddlewareExtended:
         return CSRFProtectionMiddleware(app, config)
 
     @pytest.mark.asyncio
-    async def test_middleware_allows_safe_methods(self, middleware):
+    async def test_middleware_allows_safe_methods(self, middleware) -> None:
         """Test middleware allows GET/HEAD/OPTIONS without CSRF."""
         request = MagicMock()
         request.method = "GET"
@@ -825,14 +825,14 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req):
+        async def call_next(req) -> None:
             return response
 
         result = await middleware.dispatch(request, call_next)
         assert result is response
 
     @pytest.mark.asyncio
-    async def test_middleware_exempt_paths(self, middleware):
+    async def test_middleware_exempt_paths(self, middleware) -> None:
         """Test middleware skips exempt paths."""
         request = MagicMock()
         request.method = "POST"
@@ -840,14 +840,14 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req):
+        async def call_next(req) -> None:
             return response
 
         result = await middleware.dispatch(request, call_next)
         assert result is response
 
     @pytest.mark.asyncio
-    async def test_middleware_graphql_validation(self, middleware):
+    async def test_middleware_graphql_validation(self, middleware) -> None:
         """Test middleware validates GraphQL requests."""
         request = AsyncMock()
         request.method = "POST"
@@ -856,14 +856,14 @@ class TestCSRFProtectionMiddlewareExtended:
         request.cookies = {}
 
         # Mock body with mutation
-        async def get_body():
+        async def get_body() -> None:
             return json.dumps({"query": "mutation Test { ... }"}).encode()
 
         request.body = get_body
 
         response = Response()
 
-        async def call_next(req):
+        async def call_next(req) -> None:
             return response
 
         # Should reject without CSRF token
@@ -871,7 +871,7 @@ class TestCSRFProtectionMiddlewareExtended:
         assert result.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_middleware_generates_token_for_get(self, middleware):
+    async def test_middleware_generates_token_for_get(self, middleware) -> None:
         """Test middleware generates CSRF token for GET requests."""
         request = MagicMock()
         request.method = "GET"
@@ -880,7 +880,7 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req):
+        async def call_next(req) -> None:
             return response
 
         with patch.object(middleware.token_generator, "generate_token", return_value="new-token"):
@@ -893,7 +893,7 @@ class TestCSRFProtectionMiddlewareExtended:
 class TestCSRFConfigurationsExtended:
     """Test CSRF configuration presets."""
 
-    def test_development_config_extended(self):
+    def test_development_config_extended(self) -> None:
         """Test development CSRF configuration."""
         config = create_development_csrf_config("dev-secret")
 
@@ -902,7 +902,7 @@ class TestCSRFConfigurationsExtended:
         assert config.cookie_samesite == "lax"
         assert config.check_referrer is False
 
-    def test_production_config_extended(self):
+    def test_production_config_extended(self) -> None:
         """Test production CSRF configuration."""
         config = create_production_csrf_config(
             secret_key="prod-secret", trusted_origins={"https://app.com"}
@@ -918,7 +918,7 @@ class TestCSRFConfigurationsExtended:
 class TestCSRFTokenEndpointExtended:
     """Test CSRF token endpoint."""
 
-    def test_endpoint_creation(self):
+    def test_endpoint_creation(self) -> None:
         """Test creating CSRF token endpoint."""
         config = CSRFConfig(secret_key="test")
         endpoint = CSRFTokenEndpoint(config)
@@ -926,7 +926,7 @@ class TestCSRFTokenEndpointExtended:
         assert endpoint.config is config
 
     @pytest.mark.asyncio
-    async def test_endpoint_generates_token(self):
+    async def test_endpoint_generates_token(self) -> None:
         """Test endpoint generates new token."""
         config = CSRFConfig(secret_key="test", cookie_secure=False)
         endpoint = CSRFTokenEndpoint(config)
@@ -948,7 +948,7 @@ class TestCSRFTokenEndpointExtended:
 class TestCSRFSetupExtended:
     """Test CSRF setup function."""
 
-    def test_setup_csrf_protection(self):
+    def test_setup_csrf_protection(self) -> None:
         """Test setting up CSRF protection on app."""
         app = FastAPI()
         secret_key = "test"

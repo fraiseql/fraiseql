@@ -69,7 +69,7 @@ def test_debug_type_hints() -> None:
 
 
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear the registry before each test."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

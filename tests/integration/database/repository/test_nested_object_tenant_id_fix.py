@@ -51,7 +51,7 @@ async def user1(info: GraphQLResolveInfo) -> Optional[User1]:
 
 
 @pytest.mark.asyncio
-async def test_nested_object_with_sql_source_no_tenant_id_error():
+async def test_nested_object_with_sql_source_no_tenant_id_error() -> None:
     """Test that nested objects with sql_source don't require tenant_id when data is embedded."""
     # Create schema
     schema = build_fraiseql_schema(query_types=[user1, User1, Organization1])
@@ -106,7 +106,7 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
 
 
 @pytest.mark.asyncio
-async def test_smart_resolver_prefers_embedded_data():
+async def test_smart_resolver_prefers_embedded_data() -> None:
     """Test that the smart resolver uses embedded data when available."""
 
     @fraiseql_type(sql_source="departments")
@@ -165,7 +165,7 @@ async def test_smart_resolver_prefers_embedded_data():
 
 
 @pytest.mark.asyncio
-async def test_smart_resolver_queries_when_no_embedded_data():
+async def test_smart_resolver_queries_when_no_embedded_data() -> None:
     """Test that the smart resolver queries sql_source when data is not embedded."""
 
     @fraiseql_type(sql_source="departments", resolve_nested=True)

@@ -6,16 +6,16 @@ to actual PostgreSQL execution.
 """
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.sql.where.core.field_detection import FieldType
 from fraiseql.sql.where.operators import get_operator_function
-from psycopg.sql import SQL
 
 
 class TestDateRangeEndToEndIntegration:
     """Test DateRange operators in full integration context."""
 
-    def test_daterange_field_type_detection(self):
+    def test_daterange_field_type_detection(self) -> None:
         """Test that DateRange field types can be detected and mapped to operators."""
         # Test operator lookup for DateRange field type
         basic_operators = ["eq", "neq", "in", "notin"]
@@ -34,7 +34,7 @@ class TestDateRangeEndToEndIntegration:
             func = get_operator_function(FieldType.DATE_RANGE, op)
             assert callable(func), f"DateRange operator '{op}' should return a callable function"
 
-    def test_daterange_basic_operators_integration(self):
+    def test_daterange_basic_operators_integration(self) -> None:
         """Test DateRange basic operators generate correct SQL in full context."""
         path_sql = SQL("data->>'fiscal_period'")
 
@@ -56,7 +56,7 @@ class TestDateRangeEndToEndIntegration:
         expected = "(data->>'fiscal_period')::daterange IN ('[2023-01-01,2023-12-31]'::daterange, '[2024-01-01,2024-12-31]'::daterange)"
         assert result.as_string(None) == expected
 
-    def test_daterange_range_operators_integration(self):
+    def test_daterange_range_operators_integration(self) -> None:
         """Test DateRange-specific operators generate correct SQL in full context."""
         path_sql = SQL("data->>'project_timeline'")
 
@@ -84,7 +84,7 @@ class TestDateRangeEndToEndIntegration:
         expected = "(data->>'project_timeline')::daterange << '[2024-01-01,2024-12-31]'::daterange"
         assert result.as_string(None) == expected
 
-    def test_daterange_positioning_operators_integration(self):
+    def test_daterange_positioning_operators_integration(self) -> None:
         """Test DateRange positioning operators in full context."""
         path_sql = SQL("data->>'contract_period'")
 
@@ -106,7 +106,7 @@ class TestDateRangeEndToEndIntegration:
         expected = "(data->>'contract_period')::daterange &< '[2023-01-01,2023-12-31]'::daterange"
         assert result.as_string(None) == expected
 
-    def test_daterange_complex_scenarios_integration(self):
+    def test_daterange_complex_scenarios_integration(self) -> None:
         """Test DateRange operators with complex real-world scenarios."""
         # Test fiscal year queries
         fiscal_sql = SQL("data->>'fiscal_year'")
@@ -130,7 +130,7 @@ class TestDateRangeEndToEndIntegration:
         expected = "(data->>'project_phase')::daterange -|- '[2023-07-01,2023-12-31]'::daterange"
         assert result.as_string(None) == expected
 
-    def test_daterange_unbounded_ranges_integration(self):
+    def test_daterange_unbounded_ranges_integration(self) -> None:
         """Test DateRange operators with unbounded ranges."""
         path_sql = SQL("data->>'validity_period'")
 
@@ -150,7 +150,7 @@ class TestDateRangeEndToEndIntegration:
         expected = "(data->>'validity_period')::daterange = '[2023-01-01,infinity)'::daterange"
         assert result.as_string(None) == expected
 
-    def test_daterange_error_handling_integration(self):
+    def test_daterange_error_handling_integration(self) -> None:
         """Test DateRange operator error handling in integration context."""
         path_sql = SQL("data->>'period'")
 
@@ -164,7 +164,7 @@ class TestDateRangeEndToEndIntegration:
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             notin_func(path_sql, "[2023-01-01,2023-12-31]")
 
-    def test_daterange_operator_coverage_integration(self):
+    def test_daterange_operator_coverage_integration(self) -> None:
         """Test that all expected DateRange operators are available."""
         expected_operators = {
             "eq",
@@ -193,7 +193,7 @@ class TestDateRangeEndToEndIntegration:
             f"Missing DateRange operators: {expected_operators - available_operators}"
         )
 
-    def test_daterange_mixed_bracket_types_integration(self):
+    def test_daterange_mixed_bracket_types_integration(self) -> None:
         """Test DateRange operators with mixed bracket types (inclusive/exclusive)."""
         path_sql = SQL("data->>'reporting_period'")
 

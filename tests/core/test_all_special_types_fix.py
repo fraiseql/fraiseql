@@ -14,7 +14,7 @@ from fraiseql.sql.operator_strategies import get_operator_registry
 class TestAllSpecialTypesFix:
     """Test that all special types work with eq operator without field_type."""
 
-    def test_all_special_types_comprehensive_fix(self):
+    def test_all_special_types_comprehensive_fix(self) -> None:
         """Test that all special types get proper casting without field_type."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'test_field')")
@@ -85,9 +85,9 @@ class TestAllSpecialTypesFix:
                         f"{test_name} should not have {cast} casting: {sql_str}"
                     )
 
-                print(f"  ✅ CORRECT: No special casting")
+                print("  ✅ CORRECT: No special casting")
 
-    def test_edge_cases_and_ambiguous_values(self):
+    def test_edge_cases_and_ambiguous_values(self) -> None:
         """Test edge cases that might be ambiguous between types."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'test_field')")
@@ -124,9 +124,9 @@ class TestAllSpecialTypesFix:
                     assert cast not in sql_str, (
                         f"{test_name} should not have {cast} casting: {sql_str}"
                     )
-                print(f"  ✅ NOT DETECTED: No special casting (correct)")
+                print("  ✅ NOT DETECTED: No special casting (correct)")
 
-    def test_list_values_for_in_operator(self):
+    def test_list_values_for_in_operator(self) -> None:
         """Test that lists of special type values work with 'in' operator."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'test_field')")
@@ -157,9 +157,9 @@ class TestAllSpecialTypesFix:
         print(f"LTree list 'in' operator: {sql_str}")
         assert "::ltree" in sql_str, "List of LTrees should get ltree casting"
 
-    def test_backward_compatibility_with_field_type(self):
+    def test_backward_compatibility_with_field_type(self) -> None:
         """Test that the fix doesn't break existing behavior when field_type is provided."""
-        from fraiseql.types import IpAddress, LTree, DateRange, MacAddress
+        from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'test_field')")
@@ -182,7 +182,7 @@ class TestAllSpecialTypesFix:
                 f"Backward compatibility broken for {field_type.__name__}"
             )
 
-    def test_production_parity_scenarios(self):
+    def test_production_parity_scenarios(self) -> None:
         """Test scenarios that directly address the production failures."""
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'ip_address')")
@@ -207,7 +207,7 @@ class TestAllSpecialTypesFix:
             # Note: Fixed behavior no longer uses host() for equality operators
             assert "::inet" in sql_str, f"Should use INET casting for IP comparison: {sql_str}"
 
-            print(f"  ✅ PRODUCTION FIX VALIDATED")
+            print("  ✅ PRODUCTION FIX VALIDATED")
 
 
 if __name__ == "__main__":

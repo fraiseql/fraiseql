@@ -1,7 +1,8 @@
 """Tests for pre-built database health check functions."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from fraiseql.monitoring.health import CheckResult, HealthStatus
 from fraiseql.monitoring.health_checks import check_database, check_pool_stats
@@ -11,7 +12,7 @@ class TestDatabaseHealthCheck:
     """Test database connectivity check."""
 
     @pytest.mark.asyncio
-    async def test_check_database_success(self):
+    async def test_check_database_success(self) -> None:
         """Test successful database connectivity check."""
         # Mock database pool
         mock_pool = MagicMock()
@@ -33,7 +34,7 @@ class TestDatabaseHealthCheck:
         assert "connected" in result.message.lower() or "success" in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_database_connection_failure(self):
+    async def test_check_database_connection_failure(self) -> None:
         """Test database check when connection fails."""
         # Mock database pool that raises exception
         mock_pool = MagicMock()
@@ -48,7 +49,7 @@ class TestDatabaseHealthCheck:
         assert "connection refused" in result.message.lower() or "failed" in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_database_no_pool_available(self):
+    async def test_check_database_no_pool_available(self) -> None:
         """Test database check when pool is not available."""
         with patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=None):
             result = await check_database()
@@ -61,7 +62,7 @@ class TestDatabaseHealthCheck:
         )
 
     @pytest.mark.asyncio
-    async def test_check_database_with_metadata(self):
+    async def test_check_database_with_metadata(self) -> None:
         """Test that database check includes version metadata."""
         mock_pool = MagicMock()
         mock_conn = AsyncMock()
@@ -84,7 +85,7 @@ class TestPoolStatsHealthCheck:
     """Test connection pool statistics check."""
 
     @pytest.mark.asyncio
-    async def test_check_pool_stats_success(self):
+    async def test_check_pool_stats_success(self) -> None:
         """Test successful pool stats check."""
         mock_pool = MagicMock()
         mock_pool.get_stats.return_value = {
@@ -105,7 +106,7 @@ class TestPoolStatsHealthCheck:
         assert result.metadata["idle_connections"] == 7
 
     @pytest.mark.asyncio
-    async def test_check_pool_stats_high_usage(self):
+    async def test_check_pool_stats_high_usage(self) -> None:
         """Test pool stats check when pool is highly utilized."""
         mock_pool = MagicMock()
         mock_pool.get_stats.return_value = {
@@ -124,7 +125,7 @@ class TestPoolStatsHealthCheck:
         assert "95" in result.message or "high" in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_pool_stats_no_pool(self):
+    async def test_check_pool_stats_no_pool(self) -> None:
         """Test pool stats check when pool is not available."""
         with patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=None):
             result = await check_pool_stats()

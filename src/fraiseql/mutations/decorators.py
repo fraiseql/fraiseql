@@ -26,10 +26,19 @@ _union_registry: dict[str, object] = {}
 
 
 def clear_mutation_registries() -> None:
-    """Clear all mutation decorator registries."""
+    """Clear all mutation decorator registries and SchemaRegistry mutations."""
     _success_registry.clear()
     _failure_registry.clear()
     _union_registry.clear()
+
+    # Also clear the SchemaRegistry mutations to prevent test pollution
+    try:
+        from fraiseql.gql.builders.registry import SchemaRegistry
+
+        registry = SchemaRegistry.get_instance()
+        registry.mutations.clear()
+    except ImportError:
+        pass  # Registry may not be available in all contexts
 
 
 class FraiseUnion:

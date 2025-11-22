@@ -12,7 +12,7 @@ class TestTurboRouter:
     """Test TurboRouter query registration and execution."""
 
     @pytest.fixture
-    def turbo_registry(self):
+    def turbo_registry(self) -> None:
         """Create a TurboRegistry instance."""
         return TurboRegistry()
 
@@ -129,7 +129,7 @@ class TestTurboRouter:
         mock_db = AsyncMock()
 
         # Mock the run_in_transaction method
-        async def mock_transaction(func):
+        async def mock_transaction(func) -> None:
             # Create a mock connection with cursor
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
@@ -239,7 +239,7 @@ class TestTurboRouter:
         mock_db = AsyncMock()
 
         # Mock the run_in_transaction method
-        async def mock_transaction(func):
+        async def mock_transaction(func) -> None:
             # Create a mock connection with cursor
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
@@ -327,7 +327,7 @@ class TestTurboRouter:
         mock_db = AsyncMock()
 
         # Mock the run_in_transaction method to raise an exception
-        async def mock_transaction_error(func):
+        async def mock_transaction_error(func) -> None:
             # Create a mock connection with cursor
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
@@ -391,7 +391,7 @@ class TestTurboRouter:
         assert hash1 != hash2
 
     @pytest.mark.asyncio
-    async def test_turbo_router_fragment_field_extraction(self, turbo_registry):
+    async def test_turbo_router_fragment_field_extraction(self, turbo_registry) -> None:
         """Test that TurboRouter correctly extracts root field from fragment queries."""
         fragment_query = """
         fragment UserFields on User {
@@ -435,7 +435,7 @@ class TestTurboRouter:
 
         mock_db = AsyncMock()
 
-        async def mock_transaction(func):
+        async def mock_transaction(func) -> None:
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
             mock_cursor.execute = AsyncMock()
@@ -467,7 +467,7 @@ class TestTurboRouter:
         assert len(result["data"]["users"]) == 2
 
     @pytest.mark.asyncio
-    async def test_turbo_router_prevents_double_wrapping(self, turbo_registry):
+    async def test_turbo_router_prevents_double_wrapping(self, turbo_registry) -> None:
         """Test that TurboRouter doesn't double-wrap pre-formatted GraphQL responses."""
         fragment_query = """
         fragment ProductFields on Product {
@@ -520,7 +520,7 @@ class TestTurboRouter:
 
         mock_db = AsyncMock()
 
-        async def mock_transaction(func):
+        async def mock_transaction(func) -> None:
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
             mock_cursor.execute = AsyncMock()
@@ -600,12 +600,12 @@ class TestTurboRouter:
         mock_db = AsyncMock()
         executed_sql_params = None
 
-        async def mock_transaction(func):
+        async def mock_transaction(func) -> None:
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
 
             # Capture the SQL parameters that were passed
-            async def capture_execute(sql, params=None):
+            async def capture_execute(sql, params=None) -> None:
                 nonlocal executed_sql_params
                 # Only capture params from the actual query, not SET LOCAL commands
                 if params is not None:

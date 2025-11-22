@@ -197,7 +197,7 @@ class TestDevAuthAppIntegration:
         existing_app = FastAPI()
 
         @existing_app.get("/custom")
-        async def custom_endpoint():
+        async def custom_endpoint() -> None:
             return {"message": "custom"}
 
         app = create_fraiseql_app(

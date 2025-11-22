@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture
-def mock_auth_context():
+def mock_auth_context() -> None:
     """Mock authentication context with user, token, and permissions."""
     return {
         "user": {"id": "123", "email": "test@example.com", "role": "admin"},
@@ -16,7 +16,7 @@ def mock_auth_context():
 
 
 @pytest.fixture
-def mock_request_with_auth(mock_auth_context):
+def mock_request_with_auth(mock_auth_context) -> None:
     """Mock request with authentication headers and user."""
     request = Mock()
     request.headers = {"Authorization": f"Bearer {mock_auth_context['token']}"}
@@ -28,7 +28,7 @@ def mock_request_with_auth(mock_auth_context):
 
 
 @pytest.fixture
-def authenticated_request():
+def authenticated_request() -> None:
     """Mock authenticated request."""
     request = Mock()
     request.user = Mock()
@@ -43,7 +43,7 @@ def authenticated_request():
 
 
 @pytest.fixture
-def auth_context(authenticated_request):
+def auth_context(authenticated_request) -> None:
     """Authentication context for GraphQL resolvers."""
     return {
         "request": authenticated_request,
@@ -53,7 +53,7 @@ def auth_context(authenticated_request):
 
 
 @pytest.fixture
-def admin_context():
+def admin_context() -> None:
     """Admin user context."""
     return {
         "user": {"id": "admin_123", "email": "admin@example.com", "role": "admin"},
@@ -63,7 +63,7 @@ def admin_context():
 
 
 @pytest.fixture
-def user_context():
+def user_context() -> None:
     """Regular user context."""
     return {
         "user": {"id": "user_456", "email": "user@example.com", "role": "user"},
@@ -73,13 +73,13 @@ def user_context():
 
 
 @pytest.fixture
-def unauthenticated_context():
+def unauthenticated_context() -> None:
     """Unauthenticated context."""
     return {}
 
 
 @pytest.fixture
-def mock_csrf_request():
+def mock_csrf_request() -> None:
     """Mock request with CSRF token."""
     request = Mock()
     request.headers = {"X-CSRF-Token": "test_csrf_token"}

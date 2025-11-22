@@ -15,7 +15,7 @@ from fraiseql.subscriptions.lifecycle import SubscriptionLifecycle, with_lifecyc
 class TestSubscriptionLifecycle:
     """Test SubscriptionLifecycle class methods."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         # Create a mock info object with a real context dict
         context_dict = {}
@@ -23,7 +23,7 @@ class TestSubscriptionLifecycle:
         self.mock_info.context = context_dict
 
     @pytest.mark.asyncio
-    async def test_on_start_hook(self):
+    async def test_on_start_hook(self) -> None:
         """Test on_start lifecycle hook."""
         # Mock function to wrap
         mock_func = AsyncMock()
@@ -54,7 +54,7 @@ class TestSubscriptionLifecycle:
         assert isinstance(self.mock_info.context["subscription_start"], datetime)
 
     @pytest.mark.asyncio
-    async def test_on_start_hook_no_context(self):
+    async def test_on_start_hook_no_context(self) -> None:
         """Test on_start hook when info has no context."""
         mock_info = Mock()
         mock_info.context = None
@@ -67,7 +67,7 @@ class TestSubscriptionLifecycle:
         assert isinstance(result, str)
 
     @pytest.mark.asyncio
-    async def test_on_start_hook_no_context_attribute(self):
+    async def test_on_start_hook_no_context_attribute(self) -> None:
         """Test on_start hook when info has no context attribute."""
         mock_info = Mock(spec=[])  # No context attribute,
 
@@ -79,7 +79,7 @@ class TestSubscriptionLifecycle:
         assert isinstance(result, str)
 
     @pytest.mark.asyncio
-    async def test_on_event_hook(self):
+    async def test_on_event_hook(self) -> None:
         """Test on_event lifecycle hook."""
         mock_func = AsyncMock(return_value="processed_event")
 
@@ -92,7 +92,7 @@ class TestSubscriptionLifecycle:
         assert result == "processed_event"
 
     @pytest.mark.asyncio
-    async def test_on_event_hook_with_debug(self):
+    async def test_on_event_hook_with_debug(self) -> None:
         """Test on_event hook with debug logging enabled."""
         self.mock_info.context["debug_subscriptions"] = True
         self.mock_info.context["subscription_id"] = "test_sub_123"
@@ -111,7 +111,7 @@ class TestSubscriptionLifecycle:
         assert result == "event_result"
 
     @pytest.mark.asyncio
-    async def test_on_event_hook_no_debug(self):
+    async def test_on_event_hook_no_debug(self) -> None:
         """Test on_event hook without debug logging."""
         self.mock_info.context["debug_subscriptions"] = False
 
@@ -127,7 +127,7 @@ class TestSubscriptionLifecycle:
         assert result == "event_result"
 
     @pytest.mark.asyncio
-    async def test_on_event_hook_no_context(self):
+    async def test_on_event_hook_no_context(self) -> None:
         """Test on_event hook with no context."""
         mock_info = Mock()
         mock_info.context = None
@@ -139,7 +139,7 @@ class TestSubscriptionLifecycle:
         assert result == "result"
 
     @pytest.mark.asyncio
-    async def test_on_complete_hook(self):
+    async def test_on_complete_hook(self) -> None:
         """Test on_complete lifecycle hook."""
         # Set up context with start time
         start_time = datetime.now(UTC)
@@ -164,7 +164,7 @@ class TestSubscriptionLifecycle:
         assert "subscription_id" not in self.mock_info.context
 
     @pytest.mark.asyncio
-    async def test_on_complete_hook_no_start_time(self):
+    async def test_on_complete_hook_no_start_time(self) -> None:
         """Test on_complete hook when no start time in context."""
         mock_func = AsyncMock()
         decorated = SubscriptionLifecycle.on_complete(mock_func)
@@ -178,7 +178,7 @@ class TestSubscriptionLifecycle:
         mock_func.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_on_complete_hook_no_context(self):
+    async def test_on_complete_hook_no_context(self) -> None:
         """Test on_complete hook with no context."""
         mock_info = Mock()
         mock_info.context = None
@@ -191,7 +191,7 @@ class TestSubscriptionLifecycle:
         mock_func.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_on_complete_hook_no_context_attribute(self):
+    async def test_on_complete_hook_no_context_attribute(self) -> None:
         """Test on_complete hook when info has no context attribute."""
         mock_info = Mock(spec=[])  # No context attribute,
 
@@ -202,10 +202,10 @@ class TestSubscriptionLifecycle:
         await decorated(mock_info)
         mock_func.assert_called_once()
 
-    def test_lifecycle_hook_preserves_function_metadata(self):
+    def test_lifecycle_hook_preserves_function_metadata(self) -> None:
         """Test that lifecycle hooks preserve function metadata."""
 
-        def test_func():
+        def test_func() -> None:
             """Test function docstring."""
 
         test_func.__name__ = "test_function"
@@ -227,13 +227,13 @@ class TestSubscriptionLifecycle:
 class TestWithLifecycle:
     """Test with_lifecycle decorator."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_info = Mock()
         self.mock_info.context = {}
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_all_hooks(self):
+    async def test_with_lifecycle_all_hooks(self) -> None:
         """Test with_lifecycle decorator with all hooks."""
         on_start_mock = AsyncMock()
         on_event_mock = AsyncMock(side_effect=lambda info, value: f"processed_{value}")
@@ -242,7 +242,7 @@ class TestWithLifecycle:
         @with_lifecycle(
             on_start=on_start_mock, on_event=on_event_mock, on_complete=on_complete_mock
         )
-        async def test_subscription(info, param="default"):
+        async def test_subscription(info, param="default") -> None:
             yield "event1"
             yield "event2"
             yield "event3"
@@ -272,12 +272,12 @@ class TestWithLifecycle:
         )
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_partial_hooks(self):
+    async def test_with_lifecycle_partial_hooks(self) -> None:
         """Test with_lifecycle decorator with only some hooks."""
         on_start_mock = AsyncMock()
 
         @with_lifecycle(on_start=on_start_mock)
-        async def test_subscription(info):
+        async def test_subscription(info) -> None:
             yield "single_event"
 
         results = []
@@ -289,11 +289,11 @@ class TestWithLifecycle:
         assert results == ["single_event"]
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_no_hooks(self):
+    async def test_with_lifecycle_no_hooks(self) -> None:
         """Test with_lifecycle decorator with no hooks."""
 
         @with_lifecycle()
-        async def test_subscription(info):
+        async def test_subscription(info) -> None:
             yield "no_hooks_event"
 
         results = []
@@ -303,13 +303,13 @@ class TestWithLifecycle:
         assert results == ["no_hooks_event"]
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_exception_handling(self):
+    async def test_with_lifecycle_exception_handling(self) -> None:
         """Test with_lifecycle decorator handles exceptions properly."""
         on_start_mock = AsyncMock()
         on_complete_mock = AsyncMock()
 
         @with_lifecycle(on_start=on_start_mock, on_complete=on_complete_mock)
-        async def failing_subscription(info):
+        async def failing_subscription(info) -> None:
             yield "before_error"
             raise ValueError("Test error")
 
@@ -324,7 +324,7 @@ class TestWithLifecycle:
         on_complete_mock.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_early_termination(self):
+    async def test_with_lifecycle_early_termination(self) -> None:
         """Test with_lifecycle decorator when subscription terminates early."""
         on_start_mock = AsyncMock()
         on_event_mock = AsyncMock(side_effect=lambda info, value: value)
@@ -333,7 +333,7 @@ class TestWithLifecycle:
         @with_lifecycle(
             on_start=on_start_mock, on_event=on_event_mock, on_complete=on_complete_mock
         )
-        async def long_subscription(info):
+        async def long_subscription(info) -> None:
             for i in range(10):
                 yield f"event_{i}"
 
@@ -359,14 +359,14 @@ class TestWithLifecycle:
         on_complete_mock.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_on_event_modifies_value(self):
+    async def test_with_lifecycle_on_event_modifies_value(self) -> None:
         """Test that on_event can modify the yielded value."""
 
-        async def transform_event(info, value):
+        async def transform_event(info, value) -> None:
             return value.upper()
 
         @with_lifecycle(on_event=transform_event)
-        async def test_subscription(info):
+        async def test_subscription(info) -> None:
             yield "hello"
             yield "world"
 
@@ -377,12 +377,12 @@ class TestWithLifecycle:
         assert results == ["HELLO", "WORLD"]
 
     @pytest.mark.asyncio
-    async def test_with_lifecycle_async_generator_yield_none(self):
+    async def test_with_lifecycle_async_generator_yield_none(self) -> None:
         """Test with_lifecycle decorator when generator yields None."""
         on_event_mock = AsyncMock(side_effect=lambda info, value: value)
 
         @with_lifecycle(on_event=on_event_mock)
-        async def test_subscription(info):
+        async def test_subscription(info) -> None:
             yield None
             yield "valid_event"
             yield None
@@ -394,10 +394,10 @@ class TestWithLifecycle:
         assert results == [None, "valid_event", None]
         assert on_event_mock.call_count == 3
 
-    def test_with_lifecycle_preserves_function_metadata(self):
+    def test_with_lifecycle_preserves_function_metadata(self) -> None:
         """Test that with_lifecycle preserves function metadata."""
 
-        async def test_subscription(info):
+        async def test_subscription(info) -> None:
             """Test subscription docstring."""
             yield "test"
 
@@ -412,13 +412,13 @@ class TestWithLifecycle:
 class TestLifecycleIntegration:
     """Test integration scenarios for lifecycle hooks."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_info = Mock()
         self.mock_info.context = {}
 
     @pytest.mark.asyncio
-    async def test_multiple_decorators_combination(self):
+    async def test_multiple_decorators_combination(self) -> None:
         """Test combining multiple lifecycle decorators."""
         start_hook = AsyncMock()
         event_hook = AsyncMock(side_effect=lambda info, event: f"modified_{event}")
@@ -428,7 +428,7 @@ class TestLifecycleIntegration:
         @with_lifecycle(on_start=start_hook)
         @with_lifecycle(on_event=event_hook)
         @with_lifecycle(on_complete=complete_hook)
-        async def multi_decorated_subscription(info):
+        async def multi_decorated_subscription(info) -> None:
             yield "test_event"
 
         results = []
@@ -444,21 +444,21 @@ class TestLifecycleIntegration:
         assert "modified_test_event" in results[0]
 
     @pytest.mark.asyncio
-    async def test_lifecycle_with_context_sharing(self):
+    async def test_lifecycle_with_context_sharing(self) -> None:
         """Test lifecycle hooks sharing data through context."""
 
-        async def start_hook(info, name, kwargs):
+        async def start_hook(info, name, kwargs) -> None:
             info.context["start_data"] = "started"
 
-        async def event_hook(info, value):
+        async def event_hook(info, value) -> None:
             start_data = info.context.get("start_data", "unknown")
             return f"{start_data}_{value}"
 
-        async def complete_hook(info, name, kwargs):
+        async def complete_hook(info, name, kwargs) -> None:
             info.context["completed"] = True
 
         @with_lifecycle(on_start=start_hook, on_event=event_hook, on_complete=complete_hook)
-        async def context_sharing_subscription(info):
+        async def context_sharing_subscription(info) -> None:
             yield "event"
 
         results = []
@@ -469,12 +469,12 @@ class TestLifecycleIntegration:
         assert self.mock_info.context["completed"] is True
 
     @pytest.mark.asyncio
-    async def test_lifecycle_with_logging(self):
+    async def test_lifecycle_with_logging(self) -> None:
         """Test lifecycle hooks with actual logging."""
         with patch("fraiseql.subscriptions.lifecycle.logger"):
 
             @with_lifecycle()
-            async def logged_subscription(info):
+            async def logged_subscription(info) -> None:
                 yield "log_test"
 
             results = []
@@ -484,13 +484,13 @@ class TestLifecycleIntegration:
             assert results == ["log_test"]
 
     @pytest.mark.asyncio
-    async def test_nested_async_generators(self):
+    async def test_nested_async_generators(self) -> None:
         """Test lifecycle hooks with nested async generators."""
         on_event_mock = AsyncMock(side_effect=lambda info, value: f"nested_{value}")
 
         @with_lifecycle(on_event=on_event_mock)
-        async def outer_subscription(info):
-            async def inner_generator():
+        async def outer_subscription(info) -> None:
+            async def inner_generator() -> None:
                 yield "inner1"
                 yield "inner2"
 
@@ -507,20 +507,20 @@ class TestLifecycleIntegration:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_info = Mock()
         self.mock_info.context = {}
 
     @pytest.mark.asyncio
-    async def test_hook_raises_exception(self):
+    async def test_hook_raises_exception(self) -> None:
         """Test behavior when lifecycle hook raises exception."""
 
-        async def failing_start_hook(info, name, kwargs):
+        async def failing_start_hook(info, name, kwargs) -> None:
             raise ValueError("Start hook failed")
 
         @with_lifecycle(on_start=failing_start_hook)
-        async def subscription_with_failing_hook(info):
+        async def subscription_with_failing_hook(info) -> None:
             yield "should_not_reach"
 
         with pytest.raises(ValueError, match="Start hook failed"):
@@ -528,7 +528,7 @@ class TestEdgeCases:
                 pass
 
     @pytest.mark.asyncio
-    async def test_subscription_with_no_yields(self):
+    async def test_subscription_with_no_yields(self) -> None:
         """Test lifecycle with subscription that yields nothing."""
         on_start_mock = AsyncMock()
         on_event_mock = AsyncMock()
@@ -537,7 +537,7 @@ class TestEdgeCases:
         @with_lifecycle(
             on_start=on_start_mock, on_event=on_event_mock, on_complete=on_complete_mock
         )
-        async def empty_subscription(info):
+        async def empty_subscription(info) -> None:
             # Generator that yields nothing
             return
             yield  # This line is unreachable but makes it a generator
@@ -552,7 +552,7 @@ class TestEdgeCases:
         on_complete_mock.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_subscription_id_generation(self):
+    async def test_subscription_id_generation(self) -> None:
         """Test subscription ID generation in on_start hook."""
         hook_func = AsyncMock()
         hook_func.__name__ = "test_subscription"  # Set the function name,
@@ -569,7 +569,7 @@ class TestEdgeCases:
         assert "test_subscription" in result2
 
     @pytest.mark.asyncio
-    async def test_context_cleanup_on_exception(self):
+    async def test_context_cleanup_on_exception(self) -> None:
         """Test that context is cleaned up even when exception occurs."""
         # Set up initial context
         self.mock_info.context["subscription_start"] = datetime.now(UTC)
@@ -585,13 +585,13 @@ class TestEdgeCases:
         assert "subscription_start" not in self.mock_info.context
         assert "subscription_id" not in self.mock_info.context
 
-    def test_decorator_without_call(self):
+    def test_decorator_without_call(self) -> None:
         """Test using with_lifecycle as decorator without calling it."""
         # This tests the edge case where someone might use @with_lifecycle
         # instead of @with_lifecycle()
         # In this case, the function itself would be passed as the first argument
 
-        def dummy_subscription():
+        def dummy_subscription() -> None:
             pass
 
         # This should work without errors

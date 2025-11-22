@@ -127,20 +127,23 @@ def create_app():
     # Override FraiseQL's health endpoint by adding our own after app creation
     async def custom_health():
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info("CUSTOM HEALTH ENDPOINT CALLED - blog_simple")
         return {"status": "healthy", "service": "blog_simple"}
 
     # Find and replace the existing health route
     import logging
+
     logger = logging.getLogger(__name__)
     health_routes_found = 0
     for i, route in enumerate(app.routes):
-        if hasattr(route, 'path') and route.path == "/health":
+        if hasattr(route, "path") and route.path == "/health":
             health_routes_found += 1
             logger.info(f"Found health route {health_routes_found} at index {i}: {route}")
             # Create new route with our endpoint
             from fastapi.routing import APIRoute
+
             new_route = APIRoute("/health", custom_health, methods=["GET"])
             # Replace the route at the same position
             routes_list = list(app.routes)
@@ -151,6 +154,7 @@ def create_app():
     if health_routes_found == 0:
         logger.info("No health route found, adding custom health endpoint")
         from fastapi.routing import APIRoute
+
         new_route = APIRoute("/health", custom_health, methods=["GET"])
         app.router.routes.append(new_route)
 

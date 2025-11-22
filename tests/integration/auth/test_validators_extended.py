@@ -9,7 +9,7 @@ from fraiseql.security.validators import InputValidator, ValidationResult
 class TestValidationResult:
     """Test ValidationResult dataclass."""
 
-    def test_validation_result_init(self):
+    def test_validation_result_init(self) -> None:
         """Test ValidationResult initialization."""
         # With all fields
         result = ValidationResult(
@@ -21,7 +21,7 @@ class TestValidationResult:
         assert result.sanitized_value == "clean"
         assert result.warnings == ["warning1"]
 
-    def test_validation_result_post_init(self):
+    def test_validation_result_post_init(self) -> None:
         """Test ValidationResult post-init warnings initialization."""
         # Without warnings
         result = ValidationResult(is_valid=False, errors=[], sanitized_value=None)
@@ -32,7 +32,7 @@ class TestValidationResult:
 class TestInputValidatorExtended:
     """Extended tests for InputValidator class."""
 
-    def test_validate_none_value(self):
+    def test_validate_none_value(self) -> None:
         """Test validation of None values."""
         result = InputValidator.validate_field_value("field", None)
 
@@ -41,7 +41,7 @@ class TestInputValidatorExtended:
         assert result.sanitized_value is None
         assert result.warnings == []
 
-    def test_validate_length_limits(self):
+    def test_validate_length_limits(self) -> None:
         """Test field length validation."""
         # Test predefined fields
         long_name = "a" * 300  # Exceeds 255 limit,
@@ -71,7 +71,7 @@ class TestInputValidatorExtended:
         assert result.is_valid is False
         assert any("too long" in error for error in result.errors)
 
-    def test_validate_default_field_length(self):
+    def test_validate_default_field_length(self) -> None:
         """Test default field length validation."""
         # Unknown field should use default limit
         long_value = "a" * 11000  # Exceeds 10000 default,
@@ -80,7 +80,7 @@ class TestInputValidatorExtended:
         assert result.is_valid is False
         assert any("too long" in error for error in result.errors)
 
-    def test_null_byte_sanitization(self):
+    def test_null_byte_sanitization(self) -> None:
         """Test null byte detection and sanitization."""
         value = "hello\x00world"
         result = InputValidator.validate_field_value("field", value)
@@ -89,7 +89,7 @@ class TestInputValidatorExtended:
         assert any("Null byte" in error for error in result.errors)
         assert result.sanitized_value == "helloworld"
 
-    def test_sql_injection_patterns_detailed(self):
+    def test_sql_injection_patterns_detailed(self) -> None:
         """Test detailed SQL injection pattern detection."""
         patterns = [
             ("DELETE FROM users", True),
@@ -110,7 +110,7 @@ class TestInputValidatorExtended:
             else:
                 assert len(result.warnings) == 0, f"No warning expected for: {value}"
 
-    def test_path_traversal_detection(self):
+    def test_path_traversal_detection(self) -> None:
         """Test path traversal pattern detection."""
         # Test with path-like field names
         path_fields = ["path", "file_path", "upload_path", "filename"]
@@ -136,13 +136,13 @@ class TestInputValidatorExtended:
             assert not result.is_valid
             assert any("Suspicious system path" in error for error in result.errors)
 
-    def test_path_validation_non_path_fields(self):
+    def test_path_validation_non_path_fields(self) -> None:
         """Test that path validation doesn't apply to non-path fields."""
         result = InputValidator.validate_field_value("description", "../description")
         assert result.is_valid is True
         assert len(result.errors) == 0
 
-    def test_list_validation(self):
+    def test_list_validation(self) -> None:
         """Test validation of list values."""
         # List with valid values
         result = InputValidator.validate_field_value("tags", ["tag1", "tag2", "tag3"])
@@ -160,7 +160,7 @@ class TestInputValidatorExtended:
         assert result.is_valid is False
         assert any("[1]" in error for error in result.errors)
 
-    def test_validate_batch_operations(self):
+    def test_validate_batch_operations(self) -> None:
         """Test batch validation of multiple fields manually."""
         fields = {
             "name": "John Doe",
@@ -188,7 +188,7 @@ class TestInputValidatorExtended:
         assert "username" in results
         assert len(results["username"].warnings) > 0  # SQL injection warning
 
-    def test_dict_validation(self):
+    def test_dict_validation(self) -> None:
         """Test validation of dictionary values."""
         # Dict with mixed values
         data = {"user": {"name": "Test User", "role": "admin'; DROP TABLE users; --"}}
@@ -197,7 +197,7 @@ class TestInputValidatorExtended:
         assert result.is_valid is True  # Dict itself is valid
         assert len(result.warnings) > 0  # Nested field has warnings
 
-    def test_non_string_values(self):
+    def test_non_string_values(self) -> None:
         """Test validation of non-string values."""
         # Numbers
         result = InputValidator.validate_field_value("age", 25)
@@ -211,7 +211,7 @@ class TestInputValidatorExtended:
         result = InputValidator.validate_field_value("price", 19.99)
         assert result.is_valid is True
 
-    def test_type_specific_validation(self):
+    def test_type_specific_validation(self) -> None:
         """Test field type specific validation."""
         # Email type
         result = InputValidator.validate_field_value(
@@ -225,7 +225,7 @@ class TestInputValidatorExtended:
         )
         assert not result.is_valid
 
-    def test_nested_list_validation(self):
+    def test_nested_list_validation(self) -> None:
         """Test deeply nested list validation."""
         nested_data = [
             ["safe", "value"],
@@ -241,7 +241,7 @@ class TestInputValidatorExtended:
 class TestValidationFunctions:
     """Test standalone validation functions."""
 
-    def test_email_validation(self):
+    def test_email_validation(self) -> None:
         """Test email-specific validation."""
         # Use the private method for now
         # Valid emails
@@ -266,7 +266,7 @@ class TestValidationFunctions:
             result = InputValidator._validate_email(email)
             assert result.is_valid is False
 
-    def test_mutation_input_validation(self):
+    def test_mutation_input_validation(self) -> None:
         """Test mutation input validation."""
         # Valid input
         valid_input = {"name": "Test User", "email": "test@example.com", "age": 25}

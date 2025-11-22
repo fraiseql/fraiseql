@@ -18,6 +18,79 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 - Shared database with tenant isolation
 - Hybrid approaches
 
+## How RLS Works (Common Misconception)
+
+> **FAQ: Do I need one PostgreSQL user per application user?**
+>
+> **No.** This is a common misconception. FraiseQL uses **session variables** with a shared connection pool - you only need one database role for your application.
+
+### Session Variables vs. Database Roles
+
+There are two approaches to RLS in PostgreSQL:
+
+| Approach | How It Works | Use Case |
+|----------|--------------|----------|
+| **Database Role per User** | Each app user = PostgreSQL role. RLS uses `current_user`. | Rarely practical for web apps with thousands of users |
+| **Session Variables** ✅ | All users share one DB role. App sets `SET LOCAL app.tenant_id = 'X'` before each query. RLS uses `current_setting()`. | **Standard for web applications. FraiseQL uses this.** |
+
+### How FraiseQL Implements This
+
+```
+┌─────────────────┐     ┌──────────────────────────┐     ┌─────────────────┐
+│  App User A     │────▶│  Shared Connection Pool  │────▶│   PostgreSQL    │
+│  (tenant: X)    │     │   (1 DB role: app_user)  │     │                 │
+├─────────────────┤     │                          │     │  RLS policies   │
+│  App User B     │────▶│  SET LOCAL app.tenant_id │────▶│  check session  │
+│  (tenant: Y)    │     │  SET LOCAL app.user_id   │     │  variables      │
+└─────────────────┘     └──────────────────────────┘     └─────────────────┘
+```
+
+When you create a `FraiseQLRepository` with context, it automatically sets session variables before every query:
+
+```python
+from fraiseql.db import FraiseQLRepository
+
+# Pass tenant/user context when creating the repository
+repo = FraiseQLRepository(db_pool, context={
+    "tenant_id": "abc-123",      # → SET LOCAL app.tenant_id = 'abc-123'
+    "user_id": "user-456",       # → SET LOCAL app.user_id = 'user-456'
+    "contact_id": "contact-789", # → SET LOCAL app.contact_id = 'contact-789'
+    "roles": [{"name": "admin"}] # → Computes app.is_super_admin
+})
+
+# Every query now automatically:
+# 1. Gets a connection from the shared pool
+# 2. Runs SET LOCAL for all context variables (transaction-scoped)
+# 3. Executes your query (RLS policies filter based on session vars)
+# 4. Returns connection to pool (SET LOCAL vars are auto-cleared)
+```
+
+Your RLS policies then reference these session variables:
+
+```sql
+-- This policy uses the session variable set by FraiseQL
+CREATE POLICY tenant_isolation ON orders
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID);
+```
+
+### Why This Is Secure
+
+- **`SET LOCAL`** is transaction-scoped - variables are automatically cleared when the transaction ends
+- Each request gets a fresh connection with fresh session state
+- No risk of one user seeing another user's data due to connection reuse
+- RLS is enforced at the database level - even bugs in app code can't bypass it
+
+### Available Session Variables
+
+FraiseQL automatically sets these based on your context:
+
+| Context Key | Session Variable | Used For |
+|-------------|------------------|----------|
+| `tenant_id` | `app.tenant_id` | Multi-tenant isolation |
+| `user_id` | `app.user_id` | User-level row filtering |
+| `contact_id` | `app.contact_id` | Alternative user identifier |
+| `roles` | `app.is_super_admin` | Computed from roles array |
+
 ## Tenant Isolation Architecture
 
 ### Multi-Tenant Data Flow
@@ -50,6 +123,7 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 
 ## Table of Contents
 
+- [How RLS Works (Common Misconception)](#how-rls-works-common-misconception)
 - [Architecture Patterns](#architecture-patterns)
 - [Row-Level Security](#row-level-security)
 - [Tenant Context](#tenant-context)

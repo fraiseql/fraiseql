@@ -1,12 +1,11 @@
-import pytest
-from uuid import uuid4
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 from fraiseql.enterprise.rbac.models import Permission
 
 
-async def test_permission_cache_stores_and_retrieves():
+async def test_permission_cache_stores_and_retrieves() -> None:
     """Verify permissions can be cached and retrieved from PostgreSQL."""
     from fraiseql.enterprise.rbac.cache import PermissionCache
 

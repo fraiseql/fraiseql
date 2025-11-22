@@ -203,8 +203,21 @@ def create_graphql_router(
         apq_backend = None
         is_apq_request = request.extensions and "persistedQuery" in request.extensions
 
-        # Handle APQ (Automatic Persisted Queries) if detected
-        if is_apq_request and request.extensions:
+        # Check APQ mode enforcement
+        apq_mode = config.apq_mode
+
+        # In 'required' mode, reject non-APQ requests (arbitrary queries)
+        if not apq_mode.allows_arbitrary_queries() and not is_apq_request:
+            from fraiseql.middleware.apq import create_arbitrary_query_rejected_error
+
+            logger.debug("APQ required mode: rejecting arbitrary query")
+            return create_arbitrary_query_rejected_error()
+
+        # In 'disabled' mode, skip APQ processing entirely
+        should_process_apq = apq_mode.processes_apq()
+
+        # Handle APQ (Automatic Persisted Queries) if detected and mode allows
+        if is_apq_request and request.extensions and should_process_apq:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
             from fraiseql.middleware.apq_caching import (
                 get_apq_backend,
@@ -325,6 +338,15 @@ def create_graphql_router(
                     context=context,
                 )
 
+                # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
+                # Check if UnifiedExecutor returned RustResponseBytes directly (zero-copy path)
+                if isinstance(result, RustResponseBytes):
+                    logger.info("🚀 Direct path: Returning RustResponseBytes from unified executor")
+                    return Response(
+                        content=bytes(result),
+                        media_type="application/json",
+                    )
+
                 # 🚀 DIRECT PATH: Check if GraphQL rejected RustResponseBytes
                 if isinstance(result, dict) and "errors" in result and "_rust_response" in context:
                     for error in result.get("errors", []):
@@ -373,7 +395,17 @@ def create_graphql_router(
                     enable_introspection=config.enable_introspection,
                 )
 
-            # Build response
+            # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Fallback Executor):
+            # Check if execute_graphql() returned RustResponseBytes directly (zero-copy path)
+            # This happens when Phase 1 middleware captures RustResponseBytes from resolvers
+            if isinstance(result, RustResponseBytes):
+                logger.info("🚀 Direct path: Returning RustResponseBytes from fallback executor")
+                return Response(
+                    content=bytes(result),
+                    media_type="application/json",
+                )
+
+            # Build response (normal ExecutionResult path)
             response: dict[str, Any] = {}
             if result.data is not None:
                 response["data"] = result.data

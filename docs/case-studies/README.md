@@ -82,7 +82,7 @@ The template includes sections for:
 ## Questions?
 
 - **General**: lionel.hamayon@evolution-digitale.fr
-- **Technical**: Open a [GitHub Discussion](https://github.com/fraiseql/fraiseql/discussions)
+- **Technical**: Open a [GitHub Discussion](../discussions)
 - **Security**: See [SECURITY.md](../../SECURITY.md)
 
 ## Case Study Guidelines

@@ -11,11 +11,11 @@ FraiseQL uses a **prefix-based naming pattern** to indicate the type and purpose
 ```
 tb_*  → Base Tables (normalized, write-optimized)
 v_*   → Views (standard SQL views, read-optimized)
-tv_*  → Transform Tables (regular tables with explicit sync)
+tv_*  → Table Views (denormalized tables matching GraphQL types)
 mv_*  → Materialized Views (pre-computed aggregations)
 ```
 
-**Key Insight**: Despite the name "tv_*" (transform view), these are actually **TABLES**, not views!
+**Key Insight**: `tv_*` (table views) are **TABLES** that store denormalized, pre-composed data matching the GraphQL types exposed by the API.
 
 ---
 
@@ -165,13 +165,13 @@ class User:
 
 ---
 
-### Pattern 3: `tv_*` - Transform Tables (Regular Tables with Explicit Sync)
+### Pattern 3: `tv_*` - Table Views (Denormalized Tables Matching GraphQL Types)
 
-**Purpose**: Pre-computed JSONB data for instant GraphQL responses
+**Purpose**: Pre-composed JSONB data for instant GraphQL responses
 
 **Example**:
 ```sql
--- Transform table (regular table, NOT generated column)
+-- Table view (regular table, NOT generated column)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- GraphQL uses UUID, not internal pk_user
     data JSONB NOT NULL,  -- Regular column, manually maintained
@@ -256,12 +256,13 @@ FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 **Characteristics**:
 - ✅ **It's a TABLE** (not a view!)
 - ✅ Regular table with explicit sync (not generated column)
-- ✅ Pre-computed JSONB (instant reads)
+- ✅ Pre-composed JSONB matching GraphQL types (instant reads)
 - ✅ JSONB format (ready for Rust transform)
 - ✅ Embedded relations (no JOINs needed)
 - ✅ Zero N+1 queries
-- ❌ Storage overhead (1.5-2x)
-- ❌ Write amplification (sync on every change)
+- ✅ Rebuildable at any time from base tables
+- ⚠️ Storage overhead (1.5-2x) — but storage is cheap, computation is expensive
+- ⚠️ Write amplification (sync on every change) — acceptable trade-off for read-heavy workloads
 
 **Performance**:
 ```sql
@@ -275,7 +276,10 @@ SELECT * FROM v_user WHERE id = 1;
 -- Speedup: 100-200x!
 ```
 
-**Note**: tv_* tables require explicit sync via `fn_sync_tv_*()` functions in mutations. This is not automatic - it's a deliberate design choice for performance and control.
+**Note**: tv_* table views require explicit sync via `fn_sync_tv_*()` functions in mutations. This is not automatic - it's a deliberate design choice for performance and control.
+
+**Why table views, not materialized views?**
+PostgreSQL materialized views require `REFRESH MATERIALIZED VIEW` which recomputes the *entire* view—expensive and slow for frequently changing data. Table views are regular tables with row-level sync: mutations only recompute affected rows via `fn_sync_tv_*()`. This enables fast, incremental updates instead of full table refreshes.
 
 **When to Use**:
 - ✅ Read-heavy workloads (10:1+ read:write)
@@ -386,7 +390,7 @@ SELECT * FROM mv_dashboard;
 
 ### Pattern A: Pure `tv_*` Architecture (Recommended for Most Cases)
 
-**Concept**: Only use base tables (`tb_*`) and table views (`tv_*`)
+**Concept**: Only use base tables (`tb_*`) and table views (`tv_*`) for reads
 
 ```
 ┌─────────────────────────────────────┐
@@ -398,7 +402,7 @@ SELECT * FROM mv_dashboard;
               ▼
 ┌─────────────────────────────────────┐
 │ tv_user, tv_post                    │
-│ (Tables with generated JSONB)       │
+│ (Table views with pre-composed JSONB)│
 │ - Auto-updates on write             │
 │ - Embedded relations                │
 │ - Ready for Rust transform          │
@@ -420,15 +424,15 @@ SELECT * FROM mv_dashboard;
 CREATE TABLE tb_user (...);
 CREATE TABLE tb_post (...);
 
--- Transform tables (tv_*)
+-- Table views (tv_*)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB NOT NULL   -- Regular column, explicitly synced
+    data JSONB NOT NULL   -- Pre-composed data matching GraphQL type
 );
 
 CREATE TABLE tv_post (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB NOT NULL   -- Regular column, explicitly synced
+    data JSONB NOT NULL   -- Pre-composed data matching GraphQL type
 );
 
 -- Sync functions (explicit)
@@ -458,7 +462,7 @@ CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
 
 ### Pattern B: Hybrid `tv_*` + `mv_*` Architecture (Advanced)
 
-**Concept**: Use `tv_*` for entity queries, `mv_*` for aggregations
+**Concept**: Use `tv_*` table views for entity queries, `mv_*` for aggregations
 
 ```
 ┌─────────────────────────────────────┐
@@ -484,7 +488,7 @@ CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
 CREATE TABLE tb_user (...);
 CREATE TABLE tb_post (...);
 
--- Transform tables (real-time queries)
+-- Table views (real-time queries)
 CREATE TABLE tv_user (id UUID PRIMARY KEY, data JSONB NOT NULL);
 CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 
@@ -502,7 +506,7 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 
 ### Pattern C: Minimal Architecture (Development/Small Apps)
 
-**Concept**: Skip table views, use base tables + Rust transformer
+**Concept**: Skip tv_* table views, use base tables + Rust transformer directly
 
 ```
 ┌─────────────────────────────────────┐
@@ -556,7 +560,7 @@ CREATE TABLE users (
 |---------|-----------|------------|---------|------------|
 | **tb_* only** (no optimization) | 5-10ms | 0.5ms | 1x | Low |
 | **v_* views** | 5-10ms | 0.5ms | 1x | Low |
-| **tv_* tables** | 0.05-0.5ms | 1-2ms | 1.5-2x | Medium |
+| **tv_* table views** | 0.05-0.5ms | 1-2ms | 1.5-2x | Medium |
 | **mv_* views** | 0.1-0.5ms | 0.5ms | 1.2-1.5x | Medium |
 
 ### When to Use Each
@@ -566,12 +570,12 @@ Decision Tree:
 
 Read:write ratio?
 ├─ 1:1 (balanced) → Use tb_* + direct queries (simple)
-├─ 10:1 (read-heavy) → Use tb_* + tv_* (optimal for GraphQL)
-└─ 100:1 (extremely read-heavy) → Use tb_* + tv_* + mv_* (full optimization)
+├─ 10:1 (read-heavy) → Use tb_* + tv_* table views (optimal for GraphQL)
+└─ 100:1 (extremely read-heavy) → Use tb_* + tv_* table views + mv_* (full optimization)
 
 Query type?
-├─ Entity lookup (user, post) → tv_* (0.5ms)
-├─ List with filters → tv_* (0.5-1ms)
+├─ Entity lookup (user, post) → tv_* table view (0.5ms)
+├─ List with filters → tv_* table view (0.5-1ms)
 ├─ Complex aggregation → mv_* (0.1-0.5ms)
 └─ Admin/flexibility → tb_* direct (5-10ms, acceptable)
 ```
@@ -687,7 +691,7 @@ mv_* (optional, for analytics)
 
 ### 1. `tv_*` Are Tables with Explicit Sync!
 
-**Despite the name**, `tv_*` (transform tables) are **regular TABLES** that require explicit sync:
+`tv_*` (table views) are **regular TABLES** that store denormalized data matching GraphQL types and require explicit sync:
 ```sql
 CREATE TABLE tv_user (  -- ← It's a TABLE!
     id UUID PRIMARY KEY,
@@ -698,10 +702,10 @@ CREATE TABLE tv_user (  -- ← It's a TABLE!
 CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 ```
 
-### 2. `tv_*` Pattern is Optimal for GraphQL
+### 2. `tv_*` Table View Pattern is Optimal for GraphQL
 
 **Why**:
-- ✅ Pre-computed JSONB (instant reads)
+- ✅ Pre-composed JSONB matching GraphQL types (instant reads)
 - ✅ Embedded relations (no JOINs)
 - ✅ Perfect for Rust transformer
 - ✅ Always up-to-date (explicit sync in mutations)
@@ -715,10 +719,10 @@ CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 - Development/prototypes where setup speed matters
 - Cases where absolute freshness is required
 
-**`tv_*` (transform tables)** are optimal for:
+**`tv_*` (table views)** are optimal for:
 - Large datasets (> 100k rows) needing sub-millisecond queries
 - Production GraphQL APIs with high traffic
-- Complex relations with pre-computed JSONB
+- Complex relations with pre-composed JSONB matching GraphQL types
 
 ### 4. Use `mv_*` Selectively
 
@@ -752,10 +756,10 @@ CREATE TABLE tb_post (
     user_id UUID, ...
 );
 
--- Transform tables (GraphQL queries)
+-- Table views (GraphQL queries)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB NOT NULL   -- Regular column, explicitly synced
+    data JSONB NOT NULL   -- Pre-composed data matching GraphQL type
 );
 
 -- Sync functions (CRITICAL - explicit sync)
@@ -782,13 +786,109 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 | Use Case | Pattern | Tables |
 |----------|---------|--------|
 | **MVP/Small app** | Simple or `v_*` | `users` (with JSONB) or `tb_user` + `v_user` |
-| **Production API** | `tb_*` + `tv_*` | `tb_user` (writes) + `tv_user` (reads) |
+| **Production API** | `tb_*` + `tv_*` table views | `tb_user` (writes) + `tv_user` (reads) |
 | **With analytics** | `tb_*` + `tv_*` + `mv_*` | Add `mv_dashboard` for aggregations |
 
-**Key Insight**: The `tv_*` pattern (tables with explicit sync) is **ideal for Rust-first FraiseQL**:
+**Key Insight**: The `tv_*` table view pattern (tables with explicit sync) is **ideal for Rust-first FraiseQL**:
 - 0.05-0.5ms reads
 - Always up-to-date (via explicit sync)
 - Perfect for Rust transformer
 - 100-200x faster than JOINs
 
-**Simplification**: Prefer `tv_*` tables for production GraphQL APIs, but `v_*` views work well for smaller applications where JOIN overhead is acceptable.
+**Simplification**: Prefer `tv_*` table views for production GraphQL APIs, but `v_*` views work well for smaller applications where JOIN overhead is acceptable.
+
+---
+
+## 🔔 Observer Pattern for External Integrations
+
+Don't call external APIs from database functions. Write events to a table; let workers process them.
+
+This is the standard pattern for integrating PL/pgSQL mutations with SendGrid, Slack, Stripe, or any external service.
+
+### Event Log Table
+
+```sql
+CREATE TABLE app.tb_event_log (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    event_type TEXT NOT NULL,           -- 'send_email', 'slack_notify', 'webhook'
+    payload JSONB NOT NULL,             -- Event data
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ,           -- NULL until processed
+    retry_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX idx_event_log_pending
+    ON app.tb_event_log(created_at)
+    WHERE processed_at IS NULL;
+```
+
+### In Your Mutation
+
+```sql
+CREATE FUNCTION fn_create_order(...) RETURNS JSONB AS $$
+BEGIN
+    -- Business logic
+    INSERT INTO tb_order (...) VALUES (...) RETURNING id INTO v_order_id;
+
+    -- Emit event (atomic with business logic)
+    INSERT INTO app.tb_event_log (tenant_id, event_type, payload)
+    VALUES (
+        auth_tenant_id,
+        'order_created',
+        jsonb_build_object(
+            'order_id', v_order_id,
+            'customer_email', v_email,
+            'amount', v_amount
+        )
+    );
+
+    -- Sync table view
+    PERFORM fn_sync_tv_order(v_order_id);
+
+    RETURN jsonb_build_object('success', true, 'data', ...);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### External Worker (Python)
+
+```python
+async def process_events():
+    while True:
+        events = await db.fetch('''
+            SELECT id, event_type, payload
+            FROM app.tb_event_log
+            WHERE processed_at IS NULL
+            ORDER BY created_at LIMIT 100
+        ''')
+
+        for event in events:
+            try:
+                if event['event_type'] == 'order_created':
+                    await send_confirmation_email(event['payload'])
+                elif event['event_type'] == 'slack_notify':
+                    await post_to_slack(event['payload'])
+
+                await db.execute(
+                    'UPDATE app.tb_event_log SET processed_at = NOW() WHERE id = $1',
+                    event['id']
+                )
+            except Exception:
+                await db.execute(
+                    'UPDATE app.tb_event_log SET retry_count = retry_count + 1 WHERE id = $1',
+                    event['id']
+                )
+
+        await asyncio.sleep(5)
+```
+
+### Why This Pattern?
+
+| Approach | Problem |
+|----------|---------|
+| **Synchronous API calls in PL/pgSQL** | Requires extensions (pg_net), blocks transactions, no retry logic |
+| **Application-level orchestration** | Distributed transactions, eventual consistency, lost events |
+| **Observer Pattern** | ✅ ACID guarantees, ✅ Retry logic, ✅ Full audit trail, ✅ No lost events |
+
+Events commit with your transaction—no lost messages. Workers poll at their own pace. Failed events retry automatically. The database is your queue.

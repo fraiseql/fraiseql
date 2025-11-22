@@ -23,24 +23,24 @@ from fraiseql.security.security_headers import (
 
 @pytest.mark.security
 @pytest.fixture
-def app():
+def app() -> None:
     """Create test FastAPI app."""
     app = FastAPI()
 
     @app.get("/test")
-    async def test_endpoint():
+    async def test_endpoint() -> None:
         return {"message": "success"}
 
     @app.post("/test")
-    async def test_post():
+    async def test_post() -> None:
         return {"message": "success"}
 
     @app.get("/docs")
-    async def docs():
+    async def docs() -> None:
         return {"docs": "swagger"}
 
     @app.post("/graphql")
-    async def graphql():
+    async def graphql() -> None:
         return {"data": {"test": "success"}}
 
     return app
@@ -312,7 +312,7 @@ class TestSecurityHeadersMiddleware:
 
         # Add API endpoint for testing
         @app.get("/api/test")
-        async def api_test():
+        async def api_test() -> None:
             return {"api": "test"}
 
         # API endpoint should have API header

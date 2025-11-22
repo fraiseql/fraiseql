@@ -18,7 +18,7 @@ Complete overview of all FraiseQL capabilities.
 | **Input Types** | ✅ Stable | [Types Guide](../core/types-and-schema.md#input-types) | [blog_simple](../../examples/blog_simple/) |
 | **Success/Failure Responses** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md#success-failure-pattern) | [mutations_demo](../../examples/mutations_demo/) |
 | **Nested Relations** | ✅ Stable | [Database API](../core/database-api.md#nested-relations) | [blog_api](../../examples/blog_api/) |
-| **Pagination** | ✅ Stable | [Pagination Guide](../core/pagination.md) | [ecommerce](../../examples/ecommerce/) |
+| **Pagination** | ✅ Stable | [Database API](../core/database-api.md) | [ecommerce](../../examples/ecommerce/) |
 | **Filtering (Where Input)** | ✅ Stable | [Where Input Guide](../advanced/where_input_types.md) | [filtering](../../examples/filtering/) |
 
 ---
@@ -41,7 +41,7 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **Nested Array Filtering** | ✅ Stable | [Nested Arrays](../nested-array-filtering.md) | [specialized_types](../../examples/specialized_types/) |
+| **Nested Array Filtering** | ✅ Stable | [Nested Arrays](../guides/nested-array-filtering.md) | [specialized_types](../../examples/specialized_types/) |
 | **Logical Operators (AND/OR/NOT)** | ✅ Stable | [Where Input Types](../advanced/where_input_types.md#logical-operators) | [filtering](../../examples/filtering/) |
 | **Network Types (IPv4/IPv6/CIDR)** | ✅ Stable | [Specialized Types](../advanced/where_input_types.md#network-types) | [specialized_types](../../examples/specialized_types/) |
 | **Hierarchical Data (ltree)** | ✅ Stable | [Hierarchical Guide](../advanced/database-patterns.md#ltree) | [ltree-hierarchical-data](../../examples/ltree-hierarchical-data/) |
@@ -98,10 +98,10 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **GraphQL Subscriptions** | ✅ Stable | [Subscriptions Guide](../advanced/subscriptions.md) | [real_time_chat](../../examples/real_time_chat/) |
-| **WebSocket Support** | ✅ Stable | [Subscriptions Guide](../advanced/subscriptions.md#websocket) | [real_time_chat](../../examples/real_time_chat/) |
-| **Presence Tracking** | ✅ Stable | [Real-Time Guide](../advanced/real-time.md#presence) | [real_time_chat](../../examples/real_time_chat/) |
-| **LISTEN/NOTIFY (PostgreSQL)** | ✅ Stable | [Real-Time Guide](../advanced/real-time.md#listen-notify) | [real_time_chat](../../examples/real_time_chat/) |
+| **GraphQL Subscriptions** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
+| **WebSocket Support** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
+| **Presence Tracking** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
+| **LISTEN/NOTIFY (PostgreSQL)** | ✅ Stable | [Database Patterns](../advanced/database-patterns.md) | [real_time_chat](../../examples/real_time_chat/) |
 
 ---
 
@@ -122,10 +122,10 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **FastAPI Integration** | ✅ Stable | [FastAPI Guide](../integrations/fastapi.md) | [fastapi](../../examples/fastapi/) |
-| **Starlette Integration** | ✅ Stable | [Starlette Guide](../integrations/starlette.md) | [fastapi](../../examples/fastapi/) |
+| **FastAPI Integration** | ✅ Stable | See examples | [fastapi](../../examples/fastapi/) |
+| **Starlette Integration** | ✅ Stable | See examples | [fastapi](../../examples/fastapi/) |
 | **ASGI Applications** | ✅ Stable | Built-in | All examples |
-| **TypeScript Client Generation** | ✅ Stable | [Client Generation](../integrations/typescript.md) | [documented_api](../../examples/documented_api/) |
+| **TypeScript Client Generation** | ✅ Stable | See examples | [documented_api](../../examples/documented_api/) |
 
 ---
 
@@ -155,6 +155,41 @@ Complete overview of all FraiseQL capabilities.
 
 ---
 
+## AI & Vector Features (v1.5.0)
+
+| Feature | Status | Documentation | Example |
+|---------|--------|---------------|---------|
+| **pgvector Integration** | ✅ Stable | [pgvector Guide](pgvector.md) | [vector_search](../../examples/vector_search/) |
+| **Vector Similarity Search** | ✅ Stable | [pgvector Guide](pgvector.md#distance-operators) | [vector_search](../../examples/vector_search/) |
+| **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [graphql-cascade](../../examples/graphql-cascade/) |
+| **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration.md) | [Documentation](../guides/langchain-integration.md) |
+| **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native.md) | [Documentation](ai-native.md) |
+
+### Vector Distance Operators
+
+| Operator | PostgreSQL | Use Case | Documentation |
+|----------|------------|----------|---------------|
+| `cosine_distance` | `<=>` | Text similarity, semantic search | [pgvector](pgvector.md#cosine-distance-cosine_distance) |
+| `l2_distance` | `<->` | Euclidean distance, spatial | [pgvector](pgvector.md#l2-distance-l2_distance) |
+| `inner_product` | `<#>` | Learned similarity metrics | [pgvector](pgvector.md#inner-product-inner_product) |
+| `l1_distance` | `<+>` | Manhattan distance, sparse vectors | [pgvector](pgvector.md#l1-distance-l1_distance) |
+| `hamming_distance` | `<~>` | Binary vectors, hashing | [pgvector](pgvector.md#hamming-distance-hamming_distance) |
+| `jaccard_distance` | `<%>` | Set similarity, sparse binary | [pgvector](pgvector.md#jaccard-distance-jaccard_distance) |
+
+---
+
+## Cache & Invalidation Features (v1.5.0)
+
+| Feature | Status | Documentation | Example |
+|---------|--------|---------------|---------|
+| **CASCADE Invalidation** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
+| **PostgreSQL Function Pattern** | ✅ Stable | [PostgreSQL Pattern](graphql-cascade.md#postgresql-function-pattern) | - |
+| **Cascade Structure** | ✅ Stable | [Cascade Structure](graphql-cascade.md#cascade-structure) | - |
+| **Apollo Client Integration** | ✅ Stable | [Client Integration](graphql-cascade.md#apollo-client) | - |
+| **Relay Integration** | ✅ Stable | [Client Integration](graphql-cascade.md#relay) | - |
+
+---
+
 ## Legend
 
 - ✅ **Stable**: Production-ready, fully documented
@@ -180,7 +215,7 @@ We prioritize features based on:
 
 ## Quick Links
 
-- **[Getting Started](../quickstart.md)** - Build your first API in 5 minutes
+- **[Getting Started](../getting-started/quickstart.md)** - Build your first API in 5 minutes
 - **[Core Concepts](../core/concepts-glossary.md)** - Understand FraiseQL's mental model
 - **[Examples](../../examples/)** - Learn by example
 - **[Production Deployment](../production/)** - Deploy to production

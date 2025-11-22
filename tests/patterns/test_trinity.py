@@ -1,15 +1,13 @@
 """Tests for Trinity Identifiers pattern."""
 
-import pytest
 from uuid import UUID, uuid4
 
 from fraiseql.patterns import (
     TrinityMixin,
-    trinity_field,
-    get_pk_column_name,
     get_identifier_from_slug,
+    get_pk_column_name,
+    trinity_field,
 )
-
 
 # ============================================================================
 # Test Fixtures
@@ -19,7 +17,7 @@ from fraiseql.patterns import (
 class User(TrinityMixin):
     """Test user type with Trinity identifiers."""
 
-    def __init__(self, id: UUID, identifier: str | None, username: str, email: str):
+    def __init__(self, id: UUID, identifier: str | None, username: str, email: str) -> None:
         self.id = id
         self.identifier = identifier
         self.username = username
@@ -31,7 +29,7 @@ class Post(TrinityMixin):
 
     __trinity_entity_name__ = "post"  # Explicit override
 
-    def __init__(self, id: UUID, identifier: str | None, title: str, content: str):
+    def __init__(self, id: UUID, identifier: str | None, title: str, content: str) -> None:
         self.id = id
         self.identifier = identifier
         self.title = title
@@ -43,7 +41,7 @@ class Post(TrinityMixin):
 # ============================================================================
 
 
-def test_trinity_mixin_auto_entity_name():
+def test_trinity_mixin_auto_entity_name() -> None:
     """Test that entity name is auto-detected from class name."""
     user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
@@ -51,7 +49,7 @@ def test_trinity_mixin_auto_entity_name():
     assert user._pk_name == "pk_user"
 
 
-def test_trinity_mixin_explicit_entity_name():
+def test_trinity_mixin_explicit_entity_name() -> None:
     """Test that explicit entity name override works."""
     post = Post(id=uuid4(), identifier="my-post-slug", title="Test Post", content="Content")
 
@@ -59,7 +57,7 @@ def test_trinity_mixin_explicit_entity_name():
     assert post._pk_name == "pk_post"
 
 
-def test_trinity_get_internal_pk():
+def test_trinity_get_internal_pk() -> None:
     """Test getting internal pk value."""
     user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
@@ -71,12 +69,12 @@ def test_trinity_get_internal_pk():
     assert user.get_internal_pk() == 123
 
 
-def test_trinity_set_internal_pk():
+def test_trinity_set_internal_pk() -> None:
     """Test setting internal pk value."""
     user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
     user.set_internal_pk(456)
-    assert getattr(user, "pk_user") == 456
+    assert user.pk_user == 456
 
 
 # ============================================================================
@@ -84,37 +82,37 @@ def test_trinity_set_internal_pk():
 # ============================================================================
 
 
-def test_get_pk_column_name():
+def test_get_pk_column_name() -> None:
     """Test pk_* column name generation."""
     assert get_pk_column_name(User) == "pk_user"
     assert get_pk_column_name(Post) == "pk_post"
 
 
-def test_get_identifier_from_slug_with_at_symbol():
+def test_get_identifier_from_slug_with_at_symbol() -> None:
     """Test slug parsing with @ prefix."""
     assert get_identifier_from_slug("@johndoe") == "johndoe"
     assert get_identifier_from_slug("@jane_doe") == "jane_doe"
 
 
-def test_get_identifier_from_slug_with_path():
+def test_get_identifier_from_slug_with_path() -> None:
     """Test slug parsing from URL path."""
     assert get_identifier_from_slug("/users/@johndoe") == "johndoe"
     assert get_identifier_from_slug("/posts/my-post-slug") == "my-post-slug"
 
 
-def test_get_identifier_from_slug_plain():
+def test_get_identifier_from_slug_plain() -> None:
     """Test slug parsing without special characters."""
     assert get_identifier_from_slug("johndoe") == "johndoe"
     assert get_identifier_from_slug("my-post-slug") == "my-post-slug"
 
 
-def test_get_identifier_from_slug_case_normalization():
+def test_get_identifier_from_slug_case_normalization() -> None:
     """Test that slugs are lowercased."""
     assert get_identifier_from_slug("@JohnDoe") == "johndoe"
     assert get_identifier_from_slug("MyPostSlug") == "mypostslug"
 
 
-def test_get_identifier_from_slug_whitespace():
+def test_get_identifier_from_slug_whitespace() -> None:
     """Test that whitespace is stripped."""
     assert get_identifier_from_slug("  johndoe  ") == "johndoe"
     assert get_identifier_from_slug(" @johndoe ") == "johndoe"
@@ -125,7 +123,7 @@ def test_get_identifier_from_slug_whitespace():
 # ============================================================================
 
 
-def test_trinity_type_has_required_fields():
+def test_trinity_type_has_required_fields() -> None:
     """Test that Trinity types have required fields."""
     user_id = uuid4()
     user = User(id=user_id, identifier="johndoe", username="johndoe", email="john@example.com")
@@ -137,7 +135,7 @@ def test_trinity_type_has_required_fields():
     assert user.email == "john@example.com"
 
 
-def test_trinity_identifier_optional():
+def test_trinity_identifier_optional() -> None:
     """Test that identifier can be None."""
     user = User(
         id=uuid4(),
@@ -149,7 +147,7 @@ def test_trinity_identifier_optional():
     assert user.identifier is None
 
 
-def test_trinity_multiple_instances():
+def test_trinity_multiple_instances() -> None:
     """Test that Trinity works with multiple instances."""
     user1 = User(id=uuid4(), identifier="user1", username="user1", email="user1@example.com")
     user1.set_internal_pk(1)
@@ -167,17 +165,17 @@ def test_trinity_multiple_instances():
 # ============================================================================
 
 
-def test_trinity_with_complex_path():
+def test_trinity_with_complex_path() -> None:
     """Test slug parsing with complex nested paths."""
     assert get_identifier_from_slug("/api/v1/users/@johndoe") == "johndoe"
     assert get_identifier_from_slug("/blog/posts/2024/@my-post") == "my-post"
 
 
-def test_trinity_entity_name_case_preservation():
+def test_trinity_entity_name_case_preservation() -> None:
     """Test that entity names respect class case."""
 
     class UserAccount(TrinityMixin):
-        def __init__(self, id: UUID, name: str):
+        def __init__(self, id: UUID, name: str) -> None:
             self.id = id
             self.name = name
 
@@ -187,7 +185,7 @@ def test_trinity_entity_name_case_preservation():
     assert account._pk_name == "pk_useraccount"
 
 
-def test_trinity_field_returns_metadata():
+def test_trinity_field_returns_metadata() -> None:
     """Test that trinity_field returns proper metadata."""
     metadata = trinity_field(description="User UUID", required=True)
     assert metadata["description"] == "User UUID"

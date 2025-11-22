@@ -6,9 +6,11 @@ during field resolution (breaking existing data queries) does not reoccur.
 Issue: https://github.com/fraiseql/fraiseql/issues/v0716-validation-regression
 """
 
-import pytest
-import fraiseql
 from typing import Optional
+
+import pytest
+
+import fraiseql
 
 
 @fraiseql.type
@@ -33,7 +35,7 @@ class CreatePrintServerInput:
 class TestV0716EmptyStringValidationRegression:
     """Test suite for the v0.7.16 validation regression fix."""
 
-    def test_output_type_can_load_existing_data_with_empty_strings(self):
+    def test_output_type_can_load_existing_data_with_empty_strings(self) -> None:
         """Test that @fraiseql.type can load existing database records with empty string fields.
 
         This reproduces the regression where validation was incorrectly applied during
@@ -56,7 +58,7 @@ class TestV0716EmptyStringValidationRegression:
         assert print_server.operating_system == ""  # Empty string preserved
         assert print_server.ip_address == "192.168.1.100"
 
-    def test_output_type_can_load_existing_data_with_whitespace_strings(self):
+    def test_output_type_can_load_existing_data_with_whitespace_strings(self) -> None:
         """Test that @fraiseql.type can load existing data with whitespace-only strings."""
         existing_data = {
             "id": "test-print-server-002",
@@ -70,7 +72,7 @@ class TestV0716EmptyStringValidationRegression:
 
         assert print_server.operating_system == "   "  # Whitespace preserved
 
-    def test_input_type_validation_still_rejects_empty_strings(self):
+    def test_input_type_validation_still_rejects_empty_strings(self) -> None:
         """Test that @fraiseql.input still properly validates empty strings.
 
         This ensures that the regression fix doesn't break the intended validation
@@ -84,7 +86,7 @@ class TestV0716EmptyStringValidationRegression:
                 ip_address="192.168.1.102",
             )
 
-    def test_input_type_validation_rejects_whitespace_only_strings(self):
+    def test_input_type_validation_rejects_whitespace_only_strings(self) -> None:
         """Test that @fraiseql.input properly validates whitespace-only strings."""
         # Input validation should reject whitespace-only strings
         with pytest.raises(ValueError, match="Field 'operating_system' cannot be empty"):
@@ -94,7 +96,7 @@ class TestV0716EmptyStringValidationRegression:
                 ip_address="192.168.1.103",
             )
 
-    def test_input_type_validation_allows_valid_strings(self):
+    def test_input_type_validation_allows_valid_strings(self) -> None:
         """Test that @fraiseql.input accepts valid non-empty strings."""
         # Valid input should work
         input_obj = CreatePrintServerInput(
@@ -107,7 +109,7 @@ class TestV0716EmptyStringValidationRegression:
         assert input_obj.operating_system == "Linux Ubuntu 22.04"
         assert input_obj.ip_address == "192.168.1.104"
 
-    def test_organizational_unit_regression_case(self):
+    def test_organizational_unit_regression_case(self) -> None:
         """Test the specific organizational unit case mentioned in the bug report."""
 
         @fraiseql.type
@@ -130,7 +132,7 @@ class TestV0716EmptyStringValidationRegression:
         assert ou.name == ""  # Empty name preserved
         assert ou.description == "Legacy organizational unit"
 
-    def test_nested_array_resolution_regression_case(self):
+    def test_nested_array_resolution_regression_case(self) -> None:
         """Test the nested array resolution case from the bug report."""
 
         @fraiseql.type

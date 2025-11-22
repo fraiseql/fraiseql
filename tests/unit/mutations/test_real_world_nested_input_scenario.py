@@ -7,8 +7,7 @@ This test replicates the exact scenario described in the bug report:
 This test verifies that both now work consistently.
 """
 
-import pytest
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import fraiseql
 from fraiseql.types.definitions import UNSET
@@ -81,10 +80,10 @@ class CreateLocationError:
     field_errors: dict | None = UNSET
 
 
-def test_direct_address_creation_works():
+def test_direct_address_creation_works() -> None:
     """Test that direct address creation works (this was already working in v0.7.13)."""
-    from fraiseql.types.coercion import coerce_input
     from fraiseql.mutations.sql_generator import _serialize_value
+    from fraiseql.types.coercion import coerce_input
 
     # Simulate GraphQL input (camelCase)
     graphql_input = {
@@ -129,10 +128,10 @@ def test_direct_address_creation_works():
     assert db_payload["longitude"] == -74.0060
 
 
-def test_nested_address_creation_now_works():
+def test_nested_address_creation_now_works() -> None:
     """Test that nested address creation works (this was broken in v0.7.13, should work now)."""
-    from fraiseql.types.coercion import coerce_input
     from fraiseql.mutations.sql_generator import _serialize_value
+    from fraiseql.types.coercion import coerce_input
 
     # Simulate GraphQL input (camelCase) for nested structure
     graphql_input = {
@@ -202,10 +201,10 @@ def test_nested_address_creation_now_works():
     assert address_payload["longitude"] == -74.0060
 
 
-def test_database_function_simulation():
+def test_database_function_simulation() -> None:
     """Simulate what would happen in PostgreSQL function with the payloads."""
-    from fraiseql.types.coercion import coerce_input
     from fraiseql.mutations.sql_generator import _serialize_value
+    from fraiseql.types.coercion import coerce_input
 
     # Test both direct and nested scenarios
     direct_graphql_input = {
@@ -271,11 +270,12 @@ def test_database_function_simulation():
     )
 
 
-def test_regression_prevention():
+def test_regression_prevention() -> None:
     """Test to prevent future regressions of this issue."""
-    from fraiseql.types.coercion import coerce_input, _coerce_field_value
+    from typing import get_args, get_origin
+
     from fraiseql.mutations.sql_generator import _serialize_value
-    from typing import get_origin, get_args
+    from fraiseql.types.coercion import _coerce_field_value
 
     # Test the specific Union type handling that was broken
     location_field_type = CreateLocationInput.__annotations__["address"]

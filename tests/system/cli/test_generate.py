@@ -42,10 +42,10 @@ class QueryRoot:
     users: list[User] = fraise_field(default_factory=list, description="List all users")
     posts: list[Post] = fraise_field(default_factory=list, description="List all posts")
 
-    async def resolve_users(self, info):
+    async def resolve_users(self, info) -> None:
         return []
 
-    async def resolve_posts(self, info):
+    async def resolve_posts(self, info) -> None:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
@@ -85,7 +85,7 @@ class Item:
 class QueryRoot:
     items: list[Item] = fraise_field(default_factory=list, description="List all items")
 
-    async def resolve_items(self, info):
+    async def resolve_items(self, info) -> None:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])

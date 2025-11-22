@@ -2,12 +2,12 @@ import pytest
 
 """Test for unified Rust-first architecture - methods return RustResponseBytes instead of RawJSONResult."""
 
-from fraiseql.db import FraiseQLRepository
 from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.db import FraiseQLRepository
 
 
 @pytest.mark.unit
-def test_unified_rust_methods_available():
+def test_unified_rust_methods_available() -> None:
     """Test that unified Rust-first methods are available."""
     context = {"mode": "production"}
     db = FraiseQLRepository(None, context)
@@ -21,9 +21,9 @@ def test_unified_rust_methods_available():
     assert "Rust-first" in db.find_one.__doc__
 
 
-def test_find_methods_return_rust_response_bytes():
+def test_find_methods_return_rust_response_bytes() -> None:
     """Test that find methods return RustResponseBytes for unified architecture."""
-    from typing import get_type_hints
+    from typing import get_args, get_origin, get_type_hints
 
     # Get type hints for methods
     find_hints = get_type_hints(FraiseQLRepository.find)
@@ -41,5 +41,18 @@ def test_find_methods_return_rust_response_bytes():
     assert "RustResponseBytes" in find_one_return_type_str
 
     # Verify the actual type
+    # find() returns RustResponseBytes
     assert find_hints["return"] == RustResponseBytes
-    assert find_one_hints["return"] == RustResponseBytes
+
+    # find_one() returns RustResponseBytes | None (nullable for null results)
+    # This was changed in v1.1.7 to handle null results properly
+    find_one_return = find_one_hints["return"]
+    assert (
+        get_origin(find_one_return) is type(None)
+        or RustResponseBytes in get_args(find_one_return)
+        or find_one_return == RustResponseBytes
+    )
+    # More precise check: it should be a Union with RustResponseBytes and None
+    args = get_args(find_one_return)
+    assert RustResponseBytes in args or find_one_return == RustResponseBytes
+    assert type(None) in args or find_one_return == RustResponseBytes

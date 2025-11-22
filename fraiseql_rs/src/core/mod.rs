@@ -9,5 +9,5 @@ pub mod transform;
 
 // Re-export key types for convenience
 pub use arena::Arena;
-pub use camel::snake_to_camel_simd;
+pub use camel::snake_to_camel; // New unified API
 pub use transform::{TransformConfig, ZeroCopyTransformer, ByteBuf};

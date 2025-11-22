@@ -167,6 +167,18 @@ def fraise_type(  # type: ignore[misc]
             cls.__fraiseql_definition__.resolve_nested = resolve_nested
             cls.__gql_where_type__ = safe_create_where_type(cls)
 
+            # Add lazy properties for auto-generation of WhereInput and OrderBy
+            from fraiseql.types.lazy_properties import (
+                LazyOrderByProperty,
+                LazyWhereInputProperty,
+            )
+
+            # Only add if not already defined (allow manual override)
+            if not hasattr(cls, "WhereInput"):
+                cls.WhereInput = LazyWhereInputProperty()
+            if not hasattr(cls, "OrderBy"):
+                cls.OrderBy = LazyOrderByProperty()
+
         # Store interfaces this type implements
         if implements:
             cls.__fraiseql_interfaces__ = implements

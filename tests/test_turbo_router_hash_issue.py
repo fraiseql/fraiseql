@@ -6,15 +6,13 @@ don't match FraiseQL's normalized hash calculation.
 
 import hashlib
 
-import pytest
-
-from fraiseql.fastapi.turbo import TurboRegistry, TurboQuery
+from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 
 
 class TestTurboRouterHashIssue:
     """Test turbo router hash normalization issue."""
 
-    def test_hash_mismatch_reproducer(self):
+    def test_hash_mismatch_reproducer(self) -> None:
         """Reproduce the hash mismatch issue from PrintOptim backend."""
         # This is the exact query from the PrintOptim backend issue
         raw_query = """query GetNetworkConfigurations {
@@ -80,7 +78,7 @@ class TestTurboRouterHashIssue:
         expected_hash = "859f5d3b94c4c1add28a74674c83d6b49cc4406c1292e21822d4ca3beb76d269"
         assert raw_hash == expected_hash, "Raw hash should match the issue report"
 
-    def test_registry_get_fails_with_raw_query(self):
+    def test_registry_get_fails_with_raw_query(self) -> None:
         """Test that registry.get() fails when query has different whitespace."""
         registry = TurboRegistry()
 
@@ -105,7 +103,7 @@ class TestTurboRouterHashIssue:
         result = registry.get(formatted_query)
         assert result is not None, "Should find query despite whitespace differences"
 
-    def test_hash_normalization_behavior(self):
+    def test_hash_normalization_behavior(self) -> None:
         """Test current hash normalization behavior."""
         registry = TurboRegistry()
 
@@ -125,7 +123,7 @@ class TestTurboRouterHashIssue:
             print(f"Query {i + 1} hash: {h}")
             assert h == hashes[0], f"Query {i + 1} should have same hash as first query"
 
-    def test_proposed_fix_backward_compatibility(self):
+    def test_proposed_fix_backward_compatibility(self) -> None:
         """Test that the proposed fix maintains backward compatibility."""
         registry = TurboRegistry()
 
@@ -153,7 +151,7 @@ class TestTurboRouterHashIssue:
         # Both should return the same TurboQuery object
         assert registry.get(base_query) is registry.get(formatted_query)
 
-    def test_printoptim_backend_issue_fix(self):
+    def test_printoptim_backend_issue_fix(self) -> None:
         """Test fix for the specific PrintOptim backend issue."""
         registry = TurboRegistry()
 

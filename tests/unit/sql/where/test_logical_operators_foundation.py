@@ -4,15 +4,15 @@ These tests demonstrate the clean foundation for implementing
 OR/AND/NOT operators in GraphQL where clauses.
 """
 
-import pytest
 from psycopg.sql import SQL, Composed
-from fraiseql.sql.where.operators.logical import build_and_sql, build_or_sql, build_not_sql
+
+from fraiseql.sql.where.operators.logical import build_and_sql, build_not_sql, build_or_sql
 
 
 class TestLogicalOperatorsFoundation:
     """Test logical operators foundation functionality."""
 
-    def test_build_and_sql_with_multiple_conditions(self):
+    def test_build_and_sql_with_multiple_conditions(self) -> None:
         """Should combine multiple conditions with AND."""
         condition1 = Composed([SQL("field1 = 'value1'")])
         condition2 = Composed([SQL("field2 = 'value2'")])
@@ -28,21 +28,21 @@ class TestLogicalOperatorsFoundation:
         assert sql_str.startswith("(")
         assert sql_str.endswith(")")
 
-    def test_build_and_sql_with_single_condition(self):
+    def test_build_and_sql_with_single_condition(self) -> None:
         """Should return single condition as-is."""
         condition = Composed([SQL("field1 = 'value1'")])
         result = build_and_sql([condition])
 
         assert result == condition
 
-    def test_build_and_sql_with_empty_conditions(self):
+    def test_build_and_sql_with_empty_conditions(self) -> None:
         """Should return TRUE for empty conditions."""
         result = build_and_sql([])
         sql_str = result.as_string(None)
 
         assert sql_str == "TRUE"
 
-    def test_build_or_sql_with_multiple_conditions(self):
+    def test_build_or_sql_with_multiple_conditions(self) -> None:
         """Should combine multiple conditions with OR."""
         condition1 = Composed([SQL("status = 'draft'")])
         condition2 = Composed([SQL("status = 'published'")])
@@ -56,21 +56,21 @@ class TestLogicalOperatorsFoundation:
         assert sql_str.startswith("(")
         assert sql_str.endswith(")")
 
-    def test_build_or_sql_with_single_condition(self):
+    def test_build_or_sql_with_single_condition(self) -> None:
         """Should return single condition as-is."""
         condition = Composed([SQL("field1 = 'value1'")])
         result = build_or_sql([condition])
 
         assert result == condition
 
-    def test_build_or_sql_with_empty_conditions(self):
+    def test_build_or_sql_with_empty_conditions(self) -> None:
         """Should return FALSE for empty conditions."""
         result = build_or_sql([])
         sql_str = result.as_string(None)
 
         assert sql_str == "FALSE"
 
-    def test_build_not_sql(self):
+    def test_build_not_sql(self) -> None:
         """Should negate a condition with NOT."""
         condition = Composed([SQL("status = 'archived'")])
         result = build_not_sql(condition)
@@ -80,7 +80,7 @@ class TestLogicalOperatorsFoundation:
         assert "status = 'archived'" in sql_str
         assert sql_str.endswith(")")
 
-    def test_complex_nested_logical_operations(self):
+    def test_complex_nested_logical_operations(self) -> None:
         """Should handle complex nested logical operations."""
         # Simulate: (field1 = 'a' OR field1 = 'b') AND (field2 = 'c')
         condition1 = Composed([SQL("field1 = 'a'")])
@@ -100,7 +100,7 @@ class TestLogicalOperatorsFoundation:
         assert " OR " in sql_str
         assert " AND " in sql_str
 
-    def test_not_with_complex_condition(self):
+    def test_not_with_complex_condition(self) -> None:
         """Should handle NOT with complex nested conditions."""
         # Simulate: NOT (field1 = 'a' AND field2 = 'b')
         condition1 = Composed([SQL("field1 = 'a'")])

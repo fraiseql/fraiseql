@@ -117,6 +117,6 @@ curl http://localhost:8000/health
 
 ## Support & Troubleshooting
 
-- **[Troubleshooting Guide](../TROUBLESHOOTING.md)** - Common production issues
+- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common production issues
 - **[Security Issues](../../SECURITY.md)** - Report security vulnerabilities
-- **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** - Bug reports and feature requests
+- **[GitHub Issues](../issues)** - Bug reports and feature requests

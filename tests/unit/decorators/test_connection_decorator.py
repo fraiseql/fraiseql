@@ -29,14 +29,14 @@ class User:
 class TestConnectionDecorator:
     """Test the @connection decorator functionality - TDD RED phase."""
 
-    def test_connection_decorator_can_be_imported(self):
+    def test_connection_decorator_can_be_imported(self) -> None:
         """Test that connection decorator can be imported - should PASS in GREEN phase."""
         # This should pass in GREEN phase since decorator now exists
         from fraiseql.decorators import connection
 
         assert connection is not None
 
-    def test_connection_decorator_basic_usage(self):
+    def test_connection_decorator_basic_usage(self) -> None:
         """Test basic @connection decorator usage."""
         from fraiseql.decorators import connection
 
@@ -54,7 +54,7 @@ class TestConnectionDecorator:
         assert config["include_total_count"] is True
         assert config["cursor_field"] == "id"
 
-    def test_connection_decorator_with_options(self):
+    def test_connection_decorator_with_options(self) -> None:
         """Test @connection decorator with custom configuration."""
         from fraiseql.decorators import connection
 
@@ -77,7 +77,7 @@ class TestConnectionDecorator:
         assert config["include_total_count"] is False
         assert config["cursor_field"] == "created_at"
 
-    def test_connection_decorator_parameter_validation(self):
+    def test_connection_decorator_parameter_validation(self) -> None:
         """Test that @connection decorator validates parameters."""
         from fraiseql.decorators import connection
 
@@ -109,7 +109,7 @@ class TestConnectionDecorator:
             async def inconsistent_page_sizes_connection(info) -> Connection[User]:
                 pass
 
-    def test_connection_decorator_jsonb_extraction_compatibility(self):
+    def test_connection_decorator_jsonb_extraction_compatibility(self) -> None:
         """🔴 RED: Test that @connection decorator respects global JSONB configuration.
 
         This test documents enterprise JSONB scenarios where:
@@ -173,7 +173,7 @@ class TestConnectionDecorator:
         assert config["jsonb_column"] == "data"
         assert config["supports_global_jsonb"] is True  # ✅ Now supported!
 
-    def test_connection_decorator_global_jsonb_inheritance(self):
+    def test_connection_decorator_global_jsonb_inheritance(self) -> None:
         """🔄 REFACTOR: Test that @connection inherits global JSONB configuration."""
         from unittest.mock import AsyncMock, Mock
 
@@ -203,7 +203,7 @@ class TestConnectionDecorator:
         # This would verify the global config inheritance works
         # (We can't easily test the actual paginate call without integration tests)
 
-    def test_connection_decorator_explicit_overrides_global(self):
+    def test_connection_decorator_explicit_overrides_global(self) -> None:
         """🔄 REFACTOR: Test that explicit params override global config."""
         from fraiseql.decorators import connection
 
@@ -222,7 +222,7 @@ class TestConnectionDecorator:
         assert config["jsonb_column"] == "custom_data"  # Explicit override
         assert config["supports_global_jsonb"] is True
 
-    def test_connection_decorator_backward_compatibility(self):
+    def test_connection_decorator_backward_compatibility(self) -> None:
         """🔄 REFACTOR: Test backward compatibility - old code still works."""
         from fraiseql.decorators import connection
 

@@ -1,10 +1,11 @@
 """Tests for APQ request parsing functionality."""
 
 import pytest
+
 from fraiseql.fastapi.routers import GraphQLRequest
 
 
-def test_graphql_request_accepts_extensions_field():
+def test_graphql_request_accepts_extensions_field() -> None:
     """Test that GraphQLRequest model accepts extensions field for APQ."""
     apq_request = {
         "query": None,
@@ -26,7 +27,7 @@ def test_graphql_request_accepts_extensions_field():
     )
 
 
-def test_graphql_request_extensions_optional():
+def test_graphql_request_extensions_optional() -> None:
     """Test that extensions field is optional."""
     normal_request = {
         "query": "{ hello }",
@@ -37,7 +38,7 @@ def test_graphql_request_extensions_optional():
     assert request.query == "{ hello }"
 
 
-def test_graphql_request_with_query_and_extensions():
+def test_graphql_request_with_query_and_extensions() -> None:
     """Test that request can have both query and extensions."""
     request_data = {
         "query": "{ users { id name } }",
@@ -51,7 +52,7 @@ def test_graphql_request_with_query_and_extensions():
     assert request.extensions["persistedQuery"]["sha256Hash"] == "abc123"
 
 
-def test_graphql_request_apq_validation_errors():
+def test_graphql_request_apq_validation_errors() -> None:
     """Test APQ validation catches invalid formats."""
     # Missing version
     with pytest.raises(ValueError, match="persistedQuery.version is required"):
@@ -74,7 +75,7 @@ def test_graphql_request_apq_validation_errors():
         GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": 123}})
 
 
-def test_graphql_request_non_apq_extensions():
+def test_graphql_request_non_apq_extensions() -> None:
     """Test that non-APQ extensions pass through without validation."""
     request_data = {
         "query": "{ hello }",

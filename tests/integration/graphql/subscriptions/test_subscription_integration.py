@@ -41,7 +41,7 @@ async def ping(info) -> str:
 @subscription
 @complexity(score=5)
 @sub_filter("channel in info.context.get('allowed_channels', [])")
-async def message_stream(info, channel: str) -> AsyncGenerator[Message, None]:
+async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
     """Subscribe to messages in a channel."""
     # Simulate real-time messages
     for i in range(3):
@@ -56,7 +56,7 @@ async def message_stream(info, channel: str) -> AsyncGenerator[Message, None]:
 
 @subscription
 @cache(ttl=5.0)
-async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel, None]:
+async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel]:
     """Subscribe to channel statistics."""
     # Simulate periodic updates
     for i in range(2):
@@ -69,7 +69,7 @@ class TestSubscriptionIntegration:
     """Test subscription integration with GraphQL."""
 
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self) -> None:
         """Set up test environment."""
         registry = SchemaRegistry.get_instance()
         registry.clear()
@@ -191,7 +191,7 @@ class TestSubscriptionIntegration:
         context = {"allowed_channels": ["general"]}
 
         # Run both subscriptions concurrently
-        async def collect_messages():
+        async def collect_messages() -> None:
             results = []
             subscription_result = await subscribe(schema, parse(message_sub), context_value=context)
             if hasattr(subscription_result, "errors"):
@@ -202,7 +202,7 @@ class TestSubscriptionIntegration:
                     results.append(result.data["messageStream"])
             return results
 
-        async def collect_stats():
+        async def collect_stats() -> None:
             results = []
             subscription_result = await subscribe(schema, parse(channel_sub), context_value=context)
             if hasattr(subscription_result, "errors"):
@@ -225,7 +225,7 @@ class TestSubscriptionIntegration:
         """Test subscription error handling."""
 
         @subscription
-        async def failing_subscription(info) -> AsyncGenerator[str, None]:
+        async def failing_subscription(info) -> AsyncGenerator[str]:
             """A subscription that fails."""
             yield "first"
             msg = "Subscription error!"

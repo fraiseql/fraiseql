@@ -6,11 +6,11 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 # Test types
@@ -30,7 +30,7 @@ class TestFullTextFilter:
     """Test PostgreSQL full-text search operators."""
 
     @pytest.fixture
-    async def setup_test_documents(self, db_pool):
+    async def setup_test_documents(self, db_pool) -> None:
         """Create test documents with tsvector data."""
         # Register types for views (for development mode)
         register_type_for_view("test_documents_view", Document)
@@ -86,7 +86,7 @@ class TestFullTextFilter:
             await conn.execute("DROP TABLE IF EXISTS test_documents")
 
     @pytest.mark.asyncio
-    async def test_matches_operator_basic_search(self, db_pool, setup_test_documents):
+    async def test_matches_operator_basic_search(self, db_pool, setup_test_documents) -> None:
         """Test basic full-text search with matches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -100,7 +100,7 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_plain_query_operator(self, db_pool, setup_test_documents):
+    async def test_plain_query_operator(self, db_pool, setup_test_documents) -> None:
         """Test plain text query parsing."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -114,7 +114,7 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "JavaScript Tutorial"
 
     @pytest.mark.asyncio
-    async def test_phrase_query_operator(self, db_pool, setup_test_documents):
+    async def test_phrase_query_operator(self, db_pool, setup_test_documents) -> None:
         """Test phrase search query."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -128,7 +128,7 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_websearch_query_operator(self, db_pool, setup_test_documents):
+    async def test_websearch_query_operator(self, db_pool, setup_test_documents) -> None:
         """Test websearch-style query parsing."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -146,7 +146,7 @@ class TestFullTextFilter:
         assert "Python Guide" in titles
 
     @pytest.mark.asyncio
-    async def test_rank_gt_operator(self, db_pool, setup_test_documents):
+    async def test_rank_gt_operator(self, db_pool, setup_test_documents) -> None:
         """Test relevance ranking greater than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -162,7 +162,7 @@ class TestFullTextFilter:
         assert any(doc["title"] == "Python Guide" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_lt_operator(self, db_pool, setup_test_documents):
+    async def test_rank_lt_operator(self, db_pool, setup_test_documents) -> None:
         """Test relevance ranking less than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -180,7 +180,7 @@ class TestFullTextFilter:
         assert ("JavaScript Tutorial" in titles) or ("Database Design" in titles)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_gt_operator(self, db_pool, setup_test_documents):
+    async def test_rank_cd_gt_operator(self, db_pool, setup_test_documents) -> None:
         """Test cover density ranking greater than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -195,7 +195,7 @@ class TestFullTextFilter:
         assert any(doc["title"] == "JavaScript Tutorial" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_lt_operator(self, db_pool, setup_test_documents):
+    async def test_rank_cd_lt_operator(self, db_pool, setup_test_documents) -> None:
         """Test cover density ranking less than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 

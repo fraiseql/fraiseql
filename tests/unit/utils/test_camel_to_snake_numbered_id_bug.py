@@ -12,7 +12,7 @@ from fraiseql.utils.naming import camel_to_snake
 class TestCamelToSnakeNumberedIdBug:
     """Test cases for the numbered ID field conversion bug."""
 
-    def test_camel_to_snake_simple_cases(self):
+    def test_camel_to_snake_simple_cases(self) -> None:
         """Test that simple camelCase conversion works correctly."""
         # These should work correctly (not affected by the bug)
         assert camel_to_snake("userName") == "user_name"
@@ -20,7 +20,7 @@ class TestCamelToSnakeNumberedIdBug:
         assert camel_to_snake("routerId") == "router_id"
         assert camel_to_snake("serverId") == "server_id"
 
-    def test_camel_to_snake_numbered_id_bug(self):
+    def test_camel_to_snake_numbered_id_bug(self) -> None:
         """Test the specific bug with numbered ID fields.
 
         This test will FAIL initially, demonstrating the bug.
@@ -38,7 +38,7 @@ class TestCamelToSnakeNumberedIdBug:
         assert camel_to_snake("backup10Id") == "backup_10_id"  # Currently produces "backup10_id"
         assert camel_to_snake("primary1Id") == "primary_1_id"  # Currently produces "primary1_id"
 
-    def test_camel_to_snake_edge_cases(self):
+    def test_camel_to_snake_edge_cases(self) -> None:
         """Test edge cases that should continue working."""
         # These should not be affected by our fix
         assert camel_to_snake("HTTPTimeout") == "http_timeout"
@@ -49,7 +49,7 @@ class TestCamelToSnakeNumberedIdBug:
         assert camel_to_snake("user1Name") == "user_1_name"
         assert camel_to_snake("server2Status") == "server_2_status"
 
-    def test_fixed_behavior(self):
+    def test_fixed_behavior(self) -> None:
         """Test documenting the FIXED behavior.
 
         After fixing the bug, the function should correctly convert numbered ID fields.

@@ -4,21 +4,21 @@ These tests focus on the coordinate filtering operators: equality, distance calc
 and PostgreSQL POINT type integration.
 """
 
-import pytest
-from psycopg.sql import SQL, Literal
+from psycopg.sql import SQL
+
 from fraiseql.sql.where.operators.coordinate import (
-    build_coordinate_eq_sql,
-    build_coordinate_neq_sql,
-    build_coordinate_in_sql,
-    build_coordinate_notin_sql,
     build_coordinate_distance_within_sql,
+    build_coordinate_eq_sql,
+    build_coordinate_in_sql,
+    build_coordinate_neq_sql,
+    build_coordinate_notin_sql,
 )
 
 
 class TestCoordinateSQLBuilding:
     """Test coordinate SQL building functionality."""
 
-    def test_build_coordinate_equality_sql(self):
+    def test_build_coordinate_equality_sql(self) -> None:
         """Should build proper POINT casting for coordinate equality."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'location')")
@@ -30,7 +30,7 @@ class TestCoordinateSQLBuilding:
         assert "data ->> 'location'" in sql_str
         assert "-122.6" in sql_str and "45.5" in sql_str  # PostgreSQL POINT uses (lng, lat) order
 
-    def test_build_coordinate_inequality_sql(self):
+    def test_build_coordinate_inequality_sql(self) -> None:
         """Should build proper POINT casting for coordinate inequality."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'coordinates')")
@@ -42,7 +42,7 @@ class TestCoordinateSQLBuilding:
         assert "::point != POINT(" in sql_str
         assert "-122.3425, 47.6097" in sql_str
 
-    def test_build_coordinate_in_list_sql(self):
+    def test_build_coordinate_in_list_sql(self) -> None:
         """Should build proper POINT casting for coordinate IN lists."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'position')")
@@ -57,7 +57,7 @@ class TestCoordinateSQLBuilding:
         assert "POINT(" in sql_str and "-122.3425" in sql_str and "47.6097" in sql_str
         assert "POINT(" in sql_str and "-74.006" in sql_str and "40.7128" in sql_str
 
-    def test_build_coordinate_not_in_list_sql(self):
+    def test_build_coordinate_not_in_list_sql(self) -> None:
         """Should build proper POINT casting for coordinate NOT IN lists."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'location')")
@@ -71,7 +71,7 @@ class TestCoordinateSQLBuilding:
         assert "POINT(0, 0)" in sql_str
         assert "POINT(180, 90)" in sql_str
 
-    def test_build_coordinate_distance_within_sql_postgis(self):
+    def test_build_coordinate_distance_within_sql_postgis(self) -> None:
         """Should build PostGIS ST_DWithin for distance calculations."""
         # Red cycle - this will fail initially
         path_sql = SQL("(data ->> 'coordinates')")
@@ -87,7 +87,7 @@ class TestCoordinateSQLBuilding:
         assert "POINT(" in sql_str and "-122.6" in sql_str and "45.5" in sql_str
         assert "1000" in sql_str
 
-    def test_build_coordinate_distance_within_sql_haversine(self):
+    def test_build_coordinate_distance_within_sql_haversine(self) -> None:
         """Should build Haversine formula for distance calculations (fallback)."""
         # Test the fallback Haversine implementation
         from fraiseql.sql.where.operators.coordinate import (
@@ -107,7 +107,7 @@ class TestCoordinateSQLBuilding:
         assert "COS" in sql_str  # Haversine uses COS
         assert "6371000" in sql_str  # Earth radius in meters
 
-    def test_coordinate_point_order_conversion(self):
+    def test_coordinate_point_order_conversion(self) -> None:
         """Test that coordinates are properly converted from (lat,lng) to POINT(lng,lat)."""
         # PostgreSQL POINT uses (x,y) which maps to (longitude, latitude)
         # But users provide coordinates as (latitude, longitude)
@@ -122,7 +122,7 @@ class TestCoordinateSQLBuilding:
         )  # lng first, then lat
         assert "POINT(45.5, -122.6)" not in sql_str  # NOT lat first
 
-    def test_coordinate_edge_cases(self):
+    def test_coordinate_edge_cases(self) -> None:
         """Test coordinate edge cases like poles and date line."""
         # North pole
         path_sql = SQL("(data ->> 'position')")

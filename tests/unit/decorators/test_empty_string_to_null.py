@@ -10,7 +10,6 @@ import pytest
 
 import fraiseql
 from fraiseql.mutations.decorators import failure, success
-from fraiseql.mutations.mutation_decorator import mutation
 from fraiseql.types.fraise_input import fraise_input
 
 

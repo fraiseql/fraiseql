@@ -2,7 +2,7 @@
 
 FraiseQLConfig class for comprehensive application configuration.
 
-**📖 Before configuring**: Make sure FraiseQL is [installed](../INSTALLATION.md) and your environment is set up.
+**📖 Before configuring**: Make sure FraiseQL is [installed](../getting-started/installation.md) and your environment is set up.
 
 ## Overview
 
@@ -326,7 +326,9 @@ config = FraiseQLConfig(
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| apq_storage_backend | Literal | "memory" | Storage backend (memory/postgresql/redis/custom) |
+| apq_mode | APQMode | OPTIONAL | Query acceptance mode (OPTIONAL/REQUIRED/DISABLED) |
+| apq_queries_dir | str \| None | None | Directory for auto-registering .graphql files |
+| apq_storage_backend | Literal | "memory" | Storage backend (memory/postgresql/custom) |
 | apq_cache_responses | bool | False | Enable JSON response caching for APQ queries |
 | apq_response_cache_ttl | int | 600 | Cache TTL for APQ responses in seconds |
 | apq_backend_config | dict[str, Any] | {} | Backend-specific configuration options |
@@ -341,15 +343,7 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=900  # 15 minutes
 )
 
-# APQ with Redis backend
-config = FraiseQLConfig(
-    database_url="postgresql://localhost/mydb",
-    apq_storage_backend="redis",
-    apq_backend_config={
-        "redis_url": "redis://localhost:6379/0",
-        "key_prefix": "apq:"
-    }
-)
+
 ```
 
 ## Token Revocation Settings
@@ -528,7 +522,7 @@ config = FraiseQLConfig(
     complexity_max_depth=8,
 
     # APQ
-    apq_storage_backend="redis",
+    apq_storage_backend="postgresql",
     apq_cache_responses=True,
     apq_response_cache_ttl=900
 )

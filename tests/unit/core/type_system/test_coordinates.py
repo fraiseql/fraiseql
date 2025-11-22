@@ -56,7 +56,7 @@ def test_parse_coordinate_value_invalid(value) -> None:
         parse_coordinate_value(value)
 
 
-def test_parse_coordinate_value_latitude_bounds():
+def test_parse_coordinate_value_latitude_bounds() -> None:
     # Should raise: (91, 0), (-91, 0)
     with pytest.raises(GraphQLError, match="Latitude must be between -90 and 90"):
         parse_coordinate_value("91,0")
@@ -65,7 +65,7 @@ def test_parse_coordinate_value_latitude_bounds():
         parse_coordinate_value("-91,0")
 
 
-def test_parse_coordinate_value_longitude_bounds():
+def test_parse_coordinate_value_longitude_bounds() -> None:
     # Should raise: (0, 181), (0, -181)
     with pytest.raises(GraphQLError, match="Longitude must be between -180 and 180"):
         parse_coordinate_value("0,181")
@@ -74,7 +74,7 @@ def test_parse_coordinate_value_longitude_bounds():
         parse_coordinate_value("0,-181")
 
 
-def test_parse_coordinate_formats():
+def test_parse_coordinate_formats() -> None:
     # Support: "45.5,-122.6", (45.5, -122.6), {"lat": 45.5, "lng": -122.6}
     # PostgreSQL POINT format: "(45.5,-122.6)"
     assert parse_coordinate_value("45.5,-122.6") == (45.5, -122.6)
@@ -109,7 +109,7 @@ def test_parse_coordinate_literal_invalid_value() -> None:
 # --- Type System Registration Tests ---
 
 
-def test_coordinate_field_in_type_registry():
+def test_coordinate_field_in_type_registry() -> None:
     """Test that CoordinateField is properly registered in the type system."""
     from fraiseql.types import Coordinate
     from fraiseql.types.scalars.coordinates import CoordinateField
@@ -120,7 +120,7 @@ def test_coordinate_field_in_type_registry():
     assert Coordinate is CoordinateField
 
 
-def test_coordinate_field_graphql_scalar():
+def test_coordinate_field_graphql_scalar() -> None:
     """Test that Coordinate has proper GraphQL scalar."""
     from fraiseql.types.scalars.coordinates import CoordinateScalar
 
@@ -139,12 +139,13 @@ def test_coordinate_field_graphql_scalar():
 # --- GraphQL Schema Integration Tests ---
 
 
-def test_coordinate_scalar_in_graphql_schema():
+def test_coordinate_scalar_in_graphql_schema() -> None:
     """Test that Coordinate scalar appears in GraphQL schema."""
-    import fraiseql
-    from fraiseql.types import Coordinate
-    from fraiseql.gql.schema_builder import build_fraiseql_schema
     from graphql import print_schema
+
+    import fraiseql
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.types import Coordinate
 
     @fraiseql.input
     class LocationInput:
@@ -215,10 +216,10 @@ def test_coordinate_scalar_in_graphql_schema():
     assert "coordinates: Coordinate" in input_text, "Field not mapped to Coordinate scalar"
 
 
-def test_coordinate_field_type_mapping():
+def test_coordinate_field_type_mapping() -> None:
     """Test that CoordinateField correctly maps to CoordinateScalar."""
-    from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
     from fraiseql.types.scalars.coordinates import CoordinateField, CoordinateScalar
+    from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 
     # Test direct type mapping
     mapped_scalar = convert_scalar_to_graphql(CoordinateField)
@@ -226,12 +227,13 @@ def test_coordinate_field_type_mapping():
     assert mapped_scalar.name == "Coordinate", "Scalar name incorrect"
 
 
-def test_graphql_validation_with_coordinate_scalar():
+def test_graphql_validation_with_coordinate_scalar() -> None:
     """Test that GraphQL validation correctly handles Coordinate variables."""
+    from graphql import parse, validate
+
     import fraiseql
-    from fraiseql.types import Coordinate
     from fraiseql.gql.schema_builder import build_fraiseql_schema
-    from graphql import validate, parse
+    from fraiseql.types import Coordinate
 
     @fraiseql.input
     class LocationInput:

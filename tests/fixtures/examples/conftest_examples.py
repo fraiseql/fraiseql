@@ -50,7 +50,7 @@ except ImportError:
 
 
 @pytest.fixture(scope="session")
-def smart_dependencies():
+def smart_dependencies() -> None:
     """Ensure all required dependencies are available for example tests."""
     # Skip complex dependency management - assume dependencies are available when running via uv
     # This assumes the tests are being run in the proper environment
@@ -68,7 +68,7 @@ def smart_dependencies():
 
 
 @pytest.fixture(scope="session")
-def examples_event_loop():
+def examples_event_loop() -> None:
     """Create event loop for examples testing."""
     loop = asyncio.new_event_loop()
     yield loop
@@ -76,7 +76,7 @@ def examples_event_loop():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def blog_simple_db_url(smart_dependencies):
+async def blog_simple_db_url(smart_dependencies) -> None:
     """Setup blog_simple test database using smart database manager."""
     db_manager = get_database_manager()
 
@@ -100,7 +100,7 @@ async def blog_simple_db_url(smart_dependencies):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_db_connection(blog_simple_db_url):
+async def blog_simple_db_connection(blog_simple_db_url) -> None:
     """Provide database connection for blog_simple tests."""
     try:
         import psycopg
@@ -113,7 +113,7 @@ async def blog_simple_db_connection(blog_simple_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_repository(blog_simple_db_connection):
+async def blog_simple_repository(blog_simple_db_connection) -> None:
     """Provide CQRS repository for blog_simple tests."""
     from fraiseql.cqrs import CQRSRepository
 
@@ -133,7 +133,7 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
 
 
 @pytest_asyncio.fixture
-async def blog_simple_app(smart_dependencies, blog_simple_db_url):
+async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> None:
     """Create blog_simple app for testing with guaranteed dependencies."""
     blog_simple_path = None
     original_sys_modules = None
@@ -208,7 +208,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_client(blog_simple_app):
+async def blog_simple_client(blog_simple_app) -> None:
     """HTTP client for blog_simple app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture
     from httpx import AsyncClient, ASGITransport
@@ -221,11 +221,11 @@ async def blog_simple_client(blog_simple_app):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_graphql_client(blog_simple_client):
+async def blog_simple_graphql_client(blog_simple_client) -> None:
     """GraphQL client for blog_simple."""
 
     class GraphQLClient:
-        def __init__(self, http_client: AsyncClient):
+        def __init__(self, http_client: AsyncClient) -> None:
             self.client = http_client
 
         async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
@@ -239,7 +239,7 @@ async def blog_simple_graphql_client(blog_simple_client):
 
 
 @pytest_asyncio.fixture(scope="session")
-async def blog_enterprise_db_url(smart_dependencies):
+async def blog_enterprise_db_url(smart_dependencies) -> None:
     """Setup blog_enterprise test database using smart database manager."""
     db_manager = get_database_manager()
 
@@ -263,7 +263,7 @@ async def blog_enterprise_db_url(smart_dependencies):
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
+async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url) -> None:
     """Create blog_enterprise app for testing with guaranteed dependencies."""
     blog_enterprise_path = None
     original_sys_modules = None
@@ -338,7 +338,7 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_client(blog_enterprise_app):
+async def blog_enterprise_client(blog_enterprise_app) -> None:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture
     from httpx import AsyncClient, ASGITransport
@@ -352,7 +352,7 @@ async def blog_enterprise_client(blog_enterprise_app):
 
 # Sample data fixtures that work across examples
 @pytest.fixture
-def sample_user_data():
+def sample_user_data() -> None:
     """Sample user data for testing."""
     return {
         "username": f"testuser_{uuid4().hex[:8]}",
@@ -368,7 +368,7 @@ def sample_user_data():
 
 
 @pytest.fixture
-def sample_post_data():
+def sample_post_data() -> None:
     """Sample post data for testing."""
     return {
         "title": f"Test Post {uuid4().hex[:8]}",
@@ -379,7 +379,7 @@ def sample_post_data():
 
 
 @pytest.fixture
-def sample_tag_data():
+def sample_tag_data() -> None:
     """Sample tag data for testing."""
     return {
         "name": f"Test Tag {uuid4().hex[:8]}",
@@ -389,8 +389,139 @@ def sample_tag_data():
 
 
 @pytest.fixture
-def sample_comment_data():
+def sample_comment_data() -> None:
     """Sample comment data for testing."""
     return {
         "content": f"This is a test comment {uuid4().hex[:8]} with valuable insights for integration testing."
     }
+
+
+# Cascade Example Fixtures
+
+
+@pytest_asyncio.fixture(scope="session")
+async def cascade_db_url(smart_dependencies) -> None:
+    """Setup cascade test database using smart database manager."""
+    db_manager = get_database_manager()
+
+    try:
+        success, connection_string = await db_manager.ensure_test_database("graphql_cascade")
+
+        if success:
+            logger.info("Successfully set up cascade test database")
+            yield connection_string
+        else:
+            pytest.skip("Could not set up cascade test database")
+
+    except Exception as e:
+        logger.error(f"Failed to set up cascade test database: {e}")
+        pytest.skip(f"Cascade test database setup failed: {e}")
+
+
+@pytest_asyncio.fixture
+async def cascade_app(smart_dependencies, cascade_db_url) -> None:
+    """Create cascade app for testing with guaranteed dependencies."""
+    cascade_path = None
+    original_sys_modules = None
+    original_env = {}
+
+    try:
+        # Store original environment variables we'll modify
+        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
+            if key in os.environ:
+                original_env[key] = os.environ[key]
+
+        # Clear the FraiseQL registry completely to prevent schema conflicts
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            SchemaRegistry.get_instance().clear()
+            logger.info("Successfully cleared SchemaRegistry before creating cascade app")
+        except ImportError:
+            logger.warning("Could not import SchemaRegistry - continuing without clearing")
+
+        # Clear any fraiseql modules from sys.modules to prevent contamination
+        modules_to_remove = [
+            name
+            for name in sys.modules.keys()
+            if name.startswith("fraiseql.") and "registry" in name.lower()
+        ]
+        original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
+
+        # Import cascade app - dependencies guaranteed by smart_dependencies fixture
+        cascade_path = EXAMPLES_DIR / "graphql-cascade"
+        sys.path.insert(0, str(cascade_path))
+
+        # Override database settings for testing
+        db_name = cascade_db_url.split("/")[-1]
+        os.environ["DB_NAME"] = db_name
+        os.environ["DATABASE_URL"] = cascade_db_url
+        os.environ["ENV"] = "test"
+
+        # Import the app module and create app
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("cascade_app", cascade_path / "main.py")
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load cascade app from {cascade_path / 'main.py'}")
+
+        cascade_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cascade_module)
+
+        # Get the app from the module
+        app = cascade_module.app
+
+        # Set up database schema
+        db_manager = get_database_manager()
+        schema_file = cascade_path / "schema.sql"
+        if schema_file.exists():
+            success = await db_manager.setup_database_schema(cascade_db_url, schema_file)
+            if not success:
+                logger.warning("Failed to set up cascade database schema")
+
+        yield app
+
+    finally:
+        # Restore environment variables
+        for key, value in original_env.items():
+            os.environ[key] = value
+        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
+            if key not in original_env and key in os.environ:
+                del os.environ[key]
+
+        # Restore sys.modules if we removed any
+        if original_sys_modules:
+            sys.modules.update(original_sys_modules)
+
+        # Clean up sys.path
+        if cascade_path and str(cascade_path) in sys.path:
+            sys.path.remove(str(cascade_path))
+
+
+@pytest.fixture
+def cascade_client(cascade_app) -> None:
+    """HTTP client for cascade app with guaranteed dependencies."""
+    # Dependencies guaranteed by smart_dependencies fixture
+    from fastapi.testclient import TestClient
+
+    # Create synchronous TestClient
+    with TestClient(cascade_app) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def cascade_graphql_client(cascade_client) -> None:
+    """GraphQL client for cascade."""
+
+    class GraphQLClient:
+        def __init__(self, http_client: AsyncClient) -> None:
+            self.client = http_client
+
+        async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
+            """Execute GraphQL query/mutation."""
+            response = await self.client.post(
+                "/graphql", json={"query": query, "variables": variables or {}}
+            )
+            return response.json()
+
+    yield GraphQLClient(cascade_client)

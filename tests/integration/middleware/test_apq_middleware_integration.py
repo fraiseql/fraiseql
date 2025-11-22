@@ -13,7 +13,7 @@ from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 @pytest.mark.unit
 @asynccontextmanager
-async def noop_lifespan(app: FastAPI):
+async def noop_lifespan(app: FastAPI) -> None:
     """No-op lifespan for tests that don't need a database."""
     yield
 
@@ -35,7 +35,7 @@ class TestAPQMiddlewareIntegration:
     """Test APQ integration with FraiseQL GraphQL router."""
 
     @pytest.fixture
-    def app_dev(self, clear_registry):
+    def app_dev(self, clear_registry) -> None:
         """Create test app in development mode with APQ support."""
         config = FraiseQLConfig(
             database_url="postgresql://localhost/test",
@@ -45,7 +45,7 @@ class TestAPQMiddlewareIntegration:
         )
         return create_fraiseql_app(config=config, queries=[hello, get_user], lifespan=noop_lifespan)
 
-    def test_apq_persisted_query_not_found_error(self, app_dev):
+    def test_apq_persisted_query_not_found_error(self, app_dev) -> None:
         """Test APQ returns PERSISTED_QUERY_NOT_FOUND for unknown hash."""
         # This test should FAIL initially - APQ not integrated yet
         with TestClient(app_dev) as client:
@@ -71,7 +71,7 @@ class TestAPQMiddlewareIntegration:
         assert error["message"] == "PersistedQueryNotFound"
         assert error["extensions"]["code"] == "PERSISTED_QUERY_NOT_FOUND"
 
-    def test_apq_successful_query_execution(self, app_dev):
+    def test_apq_successful_query_execution(self, app_dev) -> None:
         """Test APQ executes stored query successfully."""
         # First, store a query (simulated - will need actual storage)
         test_query = 'query { hello(name: "APQ") }'
@@ -96,7 +96,7 @@ class TestAPQMiddlewareIntegration:
             assert data["data"]["hello"] == "Hello, APQ!"
             assert "errors" not in data
 
-    def test_apq_with_variables(self, app_dev):
+    def test_apq_with_variables(self, app_dev) -> None:
         """Test APQ handles GraphQL variables correctly."""
         test_query = "query GetUser($id: String!) { getUser(id: $id) }"
         test_hash = "var_hash_123"
@@ -121,7 +121,7 @@ class TestAPQMiddlewareIntegration:
             user_json = data["data"]["getUser"]
             assert "123" in user_json  # Check ID is in JSON string
 
-    def test_apq_with_operation_name(self, app_dev):
+    def test_apq_with_operation_name(self, app_dev) -> None:
         """Test APQ handles operation names correctly."""
         test_query = """
         query GetUserByID($id: String!) {
@@ -151,7 +151,7 @@ class TestAPQMiddlewareIntegration:
             assert "data" in data
             assert data["data"]["hello"] == "Hello, World!"
 
-    def test_apq_invalid_hash_format(self, app_dev):
+    def test_apq_invalid_hash_format(self, app_dev) -> None:
         """Test APQ handles invalid hash format gracefully."""
         with TestClient(app_dev) as client:
             apq_request = {
@@ -164,7 +164,7 @@ class TestAPQMiddlewareIntegration:
         # This is correct behavior - invalid requests should fail validation
         assert response.status_code == 422
 
-    def test_apq_unsupported_version(self, app_dev):
+    def test_apq_unsupported_version(self, app_dev) -> None:
         """Test APQ handles unsupported versions correctly."""
         with TestClient(app_dev) as client:
             apq_request = {
@@ -182,7 +182,7 @@ class TestAPQMiddlewareIntegration:
         # Should get validation error (422) due to GraphQLRequest validation
         assert response.status_code == 422
 
-    def test_regular_query_still_works(self, app_dev):
+    def test_regular_query_still_works(self, app_dev) -> None:
         """Test that regular GraphQL queries still work when APQ is integrated."""
         with TestClient(app_dev) as client:
             regular_request = {"query": 'query { hello(name: "Regular") }'}
@@ -195,7 +195,7 @@ class TestAPQMiddlewareIntegration:
         assert "data" in data
         assert data["data"]["hello"] == "Hello, Regular!"
 
-    def test_apq_integration_preserves_auth(self, clear_registry):
+    def test_apq_integration_preserves_auth(self, clear_registry) -> None:
         """Test APQ integration respects authentication requirements."""
         # For GREEN phase: Test that APQ returns proper error response when no auth provider
         # Future enhancement: Add proper auth provider integration testing
@@ -220,7 +220,7 @@ class TestAPQMiddlewareIntegration:
         assert "errors" in data
         assert data["errors"][0]["extensions"]["code"] == "PERSISTED_QUERY_NOT_FOUND"
 
-    def test_apq_production_mode_compatibility(self, clear_registry):
+    def test_apq_production_mode_compatibility(self, clear_registry) -> None:
         """Test APQ works in production mode."""
         config = FraiseQLConfig(
             database_url="postgresql://localhost/test",

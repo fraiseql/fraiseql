@@ -53,15 +53,25 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
             obj_dict = {}
             for attr_name in dir(obj):
                 # Skip private attributes, methods, and special FraiseQL attributes
+                # But include __cascade__ for GraphQL cascade functionality
                 if (
-                    not attr_name.startswith("_")
+                    (not attr_name.startswith("_") or attr_name == "__cascade__")
                     and not attr_name.startswith("__gql_")
-                    and not attr_name.startswith("__fraiseql_")
+                    and not (attr_name.startswith("__fraiseql_") and attr_name != "__cascade__")
                     and not callable(getattr(obj, attr_name, None))
                 ):
                     value = getattr(obj, attr_name, None)
+
+                    # Skip descriptor instances (like LazyWhereInputProperty, LazyOrderByProperty)
+                    # When accessed on an instance, descriptors might return themselves
+                    if value is not None and hasattr(value, "__get__"):
+                        # This is a descriptor instance, skip it
+                        continue
+
                     if value is not None:
-                        obj_dict[attr_name] = value
+                        # Rename __cascade__ to cascade in the output
+                        key = "cascade" if attr_name == "__cascade__" else attr_name
+                        obj_dict[key] = value
             return obj_dict
 
         # Handle date and datetime

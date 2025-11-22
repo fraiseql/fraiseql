@@ -8,8 +8,9 @@ item_serial_number (from CreateItemInput) instead of its own input fields.
 """
 
 import uuid
-import pytest
 from typing import Optional
+
+import pytest
 
 import fraiseql
 from fraiseql.gql.builders.registry import SchemaRegistry
@@ -81,7 +82,7 @@ class CreateItemComponent:
 class TestMutationNameCollisionFix:
     """Test the fix for mutation name collisions."""
 
-    def test_resolver_names_use_function_names(self):
+    def test_resolver_names_use_function_names(self) -> None:
         """Test that resolver names are based on the PostgreSQL function name."""
         create_item_resolver = CreateItem.__fraiseql_resolver__
         create_item_component_resolver = CreateItemComponent.__fraiseql_resolver__
@@ -93,7 +94,7 @@ class TestMutationNameCollisionFix:
         # They should be different
         assert create_item_resolver.__name__ != create_item_component_resolver.__name__
 
-    def test_input_types_are_correctly_assigned(self):
+    def test_input_types_are_correctly_assigned(self) -> None:
         """Test that each resolver has the correct input type annotation."""
         create_item_resolver = CreateItem.__fraiseql_resolver__
         create_item_component_resolver = CreateItemComponent.__fraiseql_resolver__
@@ -108,7 +109,7 @@ class TestMutationNameCollisionFix:
             != create_item_component_resolver.__annotations__["input"]
         )
 
-    def test_mutations_are_separately_registered(self):
+    def test_mutations_are_separately_registered(self) -> None:
         """Test that both mutations are registered with unique keys in the registry."""
         # Clear the registry to start fresh
         registry = SchemaRegistry.get_instance()
@@ -132,7 +133,7 @@ class TestMutationNameCollisionFix:
         assert create_item_fn.__annotations__["input"] is CreateItemInput
         assert create_item_component_fn.__annotations__["input"] is CreateItemComponentInput
 
-    def test_mutation_definitions_are_independent(self):
+    def test_mutation_definitions_are_independent(self) -> None:
         """Test that each mutation class has its own independent definition object."""
         create_item_def = CreateItem.__fraiseql_mutation__
         create_item_component_def = CreateItemComponent.__fraiseql_mutation__
@@ -150,7 +151,7 @@ class TestMutationNameCollisionFix:
         assert create_item_def.name == "CreateItem"
         assert create_item_component_def.name == "CreateItemComponent"
 
-    def test_input_field_requirements_are_different(self):
+    def test_input_field_requirements_are_different(self) -> None:
         """Test that the input types have different field requirements."""
         # CreateItemInput should require item_serial_number
         create_item_hints = CreateItemInput.__annotations__
@@ -163,7 +164,7 @@ class TestMutationNameCollisionFix:
         assert "component_type" in create_item_component_hints
         assert "item_serial_number" not in create_item_component_hints
 
-    def test_no_shared_annotation_objects(self):
+    def test_no_shared_annotation_objects(self) -> None:
         """Test that resolver annotations are not shared between mutations."""
         create_item_resolver = CreateItem.__fraiseql_resolver__
         create_item_component_resolver = CreateItemComponent.__fraiseql_resolver__

@@ -141,7 +141,7 @@ def run_benchmarks() -> None:
     """Run all benchmarks and print results."""
     # Import Rust transformer
     try:
-        import fraiseql_rs
+        from fraiseql import fraiseql_rs
 
         rust_available = True
     except ImportError:

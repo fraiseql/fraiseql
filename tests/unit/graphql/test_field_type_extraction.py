@@ -5,23 +5,23 @@ from GraphQL context and propagated to SQL operator strategies, particularly
 for network types like IpAddress and MacAddress.
 """
 
-import pytest
 from unittest.mock import Mock
-from typing import get_type_hints
 
-from fraiseql.types import IpAddress, MacAddress
+import pytest
+
 from fraiseql.graphql.field_type_extraction import (
-    extract_field_type_from_graphql_info,
-    enhance_type_hints_with_graphql_context,
-    _extract_from_field_name_heuristics,
     _camel_to_snake,
+    _extract_from_field_name_heuristics,
+    enhance_type_hints_with_graphql_context,
+    extract_field_type_from_graphql_info,
 )
+from fraiseql.types import IpAddress, MacAddress
 
 
 class TestFieldTypeExtraction:
     """Test GraphQL field type extraction utilities."""
 
-    def test_extract_ip_address_from_field_name_heuristics(self):
+    def test_extract_ip_address_from_field_name_heuristics(self) -> None:
         """Test IP address field type detection from field names."""
         ip_field_names = [
             "ipAddress",
@@ -35,7 +35,7 @@ class TestFieldTypeExtraction:
             field_type = _extract_from_field_name_heuristics(field_name)
             assert field_type == IpAddress, f"Should detect IpAddress for field: {field_name}"
 
-    def test_extract_mac_address_from_field_name_heuristics(self):
+    def test_extract_mac_address_from_field_name_heuristics(self) -> None:
         """Test MAC address field type detection from field names."""
         mac_field_names = [
             "macAddress",
@@ -48,7 +48,7 @@ class TestFieldTypeExtraction:
             field_type = _extract_from_field_name_heuristics(field_name)
             assert field_type == MacAddress, f"Should detect MacAddress for field: {field_name}"
 
-    def test_extract_no_type_for_generic_fields(self):
+    def test_extract_no_type_for_generic_fields(self) -> None:
         """Test that generic field names don't match network types."""
         generic_field_names = [
             "id",
@@ -63,7 +63,7 @@ class TestFieldTypeExtraction:
             field_type = _extract_from_field_name_heuristics(field_name)
             assert field_type is None, f"Should not detect network type for: {field_name}"
 
-    def test_camel_to_snake_conversion(self):
+    def test_camel_to_snake_conversion(self) -> None:
         """Test camelCase to snake_case conversion."""
         test_cases = [
             ("ipAddress", "ip_address"),
@@ -78,7 +78,7 @@ class TestFieldTypeExtraction:
             result = _camel_to_snake(camel_case)
             assert result == expected_snake_case, f"Expected {expected_snake_case}, got {result}"
 
-    def test_extract_field_type_from_graphql_info_mock(self):
+    def test_extract_field_type_from_graphql_info_mock(self) -> None:
         """Test field type extraction with mock GraphQL info."""
         # Mock GraphQL info
         mock_info = Mock()
@@ -95,7 +95,7 @@ class TestFieldTypeExtraction:
         field_type = extract_field_type_from_graphql_info(mock_info, "identifier")
         assert field_type is None
 
-    def test_enhance_type_hints_with_graphql_context(self):
+    def test_enhance_type_hints_with_graphql_context(self) -> None:
         """Test enhancement of type hints with GraphQL context."""
         # Initial type hints (incomplete)
         initial_hints = {
@@ -123,7 +123,7 @@ class TestFieldTypeExtraction:
         assert enhanced_hints["ipAddress"] == IpAddress
         assert enhanced_hints["macAddress"] == MacAddress
 
-    def test_enhance_type_hints_with_none_input(self):
+    def test_enhance_type_hints_with_none_input(self) -> None:
         """Test enhancement works with None type_hints."""
         # Mock GraphQL info
         mock_info = Mock()
@@ -139,7 +139,7 @@ class TestFieldTypeExtraction:
         assert enhanced_hints["ipAddress"] == IpAddress
         assert "identifier" not in enhanced_hints  # No type detected
 
-    def test_enhance_type_hints_overrides_generic_types(self):
+    def test_enhance_type_hints_overrides_generic_types(self) -> None:
         """Test that generic types are overridden with specific GraphQL-detected types."""
         # Initial type hints with generic types that should be overridden
         initial_hints = {
@@ -170,7 +170,7 @@ class TestFieldTypeExtraction:
 class TestNetworkFieldTypeIntegration:
     """Test integration of field type extraction with network operators."""
 
-    def test_field_extraction_supports_network_operator_selection(self):
+    def test_field_extraction_supports_network_operator_selection(self) -> None:
         """Test that extracted field types can be used for operator selection."""
         from fraiseql.sql.operator_strategies import get_operator_registry
 
@@ -192,10 +192,11 @@ class TestNetworkFieldTypeIntegration:
         strategy_with_type = registry.get_strategy("eq", field_type=field_type)
         assert strategy_with_type.__class__.__name__ == "NetworkOperatorStrategy"
 
-    def test_field_type_enables_proper_sql_casting(self):
+    def test_field_type_enables_proper_sql_casting(self) -> None:
         """Test that field type extraction enables proper SQL casting."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
         from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import get_operator_registry
 
         # Mock GraphQL info and extract field type
         mock_info = Mock()

@@ -18,7 +18,7 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 
 @pytest.mark.security
 @pytest.fixture(autouse=True)
-def clear_registry():
+def clear_registry() -> None:
     """Clear registry before each test to avoid type conflicts."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -35,7 +35,7 @@ def clear_registry():
 
 
 @asynccontextmanager
-async def noop_lifespan(app: FastAPI):
+async def noop_lifespan(app: FastAPI) -> None:
     """No-op lifespan for tests that don't need a database."""
     yield
 
@@ -59,7 +59,7 @@ async def data_query(info) -> DataType:
 class TestJSONPassthroughConfigFix:
     """Test that JSON passthrough is always enabled in production (v1 behavior)."""
 
-    def test_json_passthrough_always_enabled_in_production(self):
+    def test_json_passthrough_always_enabled_in_production(self) -> None:
         """Test that JSON passthrough is always enabled in production mode.
 
         Since v1, passthrough is always on for max performance. No config flags needed.
@@ -97,7 +97,7 @@ class TestJSONPassthroughConfigFix:
             assert "dataQuery" in data["data"]
             # Passthrough is always enabled - test passes if no errors
 
-    def test_production_mode_enables_passthrough(self):
+    def test_production_mode_enables_passthrough(self) -> None:
         """Test that production mode automatically enables passthrough."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
@@ -132,7 +132,7 @@ class TestJSONPassthroughConfigFix:
             test_data = data["data"]["dataQuery"]
             # Passthrough is enabled - fields should be transformed
 
-    def test_testing_mode_also_enables_passthrough(self):
+    def test_testing_mode_also_enables_passthrough(self) -> None:
         """Test that testing mode also enables passthrough (same as production)."""
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",

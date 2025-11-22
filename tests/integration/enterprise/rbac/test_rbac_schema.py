@@ -1,11 +1,12 @@
-import pytest
-from uuid import uuid4
 from pathlib import Path
+
+import pytest
+
 from fraiseql.db import DatabaseQuery
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool):
+async def setup_rbac_schema(db_pool) -> None:
     """Set up RBAC schema before running tests."""
     # Read the migration file
     migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
@@ -18,7 +19,7 @@ async def setup_rbac_schema(db_pool):
             await conn.commit()
 
 
-async def test_rbac_tables_exist(db_repo):
+async def test_rbac_tables_exist(db_repo) -> None:
     """Verify RBAC tables exist with correct schema."""
     tables = ["roles", "permissions", "role_permissions", "user_roles"]
 
@@ -38,7 +39,7 @@ async def test_rbac_tables_exist(db_repo):
         assert len(result) > 0, f"Table {table} should exist"
 
 
-async def test_roles_table_structure(db_repo):
+async def test_roles_table_structure(db_repo) -> None:
     """Verify roles table has correct structure."""
     columns = await db_repo.run(
         DatabaseQuery(
@@ -84,7 +85,7 @@ async def test_roles_table_structure(db_repo):
     assert "updated_at" in column_dict
 
 
-async def test_permissions_table_structure(db_repo):
+async def test_permissions_table_structure(db_repo) -> None:
     """Verify permissions table has correct structure."""
     columns = await db_repo.run(
         DatabaseQuery(
@@ -109,7 +110,7 @@ async def test_permissions_table_structure(db_repo):
     assert "created_at" in column_dict
 
 
-async def test_role_permissions_table_structure(db_repo):
+async def test_role_permissions_table_structure(db_repo) -> None:
     """Verify role_permissions table has correct structure."""
     columns = await db_repo.run(
         DatabaseQuery(
@@ -133,7 +134,7 @@ async def test_role_permissions_table_structure(db_repo):
     assert "created_at" in column_dict
 
 
-async def test_user_roles_table_structure(db_repo):
+async def test_user_roles_table_structure(db_repo) -> None:
     """Verify user_roles table has correct structure."""
     columns = await db_repo.run(
         DatabaseQuery(
@@ -159,7 +160,7 @@ async def test_user_roles_table_structure(db_repo):
     assert "expires_at" in column_dict
 
 
-async def test_get_inherited_roles_function_exists(db_repo):
+async def test_get_inherited_roles_function_exists(db_repo) -> None:
     """Verify get_inherited_roles function exists."""
     result = await db_repo.run(
         DatabaseQuery(
@@ -177,7 +178,7 @@ async def test_get_inherited_roles_function_exists(db_repo):
     assert len(result) == 1, "get_inherited_roles function should exist"
 
 
-async def test_seed_data_exists(db_repo):
+async def test_seed_data_exists(db_repo) -> None:
     """Verify seed data was inserted."""
     # Check system roles
     roles = await db_repo.run(
@@ -223,7 +224,7 @@ async def test_seed_data_exists(db_repo):
     assert "role.assign" in permission_strings
 
 
-async def test_role_hierarchy_function_works(db_repo):
+async def test_role_hierarchy_function_works(db_repo) -> None:
     """Test that the role hierarchy function works with seed data."""
     # Get the viewer role ID
     viewer_role = await db_repo.run(

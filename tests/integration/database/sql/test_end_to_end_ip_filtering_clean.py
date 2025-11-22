@@ -4,14 +4,13 @@ This test reproduces the exact production issue described in the IP filtering gu
 GraphQL queries with IP address equality should return results when data exists.
 """
 
-import pytest
 from fraiseql.sql.where import build_where_clause, detect_field_type
 
 
 class TestEndToEndIPFiltering:
     """Integration tests for complete IP filtering workflow."""
 
-    def test_graphql_ip_equality_reproduces_production_bug(self):
+    def test_graphql_ip_equality_reproduces_production_bug(self) -> None:
         """Should reproduce the exact production bug for IP equality filtering.
 
         This test simulates the GraphQL query:
@@ -40,7 +39,7 @@ class TestEndToEndIPFiltering:
         # Should NOT use the problematic host() function
         assert "host(" not in sql_str, "Should not use host() function that strips CIDR"
 
-    def test_ip_filtering_with_list_values(self):
+    def test_ip_filtering_with_list_values(self) -> None:
         """Should handle IP filtering with IN/NOT IN operators."""
         # Red cycle - this will fail initially
 
@@ -56,7 +55,7 @@ class TestEndToEndIPFiltering:
         assert "'10.0.0.1'::inet" in sql_str
         assert "'172.16.0.1'::inet" in sql_str
 
-    def test_network_specific_operators(self):
+    def test_network_specific_operators(self) -> None:
         """Should handle network-specific operators like inSubnet."""
         # Red cycle - this will fail initially
 
@@ -69,7 +68,7 @@ class TestEndToEndIPFiltering:
         assert "<<=" in sql_str
         assert "'192.168.1.0/24'::inet" in sql_str
 
-    def test_mixed_field_types_in_where_clause(self):
+    def test_mixed_field_types_in_where_clause(self) -> None:
         """Should handle mixed field types correctly in same where clause."""
         # Red cycle - this will fail initially
 
@@ -87,12 +86,12 @@ class TestEndToEndIPFiltering:
         assert "::inet = '192.168.1.1'::inet" in sql_str
 
         # String field should use LIKE
-        assert "data ->> 'name' LIKE '%%server%%'" in sql_str
+        assert "data ->> 'name' LIKE '%server%'" in sql_str
 
         # Integer field should use numeric casting
         assert "(data ->> 'port')::numeric = 80" in sql_str
 
-    def test_ipv6_filtering(self):
+    def test_ipv6_filtering(self) -> None:
         """Should handle IPv6 addresses correctly."""
         # Red cycle - this will fail initially
 
@@ -105,7 +104,7 @@ class TestEndToEndIPFiltering:
         assert "data ->> 'ipv6_address'" in sql_str
         assert "::inet = '2001:db8::1'::inet" in sql_str
 
-    def test_cidr_network_filtering(self):
+    def test_cidr_network_filtering(self) -> None:
         """Should handle CIDR network addresses correctly."""
         # Red cycle - this will fail initially
 
@@ -118,7 +117,7 @@ class TestEndToEndIPFiltering:
         assert "data ->> 'network'" in sql_str
         assert "::inet = '10.0.0.0/8'::inet" in sql_str
 
-    def test_field_name_conversion_snake_to_camel(self):
+    def test_field_name_conversion_snake_to_camel(self) -> None:
         """Should convert GraphQL camelCase field names to database snake_case."""
         # Red cycle - this will fail initially
 

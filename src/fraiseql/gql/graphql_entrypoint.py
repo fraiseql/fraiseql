@@ -4,12 +4,15 @@ import json
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from graphql import ExecutionResult, GraphQLSchema, graphql
+from graphql import GraphQLSchema
 from starlette.requests import Request
+from starlette.responses import Response
 from starlette.routing import Route, Router
 
+from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.gql.schema_builder import SchemaRegistry
+from fraiseql.graphql.execute import execute_graphql
 
 
 class GraphNoteRouter(Router):
@@ -73,7 +76,8 @@ class GraphNoteRouter(Router):
 
         context_value = self.context_getter(request)
 
-        result: ExecutionResult = await graphql(
+        # Use execute_graphql() instead of graphql() to support RustResponseBytes pass-through
+        result = await execute_graphql(
             self.schema,
             query,
             variable_values=variables,
@@ -81,6 +85,17 @@ class GraphNoteRouter(Router):
             context_value=context_value,
         )
 
+        # 🚀 RUST RESPONSE BYTES PASS-THROUGH:
+        # Check if execute_graphql() returned RustResponseBytes (zero-copy path)
+        # If so, return bytes directly without any Python serialization
+        if isinstance(result, RustResponseBytes):
+            return Response(
+                content=bytes(result),
+                media_type="application/json",
+                status_code=200,
+            )
+
+        # Normal ExecutionResult path (backwards compatible)
         response_data: dict[str, Any] = {}
 
         if result.errors:

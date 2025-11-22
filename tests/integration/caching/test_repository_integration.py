@@ -14,22 +14,22 @@ class TestCachedRepository:
     """Test caching integration with FraiseQLRepository."""
 
     @pytest.fixture
-    def mock_cache_backend(self):
+    def mock_cache_backend(self) -> None:
         """Create mock cache backend."""
         return AsyncMock()
 
     @pytest.fixture
-    def mock_pool(self):
+    def mock_pool(self) -> None:
         """Create mock database pool."""
         return MagicMock()
 
     @pytest.fixture
-    def cache_config(self):
+    def cache_config(self) -> None:
         """Create cache configuration."""
         return CacheConfig(enabled=True, default_ttl=300)
 
     @pytest.mark.asyncio
-    async def test_find_with_cache_hit(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_find_with_cache_hit(self, mock_cache_backend, mock_pool, cache_config) -> None:
         """Test find method with cache hit."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)
@@ -50,7 +50,7 @@ class TestCachedRepository:
         assert not mock_pool.connection.called
 
     @pytest.mark.asyncio
-    async def test_find_with_cache_miss(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_find_with_cache_miss(self, mock_cache_backend, mock_pool, cache_config) -> None:
         """Test find method with cache miss."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)
@@ -90,7 +90,7 @@ class TestCachedRepository:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_find_one_with_caching(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_find_one_with_caching(self, mock_cache_backend, mock_pool, cache_config) -> None:
         """Test find_one method with caching."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)
@@ -109,7 +109,9 @@ class TestCachedRepository:
         mock_cache_backend.get.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_mutation_invalidates_cache(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_mutation_invalidates_cache(
+        self, mock_cache_backend, mock_pool, cache_config
+    ) -> None:
         """Test that mutations invalidate related cache entries."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)
@@ -137,7 +139,7 @@ class TestCachedRepository:
         mock_cache_backend.delete_pattern.assert_called()
 
     @pytest.mark.asyncio
-    async def test_skip_cache_option(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_skip_cache_option(self, mock_cache_backend, mock_pool, cache_config) -> None:
         """Test skip_cache option bypasses cache."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)
@@ -166,7 +168,7 @@ class TestCachedRepository:
         mock_cache_backend.set.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_custom_ttl(self, mock_cache_backend, mock_pool, cache_config):
+    async def test_custom_ttl(self, mock_cache_backend, mock_pool, cache_config) -> None:
         """Test custom TTL for specific queries."""
         # Setup
         cache = ResultCache(backend=mock_cache_backend, config=cache_config)

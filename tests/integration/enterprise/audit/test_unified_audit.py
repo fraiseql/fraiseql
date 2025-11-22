@@ -1,7 +1,6 @@
 # tests/integration/enterprise/audit/test_unified_audit.py
 
-"""
-Test unified audit table with CDC + cryptographic chain.
+"""Test unified audit table with CDC + cryptographic chain.
 
 Demonstrates the simplified architecture:
 - One table: audit_events (not two separate tables)
@@ -10,14 +9,15 @@ Demonstrates the simplified architecture:
 - Direct integration with log_and_return_mutation()
 """
 
-import pytest
 from pathlib import Path
 from uuid import uuid4
+
 import psycopg.types.json
+import pytest
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_unified_audit(db_pool):
+async def setup_unified_audit(db_pool) -> None:
     """Set up unified audit table."""
     async with db_pool.connection() as conn:
         async with conn.cursor() as cur:
@@ -39,7 +39,7 @@ async def setup_unified_audit(db_pool):
             await conn.commit()
 
 
-async def test_unified_table_has_all_features(db_repo):
+async def test_unified_table_has_all_features(db_repo) -> None:
     """Verify unified table has both CDC and crypto features."""
     from fraiseql.db import DatabaseQuery
 
@@ -115,7 +115,7 @@ async def test_unified_table_has_all_features(db_repo):
     # ✅ All in ONE row, ONE table
 
 
-async def test_log_and_return_mutation_function(db_repo):
+async def test_log_and_return_mutation_function(db_repo) -> None:
     """Test the simplified log_and_return_mutation() function."""
     from fraiseql.db import DatabaseQuery
 
@@ -179,7 +179,7 @@ async def test_log_and_return_mutation_function(db_repo):
     assert event["signature"] is not None
 
 
-async def test_cryptographic_chain_with_cdc_data(db_repo):
+async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
     """Verify crypto chain works with full CDC data."""
     from fraiseql.db import DatabaseQuery
 
@@ -281,7 +281,7 @@ async def test_cryptographic_chain_with_cdc_data(db_repo):
     assert "status" in update_event["changed_fields"]
 
 
-async def test_verify_chain_function(db_repo):
+async def test_verify_chain_function(db_repo) -> None:
     """Test PostgreSQL chain verification function."""
     from fraiseql.db import DatabaseQuery
 
@@ -327,7 +327,7 @@ async def test_verify_chain_function(db_repo):
         assert v["expected_hash"] == v["actual_hash"]
 
 
-async def test_noop_operations(db_repo):
+async def test_noop_operations(db_repo) -> None:
     """Test NOOP operations (duplicate detection, validation failures)."""
     from fraiseql.db import DatabaseQuery
 

@@ -56,7 +56,7 @@ class DnsServer:
 class TestConnectionJSONBIntegration:
     """Integration tests for @connection decorator JSONB scenarios."""
 
-    def test_global_jsonb_config_setup(self):
+    def test_global_jsonb_config_setup(self) -> None:
         """✅ Test that global JSONB configuration is properly set up.
 
         v0.11.0: JSONB extraction is always enabled with Rust transformation.
@@ -72,7 +72,7 @@ class TestConnectionJSONBIntegration:
         # v0.11.0: JSONB extraction always enabled, Rust handles all transformation
         assert config.jsonb_field_limit_threshold == 20
 
-    def test_connection_decorator_with_global_jsonb_inheritance(self):
+    def test_connection_decorator_with_global_jsonb_inheritance(self) -> None:
         """🎯 Test connection decorator with global JSONB inheritance.
 
         v0.11.0: JSONB extraction is always enabled with Rust transformation.
@@ -147,7 +147,7 @@ class TestConnectionJSONBIntegration:
         assert config_meta["jsonb_column"] is None  # Will inherit at runtime
         assert config_meta["supports_global_jsonb"] is True  # ✅ KEY FIX!
 
-    async def test_connection_runtime_jsonb_resolution(self):
+    async def test_connection_runtime_jsonb_resolution(self) -> None:
         """🎯 Test runtime JSONB configuration resolution.
 
         v0.11.0: JSONB extraction is always enabled with Rust transformation.
@@ -184,7 +184,7 @@ class TestConnectionJSONBIntegration:
         mock_db.paginate.assert_called_once()
         # v0.11.0: JSONB extraction is always enabled, no config parameters needed
 
-    def test_explicit_jsonb_params_override_global(self):
+    def test_explicit_jsonb_params_override_global(self) -> None:
         """🔧 Test that explicit parameters still work with connection decorator.
 
         v0.11.0: JSONB extraction is always enabled, but explicit column params still work.
@@ -209,7 +209,7 @@ class TestConnectionJSONBIntegration:
         assert config_meta["jsonb_column"] == "custom_json"
         assert config_meta["supports_global_jsonb"] is True
 
-    def test_enterprise_success_scenario(self):
+    def test_enterprise_success_scenario(self) -> None:
         """🎉 SUCCESS: Test the complete enterprise JSONB solution.
 
         v0.11.0: Connection + JSONB works seamlessly with Rust transformation.

@@ -92,6 +92,15 @@ class UnifiedExecutor:
             # Use NORMAL mode for tracking (since we're unified)
             self._track_execution(ExecutionMode.NORMAL, execution_time)
 
+            # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
+            # Check if execution returned RustResponseBytes directly (zero-copy path)
+            # This happens when resolvers return JSONB entities via Rust pipeline
+            from fraiseql.core.rust_pipeline import RustResponseBytes
+
+            if isinstance(execution_result, RustResponseBytes):
+                # Return RustResponseBytes directly - it will be handled by the router
+                return execution_result
+
             # Convert ExecutionResult to dict
             result = {}
             if execution_result.data is not None:

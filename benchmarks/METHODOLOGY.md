@@ -126,7 +126,7 @@ SELECT
     updated_at
 FROM tb_user;
 
--- Transform table for performance
+-- Table view for performance
 CREATE TABLE tv_user (
     id BIGINT PRIMARY KEY,
     data JSONB GENERATED ALWAYS AS (

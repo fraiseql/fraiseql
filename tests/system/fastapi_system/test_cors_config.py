@@ -121,7 +121,7 @@ class TestCORSIntegration:
     """Test CORS integration with FastAPI app."""
 
     @pytest.fixture
-    def mock_db_pool(self):
+    def mock_db_pool(self) -> None:
         """Mock database pool for testing."""
         pool = MagicMock()
         pool.open = MagicMock(return_value=None)

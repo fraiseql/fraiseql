@@ -5,7 +5,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
 class TestQueryDescriptions:
-    def test_query_uses_docstring_as_description(self):
+    def test_query_uses_docstring_as_description(self) -> None:
         @fraiseql.query
         async def get_user_profile(info, user_id: int) -> str:
             """Retrieve the user's profile information and settings."""
@@ -25,7 +25,7 @@ class TestQueryDescriptions:
             == "Retrieve the user's profile information and settings."
         )
 
-    def test_query_without_docstring_has_no_description(self):
+    def test_query_without_docstring_has_no_description(self) -> None:
         @fraiseql.query
         async def get_data(info) -> str:
             return "test data"
@@ -41,11 +41,10 @@ class TestQueryDescriptions:
         assert data_field is not None
         assert data_field.description is None
 
-    def test_query_multiline_docstring_is_cleaned(self):
+    def test_query_multiline_docstring_is_cleaned(self) -> None:
         @fraiseql.query
         async def search_products(info, query: str) -> str:
-            """
-            Search for products in the catalog.
+            """Search for products in the catalog.
 
             Performs a full-text search across product names,
             descriptions, and categories.
@@ -64,7 +63,7 @@ class TestQueryDescriptions:
         expected_description = "Search for products in the catalog.\n\nPerforms a full-text search across product names,\ndescriptions, and categories."
         assert search_field.description == expected_description
 
-    def test_query_description_preserved_with_existing_functionality(self):
+    def test_query_description_preserved_with_existing_functionality(self) -> None:
         @fraiseql.type(sql_source="users")
         class User:
             """A user in the system."""
@@ -94,7 +93,7 @@ class TestQueryDescriptions:
 
 
 class TestMutationDescriptions:
-    def test_mutation_uses_docstring_as_description(self):
+    def test_mutation_uses_docstring_as_description(self) -> None:
         @fraiseql.input
         class CreateUserInput:
             name: str
@@ -116,7 +115,7 @@ class TestMutationDescriptions:
             success: CreateUserSuccess
             failure: CreateUserError
 
-            async def resolve(self, info):
+            async def resolve(self, info) -> None:
                 return CreateUserSuccess(message="User created")
 
         @fraiseql.query
@@ -134,7 +133,7 @@ class TestMutationDescriptions:
         assert create_user_field is not None
         assert create_user_field.description == "Create a new user account with validation."
 
-    def test_mutation_without_docstring_has_no_description(self):
+    def test_mutation_without_docstring_has_no_description(self) -> None:
         @fraiseql.input
         class UpdateDataInput:
             value: str
@@ -153,7 +152,7 @@ class TestMutationDescriptions:
             success: UpdateDataSuccess
             failure: UpdateDataError
 
-            async def resolve(self, info):
+            async def resolve(self, info) -> None:
                 return UpdateDataSuccess(message="Data updated")
 
         @fraiseql.query
@@ -171,7 +170,7 @@ class TestMutationDescriptions:
         assert update_field is not None
         assert update_field.description is None
 
-    def test_mutation_multiline_docstring_is_cleaned(self):
+    def test_mutation_multiline_docstring_is_cleaned(self) -> None:
         @fraiseql.input
         class ProcessOrderInput:
             order_id: int
@@ -186,8 +185,7 @@ class TestMutationDescriptions:
 
         @fraiseql.mutation
         class ProcessOrder:
-            """
-            Process a customer order through the fulfillment pipeline.
+            """Process a customer order through the fulfillment pipeline.
 
             Validates inventory, calculates shipping costs,
             and initiates payment processing.
@@ -197,7 +195,7 @@ class TestMutationDescriptions:
             success: ProcessOrderSuccess
             failure: ProcessOrderError
 
-            async def resolve(self, info):
+            async def resolve(self, info) -> None:
                 return ProcessOrderSuccess(message="Order processed")
 
         @fraiseql.query

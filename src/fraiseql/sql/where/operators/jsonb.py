@@ -1,6 +1,6 @@
 """PostgreSQL JSONB operators for FraiseQL WHERE filtering."""
 
-from typing import Optional
+from typing import Any, Optional
 
 from psycopg.sql import SQL, Composed, Literal
 from pydantic import BaseModel
@@ -49,7 +49,7 @@ def build_has_all_keys_sql(field_sql: SQL | Composed, value: list[str]) -> Compo
     return Composed([field_sql, SQL(" ?& "), Literal(array_literal)])
 
 
-def build_contains_sql(field_sql: SQL | Composed, value: dict | list) -> Composed:
+def build_contains_sql(field_sql: SQL | Composed, value: Any) -> Composed:
     """Build SQL for JSONB containment using @> operator.
 
     Args:
@@ -65,7 +65,7 @@ def build_contains_sql(field_sql: SQL | Composed, value: dict | list) -> Compose
     return Composed([field_sql, SQL(" @> "), Literal(json_str), SQL("::jsonb")])
 
 
-def build_contained_by_sql(field_sql: SQL | Composed, value: dict | list) -> Composed:
+def build_contained_by_sql(field_sql: SQL | Composed, value: Any) -> Composed:
     """Build SQL for JSONB contained by using <@ operator.
 
     Args:
@@ -137,7 +137,7 @@ def build_get_path_text_sql(field_sql: SQL | Composed, value: list[str]) -> Comp
     return Composed([field_sql, SQL(" #>> "), Literal(array_literal)])
 
 
-def build_strictly_contains_sql(field_sql: SQL | Composed, value: dict | list) -> Composed:
+def build_strictly_contains_sql(field_sql: SQL | Composed, value: Any) -> Composed:
     """Build SQL for JSONB strictly contains (contains but not equal).
 
     This checks if the JSONB field contains the value but is not equal to it.
@@ -179,11 +179,11 @@ class JSONBFilter(BaseModel):
     """
 
     # Basic comparison operators
-    eq: Optional[dict | list] = None
-    """Exact equality comparison."""
+    eq: Optional[Any] = None
+    """Exact equality comparison (accepts dict or list)."""
 
-    neq: Optional[dict | list] = None
-    """Not equal comparison."""
+    neq: Optional[Any] = None
+    """Not equal comparison (accepts dict or list)."""
 
     isnull: Optional[bool] = None
     """Check if field is null."""
@@ -199,11 +199,11 @@ class JSONBFilter(BaseModel):
     """Check if JSONB contains all of the specified keys (?& operator)."""
 
     # Containment operators
-    contains: Optional[dict | list] = None
-    """Check if JSONB contains the specified value (@> operator)."""
+    contains: Optional[Any] = None
+    """Check if JSONB contains the specified value (@> operator, accepts dict or list)."""
 
-    contained_by: Optional[dict | list] = None
-    """Check if JSONB is contained by the specified value (<@ operator)."""
+    contained_by: Optional[Any] = None
+    """Check if JSONB is contained by the specified value (<@ operator, accepts dict or list)."""
 
     # JSONPath operators
     path_exists: Optional[str] = None

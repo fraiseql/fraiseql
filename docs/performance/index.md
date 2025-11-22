@@ -25,10 +25,21 @@ from fraiseql_rs import build_graphql_response, transform_json
 result = transform_json(data, transform_func)
 ```
 
+**Performance Benchmarks** (fraiseql_rs v0.2.0):
+
+| Test Case | Data Size | Python Time | Rust Time | Speedup |
+|-----------|-----------|-------------|-----------|---------|
+| Simple (10 fields) | 0.23 KB | 0.055 ms | 0.006 ms | **9.1x** |
+| Medium (42 fields) | 1.07 KB | 0.122 ms | 0.016 ms | **7.7x** |
+| Nested (User + 15 posts) | 7.39 KB | 0.915 ms | 0.094 ms | **9.7x** |
+| Large (100 fields, deep) | 32.51 KB | 2.157 ms | 0.453 ms | **4.8x** |
+
 **Benefits**:
-- 10-100x faster JSON processing vs pure Python
+- **7-10x faster JSON processing** vs pure Python (measured benchmarks)
+- **2-4x faster end-to-end queries** including database time
 - Zero-copy transformations where possible
 - Efficient camelCase conversion
+- Negligible transformation overhead (< 0.1ms for most queries)
 
 ### 2. PostgreSQL View Optimization
 
@@ -77,14 +88,27 @@ config = ComplexityConfig(
 
 ## Performance Benchmarks
 
-See `benchmarks/` directory for detailed performance tests.
+**Latest Results** (2025-10-17, fraiseql v0.11.5 with fraiseql_rs v0.2.0):
 
-### Typical Performance
+### Transformation Performance
+- **Rust vs Python**: 7-10x faster JSON transformation
+- **End-to-end queries**: 2-4x faster including database time
+- **Transformation overhead**: < 0.1ms (negligible)
 
-- **Simple Query**: < 5ms
-- **Complex Query with Joins**: < 50ms
+### Typical Query Performance
+- **Simple Query**: < 1ms (with Rust pipeline)
+- **Complex Query with Joins**: < 5ms
+- **Nested relationships**: < 10ms (pre-composed in views)
 - **Mutation**: < 10ms
 - **Bulk Operations**: ~1ms per record
+
+### APQ + TurboRouter Performance Stack
+- **Base GraphQL**: 100ms average response
+- **+ APQ**: 20-80ms faster (eliminates parsing)
+- **+ TurboRouter**: Additional 2-3x speedup (bypasses GraphQL entirely)
+- **Total**: Up to 6-9x faster for registered queries
+
+See `benchmarks/BENCHMARK_RESULTS.md` for detailed performance tests and reproducibility instructions.
 
 ## Optimization Tips
 

@@ -6,7 +6,6 @@ This module tests the complete MAC address filtering pipeline:
 2. Real database execution to verify MAC address filtering works correctly
 """
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.where import build_where_clause, detect_field_type, get_operator_function
@@ -16,7 +15,7 @@ from fraiseql.sql.where.core.field_detection import FieldType
 class TestEndToEndMACAddressFiltering:
     """Test complete MAC address filtering pipeline with real database operations."""
 
-    def test_graphql_mac_address_equality_filtering(self):
+    def test_graphql_mac_address_equality_filtering(self) -> None:
         """Test MAC address equality filtering reproduces expected behavior."""
         # Simulate GraphQL WHERE input for MAC address filtering
         graphql_where = {"macAddress": {"eq": "00:11:22:33:44:55"}}
@@ -38,7 +37,7 @@ class TestEndToEndMACAddressFiltering:
         for pattern in expected_patterns:
             assert pattern in sql_string, f"Expected pattern '{pattern}' not found in: {sql_string}"
 
-    def test_mac_address_filtering_with_list_values(self):
+    def test_mac_address_filtering_with_list_values(self) -> None:
         """Test MAC address filtering with IN and NOT IN operations."""
         mac_list = ["00:11:22:33:44:55", "aa:bb:cc:dd:ee:ff", "ff:ee:dd:cc:bb:aa"]
 
@@ -53,7 +52,7 @@ class TestEndToEndMACAddressFiltering:
         for mac in mac_list:
             assert f"'{mac}'::macaddr" in sql_in
 
-    def test_field_name_conversion_snake_to_camel_mac(self):
+    def test_field_name_conversion_snake_to_camel_mac(self) -> None:
         """Test that field names are correctly converted from camelCase to snake_case."""
         graphql_where = {"deviceMacAddress": {"neq": "00:11:22:33:44:55"}}  # camelCase
 
@@ -64,7 +63,7 @@ class TestEndToEndMACAddressFiltering:
         assert "device_mac_address" in sql_string
         assert "::macaddr" in sql_string
 
-    def test_field_detection_recognizes_mac_addresses(self):
+    def test_field_detection_recognizes_mac_addresses(self) -> None:
         """Test that field detection correctly identifies MAC address fields."""
         # Test field name detection
         mac_field_names = [
@@ -86,7 +85,7 @@ class TestEndToEndMACAddressFiltering:
                 f"Field '{field_name}' should be detected as MAC_ADDRESS"
             )
 
-    def test_field_detection_recognizes_mac_values(self):
+    def test_field_detection_recognizes_mac_values(self) -> None:
         """Test that field detection recognizes MAC address values."""
         mac_values = [
             "00:11:22:33:44:55",  # Colon separated
@@ -103,7 +102,7 @@ class TestEndToEndMACAddressFiltering:
                 f"Value '{mac_value}' should be detected as MAC_ADDRESS"
             )
 
-    def test_operator_function_selection_for_mac_addresses(self):
+    def test_operator_function_selection_for_mac_addresses(self) -> None:
         """Test that correct operator functions are selected for MAC address fields."""
         mac_operators = ["eq", "neq", "in", "notin"]
 
@@ -122,7 +121,7 @@ class TestEndToEndMACAddressFiltering:
                 f"MAC operator {operator} should use ::macaddr casting"
             )
 
-    def test_mac_address_different_formats_normalized(self):
+    def test_mac_address_different_formats_normalized(self) -> None:
         """Test that different MAC address formats are handled properly."""
         formats = [
             "00:11:22:33:44:55",  # Colon format
@@ -140,7 +139,7 @@ class TestEndToEndMACAddressFiltering:
             assert "::macaddr = " in sql_string
             assert mac_format in sql_string
 
-    def test_mixed_field_types_in_where_clause_with_mac(self):
+    def test_mixed_field_types_in_where_clause_with_mac(self) -> None:
         """Test WHERE clause with both MAC address and other field types."""
         graphql_where = {
             "macAddress": {"eq": "00:11:22:33:44:55"},

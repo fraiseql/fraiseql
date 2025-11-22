@@ -39,7 +39,7 @@ class CreateLocationInput:
 class TestNestedInputConversion:
     """Test nested input field name conversion."""
 
-    def test_direct_input_shows_current_behavior(self):
+    def test_direct_input_shows_current_behavior(self) -> None:
         """Show what happens with direct input serialization."""
         # Create direct input object
         direct_input = CreatePublicAddressInput(
@@ -52,7 +52,7 @@ class TestNestedInputConversion:
         # This shows us what the current behavior produces
         assert isinstance(serialized, dict)
 
-    def test_nested_input_serialization_current_behavior(self):
+    def test_nested_input_serialization_current_behavior(self) -> None:
         """🔴 RED: Show the inconsistent behavior with nested inputs."""
         # Create nested input object
         nested_address = CreateNestedPublicAddressInput(
@@ -74,7 +74,7 @@ class TestNestedInputConversion:
         assert isinstance(nested_json, dict)
         assert len(nested_json) > 0
 
-    def test_field_conversion_utility_function_works(self):
+    def test_field_conversion_utility_function_works(self) -> None:
         """Helper test to verify our field conversion logic works correctly."""
         # Test the conversion utility
         assert to_snake_case("streetNumber") == "street_number"
@@ -87,7 +87,7 @@ class TestNestedInputConversion:
         assert to_snake_case("street_name") == "street_name"
         assert to_snake_case("postal_code") == "postal_code"
 
-    def test_serialize_value_with_camelcase_keys_shows_issue(self):
+    def test_serialize_value_with_camelcase_keys_shows_issue(self) -> None:
         """🔴 RED: Test that demonstrates the core issue with field name conversion."""
         # Simulate what would happen if GraphQL sent camelCase field names
         # in a nested object structure (this is the reported issue)
@@ -115,7 +115,7 @@ class TestNestedInputConversion:
         assert "streetName" not in serialized, "Should not preserve camelCase"
         assert "postalCode" not in serialized, "Should not preserve camelCase"
 
-    def test_recursive_camelcase_conversion_in_nested_dicts(self):
+    def test_recursive_camelcase_conversion_in_nested_dicts(self) -> None:
         """Test that field conversion works recursively in deeply nested dictionaries."""
         nested_dict = {
             "topLevel": {
@@ -157,7 +157,7 @@ class TestNestedInputConversion:
         assert "veryDeepField" not in very_deep
         assert "anotherField" not in very_deep
 
-    def test_mixed_camelcase_and_snake_case_conversion(self):
+    def test_mixed_camelcase_and_snake_case_conversion(self) -> None:
         """Test that mixed camelCase and snake_case keys both work correctly."""
         mixed_dict = {
             "camelCaseField": "camel_value",

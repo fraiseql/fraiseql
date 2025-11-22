@@ -78,7 +78,7 @@ class CircularModelB:
 class TestDeeplyNestedPartialInstantiation:
     """Test partial instantiation with deeply nested objects (>3 levels)."""
 
-    def test_deeply_nested_full_instantiation(self):
+    def test_deeply_nested_full_instantiation(self) -> None:
         """Test creating deeply nested instances with all fields."""
         data = {
             "id": UUID("00000000-0000-0000-0000-000000000001"),
@@ -122,7 +122,7 @@ class TestDeeplyNestedPartialInstantiation:
         assert is_partial_instance(instance.level2.level3)
         assert is_partial_instance(instance.level2.level3.level4)
 
-    def test_deeply_nested_partial_fields(self):
+    def test_deeply_nested_partial_fields(self) -> None:
         """Test deeply nested objects with missing fields at various levels."""
         data = {
             "id": UUID("00000000-0000-0000-0000-000000000001"),
@@ -167,7 +167,7 @@ class TestDeeplyNestedPartialInstantiation:
         assert instance.level2_list is None
         assert get_available_fields(instance) == {"id", "name", "level2"}
 
-    def test_deeply_nested_with_lists(self):
+    def test_deeply_nested_with_lists(self) -> None:
         """Test deeply nested objects with lists at various levels."""
         data = {
             "id": UUID("00000000-0000-0000-0000-000000000001"),
@@ -241,7 +241,7 @@ class TestDeeplyNestedPartialInstantiation:
 class TestCircularReferencePartialInstantiation:
     """Test partial instantiation with circular references."""
 
-    def test_simple_circular_reference(self):
+    def test_simple_circular_reference(self) -> None:
         """Test basic circular reference handling."""
         # Create A -> B -> A circular reference
         a_id = UUID("00000000-0000-0000-0000-000000000001")
@@ -270,7 +270,7 @@ class TestCircularReferencePartialInstantiation:
         assert a_instance.b_ref.a_ref.id == a_id
         assert a_instance.b_ref.a_ref.b_ref.id == b_id  # Full circle
 
-    def test_circular_reference_with_partial_fields(self):
+    def test_circular_reference_with_partial_fields(self) -> None:
         """Test circular references when objects have partial fields."""
         # A -> B -> A, but with missing fields
         a_data = {
@@ -300,7 +300,7 @@ class TestCircularReferencePartialInstantiation:
         assert a_instance.b_ref.a_ref.name == "Circular A"
         assert a_instance.b_ref.a_ref.b_ref is None  # Breaks the infinite loop
 
-    def test_circular_reference_in_lists(self):
+    def test_circular_reference_in_lists(self) -> None:
         """Test circular references within list structures."""
         # A has list of B, each B references back to A
         a_id = UUID("00000000-0000-0000-0000-000000000001")
@@ -340,7 +340,7 @@ class TestCircularReferencePartialInstantiation:
 class TestMixedPartialFullObjects:
     """Test scenarios with mixed partial and full objects in lists."""
 
-    def test_mixed_partial_full_in_list(self):
+    def test_mixed_partial_full_in_list(self) -> None:
         """Test list containing both partial and full objects."""
 
         @dataclasses.dataclass
@@ -418,7 +418,7 @@ class TestMixedPartialFullObjects:
 class TestErrorHandlingInPartialInstantiation:
     """Test error handling when instantiation fails."""
 
-    def test_invalid_type_conversion(self):
+    def test_invalid_type_conversion(self) -> None:
         """Test handling of invalid type conversions during instantiation."""
 
         @dataclasses.dataclass
@@ -444,11 +444,11 @@ class TestErrorHandlingInPartialInstantiation:
         # The actual behavior depends on implementation
         # but it should not raise an exception
 
-    def test_missing_required_init_params(self):
+    def test_missing_required_init_params(self) -> None:
         """Test handling of regular classes with required __init__ parameters."""
 
         class CustomClass:
-            def __init__(self, id: int, name: str, value: float):
+            def __init__(self, id: int, name: str, value: float) -> None:
                 self.id = id
                 self.name = name
                 self.value = value
@@ -470,7 +470,7 @@ class TestErrorHandlingInPartialInstantiation:
         # Should handle missing parameter gracefully
         assert not hasattr(instance, "computed") or instance.computed is None
 
-    def test_property_and_method_handling(self):
+    def test_property_and_method_handling(self) -> None:
         """Test partial instantiation with properties and methods."""
 
         @dataclasses.dataclass
@@ -506,7 +506,7 @@ class TestErrorHandlingInPartialInstantiation:
             # Implementation might not support properties/methods
             pass
 
-    def test_extremely_deep_nesting_limit(self):
+    def test_extremely_deep_nesting_limit(self) -> None:
         """Test behavior with extremely deep nesting to check for stack overflow."""
 
         @dataclasses.dataclass
@@ -528,7 +528,7 @@ class TestErrorHandlingInPartialInstantiation:
         # For this test, we just verify it doesn't crash
         assert instance.id == 0
 
-    def test_instantiation_with_none_values(self):
+    def test_instantiation_with_none_values(self) -> None:
         """Test that None values are handled correctly."""
 
         @dataclasses.dataclass
@@ -561,7 +561,7 @@ class TestErrorHandlingInPartialInstantiation:
 class TestEdgeCaseScenarios:
     """Test various edge case scenarios."""
 
-    def test_empty_data_dict(self):
+    def test_empty_data_dict(self) -> None:
         """Test partial instantiation with empty data."""
 
         @dataclasses.dataclass
@@ -576,7 +576,7 @@ class TestEdgeCaseScenarios:
         assert instance.name is None
         assert get_available_fields(instance) == set()
 
-    def test_dataclass_with_default_factory(self):
+    def test_dataclass_with_default_factory(self) -> None:
         """Test partial instantiation with default factory fields."""
 
         @dataclasses.dataclass
@@ -593,7 +593,7 @@ class TestEdgeCaseScenarios:
         assert instance.items is None or instance.items == []
         assert instance.metadata is None or instance.metadata == {}
 
-    def test_inheritance_chain(self):
+    def test_inheritance_chain(self) -> None:
         """Test partial instantiation with inheritance."""
 
         @dataclasses.dataclass

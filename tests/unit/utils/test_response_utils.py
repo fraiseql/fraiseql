@@ -56,13 +56,11 @@ def extract_graphql_data(
         if isinstance(field_data, dict):
             # Single object - wrap in list for consistency with GraphQL expectations
             return [field_data]
-        elif isinstance(field_data, list):
+        if isinstance(field_data, list):
             # Already an array
             return field_data
-        else:
-            # Other types (null, etc.)
-            return field_data
-    elif isinstance(result, dict):
+        # Other types (null, etc.)
+        return field_data
+    if isinstance(result, dict):
         return result.get("data", {}).get(field_name, result)
-    else:
-        return result
+    return result
