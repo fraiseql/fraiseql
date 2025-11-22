@@ -76,7 +76,7 @@ FraiseQL provides flexible filtering with two syntaxes:
 - [Authentication](advanced/authentication.md)
 - [Multi-Tenancy](advanced/multi-tenancy.md)
 - [Database Patterns](advanced/database-patterns.md)
-- [LLM Integration](advanced/llm-integration.md)
+- [AI-Native Architecture](features/ai-native.md)
 
 ## Performance
 

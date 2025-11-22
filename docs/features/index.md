@@ -163,7 +163,7 @@ Complete overview of all FraiseQL capabilities.
 | **Vector Similarity Search** | ✅ Stable | [pgvector Guide](pgvector.md#distance-operators) | [vector_search](../../examples/vector_search/) |
 | **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [graphql-cascade](../../examples/graphql-cascade/) |
 | **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration.md) | [Documentation](../guides/langchain-integration.md) |
-| **LLM Integration** | ✅ Stable | [LLM Guide](../advanced/llm-integration.md) | [Documentation](../advanced/llm-integration.md) |
+| **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native.md) | [Documentation](ai-native.md) |
 
 ### Vector Distance Operators
 
