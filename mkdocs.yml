@@ -46,10 +46,10 @@ plugins:
   - search:
       separator: '[\s\-\.]+'
   - tags                                    # Simplified - no tags_file needed
-  # - redirects:  # Enable in Phase 2 when filtering.md is created
-  #     redirect_maps:
-  #       'examples/dict-based-nested-filtering.md': 'guides/filtering.md'
-  #       'guides/nested-array-filtering.md': 'guides/filtering.md'
+  - redirects:
+      redirect_maps:
+        'examples/dict-based-nested-filtering.md': 'guides/filtering.md'
+        'guides/nested-array-filtering.md': 'guides/filtering.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -111,7 +111,7 @@ nav:
     - Concepts Glossary: core/concepts-glossary.md
 
   - Guides:
-    # - Filtering (Complete Guide): guides/filtering.md    # Phase 2: Add when created
+    - Filtering (Complete Guide): guides/filtering.md
     - Understanding FraiseQL: guides/understanding-fraiseql.md
     - Cascade Best Practices: guides/cascade-best-practices.md  # ADD: existing file
     - Performance Guide: guides/performance-guide.md
