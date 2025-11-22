@@ -1,6 +1,6 @@
 site_name: FraiseQL Documentation
-site_url: https://fraiseql.dev/docs
-site_description: Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry
+site_url: https://fraiseql.readthedocs.io
+site_description: "PostgreSQL-Native GraphQL Framework for Python"
 site_author: Lionel Hamayon
 
 repo_name: fraiseql/fraiseql
@@ -11,34 +11,45 @@ theme:
   name: material
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
     - navigation.indexes
     - navigation.top
+    - navigation.footer
     - search.suggest
     - search.highlight
+    - search.share
     - content.tabs.link
     - content.code.annotation
     - content.code.copy
+    - content.action.edit
     - toc.follow
   language: en
   palette:
     - scheme: default
+      primary: deep purple
+      accent: amber
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-      primary: indigo
-      accent: indigo
     - scheme: slate
+      primary: deep purple
+      accent: amber
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-      primary: indigo
-      accent: indigo
+  icon:
+    repo: fontawesome/brands/github
 
 plugins:
-  - search
-  - tags
+  - search:
+      separator: '[\s\-\.]+'
+  - tags                                    # Simplified - no tags_file needed
+  # - redirects:  # Enable in Phase 2 when filtering.md is created
+  #     redirect_maps:
+  #       'examples/dict-based-nested-filtering.md': 'guides/filtering.md'
+  #       'guides/nested-array-filtering.md': 'guides/filtering.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -72,22 +83,40 @@ markdown_extensions:
 
 nav:
   - Home: README.md
-  - Quickstart: quickstart.md
+
+  - Getting Started:
+    - getting-started/README.md
+    - 5-Minute Quickstart: getting-started/quickstart.md
+    - First Hour Guide: getting-started/first-hour.md
+    - Installation: getting-started/installation.md
 
   - Tutorials:
-    - Beginner Learning Path: tutorials/beginner-path.md
+    - tutorials/beginner-path.md
     - Blog API Tutorial: tutorials/blog-api.md
     - Production Deployment: tutorials/production-deployment.md
 
+  - Features:                          # NEW: Prominent v1.5.0 features
+    - Feature Matrix: features/index.md
+    - pgvector (Vector Search): features/pgvector.md
+    - GraphQL Cascade: features/graphql-cascade.md
+    - LangChain Integration: guides/langchain-integration.md
+    - LLM Integration: advanced/llm-integration.md
+
   - Core Concepts:
-    - FraiseQL Philosophy: core/fraiseql-philosophy.md
+    - Philosophy: core/fraiseql-philosophy.md
     - Types & Schema: core/types-and-schema.md
     - Queries & Mutations: core/queries-and-mutations.md
     - Database API: core/database-api.md
     - Configuration: core/configuration.md
+    - Concepts Glossary: core/concepts-glossary.md
 
-  - Performance:
-    - Optimization Stack: performance/index.md
+  - Guides:
+    # - Filtering (Complete Guide): guides/filtering.md    # Phase 2: Add when created
+    - Understanding FraiseQL: guides/understanding-fraiseql.md
+    - Cascade Best Practices: guides/cascade-best-practices.md  # ADD: existing file
+    - Performance Guide: guides/performance-guide.md
+    - Troubleshooting: guides/troubleshooting.md
+    - Troubleshooting Decision Tree: guides/troubleshooting-decision-tree.md
 
   - Advanced:
     - Authentication: advanced/authentication.md
@@ -95,17 +124,38 @@ nav:
     - Bounded Contexts: advanced/bounded-contexts.md
     - Event Sourcing: advanced/event-sourcing.md
     - Database Patterns: advanced/database-patterns.md
-    - LLM Integration: advanced/llm-integration.md
+    - Advanced Patterns: advanced/advanced-patterns.md
+
+  - Performance:
+    - Overview: performance/index.md
+    - Rust Pipeline: performance/rust-pipeline-optimization.md
+    - APQ Optimization: performance/apq-optimization-guide.md
+    - Caching: performance/caching.md
+    - CASCADE Performance: performance/cascade-invalidation.md  # ADD: existing file (kept separate)
 
   - Production:
     - Deployment: production/deployment.md
     - Monitoring: production/monitoring.md
+    - Observability: production/observability.md
+    - Health Checks: production/health-checks.md
     - Security: production/security.md
 
-  - API Reference:
-    - Database API: api-reference/database.md
-    - Configuration: reference/config.md
-    - CLI Reference: reference/cli.md
+  - Reference:
+    - API Reference:
+      - Database API: reference/database.md
+      - Decorators: reference/decorators.md
+      - CLI: reference/cli.md
+      - Configuration: reference/config.md
+    - Quick Reference: reference/quick-reference.md
+
+  - Migration:
+    - v0 to v1: migration/v0-to-v1.md
+    - Cascade Adoption: migration/cascade-adoption.md
+    - Migrating to Cascade: guides/migrating-to-cascade.md  # ADD: existing file
+
+  - Architecture:
+    - Overview: architecture/README.md
+    - Architecture Decisions: architecture/decisions/README.md
 
 extra:
   social:
