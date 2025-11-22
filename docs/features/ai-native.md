@@ -1,6 +1,273 @@
-# LLM Integration
+# AI-Native Architecture
 
-Integrate Large Language Models with FraiseQL GraphQL APIs: schema introspection for LLM context, structured query generation, and safe execution patterns.
+FraiseQL is designed from the ground up for AI and LLM integration. Unlike traditional frameworks that confuse AI models with complex ORM abstractions, FraiseQL speaks the languages AI understands best: SQL and Python.
+
+## Why FraiseQL is AI-Native
+
+### SQL + Python: Massively Trained Languages
+
+**AI models are trained on SQL and Python code.** FraiseQL leverages this by keeping your business logic in these familiar languages instead of proprietary ORM DSLs.
+
+**❌ Traditional ORM Approach:**
+```python
+# Complex ORM syntax AI models struggle with
+users = session.query(User).join(Order).filter(
+    User.created_at > datetime.now() - timedelta(days=30)
+).options(
+    selectinload(User.orders).selectinload(Order.items)
+).all()
+```
+
+**✅ FraiseQL Approach:**
+```sql
+-- SQL that AI models understand perfectly
+SELECT * FROM user_with_recent_orders
+WHERE created_at > now() - interval '30 days';
+```
+
+### Complete Business Logic in One File
+
+FraiseQL enables you to write complete business logic in a single Python file that AI models can easily understand and modify. Data composition happens in SQL views, business logic stays in clean Python:
+
+```python
+# One file contains all business logic - AI models understand this perfectly
+import fraiseql
+from decimal import Decimal
+from uuid import UUID
+
+@fraiseql.type(sql_source="v_user")
+class User:
+    """User with account balance."""
+    id: UUID
+    email: str
+    balance: Decimal
+
+@fraiseql.type(sql_source="v_order")
+class Order:
+    """Order with all items and totals."""
+    id: UUID
+    user_id: UUID
+    items: list['OrderItem']
+    total: Decimal
+    status: str
+
+@fraiseql.type(sql_source="v_order_item")
+class OrderItem:
+    """Order item with product details."""
+    id: UUID
+    product_id: UUID
+    quantity: int
+    price: Decimal
+    product_name: str
+
+@fraiseql.input
+class ProcessOrderInput:
+    """Input for processing an order."""
+    order_id: UUID
+
+@fraiseql.type
+class ProcessOrderResult:
+    """Result of order processing."""
+    success: bool
+    order_id: UUID
+    message: str
+    new_balance: Decimal | None = None
+
+@fraiseql.mutation
+class ProcessOrder:
+    """Process an order payment and update balances."""
+
+    input: ProcessOrderInput
+    result: ProcessOrderResult
+
+    @fraiseql.resolver
+    async def resolve(self, info, input_data):
+        """Complete order processing business logic."""
+        repo = info.context["repo"]
+
+        # Get order with all relationships (pre-composed in view)
+        order = await repo.find_one("order_with_items", where={"id": input_data["order_id"]})
+        if not order:
+            return ProcessOrderResult(
+                success=False,
+                order_id=input_data["order_id"],
+                message="Order not found"
+            )
+
+        # Get user balance (from view)
+        user = await repo.find_one("user_with_balance", where={"id": order["user_id"]})
+        if not user:
+            return ProcessOrderResult(
+                success=False,
+                order_id=input_data["order_id"],
+                message="User not found"
+            )
+
+        # Business logic in clear Python
+        user_balance = Decimal(str(user["balance"]))
+        order_total = Decimal(str(order["total"]))
+
+        if user_balance < order_total:
+            return ProcessOrderResult(
+                success=False,
+                order_id=input_data["order_id"],
+                message=f"Insufficient balance: {user_balance} < {order_total}"
+            )
+
+        # Atomic updates using repository
+        async with repo.transaction():
+            # Update user balance
+            await repo.update(
+                "users",
+                where={"id": order["user_id"]},
+                data={"balance": user_balance - order_total}
+            )
+
+            # Update order status
+            await repo.update(
+                "orders",
+                where={"id": input_data["order_id"]},
+                data={"status": "processed"}
+            )
+
+        return ProcessOrderResult(
+            success=True,
+            order_id=input_data["order_id"],
+            message="Order processed successfully",
+            new_balance=user_balance - order_total
+        )
+```
+
+**AI models can:**
+- Read and understand the complete business logic flow
+- Modify validation rules without breaking encapsulation
+- Add new features by extending the resolver method
+- Debug issues by tracing through the Python logic
+
+**AI models can:**
+- Read and understand the complete business logic flow
+- Modify validation rules without breaking encapsulation
+- Add new features by extending the resolver method
+- Debug issues by tracing through the Python logic
+- See exactly what data is available from SQL views
+
+### No Hidden ORM Magic
+
+Traditional ORMs hide complex SQL generation that confuses AI models:
+
+```python
+# What does this actually execute? AI has no idea!
+query = User.objects.prefetch_related('orders__items').select_related('profile').filter(
+    Q(orders__status='completed') & Q(profile__country='US')
+).annotate(
+    total_orders=Count('orders'),
+    avg_order_value=Avg('orders__total')
+).order_by('-total_orders')
+```
+
+FraiseQL makes everything explicit with SQL views that AI models understand perfectly:
+
+```sql
+-- SQL view: AI sees exactly what data is available
+CREATE VIEW v_user AS
+SELECT
+    u.id, u.name, u.email, u.country,
+    COUNT(o.id) as total_orders,
+    AVG(o.total) as avg_order_value,
+    SUM(o.total) as total_spent,
+    jsonb_agg(jsonb_build_object(
+        'id', o.id, 'total', o.total, 'status', o.status
+    )) FILTER (WHERE o.status = 'completed') as completed_orders
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE u.active = true
+GROUP BY u.id, u.name, u.email, u.country;
+```
+
+```python
+# Python type: Direct mapping to view
+@fraiseql.type(sql_source="v_user")
+class User:
+    """User with statistics and order data."""
+    id: UUID
+    name: str
+    email: str
+    country: str
+    total_orders: int
+    avg_order_value: Decimal
+    total_spent: Decimal
+    completed_orders: list[dict]  # Pre-composed JSONB data
+
+@fraiseql.query
+async def users(info, country: str | None = None) -> list[User]:
+    """Get users with statistics - AI sees the exact SQL view being used."""
+    where_clause = {"country": country} if country else {}
+    return await info.context["repo"].find("v_user", where=where_clause)
+```
+
+FraiseQL makes everything explicit:
+
+```sql
+-- AI model sees exactly what executes
+SELECT
+    u.id, u.name, u.email,
+    SUM(o.total) as total_spent,
+    jsonb_agg(jsonb_build_object(
+        'id', o.id, 'total', o.total, 'created_at', o.created_at
+    )) as recent_orders
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+    AND o.created_at >= now() - interval '7 days'
+WHERE u.active = true
+GROUP BY u.id, u.name, u.email
+ORDER BY total_spent DESC;
+```
+
+### 30-50% Fewer Tokens
+
+**ORM-generated queries are verbose and confusing:**
+
+```python
+# 50+ tokens of ORM complexity that AI struggles with
+User.objects.prefetch_related('orders__items').select_related('profile').filter(
+    Q(orders__status='completed') & Q(profile__country='US')
+).annotate(
+    total_orders=Count('orders'),
+    avg_order_value=Avg('orders__total')
+).order_by('-total_orders')[:10]
+```
+
+**FraiseQL: Clear SQL + Simple Python:**
+
+```sql
+-- ~15 tokens of clear SQL
+CREATE VIEW v_user AS
+SELECT id, name, total_orders, avg_order_value
+FROM users WHERE country = 'US'
+ORDER BY total_orders DESC LIMIT 10;
+```
+
+```python
+# ~10 tokens of simple Python
+@fraiseql.type(sql_source="v_user")
+class User:
+    id: UUID
+    name: str
+    total_orders: int
+    avg_order_value: Decimal
+
+@fraiseql.query
+async def users(info, country: str) -> list[User]:
+    return await info.context["repo"].find("v_user", where={"country": country})
+```
+
+### Stable Syntax Since the 1990s
+
+**SQL syntax hasn't changed significantly since 1992.** AI models trained on modern code understand SQL perfectly, with minimal "hallucination" risk.
+
+**Python syntax evolves slowly** and predictably, unlike framework-specific DSLs that change with every version.
+
+**Result:** More reliable AI-generated code with fewer syntax errors and misunderstandings.
 
 ## Overview
 

@@ -203,8 +203,21 @@ def create_graphql_router(
         apq_backend = None
         is_apq_request = request.extensions and "persistedQuery" in request.extensions
 
-        # Handle APQ (Automatic Persisted Queries) if detected
-        if is_apq_request and request.extensions:
+        # Check APQ mode enforcement
+        apq_mode = config.apq_mode
+
+        # In 'required' mode, reject non-APQ requests (arbitrary queries)
+        if not apq_mode.allows_arbitrary_queries() and not is_apq_request:
+            from fraiseql.middleware.apq import create_arbitrary_query_rejected_error
+
+            logger.debug("APQ required mode: rejecting arbitrary query")
+            return create_arbitrary_query_rejected_error()
+
+        # In 'disabled' mode, skip APQ processing entirely
+        should_process_apq = apq_mode.processes_apq()
+
+        # Handle APQ (Automatic Persisted Queries) if detected and mode allows
+        if is_apq_request and request.extensions and should_process_apq:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
             from fraiseql.middleware.apq_caching import (
                 get_apq_backend,

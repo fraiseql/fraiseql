@@ -65,28 +65,11 @@ def test_apq_backend_config_custom() -> None:
     assert config.apq_backend_config == backend_config
 
 
-def test_apq_backend_config_redis() -> None:
-    """Test Redis backend configuration."""
-    backend_config = {
-        "redis_url": "redis://localhost:6379",
-        "key_prefix": "fraiseql:apq:",
-        "ttl": 3600,
-    }
-
-    config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="redis",
-        apq_backend_config=backend_config,
-    )
-
-    assert config.apq_storage_backend == "redis"
-    assert config.apq_backend_config == backend_config
-
-
 def test_apq_backend_config_validation() -> None:
     """Test validation of APQ backend config fields."""
     # Valid backend names should work
-    valid_backends = ["memory", "postgresql", "redis", "custom"]
+    # Note: redis was removed in v1.6.0 - use custom backend with redis config instead
+    valid_backends = ["memory", "postgresql", "custom"]
 
     for backend in valid_backends:
         config = FraiseQLConfig(
@@ -98,6 +81,12 @@ def test_apq_backend_config_validation() -> None:
     with pytest.raises(ValidationError):
         FraiseQLConfig(
             database_url="postgresql://test@localhost/test", apq_storage_backend="invalid_backend"
+        )
+
+    # Redis is no longer a built-in backend (use custom instead)
+    with pytest.raises(ValidationError):
+        FraiseQLConfig(
+            database_url="postgresql://test@localhost/test", apq_storage_backend="redis"
         )
 
 

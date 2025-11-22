@@ -8,12 +8,13 @@
 
 1. [Overview](#overview)
 2. [Understanding APQ](#understanding-apq)
-3. [When to Enable APQ](#when-to-enable-apq)
-4. [Configuration Guide](#configuration-guide)
-5. [Monitoring & Metrics](#monitoring-metrics)
-6. [Optimization Strategies](#optimization-strategies)
-7. [Troubleshooting](#troubleshooting)
-8. [Production Best Practices](#production-best-practices)
+3. [APQ Modes](#apq-modes) *(NEW in v1.6.0)*
+4. [When to Enable APQ](#when-to-enable-apq)
+5. [Configuration Guide](#configuration-guide)
+6. [Monitoring & Metrics](#monitoring-metrics)
+7. [Optimization Strategies](#optimization-strategies)
+8. [Troubleshooting](#troubleshooting)
+9. [Production Best Practices](#production-best-practices)
 
 ---
 
@@ -23,6 +24,41 @@ APQ (Automatic Persisted Queries) is a GraphQL optimization technique that elimi
 
 1. **Query Cache**: Stores query strings by hash (always active)
 2. **Response Cache**: Stores complete query responses (optional)
+
+## APQ vs TurboRouter: Understanding the Performance Stack
+
+FraiseQL offers multiple performance optimizations that work together:
+
+### APQ (Automatic Persisted Queries)
+- **What it does**: Caches GraphQL query parsing by SHA256 hash
+- **Performance gain**: Eliminates 20-80ms parsing overhead per request
+- **Scope**: All queries (automatic)
+- **Storage**: Query text in database or memory
+
+### TurboRouter
+- **What it does**: Bypasses GraphQL parsing and validation entirely for registered queries
+- **Performance gain**: 2-3x additional speedup beyond APQ
+- **Scope**: Pre-registered queries only
+- **Storage**: Pre-compiled SQL templates with parameter mapping
+
+### How They Work Together
+
+```python
+# Request flow with both optimizations
+query MyQuery($id: ID!) {
+  user(id: $id) { name email }
+}
+
+# 1. APQ: Check if query hash exists (avoids parsing)
+# 2. TurboRouter: If query is registered, execute SQL directly
+# 3. Otherwise: Fall back to normal GraphQL execution with APQ caching
+```
+
+**Performance Stack:**
+- Base GraphQL: 100ms average response
+- + APQ: 20-80ms faster (eliminates parsing)
+- + TurboRouter: Additional 2-3x speedup (bypasses GraphQL entirely)
+- **Total**: Up to 6-9x faster for registered queries
 
 ### Performance Impact
 
@@ -84,6 +120,139 @@ FraiseQL uses a sophisticated caching approach:
 
 ---
 
+## APQ Modes
+
+*New in FraiseQL v1.6.0*
+
+FraiseQL supports three APQ modes to control how queries are accepted:
+
+### Mode Overview
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `optional` | Accept both persisted queries and arbitrary queries (default) | Standard deployments |
+| `required` | **Only** accept persisted query hashes, reject arbitrary queries | Security-hardened deployments |
+| `disabled` | Ignore APQ extensions entirely, always require full query | Debugging, APQ bypass |
+
+### Security Hardening with `required` Mode
+
+For security-sensitive deployments, use `apq_mode="required"` to ensure only pre-approved queries can execute:
+
+```python
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
+
+# Security-hardened configuration
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/db",
+    apq_mode="required",              # Only allow persisted queries
+    apq_queries_dir="./graphql/",     # Auto-register queries from directory
+)
+
+app = create_fraiseql_app(config=config, types=[User, Post])
+```
+
+**Benefits of `required` mode:**
+- ✅ **Prevent arbitrary queries** - Block query exploration/introspection attacks
+- ✅ **Audit all queries** - Know exactly which queries can run in production
+- ✅ **Control API surface** - Only approved queries from the codebase can execute
+- ✅ **Reduce attack surface** - Eliminate GraphQL injection vectors
+
+### Query Registration Methods
+
+#### Method 1: Auto-register from Directory
+
+Load all `.graphql` and `.gql` files at startup:
+
+```python
+config = FraiseQLConfig(
+    apq_mode="required",
+    apq_queries_dir="./graphql/queries/",  # Recursively loads all .graphql files
+)
+```
+
+**Directory structure example:**
+```
+graphql/
+├── users/
+│   ├── queries.graphql
+│   └── mutations.graphql
+├── posts/
+│   └── operations.graphql
+└── shared/
+    └── fragments.graphql
+```
+
+#### Method 2: Programmatic Registration
+
+Register queries at startup using the backend API:
+
+```python
+from fraiseql.storage.backends.factory import create_apq_backend
+
+# Get the APQ backend
+backend = create_apq_backend(config)
+
+# Register allowed queries
+queries = [
+    "query GetUsers { users { id name } }",
+    "query GetUser($id: ID!) { user(id: $id) { id name email } }",
+    "mutation CreateUser($input: CreateUserInput!) { createUser(input: $input) { id } }",
+]
+
+# Returns dict mapping hash -> query
+registered = backend.register_queries(queries)
+print(f"Registered {len(registered)} queries")
+```
+
+#### Method 3: Load from Files Programmatically
+
+```python
+from fraiseql.storage.query_loader import load_queries_from_directory
+from fraiseql.storage.backends.factory import create_apq_backend
+
+# Load queries from directory
+queries = load_queries_from_directory("./graphql/")
+
+# Register with backend
+backend = create_apq_backend(config)
+backend.register_queries(queries)
+```
+
+### Error Response for Rejected Queries
+
+When `apq_mode="required"` and an arbitrary query is sent:
+
+```json
+{
+  "errors": [
+    {
+      "message": "Persisted queries required. Arbitrary queries are not allowed.",
+      "extensions": {
+        "code": "ARBITRARY_QUERY_NOT_ALLOWED",
+        "details": "Configure your client to use Automatic Persisted Queries (APQ) or register queries at build time."
+      }
+    }
+  ]
+}
+```
+
+### Disabled Mode
+
+Use `apq_mode="disabled"` to completely bypass APQ processing:
+
+```python
+config = FraiseQLConfig(
+    apq_mode="disabled",  # APQ extensions ignored
+)
+```
+
+This is useful for:
+- Debugging APQ issues
+- Temporary bypass during development
+- Legacy client compatibility
+
+---
+
 ## When to Enable APQ
 
 ### Query Cache (Default: Enabled)
@@ -134,7 +303,7 @@ from fraiseql.fastapi.config import FraiseQLConfig
 # Query cache only (recommended starting point)
 config = FraiseQLConfig(
     db_url="postgresql://...",
-    apq_storage_backend="memory",  # or "postgresql", "redis"
+    apq_storage_backend="memory",  # or "postgresql"
     apq_cache_responses=False,     # Response caching disabled
 )
 
@@ -201,33 +370,7 @@ config = FraiseQLConfig(
 
 **Recommended:** Production with multiple app instances
 
-#### 3. Redis Backend
 
-**Best for:** High-traffic production, distributed systems
-
-```python
-config = FraiseQLConfig(
-    apq_storage_backend="redis",
-    apq_backend_config={
-        "redis_url": "redis://localhost:6379/0",
-        "key_prefix": "fraiseql:apq:",
-        "response_ttl": 300,
-    }
-)
-```
-
-**Pros:**
-- Fastest distributed cache (~0.5-1ms)
-- Shared across instances
-- Built-in TTL and eviction
-- Scales independently
-
-**Cons:**
-- Additional infrastructure
-- Network latency
-- Serialization overhead
-
-**Recommended:** High-traffic production (>1000 req/s)
 
 ---
 
@@ -790,8 +933,8 @@ Combine FraiseQL caching layers:
 | Development | ✅ Memory | ❌ Disabled | Memory |
 | Single instance production | ✅ Memory | ⚠️ Selective | Memory |
 | Multi-instance production | ✅ PostgreSQL | ⚠️ Selective | PostgreSQL |
-| High-traffic (>1000 req/s) | ✅ Redis | ✅ Enabled | Redis |
-| Read-heavy public API | ✅ Redis | ✅ Enabled | Redis |
+| High-traffic (>1000 req/s) | ✅ PostgreSQL | ✅ Enabled | PostgreSQL |
+| Read-heavy public API | ✅ PostgreSQL | ✅ Enabled | PostgreSQL |
 | Real-time data | ✅ Memory | ❌ Disabled | Memory |
 | User-specific queries | ✅ PostgreSQL | ⚠️ With isolation | PostgreSQL |
 

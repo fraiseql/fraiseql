@@ -33,6 +33,40 @@ class IntrospectionPolicy(str, Enum):
         return False
 
 
+class APQMode(str, Enum):
+    """Mode for Automatic Persisted Queries (APQ) handling.
+
+    - OPTIONAL: Accept both persisted query hashes and full queries (default)
+    - REQUIRED: Only accept persisted query hashes, reject arbitrary queries
+    - DISABLED: Ignore APQ extensions entirely, always require full query
+    """
+
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+    DISABLED = "disabled"
+
+    def allows_arbitrary_queries(self) -> bool:
+        """Check if arbitrary (non-persisted) queries are allowed.
+
+        Returns:
+            True if arbitrary queries can be executed, False if only
+            persisted queries are allowed.
+        """
+        # REQUIRED mode blocks arbitrary queries
+        # OPTIONAL and DISABLED both allow them (DISABLED ignores APQ entirely)
+        return self != APQMode.REQUIRED
+
+    def processes_apq(self) -> bool:
+        """Check if APQ extensions should be processed.
+
+        Returns:
+            True if APQ requests should be handled, False if APQ
+            extensions should be ignored.
+        """
+        # DISABLED mode ignores APQ extensions
+        return self != APQMode.DISABLED
+
+
 def validate_postgres_url(v: Any) -> str:
     """Validate PostgreSQL URL, supporting both regular and Unix socket connections.
 
@@ -220,10 +254,24 @@ class FraiseQLConfig(BaseSettings):
     rate_limit_blacklist: list[str] = []
 
     # APQ Backend Configuration
-    apq_storage_backend: Literal["memory", "postgresql", "redis", "custom"] = "memory"
+    apq_mode: APQMode = APQMode.OPTIONAL
+    """APQ mode for controlling query acceptance.
+
+    - "optional": Accept both persisted query hashes and full queries (default)
+    - "required": Only accept persisted query hashes, reject arbitrary queries
+    - "disabled": Ignore APQ extensions entirely, always require full query
+    """
+    apq_storage_backend: Literal["memory", "postgresql", "custom"] = "memory"
     apq_cache_responses: bool = False
     apq_response_cache_ttl: int = Field(default=600, ge=0)
     apq_backend_config: dict[str, Any] = {}
+    apq_queries_dir: str | None = None
+    """Directory containing .graphql files to auto-register at startup.
+
+    When set, all .graphql and .gql files in this directory (recursively)
+    will be loaded and registered as persisted queries at application startup.
+    Useful with apq_mode='required' for security-hardened deployments.
+    """
 
     # CORS settings
     cors_enabled: bool = False  # Disabled by default to avoid conflicts with reverse proxies

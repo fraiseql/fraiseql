@@ -99,7 +99,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - **Measurement**: Database query time only (EXPLAIN ANALYZE)
 
 **Realistic expectations**:
-- **Transform table lookup**: 0.05-0.5ms
+- **Table view lookup**: 0.05-0.5ms
 - **Traditional JOIN**: 5-50ms (depends on data size)
 - **Speedup**: 10-100x faster for complex nested queries
 - **Rust pipeline**: Automatic camelCase transformation and __typename injection
@@ -196,10 +196,10 @@ field_multipliers = {
 **Low Complexity (1-50)**:
 - Focus on caching (APQ + result caching)
 - Field projection for reduced data transfer
-- Transform tables for instant responses
+- Table views for instant responses
 
 **Medium Complexity (51-200)**:
-- Transform tables for nested relationships
+- Table views for nested relationships
 - Database indexing optimization
 - Query result caching
 - Field projection optimization

@@ -23,12 +23,14 @@ logger = logging.getLogger(__name__)
 # Export all public APIs
 __all__ = [
     "create_apq_error_response",
+    "create_arbitrary_query_rejected_error",
     "execute_persisted_query",
     "get_apq_hash",
     "get_persisted_query",
     "handle_apq_request",
     "is_apq_request",
     "is_apq_with_query_request",
+    "should_process_apq_request",
 ]
 
 
@@ -183,3 +185,39 @@ def handle_apq_request(
     # For tests, return minimal successful response
     # Real implementation would call execute_persisted_query with actual schema/context
     return {"data": {"__typename": "Query"}}
+
+
+def should_process_apq_request(apq_mode: "APQMode") -> bool:
+    """Check if APQ requests should be processed based on mode.
+
+    Args:
+        apq_mode: The configured APQ mode
+
+    Returns:
+        True if APQ extensions should be processed, False if ignored
+    """
+    from fraiseql.fastapi.config import APQMode
+
+    return apq_mode != APQMode.DISABLED
+
+
+def create_arbitrary_query_rejected_error() -> dict[str, Any]:
+    """Create error response for rejected arbitrary queries.
+
+    Used when apq_mode='required' and a non-APQ query is received.
+
+    Returns:
+        Standardized GraphQL error response
+    """
+    return create_apq_error_response(
+        "ARBITRARY_QUERY_NOT_ALLOWED",
+        "Persisted queries required. Arbitrary queries are not allowed.",
+        details="Configure your client to use Automatic Persisted Queries (APQ) "
+        "or register queries at build time.",
+    )
+
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fraiseql.fastapi.config import APQMode

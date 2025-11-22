@@ -605,11 +605,35 @@ config = FraiseQLConfig(
 
 ## APQ Settings
 
+### apq_mode
+
+- **Type**: `Literal["optional", "required", "disabled"]`
+- **Default**: `"optional"`
+- **Description**: APQ mode for controlling query acceptance
+
+| Mode | Behavior |
+|------|----------|
+| `"optional"` | Accept both persisted query hashes and full queries (default) |
+| `"required"` | **Only** accept persisted query hashes, reject arbitrary queries |
+| `"disabled"` | Ignore APQ extensions entirely, always require full query |
+
+*New in FraiseQL v1.6.0*
+
 ### apq_storage_backend
 
-- **Type**: `Literal["memory", "postgresql", "redis", "custom"]`
+- **Type**: `Literal["memory", "postgresql", "custom"]`
 - **Default**: `"memory"`
 - **Description**: Storage backend for APQ (Automatic Persisted Queries)
+
+### apq_queries_dir
+
+- **Type**: `str | None`
+- **Default**: `None`
+- **Description**: Directory containing `.graphql` files to auto-register at startup
+
+When set, all `.graphql` and `.gql` files in this directory (recursively) will be loaded and registered as persisted queries at application startup. Useful with `apq_mode="required"` for security-hardened deployments.
+
+*New in FraiseQL v1.6.0*
 
 ### apq_cache_responses
 
@@ -639,14 +663,23 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=900
 )
 
-# APQ with Redis backend
+# APQ with custom Redis backend (bring your own implementation)
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    apq_storage_backend="redis",
+    apq_storage_backend="custom",
     apq_backend_config={
+        "backend_class": "myapp.storage.RedisAPQBackend",
         "redis_url": "redis://localhost:6379/0",
         "key_prefix": "apq:"
     }
+)
+
+# Security-hardened: Only allow pre-registered queries (v1.6.0+)
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    apq_mode="required",                  # Reject arbitrary queries
+    apq_queries_dir="./graphql/queries/", # Auto-register from directory
+    apq_storage_backend="postgresql",     # Persist across restarts
 )
 ```
 

@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2025-11-22
+
+### 🚀 New Features
+
+**APQ Mode Configuration** ✨ NEW
+- **Security-First Query Control**: New `apq_mode` configuration with three modes:
+  - `optional` (default): Accept both persisted query hashes and arbitrary queries (backward compatible)
+  - `required`: Only accept persisted query hashes, reject arbitrary queries (production hardening)
+  - `disabled`: Ignore APQ extensions entirely, always require full query text
+- **Build-Time Query Registration**: Register allowed queries at application startup
+- **Query Loader**: Automatically load `.graphql`/`.gql` files from a directory via `apq_queries_dir` config
+- **Batch Registration API**: New `register_queries()` method on `APQStorageBackend` for bulk query registration
+- **Production Security**: Prevent arbitrary query execution in hardened deployments
+
+**Query Loader Module** ✨ NEW
+- **Directory Scanning**: Recursively load all `.graphql` and `.gql` files
+- **Multi-Operation Support**: Extract multiple operations from single files
+- **Fragment Handling**: Support for GraphQL fragments in query files
+- **Configuration Integration**: Set `apq_queries_dir` to auto-register at startup
+
+### ⚠️ Breaking Changes
+
+**APQ Storage Backend**
+- **Removed `redis` backend option**: The `apq_storage_backend` config no longer accepts `"redis"` as a value
+  - **Migration**: Use `apq_storage_backend="custom"` with your Redis backend class in `apq_backend_config`
+  - Example migration:
+    ```python
+    # Before (v1.5.x)
+    config = FraiseQLConfig(apq_storage_backend="redis", ...)
+
+    # After (v1.6.0)
+    config = FraiseQLConfig(
+        apq_storage_backend="custom",
+        apq_backend_config={"backend_class": "myapp.storage.RedisAPQBackend", ...}
+    )
+    ```
+
+### 📚 Documentation
+
+- Enhanced APQ optimization guide with mode configuration examples
+- Updated configuration reference with new APQ options
+- Added multi-tenancy documentation improvements
+- Improved table naming conventions documentation
+- Removed outdated LLM integration documentation (superseded by AI-native features)
+
+### 🧪 Testing
+
+- **54 new tests** for APQ mode, query loader, and registration functionality
+- Comprehensive test coverage for all three APQ modes
+- Query loader tests for directory scanning, file parsing, and error handling
+- Backend registration tests for memory and PostgreSQL backends
+
+### 🔧 Internal Improvements
+
+- `APQMode` enum with helper methods (`allows_arbitrary_queries()`, `processes_apq()`)
+- Router integration for APQ mode enforcement
+- Standardized error response for rejected arbitrary queries (`ARBITRARY_QUERY_NOT_ALLOWED`)
+
 ### Fixed
 - Fixed table alias inconsistency in SQL generation causing "column t does not exist" errors
   - JSONB tables now consistently use `data ->` for field access in ORDER BY clauses
