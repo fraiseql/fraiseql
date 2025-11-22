@@ -1,5 +1,7 @@
 # CASCADE Cache Invalidation
 
+> **Getting Started?** See the [GraphQL Cascade feature guide](../features/graphql-cascade.md) first.
+
 > **Intelligent cache invalidation that automatically propagates when related data changes**
 
 FraiseQL's CASCADE invalidation system automatically detects relationships in your GraphQL schema and sets up intelligent cache invalidation rules. When a `User` changes, all related `Post` caches are automatically invalidated—no manual configuration required.

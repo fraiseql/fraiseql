@@ -8,19 +8,35 @@ Key concepts and terminology in FraiseQL.
 
 Separating read and write operations for optimal performance:
 
-**Traditional vs FraiseQL:**
-```
-Traditional Approach:                    FraiseQL Approach:
-┌─────────────────┐                     ┌─────────────────────────────────────┐
-│   GraphQL       │                     │         GraphQL API                 │
-│   API           │                     ├──────────────────┬──────────────────┤
-├─────────┬───────┤                     │   QUERIES        │   MUTATIONS      │
-│ Query   │ Mut. │                     │   (Reads)        │   (Writes)       │
-├─────────┼───────┤                     ├──────────────────┼──────────────────┤
-│ ORM     │ ORM   │                     │  v_* views       │  fn_* functions  │
-│ Read    │ Write │                     │  tv_* tables     │  tb_* tables     │
-└─────────┴───────┘                     └──────────────────┴──────────────────┘
-Same code path                          Separate optimized paths
+```mermaid
+flowchart TB
+    subgraph Client
+        GQL[GraphQL Client]
+    end
+
+    subgraph FraiseQL["FraiseQL API"]
+        Q[Queries]
+        M[Mutations]
+    end
+
+    subgraph ReadPath["Read Path (Optimized)"]
+        V[(v_* Views<br/>Pre-composed JSONB)]
+        TV[(tv_* Table Views<br/>Denormalized)]
+    end
+
+    subgraph WritePath["Write Path (Transactional)"]
+        FN[fn_* Functions<br/>Business Logic]
+        TB[(tb_* Tables<br/>Normalized)]
+    end
+
+    GQL --> Q
+    GQL --> M
+    Q --> V
+    Q --> TV
+    M --> FN
+    FN --> TB
+    TB -.->|triggers/sync| V
+    TB -.->|triggers/sync| TV
 ```
 
 - **Commands (Writes)**: Mutations that modify data
