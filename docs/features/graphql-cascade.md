@@ -16,6 +16,26 @@ Cascade works by having PostgreSQL functions return not just the mutation result
 - **Invalidations**: Query cache invalidation hints
 - **Metadata**: Timestamps and operation counts
 
+### How It Works
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant FraiseQL
+    participant PostgreSQL
+    participant Cache
+
+    Client->>FraiseQL: mutation createPost(...)
+    FraiseQL->>PostgreSQL: SELECT graphql.create_post(input)
+    PostgreSQL-->>FraiseQL: {data, _cascade: {updated, deleted, invalidations}}
+    FraiseQL-->>Client: {createPost: {post, cascade: {...}}}
+
+    Note over Client,Cache: Client processes cascade
+    Client->>Cache: Update Post entity
+    Client->>Cache: Update User entity (post_count)
+    Client->>Cache: Invalidate "posts" queries
+```
+
 ## Quick Start
 
 For detailed information on SQL function return formats, see [SQL Function Return Format](sql-function-return-format.md).

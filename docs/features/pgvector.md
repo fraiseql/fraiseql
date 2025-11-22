@@ -6,6 +6,36 @@ FraiseQL provides native support for PostgreSQL's pgvector extension, enabling h
 
 pgvector adds vector similarity search capabilities to PostgreSQL, allowing you to store and query high-dimensional vectors (embeddings) for semantic search, recommendations, and RAG systems. FraiseQL exposes pgvector's six distance operators through GraphQL filters, maintaining the framework's philosophy of being a thin, transparent layer over PostgreSQL.
 
+### Vector Search Pipeline
+
+```mermaid
+flowchart LR
+    subgraph Input
+        Q[Query Text]
+    end
+
+    subgraph Embedding
+        E[Embedding Model<br/>OpenAI / Cohere / Local]
+    end
+
+    subgraph FraiseQL
+        GQL[GraphQL Query<br/>with VectorFilter]
+    end
+
+    subgraph PostgreSQL
+        PG[(pgvector<br/>HNSW Index)]
+    end
+
+    subgraph Results
+        R[Ranked Documents<br/>by Similarity]
+    end
+
+    Q --> E
+    E --> |vector| GQL
+    GQL --> |cosine_distance| PG
+    PG --> R
+```
+
 ## PostgreSQL Setup
 
 ### 1. Install pgvector Extension
