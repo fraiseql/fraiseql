@@ -90,9 +90,10 @@ auth0 = [
   "httpx>=0.25.0",
 ]
 docs = [
-  "mkdocs>=1.5.0",
-  "mkdocs-material>=9.0.0",
-  "pymdown-extensions>=10.0",
+  "mkdocs>=1.6.1",
+  "mkdocs-material>=9.6.22",
+  "mkdocs-redirects>=1.2.2",
+  "pymdown-extensions>=10.16.1",
 ]
 tracing = [
   "protobuf>=4.25.8,<7.0",
