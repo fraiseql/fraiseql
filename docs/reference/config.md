@@ -1,6 +1,6 @@
 # FraiseQLConfig API Reference
 
-Complete API reference for FraiseQLConfig class with all configuration options.
+Complete API reference for FraiseQLConfig class with all configuration options for v1.6.0.
 
 ## Overview
 
