@@ -1,0 +1,171 @@
+name: SBOM & Provenance
+
+# Generate SBOM and SLSA provenance for releases
+# Aligned with Executive Order 14028 requirements
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      generate_sbom:
+        description: 'Generate SBOM without release'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write  # Required for OIDC/Sigstore
+  attestations: write
+
+jobs:
+  generate-sbom:
+    name: Generate Software Bill of Materials
+    runs-on: ubuntu-latest
+    outputs:
+      sbom-python: ${{ steps.sbom-python.outputs.path }}
+      sbom-rust: ${{ steps.sbom-rust.outputs.path }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install SBOM tools
+      run: |
+        uv venv
+        uv pip install cyclonedx-bom pip-licenses
+        cargo install cargo-cyclonedx
+
+    - name: Install project dependencies
+      run: |
+        uv pip install ".[all]"
+
+    - name: Generate Python SBOM (CycloneDX)
+      id: sbom-python
+      run: |
+        uv run cyclonedx-py environment \
+          --output sbom-python.json \
+          --format json \
+          --schema-version 1.5
+        echo "path=sbom-python.json" >> $GITHUB_OUTPUT
+        echo "=== Python SBOM generated ==="
+        head -50 sbom-python.json
+
+    - name: Generate Rust SBOM (CycloneDX)
+      id: sbom-rust
+      run: |
+        cd fraiseql_rs 2>/dev/null || cd .
+        cargo cyclonedx --format json --output-file ../sbom-rust.json || \
+          cargo cyclonedx --format json > ../sbom-rust.json
+        echo "path=sbom-rust.json" >> $GITHUB_OUTPUT
+        echo "=== Rust SBOM generated ==="
+        head -50 ../sbom-rust.json || echo "Rust SBOM may be in different location"
+
+    - name: Generate license report
+      run: |
+        uv run pip-licenses --format=json --output-file=licenses.json
+        uv run pip-licenses --format=markdown --output-file=licenses.md
+
+    - name: Upload SBOM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom
+        path: |
+          sbom-python.json
+          sbom-rust.json
+          licenses.json
+          licenses.md
+        retention-days: 90
+
+  sign-sbom:
+    name: Sign SBOM with Sigstore
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Download SBOM
+      uses: actions/download-artifact@v4
+      with:
+        name: sbom
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign SBOM files
+      run: |
+        for sbom in sbom-*.json; do
+          if [ -f "$sbom" ]; then
+            echo "Signing $sbom..."
+            cosign sign-blob --yes "$sbom" \
+              --output-signature "${sbom}.sig" \
+              --output-certificate "${sbom}.cert"
+            echo "Created ${sbom}.sig and ${sbom}.cert"
+          fi
+        done
+
+    - name: Upload signed artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-signed
+        path: |
+          sbom-*.json
+          sbom-*.sig
+          sbom-*.cert
+        retention-days: 90
+
+  # SLSA Level 3 Provenance (commented out - requires slsa-framework setup)
+  # Uncomment and configure when ready for SLSA Level 3
+  #
+  # provenance:
+  #   needs: [generate-sbom]
+  #   if: startsWith(github.ref, 'refs/tags/')
+  #   permissions:
+  #     id-token: write
+  #     contents: write
+  #     actions: read
+  #   uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+  #   with:
+  #     base64-subjects: "${{ needs.generate-sbom.outputs.digest }}"
+
+  attach-to-release:
+    name: Attach to GitHub Release
+    runs-on: ubuntu-latest
+    needs: [generate-sbom, sign-sbom]
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Download signed SBOM
+      uses: actions/download-artifact@v4
+      with:
+        name: sbom-signed
+        path: sbom
+
+    - name: Download unsigned SBOM (fallback)
+      uses: actions/download-artifact@v4
+      with:
+        name: sbom
+        path: sbom-unsigned
+      continue-on-error: true
+
+    - name: Attach SBOM to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          sbom/*
+          sbom-unsigned/*
+        fail_on_unmatched_files: false

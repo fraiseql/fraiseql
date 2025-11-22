@@ -203,6 +203,8 @@ jobs:
         python-version: '3.13'
     - name: Install uv
       uses: astral-sh/setup-uv@v7
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
     - name: Install dependencies
       run: |
         uv venv
@@ -211,6 +213,12 @@ jobs:
       run: uv run bandit -r src/ -f json -o bandit-results.json || true
     - name: Run safety dependency vulnerability scan
       run: uv run safety check --output json --save-json safety-results.json || true
+    - name: Run Rust security audit
+      run: |
+        cargo install cargo-audit
+        cargo audit --json > rust-audit-results.json || true
+        echo "=== Rust Security Audit Results ==="
+        cargo audit || true
     - name: Run OWASP Dependency Check
       uses: dependency-check/Dependency-Check_Action@main
       with:
@@ -243,6 +251,7 @@ jobs:
         path: |
           bandit-results.json
           safety-results.json
+          rust-audit-results.json
           reports/
 
   performance:
