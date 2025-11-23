@@ -141,14 +141,15 @@ async def usage_metrics(info: Info) -> UsageMetrics:
     from datetime import datetime
 
     org_id = info.context["organization_id"]
+    db = info.context["db"]
     period_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
 
-    metrics = await info.context.repo.find_one(
-        "usage_metrics", where={"organization_id": org_id, "period_start": period_start}
+    metrics = await db.find_one(
+        "v_usage_metrics", "metrics", info, organization_id=org_id, period_start=period_start
     )
 
     if not metrics:
-        # No usage yet this period
+        # Return default metrics
         return UsageMetrics(
             organization_id=org_id,
             period_start=period_start,
@@ -159,19 +160,23 @@ async def usage_metrics(info: Info) -> UsageMetrics:
             seats=1,
         )
 
-    return UsageMetrics(**metrics)
+    return metrics
 
 
 @fraiseql.query
 async def activity_log(info: Info, limit: int = 50) -> list[ActivityLogEntry]:
     """Get activity log for current organization."""
     org_id = info.context["organization_id"]
+    db = info.context["db"]
 
-    entries = await info.context.repo.find(
-        "activity_log", where={"organization_id": org_id}, limit=limit, order_by="-created_at"
+    return await db.find(
+        "v_activity_log",
+        "entries",
+        info,
+        organization_id=org_id,
+        limit=limit,
+        order_by="-created_at",
     )
-
-    return [ActivityLogEntry(**e) for e in entries]
 
 
 # ============================================================================

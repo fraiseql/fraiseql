@@ -44,7 +44,9 @@ async def lifespan(app: FastAPI):
     # STARTUP: Initialize database and FraiseQL features
     # ========================================================================
 
-    database_url = os.getenv("DATABASE_URL", "postgresql://fraiseql:fraiseql@localhost:5432/blog_demo")
+    database_url = os.getenv(
+        "DATABASE_URL", "postgresql://fraiseql:fraiseql@localhost:5432/blog_demo"
+    )
     logger.info(f"Connecting to database: {database_url}")
 
     try:
@@ -129,7 +131,12 @@ async def add_process_time_header(request: Request, call_next):
 # GraphQL context provider
 async def get_context():
     """Provide context to GraphQL resolvers."""
-    return {"db_pool": db_pool, "sync": sync_manager}
+    from fraiseql.db import FraiseQLRepository
+
+    # Create FraiseQL repository instance
+    db = FraiseQLRepository(pool=db_pool)
+
+    return {"db_pool": db_pool, "db": db, "sync": sync_manager}
 
 
 # Mount GraphQL router
@@ -157,9 +164,7 @@ async def health_check():
             }
         )
     except Exception as e:
-        return JSONResponse(
-            content={"status": "unhealthy", "error": str(e)}, status_code=503
-        )
+        return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=503)
 
 
 @app.get("/metrics")
