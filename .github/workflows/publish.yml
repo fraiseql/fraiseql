@@ -309,8 +309,8 @@ jobs:
         EOF
 
             # Install wheel and test imports
-            # Install base dependencies first (psycopg required for scalar imports)
-            pip install psycopg[binary,pool] graphql-core pydantic pydantic-settings
+            # Install base dependencies first (required for scalar imports)
+            pip install psycopg[binary,pool] graphql-core pydantic pydantic-settings fastapi
             pip install "$whl" --force-reinstall --no-deps
             python test_imports.py || {
               echo "ERROR: Import test failed for $whl"
