@@ -1,11 +1,10 @@
-"""
-Vector Search Example - Demonstrating all 6 pgvector distance operators
+"""Vector Search Example - Demonstrating all 6 pgvector distance operators
 """
 import asyncio
 from typing import List
 from uuid import UUID
 
-from fraiseql import fraise_type, fraise_query
+from fraiseql import fraise_query, fraise_type
 from fraiseql.fastapi import FraiseQLApp
 
 
@@ -36,8 +35,7 @@ async def search_documents(
     category: str = None,
     limit: int = 10
 ) -> List[Document]:
-    """
-    Search documents using vector similarity with all 6 distance operators.
+    """Search documents using vector similarity with all 6 distance operators.
 
     Examples:
     - Semantic search: cosine_distance=[0.1, 0.2, 0.3, ...]

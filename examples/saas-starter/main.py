@@ -11,9 +11,6 @@ from uuid import UUID
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
-import fraiseql
-from fraiseql import Info
 
 # Import models
 from models import (
@@ -31,6 +28,9 @@ from models import (
     User,
 )
 
+import fraiseql
+from fraiseql import Info
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/saas_starter")
@@ -92,50 +92,47 @@ app.register_input_type(ProjectUpdateInput)
 async def current_organization(info: Info) -> Organization:
     """Get current user's organization."""
     org_id = info.context["organization_id"]
-    org = await info.context.repo.find_one("v_organization", org_id)
-    return Organization(**org)
+    db = info.context["db"]
+    return await db.find_one("v_organization", "organization", info, id=org_id)
 
 
 @fraiseql.query
 async def current_user(info: Info) -> User:
     """Get current authenticated user."""
     user_id = info.context["user_id"]
-    user = await info.context.repo.find_one("v_user", user_id)
-    return User(**user)
+    db = info.context["db"]
+    return await db.find_one("v_user", "user", info, id=user_id)
 
 
 @fraiseql.query
 async def team_members(info: Info) -> list[User]:
     """Get all team members in current organization."""
     org_id = info.context["organization_id"]
-    users = await info.context.repo.find(
-        "v_user", where={"fk_organization": org_id}, order_by="created_at"
-    )
-    return [User(**u) for u in users]
+    db = info.context["db"]
+    return await db.find("v_user", "users", info, fk_organization=org_id)
 
 
 @fraiseql.query
 async def projects(info: Info, limit: int = 50) -> list[Project]:
     """Get projects for current organization."""
     org_id = info.context["organization_id"]
-    projects = await info.context.repo.find(
-        "v_project", where={"fk_organization": org_id}, limit=limit, order_by="-created_at"
-    )
-    return [Project(**p) for p in projects]
+    db = info.context["db"]
+    return await db.find("v_project", "projects", info, fk_organization=org_id, limit=limit)
 
 
 @fraiseql.query
 async def project(info: Info, project_id: UUID) -> Project:
     """Get project by ID (tenant-aware)."""
     org_id = info.context["organization_id"]
+    db = info.context["db"]
 
-    project = await info.context.repo.find_one("projects_view", project_id)
+    project = await db.find_one("v_project", "project", info, id=project_id)
 
     # Verify tenant isolation
-    if project["organization_id"] != org_id:
+    if project.organization_id != org_id:
         raise PermissionError("Access denied")
 
-    return Project(**project)
+    return project
 
 
 @fraiseql.query

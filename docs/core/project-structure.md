@@ -230,14 +230,12 @@ class UserQueries:
     user_by_username: User | None = fraise_field(description="Find user by username")
 
     async def resolve_users(self, info):
-        repo = info.context["repo"]
-        results = await repo.find("v_user")
-        return [User(**result) for result in results]
+        db = info.context["db"]
+        return await db.find("v_user", "users", info)
 
     async def resolve_user_by_username(self, info, username: str):
-        repo = info.context["repo"]
-        result = await repo.find_one("v_user", where={"username": username})
-        return User(**result) if result else None
+        db = info.context["db"]
+        return await db.find_one("v_user", "user", info, username=username)
 ```
 
 ### Mutation Handlers (`src/mutations/`)
@@ -263,14 +261,12 @@ class UserMutations:
     create_user: User = fraise_field(description="Create a new user account")
 
     async def resolve_create_user(self, info, input: CreateUserInput):
-        repo = info.context["repo"]
-        user_id = await repo.call_function(
-            "fn_create_user",
-            p_username=input.username,
-            p_email=input.email
-        )
-        result = await repo.find_one("v_user", where={"id": user_id})
-        return User(**result)
+        db = info.context["db"]
+        result = await db.execute_function("fn_create_user", {
+            "username": input.username,
+            "email": input.email
+        })
+        return await db.find_one("v_user", "user", info, id=result["id"])
 ```
 
 ### Main Application (`src/main.py`)

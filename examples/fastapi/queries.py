@@ -1,6 +1,6 @@
 """GraphQL Query Resolvers."""
 
-from types import User, Project, Task
+from types import Project, Task, User
 
 
 async def user(info, id: int) -> User | None:

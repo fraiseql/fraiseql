@@ -1,5 +1,4 @@
-"""
-FraiseQL Product Catalog Schema
+"""FraiseQL Product Catalog Schema
 Demonstrates LTREE usage for product categorization
 """
 
@@ -89,11 +88,10 @@ class Query:
         """Get products in a specific category."""
         if include_subcategories:
             return Product.find_where(category_path__descendant_of=category_path)
-        else:
-            return Product.find_where(
-                category_path__descendant_of=category_path,
-                category_path__nlevel_eq=fraiseql.sql.Function("nlevel", category_path) + 1,
-            )
+        return Product.find_where(
+            category_path__descendant_of=category_path,
+            category_path__nlevel_eq=fraiseql.sql.Function("nlevel", category_path) + 1,
+        )
 
     @fraiseql.field
     def products_in_price_range(

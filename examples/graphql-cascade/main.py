@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-GraphQL Cascade Example
+"""GraphQL Cascade Example
 
 This example demonstrates GraphQL Cascade functionality in FraiseQL.
 Run with: python main.py
@@ -69,49 +68,14 @@ class CreatePostError:
 async def getPosts(info) -> List[PostWithAuthor]:
     """Get all posts with author information."""
     db = info.context["db"]
-    from fraiseql.db import DatabaseQuery
-
-    query = DatabaseQuery(
-        """
-        SELECT
-            jsonb_build_object(
-                'id', p.id,
-                'title', p.title,
-                'content', p.content,
-                'author', jsonb_build_object(
-                    'id', u.id,
-                    'name', u.name,
-                    'post_count', u.post_count,
-                    'created_at', u.created_at
-                ),
-                'created_at', p.created_at
-            ) as data
-        FROM tb_post p
-        JOIN tb_user u ON p.author_id = u.id
-        ORDER BY p.created_at DESC
-    """,
-        [],
-    )
-    result = await db.run(query)
-    return [PostWithAuthor(**row["data"]) for row in result]
+    return await db.find("v_post_with_author", "posts", info)
 
 
 @fraiseql.query
 async def getUser(info, id: str) -> User:
     """Get a user by ID."""
     db = info.context["db"]
-    from fraiseql.db import DatabaseQuery
-
-    query = DatabaseQuery(
-        """
-        SELECT data FROM v_user WHERE id = %s
-    """,
-        [id],
-    )
-    result = await db.run(query)
-    if result:
-        return User(**result[0]["data"])
-    return None
+    return await db.find_one("v_user", "user", info, id=id)
 
 
 # Mutations

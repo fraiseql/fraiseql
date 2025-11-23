@@ -66,11 +66,7 @@ async def me(info) -> User | None:
 
     # Query user from database
     db = info.context["db"]
-    result = await db.find_one("user_view", {"id": user_context.user_id})
-
-    if result:
-        return User(**result["data"])
-    return None
+    return await db.find_one("v_user", "user", info, id=user_context.user_id)
 
 
 @fraiseql.query
@@ -80,9 +76,7 @@ async def my_posts(info, limit: int = 10) -> list[Post]:
     user_context = info.context["user"]
 
     db = info.context["db"]
-    results = await db.find("post_view", {"author_id": user_context.user_id}, limit=limit)
-
-    return [Post(**result["data"]) for result in results]
+    return await db.find("v_post", "posts", info, author_id=user_context.user_id, limit=limit)
 
 
 @fraiseql.query
@@ -90,9 +84,7 @@ async def my_posts(info, limit: int = 10) -> list[Post]:
 async def all_users(info, limit: int = 50) -> list[User]:
     """Get all users (admin only)."""
     db = info.context["db"]
-    results = await db.find("user_view", limit=limit)
-
-    return [User(**result["data"]) for result in results]
+    return await db.find("v_user", "users", info, limit=limit)
 
 
 @fraiseql.mutation
@@ -101,16 +93,17 @@ async def create_post(info, title: str, content: str) -> Post:
     """Create a new blog post."""
     user_context = info.context["user"]
 
-    post_data = {
-        "title": title,
-        "content": content,
-        "author_id": user_context.user_id,
-    }
-
     db = info.context["db"]
-    result = await db.create("post_view", post_data)
+    result = await db.execute_function(
+        "fn_create_post",
+        {
+            "title": title,
+            "content": content,
+            "author_id": user_context.user_id,
+        },
+    )
 
-    return Post(**result["data"])
+    return await db.find_one("v_post", "post", info, id=result["id"])
 
 
 async def create_app() -> FastAPI:

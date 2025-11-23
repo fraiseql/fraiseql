@@ -6,7 +6,9 @@ Usage:
 
 import asyncio
 import os
+
 import psycopg_pool
+
 from fraiseql.introspection import AutoDiscovery
 
 

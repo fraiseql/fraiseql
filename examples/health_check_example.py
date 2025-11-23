@@ -8,6 +8,7 @@ built-in HealthCheck utility for better composability.
 """
 
 from fastapi import APIRouter, FastAPI
+
 from fraiseql.monitoring import (
     CheckResult,
     HealthCheck,

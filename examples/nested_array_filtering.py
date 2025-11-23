@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Clean Example: Nested Array Where Filtering in FraiseQL v0.7.10+
+"""Clean Example: Nested Array Where Filtering in FraiseQL v0.7.10+
 
 This example demonstrates the CLEAN registration-based approach for nested array
 where filtering with comprehensive AND/OR/NOT logical operator support,
@@ -79,7 +78,6 @@ register_nested_array_filter(ManualNetworkConfig, "print_servers", PrintServer)
 
 async def main():
     """Demonstrate the clean nested array where filtering approaches."""
-
     print("🚀 Clean FraiseQL Nested Array Where Filtering")
     print("=" * 50)
 

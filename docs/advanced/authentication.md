@@ -395,31 +395,18 @@ class PostgresUserRepository(UserRepository):
     """User repository backed by PostgreSQL."""
 
     async def get_user_by_username(self, username: str) -> User | None:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "SELECT * FROM users WHERE username = $1",
-                username
-            )
-            row = await result.fetchone()
-            return User(**row) if row else None
+        return await db.find_one("v_user", "user", None, username=username)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "SELECT * FROM users WHERE id = $1",
-                user_id
-            )
-            row = await result.fetchone()
-            return User(**row) if row else None
+        return await db.find_one("v_user", "user", None, id=user_id)
 
     async def create_user(self, username: str, password_hash: str, email: str) -> User:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "INSERT INTO users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING *",
-                username, password_hash, email
-            )
-            row = await result.fetchone()
-            return User(**row)
+        result = await db.execute_function("fn_create_user", {
+            "username": username,
+            "password_hash": password_hash,
+            "email": email
+        })
+        return await db.find_one("v_user", "user", None, id=result["id"])
 
 # 2. Create provider
 user_repo = PostgresUserRepository()

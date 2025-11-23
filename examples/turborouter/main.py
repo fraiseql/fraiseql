@@ -5,10 +5,11 @@ query execution.
 """
 
 import uvicorn
+from schema import Post, User
+from turbo_config import setup_turbo_router
+
 from fraiseql import FraiseQL
 from fraiseql.fastapi import create_app
-from schema import User, Post
-from turbo_config import setup_turbo_router
 
 # Initialize FraiseQL
 app = FraiseQL(database_url="postgresql://localhost/turborouter_demo")
@@ -20,7 +21,7 @@ app.register_type(Post)
 
 
 # Import queries
-from queries import user, users, post, posts  # noqa: E402
+from queries import post, posts, user, users
 
 app.register_query(user)
 app.register_query(users)
@@ -55,8 +56,8 @@ if __name__ == "__main__":
     print("GraphQL Playground: http://localhost:8000/graphql")
     print()
     print("Try these queries:")
-    print('  - GetUser: query GetUser($id: Int!) { user(id: $id) { name email } }')
-    print('  - GetPosts: query GetPosts($limit: Int!) { posts(limit: $limit) { title } }')
+    print("  - GetUser: query GetUser($id: Int!) { user(id: $id) { name email } }")
+    print("  - GetPosts: query GetPosts($limit: Int!) { posts(limit: $limit) { title } }")
     print()
     print("Check response headers for 'x-execution-mode: turbo'")
     print("=" * 60)

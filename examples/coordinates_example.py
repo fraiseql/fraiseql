@@ -1,5 +1,4 @@
-"""
-FraiseQL Coordinate Datatype - Complete Geographic Coordinate Support
+"""FraiseQL Coordinate Datatype - Complete Geographic Coordinate Support
 
 This comprehensive example demonstrates FraiseQL's Coordinate datatype for
 handling geographic coordinates (latitude/longitude) with full PostgreSQL POINT
@@ -52,7 +51,6 @@ class Location:
 # Example usage functions
 def create_location_examples():
     """Create sample locations for demonstration."""
-
     locations_data = [
         {
             "name": "Golden Gate Bridge",
@@ -81,7 +79,6 @@ def create_location_examples():
 
 def coordinate_filtering_examples():
     """Demonstrate various coordinate filtering operations."""
-
     print("=== Coordinate Filtering Examples ===\n")
 
     # 1. Find locations near San Francisco (within 50km)
@@ -118,7 +115,6 @@ def coordinate_filtering_examples():
 
 def graphql_query_examples():
     """Show GraphQL queries using coordinate fields."""
-
     print("=== GraphQL Query Examples ===\n")
 
     # GraphQL query with coordinate filtering
@@ -174,7 +170,6 @@ def graphql_query_examples():
 
 def coordinate_validation_examples():
     """Demonstrate coordinate validation."""
-
     print("=== Coordinate Validation Examples ===\n")
 
     valid_coordinates = [
@@ -204,7 +199,6 @@ def coordinate_validation_examples():
 
 def database_schema_example():
     """Show the database schema for coordinate fields."""
-
     print("=== Database Schema Example ===\n")
 
     schema_sql = """
@@ -244,7 +238,6 @@ LIMIT 1;
 
 def main():
     """Run all coordinate examples."""
-
     print("FraiseQL Coordinate Datatype Examples")
     print("=" * 50)
     print()

@@ -1,6 +1,6 @@
 """GraphQL Query Resolvers."""
 
-from schema import User, Post
+from schema import Post, User
 
 
 async def user(info, id: int) -> User | None:

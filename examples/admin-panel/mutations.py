@@ -9,7 +9,15 @@ import fraiseql
 from fraiseql import Info
 from fraiseql.auth import requires_role
 
-from .models import CustomerInfo, CustomerUpdateInput, Deal, DealUpdateInput, Order, OrderStatusUpdateInput, SupportTicket
+from .models import (
+    CustomerInfo,
+    CustomerUpdateInput,
+    Deal,
+    DealUpdateInput,
+    Order,
+    OrderStatusUpdateInput,
+    SupportTicket,
+)
 
 
 async def log_admin_action(

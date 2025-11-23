@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Import models to register types
 from models import (
@@ -26,6 +25,16 @@ from models import (
     OrderStatusUpdateInput,
     SalesMetrics,
     SupportTicket,
+)
+from mutations import (
+    assign_ticket,
+    create_deal,
+    mark_order_shipped,
+    refund_order,
+    update_customer_status,
+    update_deal_stage,
+    update_order_status,
+    update_ticket_status,
 )
 
 # Import queries and mutations
@@ -45,17 +54,7 @@ from queries import (
     support_tickets,
 )
 
-from mutations import (
-    assign_ticket,
-    create_deal,
-    mark_order_shipped,
-    refund_order,
-    update_customer_status,
-    update_deal_stage,
-    update_order_status,
-    update_ticket_status,
-)
-
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Database URL from environment
 DATABASE_URL = os.getenv(

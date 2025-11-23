@@ -1,5 +1,4 @@
-"""
-Where Input Types & Filtering Example
+"""Where Input Types & Filtering Example
 
 This example demonstrates FraiseQL's automatic Where input type generation
 and powerful filtering capabilities.
@@ -45,14 +44,7 @@ async def notes(info, where=None) -> list[Note]:  # where: NoteWhereInput | None
 async def notes_by_priority(info, priority: str) -> list[Note]:
     """Get notes by priority (simple parameter approach)."""
     db = info.context["db"]
-    from fraiseql.db import DatabaseQuery
-
-    query = DatabaseQuery(
-        "SELECT data FROM v_note WHERE data->>'priority' = %s ORDER BY (data->>'created_at')::timestamp DESC",
-        [priority],
-    )
-    result = await db.run(query)
-    return [Note(**row["data"]) for row in result]
+    return await db.find("v_note", "notes", info, priority=priority)
 
 
 @fraiseql.query
@@ -134,17 +126,10 @@ class CreateNote:
             result = await db.insert("tb_note", note_data, returning="id")
 
             # Get the created note
-            from fraiseql.db import DatabaseQuery
-
-            query = DatabaseQuery(
-                "SELECT data FROM v_note WHERE (data->>'id')::int = %s", [result["id"]]
-            )
-            note_result = await db.run(query)
-            if note_result:
-                created_note = Note(**note_result[0]["data"])
+            created_note = await db.find_one("v_note", "note", info, id=result["id"])
+            if created_note:
                 return CreateNoteSuccess(note=created_note)
-            else:
-                return NoteError(message="Failed to retrieve created note", code="RETRIEVAL_ERROR")
+            return NoteError(message="Failed to retrieve created note", code="RETRIEVAL_ERROR")
 
         except Exception as e:
             return NoteError(message=f"Failed to create note: {e!s}", code="CREATE_ERROR")
@@ -181,17 +166,10 @@ class UpdateNote:
             await db.update("tb_note", update_data, where={"id": self.id})
 
             # Get the updated note
-            from fraiseql.db import DatabaseQuery
-
-            query = DatabaseQuery(
-                "SELECT data FROM v_note WHERE (data->>'id')::int = %s", [self.id]
-            )
-            note_result = await db.run(query)
-            if note_result:
-                updated_note = Note(**note_result[0]["data"])
+            updated_note = await db.find_one("v_note", "note", info, id=self.id)
+            if updated_note:
                 return UpdateNoteSuccess(note=updated_note)
-            else:
-                return NoteError(message="Note not found after update", code="NOT_FOUND")
+            return NoteError(message="Note not found after update", code="NOT_FOUND")
 
         except Exception as e:
             return NoteError(message=f"Failed to update note: {e!s}", code="UPDATE_ERROR")

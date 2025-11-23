@@ -1,5 +1,4 @@
-"""
-FraiseQL Complete CQRS Blog Example
+"""FraiseQL Complete CQRS Blog Example
 
 This example demonstrates:
 1. Migration management with fraiseql migrate
@@ -20,9 +19,8 @@ from contextlib import asynccontextmanager
 import asyncpg
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from strawberry.fastapi import GraphQLRouter
-
 from schema import schema
+from strawberry.fastapi import GraphQLRouter
 from sync import EntitySync
 
 # Configure logging

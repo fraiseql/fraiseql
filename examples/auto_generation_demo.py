@@ -10,7 +10,6 @@ from uuid import UUID, uuid4
 
 import fraiseql
 
-
 # Phase 1: Basic Auto-Generation
 print("=== Phase 1: Basic Auto-Generation ===\n")
 

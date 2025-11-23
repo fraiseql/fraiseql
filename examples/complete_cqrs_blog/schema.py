@@ -1,13 +1,13 @@
-"""
-GraphQL Schema for Blog Example
+"""GraphQL Schema for Blog Example
 
 Demonstrates FraiseQL's CQRS pattern:
 - Queries read from tv_* tables (query side)
 - Mutations write to tb_* tables and explicitly sync to tv_* (command side)
 """
 
-import strawberry
 from datetime import datetime
+
+import strawberry
 
 
 @strawberry.type
@@ -178,8 +178,7 @@ class Mutation:
     async def create_user(
         self, info, email: str, username: str, full_name: str, bio: str | None = None
     ) -> User:
-        """
-        Create a new user.
+        """Create a new user.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_user (command side)
@@ -219,15 +218,14 @@ class Mutation:
     async def create_post(
         self, info, title: str, content: str, author_id: str, published: bool = False
     ) -> Post:
-        """
-        Create a new post.
+        """Create a new post.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_post (command side)
         2. Explicitly sync to tv_post (query side)
         3. Also sync the author (post count changed)
         """
-        from uuid import uuid4, UUID
+        from uuid import UUID, uuid4
 
         pool = info.context["db_pool"]
         sync = info.context["sync"]
@@ -261,15 +259,14 @@ class Mutation:
 
     @strawberry.mutation
     async def create_comment(self, info, post_id: str, author_id: str, content: str) -> Comment:
-        """
-        Create a new comment.
+        """Create a new comment.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_comment (command side)
         2. Explicitly sync post (comment count changed)
         3. Explicitly sync author (comment count changed)
         """
-        from uuid import uuid4, UUID
+        from uuid import UUID, uuid4
 
         pool = info.context["db_pool"]
         sync = info.context["sync"]
@@ -310,8 +307,7 @@ class Mutation:
 
     @strawberry.mutation
     async def publish_post(self, info, post_id: str) -> Post:
-        """
-        Publish a post (set published=true).
+        """Publish a post (set published=true).
 
         EXPLICIT SYNC PATTERN:
         1. Update tb_post (command side)

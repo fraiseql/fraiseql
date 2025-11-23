@@ -12,10 +12,11 @@ from enum import Enum
 from typing import Any, Union
 from uuid import UUID
 
+from graphql import GraphQLResolveInfo
+
 import fraiseql
 from fraiseql.db import DatabaseQuery
 from fraiseql.patterns import TrinityMixin, get_pk_column_name
-from graphql import GraphQLResolveInfo
 
 
 # Domain enums

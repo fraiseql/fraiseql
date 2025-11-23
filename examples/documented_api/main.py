@@ -390,6 +390,7 @@ FROM tb_reviews;
 # =============================================================================
 if __name__ == "__main__":
     import uvicorn
+
     from fraiseql.fastapi import create_app
 
     # Create FastAPI app with FraiseQL

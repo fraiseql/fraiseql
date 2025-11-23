@@ -1,6 +1,4 @@
-"""
-
-5-Minute Quickstart Example
+"""5-Minute Quickstart Example
 
 This is the complete code from the 5-minute quickstart guide.
 

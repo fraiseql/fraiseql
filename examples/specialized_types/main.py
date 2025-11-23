@@ -421,6 +421,7 @@ INSERT INTO tb_security_rules (name, source_cidr, destination_cidr, port, protoc
 # =============================================================================
 if __name__ == "__main__":
     import uvicorn
+
     from fraiseql.fastapi import create_app
 
     # Create FastAPI app with FraiseQL

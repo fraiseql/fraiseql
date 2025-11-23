@@ -314,17 +314,12 @@ def mutation(
             @mutation
             async def create_user(info, input: CreateUserInput) -> User:
                 db = info.context["db"]
-                # Direct implementation with custom logic
-                user_data = {
+                # Use SQL function for business logic
+                result = await db.execute_function("fn_create_user", {
                     "name": input.name,
-                    "email": input.email,
-                    "created_at": datetime.utcnow()
-                }
-                result = await db.execute_raw(
-                    "INSERT INTO users (data) VALUES ($1) RETURNING *",
-                    user_data
-                )
-                return User(**result[0]["data"])
+                    "email": input.email
+                })
+                return await db.find_one("v_user", "user", info, id=result["id"])
 
         Basic class-based mutation::\
 

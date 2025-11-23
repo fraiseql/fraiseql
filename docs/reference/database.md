@@ -346,11 +346,11 @@ from fraiseql import type, query, mutation, input, field
 @mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
-    result = await db.execute_raw(
-        "INSERT INTO users (data) VALUES ($1) RETURNING *",
-        {"name": input.name, "email": input.email}
-    )
-    return User(**result[0])
+    result = await db.execute_function("fn_create_user", {
+        "name": input.name,
+        "email": input.email
+    })
+    return await db.find_one("v_user", "user", info, id=result["id"])
 ```
 
 ### update_one()
@@ -375,17 +375,11 @@ from fraiseql import type, query, mutation, input, field
 @mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
-    result = await db.execute_raw(
-        """
-        UPDATE users
-        SET data = data || $1::jsonb
-        WHERE id = $2
-        RETURNING *
-        """,
-        input.__dict__,
-        id
-    )
-    return User(**result[0])
+    result = await db.execute_function("fn_update_user", {
+        "id": id,
+        **input.__dict__
+    })
+    return await db.find_one("v_user", "user", info, id=id)
 ```
 
 ### delete_one()
@@ -944,10 +938,7 @@ from fraiseql import type, query, mutation, input, field
 async def get_user(info, id: UUID) -> User | None:
     try:
         db = info.context["db"]
-        user = await db.find_one("v_user", where={"id": id})
-        if not user:
-            return None
-        return User(**user)
+        return await db.find_one("v_user", "user", info, id=id)
     except Exception as e:
         logger.error(f"Failed to fetch user {id}: {e}")
         raise GraphQLError("Failed to fetch user")

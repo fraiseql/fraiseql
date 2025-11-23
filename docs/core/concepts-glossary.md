@@ -530,8 +530,11 @@ async def create_user(info, input: CreateUserInput) -> User:
     """Simple mutation that returns the type directly."""
     db = info.context["db"]
     # Call PostgreSQL function with business logic
-    result = await db.call_function("fn_create_user", input.name, input.email)
-    return User(**result)
+    result = await db.execute_function("fn_create_user", {
+        "name": input.name,
+        "email": input.email
+    })
+    return await db.find_one("v_user", "user", info, id=result["id"])
 ```
 
 **Class-based pattern (with success/failure):**
@@ -548,16 +551,16 @@ class CreateUser:
     async def resolve(self, info):
         db = info.context["db"]
         # Call PostgreSQL function - all business logic in database
-        result = await db.call_function(
-            "fn_create_user",
-            self.input.name,
-            self.input.email
-        )
+        result = await db.execute_function("fn_create_user", {
+            "name": self.input.name,
+            "email": self.input.email
+        })
 
-        # PostgreSQL function returns JSONB with success/error indicator
+        # PostgreSQL function returns success/error indicator with user ID
         if result["success"]:
+            user = await db.find_one("v_user", "user", info, id=result["user_id"])
             return CreateUserSuccess(
-                user=User(**result["user"]),
+                user=user,
                 message=result.get("message", "User created")
             )
         return ValidationError(

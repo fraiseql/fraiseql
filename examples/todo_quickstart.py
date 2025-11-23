@@ -1,5 +1,4 @@
-"""
-🟢 BEGINNER | ⏱️ 5 min | 🎯 Learning Basics
+"""🟢 BEGINNER | ⏱️ 5 min | 🎯 Learning Basics
 
 Simple Todo App - Your First GraphQL API with FraiseQL
 
@@ -22,7 +21,6 @@ from datetime import datetime
 from uuid import uuid4
 
 import fraiseql
-
 
 # First, let's define our GraphQL types using FraiseQL decorators
 
@@ -131,16 +129,16 @@ if __name__ == "__main__":
 
     print("🚀 Todo API starting...")
     print("📊 GraphQL Playground: http://localhost:8000/graphql")
-    print("")
+    print()
     print("Try these queries:")
-    print("")
+    print()
     print("Get all todos:")
     print("query { todos { id title completed createdAt isOverdue } }")
-    print("")
+    print()
     print("Create a todo:")
     print('mutation { createTodo(title: "Learn FraiseQL") { id title completed } }')
-    print("")
+    print()
     print("Toggle completion:")
     print('mutation { toggleTodo(id: "1") { id title completed } }')
-    print("")
+    print()
     uvicorn.run(app, host="0.0.0.0", port=8000)

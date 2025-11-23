@@ -9,18 +9,17 @@ This provides:
 """
 
 import json
-from typing import Optional
 from types import (
-    OrderSummary,
-    Product,
-    CreateOrderInput,
-    ProcessPaymentInput,
-    CancelOrderInput,
-    UpdateOrderStatusInput,
     AddProductInput,
+    CancelOrderInput,
+    CreateOrderInput,
+    OrderSummary,
+    ProcessPaymentInput,
+    Product,
+    UpdateOrderStatusInput,
     UpdateProductInventoryInput,
 )
-
+from typing import Optional
 
 # ============================================================================
 # ORDER MUTATIONS
