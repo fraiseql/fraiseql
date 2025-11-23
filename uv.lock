@@ -772,6 +772,7 @@ dev = [
 docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
+    { name = "mkdocs-redirects" },
     { name = "pymdown-extensions" },
 ]
 tracing = [
@@ -828,8 +829,9 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.25.0" },
     { name = "httpx", marker = "extra == 'auth0'", specifier = ">=0.25.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.5.0" },
-    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.0.0" },
+    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
+    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.6.22" },
+    { name = "mkdocs-redirects", marker = "extra == 'docs'", specifier = ">=1.2.2" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.20.0" },
     { name = "opentelemetry-api", marker = "extra == 'tracing'", specifier = ">=1.20.0" },
     { name = "opentelemetry-exporter-jaeger", marker = "extra == 'all'", specifier = ">=1.20.0" },
@@ -852,7 +854,7 @@ requires-dist = [
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
     { name = "pyjwt", extras = ["crypto"], marker = "extra == 'all'", specifier = ">=2.8.0" },
     { name = "pyjwt", extras = ["crypto"], marker = "extra == 'auth0'", specifier = ">=2.8.0" },
-    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
+    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.16.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
