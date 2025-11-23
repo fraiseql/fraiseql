@@ -15,9 +15,14 @@
   --md-accent-fg-color: #f25c66;
 }
 
-/* Header gradient to match fraiseql.dev */
+/* Header - solid color matching primary */
 .md-header {
-  background: linear-gradient(90deg, #e63946 0%, #f25c66 100%);
+  background: #e63946;
+}
+
+/* Tabs bar - match header color exactly */
+.md-tabs {
+  background: #e63946;
 }
 
 /* Tabs hover/active states */
