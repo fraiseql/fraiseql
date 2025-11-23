@@ -28,14 +28,14 @@ theme:
   language: en
   palette:
     - scheme: default
-      primary: deep purple
-      accent: amber
+      primary: pink
+      accent: pink
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: deep purple
-      accent: amber
+      primary: pink
+      accent: pink
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -156,6 +156,9 @@ nav:
   - Architecture:
     - Overview: architecture/README.md
     - Architecture Decisions: architecture/decisions/README.md
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   social:
