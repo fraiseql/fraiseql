@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2025-11-23
+
+### 📚 Documentation
+
+- **Pattern Standardization**: Updated all docs and examples to use proper FraiseQL patterns
+  - Use `db.find()` and `db.find_one()` for queries (PostgreSQL → Rust → HTTP pipeline)
+  - Use `db.execute_function()` for mutations following CQRS pattern
+  - Removed manual `**row["data"]` object instantiation anti-patterns
+- **Theme Alignment**: Documentation theme now matches fraiseql.dev strawberry colors
+- **Quickstart Fixes**: Corrected examples in quickstart documentation
+
+### 🔧 Internal Improvements
+
+- Updated docs dependencies (mkdocs 1.6.1+, mkdocs-material 9.6.22+)
+- Added mkdocs-redirects for better URL handling
+- CI fixes for import testing in publish workflow
+
 ## [1.6.0] - 2025-11-22
 
 ### 🚀 New Features
