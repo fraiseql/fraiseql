@@ -309,6 +309,8 @@ jobs:
         EOF
 
             # Install wheel and test imports
+            # Install base dependencies first (psycopg required for scalar imports)
+            pip install psycopg[binary] graphql-core pydantic pydantic-settings
             pip install "$whl" --force-reinstall --no-deps
             python test_imports.py || {
               echo "ERROR: Import test failed for $whl"
