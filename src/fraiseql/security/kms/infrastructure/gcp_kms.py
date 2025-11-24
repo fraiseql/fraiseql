@@ -3,7 +3,7 @@
 import json
 import secrets
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fraiseql.security.kms.domain.base import BaseKMSProvider
 from fraiseql.security.kms.domain.exceptions import KeyNotFoundError
@@ -80,7 +80,7 @@ class GCPKMSProvider(BaseKMSProvider):
         self._config = config
         self._client = None
 
-    async def _get_client(self):
+    async def _get_client(self) -> Any:
         """Lazy initialization of async client."""
         if not GCP_KMS_AVAILABLE or kms_v1 is None:
             raise ImportError("google-cloud-kms not available")
