@@ -162,7 +162,11 @@ class MutationDefinition:
                 cascade_data = None
                 if "_cascade" in result:
                     cascade_data = result["_cascade"]
-                elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
+                elif (
+                    hasattr(parsed_result, "extra_metadata")
+                    and parsed_result.extra_metadata
+                    and "_cascade" in parsed_result.extra_metadata
+                ):
                     cascade_data = parsed_result.extra_metadata["_cascade"]
 
                 if cascade_data:
