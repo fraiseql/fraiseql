@@ -10,7 +10,7 @@ separation between domain logic and data access concerns.
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from fraiseql.sbom.domain.models import Component, ComponentIdentifier, License
+from fraiseql.sbom.domain.models import ComponentIdentifier, License
 
 
 class PackageMetadataRepository(ABC):

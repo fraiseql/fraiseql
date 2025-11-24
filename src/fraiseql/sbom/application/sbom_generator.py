@@ -8,7 +8,7 @@ but delegates domain logic to domain models and services.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +19,6 @@ from fraiseql.sbom.domain.models import (
     ComponentType,
     Hash,
     HashAlgorithm,
-    License,
     Supplier,
 )
 from fraiseql.sbom.domain.repositories import PackageMetadataRepository
@@ -93,7 +92,7 @@ class SBOMGenerator:
             component_version=component_version,
             component_description=component_description,
             supplier=supplier,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             tools=["fraiseql-sbom-generator"],
             authors=authors or [],
         )
@@ -145,9 +144,7 @@ class SBOMGenerator:
 
         return sbom
 
-    def _create_component_from_identifier(
-        self, identifier: ComponentIdentifier
-    ) -> Component:
+    def _create_component_from_identifier(self, identifier: ComponentIdentifier) -> Component:
         """Create a Component entity from an identifier by enriching with metadata.
 
         Args:
@@ -166,11 +163,11 @@ class SBOMGenerator:
         )
 
         # Add license information
-        license = self.metadata_repository.get_package_license(
+        pkg_license = self.metadata_repository.get_package_license(
             identifier.name, identifier.version
         )
-        if license:
-            component.add_license(license)
+        if pkg_license:
+            component.add_license(pkg_license)
         else:
             logger.debug(
                 f"No license information found for {identifier.name}",

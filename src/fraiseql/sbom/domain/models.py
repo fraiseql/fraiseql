@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 
 class HashAlgorithm(str, Enum):
@@ -281,9 +281,7 @@ class SBOM:
             ValueError: If component with same identifier already exists
         """
         # Check for duplicates based on name+version
-        existing = self.find_component(
-            component.identifier.name, component.identifier.version
-        )
+        existing = self.find_component(component.identifier.name, component.identifier.version)
         if existing:
             raise ValueError(
                 f"Component {component.identifier} already exists with bom_ref {existing.bom_ref}"
@@ -302,10 +300,7 @@ class SBOM:
             Component if found, None otherwise
         """
         for component in self.components:
-            if (
-                component.identifier.name == name
-                and component.identifier.version == version
-            ):
+            if component.identifier.name == name and component.identifier.version == version:
                 return component
         return None
 
@@ -386,9 +381,7 @@ class SBOM:
         # Check components have required data
         for comp in self.components:
             if not comp.licenses:
-                issues.append(
-                    f"Component {comp.identifier} has no license information"
-                )
+                issues.append(f"Component {comp.identifier} has no license information")
 
         # Check dependency references are valid
         for comp_ref, dep_refs in self.dependencies.items():

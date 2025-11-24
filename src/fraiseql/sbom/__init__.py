@@ -24,12 +24,12 @@ from fraiseql.sbom.domain.models import (
 )
 
 __all__ = [
-    "SBOMGenerator",
     "SBOM",
     "Component",
     "ComponentIdentifier",
     "Hash",
     "HashAlgorithm",
     "License",
+    "SBOMGenerator",
     "Supplier",
 ]

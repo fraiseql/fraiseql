@@ -2,12 +2,12 @@
 
 **Document Version:** 1.0
 **Last Updated:** 2025-11-21
-**Classification:** UNCLASSIFIED
-**Applicable Standard:** Executive Order 14028 (May 2021)
+**Classification:** Public
+**Applicable Standards:** Industry supply chain security standards (CycloneDX, SLSA, SPDX)
 
 ## Executive Summary
 
-FraiseQL implements automated Software Bill of Materials (SBOM) generation to comply with Executive Order 14028 requirements for federal software procurement. SBOMs are generated in CycloneDX format and cryptographically signed for integrity verification.
+FraiseQL implements automated Software Bill of Materials (SBOM) generation to comply with industry supply chain security standards. SBOMs are generated in CycloneDX format and cryptographically signed for integrity verification.
 
 ## What is an SBOM?
 
@@ -20,9 +20,9 @@ A Software Bill of Materials (SBOM) is a formal, machine-readable inventory of s
 
 ## Regulatory Compliance
 
-### Executive Order 14028 Requirements
+### Industry Supply Chain Security Standards
 
-On May 12, 2021, President Biden signed Executive Order 14028 "Improving the Nation's Cybersecurity," which mandates that software sold to the federal government must:
+FraiseQL implements comprehensive SBOM generation following industry best practices and regulatory requirements:
 
 1. ✅ Provide an SBOM to customers
 2. ✅ Use a standardized format (SPDX or CycloneDX)
@@ -36,8 +36,9 @@ On May 12, 2021, President Biden signed Executive Order 14028 "Improving the Nat
 
 - **NIST SP 800-161**: Cybersecurity Supply Chain Risk Management
 - **NIST SP 800-218**: Secure Software Development Framework (SSDF)
-- **CISA SBOM Guidance**: [cisa.gov/sbom](https://www.cisa.gov/sbom)
-- **CycloneDX Specification**: OWASP CycloneDX 1.5 ([cyclonedx.org](https://cyclonedx.org))
+- **OWASP CycloneDX**: Industry standard for SBOM format ([cyclonedx.org](https://cyclonedx.org))
+- **SLSA Framework**: Supply chain Levels for Software Artifacts
+- **SPDX Specification**: Software Package Data Exchange format
 
 ## SBOM Format
 
@@ -48,7 +49,7 @@ FraiseQL generates SBOMs in **CycloneDX 1.5** format (JSON or XML).
 - ✅ OWASP standard designed for security use cases
 - ✅ Comprehensive metadata (licenses, hashes, vulnerabilities)
 - ✅ Wide tool support (vulnerability scanners, compliance tools)
-- ✅ Federal-friendly (approved by CISA as SBOM format)
+- ✅ Industry-standard format supported by major security platforms
 
 ### SBOM Structure
 
@@ -240,12 +241,12 @@ trivy sbom --severity HIGH,CRITICAL fraiseql-1.5.0-sbom.json
     severity: 'CRITICAL,HIGH'
 ```
 
-### 3. Federal Agency Integration
+### 3. Enterprise Integration
 
-Federal agencies can:
+Organizations can:
 1. Download SBOM from GitHub Releases
 2. Verify signature with Cosign
-3. Import into agency vulnerability management system
+3. Import into vulnerability management systems
 4. Monitor for new CVEs affecting FraiseQL dependencies
 5. Receive alerts when action is required
 
@@ -262,9 +263,9 @@ fraiseql sbom validate --input fraiseql-sbom.json
 # Output will warn about GPL-licensed components
 ```
 
-### Federal License Requirements
+### License Compliance Requirements
 
-- ✅ **Permissive Licenses**: MIT, Apache-2.0, BSD (federal-friendly)
+- ✅ **Permissive Licenses**: MIT, Apache-2.0, BSD (enterprise-friendly)
 - ⚠️ **Copyleft Licenses**: GPL, AGPL (may have restrictions)
 - ✅ **FraiseQL Core**: MIT License (fully compliant)
 
@@ -323,7 +324,7 @@ uv pip install ".[dev,all]"
 --certificate-identity-regexp "https://github.com/fraiseql/fraiseql"
 ```
 
-## For Federal Procurement Officers
+## For Procurement Officers
 
 ### Questions to Ask Vendors About SBOMs
 

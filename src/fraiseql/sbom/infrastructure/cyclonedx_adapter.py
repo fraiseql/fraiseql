@@ -9,10 +9,9 @@ adopted for federal procurement compliance (EO 14028).
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
-from fraiseql.sbom.domain.models import SBOM, Component, Hash, License
+from fraiseql.sbom.domain.models import SBOM, Component, License
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +60,7 @@ class CycloneDXAdapter:
             XML serialization requires additional dependencies.
             This is a placeholder for future implementation.
         """
-        raise NotImplementedError(
-            "XML serialization not yet implemented. Use JSON format."
-        )
+        raise NotImplementedError("XML serialization not yet implemented. Use JSON format.")
 
     def _to_cyclonedx_dict(self, sbom: SBOM) -> dict[str, Any]:
         """Convert SBOM to CycloneDX dictionary structure.
@@ -103,9 +100,7 @@ class CycloneDXAdapter:
         """
         metadata: dict[str, Any] = {
             "timestamp": sbom.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "tools": [
-                {"name": tool, "vendor": "FraiseQL"} for tool in sbom.tools
-            ],
+            "tools": [{"name": tool, "vendor": "FraiseQL"} for tool in sbom.tools],
         }
 
         # Add component metadata (the software being described)
@@ -167,15 +162,13 @@ class CycloneDXAdapter:
 
         # Add licenses
         if component.licenses:
-            comp_dict["licenses"] = [
-                self._license_to_dict(lic) for lic in component.licenses
-            ]
+            comp_dict["licenses"] = [self._license_to_dict(lic) for lic in component.licenses]
 
         # Add hashes
         if component.hashes:
             comp_dict["hashes"] = [
-                {"alg": hash.algorithm.value, "content": hash.value}
-                for hash in component.hashes
+                {"alg": hash_obj.algorithm.value, "content": hash_obj.value}
+                for hash_obj in component.hashes
             ]
 
         # Add external references
@@ -227,6 +220,5 @@ class CycloneDXAdapter:
             Deserialization is less critical than serialization for SBOM generation.
         """
         raise NotImplementedError(
-            "SBOM deserialization not yet implemented. "
-            "This feature is planned for future releases."
+            "SBOM deserialization not yet implemented. This feature is planned for future releases."
         )

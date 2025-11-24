@@ -33,7 +33,6 @@ def sbom_cli() -> None:
 
     Generate, validate, and manage SBOM files for federal compliance (EO 14028).
     """
-    pass
 
 
 @sbom_cli.command(name="generate")
@@ -111,13 +110,12 @@ def generate_sbom(
     include_dev: bool,
     verbose: bool,
 ) -> None:
-    """Generate Software Bill of Materials (SBOM).
+    r"""Generate Software Bill of Materials (SBOM).
 
     Creates a CycloneDX-format SBOM compliant with Executive Order 14028
     requirements for federal software procurement.
 
     Examples:
-
         # Generate SBOM with auto-detected metadata
         fraiseql sbom generate --output fraiseql-1.5.0-sbom.json
 
@@ -151,7 +149,7 @@ def generate_sbom(
         pyproject_path = proj_root / "pyproject.toml"
         if pyproject_path.exists():
             try:
-                with open(pyproject_path, "rb") as f:
+                with pyproject_path.open("rb") as f:
                     pyproject_data = tomllib.load(f)
 
                 project = pyproject_data.get("project", {})
@@ -162,9 +160,7 @@ def generate_sbom(
 
                 if not component_version:
                     component_version = project.get("version", "0.0.0")
-                    click.echo(
-                        f"   Component version: {component_version} (auto-detected)"
-                    )
+                    click.echo(f"   Component version: {component_version} (auto-detected)")
 
             except Exception as e:
                 click.echo(f"   ⚠️  Failed to read pyproject.toml: {e}", err=True)
@@ -173,9 +169,7 @@ def generate_sbom(
                 if not component_version:
                     component_version = "0.0.0"
         else:
-            click.echo(
-                f"   ⚠️  pyproject.toml not found in {proj_root}", err=True
-            )
+            click.echo(f"   ⚠️  pyproject.toml not found in {proj_root}", err=True)
             if not component_name:
                 component_name = "unknown"
             if not component_version:
@@ -215,10 +209,10 @@ def generate_sbom(
         )
 
         click.echo("")
-        click.echo(f"✅ SBOM generated successfully!")
+        click.echo("✅ SBOM generated successfully!")
         click.echo(f"   Output: {output_path}")
         click.echo(f"   Format: CycloneDX {format.upper()}")
-        click.echo(f"   Spec Version: 1.5")
+        click.echo("   Spec Version: 1.5")
         click.echo("")
         click.echo("📄 To verify the SBOM:")
         click.echo(f"   cyclonedx validate --input-file {output_path}")
@@ -231,7 +225,7 @@ def generate_sbom(
         click.echo(f"❌ SBOM generation failed: {e}", err=True)
         if verbose:
             logger.exception("SBOM generation error")
-        raise click.Abort()
+        raise click.Abort
 
 
 @sbom_cli.command(name="validate")
@@ -256,7 +250,6 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
     CycloneDX 1.5 specification.
 
     Examples:
-
         # Validate SBOM file
         fraiseql sbom validate --input fraiseql-1.5.0-sbom.json
     """
@@ -267,21 +260,19 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
         import json
 
         # Read SBOM file
-        with open(input_file, "r") as f:
+        with input_file.open() as f:
             sbom_data = json.load(f)
 
         # Basic validation checks
         required_fields = ["bomFormat", "specVersion", "serialNumber", "version"]
-        missing_fields = [
-            field for field in required_fields if field not in sbom_data
-        ]
+        missing_fields = [field for field in required_fields if field not in sbom_data]
 
         if missing_fields:
             click.echo(
                 f"❌ Validation failed: Missing required fields: {missing_fields}",
                 err=True,
             )
-            raise click.Abort()
+            raise click.Abort
 
         # Check format
         if sbom_data.get("bomFormat") != "CycloneDX":
@@ -289,7 +280,7 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
                 f"❌ Validation failed: Invalid bomFormat: {sbom_data.get('bomFormat')}",
                 err=True,
             )
-            raise click.Abort()
+            raise click.Abort
 
         # Check spec version
         spec_version = sbom_data.get("specVersion")
@@ -302,9 +293,7 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
         # Check components
         components = sbom_data.get("components", [])
         if not components:
-            click.echo(
-                "⚠️  Warning: SBOM contains no components", err=True
-            )
+            click.echo("⚠️  Warning: SBOM contains no components", err=True)
 
         # Count components by type
         component_types: dict[str, int] = {}
@@ -338,9 +327,7 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
             click.echo(
                 f"⚠️  Warning: Found {copyleft_count} components with copyleft licenses (GPL)"
             )
-            click.echo(
-                "   Copyleft licenses may restrict federal use. Review carefully."
-            )
+            click.echo("   Copyleft licenses may restrict federal use. Review carefully.")
 
         if verbose:
             click.echo("")
@@ -354,10 +341,10 @@ def validate_sbom(input_file: Path, verbose: bool) -> None:
 
     except json.JSONDecodeError as e:
         click.echo(f"❌ Invalid JSON: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort
     except Exception as e:
         click.echo(f"❌ Validation failed: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort
 
 
 # Register command group

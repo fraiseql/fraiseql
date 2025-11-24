@@ -6,7 +6,6 @@ packages from the installed environment, pyproject.toml, and uv.lock.
 
 import importlib.metadata
 import logging
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -94,9 +93,7 @@ class PythonPackageScanner(PackageMetadataRepository):
                     )
 
         except Exception as e:
-            logger.error(
-                f"Failed to scan installed packages: {e}", extra={"error": str(e)}
-            )
+            logger.error(f"Failed to scan installed packages: {e}", extra={"error": str(e)})
 
         logger.info(
             f"Scanned {len(identifiers)} installed packages",
@@ -222,31 +219,33 @@ class PythonPackageScanner(PackageMetadataRepository):
         try:
             # Load lock file if not already loaded
             if self._lock_data is None:
-                with open(self.lock_file_path, "rb") as f:
+                with self.lock_file_path.open("rb") as f:
                     self._lock_data = tomllib.load(f)
 
             # Search for package in lock file
             packages = self._lock_data.get("package", [])
             for package in packages:
-                if package.get("name", "").lower() == name.lower():
-                    if package.get("version") == version:
-                        # Extract SHA256 from source or wheels
-                        source = package.get("source", {})
+                if (
+                    package.get("name", "").lower() == name.lower()
+                    and package.get("version") == version
+                ):
+                    # Extract SHA256 from source or wheels
+                    source = package.get("source", {})
 
-                        # Check sdist hash
-                        sdist = source.get("sdist")
-                        if sdist and "hash" in sdist:
-                            hash_value = sdist["hash"]
-                            # Format: "sha256:abc123..."
-                            if hash_value.startswith("sha256:"):
-                                return hash_value.split(":", 1)[1]
+                    # Check sdist hash
+                    sdist = source.get("sdist")
+                    if sdist and "hash" in sdist:
+                        hash_value = sdist["hash"]
+                        # Format: "sha256:abc123..."
+                        if hash_value.startswith("sha256:"):
+                            return hash_value.split(":", 1)[1]
 
-                        # Check wheel hashes
-                        wheels = package.get("wheels", [])
-                        if wheels and len(wheels) > 0:
-                            wheel_hash = wheels[0].get("hash")
-                            if wheel_hash and wheel_hash.startswith("sha256:"):
-                                return wheel_hash.split(":", 1)[1]
+                    # Check wheel hashes
+                    wheels = package.get("wheels", [])
+                    if wheels and len(wheels) > 0:
+                        wheel_hash = wheels[0].get("hash")
+                        if wheel_hash and wheel_hash.startswith("sha256:"):
+                            return wheel_hash.split(":", 1)[1]
 
         except Exception as e:
             logger.debug(
