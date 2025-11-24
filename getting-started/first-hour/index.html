@@ -3721,7 +3721,7 @@
 </span><span id="__span-11-27"><a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>            <span class="n">code</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">,</span> <span class="s2">&quot;UNKNOWN_ERROR&quot;</span><span class="p">)</span>
 </span><span id="__span-11-28"><a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a>        <span class="p">)</span>
 </span></code></pre></div>
-<p><strong>Why this pattern?</strong> Using <code>@fraiseql.success</code> and <code>@fraiseql.failure</code> decorators creates a proper GraphQL union type, allowing clients to handle success and error cases explicitly in their queries.</p>
+<p><strong>Why this pattern?</strong> Using <code>@success</code> and <code>@failure</code> decorators creates a proper GraphQL union type, allowing clients to handle success and error cases explicitly in their queries.</p>
 <p><strong>Restart your server</strong> to register the updated mutation with new types.</p>
 <p>✅ <strong>Checkpoint</strong>: Can you delete a note and handle the case where the note doesn't exist?</p>
 <h2 id="minute-45-60-production-patterns-timestamps">Minute 45-60: Production Patterns - Timestamps<a class="headerlink" href="#minute-45-60-production-patterns-timestamps" title="Permanent link">&para;</a></h2>

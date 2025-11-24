@@ -2,618 +2,618 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://fraiseql.readthedocs.io/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/advanced-patterns/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/authentication/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/bounded-contexts/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/database-patterns/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/event-sourcing/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/filter-operators/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/multi-tenancy/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/nested-array-filtering/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/advanced/where_input_types/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/api-reference/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/api-reference/database/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/DIRECT_PATH_IMPLEMENTATION/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/type-operator-architecture/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/decisions/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/decisions/002_ultra_direct_mutation_path/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/decisions/003_unified_audit_table/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/architecture/decisions/005_simplified_single_source_cdc/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/FAKE_DATA_GENERATOR_DESIGN/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/GETTING_STARTED/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/ROADMAP/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/TESTING_CHECKLIST/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/archive/fraiseql_enterprise_gap_analysis/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/autofraiseql/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/autofraiseql/postgresql-comments/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/benchmarks/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/benchmarks/methodology/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/case-studies/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/case-studies/template/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/concepts-glossary/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/configuration/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/database-api/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/ddl-organization/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/dependencies/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/explicit-sync/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/fraiseql-philosophy/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/migrations/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/postgresql-extensions/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/project-structure/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/queries-and-mutations/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/rust-pipeline-integration/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/core/types-and-schema/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/database/DATABASE_LEVEL_CACHING/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/database/TABLE_NAMING_CONVENTIONS/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/database/ltree-index-optimization/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/deployment/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/deployment/operations-runbook/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/deployment/production-deployment/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/FRAMEWORK_SUBMISSION_GUIDE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/NEW_USER_CONFUSIONS/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/PHILOSOPHY/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/link-best-practices/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/methodology/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/development/style-guide/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/apq-cache-flow/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/cqrs-pattern/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/database-schema-conventions/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/multi-tenant-isolation/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/request-flow/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/diagrams/rust-pipeline/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/enterprise/ENTERPRISE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/enterprise/RBAC_POSTGRESQL_ASSESSMENT/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/enterprise/RBAC_POSTGRESQL_REFACTORED/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/examples/advanced-filtering/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/examples/dict-based-nested-filtering/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/examples/semantic-search/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/ai-native/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/depth-protection/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/graphql-cascade/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/in-postgresql-everything/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/pgvector/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/security-architecture/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/sql-function-return-format/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/features/zero-n-plus-one/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/getting-started/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/getting-started/first-hour/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/getting-started/getting-started-legacy/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/getting-started/installation/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/getting-started/quickstart/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/cascade-best-practices/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/filtering/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/langchain-integration/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/migrating-to-cascade/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/nested-array-filtering/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/performance-guide/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/troubleshooting-decision-tree/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/troubleshooting/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/guides/understanding-fraiseql/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration/cascade-adoption/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration/schema_registry/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration/v0-to-v1/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration/v1-to-v2/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration-guides/ltree-migration-guide/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration-guides/multi-mode-to-rust-pipeline/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration-guides/unified-audit-migration/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/migration-guides/v0.11-to-v1/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/patterns/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/patterns/trinity_identifiers/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/APQ_ASSESSMENT/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/PERFORMANCE_GUIDE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/apq-optimization-guide/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/caching-migration/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/caching/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/cascade-invalidation/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/coordinate_performance_guide/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/performance/rust-pipeline-optimization/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/cascade-implementation-recommendation/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/graphql-cascade-simplified-approach/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/pgvector-implementation-plan/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/pgvector-phase2-implementation-plan/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/pgvector-phase3-implementation-plan/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/planning/phase4-ecosystem-implementation-plan/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/deployment/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/health-checks/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/monitoring/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/observability/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/production/security/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/cli/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/config/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/database/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/decorators/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/quick-reference/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/repositories/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/testing-checklist/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/reference/where-clause-syntax-comparison/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/rollback/schema_registry_rollback/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/rust/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/rust/RUST_FIELD_PROJECTION/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/rust/RUST_FIRST_PIPELINE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/rust/RUST_PIPELINE_IMPLEMENTATION_GUIDE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/AUDIENCES/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/ENTERPRISE_ROADMAP/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/FRAISEQL_INDUSTRIAL_READINESS_ASSESSMENT_2025-10-20/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/IMPROVEMENT_ANALYSIS_PROMPT/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/PROJECT_STRUCTURE/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/TIER_1_IMPLEMENTATION_PLANS/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/V1_ADVANCED_PATTERNS/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/V1_VISION/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/strategic/VERSION_STATUS/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/tutorials/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/tutorials/INTERACTIVE_EXAMPLES/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/tutorials/beginner-path/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/tutorials/blog-api/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.readthedocs.io/tutorials/production-deployment/</loc>
-         <lastmod>2025-11-23</lastmod>
+         <lastmod>2025-11-24</lastmod>
     </url>
 </urlset>
