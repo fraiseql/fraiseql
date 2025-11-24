@@ -1,7 +1,8 @@
 """SBOM (Software Bill of Materials) generation module.
 
 This module implements SBOM generation following Domain-Driven Design principles
-to comply with Executive Order 14028 requirements for federal procurement.
+to comply with industry supply chain security standards and regulatory requirements
+(US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001, etc.).
 
 Bounded Context: Software Supply Chain Management
 

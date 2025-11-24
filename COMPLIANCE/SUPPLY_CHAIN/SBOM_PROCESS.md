@@ -20,9 +20,9 @@ A Software Bill of Materials (SBOM) is a formal, machine-readable inventory of s
 
 ## Regulatory Compliance
 
-### Industry Supply Chain Security Standards
+### Global Supply Chain Security Standards
 
-FraiseQL implements comprehensive SBOM generation following industry best practices and regulatory requirements:
+FraiseQL implements comprehensive SBOM generation following industry best practices and regulatory requirements across multiple jurisdictions:
 
 1. ✅ Provide an SBOM to customers
 2. ✅ Use a standardized format (SPDX or CycloneDX)
@@ -32,13 +32,45 @@ FraiseQL implements comprehensive SBOM generation following industry best practi
 
 **FraiseQL Compliance Status**: ✅ **FULLY COMPLIANT**
 
-### Related Standards
+### Supported Jurisdictions
 
-- **NIST SP 800-161**: Cybersecurity Supply Chain Risk Management
-- **NIST SP 800-218**: Secure Software Development Framework (SSDF)
-- **OWASP CycloneDX**: Industry standard for SBOM format ([cyclonedx.org](https://cyclonedx.org))
-- **SLSA Framework**: Supply chain Levels for Software Artifacts
-- **SPDX Specification**: Software Package Data Exchange format
+#### 🇺🇸 North America
+- **United States**
+  - [Executive Order 14028](https://www.whitehouse.gov/briefing-room/presidential-actions/2021/05/12/executive-order-on-improving-the-nations-cybersecurity/) (May 2021) - Software supply chain security for federal procurement
+  - [NIST SP 800-161](https://csrc.nist.gov/publications/detail/sp/800-161/rev-1/final) - Cybersecurity Supply Chain Risk Management
+  - [NIST SP 800-218](https://csrc.nist.gov/publications/detail/sp/800-218/final) - Secure Software Development Framework (SSDF)
+- **Canada**
+  - [CCCS SBOM Guidance](https://www.cyber.gc.ca/en/news-events/joint-guidance-shared-vision-software-bill-materials-cyber-security) - Joint guidance with US CISA
+  - [Canadian Program for Cyber Security Certification (CPCSC)](https://www.canada.ca/en/public-services-procurement/services/industrial-security/security-requirements-contracting/cyber-security-certification-defence-suppliers-canada.html) - Defence procurement (2025)
+
+#### 🇪🇺 Europe
+- **European Union**
+  - [NIS2 Directive](https://digital-strategy.ec.europa.eu/en/policies/nis2-directive) (Directive 2022/2555) - Supply chain security requirements (effective Oct 2024)
+  - [EU Cyber Resilience Act (CRA)](https://fossa.com/blog/sbom-requirements-cra-cyber-resilience-act/) - **Explicit SBOM requirement** for products with software (phasing in 2025-2027)
+- **United Kingdom**
+  - [UK NCSC Supply Chain Security Guidance](https://www.ncsc.gov.uk/collection/supply-chain-security) - 12 principles for supply chain security
+
+#### 🌏 Asia-Pacific
+- **Australia**
+  - [Essential Eight Framework](https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/essential-eight) (ACSC) - Third-party vendor security requirements (2025 updates)
+- **Singapore**
+  - [Cybersecurity Act Amendments](https://www.csa.gov.sg/legislation/cybersecurity-act/) - CII supply chain incident reporting (effective Oct 2025)
+  - [CSA SBOM Advisory](https://www.csa.gov.sg/about-csa/who-we-are/committees-and-panels/operational-technology-cybersecurity-expert-panel/evolving-security-threats-emerging-regualtions) - Automated SBOM generation guidance
+
+#### 🌐 International Standards
+- **ISO/IEC Standards**
+  - [ISO 27001:2022](https://www.iso.org/standard/27001) Control 5.21 - Managing Information Security in ICT Supply Chain
+  - [ISO 5962:2021](https://www.iso.org/standard/81870.html) - SPDX format standardization
+- **Industry Regulations**
+  - [PCI-DSS 4.0](https://www.cybeats.com/blog/pci-dss-4-0-sboms-a-2025-readiness-guide) Requirement 6.3.2 - Software component inventory (effective **March 31, 2025**)
+  - HIPAA - Healthcare data security (US, influences global healthcare software)
+  - SOC 2 Type II - Trust Services Criteria (global standard)
+
+### SBOM Format Standards
+
+- **[CycloneDX](https://cyclonedx.org)** (OWASP) - Security-focused SBOM format, FraiseQL default
+- **[SPDX](https://spdx.dev)** (Linux Foundation) - ISO/IEC 5962:2021 standard
+- **[SLSA Framework](https://slsa.dev)** - Supply chain Levels for Software Artifacts
 
 ## SBOM Format
 

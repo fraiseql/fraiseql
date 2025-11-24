@@ -1,7 +1,8 @@
 """SBOM Generation CLI Command.
 
 Command-line interface for generating Software Bill of Materials (SBOM)
-compliant with Executive Order 14028 requirements.
+compliant with global supply chain security regulations (US EO 14028,
+EU NIS2/CRA, PCI-DSS 4.0, ISO 27001, etc.).
 
 Usage:
     fraiseql sbom generate --output fraiseql-1.5.0-sbom.json
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 def sbom_cli() -> None:
     """Software Bill of Materials (SBOM) management commands.
 
-    Generate, validate, and manage SBOM files for federal compliance (EO 14028).
+    Generate, validate, and manage SBOM files for global regulatory compliance.
     """
 
 
@@ -112,8 +113,8 @@ def generate_sbom(
 ) -> None:
     r"""Generate Software Bill of Materials (SBOM).
 
-    Creates a CycloneDX-format SBOM compliant with Executive Order 14028
-    requirements for federal software procurement.
+    Creates a CycloneDX-format SBOM compliant with global supply chain
+    security regulations (US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001).
 
     Examples:
         # Generate SBOM with auto-detected metadata

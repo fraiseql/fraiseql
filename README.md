@@ -279,25 +279,36 @@ query {
 
 ## 🔐 Security Features
 
-FraiseQL includes enterprise-grade security features designed for production deployment:
+FraiseQL includes enterprise-grade security features designed for global regulatory compliance and production deployment:
 
-### Key Management Service (KMS)
+### 📋 Software Bill of Materials (SBOM)
+- **Automated generation** via `fraiseql sbom generate`
+- **Global compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001
+- **CycloneDX 1.5 format** with cryptographic signing
+- **CI/CD integration** for continuous compliance
+
+### 🔑 Key Management Service (KMS)
 - **HashiCorp Vault**: Production-ready with transit engine
 - **AWS KMS**: Native integration with GenerateDataKey
 - **GCP Cloud KMS**: Envelope encryption support
 - **Local Provider**: Development-only with warnings
 
-### Security Profiles
-- `STANDARD`: Default protections
-- `REGULATED`: PCI-DSS/HIPAA compliance
-- `RESTRICTED`: Government/defense requirements
+### 🛡️ Security Profiles
+- `STANDARD`: Default protections for general applications
+- `REGULATED`: PCI-DSS/HIPAA/SOC 2 compliance
+- `RESTRICTED`: Government, defence, critical infrastructure
+  - 🇺🇸 FedRAMP, DoD, NIST 800-53
+  - 🇪🇺 NIS2 Essential Entities, EU CRA
+  - 🇨🇦 CPCSC (defence contractors)
+  - 🇦🇺 Essential Eight Level 3
+  - 🇸🇬 Singapore CII operators
 
-### Observability
+### 📊 Observability
 - OpenTelemetry tracing with sensitive data sanitization
 - Security event logging
 - Audit trail support
 
-### Advanced Security Controls
+### 🔒 Advanced Security Controls
 - **Rate limiting** for API endpoints and GraphQL operations
 - **CSRF protection** for mutations and forms
 - **Security headers** middleware for defense in depth
@@ -305,7 +316,7 @@ FraiseQL includes enterprise-grade security features designed for production dep
 - **Field-level authorization** with role inheritance
 - **Row-level security** via PostgreSQL RLS
 
-**[🔐 Security Configuration Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[📋 KMS Architecture ADR](https://github.com/fraiseql/fraiseql/blob/main/docs/adr/0003-kms-architecture.md)**
+**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/adr/0003-kms-architecture.md)**
 
 ---
 

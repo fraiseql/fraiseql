@@ -4,7 +4,8 @@ Infrastructure adapter that serializes SBOM domain models to CycloneDX
 format (JSON or XML).
 
 CycloneDX is an OWASP standard for Software Bill of Materials, widely
-adopted for federal procurement compliance (EO 14028).
+adopted for global supply chain security compliance (US EO 14028,
+EU CRA, PCI-DSS 4.0, ISO 27001).
 """
 
 import json

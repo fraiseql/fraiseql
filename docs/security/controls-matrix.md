@@ -25,8 +25,15 @@ This document provides a comprehensive mapping of security controls across Frais
 **Risk Tolerance**: Low
 
 ### RESTRICTED Profile
-**Target Environment**: Government, defense, classified data
-**Compliance**: NIST 800-53, FedRAMP, DoD requirements
+**Target Environment**: Highly regulated industries, government, defense, classified data
+**Compliance Examples**:
+- 🇺🇸 NIST 800-53, FedRAMP, DoD requirements
+- 🇪🇺 NIS2 Essential Entities, EU Cyber Resilience Act
+- 🇬🇧 UK NCSC High-Security Guidance
+- 🇨🇦 CPCSC (Canadian defence contractors)
+- 🇦🇺 Essential Eight Maturity Level 3
+- 🇸🇬 Singapore CII (Critical Information Infrastructure) operators
+- 🌐 PCI-DSS Level 1, HIPAA, ISO 27001 High-Risk environments
 **Risk Tolerance**: Very Low
 
 ---
@@ -260,9 +267,15 @@ This document provides a comprehensive mapping of security controls across Frais
 - Customer data protection is important
 
 ### Choose RESTRICTED if:
-- Government or defense applications
+- Government or defense applications (any jurisdiction)
 - Classified data handling
-- FedRAMP compliance required
+- Critical Infrastructure (CII) operations
+- High regulatory compliance required:
+  - 🇺🇸 FedRAMP, DoD, NIST 800-53
+  - 🇪🇺 NIS2 Essential Entities
+  - 🇨🇦 CPCSC certification
+  - 🇦🇺 Essential Eight Level 3
+  - 🇸🇬 Singapore CII
 - Zero-trust architecture needed
 
 ---
@@ -288,7 +301,7 @@ regulated = ProfileEnforcer(
     kms_provider=vault_provider,
 )
 
-# RESTRICTED profile (Government, DoD)
+# RESTRICTED profile (Highly regulated, government, defense, CII)
 restricted = ProfileEnforcer(
     profile=SecurityProfile.RESTRICTED,
     enable_rate_limit=True,
