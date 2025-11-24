@@ -89,10 +89,31 @@ dev = [
    "pyjwt[crypto]>=2.8.0",
    "httpx>=0.25.0",
  ]
- sbom = [
-     "cyclonedx-python-lib>=7.0.0,<8.0",
-     "packageurl-python>=0.15.0",
- ]
+   sbom = [
+       "cyclonedx-python-lib>=7.0.0,<8.0",
+       "packageurl-python>=0.15.0",
+   ]
+   aws = [
+       "boto3>=1.34.0",
+   ]
+   kms-vault = [
+       "httpx>=0.27.0",
+   ]
+   kms-aws = [
+       "aioboto3>=12.0.0",
+   ]
+   kms-gcp = [
+       "google-cloud-kms>=2.21.0",
+   ]
+   kms = [
+       "cryptography>=42.0.0",
+   ]
+   kms-all = [
+       "cryptography>=42.0.0",
+       "httpx>=0.27.0",
+       "aioboto3>=12.0.0",
+       "google-cloud-kms>=2.21.0",
+   ]
  docs = [
   "mkdocs>=1.6.1",
   "mkdocs-material>=9.6.22",
@@ -116,11 +137,15 @@ tracing = [
    "opentelemetry-instrumentation-psycopg>=0.40b0",
    "opentelemetry-exporter-otlp>=1.20.0",
    "opentelemetry-exporter-jaeger>=1.20.0",
-   "pyjwt[crypto]>=2.8.0",
-   "httpx>=0.25.0",
-   "cyclonedx-python-lib>=7.0.0,<8.0",
-   "packageurl-python>=0.15.0",
- ]
+     "pyjwt[crypto]>=2.8.0",
+     "httpx>=0.25.0",
+     "cyclonedx-python-lib>=7.0.0,<8.0",
+     "packageurl-python>=0.15.0",
+     "boto3>=1.34.0",
+     "cryptography>=42.0.0",
+     "aioboto3>=12.0.0",
+     "google-cloud-kms>=2.21.0",
+  ]
 
 [tool.pytest.ini_options]
 # Test discovery
