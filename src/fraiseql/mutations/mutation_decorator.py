@@ -311,7 +311,7 @@ def mutation(
     Examples:
         Simple function-based mutation::\
 
-            @mutation
+            @fraiseql.mutation
             async def create_user(info, input: CreateUserInput) -> User:
                 db = info.context["db"]
                 # Use SQL function for business logic
@@ -323,7 +323,7 @@ def mutation(
 
         Basic class-based mutation::\
 
-            @mutation
+            @fraiseql.mutation
             class CreateUser:
                 input: CreateUserInput
                 success: CreateUserSuccess
@@ -334,7 +334,7 @@ def mutation(
 
         Mutation with custom PostgreSQL function::\
 
-            @mutation(function="register_new_user", schema="auth")
+            @fraiseql.mutation(function="register_new_user", schema="auth")
             class RegisterUser:
                 input: RegistrationInput
                 success: RegistrationSuccess
@@ -344,7 +344,7 @@ def mutation(
 
         Mutation with context parameters::\
 
-            @mutation(
+            @fraiseql.mutation(
                 function="create_location",
                 schema="app",
                 context_params={
@@ -380,7 +380,7 @@ def mutation(
                 message: str
                 field: str | None = None
 
-            @mutation
+            @fraiseql.mutation
             async def update_user(info, input: UpdateUserInput) -> User:
                 db = info.context["db"]
                 user_context = info.context.get("user")
@@ -407,7 +407,7 @@ def mutation(
 
         Multi-step mutation with transaction::\
 
-            @mutation
+            @fraiseql.mutation
             async def transfer_funds(
                 info,
                 input: TransferInput
@@ -459,7 +459,7 @@ def mutation(
 
         Mutation with file upload handling::\
 
-            @mutation
+            @fraiseql.mutation
             async def upload_avatar(
                 info,
                 input: UploadAvatarInput  # Contains file: Upload field
@@ -497,7 +497,7 @@ def mutation(
                 ip_address: str
                 subnet_mask: str
 
-            @mutation
+            @fraiseql.mutation
             class CreateNetworkConfig:
                 input: NetworkConfigInput
                 success: NetworkConfigSuccess
@@ -533,7 +533,7 @@ def mutation(
                 id: UUID
                 notes: str | None = None
 
-            @mutation
+            @fraiseql.mutation
             class UpdateNote:
                 input: UpdateNoteInput
                 success: UpdateNoteSuccess

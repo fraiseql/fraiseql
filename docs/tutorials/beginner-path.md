@@ -46,17 +46,17 @@ python app.py
 
 **Practice Exercise**:
 ```python
-from fraiseql import type, query
+import fraiseql
 
 # Create a simple Note API
-@type(sql_source="v_note")
+@fraiseql.type(sql_source="v_note")
 class Note:
     id: UUID
     title: str
     content: str
     created_at: datetime
 
-@query
+@fraiseql.query
 def notes() -> list[Note]:
     """Get all notes."""
     pass  # Implementation handled by framework
@@ -128,10 +128,10 @@ $$ LANGUAGE plpgsql;
 ```
 
 ```python
-from fraiseql import mutation
+import fraiseql
 
 # Python mutation
-@mutation
+@fraiseql.mutation
 def create_note(title: str, content: str) -> Note:
     """Create a new note."""
     pass  # Implementation handled by framework
@@ -182,30 +182,30 @@ FROM tb_user;
 
 ### ❌ Mistake 2: Missing return type
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # WRONG: No type hint
-@query
+@fraiseql.query
 async def users(info):
     ...
 
 # CORRECT: Always specify return type
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     ...
 ```
 
 ### ❌ Mistake 3: Not handling NULL
 ```python
-from fraiseql import type
+import fraiseql
 
 # WRONG: Crashes on NULL
-@type
+@fraiseql.type
 class User:
     bio: str  # What if bio is NULL?
 
 # CORRECT: Use | None for nullable fields
-@type
+@fraiseql.type
 class User:
     bio: str | None
 ```
@@ -226,10 +226,10 @@ class User:
 
 ### Essential Pattern
 ```python
-from fraiseql import type, query
+import fraiseql
 
 # 1. Define type
-@type(sql_source="v_item")
+@fraiseql.type(sql_source="v_item")
 class Item:
     id: UUID
     name: str
@@ -246,7 +246,7 @@ SELECT
 FROM tb_item;
 
 # 3. Query
-@query
+@fraiseql.query
 def items() -> list[Item]:
     """Get all items."""
     pass  # Implementation handled by framework

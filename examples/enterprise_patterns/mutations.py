@@ -1,6 +1,6 @@
 """Enterprise patterns mutations - complete implementation showcase."""
 
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_auth, requires_permission
 
 from .models import (
@@ -34,7 +34,7 @@ from .models import (
 # Organization Management Mutations
 
 
-@mutation(function="app.create_organization")
+@fraiseql.mutation(function="app.create_organization")
 class CreateOrganization:
     """Create organization with enterprise validation.
 
@@ -55,7 +55,7 @@ class CreateOrganization:
 # User Management Mutations
 
 
-@mutation(function="app.create_user")
+@fraiseql.mutation(function="app.create_user")
 class CreateUser:
     """Create user with comprehensive onboarding.
 
@@ -80,7 +80,7 @@ class CreateUser:
 # Project Management Mutations
 
 
-@mutation(function="app.create_project")
+@fraiseql.mutation(function="app.create_project")
 @requires_auth
 class CreateProject:
     """Create project with team coordination.
@@ -105,7 +105,7 @@ class CreateProject:
     noop: CreateProjectNoop
 
 
-@mutation(function="app.update_project")
+@fraiseql.mutation(function="app.update_project")
 @requires_auth
 class UpdateProject:
     """Update project with change management.
@@ -134,7 +134,7 @@ class UpdateProject:
 # Task Management Mutations
 
 
-@mutation(function="app.create_task")
+@fraiseql.mutation(function="app.create_task")
 @requires_auth
 class CreateTask:
     """Create task with dependency management.
@@ -168,7 +168,7 @@ class CreateTask:
 # Administrative Mutations
 
 
-@mutation(function="app.archive_organization")
+@fraiseql.mutation(function="app.archive_organization")
 @requires_permission("admin")
 class ArchiveOrganization:
     """Archive organization with cascade handling.
@@ -198,7 +198,7 @@ class ArchiveOrganization:
 # Bulk Operations
 
 
-@mutation(function="app.bulk_create_users")
+@fraiseql.mutation(function="app.bulk_create_users")
 @requires_permission("user_admin")
 class BulkCreateUsers:
     """Bulk user creation with transaction handling.
@@ -229,7 +229,7 @@ class BulkCreateUsers:
 # Cross-Entity Operations
 
 
-@mutation(function="app.transfer_project")
+@fraiseql.mutation(function="app.transfer_project")
 @requires_permission("project_admin")
 class TransferProject:
     """Transfer project between organizations.

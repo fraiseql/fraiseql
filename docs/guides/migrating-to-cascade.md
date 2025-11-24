@@ -162,9 +162,9 @@ $$ LANGUAGE plpgsql;
 
 **Before**:
 ```python
-from fraiseql.mutations import mutation
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
@@ -173,9 +173,9 @@ class CreatePost:
 
 **After**:
 ```python
-from fraiseql.mutations import mutation
+import fraiseql
 
-@mutation(enable_cascade=True)
+@fraiseql.mutation(enable_cascade=True)
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
@@ -564,12 +564,14 @@ export FRAISEQL_ENABLE_CASCADE=false
 
 **Per-Mutation Control** (recommended):
 ```python
+import fraiseql
+
 # Enable cascade for specific mutations
-@mutation(enable_cascade=True)
+@fraiseql.mutation(enable_cascade=True)
 class CreatePost:
     # This mutation uses cascade
 
-@mutation(enable_cascade=False)
+@fraiseql.mutation(enable_cascade=False)
 class UpdateProfile:
     # This mutation does not use cascade
 ```

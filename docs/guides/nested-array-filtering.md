@@ -373,7 +373,7 @@ field_name: list[Type] = fraise_field(
 **Problem**: The WhereInput type doesn't exist in your schema.
 
 **Solution**: The WhereInput type is automatically generated from the `nested_where_type`. Ensure:
-1. The nested type is decorated with `@fraiseql.type`
+1. The nested type is decorated with `@type`
 2. The nested type has properly typed fields
 3. The schema is being rebuilt after your changes
 

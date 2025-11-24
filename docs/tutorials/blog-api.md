@@ -177,9 +177,9 @@ FROM tb_post p;
 ```python
 from datetime import datetime
 from uuid import UUID
-from fraiseql import type
+import fraiseql
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     email: str
@@ -188,7 +188,7 @@ class User:
     avatar_url: str | None
     created_at: datetime
 
-@type(sql_source="v_comment")
+@fraiseql.type(sql_source="v_comment")
 class Comment:
     id: UUID
     content: str
@@ -197,7 +197,7 @@ class Comment:
     post: "Post"
     replies: list["Comment"]
 
-@type(sql_source="v_post")
+@fraiseql.type(sql_source="v_post")
 class Post:
     id: UUID
     title: str
@@ -216,14 +216,14 @@ class Post:
 
 ```python
 from uuid import UUID
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 def get_post(id: UUID) -> Post | None:
     """Get single post with all nested data."""
     pass  # Implementation handled by framework
 
-@query
+@fraiseql.query
 def get_posts(
     is_published: bool | None = None,
     limit: int = 20,
@@ -320,9 +320,9 @@ $$ LANGUAGE plpgsql;
 **Python Mutation Handlers**:
 
 ```python
-from fraiseql import mutation, input
+import fraiseql
 
-@input
+@fraiseql.input
 class CreatePostInput:
     title: str
     content: str
@@ -330,18 +330,18 @@ class CreatePostInput:
     tags: list[str] | None = None
     is_published: bool = False
 
-@input
+@fraiseql.input
 class CreateCommentInput:
     post_id: UUID
     content: str
     parent_id: UUID | None = None
 
-@mutation
+@fraiseql.mutation
 def create_post(input: CreatePostInput) -> Post:
     """Create new blog post."""
     pass  # Implementation handled by framework
 
-@mutation
+@fraiseql.mutation
 def create_comment(input: CreateCommentInput) -> Comment:
     """Add comment to post."""
     pass  # Implementation handled by framework

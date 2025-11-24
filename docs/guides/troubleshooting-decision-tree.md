@@ -184,8 +184,10 @@ FROM tb_user;
 
 **Diagnosis:**
 ```python
+import fraiseql
+
 # Check type definition
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: int           # Required (non-nullable)
     name: str         # Required
@@ -196,7 +198,7 @@ class User:
 
 **Option 1**: Make field nullable in Python:
 ```python
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     name: str | None  # Now nullable
 ```
@@ -232,13 +234,15 @@ FROM tb_user;
 
 **Example fix:**
 ```python
+import fraiseql
+
 # Wrong
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: str  # PostgreSQL has INTEGER
 
 # Correct
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: int  # Matches PostgreSQL INTEGER
 ```
@@ -389,10 +393,10 @@ startupProbe:
 **Diagnosis:**
 ```python
 # Check if user context is set
-from fraiseql import mutation, authorized
+import fraiseql
 
 @authorized(roles=["admin"])
-@mutation
+@fraiseql.mutation
 class DeletePost:
     async def resolve(self, info):
         # Check context

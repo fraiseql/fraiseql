@@ -32,6 +32,7 @@ FraiseQL enables you to write complete business logic in a single Python file th
 ```python
 # One file contains all business logic - AI models understand this perfectly
 import fraiseql
+import fraiseql
 from decimal import Decimal
 from uuid import UUID
 
@@ -60,7 +61,7 @@ class OrderItem:
     price: Decimal
     product_name: str
 
-@fraiseql.input
+@input
 class ProcessOrderInput:
     """Input for processing an order."""
     order_id: UUID
@@ -80,13 +81,13 @@ class ProcessOrder:
     input: ProcessOrderInput
     result: ProcessOrderResult
 
-    @fraiseql.resolver
+    @resolver
     async def resolve(self, info, input_data):
         """Complete order processing business logic."""
-        repo = info.context["repo"]
+        db = info.context["db"]
 
         # Get order with all relationships (pre-composed in view)
-        order = await repo.find_one("order_with_items", where={"id": input_data["order_id"]})
+        order = await db.find_one("order_with_items", where={"id": input_data["order_id"]})
         if not order:
             return ProcessOrderResult(
                 success=False,
@@ -202,7 +203,7 @@ class User:
 async def users(info, country: str | None = None) -> list[User]:
     """Get users with statistics - AI sees the exact SQL view being used."""
     where_clause = {"country": country} if country else {}
-    return await info.context["repo"].find("v_user", where=where_clause)
+    return await info.context["db"].find("v_user", where=where_clause)
 ```
 
 FraiseQL makes everything explicit:
@@ -258,7 +259,7 @@ class User:
 
 @fraiseql.query
 async def users(info, country: str) -> list[User]:
-    return await info.context["repo"].find("v_user", where={"country": country})
+    return await info.context["db"].find("v_user", where={"country": country})
 ```
 
 ### Stable Syntax Since the 1990s
@@ -305,10 +306,10 @@ FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs ca
 GraphQL schema provides perfect structure for LLM understanding:
 
 ```python
-from fraiseql import query
+import fraiseql
 from graphql import get_introspection_query, graphql_sync
 
-@query
+@fraiseql.query
 async def get_schema_for_llm(info) -> dict:
     """Get GraphQL schema formatted for LLM context."""
     schema = info.schema
@@ -763,10 +764,10 @@ def simplify_query(query_text: str) -> str:
 **Write Once, Document Everywhere:**
 
 ```python
-from fraiseql import type, query
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     """User account with profile information and order history.
 
@@ -787,7 +788,7 @@ class User:
     created_at: datetime
     orders: list['Order']
 
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> User | None:
     """Get a single user by ID.
 
@@ -870,11 +871,11 @@ async def user(info, id: UUID) -> User | None:
 **No Manual Schema Documentation Needed:**
 
 ```python
-from fraiseql import type
+import fraiseql
 from decimal import Decimal
 
 # ✅ Good: Write docstrings once with Fields section
-@type(sql_source="v_product")
+@fraiseql.type(sql_source="v_product")
 class Product:
     """Product available for purchase.
 

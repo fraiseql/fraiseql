@@ -5,7 +5,7 @@
 ## Import Pattern (STANDARD)
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 ```
 
 **Why this pattern:**
@@ -16,12 +16,12 @@ from fraiseql import type, query, mutation, input, field
 **NOT these patterns:**
 ```python
 # ❌ Too verbose
-@type
+@fraiseql.type
 class User:
     pass
 
 # ❌ Too specific imports
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 from fraiseql.resolvers import query, mutation
 
 # ❌ Import everything
@@ -31,10 +31,10 @@ from fraiseql import *
 ## Type Definition (STANDARD)
 
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="v_user")  # Always specify source for queryable types
+@fraiseql.type(sql_source="v_user")  # Always specify source for queryable types
 class User:
     id: UUID  # Always use UUID not str for IDs
     name: str
@@ -52,14 +52,14 @@ class User:
 ## Query Pattern (STANDARD)
 
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 def get_users() -> list[User]:
     """Get all users."""
     pass  # Implementation handled by framework
 
-@query
+@fraiseql.query
 def get_user_by_id(id: UUID) -> User:
     """Get a single user by ID."""
     pass  # Implementation handled by framework
@@ -78,12 +78,12 @@ def get_user_by_id(id: UUID) -> User:
 from fraiseql import mutation, input
 from uuid import UUID
 
-@input
+@fraiseql.input
 class CreateUserInput:
     name: str
     email: str
 
-@mutation
+@fraiseql.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass  # Implementation handled by framework
@@ -130,15 +130,15 @@ class UserRole:
 
 ### GraphQL Fields
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Queries: camelCase
-@query
+@fraiseql.query
 def getUserById(id: UUID) -> User:
     pass
 
 # Mutations: camelCase
-@mutation
+@fraiseql.mutation
 def createUser(input: CreateUserInput) -> User:
     pass
 
@@ -170,9 +170,9 @@ my-fraiseql-api/
 ## Error Handling (STANDARD)
 
 ```python
-from fraiseql import mutation
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 def create_user(input: CreateUserInput) -> User | None:
     """Create a new user. Returns None if email already exists."""
     pass  # Framework handles database errors
@@ -187,7 +187,7 @@ def create_user(input: CreateUserInput) -> User | None:
 ## Code Comments (STANDARD)
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @type(sql_source="v_user")
 class User:
@@ -206,10 +206,10 @@ class User:
 ## Testing Examples (STANDARD)
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # In documentation examples, show both the code and expected GraphQL usage
-@query
+@fraiseql.query
 def get_user(id: UUID) -> User:
     """Get user by ID."""
     pass
@@ -235,7 +235,7 @@ def get_user(id: UUID) -> User:
 ### Old Pattern → New Pattern
 ```python
 # Old ❌
-from fraiseql import type, query, mutation, input, field as gql_type
+import fraiseql as gql_type
 
 @gql_type(sql_source="v_user")
 class User:
@@ -243,7 +243,7 @@ class User:
     name: str
 
 # New ✅
-from fraiseql import type
+import fraiseql
 
 @type(sql_source="v_user")
 class User:

@@ -56,29 +56,29 @@ active_users = await repo.find_rust(
 Update your GraphQL resolvers to use Rust pipeline methods:
 
 ```python
-from fraiseql import query
+import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 
-@query
+@fraiseql.query
 async def users(info) -> RustResponseBytes:
     """Get all users using Rust pipeline."""
-    repo = info.context["repo"]
+    db = info.context["db"]
     return await repo.find_rust("v_user", "users", info)
 
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> RustResponseBytes:
     """Get single user using Rust pipeline."""
-    repo = info.context["repo"]
+    db = info.context["db"]
     return await repo.find_one_rust("v_user", "user", info, id=id)
 
-@query
+@fraiseql.query
 async def search_users(
     info,
     query: str | None = None,
     limit: int = 20
 ) -> RustResponseBytes:
     """Search users with filtering."""
-    repo = info.context["repo"]
+    db = info.context["db"]
     filters = {}
     if query:
         filters["name__icontains"] = query
@@ -95,16 +95,16 @@ async def search_users(
 Use Rust pipeline methods in field resolvers:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type
+@fraiseql.type
 class User:
     id: UUID
 
     @field
     async def posts(self, info) -> RustResponseBytes:
         """Get user's posts."""
-        repo = info.context["repo"]
+        db = info.context["db"]
         return await repo.find_rust("v_post", "posts", info, user_id=self.id)
 ```
 
@@ -276,9 +276,9 @@ find_one()       # Raw Python objects
 ### Error Handling
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def users(info) -> RustResponseBytes:
     try:
         return await repo.find_rust("v_user", "users", info)
@@ -308,11 +308,11 @@ assert response.json()["data"]["users"]  # Works seamlessly
 ### Complete GraphQL Schema
 
 ```python
-from fraiseql import query, type, field
+import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from uuid import UUID
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     first_name: str
@@ -320,17 +320,17 @@ class User:
 
     @field
     async def posts(self, info) -> RustResponseBytes:
-        repo = info.context["repo"]
+        db = info.context["db"]
         return await repo.find_rust("v_post", "posts", info, user_id=self.id)
 
-@query
+@fraiseql.query
 async def users(info, limit: int = 20) -> RustResponseBytes:
-    repo = info.context["repo"]
+    db = info.context["db"]
     return await repo.find_rust("v_user", "users", info, limit=limit)
 
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> RustResponseBytes:
-    repo = info.context["repo"]
+    db = info.context["db"]
     return await repo.find_one_rust("v_user", "user", info, id=id)
 ```
 

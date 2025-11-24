@@ -81,6 +81,7 @@ Define your GraphQL types and queries:
 
 ```python
 import fraiseql
+import fraiseql
 from fraiseql import fraise_field
 from fraiseql.types.scalars import UUID
 from typing import List, Optional

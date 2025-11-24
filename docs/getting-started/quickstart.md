@@ -83,11 +83,11 @@ Create a file called `app.py` with this complete code:
 import uuid
 from datetime import datetime
 import uvicorn
-from fraiseql import type, query, mutation, input, success, failure
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
 # Define GraphQL types
-@type(sql_source="v_note", jsonb_column="data")
+@fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
     """A simple note with title and content."""
     id: uuid.UUID
@@ -96,40 +96,40 @@ class Note:
     created_at: datetime
 
 # Define input types
-@input
+@fraiseql.input
 class CreateNoteInput:
     """Input for creating a new note."""
     title: str
     content: str | None = None
 
 # Define success/failure types
-@success
+@fraiseql.success
 class CreateNoteSuccess:
     """Success response for note creation."""
     note: Note
     message: str = "Note created successfully"
 
-@failure
+@fraiseql.failure
 class ValidationError:
     """Validation error."""
     message: str
     code: str = "VALIDATION_ERROR"
 
 # Queries
-@query
+@fraiseql.query
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
     return await db.find("v_note", "notes", info, order_by=[("created_at", "DESC")])
 
-@query
+@fraiseql.query
 async def note(info, id: uuid.UUID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
     return await db.find_one("v_note", "note", info, id=id)
 
 # Mutations
-@mutation
+@fraiseql.mutation
 class CreateNote:
     """Create a new note."""
     input: CreateNoteInput

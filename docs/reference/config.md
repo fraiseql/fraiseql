@@ -1,6 +1,6 @@
 # FraiseQLConfig API Reference
 
-Complete API reference for FraiseQLConfig class with all configuration options for v1.6.0.
+Complete API reference for FraiseQLConfig class with all configuration options for v1.6.1.
 
 ## Overview
 
@@ -617,7 +617,7 @@ config = FraiseQLConfig(
 | `"required"` | **Only** accept persisted query hashes, reject arbitrary queries |
 | `"disabled"` | Ignore APQ extensions entirely, always require full query |
 
-*New in FraiseQL v1.6.0*
+*New in FraiseQL v1.6.1*
 
 ### apq_storage_backend
 
@@ -633,7 +633,7 @@ config = FraiseQLConfig(
 
 When set, all `.graphql` and `.gql` files in this directory (recursively) will be loaded and registered as persisted queries at application startup. Useful with `apq_mode="required"` for security-hardened deployments.
 
-*New in FraiseQL v1.6.0*
+*New in FraiseQL v1.6.1*
 
 ### apq_cache_responses
 

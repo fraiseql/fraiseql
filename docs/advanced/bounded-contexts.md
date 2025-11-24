@@ -371,18 +371,18 @@ class OrderItem:
 ### Using Aggregates in GraphQL
 
 ```python
-from fraiseql import mutation, query
+import fraiseql
 from graphql import GraphQLResolveInfo
 from uuid import UUID
 
-@mutation
+@fraiseql.mutation
 async def create_order(info: GraphQLResolveInfo, customer_id: UUID) -> Order:
     """Create new order."""
     order = Order(customer_id=customer_id)
     order_repo = get_order_repository()
     return await order_repo.save(order)
 
-@mutation
+@fraiseql.mutation
 async def add_order_item(
     info: GraphQLResolveInfo,
     order_id: UUID,
@@ -404,7 +404,7 @@ async def add_order_item(
     # Save aggregate
     return await order_repo.save(order)
 
-@mutation
+@fraiseql.mutation
 async def submit_order(info: GraphQLResolveInfo, order_id: UUID) -> Order:
     """Submit order for processing."""
     order_repo = get_order_repository()
@@ -446,18 +446,18 @@ async def submit_order(info: GraphQLResolveInfo, order_id: UUID) -> Order:
 ### Integration via GraphQL
 
 ```python
-from fraiseql import query, mutation
+import fraiseql
 from uuid import UUID
 
 # Orders Context exports queries
-@query
+@fraiseql.query
 async def get_order(info, order_id: UUID) -> Order:
     """Orders context: Get order details."""
     order_repo = get_order_repository()
     return await order_repo.get_by_id(order_id)
 
 # Billing Context consumes Orders data
-@mutation
+@fraiseql.mutation
 async def create_invoice_for_order(info, order_id: UUID) -> Invoice:
     """Billing context: Create invoice from order."""
     # Fetch order data via internal call or event
@@ -584,9 +584,9 @@ class ProductACL:
         )
 
 # Usage
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_product_from_external(info, sku: str) -> Product:
     """Fetch product from external system via ACL."""
     external_product = await fetch_from_external_catalog(sku)
@@ -611,10 +611,10 @@ class DomainEvent:
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 # Orders Context: Publish event
-from fraiseql import mutation
+import fraiseql
 from uuid import UUID
 
-@mutation
+@fraiseql.mutation
 async def submit_order(info, order_id: UUID) -> Order:
     """Submit order and publish event."""
     order_repo = get_order_repository()

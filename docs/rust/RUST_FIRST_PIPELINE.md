@@ -77,11 +77,11 @@ result = await repo.find("v_user")  # Slower Python path
 ### GraphQL Resolvers
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def users(info) -> RustResponseBytes:
-    repo = info.context["repo"]
+    db = info.context["db"]
     return await repo.find_rust("v_user", "users", info)
 ```
 
@@ -101,10 +101,10 @@ return handle_graphql_response(result)  # RustResponseBytes → HTTP
 GraphQL types are automatically registered with the Rust transformer during schema building:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Schema definition
-@type
+@fraiseql.type
 class User:
     first_name: str
     last_name: str

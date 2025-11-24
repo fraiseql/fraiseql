@@ -20,7 +20,8 @@ from fastapi import FastAPI
 from psycopg_pool import AsyncConnectionPool
 from pydantic import EmailStr
 
-from fraiseql import create_fraiseql_app, fraise_type, fraiseql
+import fraiseql
+from fraiseql import create_fraiseql_app
 from fraiseql.auth.decorators import requires_auth, requires_role
 from fraiseql.auth.native.factory import (
     add_security_middleware,
@@ -31,7 +32,7 @@ from fraiseql.auth.native.factory import (
 
 
 # Define GraphQL types
-@fraise_type
+@fraiseql.type
 class User:
     """User type for GraphQL API."""
 
@@ -45,7 +46,7 @@ class User:
     updated_at: datetime
 
 
-@fraise_type
+@fraiseql.type
 class Post:
     """Blog post type."""
 

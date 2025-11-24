@@ -47,10 +47,10 @@ If yes, FraiseQL's philosophy might be perfect for you.
 Most GraphQL frameworks require manual database setup in every resolver:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # ❌ Traditional approach - repetitive and error-prone
-@query
+@fraiseql.query
 async def get_user(info, id: UUID) -> User:
     # Must manually get database from somewhere
     db = get_database_from_somewhere()
@@ -63,10 +63,10 @@ async def get_user(info, id: UUID) -> User:
 **FraiseQL automatically injects the database into `info.context["db"]`**:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # ✅ FraiseQL - database automatically available
-@query
+@fraiseql.query
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]  # Always available!
     return await db.find_one("v_user", where={"id": id})
@@ -89,9 +89,9 @@ async def get_user(info, id: UUID) -> User:
 
 3. **Context Injection** - Every resolver gets `db` in context:
    ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-   @query
+   @fraiseql.query
    async def any_query(info) -> Any:
        db = info.context["db"]  # FraiseQLRepository instance
        # Ready to use immediately
@@ -178,10 +178,10 @@ FROM tb_user;
 
 **1. Schema Evolution Without Migrations**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Add new field - no migration needed!
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     """User account.
 
@@ -199,11 +199,11 @@ class User:
 
 **2. JSON Passthrough Performance**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # PostgreSQL JSONB → GraphQL JSON directly
 # No Python object instantiation needed!
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> User:
     db = info.context["db"]
     # Returns JSONB directly - 10-100x faster
@@ -298,9 +298,9 @@ CREATE TABLE tb_order (
 FraiseQL extracts documentation from Python docstrings, eliminating manual schema documentation:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     """User account with authentication and profile information.
 
@@ -390,9 +390,9 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 Now all queries are automatically tenant-isolated:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def orders(info) -> list[Order]:
     db = info.context["db"]
     # Automatically filtered by tenant from JWT!
@@ -562,12 +562,12 @@ FraiseQL provides:
 Skip Python object creation entirely:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # PostgreSQL JSONB → GraphQL JSON
 # No intermediate Python objects!
 
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     # Returns JSONB directly - 10-100x faster
@@ -592,9 +592,9 @@ $$ LANGUAGE sql;
 ```
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def order_totals(info, id: UUID) -> OrderTotals:
     db = info.context["db"]
     # Database does the heavy lifting

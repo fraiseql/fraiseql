@@ -1013,6 +1013,8 @@ All existing queries continue to work. New operators are additive and opt-in.
 **Solution**: Ensure field type is correctly annotated:
 
 ```python
+import fraiseql
+
 @fraiseql.type
 class Product:
     tags: list[str]           # ✅ Exposes array operators

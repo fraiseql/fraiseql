@@ -14,7 +14,7 @@ The trinity pattern uses three types of identifiers per entity:
 
 **Example:**
 ```python
-@type(sql_source="v_post")
+@fraiseql.type(sql_source="v_post")
 class Post:
     pk_post: int              # Internal: Fast joins, never exposed to API
     id: UUID                  # Public: Stable API identifier
@@ -194,7 +194,7 @@ Strategies:
 **Authorization decorator:**
 ```python
 @authorized(roles=["admin", "editor"])
-@mutation
+@fraiseql.mutation
 class DeletePost:
     input: DeletePostInput
     success: DeleteSuccess

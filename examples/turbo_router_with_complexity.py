@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from graphql import GraphQLSchema
 
-from fraiseql import fraise_type, query
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.turbo import TurboQuery
 from fraiseql.fastapi.turbo_enhanced import (
@@ -55,7 +55,7 @@ class User:
 
 
 # Define queries
-@query
+@fraiseql.query
 async def get_user(info, user_id: int) -> User:
     """Simple query - good for caching."""
     # In real app, this would fetch from database
@@ -67,7 +67,7 @@ async def get_user(info, user_id: int) -> User:
     )
 
 
-@query
+@fraiseql.query
 async def get_user_with_posts(info, user_id: int) -> User:
     """Moderate complexity query."""
     # Simulated data
@@ -88,7 +88,7 @@ async def get_user_with_posts(info, user_id: int) -> User:
     )
 
 
-@query
+@fraiseql.query
 async def get_all_users_deep(info) -> list[User]:
     """Complex query - might not be cached."""
     # This would be a very expensive query

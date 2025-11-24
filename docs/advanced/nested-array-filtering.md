@@ -18,7 +18,7 @@ FraiseQL provides comprehensive nested array where filtering with complete AND/O
 ### 1. Clean Registration Approaches
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
@@ -368,7 +368,7 @@ printServers(where: {
 ### Python Resolver Implementation
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
@@ -380,7 +380,7 @@ PrintServerWhereInput = create_graphql_where_input(PrintServer)
 resolver = create_nested_array_field_resolver_with_where("print_servers", list[PrintServer])
 
 # Use in GraphQL resolvers
-@query
+@fraiseql.query
 async def network_configuration_print_servers(
     parent: NetworkConfiguration,
     info: GraphQLResolveInfo,

@@ -76,7 +76,7 @@ CREATE TABLE tb_comment (
 
 **GraphQL Mapping** (not recommended directly):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Don't query tb_* directly in GraphQL
 # Use tv_* or v_* instead
@@ -148,7 +148,7 @@ SELECT * FROM v_user WHERE id = 1;
 
 **GraphQL Mapping**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @type(sql_source="v_user")  # ⚠️ OK for small datasets, not for production APIs
 class User:
@@ -290,9 +290,9 @@ PostgreSQL materialized views require `REFRESH MATERIALIZED VIEW` which recomput
 
 **GraphQL Mapping** (optimal):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type(sql_source="tv_user", jsonb_column="data")
+@fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str  # Rust transforms to firstName
@@ -300,7 +300,7 @@ class User:
     email: str
     user_posts: list[Post] | None = None  # Embedded!
 
-@query
+@fraiseql.query
 async def user(info, id: int) -> User:
     # 1. SELECT data FROM tv_user WHERE id = $1 (0.05ms)
     # 2. Rust transform (0.5ms)
@@ -308,7 +308,7 @@ async def user(info, id: int) -> User:
     repo = Repository(info.context["db"], info.context)
     return await repo.find_one("tv_user", id=id)
 
-@mutation
+@fraiseql.mutation
 async def update_user(info, id: int, input: UpdateUserInput) -> User:
     # Update base table
     repo = Repository(info.context["db"], info.context)
@@ -619,15 +619,15 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 ### With `tv_*` Tables
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type(sql_source="tv_user", jsonb_column="data")
+@fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str
     user_posts: list[Post] | None
 
-@query
+@fraiseql.query
 async def user(info, id: int) -> User:
     # Queries tv_user (0.05ms lookup + 0.5ms Rust transform = 0.55ms)
     repo = Repository(info.context["db"], info.context)
@@ -637,14 +637,14 @@ async def user(info, id: int) -> User:
 ### Without Prefixes (Simpler)
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type(sql_source="users", jsonb_column="data")
+@fraiseql.type(sql_source="users", jsonb_column="data")
 class User:
     id: int
     first_name: str
 
-@query
+@fraiseql.query
 async def user(info, id: int) -> User:
     repo = Repository(info.context["db"], info.context)
     return await repo.find_one("users", id=id)

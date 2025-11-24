@@ -25,10 +25,10 @@ make test                                       # Run tests
 
 ### Define a Type
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     name: str
@@ -38,9 +38,9 @@ class User:
 
 ### Query - Get All Items
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     """Get all users."""
     db = info.context["db"]
@@ -49,10 +49,10 @@ async def users(info) -> list[User]:
 
 ### Query - Get by ID
 ```python
-from fraiseql import query
+import fraiseql
 from uuid import UUID
 
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> User | None:
     """Get user by ID."""
     db = info.context["db"]
@@ -61,13 +61,13 @@ async def user(info, id: UUID) -> User | None:
 
 ### Query - Filter with Where Input Types
 ```python
-from fraiseql import query
+import fraiseql
 from fraiseql.sql import create_graphql_where_input
 
 # Generate automatic Where input type
 UserWhereInput = create_graphql_where_input(User)
 
-@query
+@fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     """Get users with optional filtering."""
     db = info.context["db"]
@@ -76,14 +76,14 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 
 ### Mutation - Create
 ```python
-from fraiseql import mutation, input
+import fraiseql
 
-@input
+@fraiseql.input
 class CreateUserInput:
     name: str
     email: str
 
-@mutation
+@fraiseql.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass  # Framework calls fn_create_user
@@ -91,15 +91,15 @@ def create_user(input: CreateUserInput) -> User:
 
 ### Mutation - Update
 ```python
-from fraiseql import mutation, input
+import fraiseql
 from uuid import UUID
 
-@input
+@fraiseql.input
 class UpdateUserInput:
     name: str | None = None
     email: str | None = None
 
-@mutation
+@fraiseql.mutation
 def update_user(id: UUID, input: UpdateUserInput) -> User:
     """Update user."""
     pass  # Framework calls fn_update_user
@@ -107,14 +107,14 @@ def update_user(id: UUID, input: UpdateUserInput) -> User:
 
 ### Mutation - Delete
 ```python
-from fraiseql import mutation
+import fraiseql
 from uuid import UUID
 
 class DeleteResult:
     success: bool
     error: str | None
 
-@mutation
+@fraiseql.mutation
 def delete_user(id: UUID) -> DeleteResult:
     """Delete user."""
     pass  # Framework calls fn_delete_user
@@ -132,7 +132,7 @@ from fraiseql.sql import create_graphql_where_input
 UserWhereInput = create_graphql_where_input(User)
 PostWhereInput = create_graphql_where_input(Post)
 
-@query
+@fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
     return await db.find("users", where=where)
@@ -528,7 +528,7 @@ my-api/
 
 ```python
 # Core decorators
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Database
 from fraiseql.db import FraiseQLRepository

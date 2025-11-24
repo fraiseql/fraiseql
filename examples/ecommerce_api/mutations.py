@@ -17,7 +17,7 @@ from typing import Any
 from uuid import UUID
 
 # Import enterprise pattern types (would be defined in models.py)
-from fraiseql import failure, input, mutation, success
+import fraiseql
 
 from .models import (
     AddressMutationResult,
@@ -29,7 +29,7 @@ from .models import (
 
 
 # Cart Mutations
-@mutation(
+@fraiseql.mutation(
     name="addToCart",
     function="add_to_cart",
     description="Add a product variant to the shopping cart",
@@ -44,7 +44,7 @@ async def add_to_cart(
     """Add item to cart with inventory checking"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="updateCartItem",
     function="update_cart_item",
     description="Update quantity of an item in the cart",
@@ -58,7 +58,7 @@ async def update_cart_item(
     """Update cart item quantity or remove if quantity is 0"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="clearCart",
     function="clear_cart",
     description="Remove all items from the cart",
@@ -71,7 +71,7 @@ async def clear_cart(
     """Clear all items from cart"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="applyCouponToCart",
     function="apply_coupon_to_cart",
     description="Apply a discount coupon to the cart",
@@ -86,7 +86,7 @@ async def apply_coupon_to_cart(
 
 
 # Order Mutations
-@mutation(
+@fraiseql.mutation(
     name="createOrder",
     function="create_order_from_cart",
     description="Create an order from the current cart",
@@ -102,7 +102,7 @@ async def create_order(
     """Convert cart to order with inventory reservation"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="updateOrderStatus",
     function="update_order_status",
     description="Update the status of an order",
@@ -115,7 +115,7 @@ async def update_order_status(
     """Update order status with validation"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="processOrderPayment",
     function="process_order_payment",
     description="Process payment for an order",
@@ -127,7 +127,7 @@ async def process_order_payment(
     """Process payment and update order status"""
 
 
-@mutation(name="cancelOrder", function="cancel_order", description="Cancel an order")
+@fraiseql.mutation(name="cancelOrder", function="cancel_order", description="Cancel an order")
 async def cancel_order(
     order_id: UUID,
     customer_id: UUID,
@@ -137,7 +137,7 @@ async def cancel_order(
 
 
 # Customer Mutations
-@mutation(
+@fraiseql.mutation(
     name="registerCustomer",
     function="register_customer",
     description="Register a new customer account",
@@ -152,7 +152,7 @@ async def register_customer(
     """Register new customer with email validation"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="updateCustomerProfile",
     function="update_customer_profile",
     description="Update customer profile information",
@@ -167,7 +167,7 @@ async def update_customer_profile(
     """Update customer profile fields"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="addCustomerAddress",
     function="add_customer_address",
     description="Add a new address to customer profile",
@@ -191,7 +191,7 @@ async def add_customer_address(
 
 
 # Wishlist Mutations
-@mutation(
+@fraiseql.mutation(
     name="addToWishlist",
     function="add_to_wishlist",
     description="Add a product to customer's wishlist",
@@ -208,7 +208,7 @@ async def add_to_wishlist(
 
 
 # Review Mutations
-@mutation(
+@fraiseql.mutation(
     name="submitReview",
     function="submit_review",
     description="Submit a product review",
@@ -224,7 +224,7 @@ async def submit_review(
     """Submit product review with optional order verification"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="markReviewHelpful",
     function="mark_review_helpful",
     description="Mark a review as helpful or not helpful",
@@ -242,7 +242,7 @@ async def mark_review_helpful(
 # These demonstrate complex validation and cross-entity patterns
 
 
-@mutation(function="app.process_order")
+@fraiseql.mutation(function="app.process_order")
 class ProcessOrderEnterprise:
     """Process order with comprehensive validation.
 
@@ -260,7 +260,7 @@ class ProcessOrderEnterprise:
     noop: ProcessOrderNoop  # For inventory/business rule issues
 
 
-@mutation(function="app.update_inventory")
+@fraiseql.mutation(function="app.update_inventory")
 class UpdateInventoryEnterprise:
     """Update inventory with business rules.
 
@@ -282,7 +282,7 @@ class UpdateInventoryEnterprise:
     noop: UpdateInventoryNoop  # For no-change scenarios
 
 
-@mutation(function="app.apply_discount")
+@fraiseql.mutation(function="app.apply_discount")
 class ApplyDiscountEnterprise:
     """Apply discount with eligibility validation.
 
@@ -324,7 +324,7 @@ async def process_order_legacy(
 # These would typically be in models.py but shown here for demonstration
 
 
-@input
+@fraiseql.input
 class ProcessOrderInput:
     """Order processing with comprehensive validation."""
 
@@ -341,7 +341,7 @@ class ProcessOrderInput:
     _inventory_reserved_until: datetime | None = None  # For inventory checks
 
 
-@success
+@fraiseql.success
 class ProcessOrderSuccess:
     """Order processed successfully."""
 
@@ -358,7 +358,7 @@ class ProcessOrderSuccess:
     audit_trail: dict[str, Any]
 
 
-@success
+@fraiseql.success
 class ProcessOrderNoop:
     """Order processing was a no-op."""
 
@@ -372,7 +372,7 @@ class ProcessOrderNoop:
     pricing_discrepancies: list[dict[str, Any | None]] = None
 
 
-@failure
+@fraiseql.failure
 class ProcessOrderError:
     """Order processing failed."""
 
@@ -386,7 +386,7 @@ class ProcessOrderError:
     affected_entities: list[dict[str, Any]]
 
 
-@input
+@fraiseql.input
 class UpdateInventoryInput:
     """Inventory update with business rules."""
 
@@ -401,7 +401,7 @@ class UpdateInventoryInput:
     _force_negative: bool = False  # Allow negative inventory
 
 
-@success
+@fraiseql.success
 class UpdateInventorySuccess:
     """Inventory updated successfully."""
 
@@ -416,7 +416,7 @@ class UpdateInventorySuccess:
     audit_trail: dict[str, Any]
 
 
-@success
+@fraiseql.success
 class UpdateInventoryNoop:
     """Inventory update was a no-op."""
 
@@ -430,7 +430,7 @@ class UpdateInventoryNoop:
     concurrent_modification: dict[str, Any] | None = None
 
 
-@failure
+@fraiseql.failure
 class UpdateInventoryError:
     """Inventory update failed."""
 
@@ -444,7 +444,7 @@ class UpdateInventoryError:
     system_constraints: list[str]
 
 
-@input
+@fraiseql.input
 class ApplyDiscountInput:
     """Discount application with eligibility rules."""
 
@@ -458,7 +458,7 @@ class ApplyDiscountInput:
     _customer_tier: str | None = None
 
 
-@success
+@fraiseql.success
 class ApplyDiscountSuccess:
     """Discount applied successfully."""
 
@@ -473,7 +473,7 @@ class ApplyDiscountSuccess:
     expiry_info: dict[str, Any]
 
 
-@success
+@fraiseql.success
 class ApplyDiscountNoop:
     """Discount application was a no-op."""
 
@@ -487,7 +487,7 @@ class ApplyDiscountNoop:
     temporal_restrictions: dict[str, Any] | None = None
 
 
-@failure
+@fraiseql.failure
 class ApplyDiscountError:
     """Discount application failed."""
 

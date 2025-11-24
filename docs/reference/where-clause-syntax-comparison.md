@@ -296,6 +296,8 @@ def build_filter(criteria: dict) -> dict:
 
 **WhereType:**
 ```python
+import fraiseql
+
 @fraiseql.query
 async def active_assignments(
     info,
@@ -322,6 +324,8 @@ async def active_assignments(
 
 **Dict:**
 ```python
+import fraiseql
+
 @fraiseql.query
 async def active_assignments(
     info,

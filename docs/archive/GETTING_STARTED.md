@@ -139,7 +139,7 @@ make test  # Run full test suite
 ### Reference
 - [CLI Reference](reference/cli.md) - Command-line tools
 - [Configuration](reference/config.md) - FraiseQLConfig options
-- [Decorators](reference/decorators.md) - @type, @query, @mutation
+- [Decorators](reference/decorators.md) - @fraiseql.type, @fraiseql.query, @fraiseql.mutation
 
 ---
 

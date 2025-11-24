@@ -24,7 +24,7 @@ Start with one mutation to test cascade functionality.
 
 **Before:**
 ```python
-@mutation
+@fraiseql.mutation
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess

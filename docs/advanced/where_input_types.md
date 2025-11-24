@@ -247,6 +247,8 @@ Where input types are automatically generated GraphQL input types that provide o
 
 ```python
 import fraiseql
+import fraiseql
+from fraiseql import fraise_field
 
 @fraiseql.type(sql_source="users")
 class User:
@@ -671,7 +673,7 @@ async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
 Where input types can also be used for field resolvers to filter nested collections:
 
 ```python
-@fraiseql.field
+@field
 async def posts(user: User, info, where: PostWhereInput | None = None) -> list[Post]:
     """Get posts for a user with optional filtering."""
     db = info.context["db"]

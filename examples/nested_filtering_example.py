@@ -10,7 +10,6 @@ import uuid
 from datetime import datetime
 
 import fraiseql
-from fraiseql import query
 from fraiseql.sql import create_graphql_where_input
 
 
@@ -45,7 +44,7 @@ class Allocation:
 
 
 # Example 1: Dictionary-based nested filtering
-@query
+@fraiseql.query
 async def allocations_by_machine_name(info, machine_name: str) -> list[Allocation]:
     """Find allocations by machine name using nested filtering."""
     repo = info.context["repo"]
@@ -57,7 +56,7 @@ async def allocations_by_machine_name(info, machine_name: str) -> list[Allocatio
 
 
 # Example 2: Multiple nested conditions
-@query
+@fraiseql.query
 async def active_server_allocations(info, min_power: int = 100) -> list[Allocation]:
     """Find active server allocations with minimum power requirements."""
     repo = info.context["repo"]
@@ -71,7 +70,7 @@ async def active_server_allocations(info, min_power: int = 100) -> list[Allocati
 
 
 # Example 3: Deep nesting (location.address.city)
-@query
+@fraiseql.query
 async def allocations_in_city(info, city: str) -> list[Allocation]:
     """Find allocations in a specific city."""
     repo = info.context["repo"]
@@ -82,7 +81,7 @@ async def allocations_in_city(info, city: str) -> list[Allocation]:
 
 
 # Example 4: GraphQL WhereInput approach (type-safe)
-@query
+@fraiseql.query
 async def allocations_with_filters(
     info,
     machine_name: str | None = None,
@@ -112,7 +111,7 @@ async def allocations_with_filters(
 
 
 # Example 5: Complex nested filtering with multiple operators
-@query
+@fraiseql.query
 async def high_power_allocations_in_datacenter(info, datacenter: str) -> list[Allocation]:
     """Find high-power allocations in a specific datacenter."""
     repo = info.context["repo"]

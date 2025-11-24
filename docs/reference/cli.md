@@ -467,9 +467,9 @@ fraiseql generate crud Product
 
 **Generated Structure:**
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@input
+@fraiseql.input
 class CreateUserInput:
     name: str
 
@@ -492,7 +492,7 @@ class UserError:
 class UserResult:
     pass
 
-@mutation
+@fraiseql.mutation
 async def create_user(input: CreateUserInput, repository: CQRSRepository) -> UserResult:
     # TODO: Implement creation logic
     ...

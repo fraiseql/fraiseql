@@ -515,10 +515,10 @@ await result_cache.set(cache_key, result, ttl=300)
 Cache individual resolver functions:
 
 ```python
-from fraiseql import query
+import fraiseql
 from fraiseql.caching import cache_result
 
-@query
+@fraiseql.query
 @cache_result(ttl=600, key_prefix="top_products")
 async def get_top_products(
     info,

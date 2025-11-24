@@ -9,6 +9,8 @@
 
 **📍 You are here: Main FraiseQL Framework (v1.6.1) - Production Stable**
 
+**Current Version**: v1.6.1 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+
 ---
 
 ## **GraphQL for the LLM era. Simple. Powerful. Rust-fast.**
@@ -20,13 +22,13 @@ PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 from fraiseql import type, query
 from fraiseql.fastapi import create_fraiseql_app
 
-@type(sql_source="v_user", jsonb_column="data")
+@fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
     id: int
     name: str
     email: str
 
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
@@ -368,7 +370,7 @@ class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"
 
-@mutation(function="fn_create_user", schema="public")
+@fraiseql.mutation(function="fn_create_user", schema="public")
 class CreateUser:
     input: CreateUserInput
     success: UserCreated
@@ -422,20 +424,20 @@ from fraiseql import type, query, mutation, input, success
 from fraiseql.fastapi import create_fraiseql_app
 
 # Step 1: Map PostgreSQL view to GraphQL type
-@type(sql_source="v_note", jsonb_column="data")
+@fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
     id: UUID
     title: str
     content: str | None
 
 # Step 2: Define queries
-@query
+@fraiseql.query
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
     return await db.find("v_note")
 
-@query
+@fraiseql.query
 async def note(info, id: UUID) -> Note | None:
     """Get a note by ID."""
     db = info.context["db"]
@@ -447,7 +449,7 @@ class CreateNoteInput:
     title: str
     content: str | None = None
 
-@mutation
+@fraiseql.mutation
 class CreateNote:
     input: CreateNoteInput
     success: Note
@@ -466,7 +468,7 @@ app = create_fraiseql_app(
 ### The Database-First Pattern
 
 ```sql
--- Step 1: PostgreSQL view composes data as JSONB
+-- PostgreSQL view explicitly defines what's exposed
 CREATE VIEW v_user AS
 SELECT
     id,
@@ -474,24 +476,15 @@ SELECT
         'id', id,
         'name', name,
         'email', email,
-        'posts', (
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', p.id,
-                    'title', p.title,
-                    'content', p.content
-                )
-            )
-            FROM tb_post p
-            WHERE p.user_id = tb_user.id
-        )
+        -- password_hash, is_admin, api_key NOT included
+        -- Impossible to accidentally expose them!
     ) as data
 FROM tb_user;
 ```
 
 ```python
-# Step 2: Python decorator maps it to GraphQL
-@type(sql_source="v_user", jsonb_column="data")
+# Python type mirrors EXACT view structure
+@fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
     id: int
     name: str
@@ -499,7 +492,7 @@ class User:
     posts: list[Post]  # Nested relations! No N+1 queries!
 
 # Step 3: Query it
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
@@ -854,7 +847,7 @@ from fraiseql.types import (
     CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
 )
 
-@type(sql_source="v_financial_data")
+@fraiseql.type(sql_source="v_financial_data")
 class FinancialRecord:
     id: int
     email: EmailAddress           # Validated email addresses
@@ -863,7 +856,7 @@ class FinancialRecord:
     margin: Percentage           # Percentages (0.00-100.00)
     security_id: CUSIP | ISIN    # Financial instrument identifiers
 
-@type(sql_source="v_network_devices")
+@fraiseql.type(sql_source="v_network_devices")
 class NetworkDevice:
     id: int
     ip_address: IPv4             # IPv4 addresses with subnet operations
@@ -900,8 +893,8 @@ query {
 ```python
 from fraiseql import authorized
 
-@authorized(roles=["admin", "editor"])
-@mutation
+@fraiseql.authorized(roles=["admin", "editor"])
+@fraiseql.mutation
 class DeletePost:
     """Only admins and editors can delete posts."""
     input: DeletePostInput

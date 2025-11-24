@@ -4,15 +4,15 @@ Type system for GraphQL schema definition using Python decorators and dataclasse
 
 **📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
 
-## @type
+## @fraiseql.type
 
 **Purpose**: Define GraphQL object types from Python classes
 
 **Signature**:
 ```python
-from fraiseql import type
+import fraiseql
 
-@type(
+@fraiseql.type(
     sql_source: str | None = None,
     jsonb_column: str | None = "data",
     implements: list[type] | None = None,
@@ -77,11 +77,11 @@ class TypeName:
 
 Basic type without database binding:
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 from datetime import datetime
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     email: str
@@ -105,10 +105,10 @@ type User {
 
 Type with SQL source for automatic queries:
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     email: str
@@ -117,10 +117,10 @@ class User:
 
 Type with regular table columns (no JSONB):
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="users", jsonb_column=None)
+@fraiseql.type(sql_source="users", jsonb_column=None)
 class User:
     id: UUID
     email: str
@@ -130,10 +130,10 @@ class User:
 
 Type with custom JSONB column:
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
-@type(sql_source="tv_machine", jsonb_column="machine_data")
+@fraiseql.type(sql_source="tv_machine", jsonb_column="machine_data")
 class Machine:
     id: UUID
     identifier: str
@@ -142,24 +142,24 @@ class Machine:
 
 **With Custom Fields** (using @field decorator):
 ```python
-from fraiseql import type, field
+import fraiseql
 from uuid import UUID
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .types import Post
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     first_name: str
     last_name: str
 
-    @field(description="Full display name")
+    @fraiseql.field(description="Full display name")
     def display_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    @field(description="User's posts")
+    @fraiseql.field(description="User's posts")
     async def posts(self, info) -> list[Post]:
         db = info.context["db"]
         return await db.find("v_post", where={"user_id": self.id})
@@ -167,16 +167,16 @@ class User:
 
 With nested object resolution:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Department will be resolved via separate query
-@type(sql_source="departments", resolve_nested=True)
+@fraiseql.type(sql_source="departments", resolve_nested=True)
 class Department:
     id: UUID
     name: str
 
 # Employee with department as a relation
-@type(sql_source="employees")
+@fraiseql.type(sql_source="employees")
 class Employee:
     id: UUID
     name: str
@@ -186,16 +186,16 @@ class Employee:
 
 With embedded nested objects (default):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Department data is embedded in parent's JSONB
-@type(sql_source="departments")
+@fraiseql.type(sql_source="departments")
 class Department:
     id: UUID
     name: str
 
 # Employee view includes embedded department in JSONB
-@type(sql_source="v_employees_with_dept")
+@fraiseql.type(sql_source="v_employees_with_dept")
 class Employee:
     id: UUID
     name: str
@@ -208,9 +208,9 @@ class Employee:
 
 **Signature**:
 ```python
-from fraiseql import input
+import fraiseql
 
-@input
+@fraiseql.input
 class InputName:
     field1: str
     field2: int | None = None
@@ -220,17 +220,17 @@ class InputName:
 
 Basic input type:
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 from datetime import datetime
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     name: str
     role: UserRole
 
-@type
+@fraiseql.type
 class Order:
     id: UUID
     status: OrderStatus
@@ -239,7 +239,7 @@ class Order:
 
 Enum with integer values:
 ```python
-@enum
+@fraiseql.enum
 class Priority(Enum):
     LOW = 1
     MEDIUM = 2
@@ -253,9 +253,9 @@ class Priority(Enum):
 
 **Signature**:
 ```python
-from fraiseql import interface
+import fraiseql
 
-@interface
+@fraiseql.interface
 class InterfaceName:
     field1: str
     field2: int
@@ -265,19 +265,19 @@ class InterfaceName:
 
 Basic Node interface:
 ```python
-from fraiseql import interface, type
+import fraiseql
 
-@interface
+@fraiseql.interface
 class Node:
     id: UUID
 
-@type(implements=[Node])
+@fraiseql.type(implements=[Node])
 class User:
     id: UUID
     email: str
     name: str
 
-@type(implements=[Node])
+@fraiseql.type(implements=[Node])
 class Post:
     id: UUID
     title: str
@@ -286,49 +286,49 @@ class Post:
 
 Interface with computed fields:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@interface
+@fraiseql.interface
 class Timestamped:
     created_at: datetime
     updated_at: datetime
 
-    @field(description="Time since creation")
+    @fraiseql.field(description="Time since creation")
     def age(self) -> timedelta:
         return datetime.utcnow() - self.created_at
 
-@type(implements=[Timestamped])
+@fraiseql.type(implements=[Timestamped])
 class Article:
     id: UUID
     title: str
     created_at: datetime
     updated_at: datetime
 
-    @field(description="Time since creation")
+    @fraiseql.field(description="Time since creation")
     def age(self) -> timedelta:
         return datetime.utcnow() - self.created_at
 ```
 
 Multiple interface implementation:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@interface
+@fraiseql.interface
 class Searchable:
     search_text: str
 
-@interface
+@fraiseql.interface
 class Taggable:
     tags: list[str]
 
-@type(implements=[Node, Searchable, Taggable])
+@fraiseql.type(implements=[Node, Searchable, Taggable])
 class Document:
     id: UUID
     title: str
     content: str
     tags: list[str]
 
-    @field
+    @fraiseql.field
     def search_text(self) -> str:
         return f"{self.title} {self.content}"
 ```
@@ -364,7 +364,7 @@ class Document:
 
 **Usage Example**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.types import (
     IpAddress,
@@ -375,7 +375,7 @@ from fraiseql.types import (
     LTree
 )
 
-@type
+@fraiseql.type
 class NetworkConfig:
     ip_address: IpAddress
     cidr_block: CIDR
@@ -384,7 +384,7 @@ class NetworkConfig:
     port: Port
     hostname: Hostname
 
-@type
+@fraiseql.type
 class Category:
     path: LTree  # PostgreSQL ltree for hierarchical data
     name: str
@@ -398,9 +398,9 @@ class Category:
 
 **Types**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type
+@fraiseql.type
 class PageInfo:
     has_next_page: bool
     has_previous_page: bool
@@ -408,12 +408,12 @@ class PageInfo:
     end_cursor: str | None = None
     total_count: int | None = None
 
-@type
+@fraiseql.type
 class Edge[T]:
     node: T
     cursor: str
 
-@type
+@fraiseql.type
 class Connection[T]:
     edges: list[Edge[T]]
     page_info: PageInfo
@@ -422,17 +422,17 @@ class Connection[T]:
 
 **Usage with @connection decorator**:
 ```python
-from fraiseql import query, connection, type
+import fraiseql
 from fraiseql.types import Connection
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     name: str
     email: str
 
-@connection(node_type=User)
-@query
+@fraiseql.connection(node_type=User)
+@fraiseql.query
 async def users_connection(
     info,
     first: int | None = None,
@@ -443,11 +443,11 @@ async def users_connection(
 
 **Manual usage**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.types import create_connection
 
-@query
+@fraiseql.query
 async def users_connection(info, first: int = 20) -> Connection[User]:
     db = info.context["db"]
     result = await db.paginate("v_user", first=first)
@@ -460,9 +460,9 @@ async def users_connection(info, first: int = 20) -> Connection[User]:
 
 **Usage**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def users_paginated(
     info,
     page: int = 1,
@@ -497,10 +497,10 @@ from fraiseql.types import UNSET
 
 **Usage in Input Types**:
 ```python
-from fraiseql import input
+import fraiseql
 from fraiseql.types import UNSET
 
-@input
+@fraiseql.input
 class UpdateUserInput:
     id: UUID
     name: str | None = UNSET  # Not provided by default
@@ -510,9 +510,9 @@ class UpdateUserInput:
 
 **Usage in Mutations**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def update_user(info, input: UpdateUserInput) -> User:
     db = info.context["db"]
     updates = {}

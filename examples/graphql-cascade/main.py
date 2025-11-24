@@ -13,7 +13,6 @@ from fastapi import FastAPI
 
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
-from fraiseql.mutations import mutation
 
 
 # Input/Output Types
@@ -79,7 +78,7 @@ async def getUser(info, id: str) -> User:
 
 
 # Mutations
-@mutation(enable_cascade=True)
+@fraiseql.mutation(enable_cascade=True)
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
