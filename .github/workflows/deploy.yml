@@ -84,7 +84,7 @@ jobs:
     - name: Build test container
       run: |
         docker build -f deploy/docker/Dockerfile \
-          --target production \
+          --target runtime \
           -t fraiseql:test-${{ needs.pre-deploy-checks.outputs.deploy_version }} \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
           .
