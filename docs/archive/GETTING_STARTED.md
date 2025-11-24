@@ -104,7 +104,7 @@ make test  # Run full test suite
 
 **Migration Guides**:
 - Version Migration Guides (migration-guides/) - Upgrade guides and migrations
-- [Performance Guide](performance/PERFORMANCE_GUIDE.md) - Why FraiseQL is faster
+- [Performance Guide](../performance/PERFORMANCE_GUIDE.md) - Why FraiseQL is faster
 
 ---
 

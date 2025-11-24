@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.6.1) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.6.2) - Production Stable**
 
-**Current Version**: v1.6.1 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.6.2 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -316,7 +316,7 @@ FraiseQL includes enterprise-grade security features designed for global regulat
 - **Field-level authorization** with role inheritance
 - **Row-level security** via PostgreSQL RLS
 
-**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/adr/0003-kms-architecture.md)**
+**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
 
 ---
 
@@ -1120,7 +1120,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.6.1** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.6.2** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
 | **v1.6.0** | Superseded | Legacy | Use v1.6.1 | ⚠️ Migrate |
 

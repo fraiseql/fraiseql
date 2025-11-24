@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.2] - 2025-11-24
+
+### 🔐 Security Hardening
+
+**Multi-Provider KMS Integration** 🛡️
+- **Production-Ready KMS Support**: Full integration with HashiCorp Vault, AWS KMS, and GCP Cloud KMS
+- **Envelope Encryption**: Secure data encryption with automatic key rotation
+- **Rust Pipeline Compatibility**: KMS operations integrated into the Rust JSON processing pipeline
+- **Local Development Provider**: Secure fallback for development environments
+
+**Security Profiles** 🔒
+- **STANDARD Profile**: Input validation, rate limiting, CSRF protection, basic security headers
+- **REGULATED Profile**: All STANDARD features plus required KMS encryption and audit logging
+- **RESTRICTED Profile**: Government/defense-grade security with external call blocking and strict CSP
+
+**Supply Chain Security** 📦
+- **SBOM Generation**: CycloneDX 1.5 format SBOM generation for federal compliance (EO 14028)
+- **Cryptographic Verification**: Cosign integration for SBOM signing and verification
+- **Procurement Officer Support**: Comprehensive documentation for enterprise procurement
+
+**Observability & Monitoring** 📊
+- **OpenTelemetry Integration**: Distributed tracing for security events and performance monitoring
+- **Audit Logging**: Comprehensive security event logging with configurable retention
+- **Performance Metrics**: Real-time monitoring of query performance and security metrics
+
+### 🚀 New Features
+
+**APQ Security Enhancements** ✨
+- **Query Hash Validation**: Enhanced persisted query validation with configurable security modes
+- **Build-Time Registration**: Secure query registration at application startup
+- **Directory-Based Loading**: Automatic loading of `.graphql`/`.gql` files from configured directories
+
+### 📚 Documentation
+
+**Global Compliance Coverage** 🌍
+- **Multi-Jurisdiction Support**: US (EO 14028, NIST, FedRAMP), EU (NIS2, CRA), Canada (CCCS), Australia (Essential Eight), Singapore (Cybersecurity Act)
+- **Regulatory Mapping**: Clear feature-to-requirement mapping for enterprise compliance
+- **SBOM Process Documentation**: Complete procurement and compliance officer guidance
+
+### 🔧 Internal Improvements
+
+**CI/CD Security Pipeline** ⚙️
+- **SARIF Upload**: Security scan results integration with GitHub Security tab
+- **Dependency Scanning**: Automated vulnerability detection in CI pipeline
+- **Security Audit Preparation**: Framework preparation for third-party security audits
+
 ## [1.6.1] - 2025-11-23
 
 ### 📚 Documentation

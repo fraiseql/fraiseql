@@ -393,5 +393,4 @@ security = setup_security(
 - [ ] Rate limiting configured appropriately
 - [ ] Security headers tested with security scanner
 
-**[🔐 Security Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/features/security-architecture.md)** • **[📋 Threat Model](https://github.com/fraiseql/fraiseql/blob/main/docs/security/threat-model.md)**</content>
-</xai:function_call">Create the security configuration guide
+**[🔐 Security Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/features/security-architecture.md)** • **[📋 Threat Model](https://github.com/fraiseql/fraiseql/blob/main/docs/security/threat-model.md)**

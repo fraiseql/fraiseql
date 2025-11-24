@@ -97,7 +97,7 @@ FraiseQL generates SBOMs in **CycloneDX 1.5** format (JSON or XML).
     "component": {
       "type": "application",
       "name": "fraiseql",
-      "version": "1.5.0",
+      "version": "1.6.2",
       "description": "GraphQL framework for PostgreSQL"
     }
   },
@@ -126,9 +126,9 @@ SBOMs are automatically generated on every release via GitHub Actions:
 - name: Generate SBOM
   run: |
     fraiseql sbom generate \
-      --output fraiseql-1.5.0-sbom.json \
+      --output fraiseql-1.6.2-sbom.json \
       --component-name fraiseql \
-      --component-version 1.5.0
+      --component-version 1.6.2
 ```
 
 **Artifacts Published:**
@@ -173,7 +173,7 @@ generator = SBOMGenerator(metadata_repository=scanner)
 generator.generate_and_save(
     output_path=Path("fraiseql-sbom.json"),
     component_name="fraiseql",
-    component_version="1.5.0",
+    component_version="1.6.2",
     format="json"
 )
 ```
@@ -184,7 +184,7 @@ generator.generate_and_save(
 
 ```bash
 # Validate SBOM structure
-fraiseql sbom validate --input fraiseql-1.5.0-sbom.json
+fraiseql sbom validate --input fraiseql-1.6.2-sbom.json
 
 # Verbose output with component details
 fraiseql sbom validate --input fraiseql-sbom.json --verbose
@@ -205,12 +205,12 @@ cyclonedx validate --input-file fraiseql-sbom.json
 ### 1. Verify SHA256 Checksum
 
 ```bash
-sha256sum -c fraiseql-1.5.0-sbom.json.sha256
+sha256sum -c fraiseql-1.6.2-sbom.json.sha256
 ```
 
 **Expected Output:**
 ```
-fraiseql-1.5.0-sbom.json: OK
+fraiseql-1.6.2-sbom.json: OK
 ```
 
 ### 2. Verify Cosign Signature (Keyless)
@@ -222,11 +222,11 @@ brew install cosign  # macOS
 
 # Verify signature
 cosign verify-blob \
-  --signature fraiseql-1.5.0-sbom.json.sig \
-  --certificate fraiseql-1.5.0-sbom.json.pem \
+  --signature fraiseql-1.6.2-sbom.json.sig \
+  --certificate fraiseql-1.6.2-sbom.json.pem \
   --certificate-identity-regexp "https://github.com/fraiseql/fraiseql" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  fraiseql-1.5.0-sbom.json
+  fraiseql-1.6.2-sbom.json
 ```
 
 **Expected Output:**
@@ -251,10 +251,10 @@ Verified OK
 
 ```bash
 # Using Grype
-grype sbom:fraiseql-1.5.0-sbom.json
+grype sbom:fraiseql-1.6.2-sbom.json
 
 # Using Trivy
-trivy sbom --severity HIGH,CRITICAL fraiseql-1.5.0-sbom.json
+trivy sbom --severity HIGH,CRITICAL fraiseql-1.6.2-sbom.json
 
 # Using Dependency-Track
 # Upload SBOM to Dependency-Track web UI
@@ -269,7 +269,7 @@ trivy sbom --severity HIGH,CRITICAL fraiseql-1.5.0-sbom.json
   uses: aquasecurity/trivy-action@master
   with:
     scan-type: 'sbom'
-    scan-ref: 'fraiseql-1.5.0-sbom.json'
+    scan-ref: 'fraiseql-1.6.2-sbom.json'
     severity: 'CRITICAL,HIGH'
 ```
 
@@ -374,7 +374,7 @@ uv pip install ".[dev,all]"
 >
 > **Signed**: Lionel Hamayon, Project Maintainer
 > **Date**: 2025-11-21
-> **Effective**: FraiseQL v1.5.0 and later
+> **Effective**: FraiseQL v1.6.2 and later
 
 ## Continuous Improvement
 
@@ -389,9 +389,9 @@ uv pip install ".[dev,all]"
 ### Feedback
 
 For SBOM-related questions or suggestions:
-- **Email**: security@fraiseql.com
 - **GitHub Issues**: https://github.com/fraiseql/fraiseql/issues
-- **Security**: Report vulnerabilities privately to security@fraiseql.com
+- **Security Reports**: [Create a Security Advisory](https://github.com/fraiseql/fraiseql/security/advisories/new)
+- **Email**: security@fraiseql.com (for non-security questions only)
 
 ---
 

@@ -389,9 +389,10 @@ FraiseQL's security features support compliance with supply chain security regul
 ## 🆘 Support
 
 For compliance-related questions:
-- **Email:** security@fraiseql.com
-- **Documentation:** https://fraiseql.readthedocs.io
 - **GitHub Issues:** https://github.com/fraiseql/fraiseql/issues
+- **Security Reports:** [Create a Security Advisory](https://github.com/fraiseql/fraiseql/security/advisories/new)
+- **Documentation:** https://fraiseql.dev
+- **Email:** security@fraiseql.com (for non-security questions only)
 
 ---
 
