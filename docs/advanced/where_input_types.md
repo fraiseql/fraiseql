@@ -247,6 +247,8 @@ Where input types are automatically generated GraphQL input types that provide o
 
 ```python
 import fraiseql
+import fraiseql
+from fraiseql import fraise_field
 
 @fraiseql.type(sql_source="users")
 class User:
@@ -671,7 +673,7 @@ async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
 Where input types can also be used for field resolvers to filter nested collections:
 
 ```python
-@fraiseql.field
+@field
 async def posts(user: User, info, where: PostWhereInput | None = None) -> list[Post]:
     """Get posts for a user with optional filtering."""
     db = info.context["db"]
@@ -731,15 +733,13 @@ If you're migrating from manual query implementations:
 @fraiseql.query
 async def users_by_status(info, status: str) -> list[User]:
     db = info.context["db"]
-    query = "SELECT * FROM users WHERE status = %s"
-    result = await db.run(DatabaseQuery(query, [status]))
-    return [User(**row) for row in result]
+    return await db.find("v_user", "users", info, status=status)
 
 # After: Where input filtering
 @fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
-    return await db.find("users", where=where)
+    return await db.find("v_user", "users", info, where=where)
 
 # Usage remains the same, but now supports complex filtering
 query {

@@ -117,7 +117,7 @@ def test_halfvec_vs_regular_vector_distinction():
 def test_halfvec_type_hint_detection():
     """Test detection via type hints (when available)."""
     from typing import Annotated
-    from fraiseql import type as fraiseql_type
+    import fraiseql as fraiseql_type
 
     @fraiseql_type
     class DocumentHalfVec:
@@ -497,7 +497,7 @@ uv run pytest tests/integration/test_vector_e2e.py -v
 ```python
 import pytest
 import pytest_asyncio
-from fraiseql import type as fraiseql_type
+import fraiseql as fraiseql_type
 from fraiseql.db import FraiseQLRepository
 
 @fraiseql_type
@@ -951,7 +951,7 @@ uv run pytest tests/unit/sql/test_sparsevec_operators.py -v
 ```python
 import pytest
 import pytest_asyncio
-from fraiseql import type as fraiseql_type
+import fraiseql as fraiseql_type
 from fraiseql.db import FraiseQLRepository
 
 @fraiseql_type
@@ -1080,7 +1080,7 @@ PostgreSQL pgvector supports:
 
 ```python
 import pytest
-from fraiseql import type as fraiseql_type
+import fraiseql as fraiseql_type
 
 @fraiseql_type
 class Product:
@@ -1235,7 +1235,7 @@ Test with various GROUP BY scenarios.
 ```python
 import pytest
 import pytest_asyncio
-from fraiseql import type as fraiseql_type
+import fraiseql as fraiseql_type
 from fraiseql.db import FraiseQLRepository
 
 @fraiseql_type
@@ -1414,7 +1414,7 @@ def test_custom_distance_sql_generation():
 
 def test_custom_distance_graphql_integration():
     """Test that custom distances appear in GraphQL schema."""
-    from fraiseql import type as fraiseql_type
+    import fraiseql as fraiseql_type
 
     @fraiseql_type
     class Song:

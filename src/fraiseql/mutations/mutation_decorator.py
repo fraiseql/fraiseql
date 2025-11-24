@@ -162,7 +162,11 @@ class MutationDefinition:
                 cascade_data = None
                 if "_cascade" in result:
                     cascade_data = result["_cascade"]
-                elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
+                elif (
+                    hasattr(parsed_result, "extra_metadata")
+                    and parsed_result.extra_metadata
+                    and "_cascade" in parsed_result.extra_metadata
+                ):
                     cascade_data = parsed_result.extra_metadata["_cascade"]
 
                 if cascade_data:
@@ -311,24 +315,19 @@ def mutation(
     Examples:
         Simple function-based mutation::\
 
-            @mutation
+            @fraiseql.mutation
             async def create_user(info, input: CreateUserInput) -> User:
                 db = info.context["db"]
-                # Direct implementation with custom logic
-                user_data = {
+                # Use SQL function for business logic
+                result = await db.execute_function("fn_create_user", {
                     "name": input.name,
-                    "email": input.email,
-                    "created_at": datetime.utcnow()
-                }
-                result = await db.execute_raw(
-                    "INSERT INTO users (data) VALUES ($1) RETURNING *",
-                    user_data
-                )
-                return User(**result[0]["data"])
+                    "email": input.email
+                })
+                return await db.find_one("v_user", "user", info, id=result["id"])
 
         Basic class-based mutation::\
 
-            @mutation
+            @fraiseql.mutation
             class CreateUser:
                 input: CreateUserInput
                 success: CreateUserSuccess
@@ -339,7 +338,7 @@ def mutation(
 
         Mutation with custom PostgreSQL function::\
 
-            @mutation(function="register_new_user", schema="auth")
+            @fraiseql.mutation(function="register_new_user", schema="auth")
             class RegisterUser:
                 input: RegistrationInput
                 success: RegistrationSuccess
@@ -349,7 +348,7 @@ def mutation(
 
         Mutation with context parameters::\
 
-            @mutation(
+            @fraiseql.mutation(
                 function="create_location",
                 schema="app",
                 context_params={
@@ -385,7 +384,7 @@ def mutation(
                 message: str
                 field: str | None = None
 
-            @mutation
+            @fraiseql.mutation
             async def update_user(info, input: UpdateUserInput) -> User:
                 db = info.context["db"]
                 user_context = info.context.get("user")
@@ -412,7 +411,7 @@ def mutation(
 
         Multi-step mutation with transaction::\
 
-            @mutation
+            @fraiseql.mutation
             async def transfer_funds(
                 info,
                 input: TransferInput
@@ -464,7 +463,7 @@ def mutation(
 
         Mutation with file upload handling::\
 
-            @mutation
+            @fraiseql.mutation
             async def upload_avatar(
                 info,
                 input: UploadAvatarInput  # Contains file: Upload field
@@ -502,7 +501,7 @@ def mutation(
                 ip_address: str
                 subnet_mask: str
 
-            @mutation
+            @fraiseql.mutation
             class CreateNetworkConfig:
                 input: NetworkConfigInput
                 success: NetworkConfigSuccess
@@ -538,7 +537,7 @@ def mutation(
                 id: UUID
                 notes: str | None = None
 
-            @mutation
+            @fraiseql.mutation
             class UpdateNote:
                 input: UpdateNoteInput
                 success: UpdateNoteSuccess

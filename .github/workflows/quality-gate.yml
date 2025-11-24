@@ -85,6 +85,24 @@ jobs:
         echo "=== Rust Extension Verification ==="
         uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
+    - name: Run KMS unit tests
+      run: |
+        echo "=== Running KMS Unit Tests ==="
+        uv run pytest tests/unit/security/kms/ -v --tb=short || {
+          echo "❌ KMS unit tests failed"
+          exit 1
+        }
+        echo "✅ KMS unit tests completed successfully"
+
+    - name: Run security profile tests
+      run: |
+        echo "=== Running Security Profile Tests ==="
+        uv run pytest tests/unit/security/profiles/ -v --tb=short || {
+          echo "❌ Security profile tests failed"
+          exit 1
+        }
+        echo "✅ Security profile tests completed successfully"
+
     - name: Run core tests
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -208,7 +226,10 @@ jobs:
         uv venv
         uv pip install bandit safety
     - name: Run bandit security scan
-      run: uv run bandit -r src/ -f json -o bandit-results.json || true
+      run: |
+        uv run bandit -r src/ -f json -o bandit-results.json || true
+        echo "=== Security Module Specific Scan ==="
+        uv run bandit -r src/fraiseql/security/ -ll -f txt -o security-module-scan.txt || true
     - name: Run safety dependency vulnerability scan
       run: uv run safety check --output json --save-json safety-results.json || true
     - name: Run OWASP Dependency Check

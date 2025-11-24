@@ -12,10 +12,11 @@ from enum import Enum
 from typing import Any, Union
 from uuid import UUID
 
+from graphql import GraphQLResolveInfo
+
 import fraiseql
 from fraiseql.db import DatabaseQuery
 from fraiseql.patterns import TrinityMixin, get_pk_column_name
-from graphql import GraphQLResolveInfo
 
 
 # Domain enums
@@ -165,8 +166,8 @@ class Comment(TrinityMixin):
     status: CommentStatus
     created_at: datetime
     updated_at: datetime
-    post_id: UUID      # ✅ UUID relationship from view
-    author_id: UUID    # ✅ UUID relationship from view
+    post_id: UUID  # ✅ UUID relationship from view
+    author_id: UUID  # ✅ UUID relationship from view
     parent_id: UUID | None  # ✅ UUID relationship from view
 
     @fraiseql.field
@@ -377,13 +378,14 @@ class CreatePost:
             }
 
             # Call database function with UUID (function maps to pk internally)
-            result = await db.execute_function("create_post", {
-                "input_user_id": str(user_id),
-                "input_payload": payload
-            })
+            result = await db.execute_function(
+                "create_post", {"input_user_id": str(user_id), "input_payload": payload}
+            )
 
             # Check for errors returned by database function
-            if result.get("status", "").startswith("error:") or result.get("status", "").startswith("noop:"):
+            if result.get("status", "").startswith("error:") or result.get("status", "").startswith(
+                "noop:"
+            ):
                 return ValidationError(message=result.get("message", "Failed to create post"))
 
             post_id = result.get("id")
@@ -391,6 +393,7 @@ class CreatePost:
             # Add tags if provided (TODO: create add_tags_to_post function)
             if self.input.tag_ids:
                 from fraiseql.db import DatabaseQuery
+
                 for tag_id in self.input.tag_ids:
                     tag_query = DatabaseQuery(
                         """
@@ -422,28 +425,15 @@ async def posts(
     """Query posts with filtering and pagination."""
     db = info.context["db"]
 
-    # Build query with SERIAL joins (fast)
-    where_conditions = []
-    params = []
-
+    # Build filters
+    filters = {}
     if status:
-        where_conditions.append("status = %s")
-        params.append(status.value)
+        filters["status"] = status.value
 
-    where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
-    query = f"""
-        SELECT * FROM v_posts
-        WHERE {where_clause}
-        ORDER BY created_at DESC
-        LIMIT %s OFFSET %s
-    """
-    params.extend([limit, offset])
-
-    from fraiseql.db import DatabaseQuery
-
-    db_query = DatabaseQuery(query, params)
-    result = await db.run(db_query)
-    return [Post(**row) for row in result]
+    # Use FraiseQL repository - handles JSONB extraction and type instantiation
+    return await db.find(
+        "v_posts", "posts", info, limit=limit, offset=offset, order_by="-created_at", **filters
+    )
 
 
 @fraiseql.query

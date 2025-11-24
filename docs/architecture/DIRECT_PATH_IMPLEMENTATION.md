@@ -118,7 +118,9 @@ CREATE VIEW v_user AS SELECT id, data FROM tv_user;
 ```
 
 ```python
-@fraiseql_type(sql_source="v_user", jsonb_column="data")
+import fraiseql
+
+@type(sql_source="v_user", jsonb_column="data")
 class User:
     id: str
     first_name: str

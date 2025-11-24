@@ -21,10 +21,10 @@ FraiseQL provides powerful, flexible filtering capabilities for both GraphQL que
 WhereType provides type-safe filtering with full IDE autocomplete support. Use this when your filter structure is known at development time.
 
 ```python
-from fraiseql import query
+import fraiseql
 from fraiseql.filters import StringFilter, BooleanFilter
 
-@query
+@fraiseql.query
 async def active_users(info) -> list[User]:
     return await repo.find(
         "v_user",
@@ -49,7 +49,7 @@ For complete documentation: **[Where Input Types Guide](../advanced/where_input_
 Dict-based filters are ideal for dynamic, runtime-built queries. Use this when filter criteria come from user input or configuration.
 
 ```python
-@query
+@fraiseql.query
 async def search_users(info, filters: dict) -> list[User]:
     return await repo.find("v_user", where=filters)
 
@@ -123,6 +123,7 @@ FraiseQL supports filtering nested array elements in GraphQL queries with full A
 ### Enable Where Filtering on Fields
 
 ```python
+import fraiseql
 from fraiseql.fields import fraise_field
 
 @fraiseql.type(sql_source="v_network", jsonb_column="data")

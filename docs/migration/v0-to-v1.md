@@ -46,9 +46,9 @@ repo.find("users_view", email=email)
 Better support for PostgreSQL types:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type
+@fraiseql.type
 class User:
     id: UUID  # Now properly handled
     email: EmailStr  # Email validation
@@ -118,9 +118,9 @@ users = await repo.find("users_view", is_active=True)
 Add proper type hints:
 
 ```python
-from fraiseql import type, query, mutation, input, field, Info
+import fraiseql
 
-@query
+@fraiseql.query
 def get_users(info: Info, limit: int = 10) -> list[User]:
     return info.context.repo.find("users_view", limit=limit)
 ```
@@ -140,10 +140,10 @@ pytest
 Automatically enabled - no changes needed:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # JSON responses are now 10-100x faster
-@query
+@fraiseql.query
 def get_data(info: Info) -> dict:
     return {"key": "value"}  # Fast JSON serialization
 ```
@@ -167,7 +167,7 @@ users = await repo.find(
 Pagination support:
 
 ```python
-from fraiseql import type, query, mutation, input, field, connection
+import fraiseql, connection
 
 @connection
 def users(
@@ -182,7 +182,7 @@ def users(
 Automatic N+1 query prevention:
 
 ```python
-from fraiseql import type, query, mutation, input, field, dataloader
+import fraiseql, dataloader
 
 @field
 @dataloader
@@ -268,11 +268,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 **Solution**: Update type annotations:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from datetime import datetime
 
-@type
+@fraiseql.type
 class User:
     created_at: datetime  # Not 'date'
     middle_name: str | None = None  # Explicit optional

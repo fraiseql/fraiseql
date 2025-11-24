@@ -7,6 +7,7 @@ pub mod cascade;
 pub mod core;
 mod json;
 pub mod json_transform;
+pub mod mutation;
 pub mod pipeline;
 pub mod schema_registry;
 
@@ -277,6 +278,60 @@ pub fn filter_cascade_data(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
 }
 
+/// Build complete GraphQL mutation response from PostgreSQL JSON
+///
+/// This function transforms PostgreSQL mutation_result_v2 JSON into GraphQL responses.
+/// It supports both simple format (just entity JSONB) and full v2 format with status.
+///
+/// Examples:
+///     >>> # Simple format
+///     >>> result = build_mutation_response(
+///     ...     '{"id": "123", "name": "John"}',
+///     ...     "createUser",
+///     ...     "CreateUserSuccess",
+///     ...     "CreateUserError",
+///     ...     "user",
+///     ...     "User",
+///     ...     None
+///     ... )
+///
+/// Args:
+///     mutation_json: Raw JSON from PostgreSQL (simple or v2 format)
+///     field_name: GraphQL field name (e.g., "createUser")
+///     success_type: Success type name (e.g., "CreateUserSuccess")
+///     error_type: Error type name (e.g., "CreateUserError")
+///     entity_field_name: Field name for entity (e.g., "user")
+///     entity_type: Entity type for __typename (e.g., "User") - REQUIRED for simple format
+///     cascade_selections: Optional cascade selections JSON string
+///
+/// Returns:
+///     UTF-8 encoded GraphQL response bytes ready for HTTP
+///
+/// Raises:
+///     ValueError: If JSON is malformed or transformation fails
+#[pyfunction]
+#[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None))]
+pub fn build_mutation_response(
+    mutation_json: &str,
+    field_name: &str,
+    success_type: &str,
+    error_type: &str,
+    entity_field_name: Option<&str>,
+    entity_type: Option<&str>,
+    cascade_selections: Option<&str>,
+) -> PyResult<Vec<u8>> {
+    mutation::build_mutation_response(
+        mutation_json,
+        field_name,
+        success_type,
+        error_type,
+        entity_field_name,
+        entity_type,
+        cascade_selections,
+    )
+    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+}
+
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
 /// This module provides:
@@ -308,6 +363,7 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "build_graphql_response",
         "initialize_schema_registry",
         "filter_cascade_data",
+        "build_mutation_response",
     ])?;
 
     // Add functions
@@ -324,6 +380,9 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add cascade filtering
     m.add_function(wrap_pyfunction!(filter_cascade_data, m)?)?;
+
+    // Add mutation response building
+    m.add_function(wrap_pyfunction!(build_mutation_response, m)?)?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;

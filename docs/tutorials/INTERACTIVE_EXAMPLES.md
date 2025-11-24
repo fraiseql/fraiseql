@@ -23,7 +23,7 @@ FROM tb_user u;
 ### Python: Type Definition
 
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 from datetime import datetime
 
@@ -76,9 +76,9 @@ query GetUsers {
 ### Python: Repository Method
 
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def users(self, info, email_filter: str | None = None) -> list[User]:
     filters = {}
     if email_filter:
@@ -142,7 +142,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ### Python: Nested Types
 
 ```python
-from fraiseql import type
+import fraiseql
 
 @type(sql_source="v_post_with_author")
 class Post:
@@ -238,7 +238,7 @@ class CreatePostInput:
     content: str
     author_id: UUID
 
-@mutation
+@fraiseql.mutation
 async def create_post(self, info, input: CreatePostInput) -> Post:
     # Call database function
     post_id = await db.execute_scalar(
@@ -322,7 +322,7 @@ $$ LANGUAGE plpgsql;
 ### Python: Stats Type
 
 ```python
-from fraiseql import type
+import fraiseql
 
 @type(sql_source="tv_post_stats")
 class PostStats:

@@ -32,9 +32,20 @@ class MutationResult:
     @classmethod
     def from_db_row(cls, row: dict[str, Any]) -> "MutationResult":
         """Create from database row result."""
-        # Handle both formats:
+        # Handle multiple formats:
         # 1. Legacy format: status, message, object_data
         # 2. New format: success, data, error
+        # 3. Flat format (cascade): id, message, _cascade (top-level success fields)
+        # 4. Wrapped format: Single key with function name wrapping the actual result
+
+        # Check if this is a wrapped format (function_name: {actual_result})
+        # This happens when SELECT * FROM function() returns a scalar JSONB
+        if len(row) == 1:
+            key = next(iter(row.keys()))
+            value = row[key]
+            # If the single value is a dict, unwrap it
+            if isinstance(value, dict):
+                row = value
 
         if "success" in row:
             # New format
@@ -45,20 +56,42 @@ class MutationResult:
             # Include _cascade in extra_metadata if present
             if "_cascade" in row:
                 extra_metadata["_cascade"] = row["_cascade"]
-        else:
-            # Legacy format
+        elif "status" in row or "object_data" in row:
+            # Legacy format (explicit status or object_data key)
             status = row.get("status", "")
             message = row.get("message", "")
             object_data = row.get("object_data")
             extra_metadata = row.get("extra_metadata")
+        else:
+            # Flat format: success type fields at top level
+            # e.g., {id, message, _cascade}
+            # Common with cascade mutations returning success type directly
+            status = "success"  # Assume success if we have flat fields
+            message = row.get("message", "")
+
+            # Don't extract _cascade - leave it in original result dict
+            # for the resolver to access
+            extra_metadata = None
+
+            # All other fields (except system fields) go into object_data
+            # This allows the parser to extract them as success type fields
+            system_fields = {
+                "message",
+                "_cascade",
+                "status",
+                "object_data",
+                "extra_metadata",
+                "updated_fields",
+            }
+            object_data = {k: v for k, v in row.items() if k not in system_fields}
 
         return cls(
             id=row.get("id"),
             updated_fields=row.get("updated_fields"),
             status=status,
             message=message,
-            object_data=object_data,
-            extra_metadata=extra_metadata,
+            object_data=object_data if object_data else None,
+            extra_metadata=extra_metadata if extra_metadata else None,
         )
 
 

@@ -1,20 +1,19 @@
-"""
-Documented API Example for FraiseQL
+"""Documented API Example for FraiseQL
 
 This example demonstrates how to create a well-documented GraphQL API
 with FraiseQL, including docstrings, descriptions, and examples.
 """
 
-import fraiseql
-from fraiseql import Info
 from datetime import datetime
 from uuid import UUID
+
+import fraiseql
+from fraiseql import Info
 
 
 @fraiseql.type
 class User:
-    """
-    A user in the system.
+    """A user in the system.
 
     Users can have posts, comments, and interact with other users.
     """
@@ -27,8 +26,7 @@ class User:
 
 @fraiseql.type
 class Post:
-    """
-    A blog post created by a user.
+    """A blog post created by a user.
 
     Posts can have multiple comments and tags.
     """
@@ -45,8 +43,7 @@ def get_user(
     info: Info,
     id: UUID
 ) -> User | None:
-    """
-    Get a single user by ID.
+    """Get a single user by ID.
 
     Args:
         id: The unique identifier of the user
@@ -74,8 +71,7 @@ def get_users(
     limit: int = 10,
     active_only: bool = True
 ) -> list[User]:
-    """
-    Get a list of users.
+    """Get a list of users.
 
     Args:
         limit: Maximum number of users to return (default: 10)
@@ -106,8 +102,7 @@ def search_posts(
     query: str,
     published_only: bool = True
 ) -> list[Post]:
-    """
-    Search for posts by title or content.
+    """Search for posts by title or content.
 
     Args:
         query: Search term to match against title and content
@@ -139,8 +134,7 @@ async def create_user(
     email: str,
     name: str
 ) -> User:
-    """
-    Create a new user.
+    """Create a new user.
 
     Args:
         email: User's email address (must be unique)
@@ -180,8 +174,7 @@ async def update_user(
     name: str | None = None,
     email: str | None = None
 ) -> User:
-    """
-    Update an existing user.
+    """Update an existing user.
 
     Args:
         id: ID of the user to update
@@ -230,10 +223,11 @@ schema = fraiseql.build_schema(
 
 # FastAPI integration
 if __name__ == "__main__":
-    from fastapi import FastAPI
-    from fraiseql.fastapi import FraiseQLRouter
     import asyncpg
     import uvicorn
+    from fastapi import FastAPI
+
+    from fraiseql.fastapi import FraiseQLRouter
 
     app = FastAPI(
         title="Documented API Example",

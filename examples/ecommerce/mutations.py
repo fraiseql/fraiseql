@@ -28,7 +28,7 @@ from .models import (
 # Authentication mutations
 
 
-@mutation
+@fraiseql.mutation
 class Register:
     """Register a new user account."""
 
@@ -37,7 +37,7 @@ class Register:
     error: AuthError
 
 
-@mutation
+@fraiseql.mutation
 class Login:
     """Login to existing account."""
 
@@ -49,7 +49,7 @@ class Login:
 # Cart mutations
 
 
-@mutation
+@fraiseql.mutation
 class AddToCart:
     """Add product to shopping cart."""
 
@@ -58,7 +58,7 @@ class AddToCart:
     error: CartError
 
 
-@mutation
+@fraiseql.mutation
 class UpdateCartItem:
     """Update quantity of cart item."""
 
@@ -67,7 +67,7 @@ class UpdateCartItem:
     error: CartError
 
 
-@mutation
+@fraiseql.mutation
 class RemoveFromCart:
     """Remove item from cart."""
 
@@ -76,7 +76,7 @@ class RemoveFromCart:
     error: CartError
 
 
-@mutation
+@fraiseql.mutation
 class ClearCart:
     """Clear all items from cart."""
 
@@ -87,7 +87,7 @@ class ClearCart:
 # Order mutations
 
 
-@mutation
+@fraiseql.mutation
 class Checkout:
     """Complete checkout and create order."""
 
@@ -96,7 +96,7 @@ class Checkout:
     error: OrderError
 
 
-@mutation
+@fraiseql.mutation
 class CancelOrder:
     """Cancel an order."""
 
@@ -108,7 +108,7 @@ class CancelOrder:
 # Address mutations
 
 
-@mutation
+@fraiseql.mutation
 class CreateAddress:
     """Create a new address."""
 
@@ -117,7 +117,7 @@ class CreateAddress:
     error: AddressError
 
 
-@mutation
+@fraiseql.mutation
 class UpdateAddress:
     """Update existing address."""
 
@@ -126,7 +126,7 @@ class UpdateAddress:
     error: AddressError
 
 
-@mutation
+@fraiseql.mutation
 class DeleteAddress:
     """Delete an address."""
 
@@ -138,7 +138,7 @@ class DeleteAddress:
 # Review mutations
 
 
-@mutation
+@fraiseql.mutation
 class CreateReview:
     """Create a product review."""
 

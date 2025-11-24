@@ -123,9 +123,9 @@ $$ LANGUAGE plpgsql;
 
 **Python becomes trivial** (3 lines per mutation):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def create_user(info, organisation: str, identifier: str, name: str, email: str) -> User:
     db = info.context["db"]
     id = await db.fetchval("SELECT fn_create_user($1, $2, $3, $4)", organisation, identifier, name, email)
@@ -301,10 +301,10 @@ fraiseql-v1/
 **Purpose**: Clean decorator API for GraphQL types
 
 ```python
-from fraiseql import type, input, field
+import fraiseql
 from uuid import UUID
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     identifier: str
@@ -355,9 +355,9 @@ class QueryRepository:
 **Purpose**: Auto-register queries and mutations
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def user(info, id: UUID = None, identifier: str = None) -> User:
     """Get user by UUID or identifier"""
     repo = QueryRepository(info.context["db"])
@@ -366,7 +366,7 @@ async def user(info, id: UUID = None, identifier: str = None) -> User:
     elif identifier:
         return await repo.find_one("tv_user", identifier=identifier)
 
-@mutation
+@fraiseql.mutation
 async def create_user(info, organisation: str, identifier: str, name: str, email: str) -> User:
     """Create user (business logic in database function)"""
     db = info.context["db"]

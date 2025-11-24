@@ -8,30 +8,31 @@ This demonstrates advanced enterprise patterns with FraiseQL:
 - Read/write separation
 """
 
-import uvicorn
-from fraiseql import FraiseQL
-from fraiseql.fastapi import create_app
-
 # Import all types
 from types import (
+    AddProductInput,
+    AuditLog,
+    CancelOrderInput,
+    CreateOrderInput,
     Customer,
+    CustomerLifetimeValue,
+    OrderItemDetails,
+    OrderItemInput,
+    OrderStatusTimeline,
+    OrderSummary,
+    Payment,
+    ProcessPaymentInput,
     Product,
     ProductInventory,
-    OrderSummary,
-    OrderItemDetails,
-    Payment,
     RevenueByProduct,
-    CustomerLifetimeValue,
-    AuditLog,
-    OrderStatusTimeline,
-    OrderItemInput,
-    CreateOrderInput,
-    ProcessPaymentInput,
-    CancelOrderInput,
     UpdateOrderStatusInput,
-    AddProductInput,
     UpdateProductInventoryInput,
 )
+
+import uvicorn
+
+from fraiseql import FraiseQL
+from fraiseql.fastapi import create_app
 
 # Initialize FraiseQL
 app = FraiseQL(database_url="postgresql://localhost/cqrs_orders_demo")
@@ -66,26 +67,26 @@ app.register_input_type(UpdateProductInventoryInput)
 # ============================================================================
 
 from queries import (
-    customer,
-    customers,
-    product,
-    products,
-    product_inventory,
-    order,
-    order_by_number,
-    orders_summary,
-    order_items_details,
-    payment,
-    payments,
-    revenue_by_product,
-    customer_lifetime_value,
-    audit_log,
-    order_status_timeline,
     Customer_orders,
+    OrderItemDetails_product,
     OrderSummary_customer,
     OrderSummary_items,
     OrderSummary_payments,
-    OrderItemDetails_product,
+    audit_log,
+    customer,
+    customer_lifetime_value,
+    customers,
+    order,
+    order_by_number,
+    order_items_details,
+    order_status_timeline,
+    orders_summary,
+    payment,
+    payments,
+    product,
+    product_inventory,
+    products,
+    revenue_by_product,
 )
 
 # Root queries
@@ -117,11 +118,11 @@ app.register_field_resolver(OrderItemDetails, "product", OrderItemDetails_produc
 # ============================================================================
 
 from mutations import (
+    add_product,
+    cancel_order,
     create_order,
     process_payment,
-    cancel_order,
     update_order_status,
-    add_product,
     update_product_inventory,
 )
 

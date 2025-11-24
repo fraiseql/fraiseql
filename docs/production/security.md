@@ -34,7 +34,7 @@ Production security requires defense in depth: multiple layers of protection fro
 FraiseQL uses parameterized queries exclusively:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # SAFE: Parameterized query
 async def get_user(user_id: str) -> User:
@@ -54,7 +54,7 @@ async def get_user(user_id: str) -> User:
 ### Input Validation
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.security import InputValidator, ValidationResult
 
@@ -90,7 +90,7 @@ class UserInputValidator:
             )
 
 # Usage in resolver
-@mutation
+@fraiseql.mutation
 async def update_user(info, user_id: str, email: str) -> User:
     # Validate inputs
     user_id_valid = UserInputValidator.validate_user_id(user_id)
@@ -366,7 +366,7 @@ app.add_middleware(
 ### Token Security
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # JWT configuration
 from fraiseql.auth import CustomJWTProvider
@@ -383,7 +383,7 @@ ACCESS_TOKEN_TTL = 3600  # 1 hour
 REFRESH_TOKEN_TTL = 2592000  # 30 days
 
 # Token rotation
-@mutation
+@fraiseql.mutation
 async def refresh_access_token(info, refresh_token: str) -> dict:
     """Rotate access token using refresh token."""
     # Validate refresh token
@@ -456,7 +456,7 @@ class PasswordHasher:
 ### PII Protection
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from dataclasses import dataclass
 
@@ -484,7 +484,7 @@ class User:
         return f"****-****-****-{self._credit_card[-4:]}"
 
 # GraphQL type
-@type_
+@fraiseql.type_
 class UserGQL:
     id: UUID
     email: str
@@ -542,14 +542,14 @@ ssn = encryptor.decrypt(encrypted)
 ### Security Event Logging
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.audit import get_security_logger, SecurityEventType, SecurityEventSeverity
 
 security_logger = get_security_logger()
 
 # Log authentication events
-@mutation
+@fraiseql.mutation
 async def login(info, username: str, password: str) -> dict:
     try:
         user = await authenticate_user(username, password)
@@ -573,7 +573,7 @@ async def login(info, username: str, password: str) -> dict:
         raise
 
 # Log data access
-@query
+@fraiseql.query
 @requires_permission("pii:read")
 async def get_user_pii(info, user_id: str) -> UserPII:
     user = await fetch_user_pii(user_id)
@@ -596,12 +596,12 @@ async def get_user_pii(info, user_id: str) -> UserPII:
 ### Entity Change Log
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Automatic audit trail via PostgreSQL trigger
 # See advanced/event-sourcing.md for complete implementation
 
-@mutation
+@fraiseql.mutation
 async def update_order_status(info, order_id: str, status: str) -> Order:
     """Update order status - automatically logged."""
     user_id = info.context["user"].user_id
@@ -627,9 +627,9 @@ async def update_order_status(info, order_id: str, status: str) -> Order:
 ### GDPR Compliance
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 @requires_auth
 async def export_my_data(info) -> str:
     """GDPR: Export all user data."""
@@ -654,7 +654,7 @@ async def export_my_data(info) -> str:
 
     return json.dumps(data, default=str)
 
-@mutation
+@fraiseql.mutation
 @requires_auth
 async def delete_my_account(info) -> bool:
     """GDPR: Right to be forgotten."""
@@ -689,7 +689,7 @@ async def delete_my_account(info) -> bool:
 ### SOC2 Controls
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Access control matrix
 ROLE_PERMISSIONS = {
@@ -699,7 +699,7 @@ ROLE_PERMISSIONS = {
 }
 
 # Audit all administrative actions
-@mutation
+@fraiseql.mutation
 @requires_role("admin")
 async def admin_update_user(info, user_id: str, data: dict) -> User:
     """Admin action - fully audited."""

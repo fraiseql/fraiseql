@@ -5,7 +5,7 @@ Demonstrates FraiseQL's mutation system with real-time features
 
 from uuid import UUID
 
-from fraiseql import mutation
+import fraiseql
 
 from .models import (
     ConversationMutationResult,
@@ -16,7 +16,7 @@ from .models import (
 
 
 # Room Management Mutations
-@mutation(
+@fraiseql.mutation(
     name="createRoom",
     function="create_room",
     description="Create a new chat room",
@@ -33,7 +33,7 @@ async def create_room(
     """Create a new chat room"""
 
 
-@mutation(name="joinRoom", function="join_room", description="Join a chat room")
+@fraiseql.mutation(name="joinRoom", function="join_room", description="Join a chat room")
 async def join_room(
     room_id: UUID,
     user_id: UUID,
@@ -43,7 +43,7 @@ async def join_room(
 
 
 # Message Mutations
-@mutation(
+@fraiseql.mutation(
     name="sendMessage",
     function="send_message",
     description="Send a message to a room",
@@ -59,7 +59,7 @@ async def send_message(
     """Send a message to a chat room"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="editMessage",
     function="edit_message",
     description="Edit an existing message",
@@ -72,7 +72,7 @@ async def edit_message(
     """Edit a message (within time limit)"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="deleteMessage",
     function="delete_message",
     description="Delete a message",
@@ -86,7 +86,7 @@ async def delete_message(
 
 
 # Reaction Mutations
-@mutation(
+@fraiseql.mutation(
     name="addMessageReaction",
     function="add_message_reaction",
     description="Add an emoji reaction to a message",
@@ -99,7 +99,7 @@ async def add_message_reaction(
     """Add emoji reaction to a message"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="removeMessageReaction",
     function="remove_message_reaction",
     description="Remove an emoji reaction from a message",
@@ -113,7 +113,7 @@ async def remove_message_reaction(
 
 
 # Presence Mutations
-@mutation(
+@fraiseql.mutation(
     name="updateUserPresence",
     function="update_user_presence",
     description="Update user presence status",
@@ -127,7 +127,7 @@ async def update_user_presence(
     """Update user online presence"""
 
 
-@mutation(
+@fraiseql.mutation(
     name="setTypingIndicator",
     function="set_typing_indicator",
     description="Set or clear typing indicator",
@@ -141,7 +141,7 @@ async def set_typing_indicator(
 
 
 # Read Status Mutations
-@mutation(
+@fraiseql.mutation(
     name="markMessagesRead",
     function="mark_messages_read",
     description="Mark messages as read up to a certain point",
@@ -155,7 +155,7 @@ async def mark_messages_read(
 
 
 # Direct Message Mutations
-@mutation(
+@fraiseql.mutation(
     name="createDirectConversation",
     function="create_direct_conversation",
     description="Create or get a direct message conversation",

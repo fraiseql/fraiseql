@@ -244,9 +244,9 @@ Debezium-style change data capture:
 ### GraphQL Queries for Audit
 
 ```python
-from fraiseql import query, type_
+import fraiseql
 
-@type_
+@fraiseql.type_
 class EntityChange:
     id: int
     entity_type: str
@@ -258,19 +258,19 @@ class EntityChange:
     after_snapshot: dict | None
     changed_fields: dict | None
 
-@query
+@fraiseql.query
 async def get_order_history(info, order_id: str) -> list[EntityChange]:
     """Get complete audit trail for an order."""
     repo = EntityChangeLogRepository(get_db_pool())
     return await repo.get_entity_history("orders.orders", order_id)
 
-@query
+@fraiseql.query
 async def get_order_at_time(info, order_id: str, at_time: datetime) -> dict | None:
     """Get order state at specific point in time."""
     repo = EntityChangeLogRepository(get_db_pool())
     return await repo.get_entity_at_time("orders.orders", order_id, at_time)
 
-@query
+@fraiseql.query
 async def get_user_activity(info, user_id: str, limit: int = 50) -> list[EntityChange]:
     """Get all changes made by a user."""
     repo = EntityChangeLogRepository(get_db_pool())
@@ -371,9 +371,9 @@ class OrderEventReplayer:
 Query entity state at any point in time:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_order_timeline(
     info,
     order_id: str,
@@ -399,7 +399,7 @@ async def get_order_timeline(
 
         return [dict(row) for row in await result.fetchall()]
 
-@query
+@fraiseql.query
 async def compare_states(
     info,
     order_id: str,
@@ -434,16 +434,16 @@ async def compare_states(
 ### Complete Audit Dashboard
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type_
+@fraiseql.type_
 class AuditSummary:
     total_changes: int
     changes_by_operation: dict[str, int]
     changes_by_user: dict[str, int]
     recent_changes: list[EntityChange]
 
-@query
+@fraiseql.query
 @requires_role("auditor")
 async def get_audit_summary(
     info,

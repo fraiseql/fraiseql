@@ -11,9 +11,6 @@ from uuid import UUID
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
-import fraiseql
-from fraiseql import Info
 
 # Import models
 from models import (
@@ -31,6 +28,9 @@ from models import (
     User,
 )
 
+import fraiseql
+from fraiseql import Info
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/saas_starter")
@@ -92,50 +92,47 @@ app.register_input_type(ProjectUpdateInput)
 async def current_organization(info: Info) -> Organization:
     """Get current user's organization."""
     org_id = info.context["organization_id"]
-    org = await info.context.repo.find_one("v_organization", org_id)
-    return Organization(**org)
+    db = info.context["db"]
+    return await db.find_one("v_organization", "organization", info, id=org_id)
 
 
 @fraiseql.query
 async def current_user(info: Info) -> User:
     """Get current authenticated user."""
     user_id = info.context["user_id"]
-    user = await info.context.repo.find_one("v_user", user_id)
-    return User(**user)
+    db = info.context["db"]
+    return await db.find_one("v_user", "user", info, id=user_id)
 
 
 @fraiseql.query
 async def team_members(info: Info) -> list[User]:
     """Get all team members in current organization."""
     org_id = info.context["organization_id"]
-    users = await info.context.repo.find(
-        "v_user", where={"fk_organization": org_id}, order_by="created_at"
-    )
-    return [User(**u) for u in users]
+    db = info.context["db"]
+    return await db.find("v_user", "users", info, fk_organization=org_id)
 
 
 @fraiseql.query
 async def projects(info: Info, limit: int = 50) -> list[Project]:
     """Get projects for current organization."""
     org_id = info.context["organization_id"]
-    projects = await info.context.repo.find(
-        "v_project", where={"fk_organization": org_id}, limit=limit, order_by="-created_at"
-    )
-    return [Project(**p) for p in projects]
+    db = info.context["db"]
+    return await db.find("v_project", "projects", info, fk_organization=org_id, limit=limit)
 
 
 @fraiseql.query
 async def project(info: Info, project_id: UUID) -> Project:
     """Get project by ID (tenant-aware)."""
     org_id = info.context["organization_id"]
+    db = info.context["db"]
 
-    project = await info.context.repo.find_one("projects_view", project_id)
+    project = await db.find_one("v_project", "project", info, id=project_id)
 
     # Verify tenant isolation
-    if project["organization_id"] != org_id:
+    if project.organization_id != org_id:
         raise PermissionError("Access denied")
 
-    return Project(**project)
+    return project
 
 
 @fraiseql.query
@@ -144,14 +141,15 @@ async def usage_metrics(info: Info) -> UsageMetrics:
     from datetime import datetime
 
     org_id = info.context["organization_id"]
+    db = info.context["db"]
     period_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
 
-    metrics = await info.context.repo.find_one(
-        "usage_metrics", where={"organization_id": org_id, "period_start": period_start}
+    metrics = await db.find_one(
+        "v_usage_metrics", "metrics", info, organization_id=org_id, period_start=period_start
     )
 
     if not metrics:
-        # No usage yet this period
+        # Return default metrics
         return UsageMetrics(
             organization_id=org_id,
             period_start=period_start,
@@ -162,19 +160,23 @@ async def usage_metrics(info: Info) -> UsageMetrics:
             seats=1,
         )
 
-    return UsageMetrics(**metrics)
+    return metrics
 
 
 @fraiseql.query
 async def activity_log(info: Info, limit: int = 50) -> list[ActivityLogEntry]:
     """Get activity log for current organization."""
     org_id = info.context["organization_id"]
+    db = info.context["db"]
 
-    entries = await info.context.repo.find(
-        "activity_log", where={"organization_id": org_id}, limit=limit, order_by="-created_at"
+    return await db.find(
+        "v_activity_log",
+        "entries",
+        info,
+        organization_id=org_id,
+        limit=limit,
+        order_by="-created_at",
     )
-
-    return [ActivityLogEntry(**e) for e in entries]
 
 
 # ============================================================================

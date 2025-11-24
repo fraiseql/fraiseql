@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2025-11-24
+
+### 🎉 Major Features
+
+**GraphQL Cascade** ⚡ NEW (Experimental)
+- **Automatic Cache Updates**: Mutations can now include cascade metadata that clients use to update their caches automatically
+- **Entity Tracking**: Track created, updated, and deleted entities with full data snapshots
+- **Query Invalidation**: Strategic cache invalidation hints for clients (INVALIDATE, EVICT strategies)
+- **Zero Extra Queries**: Eliminate the need for follow-up queries after mutations
+- **Apollo Client Integration**: Drop-in support for Apollo Client cache updates
+- **PostgreSQL-Native**: Cascade metadata is generated directly in PostgreSQL functions for maximum performance
+- **Opt-In Design**: Enable per-mutation with `@mutation(enable_cascade=True)`
+- **Note**: This feature is currently experimental. Parser and resolver support is complete, but integration testing is ongoing.
+
+**Example:**
+```python
+@mutation(enable_cascade=True)
+class CreatePost:
+    input: CreatePostInput
+    success: CreatePostSuccess
+    error: CreatePostError
+```
+
+**Benefits:**
+- Reduced network traffic (fewer queries)
+- Instant UI updates without loading states
+- Better user experience with optimistic updates
+- Type-safe cascade data structure
+
+See `examples/graphql-cascade/` for complete implementation guide.
+
+### 📚 Documentation
+
+- Added comprehensive GraphQL Cascade guide with PostgreSQL function examples
+- Added Apollo Client integration examples
+- Enhanced mutation documentation with cascade patterns
+
+## [1.6.2] - 2025-11-24
+
+### 🔐 Security Hardening
+
+**Multi-Provider KMS Integration** 🛡️
+- **Production-Ready KMS Support**: Full integration with HashiCorp Vault, AWS KMS, and GCP Cloud KMS
+- **Envelope Encryption**: Secure data encryption with automatic key rotation
+- **Rust Pipeline Compatibility**: KMS operations integrated into the Rust JSON processing pipeline
+- **Local Development Provider**: Secure fallback for development environments
+
+**Security Profiles** 🔒
+- **STANDARD Profile**: Input validation, rate limiting, CSRF protection, basic security headers
+- **REGULATED Profile**: All STANDARD features plus required KMS encryption and audit logging
+- **RESTRICTED Profile**: Government/defense-grade security with external call blocking and strict CSP
+
+**Supply Chain Security** 📦
+- **SBOM Generation**: CycloneDX 1.5 format SBOM generation for federal compliance (EO 14028)
+- **Cryptographic Verification**: Cosign integration for SBOM signing and verification
+- **Procurement Officer Support**: Comprehensive documentation for enterprise procurement
+
+**Observability & Monitoring** 📊
+- **OpenTelemetry Integration**: Distributed tracing for security events and performance monitoring
+- **Audit Logging**: Comprehensive security event logging with configurable retention
+- **Performance Metrics**: Real-time monitoring of query performance and security metrics
+
+### 🚀 New Features
+
+**APQ Security Enhancements** ✨
+- **Query Hash Validation**: Enhanced persisted query validation with configurable security modes
+- **Build-Time Registration**: Secure query registration at application startup
+- **Directory-Based Loading**: Automatic loading of `.graphql`/`.gql` files from configured directories
+
+### 📚 Documentation
+
+**Global Compliance Coverage** 🌍
+- **Multi-Jurisdiction Support**: US (EO 14028, NIST, FedRAMP), EU (NIS2, CRA), Canada (CCCS), Australia (Essential Eight), Singapore (Cybersecurity Act)
+- **Regulatory Mapping**: Clear feature-to-requirement mapping for enterprise compliance
+- **SBOM Process Documentation**: Complete procurement and compliance officer guidance
+
+### 🔧 Internal Improvements
+
+**CI/CD Security Pipeline** ⚙️
+- **SARIF Upload**: Security scan results integration with GitHub Security tab
+- **Dependency Scanning**: Automated vulnerability detection in CI pipeline
+- **Security Audit Preparation**: Framework preparation for third-party security audits
+
+## [1.6.1] - 2025-11-23
+
+### 📚 Documentation
+
+- **Pattern Standardization**: Updated all docs and examples to use proper FraiseQL patterns
+  - Use `db.find()` and `db.find_one()` for queries (PostgreSQL → Rust → HTTP pipeline)
+  - Use `db.execute_function()` for mutations following CQRS pattern
+  - Removed manual `**row["data"]` object instantiation anti-patterns
+- **Theme Alignment**: Documentation theme now matches fraiseql.dev strawberry colors
+- **Quickstart Fixes**: Corrected examples in quickstart documentation
+
+### 🔧 Internal Improvements
+
+- Updated docs dependencies (mkdocs 1.6.1+, mkdocs-material 9.6.22+)
+- Added mkdocs-redirects for better URL handling
+- CI fixes for import testing in publish workflow
+
 ## [1.6.0] - 2025-11-22
 
 ### 🚀 New Features

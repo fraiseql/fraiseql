@@ -104,7 +104,7 @@ make test  # Run full test suite
 
 **Migration Guides**:
 - Version Migration Guides (migration-guides/) - Upgrade guides and migrations
-- [Performance Guide](performance/PERFORMANCE_GUIDE.md) - Why FraiseQL is faster
+- [Performance Guide](../performance/PERFORMANCE_GUIDE.md) - Why FraiseQL is faster
 
 ---
 
@@ -139,7 +139,7 @@ make test  # Run full test suite
 ### Reference
 - [CLI Reference](reference/cli.md) - Command-line tools
 - [Configuration](reference/config.md) - FraiseQLConfig options
-- [Decorators](reference/decorators.md) - @type, @query, @mutation
+- [Decorators](reference/decorators.md) - @fraiseql.type, @fraiseql.query, @fraiseql.mutation
 
 ---
 

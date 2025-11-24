@@ -328,10 +328,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
 FraiseQL automatically adds tenant_id filters when context is set:
 
 ```python
-from fraiseql import query, type_
+import fraiseql
 from uuid import UUID
 
-@type_
+@fraiseql.type_
 class Order:
     id: UUID
     tenant_id: UUID  # Automatically filtered
@@ -339,7 +339,7 @@ class Order:
     total: float
     status: str
 
-@query
+@fraiseql.query
 async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
     """Get orders for current tenant."""
     tenant_id = info.context["tenant_id"]
@@ -352,7 +352,7 @@ async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
         )
         return [Order(**row) for row in await result.fetchall()]
 
-@query
+@fraiseql.query
 async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
     """Get specific order - tenant isolation enforced."""
     tenant_id = info.context["tenant_id"]
@@ -666,9 +666,9 @@ class HybridPoolManager:
 Allow admins to query across tenants:
 
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 @requires_role("super_admin")
 async def get_all_tenants_orders(
     info,
@@ -698,9 +698,9 @@ async def get_all_tenants_orders(
 ### Aggregated Analytics
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 @requires_role("super_admin")
 async def get_tenant_statistics(info) -> list[TenantStats]:
     """Get statistics across all tenants."""
@@ -729,7 +729,7 @@ async def get_tenant_statistics(info) -> list[TenantStats]:
 Cache data per tenant to avoid leakage:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.caching import Cache
 
@@ -767,7 +767,7 @@ class TenantCache:
 # Usage
 tenant_cache = TenantCache(cache)
 
-@query
+@fraiseql.query
 async def get_products(info) -> list[Product]:
     """Get products with tenant-aware caching."""
     tenant_id = info.context["tenant_id"]
@@ -795,12 +795,12 @@ async def get_products(info) -> list[Product]:
 ### Tenant Data Export
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 import json
 from datetime import datetime
 
-@mutation
+@fraiseql.mutation
 @requires_permission("tenant:export")
 async def export_tenant_data(info) -> str:
     """Export all tenant data as JSON."""
@@ -844,9 +844,9 @@ async def export_tenant_data(info) -> str:
 ### Tenant Data Import
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 @requires_permission("tenant:import")
 async def import_tenant_data(info, data: str) -> bool:
     """Import tenant data from JSON."""
@@ -887,11 +887,11 @@ async def import_tenant_data(info, data: str) -> bool:
 ### New Tenant Workflow
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from uuid import uuid4
 
-@mutation
+@fraiseql.mutation
 @requires_role("super_admin")
 async def provision_tenant(
     info,

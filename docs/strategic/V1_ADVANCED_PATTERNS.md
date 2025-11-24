@@ -220,16 +220,16 @@ $$ LANGUAGE plpgsql;
 ### **Python API (Clean!)**
 
 ```python
-from fraiseql import type, query, mutation
+import fraiseql
 from uuid import UUID
 
-@type
+@fraiseql.type
 class Organisation:
     id: UUID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "acme-corp"
     name: str
 
-@type
+@fraiseql.type
 class User:
     id: UUID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "john-doe"
@@ -237,7 +237,7 @@ class User:
     email: str
     organisation: Organisation
 
-@type
+@fraiseql.type
 class Post:
     id: UUID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "my-first-post"
@@ -246,7 +246,7 @@ class Post:
     author: User
 
 # Query by UUID or identifier
-@query
+@fraiseql.query
 async def user(
     info,
     id: UUID | None = None,
@@ -263,7 +263,7 @@ async def user(
         raise ValueError("Must provide id or identifier")
 
 # Mutations return UUID
-@mutation
+@fraiseql.mutation
 async def create_user(
     info,
     organisation: str,  # Organisation identifier (human-friendly!)
@@ -368,9 +368,9 @@ WHERE u.id = '550e8400-...'  -- Lookup by UUID
 
 **Traditional approach** (Python-heavy):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def create_user(info, name: str, email: str) -> User:
     db = info.context["db"]
 
@@ -457,9 +457,9 @@ $$ LANGUAGE plpgsql;
 
 **Python becomes trivial**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def create_user(
     info,
     organisation: str,  # Organisation identifier
@@ -584,9 +584,9 @@ $$ LANGUAGE plpgsql;
 
 **Python mutations** (all follow same trivial pattern):
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def create_post(
     info,
     author: str,        # Author identifier (username)
@@ -601,13 +601,13 @@ async def create_post(
     )
     return await QueryRepository(db).find_one("tv_post", id=id)
 
-@mutation
+@fraiseql.mutation
 async def update_post(info, id: UUID, title: str, content: str) -> Post:
     db = info.context["db"]
     id = await db.fetchval("SELECT fn_update_post($1, $2, $3)", id, title, content)
     return await QueryRepository(db).find_one("tv_post", id=id)
 
-@mutation
+@fraiseql.mutation
 async def delete_post(info, id: UUID) -> bool:
     db = info.context["db"]
     return await db.fetchval("SELECT fn_delete_post($1)", id)
@@ -960,16 +960,16 @@ $$ LANGUAGE plpgsql;
 ### **Python API (Clean & Simple)**
 
 ```python
-from fraiseql import type, query, mutation
+import fraiseql
 from uuid import UUID
 
-@type
+@fraiseql.type
 class Organisation:
     id: UUID
     identifier: str
     name: str
 
-@type
+@fraiseql.type
 class User:
     id: UUID
     identifier: str
@@ -977,7 +977,7 @@ class User:
     email: str
     organisation: Organisation
 
-@type
+@fraiseql.type
 class Post:
     id: UUID
     identifier: str
@@ -986,7 +986,7 @@ class Post:
     author: User
 
 # QUERIES
-@query
+@fraiseql.query
 async def user(
     info,
     id: UUID | None = None,
@@ -1000,7 +1000,7 @@ async def user(
     raise ValueError("Must provide id or identifier")
 
 # MUTATIONS (trivial - logic in database)
-@mutation
+@fraiseql.mutation
 async def create_user(
     info,
     organisation: str,
@@ -1015,7 +1015,7 @@ async def create_user(
     )
     return await QueryRepository(db).find_one("tv_user", id=id)
 
-@mutation
+@fraiseql.mutation
 async def create_post(
     info,
     author: str,

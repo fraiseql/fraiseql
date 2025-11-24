@@ -1,15 +1,15 @@
-"""
-Hybrid Tables Example for FraiseQL
+"""Hybrid Tables Example for FraiseQL
 
 This example demonstrates how to use hybrid CQRS tables in FraiseQL,
 where writes go to one table and reads come from an optimized view.
 """
 
+from datetime import datetime
+from uuid import UUID, uuid4
+
 import fraiseql
 from fraiseql import Info
 from fraiseql.db import FraiseQLRepository
-from datetime import datetime
-from uuid import UUID, uuid4
 
 
 @fraiseql.type
@@ -71,8 +71,7 @@ def get_products(
     limit: int = 100,
     in_stock_only: bool = False
 ) -> list[Product]:
-    """
-    Get products from the read-optimized view.
+    """Get products from the read-optimized view.
 
     Uses the products_view which includes denormalized data
     and computed fields for optimal read performance.
@@ -106,8 +105,7 @@ async def create_product(
     price: float,
     stock: int = 0
 ) -> Product:
-    """
-    Create a product - writes to the table.
+    """Create a product - writes to the table.
 
     The write goes to the products table, and will be
     immediately available in the products_view.
@@ -139,8 +137,7 @@ async def update_product_stock(
     id: UUID,
     quantity_delta: int
 ) -> Product:
-    """
-    Update product stock - uses a transaction for ACID guarantees.
+    """Update product stock - uses a transaction for ACID guarantees.
 
     Writes go to the table, ensuring data consistency.
     The view automatically reflects the changes.
@@ -173,8 +170,7 @@ async def update_product_stock(
 
 # Example usage
 async def example_usage():
-    """
-    Demonstrates the hybrid table pattern.
+    """Demonstrates the hybrid table pattern.
 
     Benefits:
     - Writes are ACID-compliant (use table with transactions)

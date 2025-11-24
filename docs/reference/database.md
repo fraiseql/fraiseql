@@ -7,9 +7,9 @@ Complete reference for FraiseQL database operations and repository methods.
 FraiseQL provides a high-performance database API through the `FraiseQLRepository` class, which is automatically available in GraphQL resolvers via `info.context["db"]`.
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]
     return await db.find_one("v_user", where={"id": id})
@@ -205,13 +205,13 @@ electronics_count = await db.count(
 # Returns: 23
 
 # In GraphQL resolver
-@query
+@fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
     """Count users with optional filtering."""
     db = info.context["db"]
     return await db.count("v_users", where=where)
 
-@query
+@fraiseql.query
 async def tenant_stats(info) -> TenantStats:
     """Get statistics for current tenant."""
     db = info.context["db"]
@@ -341,16 +341,16 @@ async def create_one(
 
 **Example Pattern**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
-    result = await db.execute_raw(
-        "INSERT INTO users (data) VALUES ($1) RETURNING *",
-        {"name": input.name, "email": input.email}
-    )
-    return User(**result[0])
+    result = await db.execute_function("fn_create_user", {
+        "name": input.name,
+        "email": input.email
+    })
+    return await db.find_one("v_user", "user", info, id=result["id"])
 ```
 
 ### update_one()
@@ -370,22 +370,16 @@ async def update_one(
 
 **Example Pattern**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
-    result = await db.execute_raw(
-        """
-        UPDATE users
-        SET data = data || $1::jsonb
-        WHERE id = $2
-        RETURNING *
-        """,
-        input.__dict__,
-        id
-    )
-    return User(**result[0])
+    result = await db.execute_function("fn_update_user", {
+        "id": id,
+        **input.__dict__
+    })
+    return await db.find_one("v_user", "user", info, id=id)
 ```
 
 ### delete_one()
@@ -496,7 +490,7 @@ result = await db.execute_function_with_context(
 # ) RETURNS jsonb
 ```
 
-**Note**: Automatically called by class-based `@mutation` decorator with `context_params`
+**Note**: Automatically called by class-based `@fraiseql.mutation` decorator with `context_params`
 
 ## Raw SQL Execution
 
@@ -574,7 +568,7 @@ async def run_in_transaction(
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 async def transfer_funds(conn, source_id, dest_id, amount):
     # Deduct from source
@@ -594,7 +588,7 @@ async def transfer_funds(conn, source_id, dest_id, amount):
     return True
 
 # Execute in transaction
-@mutation
+@fraiseql.mutation
 async def transfer(info, input: TransferInput) -> bool:
     db = info.context["db"]
     return await db.run_in_transaction(
@@ -687,9 +681,9 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 Now all queries to `v_order` automatically see only their tenant's data:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def orders(info) -> list[Order]:
     db = info.context["db"]
     # Automatically filtered by tenant_id from context!
@@ -831,9 +825,9 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 **3. GraphQL Query (Python)**:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def products(info) -> list[Product]:
     """Get products for current tenant.
 
@@ -938,16 +932,13 @@ stats = await db.find("v_user_stats")
 
 **Error Handling**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_user(info, id: UUID) -> User | None:
     try:
         db = info.context["db"]
-        user = await db.find_one("v_user", where={"id": id})
-        if not user:
-            return None
-        return User(**user)
+        return await db.find_one("v_user", "user", info, id=id)
     except Exception as e:
         logger.error(f"Failed to fetch user {id}: {e}")
         raise GraphQLError("Failed to fetch user")

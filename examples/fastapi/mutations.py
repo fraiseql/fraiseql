@@ -8,7 +8,14 @@ This provides:
 - Better performance (fewer round-trips)
 """
 
-from types import Project, Task, CreateProjectInput, UpdateProjectInput, CreateTaskInput, UpdateTaskInput
+from types import (
+    CreateProjectInput,
+    CreateTaskInput,
+    Project,
+    Task,
+    UpdateProjectInput,
+    UpdateTaskInput,
+)
 
 
 async def create_project(info, input: CreateProjectInput) -> Project:

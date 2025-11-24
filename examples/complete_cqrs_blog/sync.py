@@ -1,5 +1,4 @@
-"""
-Explicit Sync Module - CQRS Synchronization
+"""Explicit Sync Module - CQRS Synchronization
 
 This module demonstrates FraiseQL's explicit sync pattern:
 - NO TRIGGERS (explicit function calls instead)
@@ -17,7 +16,6 @@ import asyncpg
 class SyncError(Exception):
     """Raised when sync operation fails."""
 
-    pass
 
 
 class EntitySync:
@@ -51,8 +49,7 @@ class EntitySync:
         )
 
     async def sync_user(self, user_ids: list[UUID], mode: str = "incremental") -> None:
-        """
-        Sync users from tb_user to tv_user with denormalized post count.
+        """Sync users from tb_user to tv_user with denormalized post count.
 
         Args:
             user_ids: List of user IDs to sync
@@ -126,8 +123,7 @@ class EntitySync:
                     raise SyncError(f"Failed to sync user {user_id}: {e}") from e
 
     async def sync_post(self, post_ids: list[UUID], mode: str = "incremental") -> None:
-        """
-        Sync posts from tb_post to tv_post with denormalized author and comments.
+        """Sync posts from tb_post to tv_post with denormalized author and comments.
 
         Args:
             post_ids: List of post IDs to sync
@@ -232,8 +228,7 @@ class EntitySync:
                     raise SyncError(f"Failed to sync post {post_id}: {e}") from e
 
     async def sync_comment(self, comment_ids: list[UUID], mode: str = "incremental") -> None:
-        """
-        Sync comments from tb_comment to tv_comment with denormalized author.
+        """Sync comments from tb_comment to tv_comment with denormalized author.
 
         Args:
             comment_ids: List of comment IDs to sync

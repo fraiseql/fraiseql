@@ -659,10 +659,10 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from uuid import UUID
-from fraiseql import mutation
+import fraiseql
 from fraiseql.db import execute_mutation
 
-@mutation
+@fraiseql.mutation
 async def update_order(
     info,
     id: UUID,
@@ -1334,9 +1334,9 @@ WHERE o.tenant_id = current_setting('app.tenant_id')::UUID;
 Use QueryOptions for tenant filtering:
 
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_orders(info, status: str | None = None) -> list[Order]:
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
@@ -1773,9 +1773,9 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 
 **Usage in Mutations**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def update_order(info, id: UUID, name: str) -> MutationResult:
     db = info.context["db"]
 
@@ -2045,9 +2045,9 @@ class MutationLogResult:
 
 **Usage in Resolver**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def update_product(
     info,
     id: UUID,

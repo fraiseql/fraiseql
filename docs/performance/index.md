@@ -46,9 +46,9 @@ result = transform_json(data, transform_func)
 Read queries use PostgreSQL views for optimal performance:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 def get_users(info: Info) -> list[User]:
     # Automatically uses optimized view
     return info.context.repo.find("users_view")
@@ -162,7 +162,7 @@ query {
 Always paginate large result sets:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @connection
 def users(

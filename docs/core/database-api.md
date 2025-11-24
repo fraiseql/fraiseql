@@ -179,7 +179,7 @@ for order in data:
 When writing GraphQL queries (not direct repository calls), always include standard parameters for filtering, pagination, and ordering:
 
 ```python
-from fraiseql import query
+import fraiseql
 from fraiseql.db.pagination import (
     QueryOptions,
     PaginationInput,
@@ -189,7 +189,7 @@ from fraiseql.db.pagination import (
 )
 from fraiseql.filters import UserWhereInput
 
-@query
+@fraiseql.query
 async def users(
     info,
     where: UserWhereInput | None = None,
@@ -246,7 +246,7 @@ query {
 **IMPORTANT**: All list queries MUST have default ordering for consistent pagination.
 
 ```python
-@query
+@fraiseql.query
 async def users(
     info,
     where: UserWhereInput | None = None,

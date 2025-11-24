@@ -136,6 +136,7 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
     """Create a post with explicit sync."""
     pool = info.context["db_pool"]
     sync = info.context["sync"]
+    db = info.context["db"]  # FraiseQL repository
 
     # Step 1: Write to command side
     post_id = await pool.fetchval(
@@ -147,9 +148,9 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
     await sync.sync_post([post_id], mode='incremental')
     await sync.sync_user([UUID(author_id)])  # Author stats changed
 
-    # Step 3: Read from query side
-    row = await pool.fetchrow("SELECT data FROM tv_post WHERE id = $1", post_id)
-    return Post(**row["data"])
+    # Step 3: Read from query side using FraiseQL repository
+    # ✅ CORRECT: Uses Rust pipeline (no Python in hot path)
+    return await db.find_one("tv_post", "post", info, id=post_id)
 ```
 
 **Why this matters**: Shows the complete write → sync → read workflow.

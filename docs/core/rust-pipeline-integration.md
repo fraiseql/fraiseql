@@ -59,19 +59,19 @@ This architecture is unique to FraiseQL. No other GraphQL framework combines:
 
 ### Python Side:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # 1. Define GraphQL type
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     first_name: str  # Python uses snake_case
     created_at: datetime
 
 # 2. Define query resolver
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
-    repo = info.context["repo"]
+    db = info.context["db"]
 
     # 3. Execute PostgreSQL query (returns JSONB)
     # Rust pipeline handles transformation automatically

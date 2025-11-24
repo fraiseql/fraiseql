@@ -48,6 +48,20 @@ SELECT
     ) AS data
 FROM tb_note;
 
+-- SQL function for creating notes (CQRS pattern)
+CREATE OR REPLACE FUNCTION fn_create_note(input jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    new_id uuid;
+BEGIN
+    INSERT INTO tb_note (title, content)
+    VALUES (input->>'title', input->>'content')
+    RETURNING id INTO new_id;
+
+    RETURN jsonb_build_object('success', true, 'id', new_id);
+END;
+$$ LANGUAGE plpgsql;
+
 -- Sample data
 INSERT INTO tb_note (title, content) VALUES
     ('Welcome to FraiseQL', 'This is your first note!'),
@@ -69,11 +83,11 @@ Create a file called `app.py` with this complete code:
 import uuid
 from datetime import datetime
 import uvicorn
-from fraiseql import type, query, mutation, input, success, failure
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
 # Define GraphQL types
-@type(sql_source="v_note", jsonb_column="data")
+@fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
     """A simple note with title and content."""
     id: uuid.UUID
@@ -82,52 +96,40 @@ class Note:
     created_at: datetime
 
 # Define input types
-@input
+@fraiseql.input
 class CreateNoteInput:
     """Input for creating a new note."""
     title: str
     content: str | None = None
 
 # Define success/failure types
-@success
+@fraiseql.success
 class CreateNoteSuccess:
     """Success response for note creation."""
     note: Note
     message: str = "Note created successfully"
 
-@failure
+@fraiseql.failure
 class ValidationError:
     """Validation error."""
     message: str
     code: str = "VALIDATION_ERROR"
 
 # Queries
-@query
+@fraiseql.query
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
-    from fraiseql.db import DatabaseQuery
+    return await db.find("v_note", "notes", info, order_by=[("created_at", "DESC")])
 
-    query = DatabaseQuery(
-        "SELECT data FROM v_note ORDER BY (data->>'created_at')::timestamp DESC", []
-    )
-    result = await db.run(query)
-    return [Note(**row["data"]) for row in result]
-
-@query
+@fraiseql.query
 async def note(info, id: uuid.UUID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
-    from fraiseql.db import DatabaseQuery
-
-    query = DatabaseQuery("SELECT data FROM v_note WHERE (data->>'id')::uuid = %s", [id])
-    result = await db.run(query)
-    if result:
-        return Note(**result[0]["data"])
-    return None
+    return await db.find_one("v_note", "note", info, id=id)
 
 # Mutations
-@mutation
+@fraiseql.mutation
 class CreateNote:
     """Create a new note."""
     input: CreateNoteInput
@@ -138,23 +140,18 @@ class CreateNote:
         db = info.context["db"]
 
         try:
-            note_data = {"title": self.input.title}
-            if self.input.content is not None:
-                note_data["content"] = self.input.content
+            # Call SQL function (CQRS pattern)
+            result = await db.execute_function("fn_create_note", {
+                "title": self.input.title,
+                "content": self.input.content,
+            })
 
-            result = await db.insert("tb_note", note_data, returning="id")
+            if not result.get("success"):
+                return ValidationError(message="Failed to create note")
 
-            # Get the created note from the view
-            from fraiseql.db import DatabaseQuery
-            query = DatabaseQuery(
-                "SELECT data FROM v_note WHERE (data->>'id')::uuid = %s", [result["id"]]
-            )
-            note_result = await db.run(query)
-            if note_result:
-                created_note = Note(**note_result[0]["data"])
-                return CreateNoteSuccess(note=created_note)
-            else:
-                return ValidationError(message="Failed to retrieve created note")
+            # Fetch the created note via Rust pipeline
+            note = await db.find_one("v_note", "note", info, id=result["id"])
+            return CreateNoteSuccess(note=note)
 
         except Exception as e:
             return ValidationError(message=f"Failed to create note: {e!s}")

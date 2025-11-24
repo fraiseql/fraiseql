@@ -1,5 +1,4 @@
-"""
-FraiseQL Organization Chart Schema
+"""FraiseQL Organization Chart Schema
 Demonstrates LTREE usage for employee hierarchies
 """
 

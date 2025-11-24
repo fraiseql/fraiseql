@@ -10,6 +10,7 @@ This example shows how to configure each method.
 """
 
 import os
+
 from fraiseql.fastapi import FraiseQLConfig
 
 # Example 1: Using Haversine (default - no extension needed)

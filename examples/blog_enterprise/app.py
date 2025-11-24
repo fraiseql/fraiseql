@@ -22,7 +22,7 @@ from graphql import GraphQLResolveInfo
 
 import fraiseql
 from fraiseql.cqrs import CQRSRepository
-from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Configure logging
 logging.basicConfig(
@@ -238,7 +238,7 @@ def create_app():
     # Override FraiseQL's health endpoint by replacing the existing route
     # Find and replace the existing health route
     for i, route in enumerate(app.routes):
-        if hasattr(route, 'path') and route.path == "/health":
+        if hasattr(route, "path") and route.path == "/health":
             # Get our custom health function from the base app
             # It was already defined in the base app
             async def custom_health():

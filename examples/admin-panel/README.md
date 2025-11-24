@@ -117,13 +117,13 @@ Different admin roles have different permissions:
 ```python
 from fraiseql.auth import requires_role
 
-@query
+@fraiseql.query
 @requires_role("customer_support")
 async def customer_search(info, query: str) -> list[CustomerInfo]:
     """Customer support can search customers"""
     return await info.context.repo.find("customer_admin_view", ...)
 
-@mutation
+@fraiseql.mutation
 @requires_role("admin")
 async def update_customer_status(
     info,
@@ -466,7 +466,7 @@ Every mutation automatically logs:
 - Timestamp and IP address
 
 ```python
-@mutation
+@fraiseql.mutation
 @requires_role("admin")
 async def update_customer_status(
     info,
@@ -638,7 +638,7 @@ admin_action_duration = Histogram(
     ['action_type']
 )
 
-@mutation
+@fraiseql.mutation
 @requires_role("admin")
 async def update_customer_status(info, customer_id: UUID, new_status: str):
     with admin_action_duration.labels('update_customer_status').time():

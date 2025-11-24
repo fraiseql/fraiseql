@@ -99,6 +99,7 @@ FROM tb_user;
 **Python Type Definition:**
 ```python
 import fraiseql
+import fraiseql
 from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
@@ -218,6 +219,7 @@ FROM tb_user u;
 - **Never include `pk_*` in JSONB** (internal only)
 
 ```python
+import fraiseql
 import fraiseql
 from uuid import UUID
 
@@ -381,6 +383,8 @@ $$;
 
 **Python mapping:**
 ```python
+import fraiseql
+
 @fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: UUID
@@ -424,6 +428,7 @@ FraiseQL automatically extracts field descriptions from your Python code for Gra
 
 **Example:**
 ```python
+import fraiseql
 import fraiseql
 from typing import Annotated
 from uuid import UUID
@@ -480,6 +485,7 @@ Define your data models with trinity identifiers:
 
 ```python
 import fraiseql
+import fraiseql
 from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
@@ -494,6 +500,7 @@ class User:
 
 **Without trinity pattern (simpler entities):**
 ```python
+import fraiseql
 import fraiseql
 
 @fraiseql.type(sql_source="v_note")
@@ -524,18 +531,23 @@ Write operations (two patterns supported):
 **Simple pattern (function-based):**
 ```python
 import fraiseql
+import fraiseql
 
 @fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     """Simple mutation that returns the type directly."""
     db = info.context["db"]
     # Call PostgreSQL function with business logic
-    result = await db.call_function("fn_create_user", input.name, input.email)
-    return User(**result)
+    result = await db.execute_function("fn_create_user", {
+        "name": input.name,
+        "email": input.email
+    })
+    return await db.find_one("v_user", "user", info, id=result["id"])
 ```
 
 **Class-based pattern (with success/failure):**
 ```python
+import fraiseql
 import fraiseql
 
 @fraiseql.mutation
@@ -548,16 +560,16 @@ class CreateUser:
     async def resolve(self, info):
         db = info.context["db"]
         # Call PostgreSQL function - all business logic in database
-        result = await db.call_function(
-            "fn_create_user",
-            self.input.name,
-            self.input.email
-        )
+        result = await db.execute_function("fn_create_user", {
+            "name": self.input.name,
+            "email": self.input.email
+        })
 
-        # PostgreSQL function returns JSONB with success/error indicator
+        # PostgreSQL function returns success/error indicator with user ID
         if result["success"]:
+            user = await db.find_one("v_user", "user", info, id=result["user_id"])
             return CreateUserSuccess(
-                user=User(**result["user"]),
+                user=user,
                 message=result.get("message", "User created")
             )
         return ValidationError(
@@ -798,6 +810,8 @@ query {
 
 **Example generated type:**
 ```python
+import fraiseql
+
 # Your type definition
 @fraiseql.type(sql_source="v_server")
 class Server:
@@ -833,9 +847,10 @@ Relay-style cursor-based pagination (built-in):
 
 ```python
 import fraiseql
+from fraiseql import connection
 from fraiseql.types.generic import Connection
 
-@fraiseql.connection(
+@connection(
     node_type=User,
     default_page_size=20,
     max_page_size=100
@@ -1173,9 +1188,10 @@ Control access at the field level:
 
 ```python
 import fraiseql
+from fraiseql import field, authorized
 
-@fraiseql.field
-@fraiseql.authorized(roles=["admin"])
+@field
+@authorized(roles=["admin"])
 def sensitive_field(user: User, info) -> str:
     """Only admins can access this field."""
     return user.sensitive_data

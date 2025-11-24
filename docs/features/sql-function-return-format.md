@@ -686,13 +686,13 @@ class CreatePostInput:
     content: str
     author_id: str
 
-@type
+@fraiseql.type
 class CreatePostSuccess:
     id: str
     message: str
     # Cascade data automatically added to response
 
-@type
+@fraiseql.type
 class CreatePostError:
     code: str
     message: str

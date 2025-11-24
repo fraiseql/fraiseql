@@ -1,16 +1,19 @@
-"""
-GraphQL Schema for Blog Example
+"""GraphQL Schema for Blog Example
 
 Demonstrates FraiseQL's CQRS pattern:
 - Queries read from tv_* tables (query side)
 - Mutations write to tb_* tables and explicitly sync to tv_* (command side)
 """
 
-import strawberry
 from datetime import datetime
 
+import strawberry
 
-@strawberry.type
+import fraiseql
+from fraiseql import Info
+
+
+@fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
     """User type - read from tv_user (denormalized)."""
 
@@ -44,7 +47,7 @@ class Comment:
     created_at: datetime = strawberry.field(name="createdAt")
 
 
-@strawberry.type
+@fraiseql.type(sql_source="tv_post", jsonb_column="data")
 class Post:
     """Post type - read from tv_post (denormalized)."""
 
@@ -75,71 +78,37 @@ class Query:
     """GraphQL queries - all read from tv_* tables (query side)."""
 
     @strawberry.field
-    async def users(self, info, limit: int | None = 10) -> list[User]:
+    async def users(self, info: Info, limit: int | None = 10) -> list[User]:
         """Get users with their post/comment counts."""
-        pool = info.context["db_pool"]
-
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT data FROM tv_user
-                ORDER BY (data->>'createdAt')::timestamptz DESC
-                LIMIT $1
-                """,
-                limit,
-            )
-
-        return [User(**row["data"]) for row in rows]
+        db = info.context["db"]
+        return await db.find("tv_user", "users", info, limit=limit, order_by="-createdAt")
 
     @strawberry.field
-    async def user(self, info, id: str) -> User | None:
+    async def user(self, info: Info, id: str) -> User | None:
         """Get a specific user by ID."""
-        pool = info.context["db_pool"]
-
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT data FROM tv_user WHERE id = $1", id)
-
-        return User(**row["data"]) if row else None
+        db = info.context["db"]
+        return await db.find_one("tv_user", "user", info, id=id)
 
     @strawberry.field
     async def posts(
-        self, info, published_only: bool = True, limit: int | None = 10
+        self, info: Info, published_only: bool = True, limit: int | None = 10
     ) -> list[Post]:
         """Get posts with embedded author and comments."""
-        pool = info.context["db_pool"]
+        db = info.context["db"]
 
-        async with pool.acquire() as conn:
-            if published_only:
-                rows = await conn.fetch(
-                    """
-                    SELECT data FROM tv_post
-                    WHERE (data->>'published')::boolean = true
-                    ORDER BY (data->>'createdAt')::timestamptz DESC
-                    LIMIT $1
-                    """,
-                    limit,
-                )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT data FROM tv_post
-                    ORDER BY (data->>'createdAt')::timestamptz DESC
-                    LIMIT $1
-                    """,
-                    limit,
-                )
+        filters = {}
+        if published_only:
+            filters["published"] = True
 
-        return [Post(**row["data"]) for row in rows]
+        return await db.find(
+            "tv_post", "posts", info, limit=limit, order_by="-createdAt", **filters
+        )
 
     @strawberry.field
-    async def post(self, info, id: str) -> Post | None:
+    async def post(self, info: Info, id: str) -> Post | None:
         """Get a specific post by ID."""
-        pool = info.context["db_pool"]
-
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT data FROM tv_post WHERE id = $1", id)
-
-        return Post(**row["data"]) if row else None
+        db = info.context["db"]
+        return await db.find_one("tv_post", "post", info, id=id)
 
     @strawberry.field
     async def sync_metrics(self, info, entity_type: str) -> SyncMetrics:
@@ -178,8 +147,7 @@ class Mutation:
     async def create_user(
         self, info, email: str, username: str, full_name: str, bio: str | None = None
     ) -> User:
-        """
-        Create a new user.
+        """Create a new user.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_user (command side)
@@ -209,25 +177,22 @@ class Mutation:
         # 👈 THIS IS VISIBLE IN YOUR CODE!
         await sync.sync_user([user_id], mode="incremental")
 
-        # Step 3: Read from query side
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT data FROM tv_user WHERE id = $1", user_id)
-
-        return User(**row["data"])
+        # Step 3: Read from query side using FraiseQL repository
+        db = info.context["db"]
+        return await db.find_one("tv_user", "user", info, id=user_id)
 
     @strawberry.mutation
     async def create_post(
         self, info, title: str, content: str, author_id: str, published: bool = False
     ) -> Post:
-        """
-        Create a new post.
+        """Create a new post.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_post (command side)
         2. Explicitly sync to tv_post (query side)
         3. Also sync the author (post count changed)
         """
-        from uuid import uuid4, UUID
+        from uuid import UUID, uuid4
 
         pool = info.context["db_pool"]
         sync = info.context["sync"]
@@ -253,23 +218,20 @@ class Mutation:
         # Step 3: Also sync author (post count changed)
         await sync.sync_user([UUID(author_id)], mode="incremental")
 
-        # Step 4: Read from query side
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT data FROM tv_post WHERE id = $1", post_id)
-
-        return Post(**row["data"])
+        # Step 4: Read from query side using FraiseQL repository
+        db = info.context["db"]
+        return await db.find_one("tv_post", "post", info, id=post_id)
 
     @strawberry.mutation
     async def create_comment(self, info, post_id: str, author_id: str, content: str) -> Comment:
-        """
-        Create a new comment.
+        """Create a new comment.
 
         EXPLICIT SYNC PATTERN:
         1. Insert into tb_comment (command side)
         2. Explicitly sync post (comment count changed)
         3. Explicitly sync author (comment count changed)
         """
-        from uuid import uuid4, UUID
+        from uuid import UUID, uuid4
 
         pool = info.context["db_pool"]
         sync = info.context["sync"]
@@ -294,24 +256,17 @@ class Mutation:
         # Step 3: EXPLICIT SYNC - update author (comment count changed)
         await sync.sync_user([UUID(author_id)], mode="incremental")
 
-        # Step 4: Read from query side (embedded in post)
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                SELECT data FROM tv_post WHERE id = $1
-                """,
-                UUID(post_id),
-            )
+        # Step 4: Read from query side using FraiseQL repository
+        db = info.context["db"]
+        post = await db.find_one("tv_post", "post", info, id=UUID(post_id))
 
-        post_data = Post(**row["data"])
-        # Find the new comment
-        new_comment = next(c for c in post_data.comments if c.id == str(comment_id))
+        # Find the new comment in the post's embedded comments
+        new_comment = next(c for c in post.comments if c.id == str(comment_id))
         return new_comment
 
     @strawberry.mutation
     async def publish_post(self, info, post_id: str) -> Post:
-        """
-        Publish a post (set published=true).
+        """Publish a post (set published=true).
 
         EXPLICIT SYNC PATTERN:
         1. Update tb_post (command side)
@@ -324,18 +279,14 @@ class Mutation:
 
         async with pool.acquire() as conn:
             # Step 1: Update command side
-            await conn.execute(
-                "UPDATE tb_post SET published = true WHERE id = $1", UUID(post_id)
-            )
+            await conn.execute("UPDATE tb_post SET published = true WHERE id = $1", UUID(post_id))
 
         # Step 2: EXPLICIT SYNC
         await sync.sync_post([UUID(post_id)], mode="incremental")
 
-        # Step 3: Read from query side
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT data FROM tv_post WHERE id = $1", UUID(post_id))
-
-        return Post(**row["data"])
+        # Step 3: Read from query side using FraiseQL repository
+        db = info.context["db"]
+        return await db.find_one("tv_post", "post", info, id=UUID(post_id))
 
 
 # Create the GraphQL schema

@@ -96,7 +96,7 @@ CREATE INDEX idx_errors_unresolved ON monitoring.errors(fingerprint, occurred_at
 ### Setup
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.monitoring import init_error_tracker
 
@@ -117,7 +117,7 @@ async def startup():
 ### Capture Errors
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Automatic capture in middleware
 @app.middleware("http")
@@ -140,7 +140,7 @@ async def error_tracking_middleware(request: Request, call_next):
         raise
 
 # Manual capture in resolvers
-@query
+@fraiseql.query
 async def process_payment(info, order_id: str) -> PaymentResult:
     try:
         result = await charge_payment(order_id)
@@ -671,13 +671,13 @@ tracer = setup_tracing(db_pool)
 ### Instrument Code
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from opentelemetry import trace
 
 tracer = trace.get_tracer(__name__)
 
-@query
+@fraiseql.query
 async def get_user_orders(info, user_id: str) -> list[Order]:
     # Create span
     with tracer.start_as_current_span(
@@ -692,7 +692,7 @@ async def get_user_orders(info, user_id: str) -> list[Order]:
             db_span.set_attribute("db.statement", "SELECT * FROM v_order WHERE user_id = $1")
             db_span.set_attribute("db.system", "postgresql")
 
-            orders = await info.context["repo"].find("v_order", where={"user_id": user_id})
+            orders = await info.context["db"].find("v_order", where={"user_id": user_id})
 
             db_span.set_attribute("db.rows_returned", len(orders))
 

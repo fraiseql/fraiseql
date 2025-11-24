@@ -308,8 +308,9 @@ jobs:
         print("\n✅ All vector module imports successful!")
         EOF
 
-            # Install wheel and test imports
-            pip install "$whl" --force-reinstall --no-deps
+            # Install wheel with all dependencies and test imports
+            # Use psycopg[binary] for optimized PostgreSQL driver in CI
+            pip install "$whl" "psycopg[binary]" --force-reinstall
             python test_imports.py || {
               echo "ERROR: Import test failed for $whl"
               exit 1

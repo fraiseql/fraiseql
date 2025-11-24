@@ -4,15 +4,15 @@ Complete reference for all FraiseQL decorators with signatures, parameters, and 
 
 ## Type Decorators
 
-### @type / @fraise_type
+### @fraiseql.type / @fraise_type
 
 **Purpose**: Define GraphQL object types
 
 **Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type(
+@fraiseql.type(
     sql_source: str | None = None,
     jsonb_column: str | None = "data",
     implements: list[type] | None = None,
@@ -37,7 +37,7 @@ from fraiseql import type, query, mutation, input, field
 
 **Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @input
 class InputName:
@@ -83,15 +83,15 @@ class InterfaceName:
 
 ## Query Decorators
 
-### @query
+### @fraiseql.query
 
 **Purpose**: Mark async functions as GraphQL queries
 
 **Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType:
     pass
 ```
@@ -104,14 +104,14 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 
 **Examples**:
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]
     return await db.find_one("v_user", where={"id": id})
 
-@query
+@fraiseql.query
 async def search_users(
     info,
     name_filter: str | None = None,
@@ -132,7 +132,7 @@ async def search_users(
 
 **Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @connection(
     node_type: type,
@@ -159,22 +159,22 @@ from fraiseql import type, query, mutation, input, field
 | jsonb_extraction | bool \| None | None | No | Enable JSONB field extraction (inherits from global config) |
 | jsonb_column | str \| None | None | No | JSONB column name (inherits from global config) |
 
-**Must be used with**: @query decorator
+**Must be used with**: @fraiseql.query decorator
 
 **Returns**: Connection[T]
 
 **Examples**:
 ```python
-from fraiseql import connection, query, type
+import fraiseql
 from fraiseql.types import Connection
 
-@type(sql_source="v_user")
+@fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
     name: str
 
 @connection(node_type=User)
-@query
+@fraiseql.query
 async def users_connection(info, first: int | None = None) -> Connection[User]:
     pass  # Implementation handled by decorator
 
@@ -185,7 +185,7 @@ async def users_connection(info, first: int | None = None) -> Connection[User]:
     max_page_size=50,
     cursor_field="created_at"
 )
-@query
+@fraiseql.query
 async def posts_connection(
     info,
     first: int | None = None,
@@ -198,24 +198,24 @@ async def posts_connection(
 
 ## Mutation Decorators
 
-### @mutation
+### @fraiseql.mutation
 
 **Purpose**: Define GraphQL mutations
 
 **Function-based Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation
+@fraiseql.mutation
 async def mutation_name(info, input: InputType) -> ReturnType:
     pass
 ```
 
 **Class-based Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@mutation(
+@fraiseql.mutation(
     function: str | None = None,
     schema: str | None = None,
     context_params: dict[str, str] | None = None,
@@ -238,30 +238,30 @@ class MutationName:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Function-based
-@mutation
+@fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
     return await db.create_one("v_user", data=input.__dict__)
 
 # Class-based
-@mutation
+@fraiseql.mutation
 class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserError
 
 # With custom function
-@mutation(function="register_new_user", schema="auth")
+@fraiseql.mutation(function="register_new_user", schema="auth")
 class RegisterUser:
     input: RegistrationInput
     success: RegistrationSuccess
     failure: RegistrationError
 
 # With context parameters - maps context to PostgreSQL function params
-@mutation(
+@fraiseql.mutation(
     function="create_location",
     context_params={
         "tenant_id": "input_pk_organization",
@@ -279,10 +279,10 @@ class CreateLocation:
 `context_params` automatically injects GraphQL context values as PostgreSQL function parameters:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # GraphQL mutation
-@mutation(
+@fraiseql.mutation(
     function="create_location",
     context_params={
         "tenant_id": "input_pk_organization",  # info.context["tenant_id"] → p_pk_organization
@@ -305,7 +305,7 @@ class CreateLocation:
 **Real-World Example**:
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Context from JWT
 async def get_context(request: Request) -> dict:
@@ -316,7 +316,7 @@ async def get_context(request: Request) -> dict:
     }
 
 # Mutation with context injection
-@mutation(
+@fraiseql.mutation(
     function="create_order",
     context_params={
         "tenant_id": "input_tenant_id",
@@ -377,7 +377,7 @@ class CreateUserResult:
     error: CreateUserError | None = None
 ```
 
-**Note**: These are type markers, not required for mutations. Use @type instead for most cases.
+**Note**: These are type markers, not required for mutations. Use @fraiseql.type instead for most cases.
 
 ## Field Decorators
 
@@ -387,7 +387,7 @@ class CreateUserResult:
 
 **Signature**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 @field(
     resolver: Callable[..., Any] | None = None,
@@ -409,9 +409,9 @@ def method_name(self, info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@type
+@fraiseql.type
 class User:
     first_name: str
     last_name: str
@@ -480,7 +480,7 @@ class UserDataLoader(DataLoader):
         return [user_map.get(key) for key in keys]
 
 # Use in type
-@type
+@fraiseql.type
 class Post:
     author_id: UUID
 
@@ -562,18 +562,18 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.auth import requires_auth
 
-@query
+@fraiseql.query
 @requires_auth
 async def get_my_profile(info) -> User:
     user = info.context["user"]  # Guaranteed to be authenticated
     db = info.context["db"]
     return await db.find_one("v_user", where={"id": user.user_id})
 
-@mutation
+@fraiseql.mutation
 @requires_auth
 async def update_profile(info, input: UpdateProfileInput) -> User:
     user = info.context["user"]
@@ -606,17 +606,17 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.auth import requires_permission
 
-@mutation
+@fraiseql.mutation
 @requires_permission("users:write")
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
     return await db.create_one("v_user", data=input.__dict__)
 
-@mutation
+@fraiseql.mutation
 @requires_permission("users:delete")
 async def delete_user(info, id: UUID) -> bool:
     db = info.context["db"]
@@ -647,17 +647,17 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.auth import requires_role
 
-@query
+@fraiseql.query
 @requires_role("admin")
 async def get_all_users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
 
-@mutation
+@fraiseql.mutation
 @requires_role("admin")
 async def admin_action(info, input: AdminActionInput) -> Result:
     # Admin-only mutation
@@ -687,11 +687,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.auth import requires_any_permission
 
-@mutation
+@fraiseql.mutation
 @requires_any_permission("users:write", "admin:all")
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     # Can be performed by users:write OR admin:all
@@ -722,11 +722,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 from fraiseql.auth import requires_any_role
 
-@query
+@fraiseql.query
 @requires_any_role("admin", "moderator")
 async def moderate_content(info, id: UUID) -> ModerationResult:
     # Can be performed by admin OR moderator
@@ -741,20 +741,20 @@ async def moderate_content(info, id: UUID) -> ModerationResult:
 
 **Stacking decorators**:
 ```python
-from fraiseql import query, connection, type
+import fraiseql, connection, type
 from fraiseql.auth import requires_auth, requires_permission
 from fraiseql.types import Connection
 
 # Multiple decorators - order matters
 @connection(node_type=User)
-@query
+@fraiseql.query
 @requires_auth
 @requires_permission("users:read")
 async def users_connection(info, first: int | None = None) -> Connection[User]:
     pass
 
 # Field-level auth
-@type
+@fraiseql.type
 class User:
     id: UUID
     name: str
@@ -767,9 +767,9 @@ class User:
 ```
 
 **Decorator Order Rules**:
-1. Type decorators (@type, @input, @enum, @interface) - First
+1. Type decorators (@fraiseql.type, @input, @enum, @interface) - First
 2. Query/Mutation/Subscription decorators - Second
-3. Connection decorator - Before @query
+3. Connection decorator - Before @fraiseql.query
 4. Auth decorators - After query/mutation/field decorators
 5. Field decorators (@field, @dataloader_field) - On methods
 

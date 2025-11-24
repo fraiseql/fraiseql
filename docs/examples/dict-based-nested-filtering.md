@@ -278,6 +278,8 @@ where = {
 If migrating resolver logic from GraphQL where inputs to dict-based filters:
 
 ```python
+import fraiseql
+
 # GraphQL where input approach (still supported)
 @fraiseql.query
 async def assignments(info, where: AssignmentWhereInput = None):

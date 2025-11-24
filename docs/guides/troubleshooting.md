@@ -90,7 +90,7 @@ psql -h localhost -U postgres -d postgres
 
 **Solution**:
 ```python
-from fraiseql import type
+import fraiseql
 from uuid import UUID
 
 # Check your view definition
@@ -256,10 +256,10 @@ psql mydb < schema.sql
 **Solution**:
 ```python
 # Correct imports for current version
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Not these (old/incorrect):
-# from fraiseql import type, query, mutation, input, field
+# import fraiseql
 # import fraiseql as fq; fq.type
 ```
 

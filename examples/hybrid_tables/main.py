@@ -387,6 +387,7 @@ INSERT INTO tb_orders (customer_id, status, total_amount, data) VALUES
 # =============================================================================
 if __name__ == "__main__":
     import uvicorn
+
     from fraiseql.fastapi import create_app
 
     fastapi_app = create_app(app, database_url="postgresql://localhost/ecommerce")

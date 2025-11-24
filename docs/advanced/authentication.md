@@ -124,10 +124,10 @@ class UserContext:
 **Access in Resolvers:**
 
 ```python
-from fraiseql import query
+import fraiseql
 from graphql import GraphQLResolveInfo
 
-@query
+@fraiseql.query
 async def get_my_profile(info: GraphQLResolveInfo) -> User:
     """Get current user's profile."""
     # Extract context early (standard pattern)
@@ -395,31 +395,18 @@ class PostgresUserRepository(UserRepository):
     """User repository backed by PostgreSQL."""
 
     async def get_user_by_username(self, username: str) -> User | None:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "SELECT * FROM users WHERE username = $1",
-                username
-            )
-            row = await result.fetchone()
-            return User(**row) if row else None
+        return await db.find_one("v_user", "user", None, username=username)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "SELECT * FROM users WHERE id = $1",
-                user_id
-            )
-            row = await result.fetchone()
-            return User(**row) if row else None
+        return await db.find_one("v_user", "user", None, id=user_id)
 
     async def create_user(self, username: str, password_hash: str, email: str) -> User:
-        async with db.connection() as conn:
-            result = await conn.execute(
-                "INSERT INTO users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING *",
-                username, password_hash, email
-            )
-            row = await result.fetchone()
-            return User(**row)
+        result = await db.execute_function("fn_create_user", {
+            "username": username,
+            "password_hash": password_hash,
+            "email": email
+        })
+        return await db.find_one("v_user", "user", None, id=result["id"])
 
 # 2. Create provider
 user_repo = PostgresUserRepository()
@@ -476,17 +463,17 @@ Authorization: Bearer <access_token>
 Require authentication for any resolver:
 
 ```python
-from fraiseql import query, mutation
+import fraiseql, mutation
 from fraiseql.auth import requires_auth
 
-@query
+@fraiseql.query
 @requires_auth
 async def get_my_orders(info) -> list[Order]:
     """Get current user's orders - requires authentication."""
     user = info.context["user"]  # Guaranteed to exist
     return await fetch_user_orders(user.user_id)
 
-@mutation
+@fraiseql.mutation
 @requires_auth
 async def update_profile(info, name: str, email: str) -> User:
     """Update user profile - requires authentication."""
@@ -504,17 +491,17 @@ async def update_profile(info, name: str, email: str) -> User:
 Require specific permission:
 
 ```python
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_permission
 
-@mutation
+@fraiseql.mutation
 @requires_permission("orders:create")
 async def create_order(info, product_id: str, quantity: int) -> Order:
     """Create order - requires orders:create permission."""
     user = info.context["user"]
     return await create_order_for_user(user.user_id, product_id, quantity)
 
-@mutation
+@fraiseql.mutation
 @requires_permission("users:delete")
 async def delete_user(info, user_id: str) -> bool:
     """Delete user - requires users:delete permission."""
@@ -532,16 +519,16 @@ async def delete_user(info, user_id: str) -> bool:
 Require specific role:
 
 ```python
-from fraiseql import query, mutation
+import fraiseql, mutation
 from fraiseql.auth import requires_role
 
-@query
+@fraiseql.query
 @requires_role("admin")
 async def get_all_users(info) -> list[User]:
     """Get all users - admin only."""
     return await fetch_all_users()
 
-@mutation
+@fraiseql.mutation
 @requires_role("moderator")
 async def ban_user(info, user_id: str, reason: str) -> bool:
     """Ban user - moderator only."""
@@ -554,10 +541,10 @@ async def ban_user(info, user_id: str, reason: str) -> bool:
 Require any of multiple permissions:
 
 ```python
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_any_permission
 
-@mutation
+@fraiseql.mutation
 @requires_any_permission("orders:write", "admin:all")
 async def update_order(info, order_id: str, status: str) -> Order:
     """Update order - requires orders:write OR admin:all permission."""
@@ -569,10 +556,10 @@ async def update_order(info, order_id: str, status: str) -> Order:
 Require any of multiple roles:
 
 ```python
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_any_role
 
-@mutation
+@fraiseql.mutation
 @requires_any_role("admin", "moderator")
 async def moderate_content(info, content_id: str, action: str) -> bool:
     """Moderate content - admin or moderator."""
@@ -585,10 +572,10 @@ async def moderate_content(info, content_id: str, action: str) -> bool:
 Stack decorators for complex authorization:
 
 ```python
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_auth, requires_permission
 
-@mutation
+@fraiseql.mutation
 @requires_auth
 @requires_permission("orders:refund")
 async def refund_order(info, order_id: str, reason: str) -> Order:
@@ -605,7 +592,7 @@ async def refund_order(info, order_id: str, reason: str) -> Order:
 
 **Decorator Order:**
 - Outermost decorator executes first
-- Recommended: @mutation/@query first, then auth decorators
+- Recommended: @fraiseql.mutation/@fraiseql.query first, then auth decorators
 - Auth checks happen before resolver logic
 
 ## Token Revocation
@@ -746,9 +733,9 @@ async def logout_all_sessions(authorization: str = Header(...)):
 Store user-specific state in session:
 
 ```python
-from fraiseql import query
+import fraiseql
 
-@query
+@fraiseql.query
 async def get_cart(info) -> Cart:
     """Get user's shopping cart from session."""
     user = info.context["user"]
@@ -785,7 +772,8 @@ app.add_middleware(
 Restrict access to specific fields based on roles/permissions:
 
 ```python
-from fraiseql import type_
+import fraiseql
+import fraiseql_
 from fraiseql.security import authorize_field, any_permission
 
 @type_
@@ -923,7 +911,7 @@ class MultiAuthProvider:
 ### Role-Based Access Control (RBAC)
 
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
 # Define roles with associated permissions
 ROLES = {
@@ -945,7 +933,7 @@ ROLES = {
 }
 
 # Check in resolver
-@mutation
+@fraiseql.mutation
 async def delete_order(info, order_id: str) -> bool:
     user = info.context["user"]
 

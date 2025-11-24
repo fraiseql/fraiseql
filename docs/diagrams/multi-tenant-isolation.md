@@ -224,9 +224,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ### Tenant Context in GraphQL
 ```python
-from fraiseql import type, query, mutation, input, field
+import fraiseql
 
-@query
+@fraiseql.query
 async def users(self, info) -> list[User]:
     tenant_id = tenant_context.get()
     return await db.execute(
@@ -234,7 +234,7 @@ async def users(self, info) -> list[User]:
         [tenant_id]
     )
 
-@mutation
+@fraiseql.mutation
 async def create_user(self, info, input: CreateUserInput) -> User:
     tenant_id = tenant_context.get()
     user_id = await db.execute_scalar(

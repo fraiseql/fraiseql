@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-FraiseQL Cursor-Based Pagination Demo
+"""FraiseQL Cursor-Based Pagination Demo
 
 This example demonstrates the new @connection decorator for implementing
 cursor-based pagination following the Relay specification.
@@ -73,8 +72,7 @@ async def users_connection(
     after: str | None = None,
     where: dict[str, Any] | None = None,
 ) -> Connection[User]:
-    """
-    Basic user connection with automatic configuration.
+    """Basic user connection with automatic configuration.
 
     - View name inferred as "v_users" from function name
     - Default page size: 20
@@ -82,7 +80,7 @@ async def users_connection(
     - Includes total count
     - Orders by "id" field
     """
-    pass  # Implementation handled by @connection decorator
+    # Implementation handled by @connection decorator
 
 
 @fraiseql.connection(
@@ -97,14 +95,12 @@ async def recent_users_connection(
     after: str | None = None,
     where: dict[str, Any] | None = None,
 ) -> Connection[User]:
-    """
-    Recent users ordered by creation date.
+    """Recent users ordered by creation date.
 
     - Uses created_at field for cursor ordering
     - Smaller default page size (10 items)
     - Perfect for "recently joined" sections
     """
-    pass
 
 
 # ================================
@@ -127,15 +123,13 @@ async def published_posts_connection(
     before: str | None = None,
     where: dict[str, Any] | None = None,
 ) -> Connection[Post]:
-    """
-    Published posts with custom configuration.
+    """Published posts with custom configuration.
 
     - Custom view name for published posts only
     - Larger page sizes for content feeds
     - Supports both forward and backward pagination
     - Time-based ordering for chronological feeds
     """
-    pass
 
 
 @fraiseql.connection(
@@ -153,8 +147,7 @@ async def user_posts_connection(
     after: str | None = None,
     where: dict[str, Any] | None = None,
 ) -> Connection[Post]:
-    """
-    Posts by a specific user with performance optimizations.
+    """Posts by a specific user with performance optimizations.
 
     - Excludes total count for better performance
     - Custom filtering by user_id parameter
@@ -162,7 +155,6 @@ async def user_posts_connection(
     """
     # The where filter will automatically include user_id filtering
     # You can add custom business logic here if needed
-    pass
 
 
 # ================================

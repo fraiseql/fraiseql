@@ -5,18 +5,17 @@ No business logic here - views are pre-computed and denormalized.
 """
 
 from types import (
+    AuditLog,
     Customer,
+    CustomerLifetimeValue,
+    OrderItemDetails,
+    OrderStatusTimeline,
+    OrderSummary,
+    Payment,
     Product,
     ProductInventory,
-    OrderSummary,
-    OrderItemDetails,
-    Payment,
     RevenueByProduct,
-    CustomerLifetimeValue,
-    AuditLog,
-    OrderStatusTimeline,
 )
-
 
 # ============================================================================
 # CUSTOMER QUERIES

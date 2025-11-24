@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Example: Multi-tenant APQ with tenant-specific caching.
+"""Example: Multi-tenant APQ with tenant-specific caching.
 
 Demonstrates how FraiseQL's built-in tenant-aware APQ caching works
 for multi-tenant SaaS applications.

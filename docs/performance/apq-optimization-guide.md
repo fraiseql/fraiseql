@@ -8,7 +8,7 @@
 
 1. [Overview](#overview)
 2. [Understanding APQ](#understanding-apq)
-3. [APQ Modes](#apq-modes) *(NEW in v1.6.0)*
+3. [APQ Modes](#apq-modes) *(NEW in v1.6.1)*
 4. [When to Enable APQ](#when-to-enable-apq)
 5. [Configuration Guide](#configuration-guide)
 6. [Monitoring & Metrics](#monitoring-metrics)
@@ -122,7 +122,7 @@ FraiseQL uses a sophisticated caching approach:
 
 ## APQ Modes
 
-*New in FraiseQL v1.6.0*
+*New in FraiseQL v1.6.1*
 
 FraiseQL supports three APQ modes to control how queries are accepted:
 
@@ -956,4 +956,4 @@ Combine FraiseQL caching layers:
 
 ---
 
-*Last Updated: 2025-10-23 | FraiseQL v1.0.0*
+*Last Updated: 2025-10-23 | FraiseQL v1.6.1*

@@ -34,7 +34,7 @@ from models import (
     User,
 )
 
-from fraiseql import mutation
+import fraiseql
 from fraiseql.auth import requires_auth, requires_permission
 
 if TYPE_CHECKING:
@@ -262,7 +262,7 @@ async def delete_post(info, id: UUID) -> bool:
 # These demonstrate the new FraiseQL enterprise mutation patterns
 
 
-@mutation(function="app.create_post")  # Uses app/core split
+@fraiseql.mutation(function="app.create_post")  # Uses app/core split
 class CreatePostEnterprise:
     """Create blog post with enterprise patterns.
 
@@ -279,7 +279,7 @@ class CreatePostEnterprise:
     noop: CreatePostNoop  # For duplicate handling
 
 
-@mutation(function="app.update_post")
+@fraiseql.mutation(function="app.update_post")
 class UpdatePostEnterprise:
     """Update blog post with change tracking.
 
@@ -296,7 +296,7 @@ class UpdatePostEnterprise:
     noop: UpdatePostNoop  # For no-changes scenarios
 
 
-@mutation(function="app.create_user")
+@fraiseql.mutation(function="app.create_user")
 class CreateUserEnterprise:
     """Create user with validation and NOOP handling.
 
@@ -326,6 +326,6 @@ async def create_post_legacy(
     This shows the old resolver-based approach.
     Compare with CreatePostEnterprise above to see the difference.
 
-    New code should use the @mutation class decorators instead.
+    New code should use the @fraiseql.mutation class decorators instead.
     """
     # Implementation remains the same as create_post function above

@@ -8,10 +8,20 @@ This demonstrates a complete FastAPI + FraiseQL setup with:
 - GraphQL Playground
 """
 
+from types import (
+    CreateProjectInput,
+    CreateTaskInput,
+    Project,
+    Task,
+    UpdateProjectInput,
+    UpdateTaskInput,
+    User,
+)
+
 import uvicorn
+
 from fraiseql import FraiseQL
 from fraiseql.fastapi import create_app
-from types import User, Project, Task, CreateProjectInput, UpdateProjectInput, CreateTaskInput, UpdateTaskInput
 
 # Initialize FraiseQL
 app = FraiseQL(database_url="postgresql://localhost/fastapi_tasks_demo")
@@ -29,18 +39,18 @@ app.register_input_type(UpdateTaskInput)
 
 # Import and register queries
 from queries import (
-    user,
-    users,
+    Project_owner,
+    Project_tasks,
+    Task_assignee,
+    Task_project,
+    User_assigned_tasks,
+    User_owned_projects,
     project,
     projects,
     task,
     tasks,
-    User_owned_projects,
-    User_assigned_tasks,
-    Project_owner,
-    Project_tasks,
-    Task_project,
-    Task_assignee,
+    user,
+    users,
 )
 
 app.register_query(user)
@@ -60,12 +70,12 @@ app.register_field_resolver(Task, "assignee", Task_assignee)
 
 # Import and register mutations
 from mutations import (
-    create_project,
-    update_project,
-    create_task,
-    update_task,
     assign_task,
+    create_project,
+    create_task,
     delete_task,
+    update_project,
+    update_task,
 )
 
 app.register_mutation(create_project)
@@ -126,31 +136,31 @@ if __name__ == "__main__":
     print("💡 Example Queries:")
     print()
     print("  # Get all projects with tasks and assignees")
-    print('  query {')
-    print('    projects {')
-    print('      id')
-    print('      name')
-    print('      taskCount')
-    print('      tasks {')
-    print('        title')
-    print('        status')
-    print('        assignee { name }')
-    print('      }')
-    print('    }')
-    print('  }')
+    print("  query {")
+    print("    projects {")
+    print("      id")
+    print("      name")
+    print("      taskCount")
+    print("      tasks {")
+    print("        title")
+    print("        status")
+    print("        assignee { name }")
+    print("      }")
+    print("    }")
+    print("  }")
     print()
     print("  # Create a new task")
-    print('  mutation {')
-    print('    createTask(input: {')
-    print('      projectId: 1')
+    print("  mutation {")
+    print("    createTask(input: {")
+    print("      projectId: 1")
     print('      title: "Implement feature"')
     print('      priority: "high"')
-    print('    }) {')
-    print('      id')
-    print('      title')
-    print('      createdAt')
-    print('    }')
-    print('  }')
+    print("    }) {")
+    print("      id")
+    print("      title")
+    print("      createdAt")
+    print("    }")
+    print("  }")
     print()
     print("=" * 70)
     print()

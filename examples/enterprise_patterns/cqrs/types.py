@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-
 # ============================================================================
 # ENTITY TYPES (Read Model)
 # ============================================================================

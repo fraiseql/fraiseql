@@ -269,8 +269,8 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
     await sync.sync_user([UUID(author_id)])
 
     # 4. Read from query side
-    row = await pool.fetchrow("SELECT data FROM tv_post WHERE id = $1", post_id)
-    return Post(**row["data"])
+    db = info.context["db"]
+    return await db.find_one("tv_post", "post", info, id=post_id)
 ```
 
 ### Pattern 2: Batch Sync

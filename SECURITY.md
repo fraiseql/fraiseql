@@ -18,7 +18,9 @@ Please do not report security vulnerabilities through public GitHub issues.
 
 ### 2. Email Security Team
 
-Send details to: **security@fraiseql.com** (or the appropriate contact email)
+**Report via GitHub Security Advisories**: [Create a Security Advisory](https://github.com/fraiseql/fraiseql/security/advisories/new)
+
+If you prefer email, send details to: **security@fraiseql.com** (response may be delayed)
 
 Include:
 - Description of the vulnerability

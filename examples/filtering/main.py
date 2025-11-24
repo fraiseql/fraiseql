@@ -97,8 +97,7 @@ async def books_by_title(info, search: str, case_sensitive: bool = False) -> lis
     db = info.context["db"]
     if case_sensitive:
         return await db.find("v_books", title__contains=search)
-    else:
-        return await db.find("v_books", title__icontains=search)
+    return await db.find("v_books", title__icontains=search)
 
 
 # =============================================================================
@@ -233,9 +232,8 @@ async def books_by_genre(info, genres: list[str], match_all: bool = False) -> li
     if match_all:
         # Array contains all specified genres
         return await db.find("v_books", genres__contains=genres)
-    else:
-        # Array overlaps with specified genres
-        return await db.find("v_books", genres__overlaps=genres)
+    # Array overlaps with specified genres
+    return await db.find("v_books", genres__overlaps=genres)
 
 
 # =============================================================================
@@ -427,6 +425,7 @@ INSERT INTO tb_books (title, author, isbn, published_year, pages, price, genres,
 
 if __name__ == "__main__":
     import uvicorn
+
     from fraiseql.fastapi import create_app
 
     fastapi_app = create_app(app, database_url="postgresql://localhost/library")

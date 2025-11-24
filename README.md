@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.6.0) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.6.2) - Production Stable**
+
+**Current Version**: v1.6.2 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -20,13 +22,13 @@ PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 from fraiseql import type, query
 from fraiseql.fastapi import create_fraiseql_app
 
-@type(sql_source="v_user", jsonb_column="data")
+@fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
     id: int
     name: str
     email: str
 
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
@@ -273,34 +275,48 @@ query {
 
 **Result:** Attackers cannot exceed the depth you define in views. No middleware needed.
 
-### Mutation Security Example
+---
 
-```sql
-CREATE OR REPLACE FUNCTION fn_update_user_email(
-    p_user_id UUID,
-    p_new_email TEXT
-) RETURNS JSONB AS $$
-BEGIN
-    -- Explicit validation (visible in code)
-    IF p_new_email !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$' THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Invalid email');
-    END IF;
+## 🔐 Security Features
 
-    -- Only updates the email column (nothing else is possible)
-    UPDATE tb_user
-    SET email = p_new_email
-    WHERE id = p_user_id;
+FraiseQL includes enterprise-grade security features designed for global regulatory compliance and production deployment:
 
-    -- Automatic audit logging
-    INSERT INTO audit_log (action, user_id, details, timestamp)
-    VALUES ('email_updated', p_user_id, jsonb_build_object('new_email', p_new_email), NOW());
+### 📋 Software Bill of Materials (SBOM)
+- **Automated generation** via `fraiseql sbom generate`
+- **Global compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001
+- **CycloneDX 1.5 format** with cryptographic signing
+- **CI/CD integration** for continuous compliance
 
-    RETURN jsonb_build_object('success', true);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
+### 🔑 Key Management Service (KMS)
+- **HashiCorp Vault**: Production-ready with transit engine
+- **AWS KMS**: Native integration with GenerateDataKey
+- **GCP Cloud KMS**: Envelope encryption support
+- **Local Provider**: Development-only with warnings
 
-**No ORM magic. No hidden behavior. Everything is explicit and auditable.**
+### 🛡️ Security Profiles
+- `STANDARD`: Default protections for general applications
+- `REGULATED`: PCI-DSS/HIPAA/SOC 2 compliance
+- `RESTRICTED`: Government, defence, critical infrastructure
+  - 🇺🇸 FedRAMP, DoD, NIST 800-53
+  - 🇪🇺 NIS2 Essential Entities, EU CRA
+  - 🇨🇦 CPCSC (defence contractors)
+  - 🇦🇺 Essential Eight Level 3
+  - 🇸🇬 Singapore CII operators
+
+### 📊 Observability
+- OpenTelemetry tracing with sensitive data sanitization
+- Security event logging
+- Audit trail support
+
+### 🔒 Advanced Security Controls
+- **Rate limiting** for API endpoints and GraphQL operations
+- **CSRF protection** for mutations and forms
+- **Security headers** middleware for defense in depth
+- **Input validation** and sanitization
+- **Field-level authorization** with role inheritance
+- **Row-level security** via PostgreSQL RLS
+
+**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
 
 ---
 
@@ -368,7 +384,7 @@ class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"
 
-@mutation(function="fn_create_user", schema="public")
+@fraiseql.mutation(function="fn_create_user", schema="public")
 class CreateUser:
     input: CreateUserInput
     success: UserCreated
@@ -422,20 +438,20 @@ from fraiseql import type, query, mutation, input, success
 from fraiseql.fastapi import create_fraiseql_app
 
 # Step 1: Map PostgreSQL view to GraphQL type
-@type(sql_source="v_note", jsonb_column="data")
+@fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
     id: UUID
     title: str
     content: str | None
 
 # Step 2: Define queries
-@query
+@fraiseql.query
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
     return await db.find("v_note")
 
-@query
+@fraiseql.query
 async def note(info, id: UUID) -> Note | None:
     """Get a note by ID."""
     db = info.context["db"]
@@ -447,7 +463,7 @@ class CreateNoteInput:
     title: str
     content: str | None = None
 
-@mutation
+@fraiseql.mutation
 class CreateNote:
     input: CreateNoteInput
     success: Note
@@ -466,7 +482,7 @@ app = create_fraiseql_app(
 ### The Database-First Pattern
 
 ```sql
--- Step 1: PostgreSQL view composes data as JSONB
+-- PostgreSQL view explicitly defines what's exposed
 CREATE VIEW v_user AS
 SELECT
     id,
@@ -474,24 +490,15 @@ SELECT
         'id', id,
         'name', name,
         'email', email,
-        'posts', (
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', p.id,
-                    'title', p.title,
-                    'content', p.content
-                )
-            )
-            FROM tb_post p
-            WHERE p.user_id = tb_user.id
-        )
+        -- password_hash, is_admin, api_key NOT included
+        -- Impossible to accidentally expose them!
     ) as data
 FROM tb_user;
 ```
 
 ```python
-# Step 2: Python decorator maps it to GraphQL
-@type(sql_source="v_user", jsonb_column="data")
+# Python type mirrors EXACT view structure
+@fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
     id: int
     name: str
@@ -499,7 +506,7 @@ class User:
     posts: list[Post]  # Nested relations! No N+1 queries!
 
 # Step 3: Query it
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
@@ -854,7 +861,7 @@ from fraiseql.types import (
     CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
 )
 
-@type(sql_source="v_financial_data")
+@fraiseql.type(sql_source="v_financial_data")
 class FinancialRecord:
     id: int
     email: EmailAddress           # Validated email addresses
@@ -863,7 +870,7 @@ class FinancialRecord:
     margin: Percentage           # Percentages (0.00-100.00)
     security_id: CUSIP | ISIN    # Financial instrument identifiers
 
-@type(sql_source="v_network_devices")
+@fraiseql.type(sql_source="v_network_devices")
 class NetworkDevice:
     id: int
     ip_address: IPv4             # IPv4 addresses with subnet operations
@@ -900,8 +907,8 @@ query {
 ```python
 from fraiseql import authorized
 
-@authorized(roles=["admin", "editor"])
-@mutation
+@fraiseql.authorized(roles=["admin", "editor"])
+@fraiseql.mutation
 class DeletePost:
     """Only admins and editors can delete posts."""
     input: DeletePostInput
@@ -1113,9 +1120,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.6.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.6.2** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.5.0** | Superseded | Legacy | Use v1.6.0 | ⚠️ Migrate |
+| **v1.6.0** | Superseded | Legacy | Use v1.6.1 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

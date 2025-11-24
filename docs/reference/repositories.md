@@ -52,7 +52,7 @@ async def find(
 
 **Example**:
 ```python
-@query
+@fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]  # FraiseQLRepository
     # Returns RustResponseBytes - GraphQL framework handles conversion
@@ -74,7 +74,7 @@ async def find_one(
 
 **Example**:
 ```python
-@query
+@fraiseql.query
 async def user(info, id: UUID) -> User | None:
     db = info.context["db"]
     return await db.find_one("v_users", where={"id": {"eq": id}})
@@ -93,7 +93,7 @@ async def count(
 
 **Example**:
 ```python
-@query
+@fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
     db = info.context["db"]
     return await db.count("v_users", where=where)  # Returns int directly
@@ -152,9 +152,10 @@ async def count(
 
 **Example**:
 ```python
+import fraiseql
 from fraiseql import CQRSRepository
 
-@query
+@fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
     repo = CQRSRepository(info.context["connection"])
     return await repo.count(User, where=where)  # Entity-class based
@@ -187,14 +188,15 @@ async def list_entities(
 
 **Before (Legacy)**:
 ```python
+import fraiseql
 from fraiseql import CQRSRepository
 
-@query
+@fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     repo = CQRSRepository(info.context["connection"])
     return await repo.list_entities(User, where=where)  # Returns list[dict]
 
-@query
+@fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
     repo = CQRSRepository(info.context["connection"])
     return await repo.count(User, where=where)
@@ -202,12 +204,12 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 
 **After (Modern)**:
 ```python
-@query
+@fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]  # FraiseQLRepository
     return await db.find("v_users", where=where)  # Returns RustResponseBytes
 
-@query
+@fraiseql.query
 async def users_count(info, where: UserWhereInput | None = None) -> int:
     db = info.context["db"]
     return await db.count("v_users", where=where)  # Returns int
@@ -225,7 +227,7 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 
 **GraphQL Resolvers**:
 ```python
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_users")  # Fast! Zero-copy pipeline
@@ -233,7 +235,7 @@ async def users(info) -> list[User]:
 
 **Count Queries**:
 ```python
-@query
+@fraiseql.query
 async def total_users(info) -> int:
     db = info.context["db"]
     return await db.count("v_users")  # Returns int directly

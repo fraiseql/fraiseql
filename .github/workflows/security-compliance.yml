@@ -24,6 +24,9 @@ jobs:
   secrets-scan:
     name: Secrets Detection
     runs-on: ubuntu-latest
+    # Only run on pull requests where there's always a diff to scan
+    # Push events to main can have BASE=HEAD which causes TruffleHog to error
+    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
       with:
@@ -33,8 +36,8 @@ jobs:
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
-        head: HEAD
+        base: ${{ github.event.pull_request.base.sha }}
+        head: ${{ github.event.pull_request.head.sha }}
         extra_args: --debug --only-verified
 
   license-scan:
@@ -309,7 +312,8 @@ jobs:
       - name: Security compliance check
         run: |
           # Check if all security jobs passed
-          if [[ "${{ needs.secrets-scan.result }}" != "success" ]]; then
+          # secrets-scan is skipped on push events (only runs on PRs) - that's OK
+          if [[ "${{ needs.secrets-scan.result }}" != "success" && "${{ needs.secrets-scan.result }}" != "skipped" ]]; then
             echo "❌ Secrets scan failed - Security gate blocked"
             exit 1
           fi
