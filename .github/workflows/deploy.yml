@@ -60,7 +60,7 @@ jobs:
         echo "Environment: ${{ github.event.inputs.environment || 'main-branch' }}"
 
         # Check if all required files exist
-        required_files=("pyproject.toml" "Dockerfile" "deploy/docker/docker-compose.prod.yml")
+        required_files=("pyproject.toml" "deploy/docker/Dockerfile" "deploy/docker/docker-compose.prod.yml")
         for file in "${required_files[@]}"; do
           if [ ! -f "$file" ]; then
             echo "❌ Required file $file is missing"
