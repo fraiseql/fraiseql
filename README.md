@@ -275,34 +275,37 @@ query {
 
 **Result:** Attackers cannot exceed the depth you define in views. No middleware needed.
 
-### Mutation Security Example
+---
 
-```sql
-CREATE OR REPLACE FUNCTION fn_update_user_email(
-    p_user_id UUID,
-    p_new_email TEXT
-) RETURNS JSONB AS $$
-BEGIN
-    -- Explicit validation (visible in code)
-    IF p_new_email !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$' THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Invalid email');
-    END IF;
+## 🔐 Security Features
 
-    -- Only updates the email column (nothing else is possible)
-    UPDATE tb_user
-    SET email = p_new_email
-    WHERE id = p_user_id;
+FraiseQL includes enterprise-grade security features designed for production deployment:
 
-    -- Automatic audit logging
-    INSERT INTO audit_log (action, user_id, details, timestamp)
-    VALUES ('email_updated', p_user_id, jsonb_build_object('new_email', p_new_email), NOW());
+### Key Management Service (KMS)
+- **HashiCorp Vault**: Production-ready with transit engine
+- **AWS KMS**: Native integration with GenerateDataKey
+- **GCP Cloud KMS**: Envelope encryption support
+- **Local Provider**: Development-only with warnings
 
-    RETURN jsonb_build_object('success', true);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
+### Security Profiles
+- `STANDARD`: Default protections
+- `REGULATED`: PCI-DSS/HIPAA compliance
+- `RESTRICTED`: Government/defense requirements
 
-**No ORM magic. No hidden behavior. Everything is explicit and auditable.**
+### Observability
+- OpenTelemetry tracing with sensitive data sanitization
+- Security event logging
+- Audit trail support
+
+### Advanced Security Controls
+- **Rate limiting** for API endpoints and GraphQL operations
+- **CSRF protection** for mutations and forms
+- **Security headers** middleware for defense in depth
+- **Input validation** and sanitization
+- **Field-level authorization** with role inheritance
+- **Row-level security** via PostgreSQL RLS
+
+**[🔐 Security Configuration Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[📋 KMS Architecture ADR](https://github.com/fraiseql/fraiseql/blob/main/docs/adr/0003-kms-architecture.md)**
 
 ---
 
