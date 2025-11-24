@@ -54,11 +54,20 @@ class CreatePostError:
 
 
 # Test mutations
-@mutation(enable_cascade=True)
+@mutation(enable_cascade=True, function="create_post")
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
     error: CreatePostError
+
+
+# Test query (required for GraphQL schema)
+from graphql import GraphQLResolveInfo
+
+
+async def get_post(info: GraphQLResolveInfo, id: str) -> Optional[Post]:
+    """Simple query to satisfy GraphQL schema requirements."""
+    return None  # Not needed for cascade tests
 
 
 @pytest_asyncio.fixture
@@ -206,6 +215,7 @@ def cascade_app(cascade_db_schema, postgres_url) -> FastAPI:
     """
     app = create_fraiseql_app(
         types=[CreatePostInput, Post, User, CreatePostSuccess, CreatePostError],
+        queries=[get_post],
         mutations=[CreatePost],
         database_url=postgres_url,
     )
@@ -215,7 +225,8 @@ def cascade_app(cascade_db_schema, postgres_url) -> FastAPI:
 @pytest.fixture
 def cascade_client(cascade_app: FastAPI) -> TestClient:
     """Test client for cascade app (synchronous client for simple tests)."""
-    return TestClient(cascade_app)
+    with TestClient(cascade_app) as client:
+        yield client
 
 
 @pytest_asyncio.fixture

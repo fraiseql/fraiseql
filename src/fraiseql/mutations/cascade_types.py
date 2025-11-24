@@ -23,35 +23,40 @@ def add_cascade_to_union_type(
     Returns:
         Modified union type with cascade field in Success
     """
+    from graphql import GraphQLField, GraphQLObjectType, GraphQLUnionType
+
     # Get Success type from mutation definition
     success_cls = mutation_def.success_type
 
-    # Check if success type already has cascade field
-    if hasattr(success_cls, "__annotations__") and "cascade" in success_cls.__annotations__:
-        # Already has cascade, no modification needed
-        return union_type
-
-    # Create modified Success type with cascade field
-    modified_success_type = _add_cascade_field_to_type(success_cls)
-
-    # Rebuild the union with modified Success type
-    # Get the union types
-    from graphql import GraphQLUnionType
-
     if isinstance(union_type, GraphQLUnionType):
-        # Find and replace the Success type
-        new_types = []
+        # Find and modify the Success type IN PLACE
         for member_type in union_type.types:
-            if member_type.name == success_cls.__name__:
-                # Replace with modified version
-                new_types.append(convert_type_to_graphql_output(modified_success_type))
-            else:
-                new_types.append(member_type)
+            if (
+                isinstance(member_type, GraphQLObjectType)
+                and member_type.name == success_cls.__name__
+            ):
+                # Check if cascade field already exists
+                if "cascade" in member_type.fields:
+                    continue
 
-        # Create new union
-        return GraphQLUnionType(
-            name=union_type.name, types=new_types, resolve_type=union_type.resolve_type
-        )
+                # Add cascade field with resolver directly to the existing type
+                # This modifies the GraphQL type during schema construction
+                # which is safe despite GraphQL types being immutable
+                def resolve_cascade(obj: Any, info: Any) -> Any:
+                    """Resolve cascade field from __cascade__ attribute."""
+                    return getattr(obj, "__cascade__", None)
+
+                cascade_field = GraphQLField(
+                    type_=get_cascade_graphql_type(),
+                    resolve=resolve_cascade,
+                    description="Cascade data with side effects and invalidations",
+                )
+
+                # Directly mutate the fields dict (safe during schema construction)
+                member_type.fields["cascade"] = cascade_field
+
+        # Return the original union with modified members
+        return union_type
 
     # If not a union, just return the type (shouldn't happen but safe fallback)
     return union_type
