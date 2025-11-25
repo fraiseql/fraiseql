@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2025-11-XX
+
+### 🦀 Rust-First Architecture
+
+**Unified Rust Pipeline for ALL Mutations**
+- ALL mutations now flow: PostgreSQL → Rust → HTTP bytes
+- Cascade filtering moved from Python to Rust
+- ~50% faster mutation responses
+- Zero Python JSON parsing overhead
+
+**GraphQL Cascade** ⚡
+- Automatic client cache updates
+- Entity tracking (created, updated, deleted)
+- Filtered entirely in Rust for performance
+- Opt-in with `@mutation(enable_cascade=True)`
+
+**Security Hardening** 🛡️
+- Multi-Provider KMS (Vault, AWS, GCP)
+- Security Profiles (STANDARD, REGULATED, RESTRICTED)
+- SBOM Generation (CycloneDX 1.5)
+- OpenTelemetry integration
+
+### 🔧 Breaking Changes
+
+- Mutation resolvers now return `RustResponseBytes` instead of Python objects
+- Tests mocking mutation internals need updates (see migration guide)
+
+### 📚 Documentation
+
+- Complete GraphQL Cascade guide
+- Global compliance coverage
+- Mutation result format reference
+
 ## [2.0.0] - 2025-11-24
 
 ### 🎉 Major Features

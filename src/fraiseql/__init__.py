@@ -73,7 +73,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "2.0.0"
+__version__ = "1.7.0"
 
 # Import bundled Rust extension and expose it as fraiseql_rs for compatibility
 try:
