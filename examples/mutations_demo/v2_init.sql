@@ -297,7 +297,7 @@ BEGIN
         'name', input_data->>'name',
         'email', input_data->>'email',
         'role', COALESCE(input_data->>'role', 'user'),
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     );
 
     INSERT INTO tb_user (id, data, created_at)
@@ -307,7 +307,7 @@ BEGIN
     v_cascade_data := cascade_count_update(
         'Organization',
         'org-123',  -- Would be from input_data
-        'userCount',
+        'user_count',
         5, 6        -- Would be queried/calculated
     );
 
@@ -367,7 +367,7 @@ BEGIN
         'name', data->>'name',
         'email', data->>'email',
         'role', data->>'role',
-        'updatedAt', to_jsonb(updated_at)
+        'updated_at', to_jsonb(updated_at)
     ) INTO v_user_data FROM tb_user WHERE id = v_user_id;
 
     RETURN mutation_updated('User updated successfully', v_user_data, v_updated_fields, 'User');
@@ -407,14 +407,14 @@ INSERT INTO tb_user (data) VALUES
         'name', 'Alice Admin',
         'email', 'alice@example.com',
         'role', 'admin',
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     )),
     (jsonb_build_object(
         'id', gen_random_uuid(),
         'name', 'Bob User',
         'email', 'bob@example.com',
         'role', 'user',
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     ));
 
 -- =====================================================

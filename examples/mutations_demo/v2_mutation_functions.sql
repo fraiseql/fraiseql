@@ -28,7 +28,7 @@ BEGIN
         'id', user_id,
         'name', input->>'name',
         'email', input->>'email',
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     );
 
     RETURN mutation_created('User created successfully', user_data, 'User');
@@ -74,7 +74,7 @@ BEGIN
         'id', id,
         'name', name,
         'email', email,
-        'updatedAt', to_jsonb(updated_at)
+        'updated_at', to_jsonb(updated_at)
     ) INTO user_data FROM users WHERE id = user_id;
 
     RETURN mutation_updated('User updated successfully', user_data, updated_fields, 'User');
@@ -111,15 +111,15 @@ BEGIN
     -- Create post
     post_id := gen_random_uuid();
     INSERT INTO posts (id, title, content, author_id, created_at)
-    VALUES (post_id, input->>'title', input->>'content', (input->>'authorId')::uuid, now());
+    VALUES (post_id, input->>'title', input->>'content', (input->>'author_id')::uuid, now());
 
     -- Build response entity
     post_data := jsonb_build_object(
         'id', post_id,
         'title', input->>'title',
         'content', input->>'content',
-        'authorId', input->>'authorId',
-        'createdAt', to_jsonb(now())
+        'author_id', input->>'author_id',
+        'created_at', to_jsonb(now())
     );
 
     -- Build cascade data for side effects (e.g., update author's post count)
@@ -128,10 +128,10 @@ BEGIN
         'updated', jsonb_build_array(
             jsonb_build_object(
                 'type_name', 'User',
-                'id', input->>'authorId',
+                'id', input->>'author_id',
                 'operation', 'UPDATED',
                 'entity', jsonb_build_object(
-                    'id', input->>'authorId',
+                    'id', input->>'author_id',
                     'post_count', 6,
                     '_previous_post_count', 5  -- Would be queried from database
                 )
@@ -144,7 +144,7 @@ BEGIN
         post_data,
         'Post',
         cascade_data,
-        jsonb_build_object('wordCount', json_length(post_data->'content', '$.words'))
+        jsonb_build_object('word_count', json_length(post_data->'content', '$.words'))
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -179,12 +179,12 @@ BEGIN
     INSERT INTO users (id, name, email, created_at)
     VALUES (user_id, input->>'name', input->>'email', now());
 
-    -- Build entity data (camelCase for GraphQL)
+    -- Build entity data (snake_case - Rust transforms to camelCase for GraphQL)
     user_data := jsonb_build_object(
         'id', user_id,
         'name', input->>'name',
         'email', input->>'email',
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     );
 
     -- Return standardized v2 result

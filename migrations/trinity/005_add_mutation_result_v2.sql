@@ -499,13 +499,13 @@ BEGIN
                 '{metadata}',
                 jsonb_build_object(
                     'timestamp', cascade2->'metadata'->'timestamp',
-                    'transactionId', COALESCE(cascade2->'metadata'->'transactionId', result->'metadata'->'transactionId'),
+                    'transaction_id', COALESCE(cascade2->'metadata'->'transaction_id', result->'metadata'->'transaction_id'),
                     'depth', GREATEST(
                         COALESCE((result->'metadata'->>'depth')::int, 1),
                         COALESCE((cascade2->'metadata'->>'depth')::int, 1)
                     ),
-                    'affectedCount', COALESCE((result->'metadata'->>'affectedCount')::int, 0)
-                                   + COALESCE((cascade2->'metadata'->>'affectedCount')::int, 0)
+                    'affected_count', COALESCE((result->'metadata'->>'affected_count')::int, 0)
+                                   + COALESCE((cascade2->'metadata'->>'affected_count')::int, 0)
                 )
             );
         ELSE
@@ -557,14 +557,14 @@ BEGIN
         'id', user_id,
         'name', input->>'name',
         'email', input->>'email',
-        'createdAt', to_jsonb(now())
+        'created_at', to_jsonb(now())
     );
 
     -- Build cascade data: update user count on organization
     cascade_data := cascade_count_update(
         'Organization',
-        input->>'organizationId',
-        'userCount',
+        input->>'organization_id',
+        'user_count',
         5,  -- previous count (would be queried)
         6   -- new count
     );
@@ -591,22 +591,22 @@ BEGIN
     -- Create post
     post_id := gen_random_uuid();
     INSERT INTO posts (id, title, content, author_id, created_at)
-    VALUES (post_id, input->>'title', input->>'content', (input->>'authorId')::uuid, now());
+    VALUES (post_id, input->>'title', input->>'content', (input->>'author_id')::uuid, now());
 
     -- Build response entity
     post_data := jsonb_build_object(
         'id', post_id,
         'title', input->>'title',
         'content', input->>'content',
-        'authorId', input->>'authorId',
-        'createdAt', to_jsonb(now())
+        'author_id', input->>'author_id',
+        'created_at', to_jsonb(now())
     );
 
     -- Cascade 1: Update author's post count
     author_cascade := cascade_count_update(
         'User',
-        input->>'authorId',
-        'postCount',
+        input->>'author_id',
+        'post_count',
         10, 11
     );
 
@@ -616,10 +616,10 @@ BEGIN
             'created', (
                 SELECT jsonb_agg(
                     jsonb_build_object(
-                        '__typename', 'PostTag',
-                        'postId', post_id,
-                        'tagId', tag_id,
-                        'taggedAt', to_jsonb(now())
+                        'type_name', 'PostTag',
+                        'post_id', post_id,
+                        'tag_id', tag_id,
+                        'tagged_at', to_jsonb(now())
                     )
                 )
                 FROM jsonb_array_elements_text(input->'tags') AS tag_id
@@ -633,7 +633,7 @@ BEGIN
     -- Add cache invalidation
     cascade_data := cascade_merge(
         cascade_data,
-        cascade_invalidate_cache(ARRAY['posts', 'userPosts'], 'INVALIDATE')
+        cascade_invalidate_cache(ARRAY['posts', 'user_posts'], 'INVALIDATE')
     );
 
     RETURN mutation_created(
@@ -641,7 +641,7 @@ BEGIN
         post_data,
         'Post',
         cascade_data,
-        jsonb_build_object('wordCount', json_length(post_data->'content', '$.words'))
+        jsonb_build_object('word_count', json_length(post_data->'content', '$.words'))
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -689,11 +689,11 @@ BEGIN
         'id', id,
         'name', name,
         'email', email,
-        'updatedAt', to_jsonb(updated_at)
+        'updated_at', to_jsonb(updated_at)
     ) INTO user_data FROM users WHERE id = user_id;
 
     -- Create cascade data for cache invalidation
-    cascade_data := cascade_invalidate_cache(ARRAY['userProfile', 'users'], 'INVALIDATE');
+    cascade_data := cascade_invalidate_cache(ARRAY['user_profile', 'users'], 'INVALIDATE');
 
     RETURN mutation_updated(
         'User updated successfully',
