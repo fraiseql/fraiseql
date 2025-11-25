@@ -41,6 +41,7 @@ impl Arena {
     ///
     /// SAFETY: Single-threaded use only (per-request)
     #[inline(always)]
+    #[allow(clippy::mut_from_ref)]
     pub fn alloc_bytes(&self, len: usize) -> &mut [u8] {
         unsafe {
             let pos = self.pos.get();

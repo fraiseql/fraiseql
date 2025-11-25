@@ -168,13 +168,22 @@ class TestMutationResolver:
 
         resolver = CreateUser.__fraiseql_resolver__
 
-        # Mock the context and database
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "User created",
-            "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-        }
+        # Mock the context and database connection for Rust executor
+        mock_cursor = AsyncMock()
+        mock_cursor.fetchone.return_value = (
+            {
+                "status": "success",
+                "message": "User created",
+                "entity": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+            },
+        )
+
+        mock_cursor_ctx = AsyncMock()
+        mock_cursor_ctx.__aenter__.return_value = mock_cursor
+        mock_cursor_ctx.__aexit__.return_value = None
+
+        mock_db = Mock()  # Use Mock, not AsyncMock for the connection
+        mock_db.cursor.return_value = mock_cursor_ctx
 
         info = Mock()
         info.context = {"db": mock_db}
