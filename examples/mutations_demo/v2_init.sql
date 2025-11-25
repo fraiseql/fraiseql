@@ -186,25 +186,77 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- =====================================================
 -- CASCADE HELPERS
 -- =====================================================
+-- Per GraphQL Cascade spec (02_cascade_model.md):
+-- - UpdatedEntity: { type_name, id, operation, entity } -> Rust converts to __typename
+-- - DeletedEntity: { type_name, id, deleted_at } -> Rust converts to deletedAt
+-- - CascadeOperation: CREATED | UPDATED | DELETED
+--
+-- NOTE: SQL uses snake_case. Rust transforms to camelCase for GraphQL.
 
--- Create cascade data for count updates
+-- Create cascade data for entity creation (operation = CREATED)
+CREATE OR REPLACE FUNCTION cascade_entity_created(
+    entity_type text, entity_id text, entity_data jsonb DEFAULT NULL
+) RETURNS jsonb AS $$
+BEGIN
+    RETURN jsonb_build_object('updated', jsonb_build_array(
+        jsonb_build_object(
+            'type_name', entity_type,
+            'id', entity_id,
+            'operation', 'CREATED',
+            'entity', COALESCE(entity_data, '{}'::jsonb)
+        )
+    ));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Create cascade data for entity updates (operation = UPDATED)
+CREATE OR REPLACE FUNCTION cascade_entity_update(
+    entity_type text, entity_id text, entity_data jsonb
+) RETURNS jsonb AS $$
+BEGIN
+    RETURN jsonb_build_object('updated', jsonb_build_array(
+        jsonb_build_object(
+            'type_name', entity_type,
+            'id', entity_id,
+            'operation', 'UPDATED',
+            'entity', entity_data
+        )
+    ));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Create cascade data for count updates (convenience wrapper)
 CREATE OR REPLACE FUNCTION cascade_count_update(
     entity_type text, entity_id text, field_name text,
     previous_val int, current_val int
 ) RETURNS jsonb AS $$
 BEGIN
     RETURN jsonb_build_object('updated', jsonb_build_array(
-        jsonb_build_object('__typename', entity_type, 'id', entity_id) ||
-        jsonb_build_object(field_name, jsonb_build_object('previous', previous_val, 'current', current_val))
+        jsonb_build_object(
+            'type_name', entity_type,
+            'id', entity_id,
+            'operation', 'UPDATED',
+            'entity', jsonb_build_object(
+                'id', entity_id,
+                field_name, current_val,
+                '_previous_' || field_name, previous_val
+            )
+        )
     ));
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- Create cascade data for entity updates
-CREATE OR REPLACE FUNCTION cascade_entity_update(entity_type text, entity_id text, data jsonb) RETURNS jsonb AS $$
+-- Create cascade data for entity deletion
+CREATE OR REPLACE FUNCTION cascade_entity_deleted(
+    entity_type text, entity_id text, deleted_at timestamptz DEFAULT NOW()
+) RETURNS jsonb AS $$
 BEGIN
-    RETURN jsonb_build_object('updated', jsonb_build_array(
-        jsonb_build_object('__typename', entity_type, 'id', entity_id) || data
+    RETURN jsonb_build_object('deleted', jsonb_build_array(
+        jsonb_build_object(
+            'type_name', entity_type,
+            'id', entity_id,
+            'deleted_at', to_jsonb(deleted_at)
+        )
     ));
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
@@ -214,8 +266,8 @@ CREATE OR REPLACE FUNCTION cascade_merge(c1 jsonb, c2 jsonb) RETURNS jsonb AS $$
 BEGIN
     RETURN jsonb_build_object(
         'updated', COALESCE(c1->'updated', '[]'::jsonb) || COALESCE(c2->'updated', '[]'::jsonb),
-        'created', COALESCE(c1->'created', '[]'::jsonb) || COALESCE(c2->'created', '[]'::jsonb),
-        'deleted', COALESCE(c1->'deleted', '[]'::jsonb) || COALESCE(c2->'deleted', '[]'::jsonb)
+        'deleted', COALESCE(c1->'deleted', '[]'::jsonb) || COALESCE(c2->'deleted', '[]'::jsonb),
+        'invalidations', COALESCE(c1->'invalidations', '[]'::jsonb) || COALESCE(c2->'invalidations', '[]'::jsonb)
     );
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;

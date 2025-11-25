@@ -123,14 +123,17 @@ BEGIN
     );
 
     -- Build cascade data for side effects (e.g., update author's post count)
+    -- Uses snake_case - Rust transforms to camelCase/__typename for GraphQL
     cascade_data := jsonb_build_object(
         'updated', jsonb_build_array(
             jsonb_build_object(
-                '__typename', 'User',
+                'type_name', 'User',
                 'id', input->>'authorId',
-                'postCount', jsonb_build_object(
-                    'previous', 5,  -- Would be queried from database
-                    'current', 6
+                'operation', 'UPDATED',
+                'entity', jsonb_build_object(
+                    'id', input->>'authorId',
+                    'post_count', 6,
+                    '_previous_post_count', 5  -- Would be queried from database
                 )
             )
         )
