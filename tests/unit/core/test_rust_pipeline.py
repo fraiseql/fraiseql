@@ -197,9 +197,6 @@ def test_build_graphql_response_with_field_selections_and_aliases() -> None:
     # The "email" field will still be present in the output
 
 
-@pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Test passes individually but fails in full test run. Run with: pytest tests/unit/core/test_rust_pipeline.py::test_build_graphql_response_with_nested_object_aliases -v"
-)
 def test_build_graphql_response_with_nested_object_aliases() -> None:
     """Test field selections with nested object aliases.
 
