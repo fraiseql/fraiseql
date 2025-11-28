@@ -1563,50 +1563,14 @@ class FraiseQLRepository:
         """
         from psycopg.sql import SQL, Composed, Identifier, Literal
 
-        where_parts = []
-
-        # Extract special parameters
-        where_obj = kwargs.pop("where", None)
+        # Extract special parameters BEFORE passing to _build_where_clause
         limit = kwargs.pop("limit", None)
         offset = kwargs.pop("offset", None)
         order_by = kwargs.pop("order_by", None)
 
-        # Process where object
-        if where_obj:
-            if hasattr(where_obj, "to_sql"):
-                where_composed = where_obj.to_sql()
-                if where_composed:
-                    where_parts.append(where_composed)
-            elif hasattr(where_obj, "_to_sql_where"):
-                # Convert GraphQL WhereInput to SQL where type, then get SQL
-                sql_where_obj = where_obj._to_sql_where()
-                if hasattr(sql_where_obj, "to_sql"):
-                    where_composed = sql_where_obj.to_sql()
-                    if where_composed:
-                        where_parts.append(where_composed)
-            elif isinstance(where_obj, dict):
-                # Use sophisticated dict processing for complex filters
-                # Get table columns for proper nested object detection
-                # Check cache first (synchronous), then metadata
-                table_columns = None
-                if (
-                    hasattr(self, "_introspected_columns")
-                    and view_name in self._introspected_columns
-                ):
-                    table_columns = self._introspected_columns[view_name]
-                elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
-                    table_columns = _table_metadata[view_name]["columns"]
-
-                dict_where_sql = self._convert_dict_where_to_sql(
-                    where_obj, view_name, table_columns, jsonb_column
-                )
-                if dict_where_sql:
-                    where_parts.append(dict_where_sql)
-
-        # Process remaining kwargs as simple equality filters
-        for key, value in kwargs.items():
-            where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
-            where_parts.append(where_condition)
+        # Use unified WHERE clause building (includes Issue #124 fix for hybrid tables)
+        # This ensures WhereInput nested filters work correctly in all code paths
+        where_parts = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
