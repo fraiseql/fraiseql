@@ -114,38 +114,6 @@ def test_build_graphql_response_single_object() -> None:
     assert '"userName":"Alice"' in result
 
 
-@pytest.mark.skip(
-    reason="Legacy field_paths projection not supported in schema-aware pipeline. "
-    "Use field_selections with aliases instead. See docs/rust/RUST_FIELD_PROJECTION.md"
-)
-def test_build_graphql_response_with_projection() -> None:
-    """Test field projection.
-
-    NOTE: This test is skipped because field_paths projection is not yet implemented
-    in the schema-aware transformation path. When schema registry is available,
-    the schema-aware path is used which doesn't support the old field_paths parameter.
-
-    Use field_selections with aliases instead for both projection and aliasing.
-    """
-    json_string = '{"id": 1, "user_name": "Alice", "email": "alice@example.com", "age": 30}'
-
-    field_paths = [["id"], ["user_name"]]  # Only request id and user_name
-
-    response_bytes = fraiseql_rs.build_graphql_response(
-        json_strings=[json_string], field_name="user", type_name="User", field_paths=field_paths
-    )
-
-    result = response_bytes.decode("utf-8")
-
-    # Should have projected fields
-    assert '"id"' in result
-    assert '"userName"' in result
-
-    # Should NOT have non-projected fields
-    assert '"email"' not in result
-    assert '"age"' not in result
-
-
 def test_rust_response_bytes_wrapper() -> None:
     """Test RustResponseBytes wrapper class."""
     data = b'{"test": "data"}'

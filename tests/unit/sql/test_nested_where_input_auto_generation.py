@@ -49,13 +49,35 @@ def test_nested_where_input_auto_generation() -> None:
 
 
 def test_circular_reference_handling() -> None:
-    """Test that circular references don't cause infinite loops."""
-    # Self-referential types require advanced forward reference handling
-    # This is a known limitation that would require:
-    # 1. Deferred type hint resolution in constructor.py
-    # 2. Special handling in lazy property descriptors
-    # For now, users should define such types carefully or use manual generation
-    pytest.skip("Self-referential types require advanced forward reference handling")
+    """Test that circular references (self-referential types) work correctly."""
+    clear_auto_generated_cache()
+
+    @fraiseql.type(sql_source="v_category")
+    @dataclass
+    class Category:
+        id: UUID
+        name: str
+        parent_id: UUID | None = None
+        parent: "Category | None" = None  # Self-reference (string annotation)
+
+    # This should NOT cause infinite recursion
+    category_where = Category.WhereInput
+
+    # Should have all fields including self-reference
+    assert hasattr(category_where, "__annotations__")
+    annotations = category_where.__annotations__
+
+    # Basic fields
+    assert "id" in annotations
+    assert "name" in annotations
+    assert "parent_id" in annotations
+
+    # Self-referential field should be present
+    assert "parent" in annotations
+
+    # Should be instantiable
+    filter_obj = category_where(name={"eq": "Electronics"})
+    assert filter_obj is not None
 
 
 def test_nested_type_uses_lazy_property() -> None:
@@ -161,12 +183,24 @@ def test_multiple_nested_types_in_same_class() -> None:
 
 
 def test_nested_type_with_forward_reference() -> None:
-    """Test that forward references in nested types are handled."""
-    # Forward references during decoration require special handling
-    # For now, we define types in the correct order (dependencies first)
-    pytest.skip(
-        "Forward references during decoration require special handling - use correct definition order instead"
-    )
+    """Test that forward references to undefined types raise helpful errors."""
+    clear_auto_generated_cache()
+
+    # Test that forward references raise a helpful TypeError
+    # (not a cryptic NameError)
+    # Use string annotation to defer evaluation to decorator time
+    with pytest.raises(TypeError) as exc_info:
+
+        @fraiseql.type(sql_source="v_bad")
+        @dataclass
+        class BadType:
+            id: UUID
+            undefined_ref: "NonExistentType | None" = None  # noqa: F821
+
+    # Error message should be helpful
+    error_msg = str(exc_info.value)
+    assert "NonExistentType" in error_msg
+    assert "cannot be resolved" in error_msg or "not defined" in error_msg
 
 
 def test_nested_where_input_can_be_instantiated() -> None:

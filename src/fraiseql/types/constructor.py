@@ -138,7 +138,26 @@ def define_fraiseql_type(
     """
     typed_cls = cast("type[Any]", cls)
 
-    type_hints = get_type_hints(cls, include_extras=True)
+    # Support self-referential types by including cls in localns
+    # This allows types like: parent: Category | None (within Category)
+    try:
+        type_hints = get_type_hints(
+            cls,
+            localns={cls.__name__: cls},
+            include_extras=True,
+        )
+    except NameError as e:
+        # Forward reference to undefined type - provide helpful error
+        import re
+
+        match = re.search(r"name '(\w+)' is not defined", str(e))
+        undefined_name = match.group(1) if match else str(e)
+
+        raise TypeError(
+            f"Forward reference '{undefined_name}' in {cls.__name__} cannot be resolved. "
+            f"Define '{undefined_name}' before '{cls.__name__}', or use "
+            f"'from __future__ import annotations' for deferred evaluation."
+        ) from e
     field_map, patched_annotations = collect_fraise_fields(typed_cls, type_hints, kind=kind)
 
     # For type and interface decorators, set all fields to "output" purpose if they are "both"
