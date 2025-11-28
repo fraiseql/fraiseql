@@ -405,3 +405,107 @@ fn test_mutation_status_http_codes() {
     assert_eq!(MutationStatus::from_str("failed:validation").http_code(), 422);
     assert_eq!(MutationStatus::from_str("failed:conflict").http_code(), 409);
 }
+
+// ============================================================================
+// Tests for CASCADE data extraction and inclusion
+// ============================================================================
+
+#[test]
+fn test_parse_simple_format_with_cascade() {
+    // Simple format with _cascade field (underscore prefix)
+    let json = r#"{
+        "id": "post-123",
+        "message": "Post created",
+        "_cascade": {
+            "updated": [{"id": "user-456", "post_count": 5}],
+            "deleted": [],
+            "invalidations": ["User:post-123"],
+            "metadata": {"operation": "create"}
+        }
+    }"#;
+
+    let result = MutationResult::from_json(json, Some("Post")).unwrap();
+
+    // Should be detected as simple format and treated as success
+    assert!(result.status.is_success());
+    assert!(result.is_simple_format);
+
+    // Cascade should be extracted
+    assert!(result.cascade.is_some());
+    let cascade = result.cascade.as_ref().unwrap();
+
+    // Verify cascade structure
+    assert!(cascade.get("updated").is_some());
+    assert!(cascade.get("deleted").is_some());
+    assert!(cascade.get("invalidations").is_some());
+    assert!(cascade.get("metadata").is_some());
+
+    // Check specific values
+    let updated = cascade["updated"].as_array().unwrap();
+    assert_eq!(updated.len(), 1);
+    assert_eq!(updated[0]["id"], "user-456");
+    assert_eq!(updated[0]["post_count"], 5);
+}
+
+#[test]
+fn test_build_simple_format_response_with_cascade() {
+    // Simple format with cascade data
+    let mutation_json = r#"{
+        "id": "post-123",
+        "title": "New Post",
+        "_cascade": {
+            "updated": [{"id": "user-456", "post_count": 5}],
+            "deleted": [],
+            "invalidations": ["User:post-123"],
+            "metadata": {"operation": "create"}
+        }
+    }"#;
+
+    let response_bytes = build_mutation_response(
+        mutation_json,
+        "createPost",           // GraphQL field name
+        "CreatePostSuccess",    // Success type name
+        "CreatePostError",      // Error type name
+        Some("post"),           // Entity field name
+        Some("Post"),           // Entity type for __typename
+        None,                   // No cascade selections
+    ).unwrap();
+
+    let response: Value = serde_json::from_slice(&response_bytes).unwrap();
+
+    let create_post = &response["data"]["createPost"];
+    assert_eq!(create_post["__typename"], "CreatePostSuccess");
+    assert_eq!(create_post["message"], "Success");
+
+    // Check entity
+    let post = &create_post["post"];
+    assert_eq!(post["__typename"], "Post");
+    assert_eq!(post["id"], "post-123");
+    assert_eq!(post["title"], "New Post");
+
+    // Check cascade is included in response
+    let cascade = &create_post["cascade"];
+    assert!(cascade.is_object());
+
+    // Verify cascade structure
+    assert!(cascade.get("updated").is_some());
+    assert!(cascade.get("deleted").is_some());
+    assert!(cascade.get("invalidations").is_some());
+    assert!(cascade.get("metadata").is_some());
+
+    // Check specific cascade values
+    let updated = cascade["updated"].as_array().unwrap();
+    assert_eq!(updated.len(), 1);
+    assert_eq!(updated[0]["id"], "user-456");
+    assert_eq!(updated[0]["post_count"], 5);
+
+    let deleted = cascade["deleted"].as_array().unwrap();
+    assert_eq!(deleted.len(), 0);
+
+    let invalidations = cascade["invalidations"].as_array().unwrap();
+    assert_eq!(invalidations.len(), 1);
+    assert_eq!(invalidations[0], "User:post-123");
+
+    let metadata = &cascade["metadata"];
+    assert_eq!(metadata["operation"], "create");
+}

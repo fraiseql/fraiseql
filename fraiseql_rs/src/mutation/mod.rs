@@ -199,6 +199,9 @@ impl MutationResult {
 
         if is_simple || v.is_array() {
             // SIMPLE FORMAT: Treat entire JSON as entity, assume success
+            // Extract '_cascade' field from simple format (note underscore prefix)
+            let cascade = v.get("_cascade").filter(|c| !c.is_null()).cloned();
+
             return Ok(MutationResult {
                 status: MutationStatus::Success("success".to_string()),
                 message: "Success".to_string(),
@@ -206,7 +209,7 @@ impl MutationResult {
                 entity_type: default_entity_type.map(String::from),
                 entity: Some(v.clone()),
                 updated_fields: None,
-                cascade: None,
+                cascade,
                 metadata: None,
                 is_simple_format: true,
             });
@@ -301,6 +304,11 @@ fn build_success_object(
             .map(|f| json!(to_camel_case(f)))
             .collect();
         obj.insert("updatedFields".to_string(), json!(camel_fields));
+    }
+
+    // Add cascade if present
+    if let Some(cascade) = &result.cascade {
+        obj.insert("cascade".to_string(), cascade.clone());
     }
 
     Ok(Value::Object(obj))
