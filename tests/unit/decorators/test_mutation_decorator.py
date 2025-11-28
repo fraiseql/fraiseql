@@ -8,43 +8,7 @@ import fraiseql
 from fraiseql.mutations.decorators import failure, success
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 from fraiseql.types.fraise_input import fraise_input
-
-
-class MockRustResponseBytes:
-    """Mock RustResponseBytes for testing."""
-
-    def __init__(self, data: dict) -> None:
-        self._data = data
-
-    def to_json(self) -> dict:
-        return self._data
-
-
-class MockConnection:
-    """Mock async connection context manager."""
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        pass
-
-
-class MockPool:
-    """Mock connection pool."""
-
-    def connection(self):
-        return MockConnection()
-
-
-class MockDatabase:
-    """Mock database with pool support for mutation tests."""
-
-    def __init__(self) -> None:
-        self._pool = MockPool()
-
-    def get_pool(self):
-        return self._pool
+from tests.mocks import MockDatabase, MockRustResponseBytes
 
 
 @fraise_input
@@ -230,15 +194,21 @@ class TestMutationResolver:
 
         # Mock the Rust executor - it returns RustResponseBytes
         # Use object_data format that the parser expects for legacy format
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_user": {
-                    "status": "success",
-                    "message": "User created",
-                    "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_user": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -281,14 +251,16 @@ class TestMutationResolver:
         input_obj.to_dict = lambda: {"name": "John", "email": "existing@example.com"}
 
         # Mock error response from Rust executor
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_user": {
-                    "status": "validation_error",
-                    "message": "Email already exists",
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_user": {
+                        "status": "validation_error",
+                        "message": "Email already exists",
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -332,16 +304,22 @@ class TestMutationResolver:
 
         # Mock response from Rust executor with cascade data
         # Use object_data format that the parser expects
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_user_with_cascade": {
-                    "status": "success",
-                    "message": "User created",
-                    "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-                    "_cascade": cascade_data,
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_user_with_cascade": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                        "_cascade": cascade_data,
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -377,16 +355,22 @@ class TestMutationResolver:
 
         # Mock response from Rust executor
         # Use object_data format that the parser expects
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_user_without_cascade": {
-                    "status": "success",
-                    "message": "User created",
-                    "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-                    "_cascade": {"updated": [], "deleted": []},
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_user_without_cascade": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                        "_cascade": {"updated": [], "deleted": []},
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -538,15 +522,17 @@ class TestPrepareInputHook:
 
         # Mock the Rust executor
         # Use object_data format that the parser expects
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_network_config": {
-                    "status": "success",
-                    "message": "Network config created",
-                    "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_network_config": {
+                        "status": "success",
+                        "message": "Network config created",
+                        "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -591,15 +577,21 @@ class TestPrepareInputHook:
 
         # Mock the Rust executor
         # Use object_data format that the parser expects
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "create_user": {
-                    "status": "success",
-                    "message": "User created",
-                    "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "create_user": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
@@ -653,15 +645,17 @@ class TestPrepareInputHook:
 
         # Mock the Rust executor
         # Use object_data format that the parser expects
-        mock_response = MockRustResponseBytes({
-            "data": {
-                "update_note": {
-                    "status": "success",
-                    "message": "Note updated",
-                    "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "update_note": {
+                        "status": "success",
+                        "message": "Note updated",
+                        "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},
+                    }
                 }
             }
-        })
+        )
 
         with patch(
             "fraiseql.mutations.rust_executor.execute_mutation_rust",
