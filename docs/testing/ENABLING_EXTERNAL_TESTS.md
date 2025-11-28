@@ -1,6 +1,6 @@
 # Enabling External Service Tests
 
-**Version:** v1.6.2
+**Version:** v1.7.0
 **Last Updated:** 2025-11-24
 
 This guide shows you how to enable the 10 skipped tests that require external services.

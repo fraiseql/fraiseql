@@ -1,6 +1,6 @@
 # Skipped Tests Documentation
 
-**Version:** v1.6.2
+**Version:** v1.7.0
 **Last Updated:** 2025-11-24
 **Total Skipped:** 28 tests
 **Total Passing:** 4,603 tests
