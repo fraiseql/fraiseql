@@ -204,8 +204,7 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
 
         for key, value in filter_dict.items():
             # For now, support simple equality filtering
-            # TODO(@opencode): Add support for complex operators like gt, lt, in, etc.
-            # https://github.com/sst/opencode/issues/124
+            # v1.8: Add support for complex operators (gt, lt, in, etc.)
             conditions.append(f"{self.metadata_column} ->> %s = %s")
             params.extend([key, value])
 
@@ -276,8 +275,7 @@ class FraiseQLVectorStore(VectorStore if LANGCHAIN_AVAILABLE else object):  # ty
     ) -> List[Tuple["Document", float]]:  # type: ignore[name-defined]
         """Perform similarity search with scores asynchronously."""
         # For now, return search results without scores
-        # TODO(@opencode): Implement score extraction from pgvector results
-        # https://github.com/sst/opencode/issues/123
+        # v1.8: Implement score extraction from pgvector results
         documents = await self.asimilarity_search(query, k=k, filter=filter, **kwargs)
         return [(doc, 0.0) for doc in documents]  # Placeholder scores
 
