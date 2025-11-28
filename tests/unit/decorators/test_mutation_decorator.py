@@ -203,7 +203,7 @@ class TestMutationResolver:
     async def test_resolver_calls_database_function(self) -> None:
         """Test that resolver calls the Rust executor with correct parameters."""
 
-        @mutation
+        @mutation(enable_cascade=True)  # Force parsing to return SampleSuccess
         class CreateUser:
             input: SampleInput
             success: SampleSuccess
@@ -396,9 +396,9 @@ class TestMutationResolver:
             # Call resolver
             result = await resolver(info, input_obj)
 
-        # Result is parsed because mutation has union return type (success and error)
-        # The cascade is disabled but parsing still happens due to union return type
-        assert isinstance(result, SampleSuccess)
+        # When enable_cascade=False (fast path), the raw RustResponseBytes is returned directly
+        # without parsing into success/error types
+        assert isinstance(result, MockRustResponseBytes)
 
     @pytest.mark.asyncio
     async def test_resolver_missing_database_raises_error(self) -> None:
@@ -494,7 +494,7 @@ class TestPrepareInputHook:
             ip_address: str
             subnet_mask: str
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class CreateNetworkConfig:
             """Create network configuration with CIDR notation."""
 
@@ -572,7 +572,7 @@ class TestPrepareInputHook:
     async def test_mutation_without_prepare_input_works_normally(self) -> None:
         """Test that mutations without prepare_input hook work as before."""
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class CreateUser:
             input: SampleInput
             success: SampleSuccess
@@ -626,7 +626,7 @@ class TestPrepareInputHook:
             id: str
             notes: str | None = None
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class UpdateNote:
             input: UpdateNoteInput
             success: SampleSuccess
