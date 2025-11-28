@@ -32,50 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔧 Breaking Changes
 
 - Mutation resolvers now return `RustResponseBytes` instead of Python objects
-- Tests mocking mutation internals need updates (see migration guide)
+- Tests mocking mutation internals need updates
 
 ### 📚 Documentation
 
 - Complete GraphQL Cascade guide
 - Global compliance coverage
 - Mutation result format reference
-
-## [2.0.0] - 2025-11-24
-
-### 🎉 Major Features
-
-**GraphQL Cascade** ⚡ NEW (Experimental)
-- **Automatic Cache Updates**: Mutations can now include cascade metadata that clients use to update their caches automatically
-- **Entity Tracking**: Track created, updated, and deleted entities with full data snapshots
-- **Query Invalidation**: Strategic cache invalidation hints for clients (INVALIDATE, EVICT strategies)
-- **Zero Extra Queries**: Eliminate the need for follow-up queries after mutations
-- **Apollo Client Integration**: Drop-in support for Apollo Client cache updates
-- **PostgreSQL-Native**: Cascade metadata is generated directly in PostgreSQL functions for maximum performance
-- **Opt-In Design**: Enable per-mutation with `@mutation(enable_cascade=True)`
-- **Note**: This feature is currently experimental. Parser and resolver support is complete, but integration testing is ongoing.
-
-**Example:**
-```python
-@mutation(enable_cascade=True)
-class CreatePost:
-    input: CreatePostInput
-    success: CreatePostSuccess
-    error: CreatePostError
-```
-
-**Benefits:**
-- Reduced network traffic (fewer queries)
-- Instant UI updates without loading states
-- Better user experience with optimistic updates
-- Type-safe cascade data structure
-
-See `examples/graphql-cascade/` for complete implementation guide.
-
-### 📚 Documentation
-
-- Added comprehensive GraphQL Cascade guide with PostgreSQL function examples
-- Added Apollo Client integration examples
-- Enhanced mutation documentation with cascade patterns
 
 ## [1.6.2] - 2025-11-24
 
