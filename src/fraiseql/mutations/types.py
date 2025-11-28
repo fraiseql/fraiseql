@@ -127,7 +127,7 @@ class CascadeMetadata:
 class Cascade:
     """Complete cascade response with side effects."""
 
-    updated: List[CascadeEntity]
+    updated: Any  # JSON array preserves __typename from Rust
     deleted: List[str]
     invalidations: List[CascadeInvalidation]
     metadata: CascadeMetadata
