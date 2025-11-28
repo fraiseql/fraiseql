@@ -454,7 +454,6 @@ dev = [
     "llama-index>=0.14.8",
     "llama-index-core>=0.14.8",
     "maturin>=1.9.6",
-    "mypy>=1.18.2",
     "pre-commit>=4.2.0",
     "psutil>=7.1.3",
     "pyright>=1.1.405",
@@ -464,6 +463,7 @@ dev = [
     "pytest-forked>=1.6.0",
     "testcontainers>=4.10.0",
     "twine>=6.1.0",
+    "ty>=0.0.1a28",
 ]
 docs = [
     "mkdocs>=1.6.1",
