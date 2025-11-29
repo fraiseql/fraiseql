@@ -36,23 +36,36 @@ except ImportError:
     pass  # Skip cascade fixtures if dependencies not available
 
 
-@pytest.fixture(autouse=True, scope="function")
-def clear_registry() -> None:
-    """Clear the registry before and after each test."""
+@pytest.fixture(autouse=True, scope="session")
+def clear_type_caches() -> None:
+    """Clear type caches once at session start and end."""
     if not FRAISEQL_AVAILABLE:
-        pytest.skip("FraiseQL not available - skipping registry fixture")
+        return
 
-    # Clear before test
-    SchemaRegistry.get_instance().clear()
+    # Clear at session start
     _graphql_type_cache.clear()
     _type_registry.clear()
 
     yield
 
-    # Clear after test
-    SchemaRegistry.get_instance().clear()
+    # Clear at session end
     _graphql_type_cache.clear()
     _type_registry.clear()
+
+
+@pytest.fixture(autouse=True, scope="function")
+def clear_registry() -> None:
+    """Clear the schema registry before and after each test."""
+    if not FRAISEQL_AVAILABLE:
+        pytest.skip("FraiseQL not available - skipping registry fixture")
+
+    # Clear before test - only the singleton registry needs per-test isolation
+    SchemaRegistry.get_instance().clear()
+
+    yield
+
+    # Clear after test
+    SchemaRegistry.get_instance().clear()
 
 
 @pytest.fixture
