@@ -260,11 +260,15 @@ async def execute_via_rust_pipeline(
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
 
+            # Convert field_selections to JSON string for Rust
+            field_selections_json = json.dumps(field_selections) if field_selections else None
+
             response_bytes = fraiseql_rs.build_graphql_response(
                 json_strings=json_strings,
                 field_name=field_name,
                 type_name=type_name,
                 field_paths=field_paths,
+                field_selections=field_selections_json,
                 is_list=True,
             )
 
@@ -284,11 +288,15 @@ async def execute_via_rust_pipeline(
 
         json_string = row[0]
 
+        # Convert field_selections to JSON string for Rust
+        field_selections_json = json.dumps(field_selections) if field_selections else None
+
         response_bytes = fraiseql_rs.build_graphql_response(
             json_strings=[json_string],
             field_name=field_name,
             type_name=type_name,
             field_paths=field_paths,
+            field_selections=field_selections_json,
             is_list=False,
         )
 

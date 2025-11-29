@@ -93,7 +93,7 @@ class MutationDefinition:
         # Fallback: try to find any field that looks like an entity
         for field_name, field_type in success_hints.items():
             # Skip common non-entity fields
-            if field_name in ["message", "success", "error", "errors", "code", "status"]:
+            if field_name in ["id", "message", "success", "error", "errors", "code", "status"]:
                 continue
 
             # If it's a type (class), assume it's the entity
@@ -157,7 +157,8 @@ class MutationDefinition:
             from fraiseql.mutations.rust_executor import execute_mutation_rust
 
             full_function_name = f"{self.schema}.{self.function_name}"
-            field_name = to_snake_case(self.name)  # GraphQL field name
+            # GraphQL field name: CreatePost -> createPost (lowercase first letter)
+            field_name = self.name[0].lower() + self.name[1:] if self.name else self.name
             success_type_name = getattr(self.success_type, "__name__", "Success")
             error_type_name = getattr(self.error_type, "__name__", "Error")
 
@@ -197,18 +198,19 @@ class MutationDefinition:
                     context_args=context_args if context_args else None,
                 )
 
-            # RUST-FIRST PATH: Return RustResponseBytes directly to HTTP
-            # This bypasses Python JSON parsing entirely for maximum performance
-            # PostgreSQL → Rust → HTTP bytes (zero Python string operations)
-            if not self.enable_cascade:
-                # Fast path: return pre-serialized bytes directly
-                # The middleware in execute_graphql() will detect RustResponseBytes
-                # and pass it through to HTTP without any Python serialization
+            # Check if we're in HTTP mode (set by FastAPI routers)
+            # HTTP mode: return RustResponseBytes directly for performance
+            # Non-HTTP mode: parse and return Python objects for direct GraphQL execution
+            http_mode = info.context.get("_http_mode", False)
+
+            if http_mode:
+                # RUST-FIRST PATH: Return RustResponseBytes directly to HTTP
+                # This bypasses Python JSON parsing entirely for maximum performance
+                # PostgreSQL → Rust → HTTP bytes (zero Python string operations)
                 return rust_response
 
-            # LEGACY PATH: Only used when cascade is enabled
-            # Extract the mutation result from the GraphQL response
-            # RustResponseBytes contains the full GraphQL response JSON
+            # NON-HTTP PATH: Parse Rust response into Python objects
+            # This is needed for direct GraphQL execute() calls (tests, GraphiQL, etc.)
             graphql_response = rust_response.to_json()
             mutation_result = graphql_response["data"][field_name]
 
@@ -220,86 +222,9 @@ class MutationDefinition:
                 self.error_config,
             )
 
-            # For cascade compatibility, set result to the mutation_result dict
-            result = mutation_result
-
-            # Check for cascade data (only reached if cascade is enabled)
-            # Extract cascade field selections from GraphQL query
-            cascade_data = None
-            if "_cascade" in result:
-                cascade_data = result["_cascade"]
-            elif (
-                hasattr(parsed_result, "extra_metadata")
-                and parsed_result.extra_metadata
-                and "_cascade" in parsed_result.extra_metadata
-            ):
-                cascade_data = parsed_result.extra_metadata["_cascade"]
-
-            if cascade_data:
-                # Try to filter cascade data based on GraphQL selections
-                try:
-                    from fraiseql.mutations.cascade_selections import extract_cascade_selections
-
-                    cascade_selections = extract_cascade_selections(info)
-
-                    if cascade_selections:
-                        # Filter using Rust
-                        filtered_cascade = _filter_cascade_rust(cascade_data, cascade_selections)
-                        parsed_result.__cascade__ = filtered_cascade
-                    else:
-                        # No selections - return all cascade data
-                        parsed_result.__cascade__ = cascade_data
-                except Exception as e:
-                    # Fallback: return unfiltered cascade data
-                    import logging
-
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"Cascade filtering failed, using unfiltered data: {e}")
-                    parsed_result.__cascade__ = cascade_data
-
-            # Return the parsed result directly - let GraphQL handle object resolution
-            # Serialization will be handled at the JSON encoding stage
-
-            # IMPORTANT: Add cascade resolver if enabled
-            if self.enable_cascade and hasattr(parsed_result, "__cascade__"):
-                # Attach a resolver for the cascade field
-                def resolve_cascade(obj: Any, info: Any) -> Any:
-                    return getattr(obj, "__cascade__", None)
-
-                parsed_result.__resolve_cascade__ = resolve_cascade
-
-            # DEBUG: Check if errors field is being set correctly for enterprise compatibility
-            if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
-                class_name = parsed_result.__class__.__name__
-                errors_value = parsed_result.errors
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.info(f"Mutation result: {class_name}, errors={errors_value}")
-
-                # CRITICAL FIX: Force populate errors for frontend compatibility
-                if class_name.endswith("Error") and errors_value is None:
-                    status = getattr(parsed_result, "status", "unknown")
-                    message = getattr(parsed_result, "message", "Unknown error")
-
-                    # Create error from status and message
-                    if ":" in status:
-                        error_code = 422
-                        identifier = status.split(":", 1)[1]
-                    else:
-                        error_code = 500
-                        identifier = "general_error"
-
-                    error_obj = {
-                        "code": error_code,
-                        "identifier": identifier,
-                        "message": message,
-                        "details": {},
-                    }
-
-                    # Force set errors array
-                    parsed_result.errors = [error_obj]
-                    logger.info(f"FORCED errors population: {[error_obj]}")
+            # Attach cascade data if present (when enable_cascade=True)
+            if self.enable_cascade and "_cascade" in mutation_result:
+                parsed_result.__cascade__ = mutation_result["_cascade"]
 
             return parsed_result
 
