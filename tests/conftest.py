@@ -1,4 +1,8 @@
+import os
 import pytest
+
+# Check if Rust extension should be skipped for performance optimization
+SKIP_RUST = os.getenv("FRAISEQL_SKIP_RUST") == "1"
 
 # Try to import FraiseQL components, skip if not available
 try:
@@ -10,10 +14,10 @@ try:
     FRAISEQL_AVAILABLE = True
 except ImportError:
     FRAISEQL_AVAILABLE = False
-    SchemaConfig = None
-    SchemaRegistry = None
-    _graphql_type_cache = None
-    _type_registry = None
+    SchemaConfig = None  # type: ignore
+    SchemaRegistry = None  # type: ignore
+    _graphql_type_cache = None  # type: ignore
+    _type_registry = None  # type: ignore
 
 # Import fixtures from the new organized structure
 # Import examples fixtures first as they don't require heavy dependencies
@@ -54,18 +58,30 @@ def clear_type_caches() -> None:
 
 
 @pytest.fixture(autouse=True, scope="function")
-def clear_registry() -> None:
-    """Clear the schema registry before and after each test."""
-    if not FRAISEQL_AVAILABLE:
-        pytest.skip("FraiseQL not available - skipping registry fixture")
+def clear_registry(request) -> None:
+    """Clear the schema registry before and after each test.
 
-    # Clear before test - only the singleton registry needs per-test isolation
-    SchemaRegistry.get_instance().clear()
+    Optimized: Only clears for tests that need full isolation.
+    Unit tests skip expensive clearing for better performance.
+    """
+    if not FRAISEQL_AVAILABLE:
+        return  # Skip if not available
+
+    # Only do expensive clearing for tests that need full isolation
+    needs_isolation = any(
+        marker in request.keywords
+        for marker in ["database", "integration", "e2e", "forked", "slow", "enterprise"]
+    )
+
+    if needs_isolation:
+        # Clear before test for heavy tests that need isolation
+        SchemaRegistry.get_instance().clear()  # type: ignore
 
     yield
 
-    # Clear after test
-    SchemaRegistry.get_instance().clear()
+    if needs_isolation:
+        # Clear after test for heavy tests
+        SchemaRegistry.get_instance().clear()  # type: ignore
 
 
 @pytest.fixture
@@ -84,3 +100,16 @@ def use_snake_case() -> None:
 
     # Restore original config
     SchemaConfig.set_config(camel_case_fields=original_config)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip Rust-dependent tests when FRAISEQL_SKIP_RUST=1."""
+    if SKIP_RUST:
+        skip_rust = pytest.mark.skip(reason="Rust extension disabled via FRAISEQL_SKIP_RUST=1")
+        for item in items:
+            # Skip tests that import or use Rust extension
+            if any(marker in item.keywords for marker in ["rust"]):
+                item.add_marker(skip_rust)
+            # Also skip tests that have 'rust' in the filename or path
+            elif "rust" in str(item.fspath).lower():
+                item.add_marker(skip_rust)
