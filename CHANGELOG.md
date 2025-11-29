@@ -1486,8 +1486,6 @@ FraiseQL v1.0.0 is fully backward compatible with v0.11.5. Simply upgrade:
 pip install --upgrade fraiseql
 ```
 
-For detailed migration instructions, see [docs/migration/v0-to-v1.md](docs/migration/v0-to-v1.md).
-
 ### 🙏 Acknowledgments
 
 This release represents months of development, testing, and refinement. Special thanks to:

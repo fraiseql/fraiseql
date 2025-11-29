@@ -712,7 +712,7 @@ async def sync_post(self, post_ids: list[UUID]):
 ## See Also
 
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/) - See explicit sync in action
-- [CASCADE Invalidation](../performance/cascade-invalidation.md) - Cache invalidation with sync
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cache invalidation with sync
 - [Migrations Guide](./migrations.md) - Setting up tb_/tv_ tables
 - [Database Patterns](../advanced/database-patterns.md) - Advanced sync patterns
 

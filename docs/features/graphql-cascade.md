@@ -2,8 +2,8 @@
 
 **Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
 
-> **Deep Dive**: For performance tuning, monitoring, and advanced patterns, see the
-> [CASCADE Performance Guide](../performance/cascade-invalidation.md).
+> **Deep Dive**: For best practices, patterns, and recommendations, see the
+> [CASCADE Best Practices Guide](../guides/cascade-best-practices.md).
 
 GraphQL Cascade enables automatic cache updates and side effect tracking for mutations in FraiseQL. When a mutation modifies data, it can include cascade information that clients use to update their caches without additional queries.
 
@@ -407,6 +407,6 @@ See `examples/cascade/` for complete working examples including:
 ## Next Steps
 
 - [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications
-- [CASCADE Performance Guide](../performance/cascade-invalidation.md) - Tuning, monitoring, advanced patterns
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Tuning, monitoring, advanced patterns
 - [Migrating to Cascade](../guides/migrating-to-cascade.md) - Adoption guide
 - [Cascade Best Practices](../guides/cascade-best-practices.md) - Production recommendations

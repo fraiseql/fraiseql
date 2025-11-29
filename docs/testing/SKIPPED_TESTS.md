@@ -461,10 +461,9 @@ pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
 
 ## Related Documentation
 
-- [Testing Guide](../TESTING.md) - Comprehensive testing documentation
+- [Testing Checklist](../reference/testing-checklist.md) - Testing documentation
 - [Rust Field Projection](../rust/RUST_FIELD_PROJECTION.md) - Field selection API
-- [Security Testing](../security/TESTING.md) - KMS provider testing
-- [CI/CD Pipeline](../../.github/workflows/README.md) - GitHub Actions configuration
+- [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) - KMS provider architecture
 
 ---
 
