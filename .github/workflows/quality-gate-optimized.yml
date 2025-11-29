@@ -33,6 +33,16 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
+    - name: Cache uv dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/uv
+          .venv
+        key: uv-${{ runner.os }}-py3.13-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          uv-${{ runner.os }}-py3.13-
+
     - name: Setup environment and install dependencies
       env:
         FRAISEQL_SKIP_RUST: 1
@@ -115,6 +125,19 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
+    - name: Cache Rust build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          fraiseql_rs/target/
+        key: rust-${{ runner.os }}-${{ hashFiles('fraiseql_rs/Cargo.lock') }}
+        restore-keys: |
+          rust-${{ runner.os }}-
+
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -136,6 +159,24 @@ jobs:
 
         # Build and install Rust extension with modern maturin+uv integration
         uv run maturin develop --uv
+
+    - name: Check test collection performance
+      env:
+        FRAISEQL_SKIP_RUST: 1
+      run: |
+        echo '=== Test Collection Performance Check ==='
+        START_TIME=$(date +%s.%N)
+        TEST_COUNT=$(uv run pytest tests/ --collect-only -q -m 'not database and not integration and not e2e and not forked and not slow and not enterprise' 2>/dev/null | tail -1 | grep -oE '[0-9]+' | head -1 || echo '0')
+        END_TIME=$(date +%s.%N)
+        COLLECTION_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+        echo "Unit tests collected: $TEST_COUNT tests in ${COLLECTION_TIME}s"
+
+        # Fail if collection takes >15 seconds (regression)
+        if (( $(echo "$COLLECTION_TIME > 15" | bc -l) )); then
+          echo '❌ Test collection took too long (>15s) - possible performance regression'
+          exit 1
+        fi
+        echo '✅ Test collection performance OK'
 
     - name: Verify Environment
       run: |
