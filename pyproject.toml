@@ -460,6 +460,7 @@ dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=7.0.0",
+    "asgi-lifespan>=2.1.0",
     "pytest-forked>=1.6.0",
     "testcontainers>=4.10.0",
     "twine>=6.1.0",
