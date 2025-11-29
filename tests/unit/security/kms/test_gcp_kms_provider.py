@@ -1,13 +1,14 @@
 """Tests for GCP Cloud KMS provider."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fraiseql.security.kms.infrastructure.gcp_kms import (
-    GCPKMSProvider,
-    GCPKMSConfig,
-)
+import pytest
+
 from fraiseql.security.kms.domain.base import BaseKMSProvider
+from fraiseql.security.kms.infrastructure.gcp_kms import (
+    GCPKMSConfig,
+    GCPKMSProvider,
+)
 
 
 class TestGCPKMSConfig:

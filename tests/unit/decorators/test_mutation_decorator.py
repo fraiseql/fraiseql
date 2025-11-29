@@ -197,7 +197,7 @@ class TestMutationResolver:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_user": {
+                    "createUser": {
                         "status": "success",
                         "message": "User created",
                         "object_data": {
@@ -254,7 +254,7 @@ class TestMutationResolver:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_user": {
+                    "createUser": {
                         "status": "validation_error",
                         "message": "Email already exists",
                     }
@@ -307,7 +307,7 @@ class TestMutationResolver:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_user_with_cascade": {
+                    "createUserWithCascade": {
                         "status": "success",
                         "message": "User created",
                         "object_data": {
@@ -335,7 +335,12 @@ class TestMutationResolver:
 
     @pytest.mark.asyncio
     async def test_resolver_ignores_cascade_when_disabled(self) -> None:
-        """Test that resolver returns RustResponseBytes directly when cascade is disabled."""
+        """Test that resolver returns parsed Python objects but without cascade when disabled.
+
+        In non-HTTP mode (direct GraphQL execute), we always return Python objects
+        for GraphQL type resolution compatibility. The only difference is that
+        cascade data is NOT attached when enable_cascade=False.
+        """
 
         @mutation(enable_cascade=False)
         class CreateUserWithoutCascade:
@@ -358,7 +363,7 @@ class TestMutationResolver:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_user_without_cascade": {
+                    "createUserWithoutCascade": {
                         "status": "success",
                         "message": "User created",
                         "object_data": {
@@ -380,9 +385,10 @@ class TestMutationResolver:
             # Call resolver
             result = await resolver(info, input_obj)
 
-        # When enable_cascade=False (fast path), the raw RustResponseBytes is returned directly
-        # without parsing into success/error types
-        assert isinstance(result, MockRustResponseBytes)
+        # In non-HTTP mode, we always return parsed Python objects for GraphQL compatibility
+        # But when enable_cascade=False, cascade data should NOT be attached
+        assert isinstance(result, SampleSuccess)
+        assert not hasattr(result, "__cascade__")  # No cascade data when disabled
 
     @pytest.mark.asyncio
     async def test_resolver_missing_database_raises_error(self) -> None:
@@ -525,7 +531,7 @@ class TestPrepareInputHook:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_network_config": {
+                    "createNetworkConfig": {
                         "status": "success",
                         "message": "Network config created",
                         "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
@@ -580,7 +586,7 @@ class TestPrepareInputHook:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "create_user": {
+                    "createUser": {
                         "status": "success",
                         "message": "User created",
                         "object_data": {
@@ -648,7 +654,7 @@ class TestPrepareInputHook:
         mock_response = MockRustResponseBytes(
             {
                 "data": {
-                    "update_note": {
+                    "updateNote": {
                         "status": "success",
                         "message": "Note updated",
                         "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},

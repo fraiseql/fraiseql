@@ -3,6 +3,8 @@ import pytest
 # Try to import FraiseQL components, skip if not available
 try:
     from fraiseql.config.schema_config import SchemaConfig
+    from fraiseql.core.graphql_type import _graphql_type_cache
+    from fraiseql.db import _type_registry
     from fraiseql.gql.schema_builder import SchemaRegistry
 
     FRAISEQL_AVAILABLE = True
@@ -10,6 +12,8 @@ except ImportError:
     FRAISEQL_AVAILABLE = False
     SchemaConfig = None
     SchemaRegistry = None
+    _graphql_type_cache = None
+    _type_registry = None
 
 # Import fixtures from the new organized structure
 # Import examples fixtures first as they don't require heavy dependencies
@@ -32,25 +36,20 @@ except ImportError:
     pass  # Skip cascade fixtures if dependencies not available
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True, scope="function")
 def clear_registry() -> None:
     """Clear the registry before and after each test."""
     if not FRAISEQL_AVAILABLE:
         pytest.skip("FraiseQL not available - skipping registry fixture")
 
-    # Clear the registry before and after each test
+    # Clear before test
     SchemaRegistry.get_instance().clear()
-    # Also clear the GraphQL type cache
-    from fraiseql.core.graphql_type import _graphql_type_cache
-
     _graphql_type_cache.clear()
-
-    # Clear the database type registry
-    from fraiseql.db import _type_registry
-
     _type_registry.clear()
 
     yield
+
+    # Clear after test
     SchemaRegistry.get_instance().clear()
     _graphql_type_cache.clear()
     _type_registry.clear()

@@ -1,17 +1,16 @@
 """Tests for KeyManager application service."""
 
+from datetime import UTC, datetime
+
 import pytest
-from unittest.mock import AsyncMock
-from datetime import datetime, UTC
 
 from fraiseql.security.kms.application.key_manager import KeyManager
+from fraiseql.security.kms.domain.base import BaseKMSProvider
 from fraiseql.security.kms.domain.models import (
     EncryptedData,
-    KeyReference,
     KeyPurpose,
-    DataKeyPair,
+    KeyReference,
 )
-from fraiseql.security.kms.domain.base import BaseKMSProvider
 
 
 class MockProvider(BaseKMSProvider):

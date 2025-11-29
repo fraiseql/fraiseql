@@ -8,9 +8,8 @@ Tests complete LangChain VectorStore functionality including:
 - Performance with real database operations
 """
 
-import asyncio
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import List
 from unittest.mock import Mock
 
 import pytest

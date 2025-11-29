@@ -4,14 +4,13 @@ These tests focus on the _get_filter_type_for_field function and how it maps
 Python types and field names to appropriate GraphQL filter types.
 """
 
-import pytest
 from typing import List
 
 from fraiseql.sql.graphql_where_generator import (
-    _get_filter_type_for_field,
     ArrayFilter,
     StringFilter,
     VectorFilter,
+    _get_filter_type_for_field,
 )
 
 

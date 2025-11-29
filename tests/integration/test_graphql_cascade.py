@@ -10,16 +10,21 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-@pytest.mark.skip(
-    reason="TODO: Fix database fixture - test user not found in cascade_db_schema. Parser fixes completed, database setup needs investigation."
-)
-def test_cascade_end_to_end(cascade_client):
+@pytest.mark.asyncio
+async def test_cascade_end_to_end(cascade_http_client):
     """Test complete cascade flow from PostgreSQL function to GraphQL response.
 
     Uses cascade_client fixture which includes:
     - Database schema setup (via cascade_db_schema)
     - Test user already inserted
     - PostgreSQL create_post function configured
+
+    Note: This test has event loop conflicts during teardown due to the combination of:
+    - pytest-asyncio session-scoped fixtures (db_pool)
+    - Function-scoped async fixtures (cascade_db_schema)
+    - Sync TestClient using anyio
+    The test passes correctly but fixture teardown fails.
+    Run individually: pytest tests/integration/test_graphql_cascade.py::test_cascade_end_to_end -v
     """
     # Execute mutation
     mutation_query = """
@@ -29,12 +34,7 @@ def test_cascade_end_to_end(cascade_client):
                 id
                 message
                 cascade {
-                    updated {
-                        __typename
-                        id
-                        operation
-                        entity
-                    }
+                    updated
                     deleted
                     invalidations {
                         queryName
@@ -57,7 +57,7 @@ def test_cascade_end_to_end(cascade_client):
 
     variables = {"input": {"title": "Test Post", "content": "Test content", "authorId": "user-123"}}
 
-    response = cascade_client.post(
+    response = await cascade_http_client.post(
         "/graphql", json={"query": mutation_query, "variables": variables}
     )
 
@@ -96,7 +96,7 @@ def test_cascade_end_to_end(cascade_client):
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    assert user_entity["entity"]["post_count"] == 1
+    assert user_entity["entity"]["postCount"] == 1  # camelCase from cascade
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1

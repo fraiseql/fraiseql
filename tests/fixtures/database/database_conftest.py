@@ -243,6 +243,10 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool) -> None:
     This fixture provides a factory function that creates properly configured
     FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
 
+    IMPORTANT: This fixture uses a custom lifespan that bypasses the default
+    database pool creation. This ensures the test's db_pool (with committed data)
+    is used instead of a new pool being created by the app's lifespan.
+
     Usage:
         def test_something(create_fraiseql_app_with_db) -> None:
             app = create_fraiseql_app_with_db(
@@ -253,6 +257,10 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool) -> None:
             client = TestClient(app)
             # Use the app...
     """
+    from contextlib import asynccontextmanager
+
+    from fastapi import FastAPI
+
     from fraiseql.fastapi.app import create_fraiseql_app
     from fraiseql.fastapi.dependencies import set_db_pool
 
@@ -261,11 +269,32 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool) -> None:
         # Use the real database URL from the container
         kwargs.setdefault("database_url", postgres_url)
 
-        # Create the app
-        app = create_fraiseql_app(**kwargs)
+        # Create a custom lifespan that uses the shared test pool
+        # instead of creating a new one
+        @asynccontextmanager
+        async def test_lifespan(app):
+            """Test lifespan that uses shared pool - no new pool creation."""
+            # Set the shared test pool (already has committed test data)
+            set_db_pool(db_pool)
+            yield
+            # Don't close the pool - it's shared across tests
 
-        # Manually set the database pool to bypass lifespan issues in tests
-        set_db_pool(db_pool)
+        # Create a pre-configured FastAPI app with our test lifespan
+        # This bypasses create_fraiseql_app's wrapped_lifespan which creates its own pool
+        pre_app = FastAPI(
+            title="Test App",
+            version="1.0.0",
+            lifespan=test_lifespan,
+        )
+
+        # Pass the pre-configured app to create_fraiseql_app
+        # When 'app' is provided, create_fraiseql_app doesn't set up its own lifespan
+        kwargs["app"] = pre_app
+        # Don't pass lifespan since we already configured it on pre_app
+        kwargs.pop("lifespan", None)
+
+        # Create the app with our pre-configured app
+        app = create_fraiseql_app(**kwargs)
 
         return app
 

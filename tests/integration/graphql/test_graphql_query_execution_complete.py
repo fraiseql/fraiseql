@@ -10,6 +10,7 @@ Status: ✅ PASSING - Direct path implemented and working!
 """
 
 import pytest
+from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
 from fraiseql import query
@@ -56,13 +57,15 @@ async def test_graphql_simple_query_returns_data(
 
     app = create_fraiseql_app_with_db(types=[User], queries=[user])
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/graphql",
-            json={
-                "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName email } }'
-            },
-        )
+    async with LifespanManager(app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/graphql",
+                json={
+                    "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName email } }'
+                },
+            )
 
     data = response.json()
 
@@ -111,10 +114,12 @@ async def test_graphql_list_query_returns_array(create_fraiseql_app_with_db, db_
 
     app = create_fraiseql_app_with_db(types=[User], queries=[users])
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/graphql", json={"query": "query { users(limit: 5) { id firstName } }"}
-        )
+    async with LifespanManager(app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/graphql", json={"query": "query { users(limit: 5) { id firstName } }"}
+            )
 
     data = response.json()
 
@@ -124,9 +129,6 @@ async def test_graphql_list_query_returns_array(create_fraiseql_app_with_db, db_
     assert all("id" in user and "firstName" in user for user in data["data"]["users"])
 
 
-@pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/integration/graphql/test_graphql_query_execution_complete.py::test_graphql_field_selection -v"
-)
 @pytest.mark.asyncio
 async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connection) -> None:
     """Test that Rust field projection works correctly.
@@ -165,14 +167,16 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
 
     app = create_fraiseql_app_with_db(types=[User], queries=[user])
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # Request only specific fields
-        response = await client.post(
-            "/graphql",
-            json={
-                "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName } }'
-            },
-        )
+    async with LifespanManager(app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # Request only specific fields
+            response = await client.post(
+                "/graphql",
+                json={
+                    "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName } }'
+                },
+            )
 
     data = response.json()
 
@@ -230,21 +234,23 @@ async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connect
 
     app = create_fraiseql_app_with_db(types=[User, UserWhereInput], queries=[users])
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/graphql",
-            json={
-                "query": """
-                    query {
-                        users(where: {active: {eq: true}}) {
-                            id
-                            firstName
-                            active
+    async with LifespanManager(app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/graphql",
+                json={
+                    "query": """
+                        query {
+                            users(where: {active: {eq: true}}) {
+                                id
+                                firstName
+                                active
+                            }
                         }
-                    }
-                """
-            },
-        )
+                    """
+                },
+            )
 
     data = response.json()
 

@@ -13,6 +13,7 @@ def test_rust_binding_exists():
 def test_rust_binding_simple_format():
     """Test simple format (just entity JSONB) transformation."""
     import json
+
     from fraiseql import _fraiseql_rs
 
     # Simple format: just entity data, no status wrapper
@@ -37,6 +38,7 @@ def test_rust_binding_simple_format():
 def test_rust_binding_v2_success():
     """Test v2 format (full mutation_result) transformation."""
     import json
+
     from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(
@@ -70,6 +72,7 @@ def test_rust_binding_v2_success():
 def test_rust_binding_error():
     """Test error mutation transformation."""
     import json
+
     from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(

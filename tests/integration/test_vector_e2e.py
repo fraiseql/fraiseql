@@ -9,15 +9,13 @@ Tests complete vector similarity search functionality including:
 - Performance with HNSW indexes
 """
 
-import uuid
-from typing import Any
 from uuid import UUID
 
 import pytest
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository
 from fraiseql.types import fraise_type
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @fraise_type

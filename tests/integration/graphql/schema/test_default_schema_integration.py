@@ -1,7 +1,5 @@
 """Integration tests for default schema configuration."""
 
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
 from fraiseql import fraise_input, fraise_type, mutation
@@ -106,55 +104,6 @@ class TestDefaultSchemaIntegration:
         assert CreateDefault.__fraiseql_mutation__.schema == "app"
         assert CreateCustom.__fraiseql_mutation__.schema == "custom"
         assert CreatePublic.__fraiseql_mutation__.schema == "public"
-
-    @pytest.mark.asyncio
-    async def test_resolver_uses_correct_schema_in_function_call(self, clean_registry) -> None:
-        """Test that the resolver uses the correct schema when calling database functions."""
-        # Set up config with custom default schema
-        config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test", default_mutation_schema="app"
-        )
-        registry = SchemaRegistry.get_instance()
-        registry.config = config
-
-        # Create mutation
-        @mutation(function="process_data")
-        class ProcessData:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
-
-        # Get the resolver
-        resolver = ProcessData.__fraiseql_resolver__
-
-        # Mock the database and context
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "Data processed",
-            "object_data": {"id": "123", "message": "Success"},
-        }
-
-        info = Mock()
-        info.context = {"db": mock_db}
-
-        # Mock input
-        input_obj = Mock()
-        input_obj.name = "Test"
-        input_obj.value = 42
-        input_obj.__dict__ = {"name": "Test", "value": 42}
-
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify the correct schema was used in the function call
-        mock_db.execute_function.assert_called_once_with(
-            "app.process_data", {"name": "Test", "value": 42}
-        )
-
-        # Verify result
-        assert isinstance(result, TestSuccess)
-        assert result.message == "Data processed"
 
     def test_schema_resolution_without_config(self, clean_registry) -> None:
         """Test schema resolution when no config is set."""

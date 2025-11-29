@@ -18,9 +18,8 @@ Expected Behavior:
 4. GraphQL validation should reject String variables for IpAddress fields
 """
 
-from graphql import parse, print_schema, validate
-
 import pytest
+from graphql import parse, print_schema, validate
 
 import fraiseql
 from fraiseql.gql.builders.registry import SchemaRegistry

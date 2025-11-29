@@ -1,6 +1,5 @@
 """Tests for APQ query loader from .graphql files."""
 
-import os
 import tempfile
 from pathlib import Path
 

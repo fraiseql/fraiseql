@@ -1,15 +1,15 @@
 """Integration tests for KMS providers (require external services)."""
 
 import os
+
 import pytest
 
 from fraiseql.security.kms import (
-    VaultKMSProvider,
-    VaultConfig,
-    AWSKMSProvider,
     AWSKMSConfig,
+    AWSKMSProvider,
+    VaultConfig,
+    VaultKMSProvider,
 )
-
 
 pytestmark = pytest.mark.integration
 

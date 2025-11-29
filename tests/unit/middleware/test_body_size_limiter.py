@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fraiseql.middleware.body_size_limiter import (
-    BodySizeLimiterMiddleware,
     BodySizeConfig,
+    BodySizeLimiterMiddleware,
     RequestTooLargeError,
 )
 

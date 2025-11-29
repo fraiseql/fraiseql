@@ -3,8 +3,8 @@
 Tests the core domain logic following Domain-Driven Design principles.
 """
 
+
 import pytest
-from datetime import datetime
 
 from fraiseql.sbom.domain.models import (
     SBOM,

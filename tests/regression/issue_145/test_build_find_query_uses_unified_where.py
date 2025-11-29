@@ -14,12 +14,10 @@ building logic that includes the hybrid table handling.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 import fraiseql
-from fraiseql.db import FraiseQLRepository, register_type_for_view, _table_metadata
+from fraiseql.db import FraiseQLRepository, _table_metadata, register_type_for_view
 from fraiseql.sql.graphql_where_generator import UUIDFilter, create_graphql_where_input
 
 

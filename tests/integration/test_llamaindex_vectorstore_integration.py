@@ -1,5 +1,4 @@
-"""
-FraiseQL LlamaIndex Integration Tests
+"""FraiseQL LlamaIndex Integration Tests
 
 Tests complete LlamaIndex VectorStore functionality including:
 - Document storage and retrieval
@@ -9,9 +8,8 @@ Tests complete LlamaIndex VectorStore functionality including:
 - Performance with real database operations
 """
 
-import asyncio
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import List
 from unittest.mock import Mock
 
 import pytest
@@ -28,7 +26,7 @@ except ImportError:
     LlamaDocument = Mock  # type: ignore
     TextNode = Mock  # type: ignore
 
-from fraiseql.integrations.llamaindex import FraiseQLVectorStore, FraiseQLReader
+from fraiseql.integrations.llamaindex import FraiseQLReader, FraiseQLVectorStore
 
 
 # Mock embedding function for testing
@@ -287,7 +285,11 @@ class TestFraiseQLVectorStore:
         await vectorstore.aadd(nodes)
 
         # Create query with metadata filter
-        from llama_index.core.vector_stores.types import VectorStoreQuery, MetadataFilters, MetadataFilter
+        from llama_index.core.vector_stores.types import (
+            MetadataFilter,
+            MetadataFilters,
+            VectorStoreQuery,
+        )
 
         query = VectorStoreQuery(
             query_embedding=[0.1] * 384,
