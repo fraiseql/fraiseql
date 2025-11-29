@@ -16,6 +16,8 @@ import pytest
 
 from .conftest import is_known_exception
 
+pytestmark = pytest.mark.integration
+
 DASHBOARD_DIR = Path(__file__).parent.parent.parent / "grafana"
 DASHBOARD_FILES = [
     "error_monitoring.json",

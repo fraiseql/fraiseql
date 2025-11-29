@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from fraiseql.fastapi.config import FraiseQLConfig
 
+pytestmark = pytest.mark.integration
+
 
 def test_apq_backend_config_defaults() -> None:
     """Test that APQ backend config has sensible defaults."""

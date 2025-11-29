@@ -24,6 +24,8 @@ import fraiseql
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.types import UUID, IpAddress
 
+pytestmark = pytest.mark.integration
+
 
 @fraiseql.type(sql_source="v_dns_server")
 class DnsServer:

@@ -15,6 +15,8 @@ from fraiseql.monitoring.postgres_error_tracker import (
     PostgreSQLErrorTracker,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 async def error_tracker(db_pool) -> None:

@@ -4,6 +4,9 @@ import fraiseql
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import _populate_conflict_fields, parse_mutation_result
 from fraiseql.mutations.types import MutationResult
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 @fraiseql.type

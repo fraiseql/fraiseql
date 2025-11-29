@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
+pytestmark = pytest.mark.integration
+
 # Track lifecycle events
 lifecycle_events = []
 

@@ -8,6 +8,9 @@ from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy, NetworkOperatorStrategy
 from fraiseql.types import IpAddress
+import pytest
+
+pytestmark = pytest.mark.database
 
 
 class TestNetworkOperatorConsistencyBug:

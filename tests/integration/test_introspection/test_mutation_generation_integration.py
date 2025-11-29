@@ -12,6 +12,8 @@ from fraiseql.introspection.mutation_generator import MutationGenerator
 from fraiseql.introspection.postgres_introspector import PostgresIntrospector
 from fraiseql.introspection.type_mapper import TypeMapper
 
+pytestmark = pytest.mark.integration
+
 
 class TestMutationGenerationIntegration:
     """Integration tests for end-to-end mutation generation."""

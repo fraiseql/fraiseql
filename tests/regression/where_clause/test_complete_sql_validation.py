@@ -12,6 +12,8 @@ from psycopg.sql import SQL
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.sql.where_generator import build_operator_composed
 
+pytestmark = pytest.mark.integration
+
 
 def render_composed_to_sql(composed) -> None:
     """Render a Composed object to actual SQL string with parameter placeholders."""

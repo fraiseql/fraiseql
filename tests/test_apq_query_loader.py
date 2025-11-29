@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestLoadQueriesFromDirectory:
     """Tests for loading queries from .graphql files."""

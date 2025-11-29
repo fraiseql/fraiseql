@@ -10,6 +10,8 @@ from psycopg.sql import Composed
 
 from fraiseql.sql.where_generator import safe_create_where_type
 
+pytestmark = pytest.mark.database
+
 
 @dataclass
 class User:

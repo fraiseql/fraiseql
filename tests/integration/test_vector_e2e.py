@@ -17,6 +17,8 @@ from tests.unit.utils.test_response_utils import extract_graphql_data
 from fraiseql.db import FraiseQLRepository
 from fraiseql.types import fraise_type
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_type
 class TestDocument:

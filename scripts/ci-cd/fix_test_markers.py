@@ -9,9 +9,9 @@ Reads file paths from /tmp/unmarked_tests.txt and adds appropriate pytest.mark.X
 markers at module level using pytestmark variable.
 """
 
+import ast
 import sys
 from pathlib import Path
-from typing import List
 
 
 def get_marker(path: str) -> str | None:
@@ -71,6 +71,39 @@ def has_marker(content: str, marker: str) -> bool:
     return f"pytestmark = pytest.mark.{marker}" in content or f"@pytest.mark.{marker}" in content
 
 
+def find_insert_line(source: str) -> int:
+    """
+    Use AST to find the correct line number to insert pytestmark.
+
+    Returns the line number (1-indexed) where pytestmark should be inserted,
+    which is after all imports and module docstring.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # If AST parsing fails, return 1 (insert at beginning)
+        return 1
+
+    last_import_end = 0
+
+    for node in ast.iter_child_nodes(tree):
+        # Skip module docstring (first Expr with string value)
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            if isinstance(node.value.value, str) and node.lineno == 1:
+                last_import_end = max(last_import_end, node.end_lineno or node.lineno)
+                continue
+
+        # Track imports
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            last_import_end = max(last_import_end, node.end_lineno or node.lineno)
+        else:
+            # First non-import, non-docstring node - stop here
+            break
+
+    # Insert after the last import (or at line 1 if no imports)
+    return last_import_end + 1 if last_import_end > 0 else 1
+
+
 def add_marker_to_file(file_path: str, marker: str, dry_run: bool = False) -> bool:
     """
     Add the pytest marker to the file.
@@ -84,43 +117,55 @@ def add_marker_to_file(file_path: str, marker: str, dry_run: bool = False) -> bo
         True if the file was modified (or would be modified in dry run)
     """
     with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    content = "".join(lines)
+        content = f.read()
 
     if has_marker(content, marker):
         return False
 
+    lines = content.splitlines(keepends=True)
+
     # Check if import pytest is present
-    has_import = any("import pytest" in line for line in lines)
+    has_import = "import pytest" in content
+
+    # Find insert position using AST
+    insert_line = find_insert_line(content)
+
+    # Build the lines to insert
+    lines_to_insert = []
 
     if not has_import:
-        # Add import at the top
-        lines.insert(0, "import pytest\n\n")
+        lines_to_insert.append("import pytest\n")
 
-    # Find position after imports and blank lines
-    insert_pos = 0
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("import ") or stripped.startswith("from ") or stripped == "":
-            continue
-        insert_pos = i
-        break
+    # Add blank line before pytestmark if there's content after
+    if insert_line <= len(lines):
+        lines_to_insert.append("\n")
 
-    # If no code found, insert at end
-    if insert_pos == 0:
-        insert_pos = len(lines)
+    lines_to_insert.append(f"pytestmark = pytest.mark.{marker}\n")
 
-    # Add the marker
-    marker_line = f"pytestmark = pytest.mark.{marker}\n\n"
-    lines.insert(insert_pos, marker_line)
+    # Add blank line after pytestmark if there's content after
+    if insert_line <= len(lines) and lines[insert_line - 1].strip():
+        lines_to_insert.append("\n")
+
+    # Insert the lines
+    insert_idx = insert_line - 1  # Convert to 0-indexed
+
+    # If we're inserting at the end and there's no trailing newline, add one
+    if insert_idx >= len(lines):
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.extend(lines_to_insert)
+    else:
+        # Insert at position
+        for i, line in enumerate(lines_to_insert):
+            lines.insert(insert_idx + i, line)
 
     new_content = "".join(lines)
 
     if dry_run:
         print(f"Would modify {file_path}:")
-        # Print diff or just indicate
-        print(f"  - Added import pytest (if missing)")
+        print(f"  - Insert at line {insert_line}")
+        if not has_import:
+            print("  - Added import pytest")
         print(f"  - Added pytestmark = pytest.mark.{marker}")
         return True
     else:
@@ -156,11 +201,15 @@ def main() -> None:
             skipped += 1
             continue
 
-        if add_marker_to_file(file_path, marker, dry_run):
-            modified += 1
-            if not dry_run:
-                print(f"Added marker to {file_path}")
-        else:
+        try:
+            if add_marker_to_file(file_path, marker, dry_run):
+                modified += 1
+                if not dry_run:
+                    print(f"Added marker to {file_path}")
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"Error processing {file_path}: {e}")
             skipped += 1
 
     print(f"Summary: {modified} files modified, {skipped} files skipped")

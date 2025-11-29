@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.database
+
 """Test restricted filter types for exotic scalar types.
 
 This ensures that problematic operators are not exposed for types that have

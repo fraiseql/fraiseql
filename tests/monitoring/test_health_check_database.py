@@ -7,6 +7,8 @@ import pytest
 from fraiseql.monitoring.health import CheckResult, HealthStatus
 from fraiseql.monitoring.health_checks import check_database, check_pool_stats
 
+pytestmark = pytest.mark.integration
+
 
 class TestDatabaseHealthCheck:
     """Test database connectivity check."""

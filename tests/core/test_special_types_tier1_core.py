@@ -21,6 +21,8 @@ import pytest
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
+pytestmark = pytest.mark.integration
+
 
 # Test Data Models
 @dataclass

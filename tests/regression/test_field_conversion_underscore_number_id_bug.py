@@ -14,6 +14,8 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.mutations import mutation
 from fraiseql.types.definitions import UNSET
 
+pytestmark = pytest.mark.integration
+
 
 @fraiseql.input
 class CreateNetworkConfigurationInput:

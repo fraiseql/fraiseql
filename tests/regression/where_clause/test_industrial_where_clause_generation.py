@@ -18,6 +18,8 @@ from uuid import uuid4
 import pytest
 from psycopg.sql import SQL
 
+pytestmark = pytest.mark.integration
+
 pytestmark = pytest.mark.database
 
 from tests.fixtures.database.database_conftest import *  # noqa: F403

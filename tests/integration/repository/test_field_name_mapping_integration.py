@@ -9,6 +9,9 @@ from unittest.mock import MagicMock
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestFieldNameMappingIntegration:

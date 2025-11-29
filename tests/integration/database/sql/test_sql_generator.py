@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.database
+
 """Comprehensive tests for sql_generator module to improve coverage."""
 
 from psycopg.sql import SQL

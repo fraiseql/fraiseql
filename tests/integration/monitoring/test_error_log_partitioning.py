@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 async def partitioned_db(db_pool) -> None:

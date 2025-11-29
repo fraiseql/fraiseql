@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test schema introspection security enforcement.
 
 This module tests that GraphQL schema introspection is properly controlled

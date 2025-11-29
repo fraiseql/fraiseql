@@ -18,6 +18,8 @@ from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
 
+pytestmark = pytest.mark.integration
+
 
 # Define GraphQL types matching issue #112
 @fraise_type

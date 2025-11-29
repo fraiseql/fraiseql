@@ -3,6 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from fraiseql.enterprise.rbac.models import Permission
+import pytest
+
+pytestmark = pytest.mark.enterprise
 
 
 async def test_permission_cache_stores_and_retrieves() -> None:

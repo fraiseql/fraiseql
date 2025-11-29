@@ -11,6 +11,8 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = pytest.mark.enterprise
+
 
 @pytest.fixture(autouse=True, scope="module")
 async def setup_bridge_schema(db_pool) -> None:

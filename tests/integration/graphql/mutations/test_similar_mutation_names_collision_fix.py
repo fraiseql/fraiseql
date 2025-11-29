@@ -15,6 +15,8 @@ import pytest
 import fraiseql
 from fraiseql.gql.builders.registry import SchemaRegistry
 
+pytestmark = pytest.mark.integration
+
 
 # Define input types that highlight the issue
 @fraiseql.input

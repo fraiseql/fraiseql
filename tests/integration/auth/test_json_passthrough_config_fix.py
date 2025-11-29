@@ -15,6 +15,8 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.gql.schema_builder import SchemaRegistry
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.security
 @pytest.fixture(autouse=True)

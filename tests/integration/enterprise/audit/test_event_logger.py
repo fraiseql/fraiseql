@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = pytest.mark.enterprise
+
 
 @pytest.fixture(autouse=True, scope="session")
 async def setup_audit_schema(db_pool) -> None:

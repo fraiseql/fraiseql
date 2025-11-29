@@ -10,6 +10,8 @@ import pytest
 
 from fraiseql.db import FraiseQLRepository
 
+pytestmark = pytest.mark.integration
+
 
 class TestRepositoryFindWhereProcessing:
     """Test that FraiseQLRepository.find() uses FraiseQL's WHERE generation system."""

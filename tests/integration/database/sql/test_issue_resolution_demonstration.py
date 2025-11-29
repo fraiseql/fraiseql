@@ -10,6 +10,9 @@ import fraiseql
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import IpAddress
+import pytest
+
+pytestmark = pytest.mark.database
 
 
 @fraiseql.type

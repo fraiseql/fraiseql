@@ -5,6 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fraiseql.cli.main import cli
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestCLIIntegration:

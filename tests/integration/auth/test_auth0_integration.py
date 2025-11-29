@@ -9,6 +9,8 @@ from fraiseql.auth.base import UserContext
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import get_auth_provider, set_auth_provider
 
+pytestmark = pytest.mark.integration
+
 
 class TestAuth0Integration:
     """Test Auth0 integration fixes."""

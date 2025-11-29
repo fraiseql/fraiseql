@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test mutation entity field mapping from object_data.
 
 This test suite verifies that FraiseQL properly maps object_data

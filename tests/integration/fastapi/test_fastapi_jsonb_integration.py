@@ -17,6 +17,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.integration
+
 pytestmark = pytest.mark.database
 
 # Import database fixtures

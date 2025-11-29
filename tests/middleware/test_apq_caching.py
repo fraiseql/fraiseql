@@ -7,6 +7,8 @@ import pytest
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
+pytestmark = pytest.mark.integration
+
 
 class MockGraphQLSchema:
     """Mock GraphQL schema for testing."""

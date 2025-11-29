@@ -13,6 +13,8 @@ import pytest
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
+pytestmark = pytest.mark.integration
+
 
 @dataclass
 class TestNetworkModel:

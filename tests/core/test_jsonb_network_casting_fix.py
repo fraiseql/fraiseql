@@ -23,6 +23,8 @@ from psycopg.sql import SQL
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
+pytestmark = pytest.mark.integration
+
 
 @dataclass
 class JsonbNetworkDevice:

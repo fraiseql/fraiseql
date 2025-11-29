@@ -9,6 +9,9 @@ from psycopg.sql import SQL
 import fraiseql
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import IpAddress
+import pytest
+
+pytestmark = pytest.mark.database
 
 
 @fraiseql.type(sql_source="v_dns_server_cqrs_test")

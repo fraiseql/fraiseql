@@ -10,6 +10,8 @@ import pytest
 
 from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
 
+pytestmark = pytest.mark.enterprise
+
 
 @pytest.fixture(autouse=True, scope="module")
 async def ensure_rbac_schema(db_pool) -> None:

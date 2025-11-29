@@ -12,6 +12,8 @@ from fraiseql.introspection.postgres_introspector import PostgresIntrospector
 from fraiseql.introspection.type_generator import TypeGenerator
 from fraiseql.introspection.type_mapper import TypeMapper
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 class TestCommentDescriptionsIntegration:

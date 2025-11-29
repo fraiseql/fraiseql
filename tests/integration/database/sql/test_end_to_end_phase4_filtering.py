@@ -10,6 +10,8 @@ from psycopg.sql import SQL
 from fraiseql.sql.where.core.field_detection import FieldType
 from fraiseql.sql.where.operators import get_operator_function
 
+pytestmark = pytest.mark.database
+
 
 class TestHostnameEndToEndIntegration:
     """Test Hostname operators in full integration context."""

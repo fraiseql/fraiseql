@@ -10,6 +10,9 @@ from fraiseql.middleware.apq_caching import (
 from fraiseql.storage.backends.factory import create_apq_backend
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class MockRequest:

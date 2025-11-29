@@ -19,6 +19,8 @@ from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_type
 class User:

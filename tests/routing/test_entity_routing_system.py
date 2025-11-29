@@ -9,6 +9,8 @@ from fraiseql.routing.config import EntityRoutingConfig
 from fraiseql.routing.entity_extractor import EntityExtractor
 from fraiseql.routing.query_router import QueryRouter
 
+pytestmark = pytest.mark.integration
+
 
 class TestEntityRoutingSystem:
     """Test the complete entity routing system."""

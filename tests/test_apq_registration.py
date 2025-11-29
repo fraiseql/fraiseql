@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestRegisterQueries:
     """Tests for register_queries() method on storage backends."""

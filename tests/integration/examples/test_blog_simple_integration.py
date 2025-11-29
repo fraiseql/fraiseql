@@ -8,6 +8,8 @@ providing full validation of the blog_simple example functionality.
 import logging
 import pytest
 
+pytestmark = pytest.mark.integration
+
 # Setup logging for integration tests
 logger = logging.getLogger(__name__)
 

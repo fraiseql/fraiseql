@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Tests for the main CLI entry point."""
 
 from unittest.mock import patch

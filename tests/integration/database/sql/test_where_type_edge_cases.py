@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.database
+
 """Comprehensive tests for where type integration edge cases."""
 
 import uuid

@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test that authentication is properly enforced when configured."""
 
 from typing import Optional

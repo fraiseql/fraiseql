@@ -11,6 +11,8 @@ import fraiseql
 from fraiseql.cqrs.executor import CQRSExecutor
 from fraiseql.cqrs.repository import CQRSRepository
 
+pytestmark = pytest.mark.database
+
 
 @pytest.mark.unit
 @pytest.fixture

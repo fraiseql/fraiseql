@@ -7,6 +7,8 @@ from fraiseql.fastapi import FraiseQLConfig
 from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.mutations.mutation_decorator import MutationDefinition
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def clean_registry() -> None:

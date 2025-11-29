@@ -12,6 +12,8 @@ from fraiseql.introspection.postgres_introspector import (
     PostgresIntrospector,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestPostgresIntrospectorIntegration:
     """Integration tests for PostgresIntrospector with real database."""

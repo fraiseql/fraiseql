@@ -15,6 +15,8 @@ import pytest
 import fraiseql
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet, OrderDirection
 
+pytestmark = pytest.mark.database
+
 
 @fraiseql.type
 class Price:

@@ -4,6 +4,8 @@ import pytest
 
 from fraiseql.fastapi.config import FraiseQLConfig
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_production_config_environment_check() -> None:

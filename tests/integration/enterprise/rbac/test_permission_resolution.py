@@ -12,6 +12,8 @@ import pytest
 from fraiseql.enterprise.rbac.cache import PermissionCache
 from fraiseql.enterprise.rbac.resolver import PermissionResolver
 
+pytestmark = pytest.mark.enterprise
+
 
 @pytest.fixture(autouse=True, scope="module")
 async def ensure_rbac_schema(db_pool) -> None:

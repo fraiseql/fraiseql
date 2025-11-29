@@ -10,6 +10,8 @@ from psycopg.sql import SQL
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import LTree
 
+pytestmark = pytest.mark.database
+
 
 @pytest.mark.integration
 class TestLTreeFilterOperations:

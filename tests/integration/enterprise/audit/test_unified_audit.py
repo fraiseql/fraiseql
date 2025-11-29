@@ -15,6 +15,8 @@ from uuid import uuid4
 import psycopg.types.json
 import pytest
 
+pytestmark = pytest.mark.enterprise
+
 
 @pytest.fixture(autouse=True, scope="module")
 async def setup_unified_audit(db_pool) -> None:

@@ -15,6 +15,8 @@ from unittest.mock import Mock
 import pytest
 from psycopg.types.json import Json
 
+pytestmark = pytest.mark.integration
+
 # Check if LlamaIndex is available
 try:
     from llama_index.core.schema import Document as LlamaDocument  # type: ignore[import-untyped]
