@@ -32,7 +32,7 @@ pub fn build_mutation_response(
     error_type: &str,
     entity_field_name: Option<&str>,
     entity_type: Option<&str>,
-    cascade_selections: Option<&str>,
+    _cascade_selections: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Parse the mutation result with entity_type for simple format
     let result = MutationResult::from_json(mutation_json, entity_type)?;
@@ -281,6 +281,11 @@ fn build_success_object(
 
     // Add __typename
     obj.insert("__typename".to_string(), json!(success_type));
+
+    // Add id from entity_id if present
+    if let Some(ref entity_id) = result.entity_id {
+        obj.insert("id".to_string(), json!(entity_id));
+    }
 
     // Add message
     obj.insert("message".to_string(), json!(result.message));

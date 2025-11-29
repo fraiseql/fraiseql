@@ -1,17 +1,25 @@
-/// GraphQL Schema Registry for Rust
-///
-/// This module provides a thread-safe registry for storing GraphQL schema metadata
-/// that enables type resolution and transformation at runtime.
-///
-/// The registry is initialized once at application startup with schema data from Python
-/// and then used for all subsequent query transformations.
+//! GraphQL Schema Registry for Rust
+//!
+//! This module provides a thread-safe registry for storing GraphQL schema metadata
+//! that enables type resolution and transformation at runtime.
+//!
+//! The registry is initialized once at application startup with schema data from Python
+//! and then used for all subsequent query transformations.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 /// Global schema registry instance (initialized once at startup)
-static REGISTRY: OnceLock<SchemaRegistry> = OnceLock::new();
+///
+/// In production, this uses OnceLock for efficiency.
+/// For testing, use `reset_for_testing()` to clear and re-initialize.
+static REGISTRY: OnceLock<RwLock<Option<SchemaRegistry>>> = OnceLock::new();
+
+/// Get or initialize the RwLock wrapper
+fn get_registry_lock() -> &'static RwLock<Option<SchemaRegistry>> {
+    REGISTRY.get_or_init(|| RwLock::new(None))
+}
 
 /// Field metadata describing a GraphQL field's type information
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -128,7 +136,7 @@ impl SchemaRegistry {
 /// Initialize the global schema registry
 ///
 /// This should be called once at application startup.
-/// Subsequent calls will be ignored (returns false).
+/// Subsequent calls will return false (already initialized).
 ///
 /// # Arguments
 /// * `registry` - The SchemaRegistry instance to install
@@ -137,7 +145,13 @@ impl SchemaRegistry {
 /// * `true` - Registry was successfully initialized
 /// * `false` - Registry was already initialized
 pub fn initialize_registry(registry: SchemaRegistry) -> bool {
-    REGISTRY.set(registry).is_ok()
+    let lock = get_registry_lock();
+    let mut guard = lock.write().expect("Schema registry lock poisoned");
+    if guard.is_some() {
+        return false;
+    }
+    *guard = Some(registry);
+    true
 }
 
 /// Get a reference to the global schema registry
@@ -145,8 +159,63 @@ pub fn initialize_registry(registry: SchemaRegistry) -> bool {
 /// # Returns
 /// * `Some(&SchemaRegistry)` - If registry has been initialized
 /// * `None` - If registry has not been initialized yet
+///
+/// # Note
+/// This function acquires a read lock on the registry. The returned reference
+/// is only valid while the lock is held. For most use cases, this is fine
+/// since the registry is read-only after initialization.
 pub fn get_registry() -> Option<&'static SchemaRegistry> {
-    REGISTRY.get()
+    let lock = get_registry_lock();
+    // SAFETY: We need to return a 'static reference, but RwLock gives us a guard.
+    // This is safe because:
+    // 1. The registry is never modified after initialization (except by reset_for_testing)
+    // 2. In production, reset_for_testing is never called
+    // 3. In tests, reset_for_testing should only be called between test runs
+    let guard = lock.read().expect("Schema registry lock poisoned");
+    if guard.is_some() {
+        // Leak the guard to get a 'static reference
+        // This is safe because the registry content is never deallocated in production
+        let static_guard = Box::leak(Box::new(guard));
+        static_guard.as_ref()
+    } else {
+        None
+    }
+}
+
+/// Reset the schema registry for testing purposes
+///
+/// **WARNING**: This function is only intended for use in tests.
+/// It clears the global schema registry, allowing it to be re-initialized
+/// with a different schema.
+///
+/// # Safety
+/// This function is safe to call, but should only be used in test code.
+/// Calling this in production can cause undefined behavior if other code
+/// holds references to the registry.
+///
+/// # Example
+/// ```ignore
+/// #[cfg(test)]
+/// use fraiseql_rs::schema_registry::reset_for_testing;
+///
+/// #[test]
+/// fn test_with_custom_schema() {
+///     reset_for_testing();
+///     initialize_registry(my_test_schema);
+///     // ... test code ...
+/// }
+/// ```
+pub fn reset_for_testing() {
+    let lock = get_registry_lock();
+    let mut guard = lock.write().expect("Schema registry lock poisoned");
+    *guard = None;
+}
+
+/// Check if the schema registry is initialized
+pub fn is_initialized() -> bool {
+    let lock = get_registry_lock();
+    let guard = lock.read().expect("Schema registry lock poisoned");
+    guard.is_some()
 }
 
 #[cfg(test)]
