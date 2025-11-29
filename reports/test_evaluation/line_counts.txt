@@ -1,0 +1,45 @@
+=== Line Count Summary ===
+
+Source code (src/fraiseql/):
+72283 total
+
+Test code (tests/):
+111064 total
+
+Test-to-Code Ratio:
+1.53
+
+Test files by directory:
+    189 unit
+    175 integration
+     25 regression
+     22 system
+      8 fixtures
+      5 storage
+      5 core
+      3 grafana
+      2 performance
+      2 monitoring
+      2 config
+      1 utils
+      1 test_turbo_router_hash_issue.py
+      1 test_registry_decorator_integration.py
+      1 test_nested_array_where_integration.py
+      1 test_nested_array_where_filtering.py
+      1 test_nested_array_resolver_where.py
+      1 test_nested_array_registry.py
+      1 test_nested_array_logical_operators.py
+      1 test_integration_where_field.py
+      1 test_end_to_end_nested_array_where.py
+      1 test_apq_storage.py
+      1 test_apq_request_parsing.py
+      1 test_apq_registration.py
+      1 test_apq_query_loader.py
+      1 test_apq_protocol.py
+      1 test_apq_mode_enforcement.py
+      1 test_apq_detection.py
+      1 test_apollo_client_apq_dual_hash.py
+      1 routing
+      1 patterns
+      1 mocks
+      1 middleware
