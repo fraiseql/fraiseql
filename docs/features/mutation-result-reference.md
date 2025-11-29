@@ -407,7 +407,7 @@ Cascade data represents side effects and related entity changes from mutations.
 
 ### Overview
 
-Cascade data is stored in the `cascade` field and describes operations that occurred on related entities. See the [GraphQL Cascade documentation](../graphql-cascade.md) for complete details.
+Cascade data is stored in the `cascade` field and describes operations that occurred on related entities. See the [GraphQL Cascade documentation](graphql-cascade.md) for complete details.
 
 ### Integration with Mutation Formats
 
@@ -496,4 +496,4 @@ $$ LANGUAGE plpgsql;
 **Related Documentation**:
 - [SQL Function Return Format](sql-function-return-format.md) - Existing return format guide
 - [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
-- [Migration: Add mutation_result_v2](../migrations/trinity/005_add_mutation_result_v2.sql) - SQL type definition and helpers
+- [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutation_result_v2.sql) - SQL type definition and helpers

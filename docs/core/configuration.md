@@ -201,7 +201,7 @@ config = FraiseQLConfig(
 )
 ```
 
-**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
+**Migration from v0.11.4 and earlier**: Remove all execution mode configuration.
 
 ## Authentication Settings
 

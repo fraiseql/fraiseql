@@ -361,7 +361,7 @@ SELECT cascade_merge(cascade1, cascade2);
 SELECT cascade_has_entity_type(cascade_data, 'User');
 ```
 
-See [Migration: Add mutation_result_v2](../migrations/trinity/005_add_mutation_result_v2.sql) for complete function definitions.
+See [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutation_result_v2.sql) for complete function definitions.
 
 ## Best Practices
 
