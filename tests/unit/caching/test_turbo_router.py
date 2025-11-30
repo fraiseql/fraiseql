@@ -1,4 +1,13 @@
-"""Tests for TurboRouter functionality."""
+"""Unit tests for TurboRouter functionality.
+
+These tests use mocking for all database interactions and verify:
+- TurboQuery creation and configuration
+- TurboRegistry query hashing and registration
+- TurboRouter execution with mocked database connections
+- Error handling in isolated contexts
+
+Note: Moved from integration tests since all dependencies are mocked.
+"""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,7 +16,7 @@ import pytest
 from fraiseql.fastapi.routers import TurboRouter
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 class TestTurboRouter:

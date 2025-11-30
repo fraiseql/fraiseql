@@ -1,8 +1,14 @@
-"""Integration tests for GraphQL error serialization with @fraise_type objects.
+"""Unit tests for GraphQL error serialization with @fraise_type objects.
 
 This module tests that GraphQL execution properly serializes @fraise_type objects
 in responses, particularly for error auto-population scenarios where Error objects
 are created during mutation parsing.
+
+Tests pure data transformation functions with no external dependencies:
+- _clean_fraise_types: Converts @fraise_type objects to dicts
+- _serialize_fraise_types_in_result: Cleans ExecutionResult data
+
+Note: Moved from integration tests since no database or I/O required.
 """
 
 from typing import Any
@@ -18,7 +24,7 @@ from fraiseql.graphql.execute import (
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 @fraiseql.type
