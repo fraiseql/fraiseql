@@ -1,6 +1,7 @@
 """Tests for PostgreSQL full-text search filtering capabilities."""
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -29,8 +30,8 @@ DocumentWhere = safe_create_where_type(Document)
 class TestFullTextFilter:
     """Test PostgreSQL full-text search operators."""
 
-    @pytest.fixture
-    async def setup_test_documents(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_test_documents(self, db_pool):
         """Create test documents with tsvector data."""
         # Register types for views (for development mode)
         register_type_for_view("test_documents_view", Document)
