@@ -18,7 +18,6 @@ from fraiseql.types import (
 from fraiseql.types.definitions import UNSET
 
 
-@pytest.mark.unit
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:
     """Clear the schema registry before each test."""
