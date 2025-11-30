@@ -7,6 +7,7 @@ Each test runs in its own committed schema that is cleaned up automatically.
 import asyncio
 
 import pytest
+import pytest_asyncio
 from psycopg.sql import SQL, Composed, Identifier
 
 # Import database fixtures for this database test
@@ -26,8 +27,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
-    @pytest.fixture
-    async def test_data(self, db_connection_committed) -> None:
+    @pytest_asyncio.fixture
+    async def test_data(self, db_connection_committed) -> str:
         """Create test tables and data with committed changes."""
         conn = db_connection_committed
         schema = await get_current_schema(conn)
