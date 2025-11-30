@@ -19,12 +19,12 @@ class TestPostgresIntrospectorIntegration:
     """Integration tests for PostgresIntrospector with real database."""
 
     @pytest.fixture
-    async def introspector(self, db_pool) -> None:
+    async def introspector(self, db_pool):
         """Create PostgresIntrospector with real database pool."""
         return PostgresIntrospector(db_pool)
 
     @pytest.fixture
-    async def test_view(self, db_connection) -> None:
+    async def test_view(self, db_connection):
         """Create a test view for introspection testing."""
         # Create underlying table with unique name to avoid conflicts
         import uuid
@@ -82,7 +82,7 @@ class TestPostgresIntrospectorIntegration:
         return view_name
 
     @pytest.fixture
-    async def test_function(self, db_connection) -> None:
+    async def test_function(self, db_connection):
         """Create a test function for introspection testing."""
         # Create function with unique name
         import uuid
@@ -359,3 +359,169 @@ class TestPostgresIntrospectorIntegration:
             assert isinstance(param.pg_type, str)
             assert isinstance(param.mode, str)
             assert isinstance(param.default_value, (str, type(None)))
+
+    async def test_discover_views_with_invalid_pattern(self, introspector) -> None:
+        """Test view discovery with invalid regex patterns."""
+        # Invalid regex pattern
+        with pytest.raises(Exception):  # Should raise some regex-related exception
+            await introspector.discover_views(pattern="[invalid")
+
+    async def test_discover_functions_with_invalid_pattern(self, introspector) -> None:
+        """Test function discovery with invalid regex patterns."""
+        # Invalid regex pattern
+        with pytest.raises(Exception):  # Should raise some regex-related exception
+            await introspector.discover_functions(pattern="[invalid")
+
+    async def test_discover_views_with_unicode_comments(self, introspector, db_connection) -> None:
+        """Test view discovery with unicode characters in comments."""
+        import uuid
+
+        suffix = uuid.uuid4().hex[:8]
+        table_name = f"test_unicode_{suffix}"
+        view_name = f"v_unicode_{suffix}"
+
+        # Create table with unicode comment
+        unicode_comment = (
+            "@fraiseql:type\nname: Café\n description: Café view with spécial characters"
+        )
+        await db_connection.execute(f"""
+            CREATE TABLE {table_name} (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL
+            )
+        """)
+
+        await db_connection.execute(f"""
+            COMMENT ON TABLE {table_name} IS '{unicode_comment}'
+        """)
+
+        # Create view
+        await db_connection.execute(f"""
+            CREATE VIEW {view_name} AS
+            SELECT id, name FROM {table_name}
+        """)
+
+        await db_connection.commit()
+
+        # Should handle unicode without issues
+        views = await introspector.discover_views(pattern="v_unicode_%")
+        assert len(views) >= 1
+        unicode_view = next(v for v in views if v.view_name == view_name)
+        assert unicode_view.comment is not None
+        assert "Café" in unicode_view.comment
+
+    async def test_discover_functions_with_very_long_names(
+        self, introspector, db_connection
+    ) -> None:
+        """Test function discovery with extremely long function names."""
+        import uuid
+
+        # Create function with very long name (close to PostgreSQL limit)
+        base_suffix = uuid.uuid4().hex[:8]
+        long_name = f"fn_very_long_function_name_that_might_cause_issues_{'x' * 50}_{base_suffix}"
+
+        # PostgreSQL has a 63 character limit for identifiers, so this should be truncated or fail
+        try:
+            await db_connection.execute(f"""
+                CREATE OR REPLACE FUNCTION {long_name}(
+                    p_input TEXT
+                )
+                RETURNS TEXT
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN p_input;
+                END;
+                $$
+            """)
+            await db_connection.commit()
+
+            # Should handle long names gracefully
+            functions = await introspector.discover_functions(pattern="fn_very_long_%")
+            # May or may not find it depending on truncation, but shouldn't crash
+            assert isinstance(functions, list)
+
+        except Exception:
+            # If creation fails due to length limits, that's expected
+            # The test is that discovery doesn't crash
+            functions = await introspector.discover_functions(pattern="fn_very_long_%")
+            assert isinstance(functions, list)
+
+    async def test_discover_views_empty_schema(self, introspector) -> None:
+        """Test view discovery in schema with no views."""
+        # Use a schema that doesn't exist or has no views
+        views = await introspector.discover_views(pattern="%", schemas=["nonexistent_schema"])
+        assert views == []
+
+    async def test_discover_functions_empty_schema(self, introspector) -> None:
+        """Test function discovery in schema with no functions."""
+        # Use a schema that doesn't exist or has no functions
+        functions = await introspector.discover_functions(
+            pattern="%", schemas=["nonexistent_schema"]
+        )
+        assert functions == []
+
+    async def test_discover_views_with_null_comments(self, introspector, db_connection) -> None:
+        """Test view discovery when comments are NULL."""
+        import uuid
+
+        suffix = uuid.uuid4().hex[:8]
+        table_name = f"test_null_comment_{suffix}"
+        view_name = f"v_null_comment_{suffix}"
+
+        # Create table without comment (NULL comment)
+        await db_connection.execute(f"""
+            CREATE TABLE {table_name} (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL
+            )
+        """)
+
+        # Create view without comment
+        await db_connection.execute(f"""
+            CREATE VIEW {view_name} AS
+            SELECT id, name FROM {table_name}
+        """)
+
+        await db_connection.commit()
+
+        # Should handle NULL comments gracefully
+        views = await introspector.discover_views(pattern="v_null_comment_%")
+        assert len(views) >= 1
+        null_view = next(v for v in views if v.view_name == view_name)
+        # Comment should be None, not crash
+        assert null_view.comment is None
+
+    async def test_discover_functions_with_complex_return_types(
+        self, introspector, db_connection
+    ) -> None:
+        """Test function discovery with complex return types."""
+        import uuid
+
+        suffix = uuid.uuid4().hex[:8]
+        func_name = f"fn_complex_return_{suffix}"
+
+        # Create function returning a complex type
+        await db_connection.execute(f"""
+            CREATE OR REPLACE FUNCTION {func_name}()
+            RETURNS TABLE(
+                id INTEGER,
+                data JSONB,
+                created_at TIMESTAMP WITH TIME ZONE
+            )
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RETURN QUERY SELECT 1, '{{"key": "value"}}'::jsonb, NOW();
+            END;
+            $$
+        """)
+
+        await db_connection.commit()
+
+        # Should handle complex return types
+        functions = await introspector.discover_functions(pattern="fn_complex_return_%")
+        assert len(functions) >= 1
+        complex_func = next(f for f in functions if f.function_name == func_name)
+        assert "TABLE" in complex_func.return_type.upper()
+        assert complex_func.return_type != "TABLE"  # Should have column specifications
