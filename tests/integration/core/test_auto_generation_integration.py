@@ -318,6 +318,7 @@ class TestAutoGenerationIntegration:
             await conn.commit()
 
 
+@pytest.mark.asyncio
 @pytest.mark.integration
 async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
     """Test that nested auto-generated WhereInput works with FK detection."""
