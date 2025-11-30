@@ -10,7 +10,6 @@ from fraiseql.mutations.mutation_decorator import MutationDefinition
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.unit
 @pytest.fixture
 def reset_registry() -> None:
     """Reset the schema registry before each test."""

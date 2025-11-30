@@ -14,7 +14,6 @@ from fraiseql.optimization.registry import get_loader
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.unit
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:
     """Clear registry before each test."""
