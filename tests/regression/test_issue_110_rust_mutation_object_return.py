@@ -10,6 +10,7 @@ Issue: https://github.com/fraiseql/fraiseql/issues/110
 from uuid import UUID, uuid4
 
 import pytest
+import pytest_asyncio
 from graphql import execute, parse
 
 import fraiseql
@@ -68,8 +69,8 @@ class CreateEntity:
 class TestIssue110RustMutationObjectReturn:
     """Test suite for GitHub issue #110."""
 
-    @pytest.fixture
-    async def setup_database(self, db_connection_committed) -> None:
+    @pytest_asyncio.fixture
+    async def setup_database(self, db_connection_committed):
         """Set up test database schema and function."""
         conn = db_connection_committed
 

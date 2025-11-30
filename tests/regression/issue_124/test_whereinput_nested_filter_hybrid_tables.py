@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime
 
 import pytest
+import pytest_asyncio
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
@@ -54,8 +55,8 @@ class Allocation:
 class TestWhereInputNestedFilterHybridTables:
     """Test that WhereInput nested filtering works on hybrid tables."""
 
-    @pytest.fixture
-    async def setup_test_data(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_test_data(self, db_pool) -> dict:
         """Create hybrid allocation table and test data."""
         async with db_pool.connection() as conn:
             # Create hybrid table with both SQL columns and JSONB data

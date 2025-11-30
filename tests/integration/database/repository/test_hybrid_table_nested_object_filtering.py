@@ -10,6 +10,7 @@ Issue: FraiseQL v0.9.4 logs "Unsupported operator: id" and returns incorrect res
 import uuid
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -51,8 +52,8 @@ class Allocation:
 class TestHybridTableNestedObjectFiltering:
     """Test that nested object filtering works correctly on hybrid tables."""
 
-    @pytest.fixture
-    async def setup_hybrid_allocation_table(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_hybrid_allocation_table(self, db_pool) -> dict:
         """Create a hybrid allocation table matching the issue description."""
         async with db_pool.connection() as conn:
             # Create table with both SQL columns and JSONB data

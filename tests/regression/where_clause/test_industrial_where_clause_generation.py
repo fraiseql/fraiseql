@@ -16,6 +16,7 @@ This test suite creates the "industrial steel grade" coverage missing from v0.7.
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from psycopg.sql import SQL
 
 pytestmark = pytest.mark.integration
@@ -218,7 +219,7 @@ class TestREDPhaseCastingLocationBug:
 class TestREDPhaseProductionScenarios:
     """RED: Real production scenarios that must work perfectly."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_realistic_network_devices(self, db_pool) -> None:
         """Create realistic network device data that triggers all the bugs."""
         async with db_pool.connection() as conn:
