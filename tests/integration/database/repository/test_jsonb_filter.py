@@ -1,6 +1,7 @@
 """Tests for PostgreSQL JSONB filtering capabilities."""
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -28,7 +29,7 @@ ProductWhere = safe_create_where_type(Product)
 class TestJSONBKeyExistence:
     """Test PostgreSQL JSONB key existence operators."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_test_products(self, db_pool) -> None:
         """Create test products with JSONB attributes."""
         # Register types for views (for development mode)
@@ -130,7 +131,7 @@ class TestJSONBKeyExistence:
 class TestJSONBContainment:
     """Test PostgreSQL JSONB containment operators."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_test_products(self, db_pool) -> None:
         """Create test products with JSONB attributes."""
         register_type_for_view("test_products_view", Product)
@@ -214,7 +215,7 @@ class TestJSONBContainment:
 class TestJSONBJSONPath:
     """Test PostgreSQL JSONB JSONPath operators."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_test_products(self, db_pool) -> None:
         """Create test products with nested JSONB."""
         register_type_for_view("test_products_view", Product)
