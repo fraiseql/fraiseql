@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 
 
 @fraise_type
-class TestDocument:
+class DocumentType:
     """Test document type with vector embedding for semantic search."""
 
     id: UUID

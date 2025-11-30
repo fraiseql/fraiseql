@@ -20,7 +20,7 @@ def clean_registry() -> None:
 
 
 @fraise_input
-class TestInput:
+class CreateTestInput:
     """Test input type."""
 
     name: str
@@ -28,7 +28,7 @@ class TestInput:
 
 
 @fraise_type
-class TestSuccess:
+class SuccessType:
     """Test success type."""
 
     message: str
@@ -36,7 +36,7 @@ class TestSuccess:
 
 
 @fraise_type
-class TestError:
+class ErrorType:
     """Test error type."""
 
     code: str
@@ -62,9 +62,9 @@ class TestDefaultSchemaIntegration:
         # Create a mutation without specifying schema
         @mutation(function="create_test")
         class CreateTest:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         # Verify the mutation uses the default schema
         definition = CreateTest.__fraiseql_mutation__
@@ -84,23 +84,23 @@ class TestDefaultSchemaIntegration:
         # Mutation using default schema
         @mutation(function="create_default")
         class CreateDefault:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         # Mutation with explicit schema override
         @mutation(function="create_custom", schema="custom")
         class CreateCustom:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         # Mutation with explicit public schema
         @mutation(function="create_public", schema="public")
         class CreatePublic:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         # Verify each mutation uses the correct schema
         assert CreateDefault.__fraiseql_mutation__.schema == "app"
@@ -116,9 +116,9 @@ class TestDefaultSchemaIntegration:
         # Create mutation without schema parameter
         @mutation(function="test_default")
         class TestDefault:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         # Should fall back to "public"
         assert TestDefault.__fraiseql_mutation__.schema == "public"
@@ -132,9 +132,9 @@ class TestDefaultSchemaIntegration:
 
         @mutation(function="first_mutation")
         class FirstMutation:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         assert FirstMutation.__fraiseql_mutation__.schema == "public"
 
@@ -147,9 +147,9 @@ class TestDefaultSchemaIntegration:
         # Create second mutation
         @mutation(function="second_mutation")
         class SecondMutation:
-            input: TestInput
-            success: TestSuccess
-            failure: TestError
+            input: CreateTestInput
+            success: SuccessType
+            failure: ErrorType
 
         assert SecondMutation.__fraiseql_mutation__.schema == "custom_schema"
 

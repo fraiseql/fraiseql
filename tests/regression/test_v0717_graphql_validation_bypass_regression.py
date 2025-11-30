@@ -23,7 +23,7 @@ from fraiseql.types.coercion import coerce_input
 
 
 @fraiseql.input
-class TestValidationInput:
+class ValidationInput:
     """Test input class with validation that should be enforced in GraphQL."""
 
     name: str  # Non-optional string that should reject empty values
@@ -76,17 +76,17 @@ class TestV0717GraphQLValidationBypassRegression:
         when creating input objects directly (not through GraphQL).
         """
         # Valid input should work
-        valid_input = TestValidationInput(name="John Doe", email="john@example.com")
+        valid_input = ValidationInput(name="John Doe", email="john@example.com")
         assert valid_input.name == "John Doe"
         assert valid_input.email == "john@example.com"
 
         # Empty string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            TestValidationInput(name="", email="john@example.com")  # Empty string should fail
+            ValidationInput(name="", email="john@example.com")  # Empty string should fail
 
         # Whitespace-only string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            TestValidationInput(name="   ", email="john@example.com")  # Whitespace-only should fail
+            ValidationInput(name="   ", email="john@example.com")  # Whitespace-only should fail
 
     def test_coerce_input_function_calls_constructor(self) -> None:
         """Test that coerce_input() now calls the class constructor for validation.
@@ -96,15 +96,15 @@ class TestV0717GraphQLValidationBypassRegression:
         """
         # Valid data should work
         valid_data = {"name": "John Doe", "email": "john@example.com"}
-        result = coerce_input(TestValidationInput, valid_data)
-        assert isinstance(result, TestValidationInput)
+        result = coerce_input(ValidationInput, valid_data)
+        assert isinstance(result, ValidationInput)
         assert result.name == "John Doe"
         assert result.email == "john@example.com"
 
         # Invalid data should now raise validation errors (this was the bug)
         invalid_data = {"name": "", "email": "john@example.com"}  # Empty string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            coerce_input(TestValidationInput, invalid_data)
+            coerce_input(ValidationInput, invalid_data)
 
         # Whitespace-only data should also be rejected
         whitespace_data = {
@@ -112,7 +112,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "email": "john@example.com",
         }
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            coerce_input(TestValidationInput, whitespace_data)
+            coerce_input(ValidationInput, whitespace_data)
 
         # None data should also be rejected for required fields (v0.7.18 specific regression)
         none_data = {
@@ -120,7 +120,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "email": "john@example.com",
         }
         with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
-            coerce_input(TestValidationInput, none_data)
+            coerce_input(ValidationInput, none_data)
 
     def test_coerce_input_with_missing_required_fields(self) -> None:
         """Test that coerce_input() properly handles missing required fields."""
@@ -130,7 +130,7 @@ class TestV0717GraphQLValidationBypassRegression:
             # Missing required 'email' field
         }
         with pytest.raises(ValueError, match="Missing required field 'email'"):
-            coerce_input(TestValidationInput, incomplete_data)
+            coerce_input(ValidationInput, incomplete_data)
 
     def test_coerce_input_with_optional_fields(self) -> None:
         """Test that coerce_input() properly handles optional fields."""
@@ -140,7 +140,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "email": "john@example.com",
             # test_id is optional and omitted
         }
-        result = coerce_input(TestValidationInput, data_without_optional)
+        result = coerce_input(ValidationInput, data_without_optional)
         assert result.name == "John Doe"
         assert result.email == "john@example.com"
         assert result.test_id is None
@@ -151,7 +151,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "email": "jane@example.com",
             "test_id": "12345678-1234-1234-1234-123456789012",
         }
-        result = coerce_input(TestValidationInput, data_with_optional)
+        result = coerce_input(ValidationInput, data_with_optional)
         assert result.name == "Jane Doe"
         assert result.test_id is not None
 
