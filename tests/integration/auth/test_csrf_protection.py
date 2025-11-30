@@ -725,7 +725,7 @@ class TestGraphQLCSRFValidatorExtended:
     @pytest.mark.asyncio
     async def test_validate_request_mutation_no_token(self, validator) -> None:
         """Test mutation request without CSRF token."""
-        request = AsyncMock()
+        request = MagicMock()
         request.headers = {}
         request.cookies = {}
 
@@ -851,7 +851,7 @@ class TestCSRFProtectionMiddlewareExtended:
     @pytest.mark.asyncio
     async def test_middleware_graphql_validation(self, middleware) -> None:
         """Test middleware validates GraphQL requests."""
-        request = AsyncMock()
+        request = MagicMock()
         request.method = "POST"
         request.url.path = "/graphql"
         request.headers = {}
