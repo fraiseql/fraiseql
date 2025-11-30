@@ -7,6 +7,8 @@ import pytest
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True, scope="module")
 async def setup_rbac_schema(db_pool) -> None:

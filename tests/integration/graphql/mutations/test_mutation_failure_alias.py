@@ -5,6 +5,9 @@ import pytest
 import fraiseql
 from fraiseql import failure, fraise_input, mutation, success
 
+pytestmark = pytest.mark.integration
+
+
 # Input type
 
 

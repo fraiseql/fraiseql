@@ -6,8 +6,9 @@ for PostgreSQL pgvector support.
 
 import typing
 
-from fraiseql.sql.graphql_where_generator import VectorFilter
 import pytest
+
+from fraiseql.sql.graphql_where_generator import VectorFilter
 
 pytestmark = pytest.mark.integration
 

@@ -15,6 +15,8 @@ from fraiseql.security.rate_limiting import (
     setup_rate_limiting,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def app() -> None:

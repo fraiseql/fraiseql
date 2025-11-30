@@ -8,6 +8,8 @@ import json
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 def test_transform_json_simple() -> None:
     """Test simple JSON object transformation.

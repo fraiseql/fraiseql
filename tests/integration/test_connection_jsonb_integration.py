@@ -20,6 +20,8 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.types import fraise_type
 from fraiseql.types.generic import Connection
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_type
 class DnsServer:

@@ -8,6 +8,8 @@ from graphql import FieldNode
 
 from fraiseql.mutations.selection_filter import filter_mutation_result
 
+pytestmark = pytest.mark.integration
+
 
 def create_field_node_mock(name, alias=None, selections=None) -> None:
     """Create a properly configured FieldNode mock."""

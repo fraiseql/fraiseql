@@ -19,6 +19,8 @@ from tests.unit.utils.schema_utils import (
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.database
 class TestFraiseQLRepositoryIntegration:

@@ -6,12 +6,16 @@ Python types and field names to appropriate GraphQL filter types.
 
 from typing import List
 
+import pytest
+
 from fraiseql.sql.graphql_where_generator import (
     ArrayFilter,
     StringFilter,
     VectorFilter,
     _get_filter_type_for_field,
 )
+
+pytestmark = pytest.mark.integration
 
 
 class TestFilterTypeMapping:

@@ -9,6 +9,8 @@ from fraiseql.caching import CacheConfig, ResultCache
 from fraiseql.caching.repository_integration import CachedRepository
 from fraiseql.db import FraiseQLRepository
 
+pytestmark = pytest.mark.integration
+
 
 class TestCachedRepository:
     """Test caching integration with FraiseQLRepository."""

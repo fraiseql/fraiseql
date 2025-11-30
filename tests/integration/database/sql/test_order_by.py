@@ -2,6 +2,8 @@ import pytest
 
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet, OrderDirection
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.unit
 def test_single_order_by() -> None:

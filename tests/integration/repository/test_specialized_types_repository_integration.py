@@ -11,7 +11,11 @@ complete repository layer integration works correctly for all specialized types.
 
 from unittest.mock import Mock
 
+import pytest
+
 from fraiseql.db import FraiseQLRepository
+
+pytestmark = pytest.mark.integration
 
 
 class TestSpecializedTypesRepositoryIntegration:

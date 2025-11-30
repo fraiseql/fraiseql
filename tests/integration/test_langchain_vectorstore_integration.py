@@ -25,6 +25,8 @@ except ImportError:
 
 from fraiseql.integrations.langchain import FraiseQLVectorStore
 
+pytestmark = pytest.mark.integration
+
 
 # Mock embedding function for testing
 class MockEmbeddings:

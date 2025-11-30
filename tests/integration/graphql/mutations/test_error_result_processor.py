@@ -18,6 +18,9 @@ from fraiseql.mutations.result_processor import (
 )
 from fraiseql.mutations.types import MutationResult
 
+pytestmark = pytest.mark.integration
+
+
 # Test data structures for mutations
 
 

@@ -7,6 +7,8 @@ from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.integration
 @pytest.mark.database

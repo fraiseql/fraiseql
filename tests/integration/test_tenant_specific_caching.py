@@ -2,7 +2,11 @@
 
 import hashlib
 
+import pytest
+
 from fraiseql.storage.backends.memory import MemoryAPQBackend
+
+pytestmark = pytest.mark.integration
 
 
 class TestTenantSpecificCaching:

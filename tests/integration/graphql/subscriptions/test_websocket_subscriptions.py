@@ -17,6 +17,8 @@ from fraiseql.subscriptions.websocket import (
     WebSocketConnection,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class MockWebSocket:
     """Mock WebSocket for testing."""

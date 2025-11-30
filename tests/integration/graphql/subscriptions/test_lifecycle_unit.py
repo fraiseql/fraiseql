@@ -11,6 +11,8 @@ import pytest
 
 from fraiseql.subscriptions.lifecycle import SubscriptionLifecycle, with_lifecycle
 
+pytestmark = pytest.mark.integration
+
 
 class TestSubscriptionLifecycle:
     """Test SubscriptionLifecycle class methods."""

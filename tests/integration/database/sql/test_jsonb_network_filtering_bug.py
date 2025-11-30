@@ -8,9 +8,10 @@ filtering IP addresses stored in JSONB columns.
 from dataclasses import dataclass
 from typing import get_type_hints
 
+import pytest
+
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.types import IpAddress
-import pytest
 
 pytestmark = pytest.mark.database
 

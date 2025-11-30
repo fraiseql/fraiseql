@@ -4,9 +4,13 @@ import hashlib
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
+import pytest
+
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
 from fraiseql.storage.backends.memory import MemoryAPQBackend
+
+pytestmark = pytest.mark.integration
 
 
 class ContextCapturingBackend(MemoryAPQBackend):

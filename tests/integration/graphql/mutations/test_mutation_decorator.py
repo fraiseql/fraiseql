@@ -9,6 +9,8 @@ from fraiseql.mutations.decorators import failure, success
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 from fraiseql.types.fraise_input import fraise_input
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_input
 class SampleInput:

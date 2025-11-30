@@ -8,6 +8,8 @@ from graphql import graphql
 import fraiseql
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
+pytestmark = pytest.mark.integration
+
 
 # Sample types
 @fraiseql.type

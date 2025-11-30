@@ -18,6 +18,8 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.mutations.decorators import clear_mutation_registries
 from fraiseql.types import fraise_type
 
+pytestmark = pytest.mark.integration
+
 
 class TestSchemaRegistryInitialization:
     """Integration tests for schema registry initialization via FFI.

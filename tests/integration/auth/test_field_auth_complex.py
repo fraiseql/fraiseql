@@ -15,6 +15,8 @@ from fraiseql.security.field_auth import (
     combine_permissions,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestComplexFieldAuthorization:
     """Test complex field authorization scenarios."""

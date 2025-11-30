@@ -10,6 +10,8 @@ import pytest
 
 from fraiseql.introspection import AutoDiscovery
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 async def specql_test_schema_exists(db_pool) -> None:

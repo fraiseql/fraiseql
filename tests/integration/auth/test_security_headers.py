@@ -20,6 +20,8 @@ from fraiseql.security.security_headers import (
     setup_security_headers,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.security
 @pytest.fixture

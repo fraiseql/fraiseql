@@ -15,6 +15,8 @@ from fraiseql import input as input_type
 from fraiseql.db import FraiseQLRepository
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
+pytestmark = pytest.mark.integration
+
 
 # Define the GraphQL types
 @fraiseql.type

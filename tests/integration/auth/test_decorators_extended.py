@@ -14,6 +14,8 @@ from fraiseql.auth.decorators import (
     requires_role,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class MockUserContext(UserContext):
     """Mock UserContext for testing."""

@@ -7,6 +7,8 @@ import pytest
 from fraiseql.fastapi.routers import TurboRouter
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 
+pytestmark = pytest.mark.integration
+
 
 class TestTurboRouter:
     """Test TurboRouter query registration and execution."""

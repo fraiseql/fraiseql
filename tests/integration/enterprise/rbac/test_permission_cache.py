@@ -2,8 +2,9 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from fraiseql.enterprise.rbac.models import Permission
 import pytest
+
+from fraiseql.enterprise.rbac.models import Permission
 
 pytestmark = pytest.mark.enterprise
 

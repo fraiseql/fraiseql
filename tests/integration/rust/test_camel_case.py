@@ -6,6 +6,8 @@ These tests should FAIL initially because the function doesn't exist yet.
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 def test_transform_keys() -> None:
     """Test batch transformation of dictionary keys.

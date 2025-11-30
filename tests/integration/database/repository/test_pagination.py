@@ -16,6 +16,8 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 from fraiseql.cqrs.pagination import CursorPaginator, PaginationParams, decode_cursor, encode_cursor
 from fraiseql.cqrs.repository import CQRSRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 class TestCursorEncoding:
     """Test cursor encoding and decoding functions."""

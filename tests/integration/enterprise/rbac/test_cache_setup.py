@@ -1,5 +1,9 @@
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 async def test_rbac_cache_setup_migration_exists() -> None:
     """Verify RBAC cache setup migration file exists and has correct content."""

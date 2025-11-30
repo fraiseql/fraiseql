@@ -10,6 +10,8 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.subscriptions import cache, complexity
 from fraiseql.subscriptions import filter as sub_filter
 
+pytestmark = pytest.mark.integration
+
 
 class TestSubscriptionDecorator:
     """Test subscription decorator functionality."""

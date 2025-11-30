@@ -19,6 +19,8 @@ import fraiseql
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 from fraiseql.sql.where_generator import safe_create_where_type
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @fraiseql.type
 class User:

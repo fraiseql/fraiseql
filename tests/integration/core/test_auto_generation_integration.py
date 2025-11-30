@@ -9,6 +9,8 @@ import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.integration
 class TestAutoGenerationIntegration:

@@ -18,6 +18,8 @@ from fraiseql.sql.graphql_order_by_generator import (
     create_graphql_order_by_input,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.unit
 @fraiseql.type

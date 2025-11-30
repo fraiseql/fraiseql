@@ -9,6 +9,8 @@ from fraiseql import query
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.security.field_auth import FieldAuthorizationError
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.security
 def test_field_authorization_in_graphql() -> None:

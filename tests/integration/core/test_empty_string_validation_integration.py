@@ -9,6 +9,8 @@ import pytest
 
 from fraiseql.types.fraise_input import fraise_input
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_input
 class CreateUserInput:

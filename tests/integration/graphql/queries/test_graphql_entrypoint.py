@@ -9,6 +9,8 @@ from starlette.testclient import TestClient
 
 from fraiseql.gql.graphql_entrypoint import GraphNoteRouter
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def simple_schema() -> None:

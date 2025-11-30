@@ -9,6 +9,8 @@ import pytest
 
 from fraiseql.cqrs.repository import CQRSRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.database
 class TestWhereClauseFix:

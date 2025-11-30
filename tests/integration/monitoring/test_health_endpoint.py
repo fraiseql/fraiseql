@@ -9,6 +9,8 @@ from httpx import ASGITransport, AsyncClient
 
 from fraiseql.monitoring.health import HealthCheck, check_database
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def app_with_health() -> None:

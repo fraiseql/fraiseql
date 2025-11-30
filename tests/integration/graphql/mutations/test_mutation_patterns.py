@@ -7,6 +7,8 @@ import pytest
 import fraiseql
 from fraiseql.gql.schema_builder import SchemaRegistry
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:

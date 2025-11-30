@@ -21,6 +21,8 @@ from fraiseql.security.csrf_protection import (
     setup_csrf_protection,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def csrf_config() -> None:

@@ -7,6 +7,8 @@ from graphql import GraphQLArgument, GraphQLField, GraphQLResolveInfo
 import fraiseql
 from fraiseql.gql.resolver_wrappers import wrap_resolver
 
+pytestmark = pytest.mark.integration
+
 
 class TestWrapResolver:
     """Test suite for wrap_resolver function."""

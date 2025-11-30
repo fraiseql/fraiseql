@@ -4,13 +4,13 @@ This test demonstrates that our fix resolves the specific issues mentioned
 in the bug report: /tmp/fraiseql_network_filtering_issue.md
 """
 
+import pytest
 from psycopg.sql import SQL
 
 import fraiseql
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import IpAddress
-import pytest
 
 pytestmark = pytest.mark.database
 

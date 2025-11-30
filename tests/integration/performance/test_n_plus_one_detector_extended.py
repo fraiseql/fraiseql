@@ -18,6 +18,8 @@ from fraiseql.optimization.n_plus_one_detector import (
     track_resolver_execution,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestQueryPattern:
     """Test QueryPattern dataclass."""

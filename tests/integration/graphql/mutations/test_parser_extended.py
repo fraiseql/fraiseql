@@ -21,6 +21,8 @@ from fraiseql.mutations.parser import (
 )
 from fraiseql.mutations.types import MutationResult
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 @fraiseql.type

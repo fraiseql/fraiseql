@@ -4,8 +4,9 @@ This test reproduces the exact production issue described in the IP filtering gu
 GraphQL queries with IP address equality should return results when data exists.
 """
 
-from fraiseql.sql.where import build_where_clause, detect_field_type
 import pytest
+
+from fraiseql.sql.where import build_where_clause, detect_field_type
 
 pytestmark = pytest.mark.database
 

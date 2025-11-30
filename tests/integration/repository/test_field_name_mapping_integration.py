@@ -6,10 +6,10 @@ the complete FraiseQL stack, including SQL generation and type detection.
 
 from unittest.mock import MagicMock
 
+import pytest
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository
-import pytest
 
 pytestmark = pytest.mark.integration
 

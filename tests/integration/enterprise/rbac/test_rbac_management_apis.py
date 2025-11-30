@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestRoleManagement:
     """Test role management mutations."""

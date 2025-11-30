@@ -1,5 +1,7 @@
 """End-to-end integration tests for APQ backend abstraction."""
 
+import pytest
+
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.middleware.apq_caching import (
     clear_backend_cache,
@@ -10,7 +12,6 @@ from fraiseql.middleware.apq_caching import (
 from fraiseql.storage.backends.factory import create_apq_backend
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -8,6 +8,8 @@ from graphql import GraphQLResolveInfo
 import fraiseql
 from fraiseql.gql.resolver_wrappers import wrap_resolver
 
+pytestmark = pytest.mark.integration
+
 
 @fraiseql.enum
 class Status(Enum):

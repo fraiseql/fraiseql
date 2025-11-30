@@ -11,6 +11,8 @@ import pytest
 
 import fraiseql
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @fraiseql.type
 class PrintServer:

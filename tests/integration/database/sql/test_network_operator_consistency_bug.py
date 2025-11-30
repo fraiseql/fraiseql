@@ -4,11 +4,11 @@ This test reveals the bug where different operators generate inconsistent
 SQL for the same IP address field type.
 """
 
+import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy, NetworkOperatorStrategy
 from fraiseql.types import IpAddress
-import pytest
 
 pytestmark = pytest.mark.database
 

@@ -1,6 +1,10 @@
 """Test context parameters in mutations."""
 
+import pytest
+
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
+
+pytestmark = pytest.mark.integration
 
 
 # Test types for context parameter mutations
