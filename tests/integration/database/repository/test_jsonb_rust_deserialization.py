@@ -22,7 +22,7 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 
 # Test types with JSONB data
 @fraiseql.type
-class TestProduct:
+class Product:
     """Product entity with JSONB data column."""
 
     id: str
@@ -41,7 +41,7 @@ class TestJSONBRustDeserialization:
         # Register type with has_jsonb_data=True
         register_type_for_view(
             "test_products_jsonb_view",
-            TestProduct,
+            Product,
             table_columns={"id", "name", "data"},
             has_jsonb_data=True,
             jsonb_column="data",

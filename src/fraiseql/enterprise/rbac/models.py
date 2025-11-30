@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Role(BaseModel):
@@ -28,8 +28,7 @@ class Role(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Permission(BaseModel):
@@ -46,8 +45,7 @@ class Permission(BaseModel):
     constraints: Optional[dict[str, Any]] = None  # JSONB constraints
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RolePermission(BaseModel):
@@ -62,8 +60,7 @@ class RolePermission(BaseModel):
     granted: bool = True  # TRUE = grant, FALSE = revoke (explicit deny)
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserRole(BaseModel):
@@ -80,8 +77,7 @@ class UserRole(BaseModel):
     granted_at: datetime
     expires_at: Optional[datetime] = None  # Optional expiration
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PermissionCheck(BaseModel):

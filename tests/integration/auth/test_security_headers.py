@@ -23,7 +23,6 @@ from fraiseql.security.security_headers import (
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.security
 @pytest.fixture
 def app() -> None:
     """Create test FastAPI app."""

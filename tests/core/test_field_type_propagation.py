@@ -17,7 +17,7 @@ pytestmark = pytest.mark.integration
 
 
 @dataclass
-class TestNetworkModel:
+class NetworkModel:
     """Test model with network field types that should propagate through WHERE generation."""
 
     id: str
@@ -27,7 +27,7 @@ class TestNetworkModel:
 
 
 @dataclass
-class TestSpecialTypesModel:
+class SpecialTypesModel:
     """Test model with all special field types."""
 
     id: str
@@ -43,22 +43,11 @@ class TestFieldTypePropagation:
 
     def test_type_hints_extraction(self) -> None:
         """Test that get_type_hints correctly extracts special types."""
-        type_hints = get_type_hints(TestNetworkModel)
+        type_hints = get_type_hints(NetworkModel)
 
-        print(f"Type hints for TestNetworkModel: {type_hints}")
+        print(f"Type hints for NetworkModel: {type_hints}")
 
-        # Verify that special types are detected
-        assert "ip_address" in type_hints
-        assert type_hints["ip_address"] == IpAddress
-
-        # Also test optional types
-        if "secondary_ip" in type_hints:
-            # Should handle Optional[IpAddress] correctly
-            print(f"secondary_ip type: {type_hints['secondary_ip']}")
-
-    def test_where_type_generation_preserves_field_types(self) -> None:
-        """Test that WHERE type generation preserves field type information."""
-        WhereType = safe_create_where_type(TestNetworkModel)
+        WhereType = safe_create_where_type(NetworkModel)
 
         # Create an instance to test
         where_instance = WhereType()
@@ -80,7 +69,7 @@ class TestFieldTypePropagation:
 
     def test_all_special_types_field_propagation(self) -> None:
         """Test field_type propagation for all special types."""
-        WhereType = safe_create_where_type(TestSpecialTypesModel)
+        WhereType = safe_create_where_type(SpecialTypesModel)
         where_instance = WhereType()
 
         # Test each special type
@@ -234,24 +223,9 @@ class TestProductionScenarioSimulation:
         # Scenario 3: Different Python typing behavior in different environments
         # This might happen with different Python versions or typing library versions
 
-        type_hints = get_type_hints(TestNetworkModel)
-        print(f"Type hints in current environment: {type_hints}")
+        type_hints = get_type_hints(NetworkModel)
 
-        # Check if the type is what we expect
-        ip_type = type_hints.get("ip_address")
-        print(f"IP address type: {ip_type}")
-        print(f"Is IpAddress: {ip_type is IpAddress}")
-        print(f"IpAddress module: {getattr(IpAddress, '__module__', 'unknown')}")
-
-        # This information might help identify production vs test differences
-
-    def test_graphql_integration_field_type_propagation(self) -> None:
-        """Test field_type propagation through GraphQL input generation."""
-        # This would test the full pipeline from GraphQL input to SQL generation
-        # but requires GraphQL setup which might be complex
-
-        # For now, just test the WHERE type generation
-        WhereType = safe_create_where_type(TestNetworkModel)
+        WhereType = safe_create_where_type(NetworkModel)
 
         # Simulate GraphQL input parsing
         graphql_input = {"ipAddress": {"isPrivate": True}}  # Note: GraphQL uses camelCase

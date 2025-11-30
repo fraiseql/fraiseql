@@ -76,6 +76,7 @@ def test_list_of_inputs_validation() -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.asyncio
 async def test_async_context_validation() -> None:
     """Test that validation works in async contexts."""
 
