@@ -9,13 +9,12 @@ from typing import Any, Optional, Type
 
 
 # Lazy-load the Rust extension to avoid circular import issues
-# The fraiseql package re-exports _fraiseql_rs in its __init__.py
 def _get_fraiseql_rs():
     """Lazy-load the Rust extension module."""
     try:
-        from fraiseql import _fraiseql_rs
+        import importlib
 
-        return _fraiseql_rs
+        return importlib.import_module("fraiseql._fraiseql_rs")
     except ImportError as e:
         raise ImportError(
             "fraiseql Rust extension is not available. "

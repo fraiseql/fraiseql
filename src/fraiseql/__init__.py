@@ -87,9 +87,9 @@ def _get_fraiseql_rs():
         return None
 
     try:
-        import _fraiseql_rs
+        import importlib
 
-        return _fraiseql_rs
+        return importlib.import_module("fraiseql._fraiseql_rs")
     except ImportError:
         return None
 

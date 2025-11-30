@@ -9,14 +9,14 @@ from fraiseql.mutations.types import MutationResult
 
 @pytest.mark.unit
 @fraiseql.type
-class TestEntity:
+class SampleEntity:
     """Test entity for conflict field testing."""
 
     id: str
     name: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TestEntity":
+    def from_dict(cls, data: dict) -> "SampleEntity":
         return cls(**data)
 
 
@@ -42,7 +42,7 @@ class TestPopulateConflictFields:
 
         annotations = {
             "message": str,
-            "conflict_entity": TestEntity | None,
+            "conflict_entity": SampleEntity | None,
         }
 
         fields = {"message": "Test message"}
@@ -53,14 +53,14 @@ class TestPopulateConflictFields:
         # Verify results
         assert "conflict_entity" in fields
         assert fields["conflict_entity"] is not None
-        assert isinstance(fields["conflict_entity"], TestEntity)
+        assert isinstance(fields["conflict_entity"], SampleEntity)
         assert fields["conflict_entity"].id == "test-id-123"
         assert fields["conflict_entity"].name == "Test Entity"
 
     def test_populate_conflict_fields_no_extra_metadata(self) -> None:
         """Test that function handles missing extra_metadata gracefully."""
         result = MutationResult()  # No extra_metadata
-        annotations = {"conflict_entity": TestEntity | None}
+        annotations = {"conflict_entity": SampleEntity | None}
         fields = {}
 
         # Should not raise exception and not modify fields
@@ -70,7 +70,7 @@ class TestPopulateConflictFields:
     def test_populate_conflict_fields_malformed_errors_structure(self) -> None:
         """Test that function handles malformed errors structure gracefully."""
         result = MutationResult(extra_metadata={"errors": "not-a-list"})  # Invalid structure
-        annotations = {"conflict_entity": TestEntity | None}
+        annotations = {"conflict_entity": SampleEntity | None}
         fields = {}
 
         _populate_conflict_fields(result, annotations, fields)
@@ -91,7 +91,7 @@ class TestPopulateConflictFields:
                 ]
             }
         )
-        annotations = {"conflict_entity": TestEntity | None}
+        annotations = {"conflict_entity": SampleEntity | None}
         fields = {}
 
         _populate_conflict_fields(result, annotations, fields)
@@ -111,8 +111,8 @@ class TestPopulateConflictFields:
             }
         )
 
-        annotations = {"conflict_entity": TestEntity | None}
-        existing_entity = TestEntity(id="existing-id", name="Existing Entity")
+        annotations = {"conflict_entity": SampleEntity | None}
+        existing_entity = SampleEntity(id="existing-id", name="Existing Entity")
         fields = {"conflict_entity": existing_entity}
 
         # Call the function
@@ -140,8 +140,8 @@ class TestPopulateConflictFields:
 
         annotations = {
             "message": str,
-            "conflict_entity": TestEntity | None,
-            "conflict_other": TestEntity | None,  # Same type so both can be instantiated
+            "conflict_entity": SampleEntity | None,
+            "conflict_other": SampleEntity | None,  # Same type so both can be instantiated
         }
 
         fields = {"message": "Test"}
@@ -210,8 +210,8 @@ class TestPopulateConflictFields:
 
         annotations = {
             "message": str,
-            "regular_entity": TestEntity | None,  # Should be ignored
-            "conflict_entity": TestEntity | None,  # Should be populated
+            "regular_entity": SampleEntity | None,  # Should be ignored
+            "conflict_entity": SampleEntity | None,  # Should be populated
         }
 
         fields = {}

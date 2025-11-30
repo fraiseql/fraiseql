@@ -1,48 +1,13 @@
 === FraiseQL Test Performance Profile ===
-Generated: 2024-11-30
-
-Collection Time: 6.3s (with FRAISEQL_SKIP_RUST=1)
+Collection Time: s
 Total Tests: 4655
 
 Test Categories:
-- Database tests: 506 tests (10.9%)
-- Integration tests: 777 tests (16.7%)
-- Unit tests (marked): 180 tests (3.9%)
-- Fast tests (no db/integration/e2e/slow): ~3,372 tests (72.4%)
-
-Marker Distribution:
-- @pytest.mark.asyncio: 703 uses
-- @pytest.mark.unit: 180 uses
-- @pytest.mark.integration: 28 explicit uses
-- @pytest.mark.database: 18 uses (506 tests collected)
-- @pytest.mark.core: 15 uses
-- @pytest.mark.regression: 12 uses
-- @pytest.mark.security: 11 uses
-- @pytest.mark.performance: 9 uses
-- @pytest.mark.slow: 3 uses
-
-Line Counts:
-- Source code: 72,283 lines
-- Test code: 111,064 lines
-- Test-to-Code Ratio: 1.53x
-
-Test Files by Directory:
-- unit: 189 files
-- integration: 175 files
-- regression: 25 files
-- system: 22 files
-- fixtures: 8 files
-- storage: 5 files
-- core: 5 files
+- Unit tests (fast): 3452 tests
+- Database tests: 506 tests
+- Integration tests: 777 tests
+- E2E tests: 0 tests
 
 Optimization Potential:
-- Can run ~72% of tests without database (3,372 of 4,655)
-- Can run ~83% of tests without integration markers
-- Estimated CI speedup: 2-3x by running fast tests first
-- Collection time is fast (~6s), execution time is the bottleneck
-
-Recommendations:
-1. Split CI into fast (unit) and slow (database/integration) jobs
-2. Run fast tests first for quick feedback
-3. Many tests missing explicit markers - consider adding 'unit' marker
-4. Consider test parallelization with pytest-xdist
+- Can run 74% of tests without database
+- Estimated CI speedup: 106x

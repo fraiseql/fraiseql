@@ -504,13 +504,14 @@ def create_fraiseql_app(
     # Initialize Rust schema registry for type resolution
     # This enables correct __typename for nested JSONB objects and field aliasing
     if enable_schema_registry:
+        import importlib
         import json
         import time
 
-        from fraiseql import _fraiseql_rs
         from fraiseql.core.schema_serializer import SchemaSerializer
 
         try:
+            _fraiseql_rs = importlib.import_module("fraiseql._fraiseql_rs")
             start_time = time.time()
 
             serializer = SchemaSerializer()

@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 def _get_fraiseql_rs():
     """Lazy-load Rust extension."""
     try:
-        from fraiseql import _fraiseql_rs
+        import importlib
 
-        return _fraiseql_rs
+        return importlib.import_module("fraiseql._fraiseql_rs")
     except ImportError as e:
         raise ImportError(
             "fraiseql Rust extension not available. "

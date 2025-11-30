@@ -11,8 +11,8 @@ import uuid
 from typing import Optional
 
 import pytest
+from fraiseql import query
 
-from fraiseql import _fraiseql_rs, query
 from fraiseql.core.schema_serializer import SchemaSerializer
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.mutations.decorators import clear_mutation_registries

@@ -5,8 +5,6 @@ import pytest
 
 def test_rust_binding_exists():
     """Test that build_mutation_response is exposed to Python."""
-    from fraiseql import _fraiseql_rs
-
     assert hasattr(_fraiseql_rs, "build_mutation_response")
 
 
@@ -14,7 +12,6 @@ def test_rust_binding_simple_format():
     """Test simple format (just entity JSONB) transformation."""
     import json
 
-    from fraiseql import _fraiseql_rs
 
     # Simple format: just entity data, no status wrapper
     mutation_json = json.dumps({"id": "123", "first_name": "John", "email": "john@example.com"})
@@ -39,7 +36,6 @@ def test_rust_binding_v2_success():
     """Test v2 format (full mutation_result) transformation."""
     import json
 
-    from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(
         {
@@ -73,7 +69,6 @@ def test_rust_binding_error():
     """Test error mutation transformation."""
     import json
 
-    from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(
         {
@@ -105,8 +100,6 @@ def test_rust_binding_error():
 
 def test_rust_binding_invalid_json():
     """Test error handling for invalid JSON."""
-    from fraiseql import _fraiseql_rs
-
     with pytest.raises(ValueError, match="Invalid JSON"):
         _fraiseql_rs.build_mutation_response(
             "not valid json",

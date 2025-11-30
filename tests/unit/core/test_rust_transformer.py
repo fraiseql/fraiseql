@@ -2,7 +2,7 @@
 
 from src.fraiseql.core.rust_transformer import RustTransformer
 
-from fraiseql import _fraiseql_rs as fraiseql_rs
+import fraiseql._fraiseql_rs as fraiseql_rs
 
 
 def test_transform_without_schema_registry() -> None:
