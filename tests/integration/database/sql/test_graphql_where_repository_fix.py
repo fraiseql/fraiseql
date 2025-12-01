@@ -4,6 +4,7 @@ This test demonstrates that the WHERE clause generation bug has been completely
 fixed and GraphQL-style filtering now works correctly in the repository.
 """
 
+import psycopg
 import pytest
 
 from fraiseql.cqrs.repository import CQRSRepository
@@ -15,7 +16,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 class TestGraphQLWhereRepositoryFix:
     """Test GraphQL WHERE clause filtering works correctly after the fix."""
 
-    async def test_graphql_string_operators_work(self, db_connection_committed) -> None:
+    @pytest.mark.asyncio
+    async def test_graphql_string_operators_work(
+        self, db_connection_committed: psycopg.AsyncConnection
+    ) -> None:
         """Test that all GraphQL string operators work correctly."""
         conn = db_connection_committed
         repo = CQRSRepository(conn)
@@ -60,7 +64,10 @@ class TestGraphQLWhereRepositoryFix:
         assert len(results) == 1
         assert results[0]["name"] == "router-primary"
 
-    async def test_graphql_network_operators_work(self, db_connection_committed) -> None:
+    @pytest.mark.asyncio
+    async def test_graphql_network_operators_work(
+        self, db_connection_committed: psycopg.AsyncConnection
+    ) -> None:
         """Test that network-specific operators work correctly."""
         conn = db_connection_committed
         repo = CQRSRepository(conn)
@@ -103,7 +110,10 @@ class TestGraphQLWhereRepositoryFix:
         assert "8.8.8.8" in public_ips
         assert "1.1.1.1" in public_ips
 
-    async def test_graphql_complex_combinations_work(self, db_connection_committed) -> None:
+    @pytest.mark.asyncio
+    async def test_graphql_complex_combinations_work(
+        self, db_connection_committed: psycopg.AsyncConnection
+    ) -> None:
         """Test that complex GraphQL WHERE combinations work correctly."""
         conn = db_connection_committed
         repo = CQRSRepository(conn)
@@ -146,7 +156,10 @@ class TestGraphQLWhereRepositoryFix:
         assert "prod-server-02" in server_names
         assert "staging-server-01" in server_names
 
-    async def test_graphql_list_operators_work(self, db_connection_committed) -> None:
+    @pytest.mark.asyncio
+    async def test_graphql_list_operators_work(
+        self, db_connection_committed: psycopg.AsyncConnection
+    ) -> None:
         """Test that GraphQL list operators (in, nin) work correctly."""
         conn = db_connection_committed
         repo = CQRSRepository(conn)
@@ -189,7 +202,10 @@ class TestGraphQLWhereRepositoryFix:
         assert "testing" not in environments
         assert all(env in ["production", "staging"] for env in environments)
 
-    async def test_backward_compatibility_maintained(self, db_connection_committed) -> None:
+    @pytest.mark.asyncio
+    async def test_backward_compatibility_maintained(
+        self, db_connection_committed: psycopg.AsyncConnection
+    ) -> None:
         """Test that simple equality (backward compatibility) still works."""
         conn = db_connection_committed
         repo = CQRSRepository(conn)
