@@ -200,7 +200,8 @@ class TestFieldTypePropagation:
 
         # Compare the results
         print(
-            f"  Same strategy selected: {strategy_with_type.__class__ == strategy_no_type.__class__}"
+            "  Same strategy selected: "
+            f"{strategy_with_type.__class__ == strategy_no_type.__class__}"
         )
         print(f"  With type has inet casting: {'::inet' in sql_with_type}")
         print(f"  Without type has inet casting: {'::inet' in sql_no_type}")
@@ -223,12 +224,10 @@ class TestProductionScenarioSimulation:
         # Scenario 3: Different Python typing behavior in different environments
         # This might happen with different Python versions or typing library versions
 
-        type_hints = get_type_hints(NetworkModel)
-
         WhereType = safe_create_where_type(NetworkModel)
 
         # Simulate GraphQL input parsing
-        graphql_input = {"ipAddress": {"isPrivate": True}}  # Note: GraphQL uses camelCase
+        # Note: GraphQL uses camelCase
 
         # This would need to be converted to the internal format
         # The conversion might lose field_type information

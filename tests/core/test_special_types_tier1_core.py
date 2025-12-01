@@ -264,7 +264,8 @@ class TestTier1DateRangeTypes:
 
         # Must include proper daterange casting for JSONB fields
         assert "::daterange" in sql_str, "DateRange equality requires daterange casting"
-        assert "2024-01-01" in sql_str and "2024-12-31" in sql_str, "Should include date range"
+        assert "2024-01-01" in sql_str, "Should include start date"
+        assert "2024-12-31" in sql_str, "Should include end date"
 
     def test_daterange_contains_date_operator_jsonb_flat(self) -> None:
         """RED: Test DateRange contains_date operator with JSONB flat storage.
@@ -374,7 +375,6 @@ class TestTier1FieldTypePassthrough:
         try:
             result_no_type = build_operator_composed(path_sql, "isPrivate", True, None)
             # If this doesn't fail, the implementation is already robust
-            sql_no_type = str(result_no_type)
             # The issue is when field_type=None prevents proper strategy selection
         except Exception as e:
             # Expected behavior if field_type is required for network operators

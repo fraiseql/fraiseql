@@ -1,6 +1,7 @@
 """RED-GREEN-REFACTOR Test for JSONB Network Type Casting Issue.
 
-This test reproduces the exact issue described in /tmp/fraiseql_jsonb_network_filtering_deep_dive.md:
+This test reproduces the exact issue described in
+/tmp/fraiseql_jsonb_network_filtering_deep_dive.md:
 
 PROBLEM: Network filtering fails when IP addresses are stored in JSONB columns because
          FraiseQL treats `data->>'ip_address'` as TEXT but network operations require

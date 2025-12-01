@@ -48,7 +48,7 @@ class TestProductionFixValidation:
             "172.16.0.1",  # Private IPv4
             "8.8.8.8",  # Public IPv4
             "127.0.0.1",  # Localhost
-            "0.0.0.0",  # All zeros
+            "0.0.0.0",  # noqa: S104  # All zeros (intentional for testing)
             "255.255.255.255",  # Broadcast
             "2001:db8::1",  # IPv6
             "::1",  # IPv6 localhost
@@ -96,7 +96,6 @@ class TestProductionFixValidation:
             assert text in sql_str, f"Non-IP '{text}' value missing from SQL"
 
             # Should be plain text comparison
-            expected_pattern = f"(data ->> 'identifier') = '{text}'"
             # Basic check - should be simple comparison
             assert " = " in sql_str, f"Should have simple equality for non-IP: {sql_str}"
 
@@ -203,7 +202,7 @@ class TestIPDetectionLogic:
             "172.16.0.1",
             "8.8.8.8",
             "127.0.0.1",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104
             "255.255.255.255",
         ]
 

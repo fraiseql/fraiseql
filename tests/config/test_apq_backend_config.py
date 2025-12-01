@@ -87,9 +87,7 @@ def test_apq_backend_config_validation() -> None:
 
     # Redis is no longer a built-in backend (use custom instead)
     with pytest.raises(ValidationError):
-        FraiseQLConfig(
-            database_url="postgresql://test@localhost/test", apq_storage_backend="redis"
-        )
+        FraiseQLConfig(database_url="postgresql://test@localhost/test", apq_storage_backend="redis")
 
 
 def test_apq_cache_ttl_validation() -> None:
@@ -123,7 +121,7 @@ def test_apq_config_environment_specific_defaults() -> None:
     assert prod_config.apq_cache_responses is False  # Should remain conservative
 
 
-def test_apq_config_from_environment_variables(monkeypatch) -> None:
+def test_apq_config_from_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test reading APQ config from environment variables."""
     # Set environment variables
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://test@localhost/test")
