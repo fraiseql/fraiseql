@@ -15,10 +15,9 @@ async def setup_audit_schema(db_pool) -> None:
     migration_sql = migration_path.read_text()
 
     # Execute the migration
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(migration_sql)
-            await conn.commit()
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        await cur.execute(migration_sql)
+        await conn.commit()
 
 
 async def test_audit_events_table_exists(db_repo) -> None:

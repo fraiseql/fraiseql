@@ -373,7 +373,7 @@ class TestCachingDecisionsExtended:
         assert should_cache_strict is False
 
         # Might cache with relaxed config
-        should_cache_relaxed, _ = should_cache_query(complex_query, config=RELAXED_CONFIG)
+        _should_cache_relaxed, _ = should_cache_query(complex_query, config=RELAXED_CONFIG)
         # Relaxed has higher threshold
 
     def test_cache_weight_with_schema(self) -> None:

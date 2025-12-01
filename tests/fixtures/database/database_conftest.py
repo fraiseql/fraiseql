@@ -15,6 +15,7 @@ See docs/testing/unified-container-testing.md for detailed documentation.
 
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import psycopg
 import psycopg_pool
@@ -264,7 +265,7 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool) -> None:
     from fraiseql.fastapi.app import create_fraiseql_app
     from fraiseql.fastapi.dependencies import set_db_pool
 
-    def _create_app(**kwargs) -> None:
+    def _create_app(**kwargs: Any) -> None:
         """Create a FraiseQL app with proper database URL and pool."""
         # Use the real database URL from the container
         kwargs.setdefault("database_url", postgres_url)

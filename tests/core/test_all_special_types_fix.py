@@ -4,10 +4,14 @@ This test validates that ALL special types (Network, LTree, DateRange, MacAddres
 now work correctly with eq/neq operators even when field_type information is missing.
 """
 
+import logging
+
 import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
+
+logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.integration
 
@@ -53,8 +57,8 @@ class TestAllSpecialTypesFix:
             result = strategy.build_sql(jsonb_path, "eq", test_value, field_type=None)
             sql_str = str(result)
 
-            print(f"\n{test_name}: {test_value}")
-            print(f"  SQL: {sql_str}")
+            logger.debug(f"\n{test_name}: {test_value}")
+            logger.debug(f"  SQL: {sql_str}")
 
             if expected_cast:
                 # Should have the expected casting
@@ -77,7 +81,7 @@ class TestAllSpecialTypesFix:
                         f"{test_name} should contain '{extra_check}': {sql_str}"
                     )
 
-                print(f"  ✅ CORRECT: Has {expected_cast} casting")
+                logger.debug(f"  ✅ CORRECT: Has {expected_cast} casting")
 
             else:
                 # Should NOT have any special casting
@@ -87,7 +91,7 @@ class TestAllSpecialTypesFix:
                         f"{test_name} should not have {cast} casting: {sql_str}"
                     )
 
-                print("  ✅ CORRECT: No special casting")
+                logger.debug("  ✅ CORRECT: No special casting")
 
     def test_edge_cases_and_ambiguous_values(self) -> None:
         """Test edge cases that might be ambiguous between types."""
@@ -112,21 +116,21 @@ class TestAllSpecialTypesFix:
             result = strategy.build_sql(jsonb_path, "eq", test_value, field_type=None)
             sql_str = str(result)
 
-            print(f"\n{test_name}: '{test_value}'")
-            print(f"  SQL: {sql_str}")
+            logger.debug(f"\n{test_name}: '{test_value}'")
+            logger.debug(f"  SQL: {sql_str}")
 
             if expected_cast:
                 assert expected_cast in sql_str, (
                     f"{test_name} should have {expected_cast} casting: {sql_str}"
                 )
-                print(f"  ✅ DETECTED: {expected_cast}")
+                logger.debug(f"  ✅ DETECTED: {expected_cast}")
             else:
                 special_casts = ["::inet", "::ltree", "::daterange", "::macaddr"]
                 for cast in special_casts:
                     assert cast not in sql_str, (
                         f"{test_name} should not have {cast} casting: {sql_str}"
                     )
-                print("  ✅ NOT DETECTED: No special casting (correct)")
+                logger.debug("  ✅ NOT DETECTED: No special casting (correct)")
 
     def test_list_values_for_in_operator(self) -> None:
         """Test that lists of special type values work with 'in' operator."""
@@ -139,7 +143,7 @@ class TestAllSpecialTypesFix:
         result = strategy.build_sql(jsonb_path, "in", ip_list, field_type=None)
         sql_str = str(result)
 
-        print(f"IP list 'in' operator: {sql_str}")
+        logger.debug(f"IP list 'in' operator: {sql_str}")
         assert "::inet" in sql_str, "List of IPs should get inet casting"
         assert " IN " in sql_str, "Should use IN operator"
 
@@ -148,7 +152,7 @@ class TestAllSpecialTypesFix:
         result = strategy.build_sql(jsonb_path, "in", mac_list, field_type=None)
         sql_str = str(result)
 
-        print(f"MAC list 'in' operator: {sql_str}")
+        logger.debug(f"MAC list 'in' operator: {sql_str}")
         assert "::macaddr" in sql_str, "List of MACs should get macaddr casting"
 
         # Test list of LTree paths
@@ -156,7 +160,7 @@ class TestAllSpecialTypesFix:
         result = strategy.build_sql(jsonb_path, "in", ltree_list, field_type=None)
         sql_str = str(result)
 
-        print(f"LTree list 'in' operator: {sql_str}")
+        logger.debug(f"LTree list 'in' operator: {sql_str}")
         assert "::ltree" in sql_str, "List of LTrees should get ltree casting"
 
     def test_backward_compatibility_with_field_type(self) -> None:
@@ -179,7 +183,7 @@ class TestAllSpecialTypesFix:
             result = strategy.build_sql(jsonb_path, "eq", test_value, field_type=field_type)
             sql_str = str(result)
 
-            print(f"{field_type.__name__} with field_type: {sql_str}")
+            logger.debug(f"{field_type.__name__} with field_type: {sql_str}")
             assert expected_cast in sql_str, (
                 f"Backward compatibility broken for {field_type.__name__}"
             )
@@ -202,25 +206,28 @@ class TestAllSpecialTypesFix:
             result = strategy.build_sql(jsonb_path, op, test_value, field_type=None)
             sql_str = str(result)
 
-            print(f"{test_name}: {sql_str}")
+            logger.debug(f"{test_name}: {sql_str}")
             assert expected_cast in sql_str, f"Production fix failed for {test_name}: {sql_str}"
 
             # Should use proper INET casting for comparison, not text comparison
             # Note: Fixed behavior no longer uses host() for equality operators
             assert "::inet" in sql_str, f"Should use INET casting for IP comparison: {sql_str}"
 
-            print("  ✅ PRODUCTION FIX VALIDATED")
+            logger.debug("  ✅ PRODUCTION FIX VALIDATED")
 
 
 if __name__ == "__main__":
-    print("Testing comprehensive special types fix...")
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Testing comprehensive special types fix...")
 
     test_instance = TestAllSpecialTypesFix()
 
-    print("\n1. Testing all special types comprehensive fix...")
+    logger.info("\n1. Testing all special types comprehensive fix...")
     test_instance.test_all_special_types_comprehensive_fix()
 
-    print("\n2. Testing edge cases...")
+    logger.info("\n2. Testing edge cases...")
     test_instance.test_edge_cases_and_ambiguous_values()
 
-    print("\nRun full tests with: pytest tests/core/test_all_special_types_fix.py -m core -v -s")
+    logger.info(
+        "\nRun full tests with: pytest tests/core/test_all_special_types_fix.py -m core -v -s"
+    )

@@ -14,12 +14,15 @@ All tests use real database interactions with JSONB storage patterns to reveal
 actual production failures that unit tests miss.
 """
 
+import logging
 from dataclasses import dataclass
 
 import pytest
 
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
+
+logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.integration
 
@@ -90,7 +93,7 @@ class TestTier1NetworkTypes:
         result = strategy_no_field_type.build_sql(jsonb_path_sql, "eq", "8.8.8.8", field_type=None)
 
         sql_str = str(result)
-        print(f"Network eq SQL (no field_type): {sql_str}")
+        logger.debug(f"Network eq SQL (no field_type): {sql_str}")
 
         # The critical fix: should now detect IP and apply proper casting
         assert "::inet" in sql_str, f"Must cast JSONB field to inet for IP operations: {sql_str}"
@@ -103,7 +106,7 @@ class TestTier1NetworkTypes:
         )
 
         sql_with_type = str(result_with_type)
-        print(f"Network eq SQL (with field_type): {sql_with_type}")
+        logger.debug(f"Network eq SQL (with field_type): {sql_with_type}")
 
         # Both should now work and produce similar results
         assert "::inet" in sql_with_type, "Should work with field_type too"
@@ -373,7 +376,7 @@ class TestTier1FieldTypePassthrough:
 
         # Test without field_type (may fail - this reveals the issue)
         try:
-            result_no_type = build_operator_composed(path_sql, "isPrivate", True, None)
+            _result_no_type = build_operator_composed(path_sql, "isPrivate", True, None)
             # If this doesn't fail, the implementation is already robust
             # The issue is when field_type=None prevents proper strategy selection
         except Exception as e:
@@ -466,7 +469,8 @@ class TestTier1StrategySelection:
         """Test that MAC address operators with field_type select MacAddressOperatorStrategy."""
         registry = get_operator_registry()
 
-        # For MAC addresses, basic operators should select MacAddressOperatorStrategy when field_type is provided
+        # For MAC addresses, basic operators should select MacAddressOperatorStrategy
+        # when field_type is provided
         mac_ops = ["eq", "neq", "in", "notin"]
 
         for op in mac_ops:
@@ -478,8 +482,9 @@ class TestTier1StrategySelection:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     # Quick smoke test
-    print("Running Tier 1 Core Special Types Tests...")
+    logger.info("Running Tier 1 Core Special Types Tests...")
 
     # Test basic imports work
     assert IpAddress is not None
@@ -487,6 +492,6 @@ if __name__ == "__main__":
     assert DateRange is not None
     assert MacAddress is not None
 
-    print("✓ All imports successful")
-    print("✓ Tier 1 core test structure created")
-    print("\nRun with: pytest tests/core/test_special_types_tier1_core.py -m core -v")
+    logger.info("✓ All imports successful")
+    logger.info("✓ Tier 1 core test structure created")
+    logger.info("\nRun with: pytest tests/core/test_special_types_tier1_core.py -m core -v")

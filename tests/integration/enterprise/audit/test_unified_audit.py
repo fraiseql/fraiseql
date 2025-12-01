@@ -21,24 +21,23 @@ pytestmark = pytest.mark.enterprise
 @pytest.fixture(autouse=True, scope="module")
 async def setup_unified_audit(db_pool) -> None:
     """Set up unified audit table."""
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            # Drop old tables if they exist
-            await cur.execute("DROP TABLE IF EXISTS audit_events CASCADE")
-            await cur.execute("DROP TABLE IF EXISTS audit_signing_keys CASCADE")
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        # Drop old tables if they exist
+        await cur.execute("DROP TABLE IF EXISTS audit_events CASCADE")
+        await cur.execute("DROP TABLE IF EXISTS audit_signing_keys CASCADE")
 
-            # Load unified migration
-            migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
-            migration_sql = migration_path.read_text()
-            await cur.execute(migration_sql)
+        # Load unified migration
+        migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
+        migration_sql = migration_path.read_text()
+        await cur.execute(migration_sql)
 
-            # Insert test signing key
-            await cur.execute(
-                "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
-                ["test-key-for-testing", True],
-            )
+        # Insert test signing key
+        await cur.execute(
+            "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
+            ["test-key-for-testing", True],
+        )
 
-            await conn.commit()
+        await conn.commit()
 
 
 async def test_unified_table_has_all_features(db_repo) -> None:

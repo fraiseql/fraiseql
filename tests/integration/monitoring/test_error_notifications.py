@@ -306,14 +306,13 @@ class TestNotificationManager:
         await notification_manager.send_notifications(error_id)
 
         # Verify no notifications were sent (no config exists)
-        async with error_tracker.db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
-                    (error_id,),
-                )
-                result = await cur.fetchone()
-                assert result[0] == 0
+        async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
+                (error_id,),
+            )
+            result = await cur.fetchone()
+            assert result[0] == 0
 
     @pytest.mark.asyncio
     async def test_send_notifications_with_config(
@@ -321,10 +320,9 @@ class TestNotificationManager:
     ) -> None:
         """Test sending notifications with matching config."""
         # Create notification config
-        async with error_tracker.db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
+        async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                """
                         INSERT INTO tb_error_notification_config (
                             config_id, error_type, channel_type,
                             channel_config, rate_limit_minutes, enabled
@@ -334,8 +332,8 @@ class TestNotificationManager:
                             0, true
                         )
                         """
-                )
-                await conn.commit()
+            )
+            await conn.commit()
 
         # Create an error
         try:
@@ -358,13 +356,12 @@ class TestNotificationManager:
             await asyncio.sleep(0.1)
 
         # Verify notification was logged
-        async with error_tracker.db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
-                    (error_id,),
-                )
-                result = await cur.fetchone()
+        async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
+                (error_id,),
+            )
+            result = await cur.fetchone()
                 # Note: Might be 0 if async task hasn't completed yet
                 # This is expected behavior for fire-and-forget notifications
 
@@ -372,10 +369,9 @@ class TestNotificationManager:
     async def test_rate_limiting(self, error_tracker, notification_manager) -> None:
         """Test notification rate limiting."""
         # Create notification config with 60-minute rate limit
-        async with error_tracker.db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
+        async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                """
                         INSERT INTO tb_error_notification_config (
                             config_id, error_type, channel_type,
                             channel_config, rate_limit_minutes, enabled
@@ -385,8 +381,8 @@ class TestNotificationManager:
                             60, true
                         )
                         """
-                )
-                await conn.commit()
+            )
+            await conn.commit()
 
         # Create an error twice
         try:
@@ -412,12 +408,11 @@ class TestNotificationManager:
             await asyncio.sleep(0.1)
 
         # Verify only one notification was sent (due to rate limiting)
-        async with error_tracker.db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT COUNT(*) FROM tb_error_notification_log WHERE status = 'sent'"
-                )
-                result = await cur.fetchone()
+        async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM tb_error_notification_log WHERE status = 'sent'"
+            )
+            result = await cur.fetchone()
                 # Should have at most 1 successful notification due to rate limiting
 
 

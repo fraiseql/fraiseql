@@ -8,6 +8,7 @@ Related issue: JSONB Rust Deserialization Fix Plan
 """
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -35,7 +36,7 @@ class Product:
 class TestJSONBRustDeserialization:
     """Test that Rust execution correctly deserializes JSONB entities."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_test_data(self, db_pool) -> None:
         """Create test table with JSONB data and register type."""
         # Register type with has_jsonb_data=True

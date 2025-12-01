@@ -5,6 +5,7 @@ in FraiseQL WHERE filtering.
 """
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -32,7 +33,7 @@ ProductWhere = safe_create_where_type(Product)
 class TestArrayFilter:
     """Test suite for array operators in ArrayFilter."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_test_views(self, db_pool) -> None:
         """Create test views with array data."""
         # Register types for views (for development mode)

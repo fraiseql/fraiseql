@@ -330,6 +330,8 @@ ignore = [
   "S106",    # Hardcoded passwords OK in tests
   "ARG001",  # Unused arguments OK in test fixtures
   "ARG002",  # Unused arguments OK in test fixtures
+  "ANN001",  # Missing type annotations in test fixtures (complex types)
+  "T201",    # Print statements OK in tests (debugging output)
   "D100",    # Missing module docstrings in tests
   "D101",    # Missing class docstrings in tests
   "D102",    # Missing method docstrings in tests

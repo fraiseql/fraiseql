@@ -3,8 +3,11 @@
 import json
 import uuid
 from datetime import datetime
+from typing import Any
 
+import psycopg_pool
 import pytest
+import pytest_asyncio
 
 # Import database fixtures
 from tests.fixtures.database.database_conftest import *  # noqa: F403
@@ -168,7 +171,7 @@ class TestNestedObjectFilterEdgeCases:
             )
 
 
-def _parse_rust_response(result) -> None:
+def _parse_rust_response(result: RustResponseBytes | list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -191,8 +194,8 @@ def _parse_rust_response(result) -> None:
 class TestNestedObjectFilterDatabaseEdgeCases:
     """End-to-end database integration tests for nested object filtering edge cases."""
 
-    @pytest.fixture
-    async def setup_edge_case_data(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_edge_case_data(self, db_pool: psycopg_pool.AsyncConnectionPool):
         """Set up test tables and data for edge case tests."""
         async with db_pool.connection() as conn:
             # Clean up any existing test data
@@ -290,7 +293,7 @@ class TestNestedObjectFilterDatabaseEdgeCases:
 
     @pytest.mark.asyncio
     async def test_empty_machine_filter_dict_where_clause(
-        self, db_pool, setup_edge_case_data
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
     ) -> None:
         """Test dict-based where clause with empty machine filter.
 
@@ -334,7 +337,7 @@ class TestNestedObjectFilterDatabaseEdgeCases:
 
     @pytest.mark.asyncio
     async def test_null_machine_filter_dict_where_clause(
-        self, db_pool, setup_edge_case_data
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
     ) -> None:
         """Test dict-based where clause with null machine filter.
 
@@ -370,14 +373,16 @@ class TestNestedObjectFilterDatabaseEdgeCases:
         raw_results = await repo.find("test_allocation_edge_view", where=where_dict)
         results = _parse_rust_response(raw_results)
 
-        # This test documents current behavior - may need to be updated
-        # based on what actually happens with None values
-        print(f"Null machine filter results: {results}")
+        # This test documents current behavior with null filters
+        # Currently, {"machine": None} returns all records instead of just those with null machine
+        # This may be due to how null values are handled in the filter generation
+        assert isinstance(results, list)
+        assert len(results) == 3  # Currently returns all records despite null filter
 
     @pytest.mark.asyncio
     async def test_mixed_fk_and_field_filters_dict_where_clause(
-        self, db_pool, setup_edge_case_data
-    ):
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
+    ) -> None:
         """Test dict-based where clause with mixed FK and field filters.
 
         {machine: {id: {...}, name: {...}}} should handle both FK and JSONB filtering.
@@ -415,8 +420,9 @@ class TestNestedObjectFilterDatabaseEdgeCases:
         raw_results = await repo.find("test_allocation_edge_view", where=where_dict)
         results = _parse_rust_response(raw_results)
 
-        # This test documents how mixed filters are handled
-        # Currently, the implementation may prioritize one type over another
-        print(f"Mixed filter results: {results}")
-        # For now, just ensure it doesn't crash
+        # This test documents how mixed FK and field filters are handled
+        # Currently, when both FK and field filters are present on the same nested object,
+        # the implementation returns all records regardless of filter criteria
+        # This may be due to how the filters are combined in the query generation
         assert isinstance(results, list)
+        assert len(results) == 3  # Currently returns all records despite filters

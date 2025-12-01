@@ -2,10 +2,9 @@
 
 import json
 
+import fraiseql._fraiseql_rs as fraiseql_rs
 import pytest
 from src.fraiseql.core.rust_pipeline import RustResponseBytes
-
-import fraiseql._fraiseql_rs as fraiseql_rs
 
 
 # Schema registry initialization fixture

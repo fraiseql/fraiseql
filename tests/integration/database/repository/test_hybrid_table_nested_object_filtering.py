@@ -253,28 +253,27 @@ class TestHybridTableNestedObjectFiltering:
         """Verify that direct SQL works correctly, proving the issue is in FraiseQL."""
         test_data = setup_hybrid_allocation_table
 
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cursor:
-                # Test that SQL column filtering works
-                await cursor.execute(
-                    "SELECT id FROM tv_allocation WHERE machine_id = %s",
-                    (test_data["machine1_id"],),
-                )
-                sql_results = await cursor.fetchall()
+        async with db_pool.connection() as conn, conn.cursor() as cursor:
+            # Test that SQL column filtering works
+            await cursor.execute(
+                "SELECT id FROM tv_allocation WHERE machine_id = %s",
+                (test_data["machine1_id"],),
+            )
+            sql_results = await cursor.fetchall()
 
-                assert len(sql_results) == 0, "Direct SQL confirms machine1 has 0 allocations"
+            assert len(sql_results) == 0, "Direct SQL confirms machine1 has 0 allocations"
 
-                # Test JSONB path filtering (what FraiseQL might incorrectly try)
-                await cursor.execute(
-                    """
+            # Test JSONB path filtering (what FraiseQL might incorrectly try)
+            await cursor.execute(
+                """
                     SELECT id FROM tv_allocation
                     WHERE data->'machine'->>'id' = %s
                     """,
-                    (str(test_data["machine1_id"]),),
-                )
-                jsonb_results = await cursor.fetchall()
+                (str(test_data["machine1_id"]),),
+            )
+            jsonb_results = await cursor.fetchall()
 
-                assert len(jsonb_results) == 0, "JSONB path filtering also confirms 0 allocations"
+            assert len(jsonb_results) == 0, "JSONB path filtering also confirms 0 allocations"
 
     @pytest.mark.asyncio
     async def test_multiple_nested_object_filters(

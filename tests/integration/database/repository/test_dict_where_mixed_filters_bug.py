@@ -10,8 +10,9 @@ causing it to carry state between iterations.
 """
 
 import json
+from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import pytest
@@ -42,7 +43,7 @@ class RouterConfig:
     machine: Optional[Machine] = None
 
 
-def _parse_rust_response(result) -> None:
+def _parse_rust_response(result) -> list[dict[str, Any]] | dict[str, Any]:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -66,8 +67,8 @@ def _parse_rust_response(result) -> None:
 class TestDictWhereMixedFiltersBug:
     """Test suite to reproduce and fix the dict WHERE mixed filters bug."""
 
-    @pytest.fixture
-    async def setup_test_tables(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_test_tables(self, db_pool) -> AsyncGenerator[dict[str, UUID]]:
         """Create test tables for machines and router configs."""
         # Register types for views
         register_type_for_view("test_machine_view", Machine)

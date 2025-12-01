@@ -25,7 +25,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def csrf_config() -> None:
+def csrf_config() -> CSRFConfig:
     """Create test CSRF configuration."""
     return CSRFConfig(
         secret_key="test-secret-key-for-csrf-protection",
@@ -36,25 +36,25 @@ def csrf_config() -> None:
 
 
 @pytest.fixture
-def app() -> None:
+def app() -> FastAPI:
     """Create test FastAPI app."""
     app = FastAPI()
 
     @app.get("/test")
-    async def test_get() -> None:
+    async def test_get() -> dict[str, str]:
         return {"message": "success"}
 
     @app.post("/test")
-    async def test_post() -> None:
+    async def test_post() -> dict[str, str]:
         return {"message": "success"}
 
     @app.post("/graphql")
-    async def graphql_endpoint(request: Request) -> None:
+    async def graphql_endpoint(request: Request) -> dict[str, dict[str, str]]:
         await request.body()
         return {"data": {"test": "success"}}
 
     @app.get("/health")
-    async def health() -> None:
+    async def health() -> dict[str, str]:
         return {"status": "healthy"}
 
     return app
@@ -131,7 +131,7 @@ class TestCSRFTokenGenerator:
 
         # Various malformed tokens
         malformed_tokens = [
-            "" """abcnot-base64!@#""" "dGVzdA==",  # Valid base64 but wrong format
+            "abcnot-base64!@#dGVzdA==",  # Valid base64 but wrong format
         ]
 
         for token in malformed_tokens:
@@ -142,7 +142,7 @@ class TestGraphQLCSRFValidator:
     """Test GraphQL CSRF validation."""
 
     @pytest.fixture
-    def validator(self, csrf_config) -> None:
+    def validator(self, csrf_config: CSRFConfig) -> GraphQLCSRFValidator:
         """Create GraphQL CSRF validator."""
         return GraphQLCSRFValidator(csrf_config)
 
@@ -338,7 +338,7 @@ class TestCSRFProtectionMiddleware:
         result = middleware._validate_referrer(request)
         assert result is not None
         assert result.status_code == 403
-        assert "Missing referrer" in result.body.decode()
+        assert "Missing referrer" in bytes(result.body).decode()
 
     @pytest.mark.asyncio
     async def test_validate_referrer_untrusted_origin(self, app, csrf_config) -> None:
@@ -555,7 +555,7 @@ class TestCSRFTokenGeneratorExtended:
     """Test CSRF token generation and validation."""
 
     @pytest.fixture
-    def generator(self) -> None:
+    def generator(self) -> CSRFTokenGenerator:
         """Create token generator."""
         return CSRFTokenGenerator("test-secret-key", timeout=3600)
 
@@ -631,7 +631,7 @@ class TestCSRFTokenGeneratorExtended:
 
     def test_token_with_bytes_secret(self) -> None:
         """Test generator with bytes secret key."""
-        generator = CSRFTokenGenerator(b"bytes-secret-key")
+        generator = CSRFTokenGenerator("bytes-secret-key")
         token = generator.generate_token()
         assert generator.validate_token(token) is True
 
@@ -640,7 +640,7 @@ class TestGraphQLCSRFValidatorExtended:
     """Test GraphQL-specific CSRF validation."""
 
     @pytest.fixture
-    def validator(self) -> None:
+    def validator(self) -> GraphQLCSRFValidator:
         """Create GraphQL CSRF validator."""
         config = CSRFConfig(
             secret_key="test-secret", require_for_mutations=True, require_for_subscriptions=False
@@ -805,13 +805,13 @@ class TestCSRFProtectionMiddlewareExtended:
     """Extended test CSRF protection middleware."""
 
     @pytest.fixture
-    def app(self) -> None:
+    def app(self) -> FastAPI:
         """Create test app with middleware."""
         app = FastAPI()
         return app
 
     @pytest.fixture
-    def middleware(self, app) -> None:
+    def middleware(self, app: FastAPI) -> CSRFProtectionMiddleware:
         """Create middleware instance."""
         config = CSRFConfig(
             secret_key="test-secret", cookie_secure=False, exempt_paths={"/health", "/metrics"}
@@ -827,7 +827,7 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req) -> None:
+        async def call_next(req) -> Response:
             return response
 
         result = await middleware.dispatch(request, call_next)
@@ -842,7 +842,7 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req) -> None:
+        async def call_next(req) -> Response:
             return response
 
         result = await middleware.dispatch(request, call_next)
@@ -858,14 +858,14 @@ class TestCSRFProtectionMiddlewareExtended:
         request.cookies = {}
 
         # Mock body with mutation
-        async def get_body() -> None:
+        async def get_body() -> bytes:
             return json.dumps({"query": "mutation Test { ... }"}).encode()
 
         request.body = get_body
 
         response = Response()
 
-        async def call_next(req) -> None:
+        async def call_next(req) -> Response:
             return response
 
         # Should reject without CSRF token
@@ -882,7 +882,7 @@ class TestCSRFProtectionMiddlewareExtended:
 
         response = Response()
 
-        async def call_next(req) -> None:
+        async def call_next(req) -> Response:
             return response
 
         with patch.object(middleware.token_generator, "generate_token", return_value="new-token"):

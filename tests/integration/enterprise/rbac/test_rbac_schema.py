@@ -15,10 +15,9 @@ async def setup_rbac_schema(db_pool) -> None:
     migration_sql = migration_path.read_text()
 
     # Execute the migration
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(migration_sql)
-            await conn.commit()
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        await cur.execute(migration_sql)
+        await conn.commit()
 
 
 async def test_rbac_tables_exist(db_repo) -> None:

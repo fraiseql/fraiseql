@@ -1,8 +1,7 @@
 """Test rust_transformer.py with fraiseql_rs v0.2.0 API."""
 
-from src.fraiseql.core.rust_transformer import RustTransformer
-
 import fraiseql._fraiseql_rs as fraiseql_rs
+from src.fraiseql.core.rust_transformer import RustTransformer
 
 
 def test_transform_without_schema_registry() -> None:

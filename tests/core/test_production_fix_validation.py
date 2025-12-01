@@ -4,10 +4,14 @@ This test validates that the fix in ComparisonOperatorStrategy._apply_type_cast
 correctly handles IP addresses even when field_type information is not available.
 """
 
+import logging
+
 import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
+
+logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.integration
 
@@ -27,7 +31,7 @@ class TestProductionFixValidation:
         result = strategy.build_sql(jsonb_path_sql, "eq", "8.8.8.8", field_type=None)
 
         sql_str = str(result)
-        print(f"IP equality without field_type: {sql_str}")
+        logger.debug(f"IP equality without field_type: {sql_str}")
 
         # CRITICAL: The fix should now detect "8.8.8.8" as an IP and apply ::inet casting
         assert "::inet" in sql_str, f"Production fix failed - no inet casting: {sql_str}"
@@ -61,7 +65,7 @@ class TestProductionFixValidation:
             result = strategy.build_sql(jsonb_path_sql, "eq", ip, field_type=None)
             sql_str = str(result)
 
-            print(f"IP {ip}: {sql_str}")
+            logger.debug(f"IP {ip}: {sql_str}")
 
             # All should be detected as IPs and get inet casting
             assert "::inet" in sql_str, f"IP {ip} not detected - missing inet casting"
@@ -89,7 +93,7 @@ class TestProductionFixValidation:
             result = strategy.build_sql(jsonb_path_sql, "eq", text, field_type=None)
             sql_str = str(result)
 
-            print(f"Non-IP '{text}': {sql_str}")
+            logger.debug(f"Non-IP '{text}': {sql_str}")
 
             # These should NOT get inet casting
             assert "::inet" not in sql_str, f"Non-IP '{text}' incorrectly detected as IP"
@@ -110,7 +114,7 @@ class TestProductionFixValidation:
         result = strategy.build_sql(jsonb_path_sql, "in", ip_list, field_type=None)
         sql_str = str(result)
 
-        print(f"IP 'in' operator: {sql_str}")
+        logger.debug(f"IP 'in' operator: {sql_str}")
 
         # Should detect that this is a list of IPs and apply casting
         assert "::inet" in sql_str, "IN operator with IPs should get inet casting"
@@ -132,7 +136,7 @@ class TestProductionFixValidation:
         result = strategy.build_sql(jsonb_path_sql, "in", mixed_list, field_type=None)
         sql_str = str(result)
 
-        print(f"Mixed list: {sql_str}")
+        logger.debug(f"Mixed list: {sql_str}")
 
         # This test documents the behavior - if ANY item looks like an IP,
         # we apply IP casting to be safe
@@ -150,7 +154,7 @@ class TestProductionFixValidation:
         result = strategy.build_sql(jsonb_path_sql, "eq", "8.8.8.8", field_type=IpAddress)
 
         sql_str = str(result)
-        print(f"With field_type (backward compatibility): {sql_str}")
+        logger.debug(f"With field_type (backward compatibility): {sql_str}")
 
         # Should work with the new NetworkOperatorStrategy implementation
         assert "::inet" in sql_str, "Backward compatibility broken - missing inet casting"
@@ -172,7 +176,7 @@ class TestProductionFixValidation:
         result = eq_strategy.build_sql(jsonb_path, "eq", "8.8.8.8", field_type=None)
         sql_str = str(result)
 
-        print(f"Production scenario - IP equality: {sql_str}")
+        logger.debug(f"Production scenario - IP equality: {sql_str}")
 
         # After the fix, this should work
         assert "::inet" in sql_str, "Production IP equality fix failed"
@@ -248,19 +252,20 @@ class TestIPDetectionLogic:
 
 
 if __name__ == "__main__":
-    print("Testing production fix validation...")
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Testing production fix validation...")
 
     test_instance = TestProductionFixValidation()
 
-    print("\n1. Testing IP equality without field_type...")
+    logger.info("\n1. Testing IP equality without field_type...")
     test_instance.test_ip_equality_without_field_type_now_works()
 
-    print("\n2. Testing various IP formats...")
+    logger.info("\n2. Testing various IP formats...")
     test_instance.test_various_ip_formats_detected_correctly()
 
-    print("\n3. Testing non-IP strings...")
+    logger.info("\n3. Testing non-IP strings...")
     test_instance.test_non_ip_strings_not_affected()
 
-    print(
+    logger.info(
         "\nRun full tests with: pytest tests/core/test_production_fix_validation.py -m core -v -s"
     )

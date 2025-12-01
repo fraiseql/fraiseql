@@ -57,7 +57,7 @@ class TestRepositoryWhereIntegration:
     """Test suite for repository where type integration."""
 
     @pytest_asyncio.fixture
-    async def setup_test_views(self, db_pool) -> AsyncGenerator[None, None]:
+    async def setup_test_views(self, db_pool) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)

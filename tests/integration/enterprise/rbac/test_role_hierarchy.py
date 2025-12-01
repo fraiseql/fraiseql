@@ -17,24 +17,23 @@ pytestmark = pytest.mark.enterprise
 async def ensure_rbac_schema(db_pool) -> None:
     """Ensure RBAC schema exists before running tests."""
     # Check if roles table exists
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        await cur.execute(
+            """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'roles'
                 )
             """
-            )
-            exists = (await cur.fetchone())[0]
+        )
+        exists = (await cur.fetchone())[0]
 
-            if not exists:
-                # Read and execute the migration
-                migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
-                migration_sql = migration_path.read_text()
-                await cur.execute(migration_sql)
-                await conn.commit()
+        if not exists:
+            # Read and execute the migration
+            migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
+            migration_sql = migration_path.read_text()
+            await cur.execute(migration_sql)
+            await conn.commit()
 
 
 async def test_role_inheritance_chain(db_repo) -> None:

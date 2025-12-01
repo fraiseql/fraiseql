@@ -12,6 +12,7 @@ Tests complete vector similarity search functionality including:
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository
@@ -32,7 +33,7 @@ class DocumentType:
     created_at: str
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def vector_test_setup(db_pool) -> None:
     """Set up test database with pgvector extension and test data."""
     async with db_pool.connection() as conn:
@@ -106,7 +107,7 @@ async def vector_test_setup(db_pool) -> None:
         await conn.commit()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def binary_vector_test_setup(db_pool) -> None:
     """Set up test database with binary vector test data."""
     async with db_pool.connection() as conn:

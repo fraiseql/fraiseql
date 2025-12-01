@@ -40,6 +40,7 @@ class Product:
 class TestLogicalOperatorsDatabaseIntegration:
     """Test logical operators with real database queries."""
 
+    @pytest.mark.asyncio
     async def test_or_operator_database_query(self, db_connection) -> None:
         """Test OR operator generates working SQL and returns correct results."""
         # Create test table and data
@@ -113,6 +114,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert "Widget B" in result_names
         assert "Gadget C" not in result_names
 
+    @pytest.mark.asyncio
     async def test_and_operator_database_query(self, db_connection) -> None:
         """Test AND operator generates working SQL and returns correct results."""
         # Use existing table from previous test or create new one
@@ -181,6 +183,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert len(results) == 1
         assert results[0][1]["name"] == "Active Electronics"
 
+    @pytest.mark.asyncio
     async def test_not_operator_database_query(self, db_connection) -> None:
         """Test NOT operator generates working SQL and returns correct results."""
         await db_connection.execute(
@@ -233,6 +236,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert len(results) == 1
         assert results[0][1]["name"] == "Active Product"
 
+    @pytest.mark.asyncio
     async def test_complex_nested_logical_operators_database_query(self, db_connection) -> None:
         """Test complex nested logical operators with database."""
         await db_connection.execute(
@@ -348,6 +352,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert "Expensive Electronics Low Stock" not in result_names
         assert "Cheap Inactive Electronics" not in result_names
 
+    @pytest.mark.asyncio
     async def test_mixed_field_and_logical_operators_database_query(self, db_connection) -> None:
         """Test mixing direct field operators with logical operators."""
         await db_connection.execute(

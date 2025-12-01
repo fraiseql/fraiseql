@@ -437,25 +437,24 @@ class TestHybridTableFiltering:
         """
         counts = setup_hybrid_table
 
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cursor:
-                # Test direct column filtering
-                await cursor.execute("SELECT id, name FROM products WHERE is_active = true")
-                sql_results = await cursor.fetchall()
+        async with db_pool.connection() as conn, conn.cursor() as cursor:
+            # Test direct column filtering
+            await cursor.execute("SELECT id, name FROM products WHERE is_active = true")
+            sql_results = await cursor.fetchall()
 
-                assert len(sql_results) == counts["active"], (
-                    "Direct SQL works correctly, confirming the bug is in FraiseQL"
-                )
+            assert len(sql_results) == counts["active"], (
+                "Direct SQL works correctly, confirming the bug is in FraiseQL"
+            )
 
-                # Test mixed filtering
-                await cursor.execute(
-                    """
+            # Test mixed filtering
+            await cursor.execute(
+                """
                     SELECT id, name
                     FROM products
                     WHERE is_active = true
                       AND data->>'brand' = 'TechCorp'
                     """
-                )
-                mixed_results = await cursor.fetchall()
+            )
+            mixed_results = await cursor.fetchall()
 
-                assert len(mixed_results) == 2, "Direct SQL with mixed column/JSONB filtering works"
+            assert len(mixed_results) == 2, "Direct SQL with mixed column/JSONB filtering works"

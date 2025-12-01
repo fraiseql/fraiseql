@@ -12,49 +12,48 @@ pytestmark = pytest.mark.enterprise
 async def setup_audit_schema(db_pool) -> None:
     """Set up audit schema before running tests."""
     # Check if schema already exists
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        await cur.execute(
+            """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'audit_events'
                 )
             """
-            )
-            exists = (await cur.fetchone())[0]
+        )
+        exists = (await cur.fetchone())[0]
 
-            if not exists:
-                # Read the migration file
-                migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
-                migration_sql = migration_path.read_text()
+        if not exists:
+            # Read the migration file
+            migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
+            migration_sql = migration_path.read_text()
 
-                # Execute the migration
-                await cur.execute(migration_sql)
+            # Execute the migration
+            await cur.execute(migration_sql)
 
-            # Keep PostgreSQL crypto trigger ENABLED (FraiseQL philosophy: "In PostgreSQL Everything")
-            # PostgreSQL handles hashing, signing, and chain linking
+        # Keep PostgreSQL crypto trigger ENABLED (FraiseQL philosophy: "In PostgreSQL Everything")
+        # PostgreSQL handles hashing, signing, and chain linking
 
-            # Disable the partition trigger for tests to avoid complexity
+        # Disable the partition trigger for tests to avoid complexity
+        await cur.execute(
+            "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
+        )
+
+        # Check if test signing key exists
+        await cur.execute(
+            "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
+            ["test-key-for-testing"],
+        )
+        key_exists = (await cur.fetchone())[0] > 0
+
+        if not key_exists:
+            # Insert a test signing key
             await cur.execute(
-                "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
+                "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
+                ["test-key-for-testing", True],
             )
 
-            # Check if test signing key exists
-            await cur.execute(
-                "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
-                ["test-key-for-testing"],
-            )
-            key_exists = (await cur.fetchone())[0] > 0
-
-            if not key_exists:
-                # Insert a test signing key
-                await cur.execute(
-                    "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
-                    ["test-key-for-testing", True],
-                )
-
-            await conn.commit()
+        await conn.commit()
 
 
 async def test_log_audit_event(db_repo) -> None:

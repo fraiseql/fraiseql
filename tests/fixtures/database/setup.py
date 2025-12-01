@@ -160,11 +160,10 @@ async def db_connection(test_database: str) -> AsyncGenerator[psycopg.AsyncConne
     """Provide isolated database connection with transaction rollback."""
     conn_str = get_db_connection_string(test_database)
 
-    async with await psycopg.AsyncConnection.connect(conn_str) as conn:
+    async with await psycopg.AsyncConnection.connect(conn_str) as conn, conn.transaction():
         # Start transaction for test isolation
-        async with conn.transaction():
-            yield conn
-            # Transaction will rollback automatically
+        yield conn
+        # Transaction will rollback automatically
 
 
 @pytest_asyncio.fixture

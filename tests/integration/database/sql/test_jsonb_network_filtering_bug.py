@@ -57,7 +57,7 @@ class TestJSONBNetworkFilteringBug:
 class TestRootCauseInvestigation:
     """Additional tests to investigate the root cause."""
 
-    async def test_sql_generation_for_jsonb_network_field(self) -> None:
+    def test_sql_generation_for_jsonb_network_field(self) -> None:
         """Test SQL generation for network filtering on JSONB fields."""
         from psycopg.sql import SQL
 
@@ -78,7 +78,7 @@ class TestRootCauseInvestigation:
         assert "<<=" in sql_str, "Should use PostgreSQL subnet operator"
         assert "192.168.1.0/24" in sql_str, "Should include subnet parameter"
 
-    async def test_eq_operator_sql_generation(self) -> None:
+    def test_eq_operator_sql_generation(self) -> None:
         """Test SQL generation for eq operator on JSONB network field."""
         from psycopg.sql import SQL
 
