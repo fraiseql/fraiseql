@@ -10,11 +10,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def setup_bridge_schema(db_pool) -> None:
     """Set up bridge schema and tenant.tb_audit_log table for testing."""
     async with db_pool.connection() as conn, conn.cursor() as cur:
@@ -36,9 +37,7 @@ async def setup_bridge_schema(db_pool) -> None:
             await cur.execute(migration_sql)
 
         # Disable partition trigger for tests
-        await cur.execute(
-            "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
-        )
+        await cur.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
 
         # Ensure test signing key exists
         await cur.execute(
@@ -97,7 +96,8 @@ async def setup_bridge_schema(db_pool) -> None:
         await conn.commit()
 
 
-async def test_bridge_automatically_populates_audit_events(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_automatically_populates_audit_events(db_repo, setup_bridge_schema) -> None:
     """Verify bridge trigger automatically creates audit_events from tb_audit_log."""
     import psycopg.types.json
 
@@ -175,7 +175,8 @@ async def test_bridge_automatically_populates_audit_events(db_repo) -> None:
     assert event["previous_hash"] is None
 
 
-async def test_bridge_creates_cryptographic_chain(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_creates_cryptographic_chain(db_repo, setup_bridge_schema) -> None:
     """Verify multiple mutations create a valid cryptographic chain."""
     import psycopg.types.json
 
@@ -245,7 +246,8 @@ async def test_bridge_creates_cryptographic_chain(db_repo) -> None:
         assert event["signature"] is not None
 
 
-async def test_bridge_preserves_debezium_style_data(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_preserves_debezium_style_data(db_repo, setup_bridge_schema) -> None:
     """Verify bridge preserves old_data and new_data (Debezium CDC style)."""
     import psycopg.types.json
 

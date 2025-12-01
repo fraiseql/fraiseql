@@ -5,6 +5,6 @@ from fraiseql.db import FraiseQLRepository
 
 
 @pytest.fixture
-async def db_repo(db_pool) -> None:
+def db_repo(db_pool) -> FraiseQLRepository:
     """FraiseQL repository fixture for enterprise tests."""
     return FraiseQLRepository(db_pool)
