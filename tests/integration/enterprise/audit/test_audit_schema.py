@@ -1,13 +1,15 @@
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
+from psycopg.sql import SQL
 
 from fraiseql.db import DatabaseQuery
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest_asyncio.fixture(autouse=True, scope="module")
 async def setup_audit_schema(db_pool) -> None:
     """Set up audit schema before running tests."""
     # Read the migration file
@@ -20,11 +22,14 @@ async def setup_audit_schema(db_pool) -> None:
         await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_audit_events_table_exists(db_repo) -> None:
     """Verify audit_events table exists with correct schema."""
     result = await db_repo.run(
         DatabaseQuery(
-            statement="SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'audit_events'",
+            statement=SQL(
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'audit_events'"
+            ),
             params={},
             fetch_result=True,
         )
