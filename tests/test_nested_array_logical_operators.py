@@ -5,6 +5,7 @@ This test module specifically covers complex logical operator scenarios that can
 used with nested array where filtering, ensuring all combinations work correctly.
 """
 
+import pytest
 import uuid
 
 from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where

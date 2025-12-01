@@ -1,5 +1,6 @@
 """Docstring extraction for GraphQL schema descriptions."""
 
+import pytest
 from graphql import GraphQLObjectType
 
 import fraiseql
