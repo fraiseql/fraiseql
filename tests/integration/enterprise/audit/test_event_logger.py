@@ -4,11 +4,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest_asyncio.fixture(autouse=True, scope="session")
 async def setup_audit_schema(db_pool) -> None:
     """Set up audit schema before running tests."""
     # Check if schema already exists
@@ -35,9 +36,7 @@ async def setup_audit_schema(db_pool) -> None:
         # PostgreSQL handles hashing, signing, and chain linking
 
         # Disable the partition trigger for tests to avoid complexity
-        await cur.execute(
-            "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
-        )
+        await cur.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
 
         # Check if test signing key exists
         await cur.execute(
@@ -56,6 +55,7 @@ async def setup_audit_schema(db_pool) -> None:
         await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_log_audit_event(db_repo) -> None:
     """Verify audit event is logged to database with proper chain."""
     # This test will fail until we implement the AuditLogger
@@ -89,6 +89,7 @@ async def test_log_audit_event(db_repo) -> None:
     assert event["signature"] is not None
 
 
+@pytest.mark.asyncio
 async def test_log_event_batching(db_repo) -> None:
     """Verify batching functionality works correctly."""
     from fraiseql.enterprise.audit.event_logger import AuditLogger
@@ -128,6 +129,7 @@ async def test_log_event_batching(db_repo) -> None:
         assert len(events) == 1
 
 
+@pytest.mark.asyncio
 async def test_audit_chain_integrity(db_repo) -> None:
     """Verify cryptographic chain integrity."""
     import uuid
