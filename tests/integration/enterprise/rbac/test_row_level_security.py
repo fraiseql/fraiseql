@@ -4,26 +4,26 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True, scope="module")
-def setup_rbac_schema(postgres_url) -> None:
+@pytest_asyncio.fixture(autouse=True, scope="module")
+async def setup_rbac_schema(db_pool) -> None:
     """Set up RBAC schema before running tests."""
-    import psycopg
     from pathlib import Path
 
     # Read the RBAC migration file
     rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
     rbac_migration_sql = rbac_migration_path.read_text()
 
-    # Execute the migrations synchronously
-    with psycopg.connect(postgres_url) as conn, conn.cursor() as cur:
+    # Execute the migrations
+    async with db_pool.connection() as conn, conn.cursor() as cur:
         # Execute RBAC schema first
-        cur.execute(rbac_migration_sql)
+        await cur.execute(rbac_migration_sql)
 
         # Execute only the function definitions from RLS migration
         # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
@@ -62,8 +62,8 @@ def setup_rbac_schema(postgres_url) -> None:
         $$ LANGUAGE plpgsql STABLE;
         """
 
-        cur.execute(function_sql)
-        conn.commit()
+        await cur.execute(function_sql)
+        await conn.commit()
         print("RBAC schema and functions migration executed successfully")
 
 

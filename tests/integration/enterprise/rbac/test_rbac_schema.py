@@ -1,26 +1,66 @@
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.db import DatabaseQuery
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True, scope="module")
-def setup_rbac_schema(postgres_url) -> None:
+@pytest_asyncio.fixture(autouse=True, scope="module")
+async def setup_rbac_schema(db_pool) -> None:
     """Set up RBAC schema before running tests."""
-    import psycopg
     from pathlib import Path
 
-    # Read the migration file
-    migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
-    migration_sql = migration_path.read_text()
+    # Read the RBAC migration file
+    rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
+    rbac_migration_sql = rbac_migration_path.read_text()
 
-    # Execute the migration synchronously
-    with psycopg.connect(postgres_url) as conn, conn.cursor() as cur:
-        cur.execute(migration_sql)
-        conn.commit()
+    # Execute the migrations
+    async with db_pool.connection() as conn, conn.cursor() as cur:
+        # Execute RBAC schema first
+        await cur.execute(rbac_migration_sql)
+
+        # Execute only the function definitions from RLS migration
+        # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
+        function_sql = """
+        -- Function to check if user has role (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_role(p_user_id UUID, p_role_name TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1 FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = p_user_id
+                AND r.name = p_role_name
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+
+        -- Function to check if user has permission (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_permission(p_user_id UUID, p_resource TEXT, p_action TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1
+                FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                INNER JOIN role_permissions rp ON r.id = rp.role_id
+                INNER JOIN permissions p ON rp.permission_id = p.id
+                WHERE ur.user_id = p_user_id
+                AND p.resource = p_resource
+                AND p.action = p_action
+                AND rp.granted = TRUE
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+        """
+
+        await cur.execute(function_sql)
+        await conn.commit()
         print("RBAC schema migration executed successfully")
 
 
