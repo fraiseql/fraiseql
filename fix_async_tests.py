@@ -24,13 +24,13 @@ def find_test_files(directory: str = "tests") -> List[Path]:
 
 def read_file_content(file_path: Path) -> str:
     """Read the content of a file."""
-    with open(file_path, encoding="utf-8") as f:
+    with file_path.open(encoding="utf-8") as f:
         return f.read()
 
 
 def write_file_content(file_path: Path, content: str) -> None:
     """Write content to a file."""
-    with open(file_path, "w", encoding="utf-8") as f:
+    with file_path.open("w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -48,7 +48,7 @@ def find_async_test_functions(content: str) -> List[Tuple[int, str, str]]:
     for i, line in enumerate(lines):
         match = re.match(pattern, line)
         if match:
-            indent, func_name = match.groups()
+            _indent, func_name = match.groups()
 
             # Check if @pytest.mark.asyncio is already present in the previous lines
             has_decorator = False
@@ -76,31 +76,23 @@ def add_asyncio_decorator(content: str, line_number: int, indent: str) -> str:
 
 def fix_file(file_path: Path) -> int:
     """Fix a single test file by adding missing @pytest.mark.asyncio decorators."""
-    print(f"Processing {file_path}")
-
     content = read_file_content(file_path)
     original_content = content
 
     functions_to_fix = find_async_test_functions(content)
 
     if not functions_to_fix:
-        print(f"  No fixes needed for {file_path}")
         return 0
 
-    print(f"  Found {len(functions_to_fix)} async test functions to fix:")
-
     # Process in reverse order to maintain line numbers
-    for line_num, func_name, line_match in reversed(functions_to_fix):
-        print(f"    Adding @pytest.mark.asyncio to {func_name}")
+    for line_num, _func_name, line_match in reversed(functions_to_fix):
         indent_match = re.match(r"^(\s*)", line_match)
         indent = indent_match.group(1) if indent_match else ""
         content = add_asyncio_decorator(content, line_num, indent)
 
     if content != original_content:
         write_file_content(file_path, content)
-        print(f"  ✅ Fixed {len(functions_to_fix)} functions in {file_path}")
         return len(functions_to_fix)
-    print(f"  No changes made to {file_path}")
     return 0
 
 
@@ -112,14 +104,9 @@ def main() -> None:
         test_dir = "tests"
 
     if not Path(test_dir).exists():
-        print(f"Error: Directory {test_dir} does not exist")
         sys.exit(1)
 
-    print(f"Scanning for async test functions in {test_dir}/")
-    print("=" * 60)
-
     test_files = find_test_files(test_dir)
-    print(f"Found {len(test_files)} test files")
 
     total_fixes = 0
     files_fixed = 0
@@ -130,18 +117,9 @@ def main() -> None:
         if fixes > 0:
             files_fixed += 1
 
-    print("=" * 60)
-    print(f"Summary: Fixed {total_fixes} async test functions in {files_fixed} files")
-
+    # Return non-zero exit code if fixes were made
     if total_fixes > 0:
-        print("\nNext steps:")
-        print("1. Review the changes: git diff")
-        print("2. Run tests to ensure they still work: pytest [test_file]")
-        print(
-            "3. Commit the changes: git commit -m 'test: add missing @pytest.mark.asyncio decorators'"
-        )
-    else:
-        print("No fixes needed - all async test functions already have proper decorators!")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
