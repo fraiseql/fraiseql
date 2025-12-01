@@ -24,6 +24,8 @@ from graphql import GraphQLResolveInfo
 import fraiseql
 from fraiseql.cqrs import CQRSRepository
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
+from fraiseql.fastapi.app import create_db_pool
+from fraiseql.fastapi.dependencies import set_db_pool, get_db_pool
 
 # Configure logging
 logging.basicConfig(
@@ -137,6 +139,47 @@ def _create_base_app() -> FastAPI:
         enable_playground=DEBUG,
     )
 
+    # Custom lifespan with timeout protection for database pool creation
+    @asynccontextmanager
+    async def enterprise_lifespan(app: FastAPI):
+        """Enterprise lifespan with robust database pool initialization."""
+        logger.info("🚀 Starting FraiseQL Blog Enterprise with timeout protection")
+
+        try:
+            # Create database pool with timeout protection
+            pool = await asyncio.wait_for(
+                create_db_pool(
+                    str(config.database_url),
+                    min_size=2,
+                    max_size=config.database_pool_size,
+                    timeout=config.database_pool_timeout,
+                ),
+                timeout=30.0,  # 30 second timeout for pool creation
+            )
+            set_db_pool(pool)
+            logger.info("✅ Database pool created successfully")
+
+        except asyncio.TimeoutError:
+            logger.error("❌ Database pool creation timed out after 30 seconds")
+            # Continue without pool - app will fail gracefully on database requests
+            raise RuntimeError("Database pool creation timed out")
+        except Exception as e:
+            logger.error(f"❌ Database pool creation failed: {e}")
+            # Continue without pool for testing purposes
+            raise
+
+        yield
+
+        # Cleanup
+        logger.info("🔒 Blog Enterprise shutdown")
+        try:
+            pool = get_db_pool()
+            if pool:
+                await pool.close()
+                logger.info("Database pool closed")
+        except Exception as e:
+            logger.error(f"Error closing database pool: {e}")
+
     # Create FraiseQL app with enterprise configuration - this becomes our main app
     app = create_fraiseql_app(
         database_url=get_database_url(),
@@ -148,7 +191,7 @@ def _create_base_app() -> FastAPI:
         title="FraiseQL Blog Enterprise API",
         description="Enterprise blog API with advanced patterns and multi-tenancy",
         production=not DEBUG,
-        # lifespan=lifespan,  # Let FraiseQL handle its own lifespan
+        lifespan=enterprise_lifespan,  # Use custom lifespan with timeout protection
     )
 
     # CORS configuration for enterprise
