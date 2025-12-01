@@ -189,8 +189,7 @@ markers = [
     "forked: Tests that require process isolation (schema registry singleton)"
 ]
 
-# Async support
-asyncio_mode = "auto"
+# Async support - explicit @pytest.mark.asyncio decorators used instead
 
 # Console output
 console_output_style = "progress"

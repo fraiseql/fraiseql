@@ -1,6 +1,7 @@
 """Tests for complex field authorization scenarios."""
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -26,7 +27,7 @@ class TestComplexFieldAuthorization:
 
         # Create nested permission checks
         # Permission checks receive (info, *args, **kwargs) but can ignore extra args
-        def is_authenticated(info, *args, **kwargs) -> None:
+        def is_authenticated(info, *args: Any, **kwargs: Any) -> None:
             return info.context.get("user") is not None
 
         def is_admin(info, *args, **kwargs) -> None:

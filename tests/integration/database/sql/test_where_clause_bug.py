@@ -16,6 +16,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 class TestWhereClauseFix:
     """Test cases demonstrating the WHERE clause generation fix."""
 
+    @pytest.mark.asyncio
     async def test_simple_string_filter_works(self, db_connection_committed) -> None:
         """Test that string filters with operators now work correctly."""
         conn = db_connection_committed
@@ -47,6 +48,7 @@ class TestWhereClauseFix:
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "router" in results[0]["name"]
 
+    @pytest.mark.asyncio
     async def test_network_address_filter_works(self, db_connection_committed) -> None:
         """Test that network address filters now work correctly."""
         conn = db_connection_committed
@@ -84,6 +86,7 @@ class TestWhereClauseFix:
         # FIXED: This now works correctly with network address filtering
         assert len(results) == 2, f"Expected 2 private IPs, got {len(results)}"
 
+    @pytest.mark.asyncio
     async def test_multiple_operators_work(self, db_connection_committed) -> None:
         """Test that multiple operators in WHERE clause now work correctly."""
         conn = db_connection_committed
@@ -115,6 +118,7 @@ class TestWhereClauseFix:
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert results[0]["name"] == "item-02"
 
+    @pytest.mark.asyncio
     async def test_working_simple_equality(self, db_connection_committed) -> None:
         """Test that simple equality still works (this should pass)."""
         conn = db_connection_committed

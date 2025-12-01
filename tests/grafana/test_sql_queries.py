@@ -35,7 +35,7 @@ def all_sql_queries() -> None:
 
     for filename in DASHBOARD_FILES:
         filepath = DASHBOARD_DIR / filename
-        with open(filepath) as f:
+        with filepath.open() as f:
             dashboard = json.load(f)
 
         dashboard_name = filepath.stem
@@ -194,8 +194,8 @@ class TestGrafanaVariables:
                 )
 
                 assert uses_grafana_time or uses_now_interval or is_latest_query or is_exception, (
-                    f"{query_info['dashboard']}.{query_info['panel']}: "
-                    f"Time-sensitive query should use Grafana time variables, NOW(), or be a latest-value query"
+                    f"{query_info['dashboard']}.{query_info['panel']}: Time-sensitive query should use "
+                    f"Grafana time variables, NOW(), or be a latest-value query"
                 )
 
     def test_queries_use_environment_variable(self, all_sql_queries) -> None:
@@ -417,8 +417,8 @@ class TestQueryCorrectness:
 
                         if not (is_cte_query or is_exception):
                             assert has_group_by, (
-                                f"{query_info['dashboard']}.{query_info['panel']}: "
-                                f"Query with aggregates and non-aggregate columns needs GROUP BY clause"
+                                f"{query_info['dashboard']}.{query_info['panel']}: Query with aggregates and "
+                                f"non-aggregate columns needs GROUP BY clause"
                             )
 
     def test_json_operators_are_valid(self, all_sql_queries) -> None:
@@ -429,7 +429,7 @@ class TestQueryCorrectness:
             # Check for JSONB operators
             if "->" in sql or "->>" in sql:
                 # Validate basic syntax: column->>'key'
-                jsonb_pattern = r"\w+\s*->>?\s*'[\w_]+'"
+                _jsonb_pattern = r"\w+\s*->>?\s*'[\w_]+'"
                 jsonb_ops = re.findall(r"\w+\s*->>?[^,\s]+", sql)
 
                 for op in jsonb_ops:
