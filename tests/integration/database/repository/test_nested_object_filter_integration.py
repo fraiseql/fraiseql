@@ -2,9 +2,12 @@
 
 import json
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
+import psycopg_pool
 import pytest
+import pytest_asyncio
 
 # Import database fixtures
 from tests.fixtures.database.database_conftest import *  # noqa: F403
@@ -311,7 +314,7 @@ class TestNestedObjectFilterIntegration:
         assert "'deviceName'" not in sql_str
 
 
-def _parse_rust_response(result) -> None:
+def _parse_rust_response(result: RustResponseBytes | list[dict] | None) -> list[dict]:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -319,15 +322,117 @@ def _parse_rust_response(result) -> None:
         # Extract data from GraphQL response structure
         if "data" in response_json:
             # Get the first key in data (the field name)
-            field_name = list(response_json["data"].keys())[0]
+            field_name = next(iter(response_json["data"].keys()))
             data = response_json["data"][field_name]
 
             # Normalize: always return a list for consistency
             if isinstance(data, dict):
                 return [data]
             return data
-        return response_json
-    return result
+    # If not RustResponseBytes or unexpected format, return as list if possible
+    if isinstance(result, list):
+        return result
+    return []
+
+
+@pytest_asyncio.fixture
+async def setup_test_data(
+    db_pool: psycopg_pool.AsyncConnectionPool,
+) -> AsyncGenerator[dict[str, uuid.UUID]]:
+    """Set up test tables and data for nested object filtering tests."""
+    async with db_pool.connection() as conn:
+        # Clean up any existing test data
+        await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
+        await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
+
+        # Create test table with JSONB data column
+        await conn.execute(
+            """
+            CREATE TABLE test_assignments (
+                id UUID PRIMARY KEY,
+                data JSONB NOT NULL
+            )
+            """
+        )
+
+        # Create view that extracts nested data
+        await conn.execute(
+            """
+            CREATE VIEW test_assignment_view AS
+            SELECT
+                id,
+                data->>'id' as assignment_id,
+                data->>'status' as status,
+                data->'device' as device,
+                data
+            FROM test_assignments
+            """
+        )
+
+        # Insert test data with nested device objects
+        import psycopg.types.json
+
+        test_id_active = uuid.uuid4()
+        test_id_inactive = uuid.uuid4()
+        test_id_no_device = uuid.uuid4()
+
+        # Insert records one by one with proper JSON handling
+        await conn.execute(
+            "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
+            (
+                str(test_id_active),
+                psycopg.types.json.Json(
+                    {
+                        "id": str(test_id_active),
+                        "status": "active",
+                        "device": {
+                            "id": str(uuid.uuid4()),
+                            "name": "router-01",
+                            "is_active": True,  # CRITICAL: Using snake_case in JSONB
+                        },
+                    }
+                ),
+            ),
+        )
+
+        await conn.execute(
+            "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
+            (
+                str(test_id_inactive),
+                psycopg.types.json.Json(
+                    {
+                        "id": str(test_id_inactive),
+                        "status": "active",
+                        "device": {
+                            "id": str(uuid.uuid4()),
+                            "name": "router-02",
+                            "is_active": False,  # CRITICAL: Using snake_case in JSONB
+                        },
+                    }
+                ),
+            ),
+        )
+
+        await conn.execute(
+            "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
+            (
+                str(test_id_no_device),
+                psycopg.types.json.Json(
+                    {"id": str(test_id_no_device), "status": "pending", "device": None}
+                ),
+            ),
+        )
+
+    yield {
+        "active_id": test_id_active,
+        "inactive_id": test_id_inactive,
+        "no_device_id": test_id_no_device,
+    }
+
+    # Cleanup
+    async with db_pool.connection() as conn:
+        await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
+        await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
 
 
 @pytest.mark.database
@@ -338,106 +443,9 @@ class TestNestedObjectFilterDatabase:
     correctly query the database using snake_case JSONB paths.
     """
 
-    @pytest.fixture
-    async def setup_test_data(self, db_pool) -> None:
-        """Set up test tables and data for nested object filtering tests."""
-        async with db_pool.connection() as conn:
-            # Clean up any existing test data
-            await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
-
-            # Create test table with JSONB data column
-            await conn.execute(
-                """
-                CREATE TABLE test_assignments (
-                    id UUID PRIMARY KEY,
-                    data JSONB NOT NULL
-                )
-                """
-            )
-
-            # Create view that extracts nested data
-            await conn.execute(
-                """
-                CREATE VIEW test_assignment_view AS
-                SELECT
-                    id,
-                    data->>'id' as assignment_id,
-                    data->>'status' as status,
-                    data->'device' as device,
-                    data
-                FROM test_assignments
-                """
-            )
-
-            # Insert test data with nested device objects
-            import psycopg.types.json
-
-            test_id_active = uuid.uuid4()
-            test_id_inactive = uuid.uuid4()
-            test_id_no_device = uuid.uuid4()
-
-            # Insert records one by one with proper JSON handling
-            await conn.execute(
-                "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
-                (
-                    str(test_id_active),
-                    psycopg.types.json.Json(
-                        {
-                            "id": str(test_id_active),
-                            "status": "active",
-                            "device": {
-                                "id": str(uuid.uuid4()),
-                                "name": "router-01",
-                                "is_active": True,  # CRITICAL: Using snake_case in JSONB
-                            },
-                        }
-                    ),
-                ),
-            )
-
-            await conn.execute(
-                "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
-                (
-                    str(test_id_inactive),
-                    psycopg.types.json.Json(
-                        {
-                            "id": str(test_id_inactive),
-                            "status": "active",
-                            "device": {
-                                "id": str(uuid.uuid4()),
-                                "name": "router-02",
-                                "is_active": False,  # CRITICAL: Using snake_case in JSONB
-                            },
-                        }
-                    ),
-                ),
-            )
-
-            await conn.execute(
-                "INSERT INTO test_assignments (id, data) VALUES (%s::uuid, %s::jsonb)",
-                (
-                    str(test_id_no_device),
-                    psycopg.types.json.Json(
-                        {"id": str(test_id_no_device), "status": "pending", "device": None}
-                    ),
-                ),
-            )
-
-        yield {
-            "active_id": test_id_active,
-            "inactive_id": test_id_inactive,
-            "no_device_id": test_id_no_device,
-        }
-
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
-
     @pytest.mark.asyncio
     async def test_nested_boolean_filter_returns_correct_results(
-        self, db_pool, setup_test_data
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
     ) -> None:
         """Test that filtering on nested boolean field returns correct database results.
 
@@ -485,7 +493,7 @@ class TestNestedObjectFilterDatabase:
 
     @pytest.mark.asyncio
     async def test_nested_filter_combined_with_top_level_filter(
-        self, db_pool, setup_test_data
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
     ) -> None:
         """Test combining nested object filter with top-level field filter.
 
@@ -524,7 +532,9 @@ class TestNestedObjectFilterDatabase:
         assert results[0]["device"]["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_nested_filter_with_camelcase_input(self, db_pool, setup_test_data) -> None:
+    async def test_nested_filter_with_camelcase_input(
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
+    ) -> None:
         """Test that camelCase field names in dict-based where clauses are converted to snake_case.
 
         This tests the scenario where GraphQL arguments come through with camelCase field names
@@ -577,11 +587,12 @@ class TestNestedObjectFilterDatabase:
 
     @pytest.mark.asyncio
     async def test_multiple_nested_fields_in_dict_where_clause(
-        self, db_pool, setup_test_data
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
     ) -> None:
         """Test that dict-based where clauses with multiple nested fields work correctly.
 
-        This tests the scenario: {device: {is_active: {eq: true}, device_name: {contains: "router"}}}
+        This tests the scenario: {device: {is_active: {eq: true},
+                                      device_name: {contains: "router"}}}
         Both conditions should be applied with AND.
         """
 
@@ -619,8 +630,8 @@ class TestNestedObjectFilterDatabase:
 
         # Should return 1 result (the active device with name containing "router")
         assert len(results) == 1, (
-            f"Expected 1 result with multiple nested field filters (match case), got {len(results)}. "
-            f"Results: {results}"
+            f"Expected 1 result with multiple nested field filters (match case), "
+            f"got {len(results)}. Results: {results}"
         )
         assert str(results[0]["id"]) == str(setup_test_data["active_id"])
 
@@ -638,19 +649,22 @@ class TestNestedObjectFilterDatabase:
 
         # Should return 0 results (no device has is_active=True AND name containing "switch")
         assert len(results) == 0, (
-            f"Expected 0 results with multiple nested field filters (no match case), got {len(results)}. "
-            f"This indicates the implementation only applies the first condition, not both with AND. "
-            f"Results: {results}"
+            f"Expected 0 results with multiple nested field filters (no match case), "
+            f"got {len(results)}. "
+            f"This indicates the implementation only applies the first condition, "
+            f"not both with AND. Results: {results}"
         )
 
     @pytest.mark.asyncio
     async def test_multiple_top_level_nested_objects_in_dict_where_clause(
-        self, db_pool, setup_test_data
-    ):
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
+    ) -> None:
         """Test that dict-based where clauses with multiple top-level nested objects work correctly.
 
-        This tests the scenario: {device: {is_active: {eq: true}}, machine: {name: {contains: "server"}}}
-        But since our test data doesn't have machines, we'll test with device and a top-level filter.
+        This tests the scenario: {device: {is_active: {eq: true}},
+                                      machine: {name: {contains: "server"}}}
+        But since our test data doesn't have machines, we'll test with device and a
+        top-level filter.
         """
 
         @fraiseql.type
@@ -695,8 +709,8 @@ class TestNestedObjectFilterDatabase:
 
     @pytest.mark.asyncio
     async def test_multiple_nested_fields_with_camelcase_in_dict_where_clause(
-        self, db_pool, setup_test_data
-    ):
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_data: dict[str, uuid.UUID]
+    ) -> None:
         """Test that dict-based where clauses with multiple nested camelCase fields work correctly.
 
         This tests the scenario: {device: {isActive: {eq: true}, name: {contains: "router"}}}
@@ -737,8 +751,8 @@ class TestNestedObjectFilterDatabase:
         # Should return 1 result (the active device with name containing "router")
         assert len(results) == 1, (
             f"Expected 1 result with multiple nested camelCase field filters, got {len(results)}. "
-            f"This indicates the implementation doesn't properly handle multiple nested fields with camelCase. "
-            f"Results: {results}"
+            f"This indicates the implementation doesn't properly handle multiple nested fields "
+            f"with camelCase. Results: {results}"
         )
         assert str(results[0]["id"]) == str(setup_test_data["active_id"])
         assert results[0]["device"]["isActive"] is True
