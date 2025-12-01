@@ -7,6 +7,7 @@ results return null for the object field despite successful creation.
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from graphql import execute, parse
 
 import fraiseql
@@ -57,7 +58,7 @@ class CreateLocation:
 class TestMutationObjectDataMapping:
     """Test mutation object_data mapping in production mode."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_database(self, db_connection_committed) -> None:
         """Set up test database schema and function."""
         conn = db_connection_committed
@@ -139,8 +140,8 @@ class TestMutationObjectDataMapping:
             query_types=[QueryRoot], mutation_resolvers=[CreateLocation], camel_case_fields=True
         )
 
-    @pytest.fixture
-    def mock_pool_production(self, setup_database) -> None:
+    @pytest_asyncio.fixture
+    async def mock_pool_production(self, setup_database) -> None:
         """Create a mock pool for production mode."""
 
         class MockPool:
@@ -156,8 +157,8 @@ class TestMutationObjectDataMapping:
 
         return MockPool()
 
-    @pytest.fixture
-    def mock_pool_development(self, setup_database) -> None:
+    @pytest_asyncio.fixture
+    async def mock_pool_development(self, setup_database) -> None:
         """Create a mock pool for development mode."""
 
         class MockPool:
