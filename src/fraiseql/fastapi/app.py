@@ -291,21 +291,31 @@ def create_fraiseql_app(
         @asynccontextmanager
         async def default_lifespan(app: FastAPI) -> AsyncGenerator[None]:
             """Manage application lifecycle."""
-            # Startup
-            pool = await create_db_pool(
-                str(config.database_url),
-                min_size=2,  # Keep 2 connections warm for better performance
-                max_size=config.database_pool_size,
-                timeout=config.database_pool_timeout,
-            )
-            set_db_pool(pool)
+            # Startup - only create pool if one doesn't already exist
+            # (allows test fixtures to inject their own pool)
+            try:
+                existing_pool = get_db_pool()
+            except RuntimeError:
+                existing_pool = None
+            pool_created_here = False
+
+            if existing_pool is None:
+                pool = await create_db_pool(
+                    str(config.database_url),
+                    min_size=2,  # Keep 2 connections warm for better performance
+                    max_size=config.database_pool_size,
+                    timeout=config.database_pool_timeout,
+                )
+                set_db_pool(pool)
+                pool_created_here = True
 
             yield
 
-            # Shutdown
-            pool_to_close = get_db_pool()
-            if pool_to_close:
-                await pool_to_close.close()
+            # Shutdown - only close pool if we created it
+            if pool_created_here:
+                pool_to_close = get_db_pool()
+                if pool_to_close:
+                    await pool_to_close.close()
 
             if auth_provider and hasattr(auth_provider, "close"):
                 await auth_provider.close()

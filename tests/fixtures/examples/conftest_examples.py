@@ -52,26 +52,35 @@ except ImportError:
 def _reset_fraiseql_global_state() -> None:
     """Reset all FraiseQL global state to prevent test pollution."""
     try:
-        # 1. Reset SchemaRegistry singleton (clears types, mutations, queries, enums, etc.)
+        # 1. Reset Rust schema registry FIRST (critical - prevents RwLock deadlock)
+        try:
+            from fraiseql._fraiseql_rs import reset_schema_registry_for_testing
+
+            reset_schema_registry_for_testing()
+            logger.debug("Rust schema registry reset")
+        except ImportError:
+            logger.debug("Rust extension not available, skipping Rust registry reset")
+
+        # 2. Reset Python SchemaRegistry singleton
         from fraiseql.gql.builders.registry import SchemaRegistry
 
         registry = SchemaRegistry.get_instance()
         registry.clear()
 
-        # 2. Reset TypeRegistry singleton
+        # 3. Reset TypeRegistry singleton
         from fraiseql.core.registry import TypeRegistry
 
         type_registry = TypeRegistry()
         type_registry.clear()
 
-        # 3. Reset global FastAPI dependencies
+        # 4. Reset global FastAPI dependencies
         from fraiseql.fastapi.dependencies import set_auth_provider, set_db_pool, set_fraiseql_config
 
         set_db_pool(None)
         set_auth_provider(None)
         set_fraiseql_config(None)
 
-        # 4. Reset view type registry (maps SQL views to Python types)
+        # 5. Reset view type registry (maps SQL views to Python types)
         from fraiseql.db import _view_type_registry
 
         _view_type_registry.clear()
