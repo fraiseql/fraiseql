@@ -88,9 +88,8 @@ async def blog_simple_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     except Exception as e:
         logger.warning(f"Blog simple database setup failed: {e}")
         pytest.skip(f"Blog simple database setup failed: {e}")
-    finally:
-        # Clean up test databases
-        db_manager.cleanup_test_databases()
+    # Note: We don't clean up test databases here as it can hang if other tests
+    # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
 @pytest_asyncio.fixture
@@ -131,12 +130,20 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenera
     """Create blog_simple app for testing with guaranteed dependencies."""
     import sys
     import importlib.util
+    from urllib.parse import urlparse
 
     blog_simple_dir = EXAMPLES_DIR / "blog_simple"
     app_file = blog_simple_dir / "app.py"
 
-    # Set environment before loading module
+    # Parse the test database URL and set individual env vars
+    # The example uses DB_NAME, DB_USER, etc. not DATABASE_URL
+    parsed = urlparse(blog_simple_db_url)
     os.environ["DATABASE_URL"] = blog_simple_db_url
+    os.environ["DB_NAME"] = parsed.path.lstrip("/")
+    os.environ["DB_USER"] = parsed.username or "fraiseql"
+    os.environ["DB_PASSWORD"] = parsed.password or "fraiseql"
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
 
     try:
         # Force fresh module load using importlib (bypass Python cache)
@@ -175,6 +182,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenera
 @pytest_asyncio.fixture
 async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_simple app with guaranteed dependencies."""
+    import asyncio
     from httpx import AsyncClient, ASGITransport
     import psycopg_pool
 
@@ -191,10 +199,15 @@ async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenera
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
     finally:
-        await pool.close()
         from fraiseql.fastapi.dependencies import set_db_pool
 
         set_db_pool(None)
+
+        # Close pool with timeout to avoid hanging
+        try:
+            await asyncio.wait_for(pool.close(), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Pool close timed out after 10s, continuing anyway")
 
 
 @pytest_asyncio.fixture
@@ -228,9 +241,8 @@ async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None
     except Exception as e:
         logger.warning(f"Blog enterprise database setup failed: {e}")
         pytest.skip(f"Blog enterprise database setup failed: {e}")
-    finally:
-        # Clean up test databases
-        db_manager.cleanup_test_databases()
+    # Note: We don't clean up test databases here as it can hang if other tests
+    # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
 @pytest_asyncio.fixture
@@ -240,12 +252,20 @@ async def blog_enterprise_app(
     """Create blog_enterprise app for testing with guaranteed dependencies."""
     import sys
     import importlib.util
+    from urllib.parse import urlparse
 
     blog_enterprise_dir = EXAMPLES_DIR / "blog_enterprise"
     app_file = blog_enterprise_dir / "app.py"
 
-    # Set environment before loading module
+    # Parse the test database URL and set individual env vars
+    # The example uses DB_NAME, DB_USER, etc. not DATABASE_URL
+    parsed = urlparse(blog_enterprise_db_url)
     os.environ["DATABASE_URL"] = blog_enterprise_db_url
+    os.environ["DB_NAME"] = parsed.path.lstrip("/")
+    os.environ["DB_USER"] = parsed.username or "fraiseql"
+    os.environ["DB_PASSWORD"] = parsed.password or "fraiseql"
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
 
     try:
         # Force fresh module load using importlib (bypass Python cache)
@@ -288,6 +308,7 @@ async def blog_enterprise_client(
     blog_enterprise_app, blog_enterprise_db_url
 ) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
+    import asyncio
     from httpx import AsyncClient, ASGITransport
     import psycopg_pool
 
@@ -304,10 +325,15 @@ async def blog_enterprise_client(
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
     finally:
-        await pool.close()
         from fraiseql.fastapi.dependencies import set_db_pool
 
         set_db_pool(None)
+
+        # Close pool with timeout to avoid hanging
+        try:
+            await asyncio.wait_for(pool.close(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Pool close timed out, forcing termination")
 
 
 # Sample data fixtures that work across examples
