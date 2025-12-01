@@ -66,8 +66,9 @@ pub fn build_graphql_response(
 ) -> PyResult<Vec<u8>> {
     let registry = schema_registry::get_registry();
 
-    if let (Some(registry), Some(type_name_str)) = (registry, type_name) {
-        return build_with_schema(json_rows, field_name, type_name_str, field_paths, field_selections, registry, is_list);
+    if schema_registry::is_initialized() && type_name.is_some() {
+        let type_name_str = type_name.unwrap();
+        return build_with_schema(json_rows, field_name, type_name_str, field_paths, field_selections, &*registry, is_list);
     }
 
     build_zero_copy(json_rows, field_name, type_name, field_paths, is_list)
