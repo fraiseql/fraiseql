@@ -49,6 +49,63 @@ except ImportError:
     AsyncClient = None
 
 
+def _reset_fraiseql_global_state() -> None:
+    """Reset all FraiseQL global state to prevent test pollution."""
+    try:
+        # 1. Reset SchemaRegistry singleton (clears types, mutations, queries, enums, etc.)
+        from fraiseql.gql.builders.registry import SchemaRegistry
+
+        registry = SchemaRegistry.get_instance()
+        registry.clear()
+
+        # 2. Reset TypeRegistry singleton
+        from fraiseql.core.registry import TypeRegistry
+
+        type_registry = TypeRegistry()
+        type_registry.clear()
+
+        # 3. Reset global FastAPI dependencies
+        from fraiseql.fastapi.dependencies import set_auth_provider, set_db_pool, set_fraiseql_config
+
+        set_db_pool(None)
+        set_auth_provider(None)
+        set_fraiseql_config(None)
+
+        # 4. Reset view type registry (maps SQL views to Python types)
+        from fraiseql.db import _view_type_registry
+
+        _view_type_registry.clear()
+
+        logger.debug("FraiseQL global state reset successfully")
+    except Exception as e:
+        logger.warning(f"Error resetting FraiseQL state: {e}")
+
+
+@pytest.fixture
+def reset_fraiseql_state():
+    """Reset FraiseQL global state before and after a test.
+
+    Use this fixture explicitly on tests that create FraiseQL apps to prevent
+    pollution from singleton registries. Not autouse to avoid overhead on
+    tests that don't need it.
+    """
+    _reset_fraiseql_global_state()  # Before test
+    yield
+    _reset_fraiseql_global_state()  # After test
+
+
+@pytest.fixture(scope="module")
+def reset_fraiseql_state_module():
+    """Reset FraiseQL global state once per test module.
+
+    More efficient than per-test reset when tests within a module use
+    compatible schemas.
+    """
+    _reset_fraiseql_global_state()  # Before module
+    yield
+    _reset_fraiseql_global_state()  # After module
+
+
 @pytest.fixture(scope="session")
 def smart_dependencies() -> None:
     """Ensure all required dependencies are available for example tests."""

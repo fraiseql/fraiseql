@@ -15,6 +15,12 @@ pytestmark = [
 ]
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _reset_state_for_blog_enterprise(reset_fraiseql_state_module):
+    """Reset FraiseQL state once for this test module."""
+    yield
+
+
 def test_blog_enterprise_app_exists() -> None:
     """Basic test that blog enterprise app can be imported and has expected structure."""
     import sys

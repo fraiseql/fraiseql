@@ -35,6 +35,8 @@ from tests.fixtures.examples.conftest_examples import (  # noqa: F401
     blog_simple_graphql_client,
     blog_simple_repository,
     examples_event_loop,
+    reset_fraiseql_state,
+    reset_fraiseql_state_module,
     sample_comment_data,
     sample_post_data,
     sample_tag_data,
