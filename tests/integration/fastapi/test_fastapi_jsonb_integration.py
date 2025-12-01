@@ -14,6 +14,7 @@ import json
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -90,7 +91,7 @@ class TestFastAPIJSONBIntegration:
         → RustResponseBytes → HTTP Response
     """
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_fastapi_jsonb_test(self, db_pool) -> None:
         """Create test data and register types for FastAPI testing."""
         # Register type with has_jsonb_data=True
@@ -143,12 +144,15 @@ class TestFastAPIJSONBIntegration:
             """
             )
 
+            await conn.commit()
+
         yield
 
         # Cleanup
         async with db_pool.connection() as conn:
             await conn.execute("DROP VIEW IF EXISTS test_products_fastapi_jsonb_view")
             await conn.execute("DROP TABLE IF EXISTS test_products_fastapi_jsonb")
+            await conn.commit()
 
     @pytest.fixture
     def fastapi_app(self, db_pool) -> None:
