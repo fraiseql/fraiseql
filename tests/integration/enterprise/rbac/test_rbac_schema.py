@@ -8,16 +8,20 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool) -> None:
+def setup_rbac_schema(postgres_url) -> None:
     """Set up RBAC schema before running tests."""
+    import psycopg
+    from pathlib import Path
+
     # Read the migration file
     migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
     migration_sql = migration_path.read_text()
 
-    # Execute the migration
-    async with db_pool.connection() as conn, conn.cursor() as cur:
-        await cur.execute(migration_sql)
-        await conn.commit()
+    # Execute the migration synchronously
+    with psycopg.connect(postgres_url) as conn, conn.cursor() as cur:
+        cur.execute(migration_sql)
+        conn.commit()
+        print("RBAC schema migration executed successfully")
 
 
 @pytest.mark.asyncio

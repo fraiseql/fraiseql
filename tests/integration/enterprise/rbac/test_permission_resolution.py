@@ -16,11 +16,14 @@ pytestmark = pytest.mark.enterprise
 
 
 @pytest.fixture(autouse=True, scope="module")
-async def ensure_rbac_schema(db_pool) -> None:
+def ensure_rbac_schema(postgres_url) -> None:
     """Ensure RBAC schema exists before running tests."""
+    import psycopg
+    from pathlib import Path
+
     # Check if roles table exists
-    async with db_pool.connection() as conn, conn.cursor() as cur:
-        await cur.execute(
+    with psycopg.connect(postgres_url) as conn, conn.cursor() as cur:
+        cur.execute(
             """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
@@ -28,14 +31,16 @@ async def ensure_rbac_schema(db_pool) -> None:
                 )
             """
         )
-        exists = (await cur.fetchone())[0]
+        result = cur.fetchone()
+        exists = result[0] if result else False
 
         if not exists:
             # Read and execute the migration
             migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
             migration_sql = migration_path.read_text()
-            await cur.execute(migration_sql)
-            await conn.commit()
+            cur.execute(migration_sql)
+            conn.commit()
+            print("RBAC schema migration executed successfully")
 
 
 @pytest.mark.asyncio
