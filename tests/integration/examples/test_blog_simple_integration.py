@@ -14,11 +14,13 @@ pytestmark = pytest.mark.integration
 logger = logging.getLogger(__name__)
 
 # Mark all tests as example integration tests
+# Using forked to run each test in a separate process for isolation
 pytestmark = [
     pytest.mark.blog_simple,
     pytest.mark.integration,
     pytest.mark.database,
     pytest.mark.examples,
+    pytest.mark.forked,
 ]
 
 
@@ -153,9 +155,6 @@ async def test_blog_simple_graphql_introspection(blog_simple_graphql_client) -> 
         assert expected_type in type_names, f"Expected type {expected_type} not found in schema"
 
 
-@pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_basic_queries -v"
-)
 @pytest.mark.asyncio
 async def test_blog_simple_basic_queries(blog_simple_graphql_client) -> None:
     """Test basic queries work without errors."""
@@ -268,9 +267,6 @@ async def test_blog_simple_mutations_structure(blog_simple_graphql_client) -> No
         assert len(mutation_names) > 0, "Mutation type exists but no mutations defined"
 
 
-@pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with: pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_performance_baseline -v"
-)
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_blog_simple_performance_baseline(blog_simple_graphql_client) -> None:

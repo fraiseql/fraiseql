@@ -75,11 +75,22 @@ def examples_event_loop() -> None:
     loop.close()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def blog_simple_db_url(smart_dependencies) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_simple_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_simple test database using smart database manager."""
-    # Skip blog simple database setup by default to prevent hanging in test suite
-    pytest.skip("Blog simple database setup disabled to prevent test suite hanging")
+    db_manager = get_database_manager()
+
+    try:
+        success, result = await db_manager.ensure_test_database("blog_simple")
+        if not success:
+            pytest.skip(f"Blog simple database setup failed: {result}")
+        yield result
+    except Exception as e:
+        logger.warning(f"Blog simple database setup failed: {e}")
+        pytest.skip(f"Blog simple database setup failed: {e}")
+    finally:
+        # Clean up test databases
+        db_manager.cleanup_test_databases()
 
 
 @pytest_asyncio.fixture
@@ -116,17 +127,74 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
 
 
 @pytest_asyncio.fixture
-async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> None:
+async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """Create blog_simple app for testing with guaranteed dependencies."""
-    # Skip blog simple app creation by default to prevent hanging in test suite
-    pytest.skip("Blog simple app creation disabled to prevent test suite hanging")
+    import sys
+    import importlib.util
+
+    blog_simple_dir = EXAMPLES_DIR / "blog_simple"
+    app_file = blog_simple_dir / "app.py"
+
+    # Set environment before loading module
+    os.environ["DATABASE_URL"] = blog_simple_db_url
+
+    try:
+        # Force fresh module load using importlib (bypass Python cache)
+        spec = importlib.util.spec_from_file_location(
+            "blog_simple_app_module", app_file, submodule_search_locations=[str(blog_simple_dir)]
+        )
+        if spec is None or spec.loader is None:
+            pytest.skip(f"Could not load app module from {app_file}")
+
+        # Add directory to path for imports within the module
+        sys.path.insert(0, str(blog_simple_dir))
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["app"] = module  # Register so internal imports work
+        spec.loader.exec_module(module)
+
+        # Create app
+        app = module.create_app()
+        yield app
+
+    except Exception as e:
+        logger.warning(f"Blog simple app creation failed: {e}")
+        pytest.skip(f"Blog simple app creation failed: {e}")
+    finally:
+        # Clean up
+        if str(blog_simple_dir) in sys.path:
+            sys.path.remove(str(blog_simple_dir))
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        # Clear any cached modules from the example
+        modules_to_remove = [k for k in sys.modules.keys() if "blog_simple" in k.lower()]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
 
 
 @pytest_asyncio.fixture
-async def blog_simple_client(blog_simple_app) -> None:
+async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_simple app with guaranteed dependencies."""
-    # Skip blog simple client creation by default to prevent hanging in test suite
-    pytest.skip("Blog simple client creation disabled to prevent test suite hanging")
+    from httpx import AsyncClient, ASGITransport
+    import psycopg_pool
+
+    # Create and set pool manually to ensure database pool is initialized
+    pool = psycopg_pool.AsyncConnectionPool(blog_simple_db_url)
+    await pool.open()
+
+    try:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(pool)
+
+        transport = ASGITransport(app=blog_simple_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
+    finally:
+        await pool.close()
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(None)
 
 
 @pytest_asyncio.fixture
@@ -147,25 +215,99 @@ async def blog_simple_graphql_client(blog_simple_client) -> None:
     yield GraphQLClient(blog_simple_client)
 
 
-@pytest_asyncio.fixture(scope="session")
-async def blog_enterprise_db_url(smart_dependencies) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_enterprise test database using smart database manager."""
-    # Skip blog enterprise database setup by default to prevent hanging in test suite
-    pytest.skip("Blog enterprise database setup disabled to prevent test suite hanging")
+    db_manager = get_database_manager()
+
+    try:
+        success, result = await db_manager.ensure_test_database("blog_enterprise")
+        if not success:
+            pytest.skip(f"Blog enterprise database setup failed: {result}")
+        yield result
+    except Exception as e:
+        logger.warning(f"Blog enterprise database setup failed: {e}")
+        pytest.skip(f"Blog enterprise database setup failed: {e}")
+    finally:
+        # Clean up test databases
+        db_manager.cleanup_test_databases()
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url) -> None:
+async def blog_enterprise_app(
+    smart_dependencies, blog_enterprise_db_url
+) -> AsyncGenerator[Any, None]:
     """Create blog_enterprise app for testing with guaranteed dependencies."""
-    # Skip blog enterprise app creation by default to prevent hanging in test suite
-    pytest.skip("Blog enterprise app creation disabled to prevent test suite hanging")
+    import sys
+    import importlib.util
+
+    blog_enterprise_dir = EXAMPLES_DIR / "blog_enterprise"
+    app_file = blog_enterprise_dir / "app.py"
+
+    # Set environment before loading module
+    os.environ["DATABASE_URL"] = blog_enterprise_db_url
+
+    try:
+        # Force fresh module load using importlib (bypass Python cache)
+        spec = importlib.util.spec_from_file_location(
+            "blog_enterprise_app_module",
+            app_file,
+            submodule_search_locations=[str(blog_enterprise_dir)],
+        )
+        if spec is None or spec.loader is None:
+            pytest.skip(f"Could not load app module from {app_file}")
+
+        # Add directory to path for imports within the module
+        sys.path.insert(0, str(blog_enterprise_dir))
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["app"] = module  # Register so internal imports work
+        spec.loader.exec_module(module)
+
+        # Create app
+        app = module.create_app()
+        yield app
+
+    except Exception as e:
+        logger.warning(f"Blog enterprise app creation failed: {e}")
+        pytest.skip(f"Blog enterprise app creation failed: {e}")
+    finally:
+        # Clean up
+        if str(blog_enterprise_dir) in sys.path:
+            sys.path.remove(str(blog_enterprise_dir))
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        # Clear any cached modules from the example
+        modules_to_remove = [k for k in sys.modules.keys() if "blog_enterprise" in k.lower()]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
 
 
 @pytest_asyncio.fixture
-async def blog_enterprise_client(blog_enterprise_app) -> None:
+async def blog_enterprise_client(
+    blog_enterprise_app, blog_enterprise_db_url
+) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
-    # Skip blog enterprise client creation by default to prevent hanging in test suite
-    pytest.skip("Blog enterprise client creation disabled to prevent test suite hanging")
+    from httpx import AsyncClient, ASGITransport
+    import psycopg_pool
+
+    # Create and set pool manually to ensure database pool is initialized
+    pool = psycopg_pool.AsyncConnectionPool(blog_enterprise_db_url)
+    await pool.open()
+
+    try:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(pool)
+
+        transport = ASGITransport(app=blog_enterprise_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
+    finally:
+        await pool.close()
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(None)
 
 
 # Sample data fixtures that work across examples

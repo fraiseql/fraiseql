@@ -7,11 +7,13 @@ These tests ensure the blog_enterprise example works correctly and catches regre
 import pytest
 
 # Mark all tests as example integration tests
+# Using forked to run each test in a separate process for isolation
 pytestmark = [
     pytest.mark.blog_enterprise,
     pytest.mark.integration,
     pytest.mark.enterprise,
     pytest.mark.examples,
+    pytest.mark.forked,
 ]
 
 

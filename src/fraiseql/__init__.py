@@ -94,22 +94,18 @@ def _get_fraiseql_rs():
         return None
 
 
-_fraiseql_rs = None
-fraiseql_rs = None
-
-
 def __getattr__(name: str):
     """Lazy loading for Rust extension attributes."""
     if name == "fraiseql_rs":
-        global fraiseql_rs
-        if fraiseql_rs is None:
-            fraiseql_rs = _get_fraiseql_rs()
-        return fraiseql_rs
+        rs = _get_fraiseql_rs()
+        # Cache it for future access
+        globals()["fraiseql_rs"] = rs
+        return rs
     if name == "_fraiseql_rs":
-        global _fraiseql_rs
-        if _fraiseql_rs is None:
-            _fraiseql_rs = _get_fraiseql_rs()
-        return _fraiseql_rs
+        rs = _get_fraiseql_rs()
+        # Cache it for future access
+        globals()["_fraiseql_rs"] = rs
+        return rs
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 

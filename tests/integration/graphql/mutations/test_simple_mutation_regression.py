@@ -22,10 +22,23 @@ def clear_registry() -> None:
 
     _graphql_type_cache.clear()
 
+    # Clear global dependencies that might be set by create_fraiseql_app
+    import fraiseql.fastapi.dependencies as deps
+    import fraiseql.fastapi.app
+
+    deps._db_pool = None
+    deps._auth_provider = None
+    deps._fraiseql_config = None
+    fraiseql.fastapi.app._global_turbo_registry = None
+
     yield
 
     registry.clear()
     _graphql_type_cache.clear()
+    deps._db_pool = None
+    deps._auth_provider = None
+    deps._fraiseql_config = None
+    fraiseql.fastapi.app._global_turbo_registry = None
 
 
 # Types from the quickstart example that failed
@@ -123,6 +136,7 @@ def test_simple_mutation_in_schema() -> None:
 
 def test_quickstart_app_creation() -> None:
     """Test that quickstart app can be created with simple mutations."""
+    from unittest.mock import patch
     from fraiseql import create_fraiseql_app
     from fraiseql.gql.schema_builder import SchemaRegistry
 
@@ -143,10 +157,24 @@ def test_quickstart_app_creation() -> None:
     # Import our mutations
     # (In real quickstart, these would be imported from the file)
 
-    # This should work without any errors
-    app = create_fraiseql_app(types=[Branch, Commit], production=False)
+    # Mock database pool creation to avoid actual database connections
+    with (
+        patch("fraiseql.fastapi.app.create_db_pool") as mock_pool,
+        patch("fraiseql.fastapi.app.set_db_pool"),
+        patch("fraiseql.fastapi.app.set_auth_provider"),
+        patch("fraiseql.fastapi.app.set_fraiseql_config"),
+    ):
+        # Mock the pool to avoid async issues
+        mock_pool.return_value = None
 
-    assert app is not None
+        # This should work without any errors
+        app = create_fraiseql_app(
+            types=[Branch, Commit],
+            production=False,
+            database_url="postgresql://test:test@localhost:5432/test",
+        )
+
+        assert app is not None
 
 
 def test_both_mutation_styles_in_same_app() -> None:

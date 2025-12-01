@@ -191,7 +191,7 @@ def _create_base_app() -> FastAPI:
         title="FraiseQL Blog Enterprise API",
         description="Enterprise blog API with advanced patterns and multi-tenancy",
         production=not DEBUG,
-        lifespan=enterprise_lifespan,  # Use custom lifespan with timeout protection
+        # Note: lifespan removed - let FraiseQL handle pool management or tests provide pool via fixtures
     )
 
     # CORS configuration for enterprise
