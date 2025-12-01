@@ -184,6 +184,7 @@ markers = [
     "enterprise: Enterprise-specific tests",
     "domain: Domain model tests (DDD patterns)",
     "regression: Regression tests for specific bugs and version features",
+    "rust: Tests that require the Rust extension module",
     "skip_ci: Skip in CI environment",
     "turbo: Tests for TurboRouter functionality",
     "forked: Tests that require process isolation (schema registry singleton)"
