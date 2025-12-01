@@ -10,6 +10,7 @@ to ensure parameterization works correctly in practice.
 import json
 
 import pytest
+import pytest_asyncio
 from psycopg.sql import SQL
 
 # Import database fixtures for this database test
@@ -35,7 +36,7 @@ class User:
 class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def test_users(self, db_pool) -> None:
         """Create users table and test data within test transaction."""
         async with db_pool.connection() as db_connection:
