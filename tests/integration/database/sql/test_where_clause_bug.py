@@ -150,6 +150,7 @@ class TestWhereClauseFix:
         assert len(results) == 1
         assert results[0]["status"] == "active"
 
+    @pytest.mark.asyncio
     async def test_expected_where_clause_generation(self) -> None:
         """Test what the WHERE clause generation should produce."""
         # This test documents the expected behavior after the fix
