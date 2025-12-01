@@ -36,6 +36,7 @@ async def ensure_rbac_schema(db_pool) -> None:
             await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_role_inheritance_chain(db_repo) -> None:
     """Verify role inherits permissions from parent roles."""
     # Create role chain: admin -> manager -> developer -> junior_dev
@@ -58,6 +59,7 @@ async def test_role_inheritance_chain(db_repo) -> None:
     assert True  # Basic import test
 
 
+@pytest.mark.asyncio
 async def test_hierarchy_validation(db_repo) -> None:
     """Test hierarchy validation (cycle detection)."""
     hierarchy = RoleHierarchy(db_repo)
@@ -68,6 +70,7 @@ async def test_hierarchy_validation(db_repo) -> None:
     assert hasattr(hierarchy, "get_hierarchy_depth")
 
 
+@pytest.mark.asyncio
 async def test_get_inherited_roles_method_exists(db_repo) -> None:
     """Verify the get_inherited_roles method exists and is callable."""
     hierarchy = RoleHierarchy(db_repo)

@@ -158,6 +158,7 @@ class TestCommentDescriptionsIntegration:
             DROP SCHEMA IF EXISTS test_comments CASCADE;
         """)
 
+    @pytest.mark.asyncio
     async def test_all_comment_types_work_end_to_end(
         self,
         real_database_setup,
@@ -259,6 +260,7 @@ class TestCommentDescriptionsIntegration:
         # Note: Column comments from the base table are not preserved in JSONB views
         # This is expected behavior when using jsonb_build_object()
 
+    @pytest.mark.asyncio
     async def test_invalid_schema_discovery_returns_empty(self, db_pool) -> None:
         """Test that discovering views in non-existent schema returns empty list.
 
@@ -270,6 +272,7 @@ class TestCommentDescriptionsIntegration:
         views = await introspector.discover_views(schemas=["nonexistent_schema_12345"])
         assert views == []
 
+    @pytest.mark.asyncio
     async def test_malformed_comment_parsing_graceful_handling(
         self, db_connection, db_pool
     ) -> None:
@@ -306,6 +309,7 @@ description: Incomplete'
         await db_connection.execute(f"DROP VIEW {view_name} CASCADE")
         await db_connection.commit()
 
+    @pytest.mark.asyncio
     async def test_type_generator_with_empty_columns_error(
         self, type_mapper: TypeMapper, db_pool
     ) -> None:
@@ -337,6 +341,7 @@ description: Incomplete'
             # If it raises, verify error message is meaningful
             assert str(e) != ""  # Error should have a message
 
+    @pytest.mark.asyncio
     async def test_discover_views_with_sql_injection_safe_pattern(self, db_pool) -> None:
         """Test that view discovery handles potentially malicious patterns safely.
 
@@ -360,6 +365,7 @@ description: Incomplete'
                 # If exception, it should NOT be a SQL execution error
                 assert "syntax error" not in str(e).lower()
 
+    @pytest.mark.asyncio
     async def test_discover_functions_nonexistent_schema(self, db_pool) -> None:
         """Test function discovery in non-existent schema returns empty.
 

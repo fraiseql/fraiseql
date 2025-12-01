@@ -55,6 +55,7 @@ async def test_rustresponsebytes_null_returns_none_not_error(db_pool) -> None:
         name: str
 
     @fraiseql.query
+    @pytest.mark.asyncio
     async def test_user_nullable(info) -> TestUser | None:
         """Query that can return None - simulates user lookup that finds nothing.
 

@@ -169,6 +169,7 @@ class TestIssue110RustMutationObjectReturn:
 
         return MockPool()
 
+    @pytest.mark.asyncio
     async def test_mutation_python_mode_works(self, graphql_schema, mock_pool) -> None:
         """Test that mutation works in Python mode (control test)."""
         # Create repository with Python mode context
@@ -217,6 +218,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
+    @pytest.mark.asyncio
     async def test_mutation_rust_mode_works(self, graphql_schema, mock_pool) -> None:
         """Test that mutation works in Rust mode after fix.
 
@@ -269,6 +271,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
+    @pytest.mark.asyncio
     async def test_mutation_with_context_params_rust_mode(self, db_connection_committed) -> None:
         """Test mutation with context parameters in Rust mode.
 
@@ -444,6 +447,7 @@ class TestIssue110RustMutationObjectReturn:
         assert mutation_result["entity"]["active"] is True
         assert isinstance(mutation_result["entity"]["id"], str)
 
+    @pytest.mark.asyncio
     async def test_mutation_with_machine_field_hint(self, db_connection_committed) -> None:
         """Test mutation with metadata hint pointing to custom field name (e.g., 'machine').
 

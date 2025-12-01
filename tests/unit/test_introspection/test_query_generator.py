@@ -112,6 +112,7 @@ class TestQueryGenerator:
             assert func.__name__ == "userConnection"
             assert func.__qualname__ == "userConnection"
 
+    @pytest.mark.asyncio
     async def test_find_one_query_execution(self, query_generator, mock_type_class) -> None:
         """Test that generated find_one query can be executed."""
 
@@ -134,6 +135,7 @@ class TestQueryGenerator:
         assert result == {"id": "123", "name": "Test"}
         mock_db.find_one.assert_called_once_with("public.v_user", where={"id": "123"})
 
+    @pytest.mark.asyncio
     async def test_find_all_query_execution(self, query_generator, mock_type_class) -> None:
         """Test that generated find_all query can be executed."""
 

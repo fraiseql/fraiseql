@@ -183,6 +183,7 @@ class TestFastAPIJSONBIntegration:
         )
 
         # Create custom context getter that adds pool to context
+        @pytest.mark.asyncio
         async def test_context_getter(request) -> None:
             """Add pool to context for our test resolvers."""
             return {"pool": db_pool}

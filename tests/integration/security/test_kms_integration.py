@@ -28,6 +28,7 @@ class TestVaultIntegration:
         )
         return VaultKMSProvider(config)
 
+    @pytest.mark.asyncio
     async def test_encrypt_decrypt_roundtrip(self, vault_provider: VaultKMSProvider):
         """Full encryption/decryption with real Vault."""
         test_data = b"Hello, World! This is test data for Vault KMS integration."
@@ -43,6 +44,7 @@ class TestVaultIntegration:
         decrypted = await vault_provider.decrypt(encrypted)
         assert decrypted == test_data
 
+    @pytest.mark.asyncio
     async def test_data_key_generation(self, vault_provider: VaultKMSProvider):
         """Data key generation with real Vault."""
         key_id = "test-data-key"
@@ -54,6 +56,7 @@ class TestVaultIntegration:
         assert data_key.encrypted_key is not None
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
+    @pytest.mark.asyncio
     async def test_different_keys_isolation(self, vault_provider: VaultKMSProvider):
         """Ensure different keys produce different ciphertexts."""
         test_data = b"Same data, different keys"
@@ -83,6 +86,7 @@ class TestAWSKMSIntegration:
         config = AWSKMSConfig(region_name=os.environ["AWS_REGION"])
         return AWSKMSProvider(config)
 
+    @pytest.mark.asyncio
     async def test_encrypt_decrypt_roundtrip(self, aws_provider: AWSKMSProvider):
         """Full encryption/decryption with real AWS KMS."""
         test_data = b"Hello, World! This is test data for AWS KMS integration."
@@ -98,6 +102,7 @@ class TestAWSKMSIntegration:
         decrypted = await aws_provider.decrypt(encrypted)
         assert decrypted == test_data
 
+    @pytest.mark.asyncio
     async def test_generate_data_key(self, aws_provider: AWSKMSProvider):
         """Generate data key with AWS KMS."""
         key_id = "alias/aws/s3"
@@ -109,6 +114,7 @@ class TestAWSKMSIntegration:
         assert data_key.encrypted_key is not None
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
+    @pytest.mark.asyncio
     async def test_context_encryption(self, aws_provider: AWSKMSProvider):
         """Test encryption with additional authenticated data (context)."""
         test_data = b"Data with context"

@@ -44,6 +44,7 @@ class TestMutationGenerationIntegration:
         return PostgresIntrospector(db_pool)
 
     @pytest.fixture
+    @pytest.mark.asyncio
     async def test_mutation_function(self, db_connection) -> None:
         """Create a test mutation function for introspection."""
         import uuid
@@ -94,6 +95,7 @@ class TestMutationGenerationIntegration:
         await db_connection.execute(f"DROP FUNCTION IF EXISTS {function_name}(TEXT, TEXT)")
         await db_connection.execute("COMMIT")
 
+    @pytest.mark.asyncio
     async def test_full_mutation_generation_pipeline(
         self,
         introspector: PostgresIntrospector,
@@ -154,6 +156,7 @@ class TestMutationGenerationIntegration:
         assert hasattr(mutation, "__name__")
         assert mutation.__name__.startswith("CreateUser")
 
+    @pytest.mark.asyncio
     async def test_mutation_generation_with_missing_types_fails(
         self,
         introspector: PostgresIntrospector,
@@ -189,6 +192,7 @@ class TestMutationGenerationIntegration:
         # Then: Returns None due to missing types
         assert mutation is None
 
+    @pytest.mark.asyncio
     async def test_input_type_generation_filters_parameters(
         self,
         introspector: PostgresIntrospector,

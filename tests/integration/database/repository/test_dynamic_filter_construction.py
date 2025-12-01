@@ -103,6 +103,7 @@ class TestDynamicFilterConstruction:
         for r in results:
             assert r["isCurrent"] is True, f"Result has isCurrent={r['isCurrent']}, expected True"
 
+    @pytest.mark.asyncio
     async def test_merged_dict_filters(self, db_pool) -> None:
         """Test merging multiple dynamic filters into a where clause."""
         # Set up test data
@@ -209,6 +210,7 @@ class TestDynamicFilterConstruction:
         assert float(results[0]["price"]) == 149.99
         assert results[0]["isActive"] is True
 
+    @pytest.mark.asyncio
     async def test_empty_dict_where_to_populated(self, db_pool) -> None:
         """Test that starting with empty dict and populating it works."""
         # Set up test data
@@ -280,6 +282,7 @@ class TestDynamicFilterConstruction:
         assert len(results) == 2, f"Expected 2 active items, got {len(results)}"
         assert all(r["status"] == "active" for r in results)
 
+    @pytest.mark.asyncio
     async def test_complex_nested_dict_filters(self, db_pool) -> None:
         """Test complex dictionary filters with multiple operators."""
         # Set up test data

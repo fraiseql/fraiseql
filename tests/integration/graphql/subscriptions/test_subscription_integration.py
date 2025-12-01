@@ -82,6 +82,7 @@ class TestSubscriptionIntegration:
         yield
         registry.clear()
 
+    @pytest.mark.asyncio
     async def test_subscription_execution(self) -> None:
         """Test that subscriptions execute correctly."""
         # Build schema
@@ -125,6 +126,7 @@ class TestSubscriptionIntegration:
         assert all(r["channel"] == "general" for r in results)
         assert all("Message" in r["text"] for r in results)
 
+    @pytest.mark.asyncio
     async def test_subscription_filtering(self) -> None:
         """Test that subscription filtering works."""
         # Build schema
@@ -166,6 +168,7 @@ class TestSubscriptionIntegration:
                     msg = f"Expected 'Filter condition not met' in error, got: {e}"
                     raise AssertionError(msg) from e
 
+    @pytest.mark.asyncio
     async def test_multiple_subscriptions(self) -> None:
         """Test multiple concurrent subscriptions."""
         # Build schema
@@ -223,6 +226,7 @@ class TestSubscriptionIntegration:
         assert stats[0]["activeUsers"] == 10
         assert stats[1]["activeUsers"] == 11
 
+    @pytest.mark.asyncio
     async def test_subscription_error_handling(self) -> None:
         """Test subscription error handling."""
 

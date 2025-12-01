@@ -41,10 +41,12 @@ def app() -> FastAPI:
     app = FastAPI()
 
     @app.get("/test")
+    @pytest.mark.asyncio
     async def test_get() -> dict[str, str]:
         return {"message": "success"}
 
     @app.post("/test")
+    @pytest.mark.asyncio
     async def test_post() -> dict[str, str]:
         return {"message": "success"}
 

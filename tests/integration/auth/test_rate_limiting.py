@@ -24,6 +24,7 @@ def app() -> None:
     app = FastAPI()
 
     @app.get("/test")
+    @pytest.mark.asyncio
     async def test_endpoint() -> None:
         return {"message": "success"}
 

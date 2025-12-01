@@ -20,6 +20,7 @@ async def setup_rbac_schema(db_pool) -> None:
         await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_rbac_tables_exist(db_repo) -> None:
     """Verify RBAC tables exist with correct schema."""
     tables = ["roles", "permissions", "role_permissions", "user_roles"]
@@ -40,6 +41,7 @@ async def test_rbac_tables_exist(db_repo) -> None:
         assert len(result) > 0, f"Table {table} should exist"
 
 
+@pytest.mark.asyncio
 async def test_roles_table_structure(db_repo) -> None:
     """Verify roles table has correct structure."""
     columns = await db_repo.run(
@@ -86,6 +88,7 @@ async def test_roles_table_structure(db_repo) -> None:
     assert "updated_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_permissions_table_structure(db_repo) -> None:
     """Verify permissions table has correct structure."""
     columns = await db_repo.run(
@@ -111,6 +114,7 @@ async def test_permissions_table_structure(db_repo) -> None:
     assert "created_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_role_permissions_table_structure(db_repo) -> None:
     """Verify role_permissions table has correct structure."""
     columns = await db_repo.run(
@@ -135,6 +139,7 @@ async def test_role_permissions_table_structure(db_repo) -> None:
     assert "created_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_user_roles_table_structure(db_repo) -> None:
     """Verify user_roles table has correct structure."""
     columns = await db_repo.run(
@@ -161,6 +166,7 @@ async def test_user_roles_table_structure(db_repo) -> None:
     assert "expires_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_get_inherited_roles_function_exists(db_repo) -> None:
     """Verify get_inherited_roles function exists."""
     result = await db_repo.run(
@@ -179,6 +185,7 @@ async def test_get_inherited_roles_function_exists(db_repo) -> None:
     assert len(result) == 1, "get_inherited_roles function should exist"
 
 
+@pytest.mark.asyncio
 async def test_seed_data_exists(db_repo) -> None:
     """Verify seed data was inserted."""
     # Check system roles
@@ -225,6 +232,7 @@ async def test_seed_data_exists(db_repo) -> None:
     assert "role.assign" in permission_strings
 
 
+@pytest.mark.asyncio
 async def test_role_hierarchy_function_works(db_repo) -> None:
     """Test that the role hierarchy function works with seed data."""
     # Get the viewer role ID

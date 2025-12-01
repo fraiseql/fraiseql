@@ -37,6 +37,7 @@ class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_users(self, db_connection_committed):
         """Create users table and test data within committed schema."""
         conn = db_connection_committed

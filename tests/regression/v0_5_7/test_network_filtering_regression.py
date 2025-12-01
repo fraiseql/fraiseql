@@ -273,6 +273,7 @@ class TestJSONBNetworkFilteringBug:
                     assert len(subnet_results) > 0, "Subnet filtering should work"
 
     @pytest.mark.database
+    @pytest.mark.asyncio
     async def test_root_cause_investigation(self, db_connection) -> None:
         """Investigate the root cause of the JSONB+INET filtering issue."""
         await self._setup_test_schema(db_connection)

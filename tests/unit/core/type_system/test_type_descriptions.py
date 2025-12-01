@@ -61,6 +61,7 @@ class TestTypeDescriptions:
         from fraiseql.gql.schema_builder import build_fraiseql_schema
 
         @fraiseql.query
+        @pytest.mark.asyncio
         async def test_query(info) -> str:
             return "test"
 

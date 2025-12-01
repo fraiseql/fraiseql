@@ -38,6 +38,7 @@ async def ensure_rbac_schema(db_pool) -> None:
             await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_user_effective_permissions_with_caching(db_repo, db_pool) -> None:
     """Verify user permissions are cached in PostgreSQL."""
     cache = PermissionCache(db_pool)
@@ -55,6 +56,7 @@ async def test_user_effective_permissions_with_caching(db_repo, db_pool) -> None
     assert permissions1 == permissions2
 
 
+@pytest.mark.asyncio
 async def test_permission_resolver_methods_exist(db_repo, db_pool) -> None:
     """Verify PermissionResolver has required methods."""
     cache = PermissionCache(db_pool)
@@ -85,6 +87,7 @@ async def test_permission_resolver_methods_exist(db_repo, db_pool) -> None:
     assert "tenant_id" in sig.parameters
 
 
+@pytest.mark.asyncio
 async def test_cache_integration(db_repo, db_pool) -> None:
     """Test that resolver integrates properly with cache."""
     cache = PermissionCache(db_pool)

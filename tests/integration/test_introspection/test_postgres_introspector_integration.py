@@ -24,6 +24,7 @@ class TestPostgresIntrospectorIntegration:
         return PostgresIntrospector(db_pool)
 
     @pytest.fixture
+    @pytest.mark.asyncio
     async def test_view(self, db_connection):
         """Create a test view for introspection testing."""
         # Create underlying table with unique name to avoid conflicts
@@ -82,6 +83,7 @@ class TestPostgresIntrospectorIntegration:
         return view_name
 
     @pytest.fixture
+    @pytest.mark.asyncio
     async def test_function(self, db_connection):
         """Create a test function for introspection testing."""
         # Create function with unique name
@@ -117,6 +119,7 @@ class TestPostgresIntrospectorIntegration:
 
         return func_name
 
+    @pytest.mark.asyncio
     async def test_discover_views_basic(self, introspector, test_view) -> None:
         """Test basic view discovery functionality."""
         views = await introspector.discover_views(pattern="v_%")
@@ -135,6 +138,7 @@ class TestPostgresIntrospectorIntegration:
         assert test_view_metadata.comment is not None
         assert "@fraiseql:type" in test_view_metadata.comment
 
+    @pytest.mark.asyncio
     async def test_discover_views_columns(self, introspector, test_view) -> None:
         """Test that view column information is correctly discovered."""
         views = await introspector.discover_views(pattern="v_%")
@@ -175,11 +179,13 @@ class TestPostgresIntrospectorIntegration:
         assert email_column.pg_type == "text"
         assert email_column.nullable  # No NOT NULL constraint
 
+    @pytest.mark.asyncio
     async def test_discover_views_no_match(self, introspector) -> None:
         """Test view discovery with pattern that matches nothing."""
         views = await introspector.discover_views(pattern="nonexistent_%")
         assert len(views) == 0
 
+    @pytest.mark.asyncio
     async def test_discover_views_schema_filter(self, introspector, test_view) -> None:
         """Test view discovery with schema filtering."""
         # Test with correct schema
@@ -191,6 +197,7 @@ class TestPostgresIntrospectorIntegration:
         views = await introspector.discover_views(pattern="v_%", schemas=["other_schema"])
         assert len(views) == 0
 
+    @pytest.mark.asyncio
     async def test_discover_functions_basic(self, introspector, test_function) -> None:
         """Test basic function discovery functionality."""
         functions = await introspector.discover_functions(pattern="fn_%")
@@ -210,6 +217,7 @@ class TestPostgresIntrospectorIntegration:
         assert test_func_metadata.comment is not None
         assert "@fraiseql:mutation" in test_func_metadata.comment
 
+    @pytest.mark.asyncio
     async def test_discover_functions_parameters(self, introspector, test_function) -> None:
         """Test that function parameter information is correctly discovered."""
         functions = await introspector.discover_functions(pattern="fn_%")
@@ -241,11 +249,13 @@ class TestPostgresIntrospectorIntegration:
         assert p_email.mode == "IN"
         assert p_email.default_value == "NULL::text"  # PostgreSQL casts NULL to the parameter type
 
+    @pytest.mark.asyncio
     async def test_discover_functions_no_match(self, introspector) -> None:
         """Test function discovery with pattern that matches nothing."""
         functions = await introspector.discover_functions(pattern="nonexistent_%")
         assert len(functions) == 0
 
+    @pytest.mark.asyncio
     async def test_discover_functions_schema_filter(self, introspector, test_function) -> None:
         """Test function discovery with schema filtering."""
         # Test with correct schema
@@ -257,6 +267,7 @@ class TestPostgresIntrospectorIntegration:
         functions = await introspector.discover_functions(pattern="fn_%", schemas=["other_schema"])
         assert len(functions) == 0
 
+    @pytest.mark.asyncio
     async def test_discover_multiple_views_and_functions(self, introspector, db_connection) -> None:
         """Test discovery of multiple views and functions."""
         # Create unique test objects for this test
@@ -316,6 +327,7 @@ class TestPostgresIntrospectorIntegration:
             "integer",
         )  # PostgreSQL may return either
 
+    @pytest.mark.asyncio
     async def test_view_metadata_structure(self, introspector, test_view) -> None:
         """Test that ViewMetadata objects have correct structure."""
         views = await introspector.discover_views(pattern="v_%")
@@ -338,6 +350,7 @@ class TestPostgresIntrospectorIntegration:
             assert isinstance(col_info.nullable, bool)
             assert isinstance(col_info.comment, (str, type(None)))
 
+    @pytest.mark.asyncio
     async def test_function_metadata_structure(self, introspector, test_function) -> None:
         """Test that FunctionMetadata objects have correct structure."""
         functions = await introspector.discover_functions(pattern="fn_%")
@@ -360,18 +373,21 @@ class TestPostgresIntrospectorIntegration:
             assert isinstance(param.mode, str)
             assert isinstance(param.default_value, (str, type(None)))
 
+    @pytest.mark.asyncio
     async def test_discover_views_with_invalid_pattern(self, introspector) -> None:
         """Test view discovery with invalid regex patterns."""
         # Invalid regex pattern
         with pytest.raises(Exception):  # Should raise some regex-related exception
             await introspector.discover_views(pattern="[invalid")
 
+    @pytest.mark.asyncio
     async def test_discover_functions_with_invalid_pattern(self, introspector) -> None:
         """Test function discovery with invalid regex patterns."""
         # Invalid regex pattern
         with pytest.raises(Exception):  # Should raise some regex-related exception
             await introspector.discover_functions(pattern="[invalid")
 
+    @pytest.mark.asyncio
     async def test_discover_views_with_unicode_comments(self, introspector, db_connection) -> None:
         """Test view discovery with unicode characters in comments."""
         import uuid
@@ -410,6 +426,7 @@ class TestPostgresIntrospectorIntegration:
         assert unicode_view.comment is not None
         assert "Café" in unicode_view.comment
 
+    @pytest.mark.asyncio
     async def test_discover_functions_with_very_long_names(
         self, introspector, db_connection
     ) -> None:
@@ -447,12 +464,14 @@ class TestPostgresIntrospectorIntegration:
             functions = await introspector.discover_functions(pattern="fn_very_long_%")
             assert isinstance(functions, list)
 
+    @pytest.mark.asyncio
     async def test_discover_views_empty_schema(self, introspector) -> None:
         """Test view discovery in schema with no views."""
         # Use a schema that doesn't exist or has no views
         views = await introspector.discover_views(pattern="%", schemas=["nonexistent_schema"])
         assert views == []
 
+    @pytest.mark.asyncio
     async def test_discover_functions_empty_schema(self, introspector) -> None:
         """Test function discovery in schema with no functions."""
         # Use a schema that doesn't exist or has no functions
@@ -461,6 +480,7 @@ class TestPostgresIntrospectorIntegration:
         )
         assert functions == []
 
+    @pytest.mark.asyncio
     async def test_discover_views_with_null_comments(self, introspector, db_connection) -> None:
         """Test view discovery when comments are NULL."""
         import uuid
@@ -492,6 +512,7 @@ class TestPostgresIntrospectorIntegration:
         # Comment should be None, not crash
         assert null_view.comment is None
 
+    @pytest.mark.asyncio
     async def test_discover_functions_with_complex_return_types(
         self, introspector, db_connection
     ) -> None:

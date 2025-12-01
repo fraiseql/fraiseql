@@ -173,6 +173,7 @@ class TestMutationObjectDataMapping:
 
         return MockPool()
 
+    @pytest.mark.asyncio
     async def test_mutation_object_data_mapping_production(
         self, graphql_schema, mock_pool_production, setup_database
     ):
@@ -223,6 +224,7 @@ class TestMutationObjectDataMapping:
         assert mutation_result["location"]["active"] is True
         assert isinstance(mutation_result["location"]["id"], str)
 
+    @pytest.mark.asyncio
     async def test_mutation_object_data_mapping_development(
         self, graphql_schema, mock_pool_development, setup_database
     ):
@@ -272,6 +274,7 @@ class TestMutationObjectDataMapping:
         assert mutation_result["location"]["identifier"] == "WH-002"
         assert mutation_result["location"]["active"] is True
 
+    @pytest.mark.asyncio
     async def test_mutation_with_entity_hint_in_metadata(
         self, graphql_schema, mock_pool_production, setup_database
     ):

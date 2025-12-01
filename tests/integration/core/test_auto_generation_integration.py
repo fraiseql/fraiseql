@@ -90,6 +90,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_customers_auto_test CASCADE")
             await conn.commit()
 
+    @pytest.mark.asyncio
     async def test_auto_generated_order_by_in_query(self, db_pool) -> None:
         """Test that auto-generated OrderBy works in db.find()."""
         clear_auto_generated_cache()
@@ -168,6 +169,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_products_auto_test CASCADE")
             await conn.commit()
 
+    @pytest.mark.asyncio
     async def test_combined_where_and_order_by_auto_generated(self, db_pool) -> None:
         """Test using both auto-generated WhereInput and OrderBy together."""
         clear_auto_generated_cache()
@@ -243,6 +245,7 @@ class TestAutoGenerationIntegration:
             await conn.execute("DROP TABLE IF EXISTS tv_inventory_auto_test CASCADE")
             await conn.commit()
 
+    @pytest.mark.asyncio
     async def test_auto_generated_with_limit_and_offset(self, db_pool) -> None:
         """Test auto-generated types work with pagination."""
         clear_auto_generated_cache()

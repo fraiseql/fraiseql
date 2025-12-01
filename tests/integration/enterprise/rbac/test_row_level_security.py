@@ -68,6 +68,7 @@ async def setup_rbac_schema(db_pool) -> None:
             await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_session_variables_set_for_rls(db_pool) -> None:
     """Verify RBAC session variables are set correctly for RLS."""
     # Create repository with RBAC context
@@ -97,6 +98,7 @@ async def test_session_variables_set_for_rls(db_pool) -> None:
     assert row["is_super_admin"] == "false"  # Not super_admin
 
 
+@pytest.mark.asyncio
 async def test_super_admin_session_variable(db_pool) -> None:
     """Verify super_admin session variable is set correctly."""
     # Create repository with super_admin role
@@ -119,6 +121,7 @@ async def test_super_admin_session_variable(db_pool) -> None:
     assert result[0]["is_super_admin"] == "true"
 
 
+@pytest.mark.asyncio
 async def test_rbac_utility_functions(db_repo) -> None:
     """Test the RBAC utility functions created in the migration."""
     # Test user_has_role function
@@ -222,6 +225,7 @@ async def test_rbac_utility_functions(db_repo) -> None:
     assert result[0]["user_has_permission"] is False
 
 
+@pytest.mark.asyncio
 async def test_rls_policies_applied(db_repo) -> None:
     """Test that RLS policies can be applied to tables (when they exist)."""
     # For now, just verify that the RLS migration file exists and is valid
@@ -236,6 +240,7 @@ async def test_rls_policies_applied(db_repo) -> None:
     assert "current_setting" in migration_sql, "Migration should use session variables"
 
 
+@pytest.mark.asyncio
 async def test_tenant_isolation_logic() -> None:
     """Test the logical correctness of tenant isolation (without actual data)."""
     # This test verifies the RLS policy logic is sound

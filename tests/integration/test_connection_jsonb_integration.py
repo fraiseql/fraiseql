@@ -149,6 +149,7 @@ class TestConnectionJSONBIntegration:
         assert config_meta["jsonb_column"] is None  # Will inherit at runtime
         assert config_meta["supports_global_jsonb"] is True  # ✅ KEY FIX!
 
+    @pytest.mark.asyncio
     async def test_connection_runtime_jsonb_resolution(self) -> None:
         """🎯 Test runtime JSONB configuration resolution.
 

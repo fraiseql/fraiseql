@@ -22,6 +22,7 @@ class TestSubscriptionDecorator:
         registry.clear()
 
         @subscription
+        @pytest.mark.asyncio
         async def test_subscription(info) -> AsyncGenerator[str]:
             """Test subscription."""
             yield "test"

@@ -223,6 +223,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
         failure: ServerConfigError
 
     @fraiseql.query
+    @pytest.mark.asyncio
     async def test_query(info) -> str:
         return "test"
 
