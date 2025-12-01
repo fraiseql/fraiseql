@@ -16,9 +16,15 @@ pytestmark = [
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(30)  # 30 second timeout for the entire test
 async def test_blog_enterprise_app_health(blog_enterprise_client) -> None:
     """Test that blog_enterprise app starts up and responds to health checks."""
-    response = await blog_enterprise_client.get("/health")
+    import asyncio
+
+    response = await asyncio.wait_for(
+        blog_enterprise_client.get("/health"),
+        timeout=10.0,  # 10 second timeout for health check request
+    )
     assert response.status_code == 200
 
     data = response.json()
@@ -186,7 +192,9 @@ async def test_blog_enterprise_domain_structure_exists() -> None:
 
 
 @pytest.mark.asyncio
-async def test_blog_enterprise_vs_simple_distinction(blog_enterprise_client, blog_simple_client) -> None:
+async def test_blog_enterprise_vs_simple_distinction(
+    blog_enterprise_client, blog_simple_client
+) -> None:
     """Test that enterprise version has distinct features from simple version."""
     # Get both app info
     enterprise_response = await blog_enterprise_client.get("/")

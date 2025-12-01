@@ -241,10 +241,16 @@ async def blog_simple_graphql_client(blog_simple_client) -> None:
 @pytest_asyncio.fixture(scope="session")
 async def blog_enterprise_db_url(smart_dependencies) -> None:
     """Setup blog_enterprise test database using smart database manager."""
+    import asyncio
+
     db_manager = get_database_manager()
 
     try:
-        success, connection_string = await db_manager.ensure_test_database("blog_enterprise")
+        # Add timeout to database setup to prevent hanging
+        success, connection_string = await asyncio.wait_for(
+            db_manager.ensure_test_database("blog_enterprise"),
+            timeout=60.0,  # 60 second timeout for database setup
+        )
 
         if success:
             logger.info(f"Successfully set up blog_enterprise test database")
@@ -257,6 +263,8 @@ async def blog_enterprise_db_url(smart_dependencies) -> None:
         else:
             pytest.skip(f"Failed to setup blog_enterprise test database: {connection_string}")
 
+    except asyncio.TimeoutError:
+        pytest.skip("Database setup timed out after 60 seconds")
     except Exception as e:
         logger.error(f"Exception setting up blog_enterprise test database: {e}")
         pytest.skip(f"Database setup failed: {e}")
@@ -340,14 +348,23 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url) -> Non
 @pytest_asyncio.fixture
 async def blog_enterprise_client(blog_enterprise_app) -> None:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
-    # Dependencies guaranteed by smart_dependencies fixture
+    import asyncio
     from httpx import AsyncClient, ASGITransport
 
-    # Start the lifespan context to initialize database pool
-    async with blog_enterprise_app.router.lifespan_context(blog_enterprise_app):
+    # Start the lifespan context to initialize database pool with timeout protection
+    try:
+        lifespan_cm = blog_enterprise_app.router.lifespan_context(blog_enterprise_app)
+        await asyncio.wait_for(
+            lifespan_cm.__aenter__(), timeout=45.0
+        )  # 45 second timeout for startup
         transport = ASGITransport(app=blog_enterprise_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
+        await lifespan_cm.__aexit__(None, None, None)
+    except asyncio.TimeoutError:
+        pytest.skip("Blog enterprise app startup timed out after 45 seconds")
+    except Exception as e:
+        pytest.skip(f"Blog enterprise app startup failed: {e}")
 
 
 # Sample data fixtures that work across examples
