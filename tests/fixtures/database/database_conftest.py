@@ -8,10 +8,10 @@ Architecture:
 - Fast cleanup: drop schema immediately after class completes
 """
 
-import asyncio
 import os
 import uuid
 from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import psycopg
@@ -42,7 +42,7 @@ _container_cache = {}
 
 
 @pytest.fixture(scope="session")
-def postgres_container() -> Generator[Any, None, None]:
+def postgres_container() -> Generator[Any]:
     """Single PostgreSQL container for entire test session.
 
     Uses docker/podman for test isolation with socket-based communication.
@@ -100,7 +100,7 @@ def postgres_url(postgres_container) -> str:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool, None]:
+async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
     """Session-scoped pool for setup/teardown operations only.
 
     This pool is used ONLY for:
@@ -155,7 +155,7 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
 
 
 @pytest_asyncio.fixture(scope="class")
-async def test_schema(request, postgres_url) -> AsyncGenerator[str, None]:
+async def test_schema(request, postgres_url) -> AsyncGenerator[str]:
     """Create and provide an isolated test schema for the entire test class.
 
     Schema name format: test_<classname>_<random_suffix>
@@ -198,7 +198,7 @@ async def test_schema(request, postgres_url) -> AsyncGenerator[str, None]:
 
 
 @pytest_asyncio.fixture(scope="class")
-async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool, None]:
+async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
     """Per-class connection pool with minimal size.
 
     Each test class gets its own pool (min=1, max=5) to prevent contention
@@ -223,7 +223,7 @@ async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnec
 @pytest_asyncio.fixture
 async def db_connection(
     class_db_pool, test_schema
-) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Per-function connection with automatic transaction rollback.
 
     Each test function gets a connection from the class pool,
@@ -250,7 +250,7 @@ async def db_connection(
 @pytest_asyncio.fixture(scope="class")
 async def db_connection_committed(
     class_db_pool, test_schema
-) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Class-scoped connection factory for schema-specific operations.
 
     This fixture provides a way to execute commands within the test schema.
@@ -330,7 +330,7 @@ async def db_connection_committed(
 
 
 @pytest.fixture
-def clear_registry() -> Generator[None, None, None]:
+def clear_registry() -> Generator[None]:
     """Clear FraiseQL global registries before and after each test.
 
     This ensures no type or schema registry pollution between tests.
@@ -341,7 +341,7 @@ def clear_registry() -> Generator[None, None, None]:
 
 
 @pytest.fixture(scope="class")
-def clear_registry_class() -> Generator[None, None, None]:
+def clear_registry_class() -> Generator[None]:
     """Clear FraiseQL global registries before and after each test class.
 
     Use this for class-scoped fixtures that need a clean registry.
@@ -423,7 +423,7 @@ def _clear_all_fraiseql_state() -> None:
 
 
 @pytest_asyncio.fixture
-async def db_cursor(db_connection) -> AsyncGenerator[psycopg.AsyncCursor, None]:
+async def db_cursor(db_connection) -> AsyncGenerator[psycopg.AsyncCursor]:
     """DEPRECATED: Use db_connection instead."""
     async with db_connection.cursor() as cur:
         yield cur
@@ -432,13 +432,11 @@ async def db_cursor(db_connection) -> AsyncGenerator[psycopg.AsyncCursor, None]:
 @pytest.fixture
 def create_test_table() -> None:
     """DEPRECATED: Tables now created within test_schema automatically."""
-    pass
 
 
 @pytest.fixture
 def create_test_view() -> None:
     """DEPRECATED: Views now created within test_schema automatically."""
-    pass
 
 
 @pytest.fixture
@@ -461,6 +459,20 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool, tes
     from fraiseql.fastapi.app import create_fraiseql_app
     from fraiseql.fastapi.dependencies import set_db_pool
 
+    class SchemaAwarePool:
+        def __init__(self, pool, schema):
+            self._pool = pool
+            self._schema = schema
+
+        @asynccontextmanager
+        async def connection(self):
+            async with self._pool.connection() as conn:
+                await conn.execute(f"SET search_path TO {self._schema}, public")
+                yield conn
+
+        def __getattr__(self, name):
+            return getattr(self._pool, name)
+
     def _create_app(**kwargs):
         """Create a FraiseQL app with proper database URL and pool."""
         # Use the real database URL from the container
@@ -470,7 +482,8 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool, tes
         app = create_fraiseql_app(**kwargs)
 
         # Manually set the database pool to bypass lifespan issues in tests
-        set_db_pool(class_db_pool)
+        wrapped_pool = SchemaAwarePool(class_db_pool, test_schema)
+        set_db_pool(wrapped_pool)
 
         return app
 
