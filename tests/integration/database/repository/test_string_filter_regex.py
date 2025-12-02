@@ -22,26 +22,32 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-# Test types
-@fraiseql.type
-class Product:
-    id: str
-    name: str
-    description: str
-
-
-# Generate where types
-ProductWhere: Any = safe_create_where_type(Product)
-
-
 class TestStringFilterRegex:
     """Test suite for regex operators in StringFilter."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Product:
+            id: str
+            name: str
+            description: str
+
+        ProductWhere = safe_create_where_type(Product)
+
+        return {
+            "Product": Product,
+            "ProductWhere": ProductWhere,
+        }
+
     @pytest_asyncio.fixture
     async def setup_test_views(
-        self, db_pool: psycopg_pool.AsyncConnectionPool
+        self, db_pool: psycopg_pool.AsyncConnectionPool, test_types
     ) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
+        Product = test_types["Product"]
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
 
@@ -94,10 +100,12 @@ class TestStringFilterRegex:
 
     @pytest.mark.asyncio
     async def test_matches_operator_basic_regex(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views, test_types
     ) -> None:
         """Test basic regex matching with matches operator."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        ProductWhere = test_types["ProductWhere"]
 
         # Test regex pattern that matches names starting with 'Widget'
         where = ProductWhere(name={"matches": "^Widget"})
@@ -112,10 +120,11 @@ class TestStringFilterRegex:
 
     @pytest.mark.asyncio
     async def test_matches_operator_case_sensitive(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views, test_types
     ) -> None:
         """Test case-sensitive regex matching."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        ProductWhere = test_types["ProductWhere"]
 
         # Test case-sensitive pattern (should not match lowercase)
         where = ProductWhere(name={"matches": "^[A-Z]"})
@@ -128,10 +137,11 @@ class TestStringFilterRegex:
 
     @pytest.mark.asyncio
     async def test_matches_operator_with_numbers(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views, test_types
     ) -> None:
         """Test regex matching with numeric patterns."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        ProductWhere = test_types["ProductWhere"]
 
         # Test pattern that matches names containing digits
         where = ProductWhere(name={"matches": "\\d+"})
@@ -145,10 +155,11 @@ class TestStringFilterRegex:
 
     @pytest.mark.asyncio
     async def test_imatches_operator_case_insensitive_regex(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views, test_types
     ) -> None:
         """Test case-insensitive regex matching with imatches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        ProductWhere = test_types["ProductWhere"]
 
         # Test case-insensitive pattern that should match names starting with 'widget' (lowercase)
         where = ProductWhere(name={"imatches": "^widget"})
@@ -163,10 +174,11 @@ class TestStringFilterRegex:
 
     @pytest.mark.asyncio
     async def test_not_matches_operator_negative_regex(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_views, test_types
     ) -> None:
         """Test negative regex matching with not_matches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        ProductWhere = test_types["ProductWhere"]
 
         # Test pattern that excludes names starting with 'Widget'
         where = ProductWhere(name={"not_matches": "^Widget"})

@@ -26,39 +26,52 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-# Test types
-@fraiseql.type
-class Product:
-    id: UUID
-    name: str
-    price: Decimal
-    stock: int
-    created_at: datetime
-    is_active: bool
-    category: Optional[str] = None
-
-
-@fraiseql.type
-class Order:
-    id: UUID
-    product_id: UUID
-    quantity: int
-    total: Decimal
-    order_date: date
-    status: str
-
-
-# Generate where types
-ProductWhere = safe_create_where_type(Product)  # type: ignore[misc]
-OrderWhere = safe_create_where_type(Order)  # type: ignore[misc]
-
-
 class TestRepositoryWhereIntegration:
     """Test suite for repository where type integration."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture to prevent global state pollution.
+
+        This fixture creates the Product and Order types along with their
+        Where types. Using a fixture ensures the types are created fresh
+        for each test and the clear_registry fixture handles cleanup.
+        """
+        @fraiseql.type
+        class Product:
+            id: UUID
+            name: str
+            price: Decimal
+            stock: int
+            created_at: datetime
+            is_active: bool
+            category: Optional[str] = None
+
+        @fraiseql.type
+        class Order:
+            id: UUID
+            product_id: UUID
+            quantity: int
+            total: Decimal
+            order_date: date
+            status: str
+
+        ProductWhere = safe_create_where_type(Product)
+        OrderWhere = safe_create_where_type(Order)
+
+        return {
+            "Product": Product,
+            "Order": Order,
+            "ProductWhere": ProductWhere,
+            "OrderWhere": OrderWhere,
+        }
+
     @pytest_asyncio.fixture
-    async def setup_test_views(self, db_pool) -> AsyncGenerator[None]:
+    async def setup_test_views(self, db_pool, test_types) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
+        Product = test_types["Product"]
+        Order = test_types["Order"]
+
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
         register_type_for_view("test_order_view", Order)
@@ -163,8 +176,9 @@ class TestRepositoryWhereIntegration:
             await conn.execute("DROP TABLE IF EXISTS test_products")
 
     @pytest.mark.asyncio
-    async def test_find_with_simple_where_equality(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_simple_where_equality(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with simple equality operator."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Create where filter
@@ -185,8 +199,9 @@ class TestRepositoryWhereIntegration:
         assert result_dict["price"] == 19.99  # JSON numbers, not Decimal
 
     @pytest.mark.asyncio
-    async def test_find_with_comparison_operators(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_comparison_operators(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with comparison operators."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test greater than
@@ -206,8 +221,9 @@ class TestRepositoryWhereIntegration:
         assert all(r["stock"] <= 50 for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_multiple_operators(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_multiple_operators(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with multiple operators on same field."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Price between 20 and 100
@@ -219,8 +235,9 @@ class TestRepositoryWhereIntegration:
         assert all(20 <= r["price"] < 100 for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_multiple_fields(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_multiple_fields(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with filters on multiple fields."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Active widgets
@@ -232,8 +249,9 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] == "widgets" and r["isActive"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_null_handling(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_null_handling(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with null value handling."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Find products with null category
@@ -253,8 +271,10 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] is not None for r in results)
 
     @pytest.mark.asyncio
-    async def test_find_with_date_filtering(self, db_pool, setup_test_views) -> None:
+    async def test_find_with_date_filtering(self, db_pool, setup_test_views, test_types) -> None:
         """Test finding records with date/datetime filtering."""
+        ProductWhere = test_types["ProductWhere"]
+        OrderWhere = test_types["OrderWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Find products created after a date (Jan 2 midnight)
@@ -276,8 +296,10 @@ class TestRepositoryWhereIntegration:
         assert results[0]["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_find_one_with_where(self, db_pool, setup_test_views) -> None:
+    async def test_find_one_with_where(self, db_pool, setup_test_views, test_types) -> None:
         """Test find_one with where type filtering."""
+        ProductWhere = test_types["ProductWhere"]
+        Product = test_types["Product"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         where = ProductWhere(name={"eq": "Widget B"})
@@ -320,8 +342,9 @@ class TestRepositoryWhereIntegration:
             assert actual_result.price == Decimal("29.99")
 
     @pytest.mark.asyncio
-    async def test_combining_where_with_kwargs(self, db_pool, setup_test_views) -> None:
+    async def test_combining_where_with_kwargs(self, db_pool, setup_test_views, test_types) -> None:
         """Test combining where type with additional kwargs filters."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Where type for price filter
@@ -335,8 +358,9 @@ class TestRepositoryWhereIntegration:
         assert all(r["price"] < 100 and r["isActive"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_rust_pipeline_returns_valid_json(self, db_pool, setup_test_views) -> None:
+    async def test_rust_pipeline_returns_valid_json(self, db_pool, setup_test_views, test_types) -> None:
         """Test that Rust pipeline returns valid JSON."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "production"})
 
         where = ProductWhere(category={"eq": "widgets"})
@@ -357,8 +381,9 @@ class TestRepositoryWhereIntegration:
         assert all(r["category"] == "widgets" for r in results)
 
     @pytest.mark.asyncio
-    async def test_empty_where_returns_all(self, db_pool, setup_test_views) -> None:
+    async def test_empty_where_returns_all(self, db_pool, setup_test_views, test_types) -> None:
         """Test that empty where object returns all records."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Empty where
@@ -369,8 +394,9 @@ class TestRepositoryWhereIntegration:
         assert len(results) == 4  # All products
 
     @pytest.mark.asyncio
-    async def test_unsupported_operator_is_ignored(self, db_pool, setup_test_views) -> None:
+    async def test_unsupported_operator_is_ignored(self, db_pool, setup_test_views, test_types) -> None:
         """Test that unsupported operators are ignored gracefully."""
+        ProductWhere = test_types["ProductWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # The where generator skips unsupported operators
@@ -384,8 +410,10 @@ class TestRepositoryWhereIntegration:
         assert results[0]["name"] == "Widget A"
 
     @pytest.mark.asyncio
-    async def test_complex_nested_where(self, db_pool, setup_test_views) -> None:
+    async def test_complex_nested_where(self, db_pool, setup_test_views, test_types) -> None:
         """Test complex scenarios with nested where conditions."""
+        ProductWhere = test_types["ProductWhere"]
+        OrderWhere = test_types["OrderWhere"]
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Find completed orders for products over $50

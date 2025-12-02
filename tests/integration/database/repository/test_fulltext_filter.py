@@ -14,25 +14,31 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-# Test types
-@fraiseql.type
-class Document:
-    id: str
-    title: str
-    content: str
-    search_vector: str  # This will be a tsvector column
-
-
-# Generate where types
-DocumentWhere = safe_create_where_type(Document)
-
-
 class TestFullTextFilter:
     """Test PostgreSQL full-text search operators."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Document:
+            id: str
+            title: str
+            content: str
+            search_vector: str  # This will be a tsvector column
+
+        DocumentWhere = safe_create_where_type(Document)
+
+        return {
+            "Document": Document,
+            "DocumentWhere": DocumentWhere,
+        }
+
     @pytest_asyncio.fixture
-    async def setup_test_documents(self, db_pool):
+    async def setup_test_documents(self, db_pool, test_types):
         """Create test documents with tsvector data."""
+        Document = test_types["Document"]
         # Register types for views (for development mode)
         register_type_for_view("test_documents_view", Document)
 
@@ -87,7 +93,8 @@ class TestFullTextFilter:
             await conn.execute("DROP TABLE IF EXISTS test_documents")
 
     @pytest.mark.asyncio
-    async def test_matches_operator_basic_search(self, db_pool, setup_test_documents) -> None:
+    async def test_matches_operator_basic_search(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test basic full-text search with matches operator."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -101,7 +108,8 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_plain_query_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_plain_query_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test plain text query parsing."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -115,7 +123,8 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "JavaScript Tutorial"
 
     @pytest.mark.asyncio
-    async def test_phrase_query_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_phrase_query_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test phrase search query."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -129,7 +138,8 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_websearch_query_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_websearch_query_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test websearch-style query parsing."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -147,7 +157,8 @@ class TestFullTextFilter:
         assert "Python Guide" in titles
 
     @pytest.mark.asyncio
-    async def test_rank_gt_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_rank_gt_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test relevance ranking greater than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -163,7 +174,8 @@ class TestFullTextFilter:
         assert any(doc["title"] == "Python Guide" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_lt_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_rank_lt_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test relevance ranking less than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -181,7 +193,8 @@ class TestFullTextFilter:
         assert ("JavaScript Tutorial" in titles) or ("Database Design" in titles)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_gt_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_rank_cd_gt_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test cover density ranking greater than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -196,7 +209,8 @@ class TestFullTextFilter:
         assert any(doc["title"] == "JavaScript Tutorial" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_lt_operator(self, db_pool, setup_test_documents) -> None:
+    async def test_rank_cd_lt_operator(self, db_pool, setup_test_documents, test_types) -> None:
+        DocumentWhere = test_types["DocumentWhere"]
         """Test cover density ranking less than threshold."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 

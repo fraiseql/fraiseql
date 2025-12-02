@@ -17,27 +17,33 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-# Test types
-@fraiseql.type
-class Product:
-    id: str
-    name: str
-    attributes: dict  # JSONB column
-
-
-# Generate where types
-ProductWhere = safe_create_where_type(Product)
-
-
 class TestJSONBKeyExistence:
     """Test PostgreSQL JSONB key existence operators."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Product:
+            id: str
+            name: str
+            attributes: dict  # JSONB column
+
+        ProductWhere = safe_create_where_type(Product)
+
+        return {
+            "Product": Product,
+            "ProductWhere": ProductWhere,
+        }
+
     @pytest_asyncio.fixture
     async def setup_test_products(
-        self, db_pool: psycopg_pool.AsyncConnectionPool
+        self, db_pool: psycopg_pool.AsyncConnectionPool, test_types
     ) -> AsyncGenerator[None]:
         """Create test products with JSONB attributes."""
         # Register types for views (for development mode)
+        Product = test_types["Product"]
         register_type_for_view("test_products_view", Product)
 
         async with db_pool.connection() as conn:
@@ -87,12 +93,13 @@ class TestJSONBKeyExistence:
 
     @pytest.mark.asyncio
     async def test_has_key_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB ? operator for key existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test has_key operator - find products with "ram" key
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"has_key": "ram"})
 
         result = await repo.find("test_products_view", where=where)
@@ -104,12 +111,13 @@ class TestJSONBKeyExistence:
 
     @pytest.mark.asyncio
     async def test_has_any_keys_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB ?| operator for any key existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test has_any_keys operator - find products with either "ram" OR "storage"
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"has_any_keys": ["ram", "storage"]})
 
         result = await repo.find("test_products_view", where=where)
@@ -122,12 +130,13 @@ class TestJSONBKeyExistence:
 
     @pytest.mark.asyncio
     async def test_has_all_keys_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB ?& operator for all keys existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test has_all_keys operator - find products with BOTH "brand" AND "storage"
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"has_all_keys": ["brand", "storage"]})
 
         result = await repo.find("test_products_view", where=where)
@@ -142,11 +151,29 @@ class TestJSONBKeyExistence:
 class TestJSONBContainment:
     """Test PostgreSQL JSONB containment operators."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Product:
+            id: str
+            name: str
+            attributes: dict  # JSONB column
+
+        ProductWhere = safe_create_where_type(Product)
+
+        return {
+            "Product": Product,
+            "ProductWhere": ProductWhere,
+        }
+
     @pytest_asyncio.fixture
     async def setup_test_products(
-        self, db_pool: psycopg_pool.AsyncConnectionPool
+        self, db_pool: psycopg_pool.AsyncConnectionPool, test_types
     ) -> AsyncGenerator[None]:
         """Create test products with JSONB attributes."""
+        Product = test_types["Product"]
         register_type_for_view("test_products_view", Product)
 
         async with db_pool.connection() as conn:
@@ -192,12 +219,13 @@ class TestJSONBContainment:
 
     @pytest.mark.asyncio
     async def test_contains_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB @> operator for containment."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test contains operator - find products that contain {"brand": "Apple"}
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"contains": {"brand": "Apple"}})
 
         result = await repo.find("test_products_view", where=where)
@@ -209,12 +237,13 @@ class TestJSONBContainment:
 
     @pytest.mark.asyncio
     async def test_contained_by_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB <@ operator for contained by."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test contained_by operator - find products contained by a larger object
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(
             attributes={
                 "contained_by": {"brand": "Samsung", "extra_field": "value", "another": "field"}
@@ -232,11 +261,29 @@ class TestJSONBContainment:
 class TestJSONBJSONPath:
     """Test PostgreSQL JSONB JSONPath operators."""
 
+    @pytest.fixture
+    def test_types(self, clear_registry):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Product:
+            id: str
+            name: str
+            attributes: dict  # JSONB column
+
+        ProductWhere = safe_create_where_type(Product)
+
+        return {
+            "Product": Product,
+            "ProductWhere": ProductWhere,
+        }
+
     @pytest_asyncio.fixture
     async def setup_test_products(
-        self, db_pool: psycopg_pool.AsyncConnectionPool
+        self, db_pool: psycopg_pool.AsyncConnectionPool, test_types
     ) -> AsyncGenerator[None]:
         """Create test products with nested JSONB."""
+        Product = test_types["Product"]
         register_type_for_view("test_products_view", Product)
 
         async with db_pool.connection() as conn:
@@ -282,12 +329,13 @@ class TestJSONBJSONPath:
 
     @pytest.mark.asyncio
     async def test_path_exists_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB @? operator for JSONPath existence."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test path_exists operator - find products with $.specs.ram path
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"path_exists": "$.specs.ram"})
 
         result = await repo.find("test_products_view", where=where)
@@ -299,12 +347,13 @@ class TestJSONBJSONPath:
 
     @pytest.mark.asyncio
     async def test_path_match_operator(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None
+        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_test_products: None, test_types
     ) -> None:
         """Test JSONB @@ operator for JSONPath predicates."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Test path_match operator - find products where specs.ram > 8
+        ProductWhere = test_types["ProductWhere"]
         where = ProductWhere(attributes={"path_match": "$.specs.ram > 8"})
 
         result = await repo.find("test_products_view", where=where)
