@@ -3,7 +3,7 @@
 Provides test app, client, and database setup for cascade integration tests.
 """
 
-from typing import Optional
+from typing import AsyncGenerator, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -70,7 +70,9 @@ async def get_post(info: GraphQLResolveInfo, id: str) -> Optional[Post]:
 
 
 @pytest_asyncio.fixture(scope="class")
-async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
+async def cascade_db_schema(
+    class_db_pool, test_schema, clear_registry_class
+) -> AsyncGenerator[None]:
     """Set up cascade test database schema with tables and PostgreSQL function.
 
     Uses the shared class_db_pool fixture from database_conftest.py for proper database access.
@@ -286,7 +288,7 @@ async def cascade_http_client(cascade_app: FastAPI) -> AsyncClient:
 
 
 @pytest.fixture
-def mock_apollo_client():
+def mock_apollo_client() -> MagicMock:
     """Mock Apollo Client for cascade integration testing."""
     client = MagicMock()
     client.cache = MagicMock()
