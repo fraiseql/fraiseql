@@ -285,6 +285,7 @@ async def db_connection_committed(
 
         def cursor(self, *args, **kwargs):
             """Return a cursor from the underlying connection."""
+
             # Return a cursor context manager that properly handles async
             class CursorContext:
                 def __init__(self, wrapper):
@@ -419,16 +420,6 @@ def _clear_all_fraiseql_state() -> None:
 # ============================================================================
 # LEGACY FIXTURES (DEPRECATED - for migration only)
 # ============================================================================
-
-
-@pytest_asyncio.fixture(scope="session")
-async def db_pool(session_db_pool) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool, None]:
-    """DEPRECATED: Use class_db_pool instead.
-
-    Provided for backward compatibility during migration.
-    This returns the session pool which should not be used directly.
-    """
-    yield session_db_pool
 
 
 @pytest_asyncio.fixture

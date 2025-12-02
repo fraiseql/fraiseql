@@ -25,24 +25,26 @@ pytestmark = pytest.mark.enterprise
 
 
 @pytest.fixture(scope="function")
-def setup_unified_audit(db_pool: psycopg_pool.AsyncConnectionPool) -> None:
+def setup_unified_audit(class_db_pool: psycopg_pool.AsyncConnectionPool, test_schema) -> None:
     import asyncio
 
-    asyncio.run(_setup_unified_audit(db_pool))
+    asyncio.run(_setup_unified_audit(class_db_pool, test_schema))
 
 
-async def _setup_unified_audit(db_pool: psycopg_pool.AsyncConnectionPool) -> None:
+async def _setup_unified_audit(
+    class_db_pool: psycopg_pool.AsyncConnectionPool, test_schema
+) -> None:
     """Set up unified audit table."""
     async with class_db_pool.connection() as conn:
-        await conn.execute(f"SET search_path TO {test_schema}, public")
+        await conn.execute(SQL(f"SET search_path TO {test_schema}, public"))
         # Drop old tables if they exist
-        await conn.execute("DROP TABLE IF EXISTS audit_events CASCADE")  # type: ignore  # type: ignore
+        await conn.execute(SQL("DROP TABLE IF EXISTS audit_events CASCADE"))
         await conn.execute(SQL("DROP TABLE IF EXISTS audit_signing_keys CASCADE"))
 
         # Load unified migration
         migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
         migration_sql = migration_path.read_text()
-        await conn.execute(SQL(migration_sql))
+        await conn.execute(migration_sql)
 
         # Insert test signing key
         await conn.execute(
