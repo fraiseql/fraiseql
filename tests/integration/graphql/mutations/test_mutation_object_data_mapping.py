@@ -16,6 +16,13 @@ from fraiseql import input as input_type
 from fraiseql.db import FraiseQLRepository
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    db_connection_committed,
+    test_schema,
+)
+
 pytestmark = pytest.mark.integration
 
 

@@ -283,6 +283,25 @@ async def db_connection_committed(
             conn = await self._get_conn()
             return await conn.execute(query, *args, **kwargs)
 
+        def cursor(self, *args, **kwargs):
+            """Return a cursor from the underlying connection."""
+            # Return a cursor context manager that properly handles async
+            class CursorContext:
+                def __init__(self, wrapper):
+                    self.wrapper = wrapper
+                    self._cursor = None
+
+                async def __aenter__(self):
+                    conn = await self.wrapper._get_conn()
+                    self._cursor = await conn.cursor(*args, **kwargs).__aenter__()
+                    return self._cursor
+
+                async def __aexit__(self, *exc_args):
+                    if self._cursor:
+                        await self._cursor.__aexit__(*exc_args)
+
+            return CursorContext(self)
+
         async def commit(self):
             """Commit the connection."""
             if self._conn:
@@ -432,9 +451,39 @@ def create_test_view() -> None:
 
 
 @pytest.fixture
-def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool) -> None:
-    """DEPRECATED: Use class_db_pool directly."""
-    pass
+def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool, test_schema):
+    """Factory fixture to create FraiseQL apps with real database connection.
+
+    This fixture provides a factory function that creates properly configured
+    FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
+
+    Usage:
+        def test_something(create_fraiseql_app_with_db):
+            app = create_fraiseql_app_with_db(
+                types=[MyType],
+                queries=[my_query],
+                production=False
+            )
+            client = TestClient(app)
+            # Use the app...
+    """
+    from fraiseql.fastapi.app import create_fraiseql_app
+    from fraiseql.fastapi.dependencies import set_db_pool
+
+    def _create_app(**kwargs):
+        """Create a FraiseQL app with proper database URL and pool."""
+        # Use the real database URL from the container
+        kwargs.setdefault("database_url", postgres_url)
+
+        # Create the app
+        app = create_fraiseql_app(**kwargs)
+
+        # Manually set the database pool to bypass lifespan issues in tests
+        set_db_pool(class_db_pool)
+
+        return app
+
+    return _create_app
 
 
 # ============================================================================
