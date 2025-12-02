@@ -12,15 +12,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
+# Import database fixtures
 import fraiseql
 from fraiseql.mutations import mutation
-
-# Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    test_schema,
-    clear_registry_class,
-)
 
 
 # Test types for cascade
@@ -59,7 +53,7 @@ class CreatePostError:
 
 
 # Test mutations
-@mutation(enable_cascade=True, function="create_post")
+@mutation(enable_cascade=True)
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
@@ -81,6 +75,8 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
 
     Uses the shared class_db_pool fixture from database_conftest.py for proper database access.
     Creates tables and a PostgreSQL function that returns mutation_result_v2 with cascade data.
+
+    CRITICAL: Creates all objects in test_schema for proper isolation.
     """
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -102,24 +98,23 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
             END $$;
         """)
 
-        # Create tables in public schema explicitly
+        # Create tables in test_schema (via search_path - NO explicit public schema)
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS public.tb_user (
+            CREATE TABLE IF NOT EXISTS tb_user (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 post_count INTEGER DEFAULT 0
             );
 
-            CREATE TABLE IF NOT EXISTS public.tb_post (
+            CREATE TABLE IF NOT EXISTS tb_post (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 content TEXT,
-                author_id TEXT REFERENCES public.tb_user(id)
+                author_id TEXT REFERENCES tb_user(id)
             );
         """)
 
-        # Create PostgreSQL function returning mutation_result_v2
-        # FraiseQL's executor wraps with row_to_json() which works with composite types
+        # Create PostgreSQL function in public schema (for FraiseQL default)
         await conn.execute("""
             CREATE OR REPLACE FUNCTION public.create_post(input_data JSONB)
             RETURNS mutation_result_v2 AS $$
@@ -146,8 +141,8 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
                     )::mutation_result_v2;
                 END IF;
 
-                -- Check if user exists
-                IF NOT EXISTS (SELECT 1 FROM public.tb_user WHERE id = p_author_id) THEN
+                -- Check if user exists (no schema prefix - uses search_path)
+                IF NOT EXISTS (SELECT 1 FROM tb_user WHERE id = p_author_id) THEN
                     RETURN ROW(
                         'failed:not_found',
                         'Author not found',
@@ -159,11 +154,11 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
                 -- Create post
                 v_post_id := 'post-' || gen_random_uuid()::text;
 
-                INSERT INTO public.tb_post (id, title, content, author_id)
+                INSERT INTO tb_post (id, title, content, author_id)
                 VALUES (v_post_id, p_title, p_content, p_author_id);
 
                 -- Update user post count
-                UPDATE public.tb_user
+                UPDATE tb_user
                 SET post_count = post_count + 1
                 WHERE id = p_author_id;
 
@@ -200,7 +195,7 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
                                     'name', name,
                                     'postCount', post_count
                                 )
-                                FROM public.tb_user WHERE id = p_author_id
+                                FROM tb_user WHERE id = p_author_id
                             )
                         )
                     ),
@@ -233,9 +228,9 @@ async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
             $$ LANGUAGE plpgsql;
         """)
 
-        # Insert test user in a separate statement
+        # Insert test user (no schema prefix - uses search_path)
         await conn.execute("""
-            INSERT INTO public.tb_user (id, name, post_count)
+            INSERT INTO tb_user (id, name, post_count)
             VALUES ('user-123', 'Test User', 0)
             ON CONFLICT (id) DO NOTHING;
         """)
