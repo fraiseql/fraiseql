@@ -15,6 +15,7 @@ from fraiseql.introspection.postgres_introspector import (
 )
 from fraiseql.introspection.type_generator import TypeGenerator
 from fraiseql.introspection.type_mapper import TypeMapper
+from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 
 pytestmark = pytest.mark.integration
 
@@ -44,119 +45,122 @@ class TestCommentDescriptionsIntegration:
         return TypeGenerator(type_mapper)
 
     @pytest.fixture
-    async def introspector(self, db_pool) -> PostgresIntrospector:
+    def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
         """Create PostgresIntrospector with real database pool."""
-        # Note: Using db_pool instead of db_connection to ensure proper transaction handling
-        return PostgresIntrospector(db_pool)
+        # Note: Using class_db_pool instead of db_connection to ensure proper transaction handling
+        return PostgresIntrospector(class_db_pool)
 
     @pytest.fixture
-    async def real_database_setup(self, db_connection) -> None:
+    def real_database_setup(self, class_db_pool, test_schema):
         """Set up a real PostgreSQL database with test schema and comments."""
-        conn = db_connection
+        import asyncio
 
-        # Clean up any existing test objects
-        await conn.execute("""
-            DROP VIEW IF EXISTS test_comments.v_user_profile CASCADE;
-            DROP FUNCTION IF EXISTS test_comments.fn_create_user(text, text) CASCADE;
-            DROP TYPE IF EXISTS test_comments.type_create_user_input CASCADE;
-            DROP SCHEMA IF EXISTS test_comments CASCADE;
-        """)
+        # Run the async setup
+        async def setup():
+            async with class_db_pool.connection() as conn:
+                await conn.execute(f"SET search_path TO {test_schema}")
 
-        # Create test schema
-        await conn.execute("CREATE SCHEMA test_comments;")
+                # Clean up any existing test objects
+                await conn.execute(f"""
+                    DROP VIEW IF EXISTS {test_schema}.v_user_profile CASCADE;
+                    DROP FUNCTION IF EXISTS {test_schema}.fn_create_user(text, text) CASCADE;
+                    DROP TYPE IF EXISTS {test_schema}.type_create_user_input CASCADE;
+                """)
 
-        # Create table with column comments
-        await conn.execute("""
-            CREATE TABLE test_comments.users (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                email text NOT NULL,
-                name text NOT NULL,
-                created_at timestamptz DEFAULT now()
-            );
-        """)
+                # Create table with column comments
+                await conn.execute(f"""
+                    CREATE TABLE {test_schema}.users (
+                        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                        email text NOT NULL,
+                        name text NOT NULL,
+                        created_at timestamptz DEFAULT now()
+                    );
+                """)
 
-        # Add column comments
-        await conn.execute(
-            "COMMENT ON COLUMN test_comments.users.email IS 'Primary email address for authentication';"
-        )
-        await conn.execute("COMMENT ON COLUMN test_comments.users.name IS 'Full name of the user';")
-        await conn.execute(
-            "COMMENT ON COLUMN test_comments.users.created_at IS 'Account creation timestamp (UTC)';"
-        )
+                # Add column comments
+                await conn.execute(
+                    f"COMMENT ON COLUMN {test_schema}.users.email IS 'Primary email address for authentication';"
+                )
+                await conn.execute(
+                    f"COMMENT ON COLUMN {test_schema}.users.name IS 'Full name of the user';"
+                )
+                await conn.execute(
+                    f"COMMENT ON COLUMN {test_schema}.users.created_at IS 'Account creation timestamp (UTC)';"
+                )
 
-        # Insert test data so view is not empty
-        await conn.execute("""
-            INSERT INTO test_comments.users (email, name)
-            VALUES ('test@example.com', 'Test User');
-        """)
+                # Insert test data so view is not empty
+                await conn.execute(f"""
+                    INSERT INTO {test_schema}.users (email, name)
+                    VALUES ('test@example.com', 'Test User');
+                """)
 
-        # Create view with comment (with JSONB data column as expected by FraiseQL)
-        await conn.execute("""
-            CREATE VIEW test_comments.v_user_profile AS
-            SELECT
-                id,
-                jsonb_build_object(
-                    'email', email,
-                    'name', name,
-                    'created_at', created_at
-                ) as data
-            FROM test_comments.users;
-        """)
-        await conn.execute(
-            "COMMENT ON VIEW test_comments.v_user_profile IS 'User profile data with contact information';"
-        )
+                # Create view with comment (with JSONB data column as expected by FraiseQL)
+                await conn.execute(f"""
+                    CREATE VIEW {test_schema}.v_user_profile AS
+                    SELECT
+                        id,
+                        jsonb_build_object(
+                            'email', email,
+                            'name', name,
+                            'created_at', created_at
+                        ) as data
+                    FROM {test_schema}.users;
+                """)
+                await conn.execute(
+                    f"COMMENT ON VIEW {test_schema}.v_user_profile IS 'User profile data with contact information';"
+                )
 
-        # Debug: Check what views exist
-        result = await conn.execute(
-            "SELECT schemaname, viewname FROM pg_views WHERE schemaname = 'test_comments'"
-        )
-        view_rows = await result.fetchall()
-        print(f"Views in test_comments schema: {view_rows}")
+                # Debug: Check what views exist
+                result = await conn.execute(
+                    f"SELECT schemaname, viewname FROM pg_views WHERE schemaname = '{test_schema}'"
+                )
+                view_rows = await result.fetchall()
+                print(f"Views in {test_schema} schema: {view_rows}")
 
-        # Create composite type with comment and attribute comments
-        await conn.execute("""
-            CREATE TYPE test_comments.type_create_user_input AS (
-                email text,
-                name text
-            );
-        """)
-        await conn.execute(
-            "COMMENT ON TYPE test_comments.type_create_user_input IS 'Input parameters for user creation';"
-        )
-        # Note: PostgreSQL doesn't support COMMENT ON ATTRIBUTE syntax
-        # Attribute comments are handled differently in PostgreSQL
-        # We'll test the infrastructure without actual attribute comments for now
+                # Create composite type with comment and attribute comments
+                await conn.execute(f"""
+                    CREATE TYPE {test_schema}.type_create_user_input AS (
+                        email text,
+                        name text
+                    );
+                """)
+                await conn.execute(
+                    f"COMMENT ON TYPE {test_schema}.type_create_user_input IS 'Input parameters for user creation';"
+                )
+                # Note: PostgreSQL doesn't support COMMENT ON ATTRIBUTE syntax
+                # Attribute comments are handled differently in PostgreSQL
+                # We'll test the infrastructure without actual attribute comments for now
 
-        # Create function with comment
-        await conn.execute("""
-            CREATE FUNCTION test_comments.fn_create_user(p_email text, p_name text)
-            RETURNS jsonb
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                INSERT INTO test_comments.users (email, name)
-                VALUES (p_email, p_name)
-                RETURNING row_to_json(users.*)::jsonb;
-            END;
-            $$;
-        """)
-        await conn.execute(
-            "COMMENT ON FUNCTION test_comments.fn_create_user(text, text) IS 'Creates a new user account with email verification';"
-        )
+                # Create function with comment
+                await conn.execute(f"""
+                    CREATE FUNCTION {test_schema}.fn_create_user(p_email text, p_name text)
+                    RETURNS jsonb
+                    LANGUAGE plpgsql
+                    AS $$
+                    BEGIN
+                        INSERT INTO {test_schema}.users (email, name)
+                        VALUES (p_email, p_name)
+                        RETURNING row_to_json(users.*)::jsonb;
+                    END;
+                    $$;
+                """)
+                await conn.execute(
+                    f"COMMENT ON FUNCTION {test_schema}.fn_create_user(text, text) IS 'Creates a new user account with email verification';"
+                )
 
-        # Commit the transaction so other connections can see the changes
-        await conn.commit()
+                # Commit the transaction so other connections can see the changes
+                await conn.commit()
 
-        yield conn
+        # Create a new event loop for this synchronous fixture
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(setup())
+        finally:
+            loop.close()
 
-        # Cleanup
-        await conn.execute("""
-            DROP VIEW IF EXISTS test_comments.v_user_profile CASCADE;
-            DROP FUNCTION IF EXISTS test_comments.fn_create_user(text, text) CASCADE;
-            DROP TYPE IF EXISTS test_comments.type_create_user_input CASCADE;
-            DROP TABLE IF EXISTS test_comments.users CASCADE;
-            DROP SCHEMA IF EXISTS test_comments CASCADE;
-        """)
+        # Return the pool for the test to use
+        return class_db_pool
 
     @pytest.mark.asyncio
     async def test_all_comment_types_work_end_to_end(
@@ -166,19 +170,17 @@ class TestCommentDescriptionsIntegration:
         type_generator: TypeGenerator,
         mutation_generator: MutationGenerator,
         input_generator: InputGenerator,
-        db_pool,
+        test_schema,
     ):
         """Test that all PostgreSQL comment types are properly converted to GraphQL descriptions."""
-        conn = real_database_setup
+        pool = real_database_setup
 
         # 1. Test View Comment → GraphQL Type Description
         # Debug: Check what the introspector is doing
-        all_views = await introspector.discover_views(schemas=["test_comments"])
-        print(f"All views in test_comments: {[v.view_name for v in all_views]}")
+        all_views = await introspector.discover_views(schemas=[test_schema])
+        print(f"All views in {test_schema}: {[v.view_name for v in all_views]}")
 
-        views = await introspector.discover_views(
-            pattern="v_user_profile", schemas=["test_comments"]
-        )
+        views = await introspector.discover_views(pattern="v_user_profile", schemas=[test_schema])
         print(f"Found views with pattern: {[v.view_name for v in views]}")  # Debug
         assert len(views) == 1
         view_metadata = views[0]
@@ -188,7 +190,7 @@ class TestCommentDescriptionsIntegration:
         # Generate type class (need a mock annotation)
 
         type_annotation = TypeAnnotation()
-        type_cls = await type_generator.generate_type_class(view_metadata, type_annotation, db_pool)
+        type_cls = await type_generator.generate_type_class(view_metadata, type_annotation, pool)
         assert type_cls.__doc__ == "User profile data with contact information"
 
         # 2. Test Function Comment → GraphQL Mutation Description
@@ -231,14 +233,14 @@ class TestCommentDescriptionsIntegration:
 
         # 3. Test Composite Type Comment → GraphQL Input Type Description
         composite_type = await introspector.discover_composite_type(
-            "type_create_user_input", "test_comments"
+            "type_create_user_input", test_schema
         )
         assert composite_type is not None
         assert composite_type.comment == "Input parameters for user creation"
 
         # Generate input class
         input_cls = await input_generator._generate_from_composite_type(
-            "type_create_user_input", "test_comments", introspector
+            "type_create_user_input", test_schema, introspector
         )
         assert input_cls.__doc__ == "Input parameters for user creation"
 
@@ -261,20 +263,20 @@ class TestCommentDescriptionsIntegration:
         # This is expected behavior when using jsonb_build_object()
 
     @pytest.mark.asyncio
-    async def test_invalid_schema_discovery_returns_empty(self, db_pool) -> None:
+    async def test_invalid_schema_discovery_returns_empty(self, class_db_pool, test_schema) -> None:
         """Test that discovering views in non-existent schema returns empty list.
 
         This tests error path handling - the system should gracefully handle
         requests for non-existent schemas rather than raising exceptions.
         """
-        introspector = PostgresIntrospector(db_pool)
+        introspector = PostgresIntrospector(class_db_pool)
         # Should not raise error for non-existent schema, just return empty list
         views = await introspector.discover_views(schemas=["nonexistent_schema_12345"])
         assert views == []
 
     @pytest.mark.asyncio
     async def test_malformed_comment_parsing_graceful_handling(
-        self, db_connection, db_pool
+        self, class_db_pool, test_schema
     ) -> None:
         """Test handling of malformed comments in database objects.
 
@@ -287,31 +289,34 @@ class TestCommentDescriptionsIntegration:
         view_name = f"v_malformed_{suffix}"
 
         # Create a view with malformed comment
-        await db_connection.execute(f"""
-            CREATE VIEW {view_name} AS SELECT 1 AS id, 'test' AS name
-        """)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            await conn.execute(f"""
+                CREATE VIEW {test_schema}.{view_name} AS SELECT 1 AS id, 'test' AS name
+            """)
 
-        # Add malformed comment (truncated YAML)
-        await db_connection.execute(f"""
-            COMMENT ON VIEW {view_name} IS '@fraiseql:type
-name: TestType
-description: Incomplete'
-        """)
+            # Add malformed comment (truncated YAML)
+            await conn.execute(f"""
+                COMMENT ON VIEW {test_schema}.{view_name} IS '@fraiseql:type
+    name: TestType
+    description: Incomplete'
+            """)
 
-        await db_connection.commit()
+            await conn.commit()
 
-        introspector = PostgresIntrospector(db_pool)
+        introspector = PostgresIntrospector(class_db_pool)
         # Should handle malformed comments gracefully without crashing
-        views = await introspector.discover_views(pattern=f"{view_name}")
+        views = await introspector.discover_views(pattern=f"{view_name}", schemas=[test_schema])
         assert isinstance(views, list)
 
         # Cleanup
-        await db_connection.execute(f"DROP VIEW {view_name} CASCADE")
-        await db_connection.commit()
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"DROP VIEW IF EXISTS {test_schema}.{view_name} CASCADE")
+            await conn.commit()
 
     @pytest.mark.asyncio
     async def test_type_generator_with_empty_columns_error(
-        self, type_mapper: TypeMapper, db_pool
+        self, type_mapper: TypeMapper, class_db_pool, test_schema
     ) -> None:
         """Test type generator handles empty columns appropriately.
 
@@ -333,7 +338,7 @@ description: Incomplete'
         # The actual behavior depends on the implementation
         try:
             result = await type_generator.generate_type_class(
-                empty_columns_metadata, None, db_pool
+                empty_columns_metadata, TypeAnnotation(), class_db_pool
             )
             # If it doesn't raise, verify the result is valid
             assert result is not None or result is None  # Accept either behavior
@@ -342,13 +347,15 @@ description: Incomplete'
             assert str(e) != ""  # Error should have a message
 
     @pytest.mark.asyncio
-    async def test_discover_views_with_sql_injection_safe_pattern(self, db_pool) -> None:
+    async def test_discover_views_with_sql_injection_safe_pattern(
+        self, class_db_pool, test_schema
+    ) -> None:
         """Test that view discovery handles potentially malicious patterns safely.
 
         This tests security error handling - SQL injection attempts in
         pattern matching should be handled safely.
         """
-        introspector = PostgresIntrospector(db_pool)
+        introspector = PostgresIntrospector(class_db_pool)
         # Attempt SQL injection via pattern
         malicious_patterns = [
             "'; DROP TABLE users; --",
@@ -366,13 +373,13 @@ description: Incomplete'
                 assert "syntax error" not in str(e).lower()
 
     @pytest.mark.asyncio
-    async def test_discover_functions_nonexistent_schema(self, db_pool) -> None:
+    async def test_discover_functions_nonexistent_schema(self, class_db_pool, test_schema) -> None:
         """Test function discovery in non-existent schema returns empty.
 
         Similar to view discovery, function discovery should gracefully
         handle non-existent schemas.
         """
-        introspector = PostgresIntrospector(db_pool)
+        introspector = PostgresIntrospector(class_db_pool)
         functions = await introspector.discover_functions(
             schemas=["completely_nonexistent_schema_name"]
         )
