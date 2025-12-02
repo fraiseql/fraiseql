@@ -44,67 +44,73 @@ class TestLogicalOperatorsDatabaseIntegration:
     async def test_or_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test OR operator generates working SQL and returns correct results."""
         # Create test table and data
-        await class_db_pool.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS test_products (
+                    id UUID PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS test_products (
-                id UUID PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """
-        )
-
-        # Insert test data
-        test_products = [
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Widget A",
-                    "price": 50,
-                    "category": "electronics",
-                    "is_active": True,
-                },
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Widget B",
-                    "price": 75,
-                    "category": "electronics",
-                    "is_active": True,
-                },
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Gadget C", "price": 100, "category": "toys", "is_active": True},
-            },
-        ]
-
-        for product in test_products:
-            await class_db_pool.execute(
-                "INSERT INTO test_products (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"])),
             )
 
-        # Create GraphQL where input with OR condition
-        ProductWhereInput = create_graphql_where_input(Product)
-
-        where_input = ProductWhereInput(
-            OR=[
-                ProductWhereInput(name=StringFilter(eq="Widget A")),
-                ProductWhereInput(name=StringFilter(eq="Widget B")),
+            # Insert test data
+            test_products = [
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Widget A",
+                        "price": 50,
+                        "category": "electronics",
+                        "is_active": True,
+                    },
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Widget B",
+                        "price": 75,
+                        "category": "electronics",
+                        "is_active": True,
+                    },
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Gadget C",
+                        "price": 100,
+                        "category": "toys",
+                        "is_active": True,
+                    },
+                },
             ]
-        )
 
-        # Convert to SQL where type and generate SQL
-        sql_where = where_input._to_sql_where()
-        sql = sql_where.to_sql()
+            for product in test_products:
+                await conn.execute(
+                    "INSERT INTO test_products (id, data) VALUES (%s, %s::jsonb)",
+                    (product["id"], json.dumps(product["data"])),
+                )
 
-        # Execute the query using psycopg's SQL composition
-        from psycopg.sql import SQL, Composed
+            # Create GraphQL where input with OR condition
+            ProductWhereInput = create_graphql_where_input(Product)
 
-        query = Composed([SQL("SELECT id, data FROM test_products WHERE "), sql])
-        cursor = await class_db_pool.execute(query)
-        results = await cursor.fetchall()
+            where_input = ProductWhereInput(
+                OR=[
+                    ProductWhereInput(name=StringFilter(eq="Widget A")),
+                    ProductWhereInput(name=StringFilter(eq="Widget B")),
+                ]
+            )
+
+            # Convert to SQL where type and generate SQL
+            sql_where = where_input._to_sql_where()
+            sql = sql_where.to_sql()
+
+            # Execute the query using psycopg's SQL composition
+            from psycopg.sql import SQL, Composed
+
+            query = Composed([SQL("SELECT id, data FROM test_products WHERE "), sql])
+            cursor = await conn.execute(query)
+            results = await cursor.fetchall()
 
         # Should return both Widget A and Widget B
         assert len(results) == 2
@@ -118,66 +124,72 @@ class TestLogicalOperatorsDatabaseIntegration:
     async def test_and_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test AND operator generates working SQL and returns correct results."""
         # Use existing table from previous test or create new one
-        await class_db_pool.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS test_products_and (
+                    id UUID PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS test_products_and (
-                id UUID PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """
-        )
-
-        # Insert test data with different categories and active states
-        test_products = [
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Active Electronics",
-                    "category": "electronics",
-                    "is_active": True,
-                    "price": 50,
-                },
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Inactive Electronics",
-                    "category": "electronics",
-                    "is_active": False,
-                    "price": 60,
-                },
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Active Toys", "category": "toys", "is_active": True, "price": 40},
-            },
-        ]
-
-        for product in test_products:
-            await class_db_pool.execute(
-                "INSERT INTO test_products_and (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"])),
             )
 
-        # Create GraphQL where input with AND condition
-        ProductWhereInput = create_graphql_where_input(Product)
-
-        where_input = ProductWhereInput(
-            AND=[
-                ProductWhereInput(category=StringFilter(eq="electronics")),
-                ProductWhereInput(is_active=BooleanFilter(eq=True)),
+            # Insert test data with different categories and active states
+            test_products = [
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Active Electronics",
+                        "category": "electronics",
+                        "is_active": True,
+                        "price": 50,
+                    },
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Inactive Electronics",
+                        "category": "electronics",
+                        "is_active": False,
+                        "price": 60,
+                    },
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Active Toys",
+                        "category": "toys",
+                        "is_active": True,
+                        "price": 40,
+                    },
+                },
             ]
-        )
 
-        # Convert to SQL and execute
-        sql_where = where_input._to_sql_where()
-        sql = sql_where.to_sql()
+            for product in test_products:
+                await conn.execute(
+                    "INSERT INTO test_products_and (id, data) VALUES (%s, %s::jsonb)",
+                    (product["id"], json.dumps(product["data"])),
+                )
 
-        from psycopg.sql import SQL, Composed
+            # Create GraphQL where input with AND condition
+            ProductWhereInput = create_graphql_where_input(Product)
 
-        query = Composed([SQL("SELECT id, data FROM test_products_and WHERE "), sql])
-        cursor = await class_db_pool.execute(query)
-        results = await cursor.fetchall()
+            where_input = ProductWhereInput(
+                AND=[
+                    ProductWhereInput(category=StringFilter(eq="electronics")),
+                    ProductWhereInput(is_active=BooleanFilter(eq=True)),
+                ]
+            )
+
+            # Convert to SQL and execute
+            sql_where = where_input._to_sql_where()
+            sql = sql_where.to_sql()
+
+            from psycopg.sql import SQL, Composed
+
+            query = Composed([SQL("SELECT id, data FROM test_products_and WHERE "), sql])
+            cursor = await conn.execute(query)
+            results = await cursor.fetchall()
 
         # Should return only "Active Electronics"
         assert len(results) == 1
@@ -186,159 +198,165 @@ class TestLogicalOperatorsDatabaseIntegration:
     @pytest.mark.asyncio
     async def test_not_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test NOT operator generates working SQL and returns correct results."""
-        await class_db_pool.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS test_products_not (
+                    id UUID PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS test_products_not (
-                id UUID PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """
-        )
-
-        # Insert test data
-        test_products = [
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Active Product", "is_active": True, "price": 50},
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Inactive Product 1", "is_active": False, "price": 60},
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Inactive Product 2", "is_active": False, "price": 70},
-            },
-        ]
-
-        for product in test_products:
-            await class_db_pool.execute(
-                "INSERT INTO test_products_not (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"])),
             )
 
-        # Create GraphQL where input with NOT condition
-        ProductWhereInput = create_graphql_where_input(Product)
+            # Insert test data
+            test_products = [
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {"name": "Active Product", "is_active": True, "price": 50},
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {"name": "Inactive Product 1", "is_active": False, "price": 60},
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {"name": "Inactive Product 2", "is_active": False, "price": 70},
+                },
+            ]
 
-        where_input = ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False)))
+            for product in test_products:
+                await conn.execute(
+                    "INSERT INTO test_products_not (id, data) VALUES (%s, %s::jsonb)",
+                    (product["id"], json.dumps(product["data"])),
+                )
 
-        # Convert to SQL and execute
-        sql_where = where_input._to_sql_where()
-        sql = sql_where.to_sql()
+            # Create GraphQL where input with NOT condition
+            ProductWhereInput = create_graphql_where_input(Product)
 
-        from psycopg.sql import SQL, Composed
+            where_input = ProductWhereInput(
+                NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
+            )
 
-        query = Composed([SQL("SELECT id, data FROM test_products_not WHERE "), sql])
-        cursor = await class_db_pool.execute(query)
-        results = await cursor.fetchall()
+            # Convert to SQL and execute
+            sql_where = where_input._to_sql_where()
+            sql = sql_where.to_sql()
+
+            from psycopg.sql import SQL, Composed
+
+            query = Composed([SQL("SELECT id, data FROM test_products_not WHERE "), sql])
+            cursor = await conn.execute(query)
+            results = await cursor.fetchall()
 
         # Should return only the active product
         assert len(results) == 1
         assert results[0][1]["name"] == "Active Product"
 
     @pytest.mark.asyncio
-    async def test_complex_nested_logical_operators_database_query(self, class_db_pool, test_schema) -> None:
+    async def test_complex_nested_logical_operators_database_query(
+        self, class_db_pool, test_schema
+    ) -> None:
         """Test complex nested logical operators with database."""
-        await class_db_pool.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS test_products_complex (
+                    id UUID PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS test_products_complex (
-                id UUID PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """
-        )
-
-        # Insert comprehensive test data
-        test_products = [
-            # Should match: electronics AND (cheap OR high_stock) AND NOT inactive
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Cheap Electronics",
-                    "category": "electronics",
-                    "price": 25,
-                    "stock": 10,
-                    "is_active": True,
-                },
-            },
-            # Should match: electronics AND (cheap OR high_stock) AND NOT inactive
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Expensive Electronics High Stock",
-                    "category": "electronics",
-                    "price": 150,
-                    "stock": 200,
-                    "is_active": True,
-                },
-            },
-            # Should NOT match: not electronics
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Cheap Toys",
-                    "category": "toys",
-                    "price": 25,
-                    "stock": 10,
-                    "is_active": True,
-                },
-            },
-            # Should NOT match: electronics but expensive AND low stock
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Expensive Electronics Low Stock",
-                    "category": "electronics",
-                    "price": 150,
-                    "stock": 5,
-                    "is_active": True,
-                },
-            },
-            # Should NOT match: inactive
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Cheap Inactive Electronics",
-                    "category": "electronics",
-                    "price": 25,
-                    "stock": 10,
-                    "is_active": False,
-                },
-            },
-        ]
-
-        for product in test_products:
-            await class_db_pool.execute(
-                "INSERT INTO test_products_complex (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"])),
             )
 
-        # Create complex nested logical condition:
-        # category = "electronics" AND (price < 50 OR stock > 100) AND NOT (is_active = false)
-        ProductWhereInput = create_graphql_where_input(Product)
-
-        where_input = ProductWhereInput(
-            AND=[
-                ProductWhereInput(category=StringFilter(eq="electronics")),
-                ProductWhereInput(
-                    OR=[
-                        ProductWhereInput(price=DecimalFilter(lt=Decimal(50))),
-                        ProductWhereInput(stock=IntFilter(gt=100)),
-                    ]
-                ),
-                ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))),
+            # Insert comprehensive test data
+            test_products = [
+                # Should match: electronics AND (cheap OR high_stock) AND NOT inactive
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Cheap Electronics",
+                        "category": "electronics",
+                        "price": 25,
+                        "stock": 10,
+                        "is_active": True,
+                    },
+                },
+                # Should match: electronics AND (cheap OR high_stock) AND NOT inactive
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Expensive Electronics High Stock",
+                        "category": "electronics",
+                        "price": 150,
+                        "stock": 200,
+                        "is_active": True,
+                    },
+                },
+                # Should NOT match: not electronics
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Cheap Toys",
+                        "category": "toys",
+                        "price": 25,
+                        "stock": 10,
+                        "is_active": True,
+                    },
+                },
+                # Should NOT match: electronics but expensive AND low stock
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Expensive Electronics Low Stock",
+                        "category": "electronics",
+                        "price": 150,
+                        "stock": 5,
+                        "is_active": True,
+                    },
+                },
+                # Should NOT match: inactive
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Cheap Inactive Electronics",
+                        "category": "electronics",
+                        "price": 25,
+                        "stock": 10,
+                        "is_active": False,
+                    },
+                },
             ]
-        )
 
-        # Convert to SQL and execute
-        sql_where = where_input._to_sql_where()
-        sql = sql_where.to_sql()
+            for product in test_products:
+                await conn.execute(
+                    "INSERT INTO test_products_complex (id, data) VALUES (%s, %s::jsonb)",
+                    (product["id"], json.dumps(product["data"])),
+                )
 
-        from psycopg.sql import SQL, Composed
+            # Create complex nested logical condition:
+            # category = "electronics" AND (price < 50 OR stock > 100) AND NOT (is_active = false)
+            ProductWhereInput = create_graphql_where_input(Product)
 
-        query = Composed([SQL("SELECT id, data FROM test_products_complex WHERE "), sql])
-        cursor = await class_db_pool.execute(query)
-        results = await cursor.fetchall()
+            where_input = ProductWhereInput(
+                AND=[
+                    ProductWhereInput(category=StringFilter(eq="electronics")),
+                    ProductWhereInput(
+                        OR=[
+                            ProductWhereInput(price=DecimalFilter(lt=Decimal(50))),
+                            ProductWhereInput(stock=IntFilter(gt=100)),
+                        ]
+                    ),
+                    ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))),
+                ]
+            )
+
+            # Convert to SQL and execute
+            sql_where = where_input._to_sql_where()
+            sql = sql_where.to_sql()
+
+            from psycopg.sql import SQL, Composed
+
+            query = Composed([SQL("SELECT id, data FROM test_products_complex WHERE "), sql])
+            cursor = await conn.execute(query)
+            results = await cursor.fetchall()
 
         # Should return exactly 2 products
         assert len(results) == 2
@@ -353,85 +371,90 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert "Cheap Inactive Electronics" not in result_names
 
     @pytest.mark.asyncio
-    async def test_mixed_field_and_logical_operators_database_query(self, class_db_pool, test_schema) -> None:
+    async def test_mixed_field_and_logical_operators_database_query(
+        self, class_db_pool, test_schema
+    ) -> None:
         """Test mixing direct field operators with logical operators."""
-        await class_db_pool.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS test_products_mixed (
+                    id UUID PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS test_products_mixed (
-                id UUID PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """
-        )
-
-        # Insert test data
-        test_products = [
-            # Should match: electronics AND is_active=true AND (name contains "pro" OR price < 60)
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Pro Widget",
-                    "category": "electronics",
-                    "price": 100,
-                    "is_active": True,
-                },
-            },
-            # Should match: electronics AND is_active=true AND (name contains "pro" OR price < 60)
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Cheap Electronics",
-                    "category": "electronics",
-                    "price": 50,
-                    "is_active": True,
-                },
-            },
-            # Should NOT match: not electronics
-            {
-                "id": str(uuid.uuid4()),
-                "data": {"name": "Pro Toy", "category": "toys", "price": 40, "is_active": True},
-            },
-            # Should NOT match: not active
-            {
-                "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Pro Electronics Inactive",
-                    "category": "electronics",
-                    "price": 80,
-                    "is_active": False,
-                },
-            },
-        ]
-
-        for product in test_products:
-            await class_db_pool.execute(
-                "INSERT INTO test_products_mixed (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"])),
             )
 
-        # Mix field operators with logical operators
-        ProductWhereInput = create_graphql_where_input(Product)
+            # Insert test data
+            test_products = [
+                # Should match: electronics AND is_active=true AND
+                # (name contains "pro" OR price < 60)
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Pro Widget",
+                        "category": "electronics",
+                        "price": 100,
+                        "is_active": True,
+                    },
+                },
+                # Should match: electronics AND is_active=true AND
+                # (name contains "pro" OR price < 60)
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Cheap Electronics",
+                        "category": "electronics",
+                        "price": 50,
+                        "is_active": True,
+                    },
+                },
+                # Should NOT match: not electronics
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {"name": "Pro Toy", "category": "toys", "price": 40, "is_active": True},
+                },
+                # Should NOT match: not active
+                {
+                    "id": str(uuid.uuid4()),
+                    "data": {
+                        "name": "Pro Electronics Inactive",
+                        "category": "electronics",
+                        "price": 80,
+                        "is_active": False,
+                    },
+                },
+            ]
 
-        where_input = ProductWhereInput(
-            # Direct field operators
-            category=StringFilter(eq="electronics"),
-            is_active=BooleanFilter(eq=True),
-            # Logical operator
-            OR=[
-                ProductWhereInput(name=StringFilter(contains="Pro")),
-                ProductWhereInput(price=DecimalFilter(lt=Decimal(60))),
-            ],
-        )
+            for product in test_products:
+                await conn.execute(
+                    "INSERT INTO test_products_mixed (id, data) VALUES (%s, %s::jsonb)",
+                    (product["id"], json.dumps(product["data"])),
+                )
 
-        # Convert to SQL and execute
-        sql_where = where_input._to_sql_where()
-        sql = sql_where.to_sql()
+            # Mix field operators with logical operators
+            ProductWhereInput = create_graphql_where_input(Product)
 
-        from psycopg.sql import SQL, Composed
+            where_input = ProductWhereInput(
+                # Direct field operators
+                category=StringFilter(eq="electronics"),
+                is_active=BooleanFilter(eq=True),
+                # Logical operator
+                OR=[
+                    ProductWhereInput(name=StringFilter(contains="Pro")),
+                    ProductWhereInput(price=DecimalFilter(lt=Decimal(60))),
+                ],
+            )
 
-        query = Composed([SQL("SELECT id, data FROM test_products_mixed WHERE "), sql])
-        cursor = await class_db_pool.execute(query)
-        results = await cursor.fetchall()
+            # Convert to SQL and execute
+            sql_where = where_input._to_sql_where()
+            sql = sql_where.to_sql()
+
+            from psycopg.sql import SQL, Composed
+
+            query = Composed([SQL("SELECT id, data FROM test_products_mixed WHERE "), sql])
+            cursor = await conn.execute(query)
+            results = await cursor.fetchall()
 
         # Should return 2 products that match all conditions
         assert len(results) == 2
