@@ -25,13 +25,14 @@ from fraiseql.introspection.postgres_introspector import (
 pytestmark = pytest.mark.integration
 
 
+@pytest_asyncio.fixture
+async def introspector(class_db_pool) -> PostgresIntrospector:
+    """Create PostgresIntrospector with real database pool."""
+    return PostgresIntrospector(class_db_pool)
+
+
 class TestPostgresIntrospectorIntegration:
     """Integration tests for PostgresIntrospector with real database."""
-
-    @pytest.fixture
-    def introspector(self, class_db_pool) -> PostgresIntrospector:
-        """Create PostgresIntrospector with real database pool."""
-        return PostgresIntrospector(class_db_pool)
 
     @pytest_asyncio.fixture
     async def test_view(self, class_db_pool, test_schema) -> str:

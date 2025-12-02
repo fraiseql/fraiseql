@@ -25,28 +25,28 @@ pytestmark = pytest.mark.integration
 class TestMutationGenerationIntegration:
     """Integration tests for end-to-end mutation generation."""
 
-    @pytest.fixture
-    def type_mapper(self) -> TypeMapper:
+    @pytest_asyncio.fixture
+    async def type_mapper(self) -> TypeMapper:
         """Create TypeMapper instance."""
         return TypeMapper()
 
-    @pytest.fixture
-    def input_generator(self, type_mapper: TypeMapper) -> InputGenerator:
+    @pytest_asyncio.fixture
+    async def input_generator(self, type_mapper: TypeMapper) -> InputGenerator:
         """Create InputGenerator instance."""
         return InputGenerator(type_mapper)
 
-    @pytest.fixture
-    def mutation_generator(self, input_generator: InputGenerator) -> MutationGenerator:
+    @pytest_asyncio.fixture
+    async def mutation_generator(self, input_generator: InputGenerator) -> MutationGenerator:
         """Create MutationGenerator instance."""
         return MutationGenerator(input_generator)
 
-    @pytest.fixture
-    def metadata_parser(self) -> MetadataParser:
+    @pytest_asyncio.fixture
+    async def metadata_parser(self) -> MetadataParser:
         """Create MetadataParser instance."""
         return MetadataParser()
 
-    @pytest.fixture
-    def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
+    @pytest_asyncio.fixture
+    async def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
         """Create PostgresIntrospector with real database pool."""
         return PostgresIntrospector(class_db_pool)
 

@@ -48,10 +48,10 @@ async def error_tracker(class_db_pool, test_schema):
     yield tracker
 
 
-@pytest.fixture
-def notification_manager(class_db_pool, test_schema):
+@pytest_asyncio.fixture(scope="class")
+async def notification_manager(class_db_pool, test_schema):
     """Create notification manager instance for testing."""
-    return NotificationManager(class_db_pool)
+    yield NotificationManager(class_db_pool)
 
 
 class TestEmailChannel:

@@ -29,28 +29,28 @@ pytestmark = pytest.mark.asyncio
 class TestCommentDescriptionsIntegration:
     """End-to-end integration tests for PostgreSQL comment descriptions."""
 
-    @pytest.fixture
-    def type_mapper(self) -> TypeMapper:
+    @pytest_asyncio.fixture
+    async def type_mapper(self) -> TypeMapper:
         """Create TypeMapper instance."""
         return TypeMapper()
 
-    @pytest.fixture
-    def input_generator(self, type_mapper: TypeMapper) -> InputGenerator:
+    @pytest_asyncio.fixture
+    async def input_generator(self, type_mapper: TypeMapper) -> InputGenerator:
         """Create InputGenerator instance."""
         return InputGenerator(type_mapper)
 
-    @pytest.fixture
-    def mutation_generator(self, input_generator: InputGenerator) -> MutationGenerator:
+    @pytest_asyncio.fixture
+    async def mutation_generator(self, input_generator: InputGenerator) -> MutationGenerator:
         """Create MutationGenerator instance."""
         return MutationGenerator(input_generator)
 
-    @pytest.fixture
-    def type_generator(self, type_mapper: TypeMapper) -> TypeGenerator:
+    @pytest_asyncio.fixture
+    async def type_generator(self, type_mapper: TypeMapper) -> TypeGenerator:
         """Create TypeGenerator instance."""
         return TypeGenerator(type_mapper)
 
-    @pytest.fixture
-    def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
+    @pytest_asyncio.fixture
+    async def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
         """Create PostgresIntrospector with real database pool."""
         # Note: Using class_db_pool instead of db_connection to ensure proper transaction handling
         return PostgresIntrospector(class_db_pool)
