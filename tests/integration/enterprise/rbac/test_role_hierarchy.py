@@ -19,7 +19,7 @@ async def ensure_rbac_schema(class_db_pool, test_schema) -> None:
     # Check if roles table exists
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
-        await conn.execute(
+        cur = await conn.execute(
             """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
