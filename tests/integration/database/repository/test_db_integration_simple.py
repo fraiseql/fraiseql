@@ -209,6 +209,25 @@ class TestFraiseQLRepositoryIntegration:
         schema = test_data  # test_data fixture now returns the schema name
         repository = FraiseQLRepository(pool=class_db_pool)
 
+        # Count total and inactive users before deletion
+        total_before_query = DatabaseQuery(
+            statement=SQL("SELECT COUNT(*) as count FROM {}.users").format(Identifier(schema)),
+            params={},
+            fetch_result=True,
+        )
+        total_before = await repository.run(total_before_query)
+        total_count_before = int(total_before[0]["count"])
+
+        count_inactive_query = DatabaseQuery(
+            statement=SQL(
+                "SELECT COUNT(*) as count FROM {}.users WHERE NOT (data->>'active')::boolean"
+            ).format(Identifier(schema)),
+            params={},
+            fetch_result=True,
+        )
+        inactive_before = await repository.run(count_inactive_query)
+        inactive_count_before = int(inactive_before[0]["count"])
+
         # Delete inactive users
         delete_query = DatabaseQuery(
             statement=SQL("DELETE FROM {}.users WHERE NOT (data->>'active')::boolean").format(
@@ -219,16 +238,19 @@ class TestFraiseQLRepositoryIntegration:
         )
         await repository.run(delete_query)
 
-        # Verify deletion
-        verify_query = DatabaseQuery(
-            statement=SQL("SELECT COUNT(*) as count FROM {}.users").format(Identifier(schema)),
-            params={},
-            fetch_result=True,
-        )
-        result = await repository.run(verify_query)
+        # Verify no inactive users remain
+        inactive_after = await repository.run(count_inactive_query)
+        inactive_count_after = int(inactive_after[0]["count"])
+
+        # Verify total users decreased by the number of inactive users
+        total_after = await repository.run(total_before_query)
+        total_count_after = int(total_after[0]["count"])
 
         # Assertions
-        assert result[0]["count"] == 2  # Only active users remain
+        assert inactive_count_after == 0  # No inactive users should remain
+        # Total should be the initial total minus the inactive users that were deleted
+        expected_total = total_count_before - inactive_count_before
+        assert total_count_after == expected_total
 
     @pytest.mark.asyncio
     async def test_run_join_query(self, class_db_pool, test_schema, test_data) -> None:
@@ -262,9 +284,9 @@ class TestFraiseQLRepositoryIntegration:
     @pytest.mark.asyncio
     async def test_transaction_behavior(self, class_db_pool, test_schema) -> None:
         """Test transaction behavior with the unified container system."""
+        # Create table and insert data, then release connection
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
-            repository = FraiseQLRepository(pool=class_db_pool)
 
             # Create minimal test table within our transaction
             await conn.execute(
@@ -282,19 +304,20 @@ class TestFraiseQLRepositoryIntegration:
             # Commit so it's visible to the pool connections
             await conn.commit()
 
-            # Verify data is visible
-            query = DatabaseQuery(
-                statement=SQL("SELECT * FROM {}.test_tx").format(Identifier(test_schema)),
-                params={},
-                fetch_result=True,
-            )
-            result = await repository.run(query)
+        # Now use repository with fresh connection (avoids pool exhaustion)
+        repository = FraiseQLRepository(pool=class_db_pool)
+        query = DatabaseQuery(
+            statement=SQL("SELECT * FROM {}.test_tx").format(Identifier(test_schema)),
+            params={},
+            fetch_result=True,
+        )
+        result = await repository.run(query)
 
-            assert len(result) == 1
-            assert result[0]["value"] == "test_value"
+        assert len(result) == 1
+        assert result[0]["value"] == "test_value"
 
-            # After this test, the transaction will be rolled back
-            # and the table will not exist for other tests
+        # After this test, the schema will be dropped automatically
+        # and the table will not exist for other tests
 
     @pytest.mark.asyncio
     async def test_jsonb_operators(self, class_db_pool, test_schema, test_data) -> None:
