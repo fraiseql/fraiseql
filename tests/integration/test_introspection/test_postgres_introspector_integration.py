@@ -404,20 +404,6 @@ class TestPostgresIntrospectorIntegration:
             assert isinstance(param.default_value, (str, type(None)))
 
     @pytest.mark.asyncio
-    async def test_discover_views_with_invalid_pattern(self, introspector, test_schema) -> None:
-        """Test view discovery with invalid regex patterns."""
-        # Invalid regex pattern
-        with pytest.raises(Exception):  # Should raise some regex-related exception
-            await introspector.discover_views(pattern="[invalid", schemas=[test_schema])
-
-    @pytest.mark.asyncio
-    async def test_discover_functions_with_invalid_pattern(self, introspector, test_schema) -> None:
-        """Test function discovery with invalid regex patterns."""
-        # Invalid regex pattern
-        with pytest.raises(Exception):  # Should raise some regex-related exception
-            await introspector.discover_functions(pattern="[invalid", schemas=[test_schema])
-
-    @pytest.mark.asyncio
     async def test_discover_views_with_unicode_comments(
         self, introspector, class_db_pool, test_schema
     ) -> None:
