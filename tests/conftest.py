@@ -86,12 +86,11 @@ except ImportError:
     pass  # Skip cascade fixtures if dependencies not available
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(scope="session")
 def clear_type_caches() -> Generator[None]:
     """Clear type caches at session start and end.
 
-    This session-scoped fixture ensures clean type registry state
-    at the beginning and end of test sessions.
+    Use explicitly when tests need clean type registry state.
 
     Yields:
         None: This fixture performs setup/teardown only.
@@ -109,42 +108,82 @@ def clear_type_caches() -> Generator[None]:
         _type_registry.clear()  # type: ignore
 
 
-@pytest.fixture(autouse=True, scope="function")
-def clear_registry(request: pytest.FixtureRequest) -> Generator[None]:
+@pytest.fixture(scope="function")
+def clear_registry() -> Generator[None]:
     """Clear the schema registry before and after each test.
 
-    Optimized: Only clears for tests that need full isolation.
-    Unit tests skip expensive clearing for better performance.
-
-    Args:
-        request: Pytest fixture request object for accessing test metadata.
+    Use explicitly on tests that need schema registry isolation.
+    This fixture performs comprehensive cleanup of all FraiseQL global state
+    including Rust schema registry and FastAPI dependencies.
 
     Yields:
         None: This fixture performs setup/teardown only.
     """
-    if FRAISEQL_AVAILABLE:
-        # Only do expensive clearing for tests that need full isolation
-        needs_isolation = any(
-            marker in request.keywords
-            for marker in ["database", "integration", "e2e", "forked", "slow", "enterprise"]
-        )
-
-        if needs_isolation:
-            # Clear before test for heavy tests that need isolation
-            SchemaRegistry.get_instance().clear()  # type: ignore
-
+    _clear_all_fraiseql_state()
     yield
+    _clear_all_fraiseql_state()
 
-    if FRAISEQL_AVAILABLE:
-        # Only do expensive clearing for tests that need full isolation
-        needs_isolation = any(
-            marker in request.keywords
-            for marker in ["database", "integration", "e2e", "forked", "slow", "enterprise"]
+
+def _clear_all_fraiseql_state() -> None:
+    """Comprehensive cleanup of all FraiseQL global state.
+
+    This function resets:
+    - Python SchemaRegistry
+    - Rust schema registry
+    - FastAPI global dependencies (db_pool, auth_provider, config)
+    - GraphQL type caches
+    - Type registry (view mappings)
+    """
+    if not FRAISEQL_AVAILABLE:
+        return
+
+    # Clear type caches FIRST (before resetting Rust registry to avoid conflicts)
+    try:
+        if _graphql_type_cache is not None:
+            _graphql_type_cache.clear()
+        if _type_registry is not None:
+            _type_registry.clear()
+    except Exception:
+        pass
+
+    # Clear view type registry mapping
+    try:
+        from fraiseql.db import _view_type_registry
+        _view_type_registry.clear()
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Clear Python SchemaRegistry
+    try:
+        SchemaRegistry.get_instance().clear()  # type: ignore
+    except Exception:
+        pass
+
+    # Reset Rust schema registry LAST (after Python state is cleared)
+    try:
+        from fraiseql._fraiseql_rs import reset_schema_registry_for_testing
+        reset_schema_registry_for_testing()
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Reset FastAPI global dependencies
+    try:
+        from fraiseql.fastapi.dependencies import (
+            set_auth_provider,
+            set_db_pool,
+            set_fraiseql_config,
         )
-
-        if needs_isolation:
-            # Clear after test for heavy tests
-            SchemaRegistry.get_instance().clear()  # type: ignore
+        set_db_pool(None)
+        set_auth_provider(None)
+        set_fraiseql_config(None)
+    except ImportError:
+        pass
+    except Exception:
+        pass
 
 
 @pytest.fixture
