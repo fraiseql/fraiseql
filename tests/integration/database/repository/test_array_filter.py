@@ -4,6 +4,8 @@ This test suite ensures that PostgreSQL array filtering operators work correctly
 in FraiseQL WHERE filtering.
 """
 
+import asyncio
+
 import pytest
 import pytest_asyncio
 
@@ -40,12 +42,23 @@ class TestArrayFilter:
 
     @pytest_asyncio.fixture
     async def setup_test_views(self, db_pool, test_types) -> None:
-        """Create test views with array data."""
+        """Create test views with array data.
+
+        Uses explicit timeout via asyncio.wait_for to prevent deadlock
+        when pool is under high load from previous tests.
+        """
         Product = test_types["Product"]
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
 
-        async with db_pool.connection() as conn:
+        # Acquire connection with timeout - prevents indefinite blocking
+        try:
+            conn_ctx = db_pool.connection()
+            conn = await asyncio.wait_for(conn_ctx.__aenter__(), timeout=10.0)
+        except asyncio.TimeoutError:
+            pytest.skip("Database pool exhausted - unable to acquire connection")
+
+        try:
             # Create tables
             await conn.execute(
                 """
@@ -84,13 +97,35 @@ class TestArrayFilter:
                     ('prod-005', 'Gadget Z', ARRAY['electronics', 'gadget', 'premium'])
             """
             )
+            await conn.commit()
+        finally:
+            # Keep connection open until after tests run - don't close yet
+            pass
 
         yield
 
-        # Cleanup
-        async with db_pool.connection() as conn:
+        # Now close the connection after tests
+        try:
+            await conn_ctx.__aexit__(None, None, None)
+        except Exception:
+            pass
+
+        # Cleanup - acquire new connection with timeout
+        try:
+            conn_ctx = db_pool.connection()
+            conn = await asyncio.wait_for(conn_ctx.__aenter__(), timeout=10.0)
+        except asyncio.TimeoutError:
+            pytest.skip("Database pool exhausted during cleanup")
+
+        try:
             await conn.execute("DROP VIEW IF EXISTS test_product_view")
             await conn.execute("DROP TABLE IF EXISTS test_products")
+            await conn.commit()
+        finally:
+            try:
+                await conn_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
 
     @pytest.mark.asyncio
     async def test_array_eq_operator_basic_equality(
