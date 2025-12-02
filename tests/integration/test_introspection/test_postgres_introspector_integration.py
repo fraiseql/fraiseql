@@ -8,14 +8,6 @@ import pytest
 import pytest_asyncio
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry_class,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
-
 from fraiseql.introspection.postgres_introspector import (
     ColumnInfo,
     ParameterInfo,
@@ -41,8 +33,8 @@ class TestPostgresIntrospectorIntegration:
         import uuid
 
         table_suffix = uuid.uuid4().hex[:8]
-        table_name = f"{test_schema}.test_users_{table_suffix}"
-        view_name = f"{test_schema}.v_users_{table_suffix}"
+        table_name = f"test_users_{table_suffix}"
+        view_name = f"v_users_{table_suffix}"
 
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}")
@@ -93,7 +85,7 @@ class TestPostgresIntrospectorIntegration:
 
             await conn.commit()
 
-        return view_name.split(".")[-1]  # Return just the view name without schema
+        return view_name
 
     @pytest_asyncio.fixture
     async def test_function(self, class_db_pool, test_schema) -> str:
@@ -102,7 +94,7 @@ class TestPostgresIntrospectorIntegration:
         import uuid
 
         func_suffix = uuid.uuid4().hex[:8]
-        func_name = f"{test_schema}.fn_create_user_{func_suffix}"
+        func_name = f"fn_create_user_{func_suffix}"
 
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}")
@@ -302,7 +294,7 @@ class TestPostgresIntrospectorIntegration:
             await conn.execute(f"SET search_path TO {test_schema}")
 
             # Create test table
-            table_name = f"{test_schema}.test_users_multi_{suffix}"
+            table_name = f"test_users_multi_{suffix}"
             await conn.execute(f"""
                 CREATE TABLE {table_name} (
                     id SERIAL PRIMARY KEY,
@@ -312,8 +304,8 @@ class TestPostgresIntrospectorIntegration:
             """)
 
             # Create additional test objects
-            view_name = f"{test_schema}.v_admins_{suffix}"
-            func_name = f"{test_schema}.fn_get_user_{suffix}"
+            view_name = f"v_admins_{suffix}"
+            func_name = f"fn_get_user_{suffix}"
 
             await conn.execute(f"""
                 CREATE VIEW {view_name} AS
@@ -411,8 +403,8 @@ class TestPostgresIntrospectorIntegration:
         import uuid
 
         suffix = uuid.uuid4().hex[:8]
-        table_name = f"{test_schema}.test_unicode_{suffix}"
-        view_name = f"{test_schema}.v_unicode_{suffix}"
+        table_name = f"test_unicode_{suffix}"
+        view_name = f"v_unicode_{suffix}"
 
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}")
@@ -438,6 +430,11 @@ class TestPostgresIntrospectorIntegration:
                 SELECT id, name FROM {table_name}
             """)
 
+            # Add unicode comment to the view
+            await conn.execute(f"""
+                COMMENT ON VIEW {view_name} IS '{unicode_comment}'
+            """)
+
             await conn.commit()
 
         # Should handle unicode without issues
@@ -457,7 +454,7 @@ class TestPostgresIntrospectorIntegration:
         # Create function with very long name (close to PostgreSQL limit)
         base_suffix = uuid.uuid4().hex[:8]
         long_name = (
-            f"{test_schema}.fn_very_long_function_name_that_might_cause_issues_"
+            f"fn_very_long_function_name_that_might_cause_issues_"
             f"{'x' * 50}_{base_suffix}"
         )
 
@@ -520,8 +517,8 @@ class TestPostgresIntrospectorIntegration:
         import uuid
 
         suffix = uuid.uuid4().hex[:8]
-        table_name = f"{test_schema}.test_null_comment_{suffix}"
-        view_name = f"{test_schema}.v_null_comment_{suffix}"
+        table_name = f"test_null_comment_{suffix}"
+        view_name = f"v_null_comment_{suffix}"
 
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}")
@@ -557,7 +554,7 @@ class TestPostgresIntrospectorIntegration:
         import uuid
 
         suffix = uuid.uuid4().hex[:8]
-        func_name = f"{test_schema}.fn_complex_return_{suffix}"
+        func_name = f"fn_complex_return_{suffix}"
 
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}")
