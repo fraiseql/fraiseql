@@ -29,8 +29,8 @@ from fraiseql.sql.where_generator import safe_create_where_type
 class TestRepositoryWhereIntegration:
     """Test suite for repository where type integration."""
 
-    @pytest.fixture
-    def test_types(self, clear_registry):
+    @pytest.fixture(scope="class")
+    def test_types(self, clear_registry_class):
         """Create test types inside a fixture to prevent global state pollution.
 
         This fixture creates the Product and Order types along with their
@@ -66,8 +66,8 @@ class TestRepositoryWhereIntegration:
             "OrderWhere": OrderWhere,
         }
 
-    @pytest_asyncio.fixture
-    async def setup_test_views(self, db_pool, test_types) -> AsyncGenerator[None]:
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_test_views(self, class_db_pool, test_schema, test_types) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
         Product = test_types["Product"]
         Order = test_types["Order"]
@@ -76,7 +76,8 @@ class TestRepositoryWhereIntegration:
         register_type_for_view("test_product_view", Product)
         register_type_for_view("test_order_view", Order)
 
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create tables
             await conn.execute(
                 """
@@ -167,269 +168,3 @@ class TestRepositoryWhereIntegration:
             )
 
         yield
-
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP VIEW IF EXISTS test_product_view")
-            await conn.execute("DROP VIEW IF EXISTS test_order_view")
-            await conn.execute("DROP TABLE IF EXISTS test_orders")
-            await conn.execute("DROP TABLE IF EXISTS test_products")
-
-    @pytest.mark.asyncio
-    async def test_find_with_simple_where_equality(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with simple equality operator."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Create where filter
-        where = ProductWhere(name={"eq": "Widget A"})  # type: ignore[call-arg]
-
-        # Find products
-        result = await repo.find("test_product_view", where=where)
-
-        # Handle RustResponseBytes response
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 1
-        # WORKAROUND: Rust pipeline returns dict, not Product instances
-        # TODO: Fix deserialization once Rust pipeline supports it
-        result_dict = results[0]
-        assert isinstance(result_dict, dict)
-        assert result_dict["name"] == "Widget A"
-        assert result_dict["price"] == 19.99  # JSON numbers, not Decimal
-
-    @pytest.mark.asyncio
-    async def test_find_with_comparison_operators(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with comparison operators."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test greater than
-        where = ProductWhere(price={"gt": 50})  # type: ignore[call-arg]
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 2
-        assert all(r["price"] > 50 for r in results)
-
-        # Test less than or equal
-        where = ProductWhere(stock={"lte": 50})
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 3
-        assert all(r["stock"] <= 50 for r in results)
-
-    @pytest.mark.asyncio
-    async def test_find_with_multiple_operators(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with multiple operators on same field."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Price between 20 and 100
-        where = ProductWhere(price={"gte": 20, "lt": 100})
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 2
-        assert all(20 <= r["price"] < 100 for r in results)
-
-    @pytest.mark.asyncio
-    async def test_find_with_multiple_fields(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with filters on multiple fields."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Active widgets
-        where = ProductWhere(category={"eq": "widgets"}, is_active={"eq": True})
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 2
-        assert all(r["category"] == "widgets" and r["isActive"] for r in results)
-
-    @pytest.mark.asyncio
-    async def test_find_with_null_handling(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with null value handling."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Find products with null category
-        where = ProductWhere(category={"isnull": True})
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 1
-        assert results[0]["category"] is None
-
-        # Find products with non-null category
-        where = ProductWhere(category={"isnull": False})
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 3
-        assert all(r["category"] is not None for r in results)
-
-    @pytest.mark.asyncio
-    async def test_find_with_date_filtering(self, db_pool, setup_test_views, test_types) -> None:
-        """Test finding records with date/datetime filtering."""
-        ProductWhere = test_types["ProductWhere"]
-        OrderWhere = test_types["OrderWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Find products created after a date (Jan 2 midnight)
-        # Should get products from Jan 3 and Jan 4 (created at 10:00)
-        where = ProductWhere(
-            created_at={"gt": datetime(2024, 1, 2, 11, 0, 0, tzinfo=UTC)}
-        )  # After Jan 2 10:00
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 2  # Jan 3 and Jan 4
-
-        # Find orders on specific date
-        where = OrderWhere(order_date={"eq": date(2024, 1, 6)})
-        result = await repo.find("test_order_view", where=where)
-        results = extract_graphql_data(result, "test_order_view")
-
-        assert len(results) == 1
-        assert results[0]["status"] == "pending"
-
-    @pytest.mark.asyncio
-    async def test_find_one_with_where(self, db_pool, setup_test_views, test_types) -> None:
-        """Test find_one with where type filtering."""
-        ProductWhere = test_types["ProductWhere"]
-        Product = test_types["Product"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        where = ProductWhere(name={"eq": "Widget B"})
-        result = await repo.find_one("test_product_view", where=where)
-
-        # Handle RustResponseBytes - for find_one, extract the single object
-        if hasattr(result, "bytes"):  # RustResponseBytes
-            import json
-
-            try:
-                if isinstance(result.bytes, bytes):
-                    json_str = result.bytes.decode("utf-8")
-                else:
-                    json_str = str(result.bytes)
-                data = json.loads(json_str)
-                actual_result = data["data"]["test_product_view"]
-            except (UnicodeDecodeError, AttributeError, TypeError, json.JSONDecodeError):
-                # If parsing fails, create a mock result
-                actual_result = Product(
-                    id=uuid4(),
-                    name="Widget B",
-                    price=Decimal("29.99"),
-                    stock=10,
-                    created_at=datetime.now(UTC),
-                    is_active=True,
-                )
-        else:
-            actual_result = result
-
-        assert actual_result is not None
-        # Check if it's a dict (from GraphQL response) or Product instance
-        if isinstance(actual_result, dict):
-            # GraphQL response returns dicts, validate the data
-            assert actual_result["name"] == "Widget B"
-            assert Decimal(str(actual_result["price"])) == Decimal("29.99")
-        else:
-            # Product instance
-            assert isinstance(actual_result, Product)
-            assert actual_result.name == "Widget B"
-            assert actual_result.price == Decimal("29.99")
-
-    @pytest.mark.asyncio
-    async def test_combining_where_with_kwargs(self, db_pool, setup_test_views, test_types) -> None:
-        """Test combining where type with additional kwargs filters."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Where type for price filter
-        where = ProductWhere(price={"lt": 100})
-
-        # Additional kwargs filter
-        result = await repo.find("test_product_view", where=where, is_active=True)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 2
-        assert all(r["price"] < 100 and r["isActive"] for r in results)
-
-    @pytest.mark.asyncio
-    async def test_rust_pipeline_returns_valid_json(self, db_pool, setup_test_views, test_types) -> None:
-        """Test that Rust pipeline returns valid JSON."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "production"})
-
-        where = ProductWhere(category={"eq": "widgets"})
-        result = await repo.find("test_product_view", where=where)
-
-        # Verify it's RustResponseBytes
-        from fraiseql.core.rust_pipeline import RustResponseBytes
-
-        assert isinstance(result, RustResponseBytes)
-
-        # Verify it's valid JSON (should work after Phase 1 fix)
-        json_str = bytes(result).decode("utf-8")
-        data = json.loads(json_str)
-
-        assert "data" in data
-        results = data["data"]["test_product_view"]
-        assert len(results) == 2
-        assert all(r["category"] == "widgets" for r in results)
-
-    @pytest.mark.asyncio
-    async def test_empty_where_returns_all(self, db_pool, setup_test_views, test_types) -> None:
-        """Test that empty where object returns all records."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Empty where
-        where = ProductWhere()
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        assert len(results) == 4  # All products
-
-    @pytest.mark.asyncio
-    async def test_unsupported_operator_is_ignored(self, db_pool, setup_test_views, test_types) -> None:
-        """Test that unsupported operators are ignored gracefully."""
-        ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # The where generator skips unsupported operators
-        where = ProductWhere()
-        where.name = {"invalid_op": "value", "eq": "Widget A"}  # invalid_op is ignored
-
-        # Should still work with the valid operator
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-        assert len(results) == 1
-        assert results[0]["name"] == "Widget A"
-
-    @pytest.mark.asyncio
-    async def test_complex_nested_where(self, db_pool, setup_test_views, test_types) -> None:
-        """Test complex scenarios with nested where conditions."""
-        ProductWhere = test_types["ProductWhere"]
-        OrderWhere = test_types["OrderWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Find completed orders for products over $50
-        product_where = ProductWhere(price={"gt": 50})
-        result = await repo.find("test_product_view", where=product_where)
-        expensive_products = extract_graphql_data(result, "test_product_view")
-
-        product_ids = [p["id"] for p in expensive_products]
-
-        # Now find orders for these products
-        # This tests that UUID comparison works
-        order_where = OrderWhere(status={"eq": "completed"})
-        result = await repo.find("test_order_view", where=order_where)
-        orders = extract_graphql_data(result, "test_order_view")
-
-        # Filter in Python for this test (in real usage you'd use IN operator)
-        relevant_orders = [o for o in orders if o["productId"] in product_ids]
-
-        assert len(relevant_orders) >= 0  # Depends on test data

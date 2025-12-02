@@ -117,12 +117,14 @@ class TestPaginationParams:
             PaginationParams(last=-1)
 
 
-@pytest_asyncio.fixture
-async def setup_pagination_tables(db_connection) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def setup_pagination_tables(class_db_pool, test_schema):
     """Set up test tables for pagination tests using unified container system."""
-    async with db_connection.cursor() as cursor:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+
         # Create test table
-        await cursor.execute(
+        await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS items (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -132,16 +134,17 @@ async def setup_pagination_tables(db_connection) -> None:
         )
 
         # Create view
-        await cursor.execute(
+        await conn.execute(
             """
             CREATE OR REPLACE VIEW v_items AS
             SELECT id, data FROM items
         """
         )
+        await conn.commit()
 
-    yield db_connection
+    yield
 
-    # No cleanup needed - transaction will be rolled back automatically
+    # No cleanup needed - schema will be dropped automatically
 
 
 @pytest.mark.database
@@ -172,110 +175,121 @@ class TestCursorPaginator:
             # No commit needed - within test transaction
 
     @pytest.mark.asyncio
-    async def test_paginate_forward_basic(self, setup_pagination_tables) -> None:
+    async def test_paginate_forward_basic(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test basic forward pagination."""
-        await self.setup_test_data(setup_pagination_tables)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+            await self.setup_test_data(conn)
 
-        paginator = CursorPaginator(setup_pagination_tables)
-        params = PaginationParams(first=2, order_by="createdAt")
-        result = await paginator.paginate("v_items", params)
+            paginator = CursorPaginator(conn)
+            params = PaginationParams(first=2, order_by="createdAt")
+            result = await paginator.paginate("v_items", params)
 
-        # Check structure
-        assert "edges" in result
-        assert "page_info" in result
-        assert "total_count" in result
+            # Check structure
+            assert "edges" in result
+            assert "page_info" in result
+            assert "total_count" in result
 
-        # Check edges
-        assert len(result["edges"]) == 2
-        assert result["edges"][0]["node"]["name"] == "Item 1"
-        assert result["edges"][1]["node"]["name"] == "Item 2"
+            # Check edges
+            assert len(result["edges"]) == 2
+            assert result["edges"][0]["node"]["name"] == "Item 1"
+            assert result["edges"][1]["node"]["name"] == "Item 2"
 
-        # Check cursors are encoded
-        assert result["edges"][0]["cursor"] == encode_cursor("2024-01-01")
-        assert result["edges"][1]["cursor"] == encode_cursor("2024-01-02")
+            # Check cursors are encoded
+            assert result["edges"][0]["cursor"] == encode_cursor("2024-01-01")
+            assert result["edges"][1]["cursor"] == encode_cursor("2024-01-02")
 
-        # Check page info
-        assert result["page_info"]["has_next_page"] is True
-        assert result["page_info"]["has_previous_page"] is False
-        assert result["page_info"]["start_cursor"] == encode_cursor("2024-01-01")
-        assert result["page_info"]["end_cursor"] == encode_cursor("2024-01-02")
-        assert result["total_count"] == 5
+            # Check page info
+            assert result["page_info"]["has_next_page"] is True
+            assert result["page_info"]["has_previous_page"] is False
+            assert result["page_info"]["start_cursor"] == encode_cursor("2024-01-01")
+            assert result["page_info"]["end_cursor"] == encode_cursor("2024-01-02")
+            assert result["total_count"] == 5
 
     @pytest.mark.asyncio
-    async def test_paginate_with_after_cursor(self, setup_pagination_tables) -> None:
-        db_connection = setup_pagination_tables
+    async def test_paginate_with_after_cursor(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test pagination with after cursor."""
-        await self.setup_test_data(db_connection)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+            await self.setup_test_data(conn)
 
-        paginator = CursorPaginator(db_connection)
-        params = PaginationParams(first=2, after=encode_cursor("2024-01-02"), order_by="createdAt")
-        result = await paginator.paginate("v_items", params, include_total=False)
+            paginator = CursorPaginator(conn)
+            params = PaginationParams(first=2, after=encode_cursor("2024-01-02"), order_by="createdAt")
+            result = await paginator.paginate("v_items", params, include_total=False)
 
-        # Should return items 3 and 4
-        assert len(result["edges"]) == 2
-        assert result["edges"][0]["node"]["name"] == "Item 3"
-        assert result["edges"][1]["node"]["name"] == "Item 4"
-        assert result["page_info"]["has_next_page"] is True
+            # Should return items 3 and 4
+            assert len(result["edges"]) == 2
+            assert result["edges"][0]["node"]["name"] == "Item 3"
+            assert result["edges"][1]["node"]["name"] == "Item 4"
+            assert result["page_info"]["has_next_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_backward(self, setup_pagination_tables) -> None:
-        db_connection = setup_pagination_tables
+    async def test_paginate_backward(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test backward pagination."""
-        await self.setup_test_data(db_connection)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+            await self.setup_test_data(conn)
 
-        paginator = CursorPaginator(db_connection)
-        params = PaginationParams(last=2, before=encode_cursor("2024-01-04"), order_by="createdAt")
-        result = await paginator.paginate("v_items", params, include_total=False)
+            paginator = CursorPaginator(conn)
+            params = PaginationParams(last=2, before=encode_cursor("2024-01-04"), order_by="createdAt")
+            result = await paginator.paginate("v_items", params, include_total=False)
 
-        # Should return items 2 and 3 (in forward order after reversal)
-        assert len(result["edges"]) == 2
-        assert result["edges"][0]["node"]["name"] == "Item 2"
-        assert result["edges"][1]["node"]["name"] == "Item 3"
-        assert result["page_info"]["has_previous_page"] is True
+            # Should return items 2 and 3 (in forward order after reversal)
+            assert len(result["edges"]) == 2
+            assert result["edges"][0]["node"]["name"] == "Item 2"
+            assert result["edges"][1]["node"]["name"] == "Item 3"
+            assert result["page_info"]["has_previous_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_with_filters(self, setup_pagination_tables) -> None:
-        db_connection = setup_pagination_tables
+    async def test_paginate_with_filters(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test pagination with filters."""
-        await self.setup_test_data(db_connection)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+            await self.setup_test_data(conn)
 
-        # Add some items with different attributes
-        async with db_connection.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO items (data) VALUES (%s::jsonb)",
-                (
-                    psycopg.types.json.Json(
-                        {"name": "Special Item", "createdAt": "2024-01-06", "special": True}
+            # Add some items with different attributes
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "INSERT INTO items (data) VALUES (%s::jsonb)",
+                    (
+                        psycopg.types.json.Json(
+                            {"name": "Special Item", "createdAt": "2024-01-06", "special": True}
+                        ),
                     ),
-                ),
-            )
-            # No commit needed - within test transaction
+                )
+                # No commit needed - within test transaction
 
-        paginator = CursorPaginator(db_connection)
-        params = PaginationParams(first=10, order_by="createdAt")
+            paginator = CursorPaginator(conn)
+            params = PaginationParams(first=10, order_by="createdAt")
 
-        # Filter for special items
-        result = await paginator.paginate("v_items", params, filters={"special": "true"})
+            # Filter for special items
+            result = await paginator.paginate("v_items", params, filters={"special": "true"})
 
-        assert len(result["edges"]) == 1
-        assert result["edges"][0]["node"]["name"] == "Special Item"
-        assert result["total_count"] == 1
+            assert len(result["edges"]) == 1
+            assert result["edges"][0]["node"]["name"] == "Special Item"
+            assert result["total_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_empty_results(self, setup_pagination_tables) -> None:
-        db_connection = setup_pagination_tables
+    async def test_empty_results(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test pagination with empty results."""
-        # Don't insert any data
-        paginator = CursorPaginator(db_connection)
-        params = PaginationParams(first=10)
-        result = await paginator.paginate("v_items", params)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+            # Don't insert any data
+            paginator = CursorPaginator(conn)
+            params = PaginationParams(first=10)
+            result = await paginator.paginate("v_items", params)
 
-        assert len(result["edges"]) == 0
-        assert result["page_info"]["has_next_page"] is False
-        assert result["page_info"]["has_previous_page"] is False
-        assert result["page_info"]["start_cursor"] is None
-        assert result["page_info"]["end_cursor"] is None
-        assert result["total_count"] == 0
+            assert len(result["edges"]) == 0
+            assert result["page_info"]["has_next_page"] is False
+            assert result["page_info"]["has_previous_page"] is False
+            assert result["page_info"]["start_cursor"] is None
+            assert result["page_info"]["end_cursor"] is None
+            assert result["total_count"] == 0
 
 
 @pytest.mark.database
@@ -283,11 +297,13 @@ class TestRepositoryIntegration:
     """Test pagination integration with CQRSRepository."""
 
     @pytest.mark.asyncio
-    async def test_repository_paginate_method(self, setup_pagination_tables) -> None:
-        db_connection = setup_pagination_tables
+    async def test_repository_paginate_method(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
         """Test the paginate method on CQRSRepository."""
-        # Set up test data
-        async with db_connection.cursor() as cursor:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            await conn.execute("TRUNCATE TABLE items CASCADE")
+
+            # Set up test data
             test_items = [
                 {"id": f"id{i}", "name": f"Item {i}", "createdAt": f"2024-01-{i:02d}"}
                 for i in range(1, 11)
@@ -297,21 +313,20 @@ class TestRepositoryIntegration:
                 # Generate proper UUID format
                 uuid_num = int(item["id"].replace("id", ""))
                 uuid_str = f"00000000-0000-0000-0000-{uuid_num:012d}"
-                await cursor.execute(
+                await conn.execute(
                     "INSERT INTO items (id, data) VALUES (%s::uuid, %s::jsonb)",
                     (uuid_str, psycopg.types.json.Json(item)),
                 )
-            # No commit needed - within test transaction
 
-        # Test pagination through repository
-        repo = CQRSRepository(db_connection)
-        result = await repo.paginate(
-            """v_items""", first=5, order_by="createdAt", order_direction="DESC"
-        )
+            # Test pagination through repository
+            repo = CQRSRepository(conn)
+            result = await repo.paginate(
+                """v_items""", first=5, order_by="createdAt", order_direction="DESC"
+            )
 
-        # Should return items in descending order
-        assert len(result["edges"]) == 5
-        assert result["edges"][0]["node"]["name"] == "Item 10"
-        assert result["edges"][-1]["node"]["name"] == "Item 6"
-        assert result["page_info"]["has_next_page"] is True
-        assert result["total_count"] == 10
+            # Should return items in descending order
+            assert len(result["edges"]) == 5
+            assert result["edges"][0]["node"]["name"] == "Item 10"
+            assert result["edges"][-1]["node"]["name"] == "Item 6"
+            assert result["page_info"]["has_next_page"] is True
+            assert result["total_count"] == 10

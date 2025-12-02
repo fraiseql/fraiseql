@@ -52,10 +52,11 @@ class Allocation:
 class TestHybridTableNestedObjectFiltering:
     """Test that nested object filtering works correctly on hybrid tables."""
 
-    @pytest_asyncio.fixture
-    async def setup_hybrid_allocation_table(self, db_pool) -> dict:
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_hybrid_allocation_table(self, class_db_pool, test_schema) -> dict:
         """Create a hybrid allocation table matching the issue description."""
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create table with both SQL columns and JSONB data
             await conn.execute(
                 """
@@ -174,7 +175,7 @@ class TestHybridTableNestedObjectFiltering:
 
     @pytest.mark.asyncio
     async def test_nested_object_filter_on_hybrid_table(
-        self, db_pool, setup_hybrid_allocation_table
+        self, class_db_pool, test_schema, setup_hybrid_allocation_table
     ):
         """Test the exact scenario from the issue: nested machine.id filtering.
 
@@ -190,7 +191,7 @@ class TestHybridTableNestedObjectFiltering:
             table_columns={"id", "machine_id", "location_id", "status", "tenant_id", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Create the nested filter exactly as in the issue report
         MachineWhereInput = create_graphql_where_input(Machine)
@@ -217,7 +218,7 @@ class TestHybridTableNestedObjectFiltering:
 
     @pytest.mark.asyncio
     async def test_nested_object_filter_with_results(
-        self, db_pool, setup_hybrid_allocation_table
+        self, class_db_pool, test_schema, setup_hybrid_allocation_table
     ) -> None:
         """Test nested filtering for a machine that has allocations."""
         test_data = setup_hybrid_allocation_table
@@ -228,7 +229,7 @@ class TestHybridTableNestedObjectFiltering:
             table_columns={"id", "machine_id", "location_id", "status", "tenant_id", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -249,11 +250,11 @@ class TestHybridTableNestedObjectFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_direct_sql_comparison(self, db_pool, setup_hybrid_allocation_table) -> None:
+    async def test_direct_sql_comparison(self, class_db_pool, test_schema, setup_hybrid_allocation_table) -> None:
         """Verify that direct SQL works correctly, proving the issue is in FraiseQL."""
         test_data = setup_hybrid_allocation_table
 
-        async with db_pool.connection() as conn, conn.cursor() as cursor:
+        async with class_db_pool.connection() as conn, conn.cursor() as cursor:
             # Test that SQL column filtering works
             await cursor.execute(
                 "SELECT id FROM tv_allocation WHERE machine_id = %s",
@@ -277,7 +278,7 @@ class TestHybridTableNestedObjectFiltering:
 
     @pytest.mark.asyncio
     async def test_multiple_nested_object_filters(
-        self, db_pool, setup_hybrid_allocation_table
+        self, class_db_pool, test_schema, setup_hybrid_allocation_table
     ) -> None:
         """Test filtering with multiple nested object conditions."""
         test_data = setup_hybrid_allocation_table
@@ -288,7 +289,7 @@ class TestHybridTableNestedObjectFiltering:
             table_columns={"id", "machine_id", "location_id", "status", "tenant_id", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         MachineWhereInput = create_graphql_where_input(Machine)
         LocationWhereInput = create_graphql_where_input(Location)
@@ -309,7 +310,7 @@ class TestHybridTableNestedObjectFiltering:
         assert len(results) == test_data["machine2_allocations"]
 
     @pytest.mark.asyncio
-    async def test_dict_based_nested_filter(self, db_pool, setup_hybrid_allocation_table) -> None:
+    async def test_dict_based_nested_filter(self, class_db_pool, test_schema, setup_hybrid_allocation_table) -> None:
         """Test using dictionary-based nested filters (common in GraphQL resolvers)."""
         test_data = setup_hybrid_allocation_table
 
@@ -319,7 +320,7 @@ class TestHybridTableNestedObjectFiltering:
             table_columns={"id", "machine_id", "location_id", "status", "tenant_id", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Dictionary-based filter that might come from GraphQL
         where = {"machine": {"id": {"eq": test_data["machine1_id"]}}}

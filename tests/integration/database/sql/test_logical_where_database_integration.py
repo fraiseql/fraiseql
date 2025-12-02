@@ -41,10 +41,10 @@ class TestLogicalOperatorsDatabaseIntegration:
     """Test logical operators with real database queries."""
 
     @pytest.mark.asyncio
-    async def test_or_operator_database_query(self, db_connection) -> None:
+    async def test_or_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test OR operator generates working SQL and returns correct results."""
         # Create test table and data
-        await db_connection.execute(
+        await class_db_pool.execute(
             """
             CREATE TABLE IF NOT EXISTS test_products (
                 id UUID PRIMARY KEY,
@@ -80,7 +80,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         ]
 
         for product in test_products:
-            await db_connection.execute(
+            await class_db_pool.execute(
                 "INSERT INTO test_products (id, data) VALUES (%s, %s::jsonb)",
                 (product["id"], json.dumps(product["data"])),
             )
@@ -103,7 +103,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         from psycopg.sql import SQL, Composed
 
         query = Composed([SQL("SELECT id, data FROM test_products WHERE "), sql])
-        cursor = await db_connection.execute(query)
+        cursor = await class_db_pool.execute(query)
         results = await cursor.fetchall()
 
         # Should return both Widget A and Widget B
@@ -115,10 +115,10 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert "Gadget C" not in result_names
 
     @pytest.mark.asyncio
-    async def test_and_operator_database_query(self, db_connection) -> None:
+    async def test_and_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test AND operator generates working SQL and returns correct results."""
         # Use existing table from previous test or create new one
-        await db_connection.execute(
+        await class_db_pool.execute(
             """
             CREATE TABLE IF NOT EXISTS test_products_and (
                 id UUID PRIMARY KEY,
@@ -154,7 +154,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         ]
 
         for product in test_products:
-            await db_connection.execute(
+            await class_db_pool.execute(
                 "INSERT INTO test_products_and (id, data) VALUES (%s, %s::jsonb)",
                 (product["id"], json.dumps(product["data"])),
             )
@@ -176,7 +176,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         from psycopg.sql import SQL, Composed
 
         query = Composed([SQL("SELECT id, data FROM test_products_and WHERE "), sql])
-        cursor = await db_connection.execute(query)
+        cursor = await class_db_pool.execute(query)
         results = await cursor.fetchall()
 
         # Should return only "Active Electronics"
@@ -184,9 +184,9 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert results[0][1]["name"] == "Active Electronics"
 
     @pytest.mark.asyncio
-    async def test_not_operator_database_query(self, db_connection) -> None:
+    async def test_not_operator_database_query(self, class_db_pool, test_schema) -> None:
         """Test NOT operator generates working SQL and returns correct results."""
-        await db_connection.execute(
+        await class_db_pool.execute(
             """
             CREATE TABLE IF NOT EXISTS test_products_not (
                 id UUID PRIMARY KEY,
@@ -212,7 +212,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         ]
 
         for product in test_products:
-            await db_connection.execute(
+            await class_db_pool.execute(
                 "INSERT INTO test_products_not (id, data) VALUES (%s, %s::jsonb)",
                 (product["id"], json.dumps(product["data"])),
             )
@@ -229,7 +229,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         from psycopg.sql import SQL, Composed
 
         query = Composed([SQL("SELECT id, data FROM test_products_not WHERE "), sql])
-        cursor = await db_connection.execute(query)
+        cursor = await class_db_pool.execute(query)
         results = await cursor.fetchall()
 
         # Should return only the active product
@@ -237,9 +237,9 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert results[0][1]["name"] == "Active Product"
 
     @pytest.mark.asyncio
-    async def test_complex_nested_logical_operators_database_query(self, db_connection) -> None:
+    async def test_complex_nested_logical_operators_database_query(self, class_db_pool, test_schema) -> None:
         """Test complex nested logical operators with database."""
-        await db_connection.execute(
+        await class_db_pool.execute(
             """
             CREATE TABLE IF NOT EXISTS test_products_complex (
                 id UUID PRIMARY KEY,
@@ -308,7 +308,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         ]
 
         for product in test_products:
-            await db_connection.execute(
+            await class_db_pool.execute(
                 "INSERT INTO test_products_complex (id, data) VALUES (%s, %s::jsonb)",
                 (product["id"], json.dumps(product["data"])),
             )
@@ -337,7 +337,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         from psycopg.sql import SQL, Composed
 
         query = Composed([SQL("SELECT id, data FROM test_products_complex WHERE "), sql])
-        cursor = await db_connection.execute(query)
+        cursor = await class_db_pool.execute(query)
         results = await cursor.fetchall()
 
         # Should return exactly 2 products
@@ -353,9 +353,9 @@ class TestLogicalOperatorsDatabaseIntegration:
         assert "Cheap Inactive Electronics" not in result_names
 
     @pytest.mark.asyncio
-    async def test_mixed_field_and_logical_operators_database_query(self, db_connection) -> None:
+    async def test_mixed_field_and_logical_operators_database_query(self, class_db_pool, test_schema) -> None:
         """Test mixing direct field operators with logical operators."""
-        await db_connection.execute(
+        await class_db_pool.execute(
             """
             CREATE TABLE IF NOT EXISTS test_products_mixed (
                 id UUID PRIMARY KEY,
@@ -404,7 +404,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         ]
 
         for product in test_products:
-            await db_connection.execute(
+            await class_db_pool.execute(
                 "INSERT INTO test_products_mixed (id, data) VALUES (%s, %s::jsonb)",
                 (product["id"], json.dumps(product["data"])),
             )
@@ -430,7 +430,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         from psycopg.sql import SQL, Composed
 
         query = Composed([SQL("SELECT id, data FROM test_products_mixed WHERE "), sql])
-        cursor = await db_connection.execute(query)
+        cursor = await class_db_pool.execute(query)
         results = await cursor.fetchall()
 
         # Should return 2 products that match all conditions

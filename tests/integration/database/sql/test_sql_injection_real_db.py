@@ -36,7 +36,7 @@ class User:
 class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
-    @pytest_asyncio.fixture
+    @pytest_asyncio.fixture(scope="class")
     @pytest.mark.asyncio
     async def test_users(self, db_connection_committed):
         """Create users table and test data within committed schema."""
@@ -75,10 +75,10 @@ class TestSQLInjectionPrevention:
         return schema
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_string_fields(self, db_pool, test_users) -> None:
+    async def test_sql_injection_in_string_fields(self, class_db_pool, test_schema, test_users) -> None:
         """Test SQL injection attempts in string fields."""
         schema = test_users
-        repo = FraiseQLRepository(db_pool)
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Various SQL injection attempts
@@ -122,10 +122,10 @@ class TestSQLInjectionPrevention:
             )
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_list_operations(self, db_pool, test_users) -> None:
+    async def test_sql_injection_in_list_operations(self, class_db_pool, test_schema, test_users) -> None:
         """Test SQL injection in IN/NOT IN operations."""
         schema = test_users
-        repo = FraiseQLRepository(db_pool)
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Try injection via IN operator
@@ -158,10 +158,10 @@ class TestSQLInjectionPrevention:
         assert count_result[0]["count"] == 3, "Table corrupted via IN operator injection"
 
     @pytest.mark.asyncio
-    async def test_sql_injection_with_special_characters(self, db_pool, test_users) -> None:
+    async def test_sql_injection_with_special_characters(self, class_db_pool, test_schema, test_users) -> None:
         """Test handling of special characters that could be used in injections."""
         schema = test_users
-        repo = FraiseQLRepository(db_pool)
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Special characters that might be used in injection attempts
@@ -211,10 +211,10 @@ class TestSQLInjectionPrevention:
             )
 
     @pytest.mark.asyncio
-    async def test_verify_parameterization(self, db_pool, test_users) -> None:
+    async def test_verify_parameterization(self, class_db_pool, test_schema, test_users) -> None:
         """Verify that queries are properly parameterized."""
         schema = test_users
-        repo = FraiseQLRepository(db_pool)
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Create a query with potential injection
@@ -254,14 +254,14 @@ class TestSQLInjectionPrevention:
         assert table_check_result[0]["count"] == 2, "Table structure was modified"
 
     @pytest.mark.asyncio
-    async def test_actual_database_execution(self, db_pool, test_users) -> None:
+    async def test_actual_database_execution(self, class_db_pool, test_schema, test_users) -> None:
         """Real integration test that executes against database.
 
         This replaces the placeholder test in the original SQL injection
         prevention tests with actual database execution.
         """
         schema = test_users
-        repo = FraiseQLRepository(db_pool)
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Test that normal queries work correctly

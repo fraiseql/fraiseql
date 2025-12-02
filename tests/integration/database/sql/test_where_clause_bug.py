@@ -63,7 +63,6 @@ class TestWhereClauseFix:
 
         await conn.execute(
             f"""
-            DROP TABLE IF EXISTS {table_name} CASCADE;
             CREATE TEMP TABLE {table_name} (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB

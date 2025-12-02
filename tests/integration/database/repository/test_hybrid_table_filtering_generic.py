@@ -47,10 +47,11 @@ class Product:
 ProductWhere = safe_create_where_type(Product)
 
 
-@pytest_asyncio.fixture
-async def setup_hybrid_table(db_pool) -> dict[str, int]:
+@pytest_asyncio.fixture(scope="class")
+async def setup_hybrid_table(class_db_pool, test_schema) -> dict[str, int]:
     """Create a hybrid table with both regular SQL columns and JSONB data column."""
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
         # Create hybrid table matching a common pattern
         await conn.execute(
             """
@@ -203,7 +204,7 @@ class TestHybridTableFiltering:
 
     @pytest.mark.asyncio
     async def test_filter_by_regular_sql_column_is_active(
-        self, db_pool, setup_hybrid_table
+        self, class_db_pool, test_schema, setup_hybrid_table
     ) -> None:
         """Test filtering by regular SQL column 'is_active' on hybrid table.
 
@@ -230,7 +231,7 @@ class TestHybridTableFiltering:
             },
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Use dictionary filter for is_active column
         where = {"is_active": {"eq": True}}
@@ -253,7 +254,7 @@ class TestHybridTableFiltering:
             assert product["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_dynamic_filter_construction_by_status(self, db_pool, setup_hybrid_table) -> None:
+    async def test_dynamic_filter_construction_by_status(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
         """Test dynamic filter construction pattern used in resolvers.
 
         This simulates the exact pattern from the production bug report
@@ -278,7 +279,7 @@ class TestHybridTableFiltering:
             },
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Simulate resolver logic
         filter_status = "published"  # From GraphQL enum
@@ -302,7 +303,7 @@ class TestHybridTableFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_multiple_regular_column_filters(self, db_pool, setup_hybrid_table) -> None:
+    async def test_multiple_regular_column_filters(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
         """Test filtering by multiple regular SQL columns simultaneously."""
         setup_hybrid_table
 
@@ -323,7 +324,7 @@ class TestHybridTableFiltering:
             },
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Filter by multiple regular columns
         where = {"is_active": {"eq": True}, "is_featured": {"eq": True}}
@@ -340,7 +341,7 @@ class TestHybridTableFiltering:
         assert results[0]["isFeatured"] is True
 
     @pytest.mark.asyncio
-    async def test_mixed_regular_and_jsonb_filtering(self, db_pool, setup_hybrid_table) -> None:
+    async def test_mixed_regular_and_jsonb_filtering(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
         """Test filtering by both regular SQL columns and JSONB fields.
 
         This tests the hybrid nature where some filters should use regular columns
@@ -365,7 +366,7 @@ class TestHybridTableFiltering:
             },
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Mix of regular column and JSONB field filters
         where = {
@@ -392,7 +393,7 @@ class TestHybridTableFiltering:
             assert product["brand"] == "TechCorp"
 
     @pytest.mark.asyncio
-    async def test_whereinput_type_on_hybrid_table(self, db_pool, setup_hybrid_table) -> None:
+    async def test_whereinput_type_on_hybrid_table(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
         """Test using WhereInput type (generated filter class) on hybrid table."""
         counts = setup_hybrid_table
 
@@ -413,7 +414,7 @@ class TestHybridTableFiltering:
             },
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Use WhereInput type - this should intelligently handle hybrid tables
         where = ProductWhere(status={"eq": "draft"})
@@ -429,7 +430,7 @@ class TestHybridTableFiltering:
         assert results[0]["status"] == "draft"
 
     @pytest.mark.asyncio
-    async def test_direct_sql_verification(self, db_pool, setup_hybrid_table) -> None:
+    async def test_direct_sql_verification(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
         """Verify that the data and filters work correctly with direct SQL.
 
         This proves that the issue is with FraiseQL's filter generation,
@@ -437,7 +438,7 @@ class TestHybridTableFiltering:
         """
         counts = setup_hybrid_table
 
-        async with db_pool.connection() as conn, conn.cursor() as cursor:
+        async with class_db_pool.connection() as conn, conn.cursor() as cursor:
             # Test direct column filtering
             await cursor.execute("SELECT id, name FROM products WHERE is_active = true")
             sql_results = await cursor.fetchall()

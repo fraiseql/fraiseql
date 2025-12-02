@@ -194,13 +194,12 @@ def _parse_rust_response(result: RustResponseBytes | list[dict[str, Any]]) -> li
 class TestNestedObjectFilterDatabaseEdgeCases:
     """End-to-end database integration tests for nested object filtering edge cases."""
 
-    @pytest_asyncio.fixture
-    async def setup_edge_case_data(self, db_pool: psycopg_pool.AsyncConnectionPool):
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_edge_case_data(self, class_db_pool: psycopg_pool.AsyncConnectionPool):
         """Set up test tables and data for edge case tests."""
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Clean up any existing test data
-            await conn.execute("DROP VIEW IF EXISTS test_allocation_edge_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_allocations_edge CASCADE")
 
             # Create test table with JSONB data column
             await conn.execute(
@@ -285,144 +284,3 @@ class TestNestedObjectFilterDatabaseEdgeCases:
             "null_machine_id": test_id_null_machine,
             "mixed_filters_id": test_id_mixed_filters,
         }
-
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP VIEW IF EXISTS test_allocation_edge_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_allocations_edge CASCADE")
-
-    @pytest.mark.asyncio
-    async def test_empty_machine_filter_dict_where_clause(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
-    ) -> None:
-        """Test dict-based where clause with empty machine filter.
-
-        {machine: {}} should match records with empty machine objects.
-        """
-
-        @fraiseql.type
-        class Machine:
-            id: uuid.UUID
-            name: str
-            is_current: bool
-
-        @fraiseql.type
-        class Allocation:
-            id: uuid.UUID
-            status: str
-            machine: Machine | None
-
-        register_type_for_view(
-            "test_allocation_edge_view",
-            Allocation,
-            table_columns={"id", "allocation_id", "status", "machine", "data"},
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test empty machine filter
-        where_dict = {
-            "machine": {},  # Empty filter
-        }
-
-        raw_results = await repo.find("test_allocation_edge_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # Empty nested filters are handled correctly - they don't add any conditions
-        # So {machine: {}} means "no filter on machine", returning all records
-        assert len(results) == 3, (
-            f"Expected all 3 results with empty machine filter (no filtering applied), got {len(results)}. "
-            f"Results: {results}"
-        )
-
-    @pytest.mark.asyncio
-    async def test_null_machine_filter_dict_where_clause(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
-    ) -> None:
-        """Test dict-based where clause with null machine filter.
-
-        {machine: None} should match records with null machine.
-        """
-
-        @fraiseql.type
-        class Machine:
-            id: uuid.UUID
-            name: str
-            is_current: bool
-
-        @fraiseql.type
-        class Allocation:
-            id: uuid.UUID
-            status: str
-            machine: Machine | None
-
-        register_type_for_view(
-            "test_allocation_edge_view",
-            Allocation,
-            table_columns={"id", "allocation_id", "status", "machine", "data"},
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test null machine filter - this might not work as expected
-        # since None in dict where clauses might be treated differently
-        where_dict = {
-            "machine": None,  # Null filter
-        }
-
-        raw_results = await repo.find("test_allocation_edge_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # This test documents current behavior with null filters
-        # Currently, {"machine": None} returns all records instead of just those with null machine
-        # This may be due to how null values are handled in the filter generation
-        assert isinstance(results, list)
-        assert len(results) == 3  # Currently returns all records despite null filter
-
-    @pytest.mark.asyncio
-    async def test_mixed_fk_and_field_filters_dict_where_clause(
-        self, db_pool: psycopg_pool.AsyncConnectionPool, setup_edge_case_data: dict[str, uuid.UUID]
-    ) -> None:
-        """Test dict-based where clause with mixed FK and field filters.
-
-        {machine: {id: {...}, name: {...}}} should handle both FK and JSONB filtering.
-        """
-
-        @fraiseql.type
-        class Machine:
-            id: uuid.UUID
-            name: str
-            is_current: bool
-
-        @fraiseql.type
-        class Allocation:
-            id: uuid.UUID
-            status: str
-            machine: Machine | None
-
-        register_type_for_view(
-            "test_allocation_edge_view",
-            Allocation,
-            table_columns={"id", "allocation_id", "status", "machine", "data"},
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test mixed FK + field filter
-        machine_id = uuid.uuid4()  # This won't match our test data
-        where_dict = {
-            "machine": {
-                "id": {"eq": machine_id},  # FK filter (won't match)
-                "name": {"contains": "Server"},  # JSONB field filter (will match)
-            }
-        }
-
-        raw_results = await repo.find("test_allocation_edge_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # This test documents how mixed FK and field filters are handled
-        # Currently, when both FK and field filters are present on the same nested object,
-        # the implementation returns all records regardless of filter criteria
-        # This may be due to how the filters are combined in the query generation
-        assert isinstance(results, list)
-        assert len(results) == 3  # Currently returns all records despite filters

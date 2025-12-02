@@ -27,66 +27,66 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
-    @pytest_asyncio.fixture
+    @pytest_asyncio.fixture(scope="class")
     @pytest.mark.asyncio
-    async def test_data(self, db_connection_committed) -> str:
+    async def test_data(self, class_db_pool, test_schema) -> str:
         """Create test tables and data with committed changes."""
-        conn = db_connection_committed
-        schema = await get_current_schema(conn)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
 
-        # Create users table
-        await conn.execute(
+            # Create users table
+            await conn.execute(
+                """
+                CREATE TABLE users (
+                    id SERIAL PRIMARY KEY,
+                    data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """
-            CREATE TABLE users (
-                id SERIAL PRIMARY KEY,
-                data JSONB NOT NULL DEFAULT '{}'::jsonb,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
 
-        # Insert test data
-        await conn.execute(
+            # Insert test data
+            await conn.execute(
+                """
+                INSERT INTO users (data) VALUES
+                ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
+                ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
+                ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
             """
-            INSERT INTO users (data) VALUES
-            ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
-            ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
-            ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
-        """
-        )
-
-        # Create posts table
-        await conn.execute(
-            """
-            CREATE TABLE posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                data JSONB NOT NULL DEFAULT '{}'::jsonb,
-                published_at TIMESTAMP
             )
-        """
-        )
 
-        await conn.execute(
+            # Create posts table
+            await conn.execute(
+                """
+                CREATE TABLE posts (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id),
+                    data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    published_at TIMESTAMP
+                )
             """
-            INSERT INTO posts (user_id, data, published_at) VALUES
-            (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
-            (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
-            (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
-        """
-        )
+            )
 
-        # Commit the changes so they're visible to other connections
-        await conn.commit()
+            await conn.execute(
+                """
+                INSERT INTO posts (user_id, data, published_at) VALUES
+                (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
+                (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
+                (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
+            """
+            )
+
+            # Commit the changes so they're visible to other connections
+            await conn.commit()
 
         # Return the schema name for use in queries
-        return schema
+        return test_schema
 
     @pytest.mark.asyncio
-    async def test_run_simple_query(self, db_pool, test_data) -> None:
+    async def test_run_simple_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test running a simple SQL query."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Example using the new query builder utility
         statement = (
@@ -107,10 +107,10 @@ class TestFraiseQLRepositoryIntegration:
         assert result[2]["name"] == "Bob Wilson"
 
     @pytest.mark.asyncio
-    async def test_run_query_with_params(self, db_pool, test_data) -> None:
+    async def test_run_query_with_params(self, class_db_pool, test_schema, test_data) -> None:
         """Test running a query with parameters."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
         query = DatabaseQuery(
             statement=SQL(
                 """SELECT id, data->>'email' as email FROM {}.users """
@@ -126,10 +126,10 @@ class TestFraiseQLRepositoryIntegration:
         assert result[0]["email"] == "jane@example.com"
 
     @pytest.mark.asyncio
-    async def test_run_composed_query(self, db_pool, test_data) -> None:
+    async def test_run_composed_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test running a Composed SQL query."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
         query = DatabaseQuery(
             statement=Composed(
                 [
@@ -150,10 +150,10 @@ class TestFraiseQLRepositoryIntegration:
         assert "Jane Smith" in active_names
 
     @pytest.mark.asyncio
-    async def test_run_insert_returning(self, db_pool, test_data) -> None:
+    async def test_run_insert_returning(self, class_db_pool, test_schema, test_data) -> None:
         """Test running an INSERT with RETURNING clause."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
         query = DatabaseQuery(
             statement=SQL(
                 """INSERT INTO {}.users (data) VALUES (%(data)s::jsonb) RETURNING id, data"""
@@ -169,10 +169,10 @@ class TestFraiseQLRepositoryIntegration:
         assert isinstance(result[0]["id"], int)
 
     @pytest.mark.asyncio
-    async def test_run_update_query(self, db_pool, test_data) -> None:
+    async def test_run_update_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test running an UPDATE query."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Update Bob's status to active
         update_query = DatabaseQuery(
@@ -204,10 +204,10 @@ class TestFraiseQLRepositoryIntegration:
         assert result[0]["data"]["active"] is True
 
     @pytest.mark.asyncio
-    async def test_run_delete_query(self, db_pool, test_data) -> None:
+    async def test_run_delete_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test running a DELETE query."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Delete inactive users
         delete_query = DatabaseQuery(
@@ -231,10 +231,10 @@ class TestFraiseQLRepositoryIntegration:
         assert result[0]["count"] == 2  # Only active users remain
 
     @pytest.mark.asyncio
-    async def test_run_join_query(self, db_pool, test_data) -> None:
+    async def test_run_join_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test running a JOIN query."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
         query = DatabaseQuery(
             statement=SQL(
                 """
@@ -260,47 +260,47 @@ class TestFraiseQLRepositoryIntegration:
         assert result[1]["post_title"] == "Second Post"
 
     @pytest.mark.asyncio
-    async def test_transaction_behavior(self, db_pool, db_connection_committed) -> None:
+    async def test_transaction_behavior(self, class_db_pool, test_schema) -> None:
         """Test transaction behavior with the unified container system."""
-        conn = db_connection_committed
-        schema = await get_current_schema(conn)
-        repository = FraiseQLRepository(pool=db_pool)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            repository = FraiseQLRepository(pool=class_db_pool)
 
-        # Create minimal test table within our transaction
-        await conn.execute(
+            # Create minimal test table within our transaction
+            await conn.execute(
+                """
+                CREATE TABLE test_tx (
+                    id SERIAL PRIMARY KEY,
+                    value TEXT
+                )
             """
-            CREATE TABLE test_tx (
-                id SERIAL PRIMARY KEY,
-                value TEXT
             )
-        """
-        )
 
-        # Insert data that will be visible within this test
-        await conn.execute("INSERT INTO test_tx (value) VALUES ('test_value')")
+            # Insert data that will be visible within this test
+            await conn.execute("INSERT INTO test_tx (value) VALUES ('test_value')")
 
-        # Commit so it's visible to the pool connections
-        await conn.commit()
+            # Commit so it's visible to the pool connections
+            await conn.commit()
 
-        # Verify data is visible
-        query = DatabaseQuery(
-            statement=SQL("SELECT * FROM {}.test_tx").format(Identifier(schema)),
-            params={},
-            fetch_result=True,
-        )
-        result = await repository.run(query)
+            # Verify data is visible
+            query = DatabaseQuery(
+                statement=SQL("SELECT * FROM {}.test_tx").format(Identifier(test_schema)),
+                params={},
+                fetch_result=True,
+            )
+            result = await repository.run(query)
 
-        assert len(result) == 1
-        assert result[0]["value"] == "test_value"
+            assert len(result) == 1
+            assert result[0]["value"] == "test_value"
 
-        # After this test, the transaction will be rolled back
-        # and the table will not exist for other tests
+            # After this test, the transaction will be rolled back
+            # and the table will not exist for other tests
 
     @pytest.mark.asyncio
-    async def test_jsonb_operators(self, db_pool, test_data) -> None:
+    async def test_jsonb_operators(self, class_db_pool, test_schema, test_data) -> None:
         """Test JSONB operators in queries."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Test @> operator (contains)
         contains_query = DatabaseQuery(
@@ -325,10 +325,10 @@ class TestFraiseQLRepositoryIntegration:
         assert len(users_with_email) == 3
 
     @pytest.mark.asyncio
-    async def test_aggregate_query(self, db_pool, test_data) -> None:
+    async def test_aggregate_query(self, class_db_pool, test_schema, test_data) -> None:
         """Test aggregate functions with JSONB."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Example using build_select_query utility for complex queries with GROUP BY
         statement = build_select_query(
@@ -356,10 +356,10 @@ class TestFraiseQLRepositoryIntegration:
         assert "Bob Wilson" in inactive_group["names"]
 
     @pytest.mark.asyncio
-    async def test_connection_pool_concurrency(self, db_pool, test_data) -> None:
+    async def test_connection_pool_concurrency(self, class_db_pool, test_schema, test_data) -> None:
         """Test concurrent queries using the connection pool."""
         schema = test_data  # test_data fixture now returns the schema name
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         async def run_query(email: str) -> None:
             query = DatabaseQuery(
@@ -386,9 +386,9 @@ class TestFraiseQLRepositoryIntegration:
         assert len(results[3]) == 0  # Nonexistent
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, db_pool) -> None:
+    async def test_error_handling(self, class_db_pool, test_schema) -> None:
         """Test error handling in repository."""
-        repository = FraiseQLRepository(pool=db_pool)
+        repository = FraiseQLRepository(pool=class_db_pool)
 
         # Test with invalid SQL
         invalid_query = DatabaseQuery(
