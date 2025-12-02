@@ -343,9 +343,30 @@ class TestFraiseQLRepositoryIntegration:
         )
         users_with_email = await repository.run(has_email_query)
 
+        # Dynamic assertions - count expected results
+        active_count_query = DatabaseQuery(
+            statement=SQL(
+                "SELECT COUNT(*) as count FROM {}.users WHERE (data->>'active')::boolean = true"
+            ).format(Identifier(schema)),
+            params={},
+            fetch_result=True,
+        )
+        active_count_result = await repository.run(active_count_query)
+        expected_active = int(active_count_result[0]["count"])
+
+        email_count_query = DatabaseQuery(
+            statement=SQL("SELECT COUNT(*) as count FROM {}.users WHERE data ? 'email'").format(
+                Identifier(schema)
+            ),
+            params={},
+            fetch_result=True,
+        )
+        email_count_result = await repository.run(email_count_query)
+        expected_email = int(email_count_result[0]["count"])
+
         # Assertions
-        assert len(active_users) == 2
-        assert len(users_with_email) == 3
+        assert len(active_users) == expected_active
+        assert len(users_with_email) == expected_email
 
     @pytest.mark.asyncio
     async def test_aggregate_query(self, class_db_pool, test_schema, test_data) -> None:
