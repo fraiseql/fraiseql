@@ -15,6 +15,13 @@ from httpx import ASGITransport, AsyncClient
 import fraiseql
 from fraiseql.mutations import mutation
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    test_schema,
+    clear_registry_class,
+)
+
 
 # Test types for cascade
 @fraiseql.input
@@ -68,14 +75,15 @@ async def get_post(info: GraphQLResolveInfo, id: str) -> Optional[Post]:
     return None  # Not needed for cascade tests
 
 
-@pytest_asyncio.fixture
-async def cascade_db_schema(db_pool):
+@pytest_asyncio.fixture(scope="class")
+async def cascade_db_schema(class_db_pool, test_schema, clear_registry_class):
     """Set up cascade test database schema with tables and PostgreSQL function.
 
-    Uses the shared db_pool fixture from database_conftest.py for proper database access.
+    Uses the shared class_db_pool fixture from database_conftest.py for proper database access.
     Creates tables and a PostgreSQL function that returns mutation_result_v2 with cascade data.
     """
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
         # Create mutation_result_v2 type (from migrations/trinity/005_add_mutation_result_v2.sql)
         await conn.execute("""
             DO $$ BEGIN

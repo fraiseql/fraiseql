@@ -47,15 +47,17 @@ from tests.fixtures.examples.conftest_examples import (  # noqa: F401
 # Try to import database and auth fixtures if dependencies are available
 try:
     from tests.fixtures.database.database_conftest import (  # noqa: F401
+        class_db_pool,
+        clear_registry_class,
         create_fraiseql_app_with_db,
         create_test_table,
         create_test_view,
         db_connection,
         db_connection_committed,
         db_cursor,
-        db_pool,
         postgres_container,
         postgres_url,
+        test_schema,
     )
 except ImportError:
     pass  # Skip database fixtures if dependencies not available

@@ -30,18 +30,11 @@ from tests.fixtures.database.database_conftest import (
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.skip(
-    reason="TODO: Adapt test to new database isolation architecture. "
-    "This test creates tables in db_connection schema but app uses separate pool. "
-    "Needs refactoring to use test_schema consistently."
-)
 @pytest.mark.asyncio
-async def test_graphql_simple_query_returns_data(
-    create_fraiseql_app_with_db, db_connection
-) -> None:
+async def test_graphql_simple_query_returns_data(db_connection) -> None:
     """Test that simple GraphQL query returns data via direct path.
 
-    ✅ Tests: GraphQL → SQL → Rust → HTTP for single object query.
+    ✅ Tests: GraphQL → SQL → Rust → Direct Execution for single object query.
     """
     # Setup test data
     await db_connection.execute("""
@@ -59,7 +52,6 @@ async def test_graphql_simple_query_returns_data(
         CREATE VIEW v_user AS
         SELECT id, data FROM tv_user;
     """)
-    await db_connection.commit()
 
     @fraiseql_type(sql_source="v_user", jsonb_column="data")
     class User:
@@ -72,50 +64,130 @@ async def test_graphql_simple_query_returns_data(
         db = info.context["db"]
         return await db.find_one("v_user", info=info, id=id)
 
-    app = create_fraiseql_app_with_db(types=[User], queries=[user])
+    # Build schema and execute directly
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.graphql.execute import execute_graphql
 
-    async with LifespanManager(app) as manager:
-        transport = ASGITransport(app=manager.app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/graphql",
-                json={
-                    "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName email } }'
-                },
-            )
+    schema = build_fraiseql_schema(query_types=[User, user])
 
-    data = response.json()
+    # Create a repository instance like the FastAPI app does
+    from fraiseql.db import FraiseQLRepository
+    from unittest.mock import AsyncMock, MagicMock
+    from contextlib import asynccontextmanager
+
+    # Create a mock pool that returns our db_connection as an async context manager
+    mock_pool = MagicMock()
+
+    @asynccontextmanager
+    async def mock_connection():
+        yield db_connection
+
+    mock_pool.connection = mock_connection
+
+    repo = FraiseQLRepository(pool=mock_pool)
+
+    result = await execute_graphql(
+        schema,
+        'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName email } }',
+        context_value={"db": repo},
+    )
 
     # Verify direct path success
-    assert "errors" not in data, f"Query failed with errors: {data.get('errors')}"
-    assert data["data"]["user"]["id"] == "11111111-1111-1111-1111-111111111111"
-    assert data["data"]["user"]["firstName"] == "John"
-    assert data["data"]["user"]["email"] == "john@example.com"
+    from fraiseql.core.rust_pipeline import RustResponseBytes
+
+    if isinstance(result, RustResponseBytes):
+        data = result.to_json()
+        assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
+        data = data["data"]
+    else:
+        # Standard ExecutionResult
+        assert result.errors is None, f"Query failed with errors: {result.errors}"
+        data = result.data
+
+    assert data["user"]["id"] == "11111111-1111-1111-1111-111111111111"
+    assert data["user"]["firstName"] == "John"
+    assert data["user"]["email"] == "john@example.com"
 
 
-@pytest.mark.skip(
-    reason="TODO: Adapt test to new database isolation architecture. "
-    "This test has fixture resolution issues and needs refactoring to use direct GraphQL execution."
-)
 @pytest.mark.asyncio
-async def test_graphql_list_query_returns_array(create_fraiseql_app_with_db, db_connection) -> None:
+async def test_graphql_list_query_returns_array(db_connection) -> None:
     """Test that list queries return arrays via direct path.
 
-    ✅ Tests: GraphQL → SQL → Rust → HTTP for list queries.
+    ✅ Tests: GraphQL → SQL → Rust → Direct Execution for list queries.
     """
-    # Test is currently broken due to fixture resolution issues
-    # TODO: Refactor to use direct GraphQL execution instead of HTTP client
-    pytest.skip("Test needs refactoring for new database isolation architecture")
-    assert all("id" in user and "firstName" in user for user in data["data"]["users"])
+    # Setup test data
+    await db_connection.execute("""
+        DROP TABLE IF EXISTS tv_users CASCADE;
+        DROP VIEW IF EXISTS v_users CASCADE;
+
+        CREATE TABLE tv_users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            data JSONB NOT NULL
+        );
+
+        INSERT INTO tv_users (id, data) VALUES
+            ('11111111-1111-1111-1111-111111111111', '{"id": "11111111-1111-1111-1111-111111111111", "first_name": "John", "last_name": "Doe", "email": "john@example.com"}'),
+            ('22222222-2222-2222-2222-222222222222', '{"id": "22222222-2222-2222-2222-222222222222", "first_name": "Jane", "last_name": "Smith", "email": "jane@example.com"}');
+
+        CREATE VIEW v_users AS
+        SELECT id, data FROM tv_users;
+    """)
+
+    @fraiseql_type(sql_source="v_users", jsonb_column="data")
+    class User:
+        id: str
+        first_name: str
+        email: str
+
+    @query
+    async def users(info) -> list[User]:
+        db = info.context["db"]
+        return await db.find("v_users", info=info)
+
+    # Create a repository instance like the FastAPI app does
+    from fraiseql.db import FraiseQLRepository
+    from unittest.mock import MagicMock
+    from contextlib import asynccontextmanager
+
+    # Create a mock pool that returns our db_connection as an async context manager
+    mock_pool = MagicMock()
+
+    @asynccontextmanager
+    async def mock_connection():
+        yield db_connection
+
+    mock_pool.connection = mock_connection
+
+    repo = FraiseQLRepository(pool=mock_pool)
+
+    # Build schema and execute directly
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.graphql.execute import execute_graphql
+
+    schema = build_fraiseql_schema(query_types=[User, users])
+
+    result = await execute_graphql(
+        schema, "query { users { id firstName email } }", context_value={"db": repo}
+    )
+
+    # Verify direct path success
+    from fraiseql.core.rust_pipeline import RustResponseBytes
+
+    if isinstance(result, RustResponseBytes):
+        data = result.to_json()
+        assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
+        data = data["data"]
+    else:
+        # Standard ExecutionResult
+        assert result.errors is None, f"Query failed with errors: {result.errors}"
+        data = result.data
+
+    assert len(data["users"]) == 2
+    assert all("id" in user and "firstName" in user and "email" in user for user in data["users"])
 
 
-@pytest.mark.skip(
-    reason="TODO: Adapt test to new database isolation architecture. "
-    "This test creates tables in db_connection schema but app uses separate pool. "
-    "Needs refactoring to use test_schema consistently."
-)
 @pytest.mark.asyncio
-async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connection) -> None:
+async def test_graphql_field_selection(db_connection) -> None:
     """Test that Rust field projection works correctly.
 
     ✅ Tests: Rust filters fields to only those requested in GraphQL query.
@@ -136,7 +208,6 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
         CREATE VIEW v_user AS
         SELECT id, data FROM tv_user;
     """)
-    await db_connection.commit()
 
     @fraiseql_type(sql_source="v_user", jsonb_column="data")
     class User:
@@ -150,23 +221,47 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
         db = info.context["db"]
         return await db.find_one("v_user", info=info, id=id)
 
-    app = create_fraiseql_app_with_db(types=[User], queries=[user])
+    # Create a repository instance like the FastAPI app does
+    from fraiseql.db import FraiseQLRepository
+    from unittest.mock import MagicMock
+    from contextlib import asynccontextmanager
 
-    async with LifespanManager(app) as manager:
-        transport = ASGITransport(app=manager.app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # Request only specific fields
-            response = await client.post(
-                "/graphql",
-                json={
-                    "query": 'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName } }'
-                },
-            )
+    # Create a mock pool that returns our db_connection as an async context manager
+    mock_pool = MagicMock()
 
-    data = response.json()
+    @asynccontextmanager
+    async def mock_connection():
+        yield db_connection
 
-    assert "errors" not in data, f"Query failed: {data.get('errors')}"
-    user_data = data["data"]["user"]
+    mock_pool.connection = mock_connection
+
+    repo = FraiseQLRepository(pool=mock_pool)
+
+    # Build schema and execute directly
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.graphql.execute import execute_graphql
+
+    schema = build_fraiseql_schema(query_types=[User, user])
+
+    result = await execute_graphql(
+        schema,
+        'query { user(id: "11111111-1111-1111-1111-111111111111") { id firstName } }',
+        context_value={"db": repo},
+    )
+
+    # Verify direct path success
+    from fraiseql.core.rust_pipeline import RustResponseBytes
+
+    if isinstance(result, RustResponseBytes):
+        data = result.to_json()
+        assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
+        data = data["data"]
+    else:
+        # Standard ExecutionResult
+        assert result.errors is None, f"Query failed with errors: {result.errors}"
+        data = result.data
+
+    user_data = data["user"]
 
     # Should have requested fields
     assert "id" in user_data
@@ -177,13 +272,8 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
     assert "lastName" not in user_data
 
 
-@pytest.mark.skip(
-    reason="TODO: Adapt test to new database isolation architecture. "
-    "This test creates tables in db_connection schema but app uses separate pool. "
-    "Needs refactoring to use test_schema consistently."
-)
 @pytest.mark.asyncio
-async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connection) -> None:
+async def test_graphql_with_where_filter(db_connection) -> None:
     """Test GraphQL queries with WHERE filters via direct path.
 
     ✅ Tests: WHERE filters work with dict arguments in direct path.
@@ -206,7 +296,6 @@ async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connect
         CREATE VIEW v_user AS
         SELECT id, data FROM tv_user;
     """)
-    await db_connection.commit()
 
     @fraiseql_type(sql_source="v_user", jsonb_column="data")
     class User:
@@ -222,29 +311,55 @@ async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connect
         db = info.context["db"]
         return await db.find("v_user", info=info, where=where)
 
-    app = create_fraiseql_app_with_db(types=[User, UserWhereInput], queries=[users])
+    # Create a repository instance like the FastAPI app does
+    from fraiseql.db import FraiseQLRepository
+    from unittest.mock import MagicMock
+    from contextlib import asynccontextmanager
 
-    async with LifespanManager(app) as manager:
-        transport = ASGITransport(app=manager.app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/graphql",
-                json={
-                    "query": """
-                        query {
-                            users(where: {active: {eq: true}}) {
-                                id
-                                firstName
-                                active
-                            }
-                        }
-                    """
-                },
-            )
+    # Create a mock pool that returns our db_connection as an async context manager
+    mock_pool = MagicMock()
 
-    data = response.json()
+    @asynccontextmanager
+    async def mock_connection():
+        yield db_connection
 
-    assert "errors" not in data, f"Query failed: {data.get('errors')}"
-    users_data = data["data"]["users"]
+    mock_pool.connection = mock_connection
+
+    repo = FraiseQLRepository(pool=mock_pool)
+
+    # Build schema and execute directly
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+    from fraiseql.graphql.execute import execute_graphql
+
+    schema = build_fraiseql_schema(query_types=[User, UserWhereInput, users])
+
+    result = await execute_graphql(
+        schema,
+        """
+        query {
+            users(where: {active: {eq: true}}) {
+                id
+                firstName
+            }
+        }
+        """,
+        context_value={"db": repo},
+    )
+
+    # Verify direct path success
+    from fraiseql.core.rust_pipeline import RustResponseBytes
+
+    if isinstance(result, RustResponseBytes):
+        data = result.to_json()
+        assert "data" in data, f"Expected 'data' key in RustResponseBytes JSON: {data}"
+        data = data["data"]
+    else:
+        # Standard ExecutionResult
+        assert result.errors is None, f"Query failed with errors: {result.errors}"
+        data = result.data
+
+    users_data = data["users"]
     assert len(users_data) == 2  # John and Bob
-    assert all(user["active"] for user in users_data)
+    # Verify they are the active users (John and Bob)
+    names = {user["firstName"] for user in users_data}
+    assert names == {"John", "Bob"}
