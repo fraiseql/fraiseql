@@ -13,7 +13,9 @@ from typing import List
 from unittest.mock import Mock
 
 import pytest
+import pytest_asyncio
 from psycopg.types.json import Json
+from tests.fixtures.database.database_conftest import class_db_pool, clear_registry_class, test_schema
 
 pytestmark = pytest.mark.integration
 
@@ -51,12 +53,14 @@ class MockEmbeddings:
         return [0.1] * self.dimension
 
 
-@pytest.fixture
-async def vectorstore_table(db_pool) -> str:
+@pytest_asyncio.fixture
+async def vectorstore_table(class_db_pool, test_schema) -> str:
     """Create a test table for vectorstore integration tests."""
     table_name = f"test_llamaindex_docs_{uuid.uuid4().hex[:8]}"
 
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+
         # Enable pgvector extension in this connection
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -86,10 +90,6 @@ async def vectorstore_table(db_pool) -> str:
 
     yield table_name
 
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
-
 
 @pytest.fixture
 def mock_embeddings() -> MockEmbeddings:
@@ -97,21 +97,21 @@ def mock_embeddings() -> MockEmbeddings:
     return MockEmbeddings(dimension=384)
 
 
-@pytest.fixture
-async def vectorstore(db_pool, vectorstore_table: str) -> FraiseQLVectorStore:
+@pytest_asyncio.fixture
+async def vectorstore(class_db_pool, vectorstore_table: str) -> FraiseQLVectorStore:
     """Create a FraiseQLVectorStore instance for testing."""
     return FraiseQLVectorStore(
-        db_pool=db_pool,
+        db_pool=class_db_pool,
         table_name=vectorstore_table,
         embedding_dimension=384,
     )
 
 
-@pytest.fixture
-async def reader(db_pool, vectorstore_table: str) -> FraiseQLReader:
+@pytest_asyncio.fixture
+async def reader(class_db_pool, vectorstore_table: str) -> FraiseQLReader:
     """Create a FraiseQLReader instance for testing."""
     return FraiseQLReader(
-        db_pool=db_pool,
+        db_pool=class_db_pool,
         table_name=vectorstore_table,
     )
 
@@ -121,10 +121,11 @@ class TestFraiseQLReader:
     """Test FraiseQLReader functionality."""
 
     @pytest.mark.asyncio
-    async def test_load_data_basic(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_basic(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test basic data loading from FraiseQL table."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("test1", "This is test content", Json({"author": "test", "category": "test"})),
@@ -140,10 +141,11 @@ class TestFraiseQLReader:
         assert documents[0].metadata["id"] == "test1"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_filters(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_with_filters(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test data loading with WHERE filters."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("test1", "Content 1", Json({"category": "A"})),
@@ -161,10 +163,11 @@ class TestFraiseQLReader:
         assert documents[0].metadata["category"] == "A"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_limit(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_with_limit(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test data loading with LIMIT."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             for i in range(5):
                 await conn.execute(
                     f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
@@ -345,11 +348,12 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_reader_vectorstore_workflow(
-        self, reader: FraiseQLReader, vectorstore: FraiseQLVectorStore, db_pool
+        self, reader: FraiseQLReader, vectorstore: FraiseQLVectorStore, class_db_pool, test_schema
     ):
         """Test a complete workflow from reading to vector storage."""
         # Insert data via SQL
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("workflow_test", "Workflow test content", Json({"source": "test"})),

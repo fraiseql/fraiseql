@@ -13,6 +13,8 @@ from typing import List
 from unittest.mock import Mock
 
 import pytest
+import pytest_asyncio
+from tests.fixtures.database.database_conftest import class_db_pool, clear_registry_class, test_schema
 
 # Check if LangChain is available
 try:
@@ -48,12 +50,14 @@ class MockEmbeddings:
         return [0.1] * self.dimension
 
 
-@pytest.fixture
-async def vectorstore_table(db_pool) -> str:
+@pytest_asyncio.fixture
+async def vectorstore_table(class_db_pool, test_schema) -> str:
     """Create a test table for vectorstore integration tests."""
     table_name = f"test_langchain_docs_{uuid.uuid4().hex[:8]}"
 
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+
         # Enable pgvector extension in this connection
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -83,10 +87,6 @@ async def vectorstore_table(db_pool) -> str:
 
     yield table_name
 
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
-
 
 @pytest.fixture
 def mock_embeddings() -> MockEmbeddings:
@@ -94,13 +94,13 @@ def mock_embeddings() -> MockEmbeddings:
     return MockEmbeddings(dimension=384)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def vectorstore(
-    db_pool, vectorstore_table: str, mock_embeddings: MockEmbeddings
+    class_db_pool, vectorstore_table: str, mock_embeddings: MockEmbeddings
 ) -> FraiseQLVectorStore:
     """Create a FraiseQLVectorStore instance for testing."""
     return FraiseQLVectorStore(
-        db_pool=db_pool,
+        db_pool=class_db_pool,
         table_name=vectorstore_table,
         embedding_function=mock_embeddings,
         embedding_column="embedding",
@@ -374,12 +374,12 @@ class TestLangChainVectorStoreIntegration:
     @pytest.mark.skipif(not LANGCHAIN_AVAILABLE, reason="LangChain not available")
     @pytest.mark.asyncio
     async def test_different_distance_metrics(
-        self, db_pool, vectorstore_table: str, mock_embeddings: MockEmbeddings
+        self, class_db_pool, test_schema, vectorstore_table: str, mock_embeddings: MockEmbeddings
     ) -> None:
         """Test different distance metrics."""
         # Test L2 distance
         vectorstore_l2 = FraiseQLVectorStore(
-            db_pool=db_pool,
+            db_pool=class_db_pool,
             table_name=vectorstore_table,
             embedding_function=mock_embeddings,
             distance_metric="l2",
@@ -393,7 +393,7 @@ class TestLangChainVectorStoreIntegration:
 
         # Test inner product distance
         vectorstore_ip = FraiseQLVectorStore(
-            db_pool=db_pool,
+            db_pool=class_db_pool,
             table_name=vectorstore_table,
             embedding_function=mock_embeddings,
             distance_metric="inner_product",

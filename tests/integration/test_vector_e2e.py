@@ -13,6 +13,7 @@ from uuid import UUID
 
 import pytest
 import pytest_asyncio
+from tests.fixtures.database.database_conftest import class_db_pool, clear_registry_class, test_schema
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository
@@ -33,10 +34,12 @@ class DocumentType:
     created_at: str
 
 
-@pytest_asyncio.fixture
-async def vector_test_setup(db_pool) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def vector_test_setup(class_db_pool, test_schema) -> None:
     """Set up test database with pgvector extension and test data."""
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+
         # Enable pgvector extension
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -45,7 +48,6 @@ async def vector_test_setup(db_pool) -> None:
 
         # Create test table with vector column
         await conn.execute("""
-            DROP TABLE IF EXISTS test_documents CASCADE;
             CREATE TABLE test_documents (
                 id UUID PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -107,10 +109,12 @@ async def vector_test_setup(db_pool) -> None:
         await conn.commit()
 
 
-@pytest_asyncio.fixture
-async def binary_vector_test_setup(db_pool) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def binary_vector_test_setup(class_db_pool, test_schema) -> None:
     """Set up test database with binary vector test data."""
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+
         # Enable pgvector extension
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -119,7 +123,6 @@ async def binary_vector_test_setup(db_pool) -> None:
 
         # Create test table with bit vector column
         await conn.execute("""
-            DROP TABLE IF EXISTS test_fingerprints CASCADE;
             CREATE TABLE test_fingerprints (
                 id UUID PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -174,10 +177,10 @@ async def binary_vector_test_setup(db_pool) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_filter_cosine_distance(db_pool, vector_test_setup) -> None:
+async def test_vector_filter_cosine_distance(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test filtering documents by cosine distance."""
     # This test will fail until vector filtering is implemented
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381  # Same as first document
 
     result = await repo.find(
@@ -193,9 +196,9 @@ async def test_vector_filter_cosine_distance(db_pool, vector_test_setup) -> None
 
 
 @pytest.mark.asyncio
-async def test_vector_order_by_distance(db_pool, vector_test_setup) -> None:
+async def test_vector_order_by_distance(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test ordering results by vector distance using GraphQL input objects."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     # Use proper GraphQL input object (not plain dict)
@@ -217,10 +220,10 @@ async def test_vector_order_by_distance(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_with_other_filters(db_pool, vector_test_setup) -> None:
+async def test_vector_with_other_filters(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test vector filtering composed with other filters."""
     # This test will fail until vector filtering is implemented
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     result = await repo.find(
@@ -238,9 +241,9 @@ async def test_vector_with_other_filters(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_l1_distance_filter(db_pool, vector_test_setup) -> None:
+async def test_vector_l1_distance_filter(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test filtering documents by L1/Manhattan distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     result = await repo.find(
@@ -253,9 +256,9 @@ async def test_vector_l1_distance_filter(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_l1_distance_order_by(db_pool, vector_test_setup) -> None:
+async def test_vector_l1_distance_order_by(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test ordering documents by L1/Manhattan distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     # Use proper GraphQL input object (not plain dict)
@@ -273,9 +276,9 @@ async def test_vector_l1_distance_order_by(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_l1_distance_combined(db_pool, vector_test_setup) -> None:
+async def test_vector_l1_distance_combined(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test L1 distance for both WHERE and ORDER BY combined."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
@@ -293,9 +296,9 @@ async def test_vector_l1_distance_combined(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_hamming_distance_filter(db_pool, binary_vector_test_setup) -> None:
+async def test_binary_vector_hamming_distance_filter(class_db_pool, test_schema, binary_vector_test_setup) -> None:
     """Test filtering binary vectors by Hamming distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
@@ -308,9 +311,9 @@ async def test_binary_vector_hamming_distance_filter(db_pool, binary_vector_test
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> None:
+async def test_binary_vector_jaccard_distance_filter(class_db_pool, test_schema, binary_vector_test_setup) -> None:
     """Test filtering binary vectors by Jaccard distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
@@ -323,9 +326,9 @@ async def test_binary_vector_jaccard_distance_filter(db_pool, binary_vector_test
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_hamming_distance_order_by(db_pool, binary_vector_test_setup) -> None:
+async def test_binary_vector_hamming_distance_order_by(class_db_pool, test_schema, binary_vector_test_setup) -> None:
     """Test ordering binary vectors by Hamming distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
@@ -342,9 +345,9 @@ async def test_binary_vector_hamming_distance_order_by(db_pool, binary_vector_te
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_jaccard_distance_order_by(db_pool, binary_vector_test_setup) -> None:
+async def test_binary_vector_jaccard_distance_order_by(class_db_pool, test_schema, binary_vector_test_setup) -> None:
     """Test ordering binary vectors by Jaccard distance."""
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
@@ -361,10 +364,10 @@ async def test_binary_vector_jaccard_distance_order_by(db_pool, binary_vector_te
 
 
 @pytest.mark.asyncio
-async def test_vector_limit_results(db_pool, vector_test_setup) -> None:
+async def test_vector_limit_results(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test pagination with vector similarity search."""
     # This test will fail until vector filtering is implemented
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.0, 0.0, 0.0] + [0.0] * 381  # Different from all documents
 
     result = await repo.find(
@@ -380,10 +383,10 @@ async def test_vector_limit_results(db_pool, vector_test_setup) -> None:
 
 
 @pytest.mark.asyncio
-async def test_vector_dimension_mismatch_error(db_pool, vector_test_setup) -> None:
+async def test_vector_dimension_mismatch_error(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test that dimension validation is handled by PostgreSQL (not FraiseQL)."""
     # According to design, FraiseQL does NOT validate dimensions - PostgreSQL handles it
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     wrong_dimension_embedding = [0.1, 0.2]  # Only 2 dimensions vs required 384
 
     # This should NOT raise an exception in FraiseQL - dimension validation happens in PostgreSQL
@@ -400,10 +403,10 @@ async def test_vector_dimension_mismatch_error(db_pool, vector_test_setup) -> No
 
 
 @pytest.mark.asyncio
-async def test_vector_hnsw_index_performance(db_pool, vector_test_setup) -> None:
+async def test_vector_hnsw_index_performance(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test that HNSW index is used for vector queries (optional performance test)."""
     # This test verifies index usage by checking query execution plan
-    repo = FraiseQLRepository(db_pool)
+    repo = FraiseQLRepository(class_db_pool)
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     result = await repo.find(
