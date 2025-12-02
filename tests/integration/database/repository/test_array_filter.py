@@ -4,8 +4,6 @@ This test suite ensures that PostgreSQL array filtering operators work correctly
 in FraiseQL WHERE filtering.
 """
 
-import asyncio
-
 import pytest
 import pytest_asyncio
 
@@ -23,9 +21,9 @@ from fraiseql.sql.where_generator import safe_create_where_type
 class TestArrayFilter:
     """Test suite for array operators in ArrayFilter."""
 
-    @pytest.fixture
-    def test_types(self, clear_registry):
-        """Create test types inside a fixture for proper isolation."""
+    @pytest.fixture(scope="class")
+    def test_types(self, clear_registry_class):
+        """Create test types inside a class-scoped fixture for proper isolation."""
 
         @fraiseql.type
         class Product:
@@ -40,100 +38,70 @@ class TestArrayFilter:
             "ProductWhere": ProductWhere,
         }
 
-    @pytest_asyncio.fixture
-    async def setup_test_views(self, db_pool, test_types) -> None:
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_test_views(self, db_connection_committed, test_types) -> None:
         """Create test views with array data.
 
-        Uses explicit timeout via asyncio.wait_for to prevent deadlock
-        when pool is under high load from previous tests.
+        Uses the class-isolated schema and connection pool provided by
+        db_connection_committed. Schema is automatically cleaned up after
+        the test class completes.
         """
         Product = test_types["Product"]
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
 
-        # Acquire connection with timeout - prevents indefinite blocking
-        try:
-            conn_ctx = db_pool.connection()
-            conn = await asyncio.wait_for(conn_ctx.__aenter__(), timeout=10.0)
-        except asyncio.TimeoutError:
-            pytest.skip("Database pool exhausted - unable to acquire connection")
-
-        try:
-            # Create tables
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS test_products (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    tags TEXT[] NOT NULL
-                )
+        # Create tables in the test schema
+        await db_connection_committed.execute(
             """
+            CREATE TABLE test_products (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                tags TEXT[] NOT NULL
             )
+        """
+        )
 
-            # Create views with JSONB data column
-            await conn.execute(
-                """
-                CREATE OR REPLACE VIEW test_product_view AS
-                SELECT
-                    id, name, tags,
-                    jsonb_build_object(
-                        'id', id,
-                        'name', name,
-                        'tags', tags
-                    ) as data
-                FROM test_products
+        # Create views with JSONB data column
+        await db_connection_committed.execute(
             """
-            )
+            CREATE VIEW test_product_view AS
+            SELECT
+                id, name, tags,
+                jsonb_build_object(
+                    'id', id,
+                    'name', name,
+                    'tags', tags
+                ) as data
+            FROM test_products
+        """
+        )
 
-            # Insert test data with array values
-            await conn.execute(
-                """
-                INSERT INTO test_products (id, name, tags)
-                VALUES
-                    ('prod-001', 'Widget A', ARRAY['electronics', 'gadget']),
-                    ('prod-002', 'Widget B', ARRAY['electronics', 'tool']),
-                    ('prod-003', 'Book X', ARRAY['book', 'education']),
-                    ('prod-004', 'Tool Y', ARRAY['tool', 'hardware']),
-                    ('prod-005', 'Gadget Z', ARRAY['electronics', 'gadget', 'premium'])
+        # Insert test data with array values
+        await db_connection_committed.execute(
             """
-            )
-            await conn.commit()
-        finally:
-            # Keep connection open until after tests run - don't close yet
-            pass
+            INSERT INTO test_products (id, name, tags)
+            VALUES
+                ('prod-001', 'Widget A', ARRAY['electronics', 'gadget']),
+                ('prod-002', 'Widget B', ARRAY['electronics', 'tool']),
+                ('prod-003', 'Book X', ARRAY['book', 'education']),
+                ('prod-004', 'Tool Y', ARRAY['tool', 'hardware']),
+                ('prod-005', 'Gadget Z', ARRAY['electronics', 'gadget', 'premium'])
+        """
+        )
+        await db_connection_committed.commit()
 
         yield
 
-        # Now close the connection after tests
-        try:
-            await conn_ctx.__aexit__(None, None, None)
-        except Exception:
-            pass
-
-        # Cleanup - acquire new connection with timeout
-        try:
-            conn_ctx = db_pool.connection()
-            conn = await asyncio.wait_for(conn_ctx.__aenter__(), timeout=10.0)
-        except asyncio.TimeoutError:
-            pytest.skip("Database pool exhausted during cleanup")
-
-        try:
-            await conn.execute("DROP VIEW IF EXISTS test_product_view")
-            await conn.execute("DROP TABLE IF EXISTS test_products")
-            await conn.commit()
-        finally:
-            try:
-                await conn_ctx.__aexit__(None, None, None)
-            except Exception:
-                pass
+        # Cleanup happens automatically when test schema is dropped
+        # (no need for explicit cleanup here)
 
     @pytest.mark.asyncio
     async def test_array_eq_operator_basic_equality(
-        self, db_pool, setup_test_views, test_types
+        self, class_db_pool, setup_test_views, test_types
     ) -> None:
         """Test basic array equality with eq operator."""
         ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test exact array match
         where = ProductWhere(tags={"eq": ["electronics", "gadget"]})
@@ -152,11 +120,11 @@ class TestArrayFilter:
 
     @pytest.mark.asyncio
     async def test_array_neq_operator_inequality(
-        self, db_pool, setup_test_views, test_types
+        self, class_db_pool, setup_test_views, test_types
     ) -> None:
         """Test array inequality with neq operator."""
         ProductWhere = test_types["ProductWhere"]
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test array not equal
         where = ProductWhere(tags={"neq": ["electronics", "gadget"]})
@@ -170,10 +138,10 @@ class TestArrayFilter:
         assert all(r["name"] != "Widget A" for r in results)
 
     @pytest.mark.asyncio
-    async def test_array_contains_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_contains_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array contains operator (@> in PostgreSQL)."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test contains: find arrays that contain ['electronics']
         where = ProductWhere(tags={"contains": ["electronics"]})
@@ -187,10 +155,10 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Gadget Z"}
 
     @pytest.mark.asyncio
-    async def test_array_contained_by_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_contained_by_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array contained_by operator (<@ in PostgreSQL)."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test contained_by: find arrays contained by ['electronics', 'gadget', 'premium']
         where = ProductWhere(tags={"contained_by": ["electronics", "gadget", "premium"]})
@@ -204,10 +172,10 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Gadget Z"}
 
     @pytest.mark.asyncio
-    async def test_array_overlaps_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_overlaps_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array overlaps operator (&& in PostgreSQL)."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test overlaps: find arrays that overlap with ['tool', 'hardware']
         where = ProductWhere(tags={"overlaps": ["tool", "hardware"]})
@@ -221,10 +189,10 @@ class TestArrayFilter:
         assert product_names == {"Widget B", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_eq_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_eq_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length equality operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test len_eq: find arrays with exactly 2 elements
         where = ProductWhere(tags={"len_eq": 2})
@@ -238,10 +206,10 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Book X", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_gt_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_gt_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length greater than operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test len_gt: find arrays with more than 2 elements
         where = ProductWhere(tags={"len_gt": 2})
@@ -254,10 +222,10 @@ class TestArrayFilter:
         assert results[0]["name"] == "Gadget Z"
 
     @pytest.mark.asyncio
-    async def test_array_length_lt_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_lt_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length less than operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test len_lt: find arrays with less than 3 elements
         where = ProductWhere(tags={"len_lt": 3})
@@ -271,10 +239,10 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Book X", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_gte_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_gte_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length greater than or equal operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test len_gte: find arrays with 3 or more elements
         where = ProductWhere(tags={"len_gte": 3})
@@ -287,10 +255,10 @@ class TestArrayFilter:
         assert results[0]["name"] == "Gadget Z"
 
     @pytest.mark.asyncio
-    async def test_array_any_eq_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_any_eq_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array any_eq operator (ANY element equals value)."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test any_eq: find arrays where any element equals 'electronics'
         where = ProductWhere(tags={"any_eq": "electronics"})
@@ -304,10 +272,10 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Gadget Z"}
 
     @pytest.mark.asyncio
-    async def test_array_all_eq_operator(self, db_pool, setup_test_views, test_types) -> None:
+    async def test_array_all_eq_operator(self, class_db_pool, setup_test_views, test_types) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array all_eq operator (ALL elements equal value)."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Test all_eq: find arrays where all elements equal 'electronics'
         where = ProductWhere(tags={"all_eq": "electronics"})
