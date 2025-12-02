@@ -9,12 +9,13 @@ import pytest_asyncio
 pytestmark = pytest.mark.enterprise
 
 
-@pytest_asyncio.fixture(autouse=True, scope="session")
-async def setup_audit_schema(db_pool) -> None:
+@pytest_asyncio.fixture(autouse=True, scope="class")
+async def setup_audit_schema(class_db_pool, test_schema) -> None:
     """Set up audit schema before running tests."""
     # Check if schema already exists
-    async with db_pool.connection() as conn, conn.cursor() as cur:
-        await cur.execute(
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        cur = await conn.execute(
             """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
@@ -30,16 +31,16 @@ async def setup_audit_schema(db_pool) -> None:
             migration_sql = migration_path.read_text()
 
             # Execute the migration
-            await cur.execute(migration_sql)
+            await conn.execute(migration_sql)
 
         # Keep PostgreSQL crypto trigger ENABLED (FraiseQL philosophy: "In PostgreSQL Everything")
         # PostgreSQL handles hashing, signing, and chain linking
 
         # Disable the partition trigger for tests to avoid complexity
-        await cur.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
 
         # Check if test signing key exists
-        await cur.execute(
+        cur = await conn.execute(
             "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
             ["test-key-for-testing"],
         )
@@ -47,7 +48,7 @@ async def setup_audit_schema(db_pool) -> None:
 
         if not key_exists:
             # Insert a test signing key
-            await cur.execute(
+            await conn.execute(
                 "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
                 ["test-key-for-testing", True],
             )

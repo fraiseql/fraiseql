@@ -33,18 +33,19 @@ def setup_unified_audit(db_pool: psycopg_pool.AsyncConnectionPool) -> None:
 
 async def _setup_unified_audit(db_pool: psycopg_pool.AsyncConnectionPool) -> None:
     """Set up unified audit table."""
-    async with db_pool.connection() as conn, conn.cursor() as cur:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
         # Drop old tables if they exist
-        await cur.execute("DROP TABLE IF EXISTS audit_events CASCADE")  # type: ignore  # type: ignore
-        await cur.execute(SQL("DROP TABLE IF EXISTS audit_signing_keys CASCADE"))
+        await conn.execute("DROP TABLE IF EXISTS audit_events CASCADE")  # type: ignore  # type: ignore
+        await conn.execute(SQL("DROP TABLE IF EXISTS audit_signing_keys CASCADE"))
 
         # Load unified migration
         migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
         migration_sql = migration_path.read_text()
-        await cur.execute(SQL(migration_sql))
+        await conn.execute(SQL(migration_sql))
 
         # Insert test signing key
-        await cur.execute(
+        await conn.execute(
             "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
             ["test-key-for-testing", True],
         )

@@ -16,11 +16,12 @@ pytestmark = pytest.mark.enterprise
 
 
 @pytest_asyncio.fixture(scope="function")
-async def setup_bridge_schema(db_pool) -> None:
+async def setup_bridge_schema(class_db_pool, test_schema) -> None:
     """Set up bridge schema and tenant.tb_audit_log table for testing."""
-    async with db_pool.connection() as conn, conn.cursor() as cur:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
         # Check if audit_events exists
-        await cur.execute(
+        cur = await conn.execute(
             """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
@@ -34,28 +35,28 @@ async def setup_bridge_schema(db_pool) -> None:
             # Read and execute the migration
             migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
             migration_sql = migration_path.read_text()
-            await cur.execute(migration_sql)
+            await conn.execute(migration_sql)
 
         # Disable partition trigger for tests
-        await cur.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
 
         # Ensure test signing key exists
-        await cur.execute(
+        cur = await conn.execute(
             "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
             ["test-key-for-testing"],
         )
         key_exists = (await cur.fetchone())[0] > 0
 
         if not key_exists:
-            await cur.execute(
+            await conn.execute(
                 "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
                 ["test-key-for-testing", True],
             )
 
         # Create tenant schema and tb_audit_log if not exists
-        await cur.execute("CREATE SCHEMA IF NOT EXISTS tenant")
+        await conn.execute("CREATE SCHEMA IF NOT EXISTS tenant")
 
-        await cur.execute(
+        await conn.execute(
             """
                 CREATE TABLE IF NOT EXISTS tenant.tb_audit_log (
                     pk_audit_log UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,14 +78,14 @@ async def setup_bridge_schema(db_pool) -> None:
 
         # Enable the bridge trigger for testing
         # First, drop if exists to avoid errors
-        await cur.execute(
+        await conn.execute(
             """
                 DROP TRIGGER IF EXISTS bridge_to_cryptographic_audit
                 ON tenant.tb_audit_log
             """
         )
 
-        await cur.execute(
+        await conn.execute(
             """
                 CREATE TRIGGER bridge_to_cryptographic_audit
                     AFTER INSERT ON tenant.tb_audit_log

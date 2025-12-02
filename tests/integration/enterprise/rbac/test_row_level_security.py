@@ -11,8 +11,8 @@ from fraiseql.db import DatabaseQuery, FraiseQLRepository
 pytestmark = pytest.mark.integration
 
 
-@pytest_asyncio.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool) -> None:
+@pytest_asyncio.fixture(autouse=True, scope="class")
+async def setup_rbac_schema(class_db_pool, test_schema) -> None:
     """Set up RBAC schema before running tests."""
     from pathlib import Path
 
@@ -21,9 +21,10 @@ async def setup_rbac_schema(db_pool) -> None:
     rbac_migration_sql = rbac_migration_path.read_text()
 
     # Execute the migrations
-    async with db_pool.connection() as conn, conn.cursor() as cur:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
         # Execute RBAC schema first
-        await cur.execute(rbac_migration_sql)
+        await conn.execute(rbac_migration_sql)
 
         # Execute only the function definitions from RLS migration
         # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
@@ -62,13 +63,13 @@ async def setup_rbac_schema(db_pool) -> None:
         $$ LANGUAGE plpgsql STABLE;
         """
 
-        await cur.execute(function_sql)
+        await conn.execute(function_sql)
         await conn.commit()
         print("RBAC schema and functions migration executed successfully")
 
 
 @pytest.mark.asyncio
-async def test_session_variables_set_for_rls(db_pool) -> None:
+async def test_session_variables_set_for_rls(class_db_pool, test_schema) -> None:
     """Verify RBAC session variables are set correctly for RLS."""
     # Create repository with RBAC context
     user_id = uuid4()
@@ -79,7 +80,7 @@ async def test_session_variables_set_for_rls(db_pool) -> None:
         "roles": [{"name": "admin"}],  # Not super_admin
     }
 
-    repo = FraiseQLRepository(db_pool, context=context)
+    repo = FraiseQLRepository(class_db_pool, context=context)
 
     # Check that session variables are set
     result = await repo.run(
@@ -98,14 +99,14 @@ async def test_session_variables_set_for_rls(db_pool) -> None:
 
 
 @pytest.mark.asyncio
-async def test_super_admin_session_variable(db_pool) -> None:
+async def test_super_admin_session_variable(class_db_pool, test_schema) -> None:
     """Verify super_admin session variable is set correctly."""
     # Create repository with super_admin role
     user_id = uuid4()
     tenant_id = uuid4()
     context = {"user_id": user_id, "tenant_id": tenant_id, "roles": [{"name": "super_admin"}]}
 
-    repo = FraiseQLRepository(db_pool, context=context)
+    repo = FraiseQLRepository(class_db_pool, context=context)
 
     # Check that super_admin is set to true
     result = await repo.run(

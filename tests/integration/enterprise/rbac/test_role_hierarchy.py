@@ -13,12 +13,13 @@ from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
 pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="module")
-async def ensure_rbac_schema(db_pool) -> None:
+@pytest.fixture(autouse=True, scope="class")
+async def ensure_rbac_schema(class_db_pool, test_schema) -> None:
     """Ensure RBAC schema exists before running tests."""
     # Check if roles table exists
-    async with db_pool.connection() as conn, conn.cursor() as cur:
-        await cur.execute(
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        await conn.execute(
             """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
@@ -32,7 +33,7 @@ async def ensure_rbac_schema(db_pool) -> None:
             # Read and execute the migration
             migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
             migration_sql = migration_path.read_text()
-            await cur.execute(migration_sql)
+            await conn.execute(migration_sql)
             await conn.commit()
 
 
