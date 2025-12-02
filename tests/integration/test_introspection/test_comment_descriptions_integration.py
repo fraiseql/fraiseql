@@ -5,6 +5,7 @@ as GraphQL schema descriptions across all supported comment types.
 """
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.introspection.input_generator import InputGenerator
 from fraiseql.introspection.metadata_parser import TypeAnnotation
@@ -17,10 +18,9 @@ from fraiseql.introspection.type_generator import TypeGenerator
 from fraiseql.introspection.type_mapper import TypeMapper
 from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.asyncio
 class TestCommentDescriptionsIntegration:
     """End-to-end integration tests for PostgreSQL comment descriptions."""
 
@@ -50,114 +50,102 @@ class TestCommentDescriptionsIntegration:
         # Note: Using class_db_pool instead of db_connection to ensure proper transaction handling
         return PostgresIntrospector(class_db_pool)
 
-    @pytest.fixture
-    def real_database_setup(self, class_db_pool, test_schema):
+    @pytest_asyncio.fixture(scope="class")
+    async def real_database_setup(self, class_db_pool, test_schema):
         """Set up a real PostgreSQL database with test schema and comments."""
-        import asyncio
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
 
-        # Run the async setup
-        async def setup():
-            async with class_db_pool.connection() as conn:
-                await conn.execute(f"SET search_path TO {test_schema}")
+            # Clean up any existing test objects
+            await conn.execute(f"""
+                DROP VIEW IF EXISTS {test_schema}.v_user_profile CASCADE;
+                DROP FUNCTION IF EXISTS {test_schema}.fn_create_user(text, text) CASCADE;
+                DROP TYPE IF EXISTS {test_schema}.type_create_user_input CASCADE;
+            """)
 
-                # Clean up any existing test objects
-                await conn.execute(f"""
-                    DROP VIEW IF EXISTS {test_schema}.v_user_profile CASCADE;
-                    DROP FUNCTION IF EXISTS {test_schema}.fn_create_user(text, text) CASCADE;
-                    DROP TYPE IF EXISTS {test_schema}.type_create_user_input CASCADE;
-                """)
+            # Create table with column comments
+            await conn.execute(f"""
+                CREATE TABLE {test_schema}.users (
+                    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                    email text NOT NULL,
+                    name text NOT NULL,
+                    created_at timestamptz DEFAULT now()
+                );
+            """)
 
-                # Create table with column comments
-                await conn.execute(f"""
-                    CREATE TABLE {test_schema}.users (
-                        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                        email text NOT NULL,
-                        name text NOT NULL,
-                        created_at timestamptz DEFAULT now()
-                    );
-                """)
+            # Add column comments
+            await conn.execute(
+                f"COMMENT ON COLUMN {test_schema}.users.email IS 'Primary email address for authentication';"
+            )
+            await conn.execute(
+                f"COMMENT ON COLUMN {test_schema}.users.name IS 'Full name of the user';"
+            )
+            await conn.execute(
+                f"COMMENT ON COLUMN {test_schema}.users.created_at IS 'Account creation timestamp (UTC)';"
+            )
 
-                # Add column comments
-                await conn.execute(
-                    f"COMMENT ON COLUMN {test_schema}.users.email IS 'Primary email address for authentication';"
-                )
-                await conn.execute(
-                    f"COMMENT ON COLUMN {test_schema}.users.name IS 'Full name of the user';"
-                )
-                await conn.execute(
-                    f"COMMENT ON COLUMN {test_schema}.users.created_at IS 'Account creation timestamp (UTC)';"
-                )
+            # Insert test data so view is not empty
+            await conn.execute(f"""
+                INSERT INTO {test_schema}.users (email, name)
+                VALUES ('test@example.com', 'Test User');
+            """)
 
-                # Insert test data so view is not empty
-                await conn.execute(f"""
+            # Create view with comment (with JSONB data column as expected by FraiseQL)
+            await conn.execute(f"""
+                CREATE VIEW {test_schema}.v_user_profile AS
+                SELECT
+                    id,
+                    jsonb_build_object(
+                        'email', email,
+                        'name', name,
+                        'created_at', created_at
+                    ) as data
+                FROM {test_schema}.users;
+            """)
+            await conn.execute(
+                f"COMMENT ON VIEW {test_schema}.v_user_profile IS 'User profile data with contact information';"
+            )
+
+            # Debug: Check what views exist
+            result = await conn.execute(
+                f"SELECT schemaname, viewname FROM pg_views WHERE schemaname = '{test_schema}'"
+            )
+            view_rows = await result.fetchall()
+            print(f"Views in {test_schema} schema: {view_rows}")
+
+            # Create composite type with comment and attribute comments
+            await conn.execute(f"""
+                CREATE TYPE {test_schema}.type_create_user_input AS (
+                    email text,
+                    name text
+                );
+            """)
+            await conn.execute(
+                f"COMMENT ON TYPE {test_schema}.type_create_user_input IS 'Input parameters for user creation';"
+            )
+            # Note: PostgreSQL doesn't support COMMENT ON ATTRIBUTE syntax
+            # Attribute comments are handled differently in PostgreSQL
+            # We'll test the infrastructure without actual attribute comments for now
+
+            # Create function with comment
+            await conn.execute(f"""
+                CREATE FUNCTION {test_schema}.fn_create_user(p_email text, p_name text)
+                RETURNS jsonb
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
                     INSERT INTO {test_schema}.users (email, name)
-                    VALUES ('test@example.com', 'Test User');
-                """)
+                    VALUES (p_email, p_name)
+                    RETURNING row_to_json(users.*)::jsonb;
+                END;
+                $$;
+            """)
+            await conn.execute(
+                f"COMMENT ON FUNCTION {test_schema}.fn_create_user(text, text) IS 'Creates a new user account with email verification';"
+            )
 
-                # Create view with comment (with JSONB data column as expected by FraiseQL)
-                await conn.execute(f"""
-                    CREATE VIEW {test_schema}.v_user_profile AS
-                    SELECT
-                        id,
-                        jsonb_build_object(
-                            'email', email,
-                            'name', name,
-                            'created_at', created_at
-                        ) as data
-                    FROM {test_schema}.users;
-                """)
-                await conn.execute(
-                    f"COMMENT ON VIEW {test_schema}.v_user_profile IS 'User profile data with contact information';"
-                )
-
-                # Debug: Check what views exist
-                result = await conn.execute(
-                    f"SELECT schemaname, viewname FROM pg_views WHERE schemaname = '{test_schema}'"
-                )
-                view_rows = await result.fetchall()
-                print(f"Views in {test_schema} schema: {view_rows}")
-
-                # Create composite type with comment and attribute comments
-                await conn.execute(f"""
-                    CREATE TYPE {test_schema}.type_create_user_input AS (
-                        email text,
-                        name text
-                    );
-                """)
-                await conn.execute(
-                    f"COMMENT ON TYPE {test_schema}.type_create_user_input IS 'Input parameters for user creation';"
-                )
-                # Note: PostgreSQL doesn't support COMMENT ON ATTRIBUTE syntax
-                # Attribute comments are handled differently in PostgreSQL
-                # We'll test the infrastructure without actual attribute comments for now
-
-                # Create function with comment
-                await conn.execute(f"""
-                    CREATE FUNCTION {test_schema}.fn_create_user(p_email text, p_name text)
-                    RETURNS jsonb
-                    LANGUAGE plpgsql
-                    AS $$
-                    BEGIN
-                        INSERT INTO {test_schema}.users (email, name)
-                        VALUES (p_email, p_name)
-                        RETURNING row_to_json(users.*)::jsonb;
-                    END;
-                    $$;
-                """)
-                await conn.execute(
-                    f"COMMENT ON FUNCTION {test_schema}.fn_create_user(text, text) IS 'Creates a new user account with email verification';"
-                )
-
-                # Commit the transaction so other connections can see the changes
-                await conn.commit()
-
-        # Create a new event loop for this synchronous fixture
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(setup())
-        finally:
-            loop.close()
+            # Commit the transaction so other connections can see the changes
+            await conn.commit()
 
         # Return the pool for the test to use
         return class_db_pool

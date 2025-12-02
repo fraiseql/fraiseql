@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.monitoring.notifications import (
     EmailChannel,
@@ -19,29 +20,18 @@ from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def error_tracker(class_db_pool, test_schema):
+@pytest_asyncio.fixture(scope="class")
+async def error_tracker(class_db_pool, test_schema):
     """Create error tracker instance for testing."""
-    import asyncio
-
     # Read and execute schema
     with open("src/fraiseql/monitoring/schema.sql") as f:
         schema_sql = f.read()
 
     # Run the async setup
-    async def setup():
-        async with class_db_pool.connection() as conn:
-            await conn.execute(f"SET search_path TO {test_schema}")
-            await conn.execute(schema_sql)
-            await conn.commit()
-
-    # Create a new event loop for this synchronous fixture
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(setup())
-    finally:
-        loop.close()
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        await conn.execute(schema_sql)
+        await conn.commit()
 
     tracker = PostgreSQLErrorTracker(
         class_db_pool,
@@ -50,7 +40,7 @@ def error_tracker(class_db_pool, test_schema):
         enable_notifications=True,
     )
 
-    return tracker
+    yield tracker
 
 
 @pytest.fixture
@@ -280,9 +270,10 @@ class TestWebhookChannel:
             assert call_args[0][0] == "PUT"
 
 
-@pytest.mark.asyncio(loop_scope="class")
 class TestNotificationManager:
     """Test notification manager."""
+
+    pytestmark = pytest.mark.asyncio
 
     @pytest.mark.asyncio
     async def test_register_custom_channel(self, notification_manager) -> None:
@@ -429,9 +420,10 @@ class TestNotificationManager:
             # Should have at most 1 successful notification due to rate limiting
 
 
-@pytest.mark.asyncio(loop_scope="class")
 class TestErrorTrackerNotificationIntegration:
     """Test integration between error tracker and notification system."""
+
+    pytestmark = pytest.mark.asyncio
 
     @pytest.mark.asyncio
     async def test_notifications_triggered_on_error(self, error_tracker, test_schema) -> None:

@@ -14,6 +14,7 @@ import json
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
@@ -114,11 +115,9 @@ class TestJSONBFullGraphQLExecution:
             → GraphQL Type Checking → ??? (should work, but might fail)
     """
 
-    @pytest.fixture
-    def setup_graphql_jsonb_test(self, class_db_pool, test_schema):
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_graphql_jsonb_test(self, class_db_pool, test_schema):
         """Create test data and register types for GraphQL execution."""
-        import asyncio
-
         # Register type with has_jsonb_data=True
         register_type_for_view(
             f"{test_schema}.test_products_graphql_jsonb_view",
@@ -128,58 +127,48 @@ class TestJSONBFullGraphQLExecution:
             jsonb_column="data",
         )
 
-        # Run the async setup
-        async def setup():
-            async with class_db_pool.connection() as conn:
-                await conn.execute(f"SET search_path TO {test_schema}")
-                # Create test table with JSONB column
-                await conn.execute(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS {test_schema}.test_products_graphql_jsonb (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        data JSONB NOT NULL
-                    )
-                """
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            # Create test table with JSONB column
+            await conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {test_schema}.test_products_graphql_jsonb (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    data JSONB NOT NULL
                 )
+            """
+            )
 
-                # Create view with JSONB data
-                await conn.execute(
-                    f"""
-                    CREATE OR REPLACE VIEW {test_schema}.test_products_graphql_jsonb_view AS
-                    SELECT
-                        id,
-                        name,
-                        jsonb_build_object(
-                            'id', id,
-                            'name', name,
-                            'brand', data->>'brand',
-                            'category', data->>'category',
-                            'price', (data->>'price')::float
-                        ) as data
-                    FROM {test_schema}.test_products_graphql_jsonb
-                """
-                )
+            # Create view with JSONB data
+            await conn.execute(
+                f"""
+                CREATE OR REPLACE VIEW {test_schema}.test_products_graphql_jsonb_view AS
+                SELECT
+                    id,
+                    name,
+                    jsonb_build_object(
+                        'id', id,
+                        'name', name,
+                        'brand', data->>'brand',
+                        'category', data->>'category',
+                        'price', (data->>'price')::float
+                    ) as data
+                FROM {test_schema}.test_products_graphql_jsonb
+            """
+            )
 
-                # Insert test data
-                await conn.execute(
-                    f"""
-                    INSERT INTO {test_schema}.test_products_graphql_jsonb (id, name, data)
-                    VALUES
-                        ('gql-prod-001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
-                        ('gql-prod-002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
-                        ('gql-prod-003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
-                    ON CONFLICT (id) DO NOTHING
-                """
-                )
-
-        # Create a new event loop for this synchronous fixture
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(setup())
-        finally:
-            loop.close()
+            # Insert test data
+            await conn.execute(
+                f"""
+                INSERT INTO {test_schema}.test_products_graphql_jsonb (id, name, data)
+                VALUES
+                    ('gql-prod-001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
+                    ('gql-prod-002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
+                    ('gql-prod-003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
+                ON CONFLICT (id) DO NOTHING
+            """
+            )
 
     @pytest.mark.asyncio
     async def test_graphql_list_query_with_jsonb_entities(

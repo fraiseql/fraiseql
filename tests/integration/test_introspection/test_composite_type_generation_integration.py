@@ -7,6 +7,7 @@ IMPORTANT: These tests assume a SpecQL-generated schema exists in the database.
 """
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.introspection import AutoDiscovery
 from tests.fixtures.database.database_conftest import class_db_pool, test_schema
@@ -14,8 +15,8 @@ from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def specql_test_schema_exists(class_db_pool, test_schema) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def specql_test_schema_exists(class_db_pool, test_schema) -> None:
     """Verify SpecQL test schema exists in database.
 
     This fixture does NOT create the schema - it only checks if it exists.
@@ -23,31 +24,20 @@ def specql_test_schema_exists(class_db_pool, test_schema) -> None:
     1. Running SpecQL to generate it, OR
     2. Manually applying tests/fixtures/specql_test_schema.sql
     """
-    import asyncio
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        # Check if composite type exists
+        result = await conn.execute(f"""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = '{test_schema}'
+                  AND t.typname = 'type_create_contact_input'
+            )
+        """)
+        exists = await result.fetchone()
 
-    async def check():
-        async with class_db_pool.connection() as conn:
-            await conn.execute(f"SET search_path TO {test_schema}")
-            # Check if composite type exists
-            result = await conn.execute(f"""
-                SELECT EXISTS (
-                    SELECT 1 FROM pg_type t
-                    JOIN pg_namespace n ON n.oid = t.typnamespace
-                    WHERE n.nspname = '{test_schema}'
-                      AND t.typname = 'type_create_contact_input'
-                )
-            """)
-            exists = await result.fetchone()
-            return exists[0]
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        exists = loop.run_until_complete(check())
-    finally:
-        loop.close()
-
-    if not exists:
+    if not exists or not exists[0]:
         pytest.skip("SpecQL test schema not found - run SpecQL or apply test schema SQL")
 
 

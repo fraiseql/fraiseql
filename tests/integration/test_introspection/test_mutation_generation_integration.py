@@ -5,6 +5,7 @@ with real PostgreSQL functions and proper GraphQL execution.
 """
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.introspection.input_generator import InputGenerator
 from fraiseql.introspection.metadata_parser import MetadataParser
@@ -44,76 +45,59 @@ class TestMutationGenerationIntegration:
         """Create PostgresIntrospector with real database pool."""
         return PostgresIntrospector(class_db_pool)
 
-    @pytest.fixture
-    def test_mutation_function(self, class_db_pool, test_schema):
+    @pytest_asyncio.fixture(scope="class")
+    async def test_mutation_function(self, class_db_pool, test_schema):
         """Create a test mutation function for introspection."""
-        import asyncio
         import uuid
 
         function_suffix = uuid.uuid4().hex[:8]
         function_name = f"fn_create_user_{function_suffix}"
 
-        async def setup():
-            async with class_db_pool.connection() as conn:
-                await conn.execute(f"SET search_path TO {test_schema}")
-                # Create the function
-                await conn.execute(f"""
-                    CREATE OR REPLACE FUNCTION {test_schema}.{function_name}(
-                        p_name TEXT,
-                        p_email TEXT DEFAULT 'user@example.com'
-                    )
-                    RETURNS JSONB
-                    LANGUAGE plpgsql
-                    AS $$
-                    BEGIN
-                        -- Simulate user creation
-                        RETURN jsonb_build_object(
-                            'success', true,
-                            'user', jsonb_build_object(
-                                'id', 1,
-                                'name', p_name,
-                                'email', p_email,
-                                'created_at', NOW()
-                            )
-                        );
-                    END;
-                    $$;
-                """)
-
-                # Add comment with @fraiseql:mutation annotation
-                await conn.execute(f"""
-                    COMMENT ON FUNCTION {test_schema}.{function_name}(TEXT, TEXT) IS '@fraiseql:mutation
-                    name: createUser
-                    success_type: User
-                    failure_type: ValidationError
-                    description: Create a new user account'
-                """)
-
-                # Commit the transaction so the function is visible to other connections
-                await conn.commit()
-
-        async def cleanup():
-            async with class_db_pool.connection() as conn:
-                await conn.execute(
-                    f"DROP FUNCTION IF EXISTS {test_schema}.{function_name}(TEXT, TEXT)"
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            # Create the function
+            await conn.execute(f"""
+                CREATE OR REPLACE FUNCTION {test_schema}.{function_name}(
+                    p_name TEXT,
+                    p_email TEXT DEFAULT 'user@example.com'
                 )
-                await conn.commit()
+                RETURNS JSONB
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    -- Simulate user creation
+                    RETURN jsonb_build_object(
+                        'success', true,
+                        'user', jsonb_build_object(
+                            'id', 1,
+                            'name', p_name,
+                            'email', p_email,
+                            'created_at', NOW()
+                        )
+                    );
+                END;
+                $$;
+            """)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(setup())
-        finally:
-            loop.close()
+            # Add comment with @fraiseql:mutation annotation
+            await conn.execute(f"""
+                COMMENT ON FUNCTION {test_schema}.{function_name}(TEXT, TEXT) IS '@fraiseql:mutation
+                name: createUser
+                success_type: User
+                failure_type: ValidationError
+                description: Create a new user account'
+            """)
+
+            # Commit the transaction so the function is visible to other connections
+            await conn.commit()
 
         yield function_name
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(cleanup())
-        finally:
-            loop.close()
+        async with class_db_pool.connection() as conn:
+            await conn.execute(
+                f"DROP FUNCTION IF EXISTS {test_schema}.{function_name}(TEXT, TEXT)"
+            )
+            await conn.commit()
 
     @pytest.mark.asyncio
     async def test_full_mutation_generation_pipeline(
