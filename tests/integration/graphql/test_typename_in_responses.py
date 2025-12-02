@@ -15,6 +15,13 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry,
+    db_connection,
+)
+
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
@@ -185,12 +192,12 @@ async def setup_typename_test_data(db_connection) -> None:
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_typename_test_data, clear_registry) -> None:
+def graphql_client(class_db_pool, setup_typename_test_data, clear_registry) -> TestClient:
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool
 
-    set_db_pool(db_pool)
+    set_db_pool(class_db_pool)
 
     app = create_fraiseql_app(
         database_url="postgresql://test/test",  # Dummy URL since we're injecting pool
