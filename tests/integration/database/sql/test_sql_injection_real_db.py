@@ -37,45 +37,43 @@ class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
     @pytest_asyncio.fixture(scope="class")
-    @pytest.mark.asyncio
-    async def test_users(self, db_connection_committed):
+    async def test_users(self, class_db_pool, test_schema, clear_registry_class):
         """Create users table and test data within committed schema."""
-        conn = db_connection_committed
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
 
-        # Get the current schema name
-        schema_result = await conn.execute("SELECT current_schema()")
-        schema = (await schema_result.fetchone())[0]
-
-        # Create users table
-        await conn.execute(
-            """
-            CREATE TABLE users (
-                id SERIAL PRIMARY KEY,
-                data JSONB NOT NULL DEFAULT '{}'
-            )
-            """
-        )
-
-        # Insert test data
-        test_users = [
-            {"name": "Admin", "email": "admin@example.com", "role": "admin", "active": True},
-            {"name": "User1", "email": "user1@example.com", "role": "user", "active": True},
-            {"name": "User2", "email": "user2@example.com", "role": "user", "active": False},
-        ]
-
-        for user_data in test_users:
+            # Create users table
             await conn.execute(
-                """INSERT INTO users (data) VALUES (%s::jsonb)""", (json.dumps(user_data),)
+                """
+                CREATE TABLE users (
+                    id SERIAL PRIMARY KEY,
+                    data JSONB NOT NULL DEFAULT '{}'
+                )
+                """
             )
 
-        # Commit the data so it's visible to other connections from the pool
-        await conn.commit()
+            # Insert test data
+            test_users = [
+                {"name": "Admin", "email": "admin@example.com", "role": "admin", "active": True},
+                {"name": "User1", "email": "user1@example.com", "role": "user", "active": True},
+                {"name": "User2", "email": "user2@example.com", "role": "user", "active": False},
+            ]
+
+            for user_data in test_users:
+                await conn.execute(
+                    """INSERT INTO users (data) VALUES (%s::jsonb)""", (json.dumps(user_data),)
+                )
+
+            # Commit the data so it's visible to other connections from the pool
+            await conn.commit()
 
         # Return the schema name for use in queries
-        return schema
+        return test_schema
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_string_fields(self, class_db_pool, test_schema, test_users) -> None:
+    async def test_sql_injection_in_string_fields(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test SQL injection attempts in string fields."""
         schema = test_users
         repo = FraiseQLRepository(class_db_pool)
@@ -122,7 +120,9 @@ class TestSQLInjectionPrevention:
             )
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_list_operations(self, class_db_pool, test_schema, test_users) -> None:
+    async def test_sql_injection_in_list_operations(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test SQL injection in IN/NOT IN operations."""
         schema = test_users
         repo = FraiseQLRepository(class_db_pool)
@@ -158,7 +158,9 @@ class TestSQLInjectionPrevention:
         assert count_result[0]["count"] == 3, "Table corrupted via IN operator injection"
 
     @pytest.mark.asyncio
-    async def test_sql_injection_with_special_characters(self, class_db_pool, test_schema, test_users) -> None:
+    async def test_sql_injection_with_special_characters(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test handling of special characters that could be used in injections."""
         schema = test_users
         repo = FraiseQLRepository(class_db_pool)
