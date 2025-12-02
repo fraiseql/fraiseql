@@ -14,43 +14,49 @@ from fraiseql.monitoring.notifications import (
 from fraiseql.monitoring.postgres_error_tracker import (
     PostgreSQLErrorTracker,
 )
+from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def error_tracker(db_pool) -> None:
+def error_tracker(class_db_pool, test_schema):
     """Create error tracker instance for testing."""
+    import asyncio
+
+    # Read and execute schema
+    with open("src/fraiseql/monitoring/schema.sql") as f:
+        schema_sql = f.read()
+
+    # Run the async setup
+    async def setup():
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            await conn.execute(schema_sql)
+            await conn.commit()
+
+    # Create a new event loop for this synchronous fixture
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(setup())
+    finally:
+        loop.close()
+
     tracker = PostgreSQLErrorTracker(
-        db_pool,
+        class_db_pool,
         environment="test",
         release_version="1.0.0",
         enable_notifications=True,
     )
 
-    # Ensure schema is set up
-    async with db_pool.connection() as conn:
-        # Read and execute schema
-        with open("src/fraiseql/monitoring/schema.sql") as f:
-            schema_sql = f.read()
-            await conn.execute(schema_sql)
-            await conn.commit()
-
-    yield tracker
-
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute("DROP TABLE IF EXISTS tb_error_notification_log CASCADE")
-        await conn.execute("DROP TABLE IF EXISTS tb_error_notification_config CASCADE")
-        await conn.execute("DROP TABLE IF EXISTS tb_error_occurrence CASCADE")
-        await conn.execute("DROP TABLE IF EXISTS tb_error_log CASCADE")
-        await conn.commit()
+    return tracker
 
 
 @pytest.fixture
-async def notification_manager(db_pool) -> None:
+def notification_manager(class_db_pool, test_schema):
     """Create notification manager instance for testing."""
-    return NotificationManager(db_pool)
+    return NotificationManager(class_db_pool)
 
 
 class TestEmailChannel:
@@ -274,6 +280,7 @@ class TestWebhookChannel:
             assert call_args[0][0] == "PUT"
 
 
+@pytest.mark.asyncio(loop_scope="class")
 class TestNotificationManager:
     """Test notification manager."""
 
@@ -294,7 +301,9 @@ class TestNotificationManager:
         assert notification_manager.channels["custom"] == CustomChannel
 
     @pytest.mark.asyncio
-    async def test_send_notifications_no_config(self, error_tracker, notification_manager) -> None:
+    async def test_send_notifications_no_config(
+        self, error_tracker, notification_manager, test_schema
+    ) -> None:
         """Test sending notifications with no matching config."""
         # Create an error
         try:
@@ -307,6 +316,7 @@ class TestNotificationManager:
 
         # Verify no notifications were sent (no config exists)
         async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await cur.execute(
                 "SELECT COUNT(*) FROM tb_error_notification_log WHERE error_id = %s",
                 (error_id,),
@@ -316,11 +326,12 @@ class TestNotificationManager:
 
     @pytest.mark.asyncio
     async def test_send_notifications_with_config(
-        self, error_tracker, notification_manager
+        self, error_tracker, notification_manager, test_schema
     ) -> None:
         """Test sending notifications with matching config."""
         # Create notification config
         async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await cur.execute(
                 """
                         INSERT INTO tb_error_notification_config (
@@ -362,14 +373,15 @@ class TestNotificationManager:
                 (error_id,),
             )
             result = await cur.fetchone()
-                # Note: Might be 0 if async task hasn't completed yet
-                # This is expected behavior for fire-and-forget notifications
+            # Note: Might be 0 if async task hasn't completed yet
+            # This is expected behavior for fire-and-forget notifications
 
     @pytest.mark.asyncio
-    async def test_rate_limiting(self, error_tracker, notification_manager) -> None:
+    async def test_rate_limiting(self, error_tracker, notification_manager, test_schema) -> None:
         """Test notification rate limiting."""
         # Create notification config with 60-minute rate limit
         async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await cur.execute(
                 """
                         INSERT INTO tb_error_notification_config (
@@ -409,18 +421,20 @@ class TestNotificationManager:
 
         # Verify only one notification was sent (due to rate limiting)
         async with error_tracker.db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await cur.execute(
                 "SELECT COUNT(*) FROM tb_error_notification_log WHERE status = 'sent'"
             )
             result = await cur.fetchone()
-                # Should have at most 1 successful notification due to rate limiting
+            # Should have at most 1 successful notification due to rate limiting
 
 
+@pytest.mark.asyncio(loop_scope="class")
 class TestErrorTrackerNotificationIntegration:
     """Test integration between error tracker and notification system."""
 
     @pytest.mark.asyncio
-    async def test_notifications_triggered_on_error(self, error_tracker) -> None:
+    async def test_notifications_triggered_on_error(self, error_tracker, test_schema) -> None:
         """Test that notifications are triggered when error is captured."""
         # Mock NotificationManager at the import location
         with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
@@ -445,11 +459,11 @@ class TestErrorTrackerNotificationIntegration:
             # This is expected for fire-and-forget notifications
 
     @pytest.mark.asyncio
-    async def test_notifications_disabled(self, db_pool) -> None:
+    async def test_notifications_disabled(self, class_db_pool, test_schema) -> None:
         """Test that notifications can be disabled."""
         # Create tracker with notifications disabled
         tracker = PostgreSQLErrorTracker(
-            db_pool,
+            class_db_pool,
             environment="test",
             enable_notifications=False,
         )
@@ -467,7 +481,9 @@ class TestErrorTrackerNotificationIntegration:
             mock_manager_class.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_notification_failure_doesnt_break_error_tracking(self, error_tracker) -> None:
+    async def test_notification_failure_doesnt_break_error_tracking(
+        self, error_tracker, test_schema
+    ) -> None:
         """Test that notification failures don't break error tracking."""
         # Mock NotificationManager to raise an exception
         with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
