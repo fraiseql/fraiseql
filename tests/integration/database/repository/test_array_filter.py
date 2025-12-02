@@ -39,11 +39,11 @@ class TestArrayFilter:
         }
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_test_views(self, db_connection_committed, test_types) -> None:
+    async def setup_test_views(self, class_db_pool, test_schema, test_types) -> None:
         """Create test views with array data.
 
         Uses the class-isolated schema and connection pool provided by
-        db_connection_committed. Schema is automatically cleaned up after
+        class_db_pool. Schema is automatically cleaned up after
         the test class completes.
         """
         Product = test_types["Product"]
@@ -51,44 +51,47 @@ class TestArrayFilter:
         register_type_for_view("test_product_view", Product)
 
         # Create tables in the test schema
-        await db_connection_committed.execute(
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+
+            await conn.execute(
+                """
+                CREATE TABLE test_products (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    tags TEXT[] NOT NULL
+                )
             """
-            CREATE TABLE test_products (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                tags TEXT[] NOT NULL
             )
-        """
-        )
 
-        # Create views with JSONB data column
-        await db_connection_committed.execute(
+            # Create views with JSONB data column
+            await conn.execute(
+                """
+                CREATE VIEW test_product_view AS
+                SELECT
+                    id, name, tags,
+                    jsonb_build_object(
+                        'id', id,
+                        'name', name,
+                        'tags', tags
+                    ) as data
+                FROM test_products
             """
-            CREATE VIEW test_product_view AS
-            SELECT
-                id, name, tags,
-                jsonb_build_object(
-                    'id', id,
-                    'name', name,
-                    'tags', tags
-                ) as data
-            FROM test_products
-        """
-        )
+            )
 
-        # Insert test data with array values
-        await db_connection_committed.execute(
+            # Insert test data with array values
+            await conn.execute(
+                """
+                INSERT INTO test_products (id, name, tags)
+                VALUES
+                    ('prod-001', 'Widget A', ARRAY['electronics', 'gadget']),
+                    ('prod-002', 'Widget B', ARRAY['electronics', 'tool']),
+                    ('prod-003', 'Book X', ARRAY['book', 'education']),
+                    ('prod-004', 'Tool Y', ARRAY['tool', 'hardware']),
+                    ('prod-005', 'Gadget Z', ARRAY['electronics', 'gadget', 'premium'])
             """
-            INSERT INTO test_products (id, name, tags)
-            VALUES
-                ('prod-001', 'Widget A', ARRAY['electronics', 'gadget']),
-                ('prod-002', 'Widget B', ARRAY['electronics', 'tool']),
-                ('prod-003', 'Book X', ARRAY['book', 'education']),
-                ('prod-004', 'Tool Y', ARRAY['tool', 'hardware']),
-                ('prod-005', 'Gadget Z', ARRAY['electronics', 'gadget', 'premium'])
-        """
-        )
-        await db_connection_committed.commit()
+            )
+            await conn.commit()
 
         yield
 
