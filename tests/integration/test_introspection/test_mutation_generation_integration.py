@@ -11,6 +11,7 @@ from fraiseql.introspection.metadata_parser import MetadataParser
 from fraiseql.introspection.mutation_generator import MutationGenerator
 from fraiseql.introspection.postgres_introspector import PostgresIntrospector
 from fraiseql.introspection.type_mapper import TypeMapper
+from tests.fixtures.database.database_conftest import class_db_pool, test_schema
 
 pytestmark = pytest.mark.integration
 
@@ -39,61 +40,80 @@ class TestMutationGenerationIntegration:
         return MetadataParser()
 
     @pytest.fixture
-    async def introspector(self, db_pool) -> PostgresIntrospector:
+    def introspector(self, class_db_pool, test_schema) -> PostgresIntrospector:
         """Create PostgresIntrospector with real database pool."""
-        return PostgresIntrospector(db_pool)
+        return PostgresIntrospector(class_db_pool)
 
     @pytest.fixture
-    @pytest.mark.asyncio
-    async def test_mutation_function(self, db_connection) -> None:
+    def test_mutation_function(self, class_db_pool, test_schema):
         """Create a test mutation function for introspection."""
+        import asyncio
         import uuid
 
         function_suffix = uuid.uuid4().hex[:8]
         function_name = f"fn_create_user_{function_suffix}"
 
-        # Create the function
-        await db_connection.execute(f"""
-            CREATE OR REPLACE FUNCTION {function_name}(
-                p_name TEXT,
-                p_email TEXT DEFAULT 'user@example.com'
-            )
-            RETURNS JSONB
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                -- Simulate user creation
-                RETURN jsonb_build_object(
-                    'success', true,
-                    'user', jsonb_build_object(
-                        'id', 1,
-                        'name', p_name,
-                        'email', p_email,
-                        'created_at', NOW()
+        async def setup():
+            async with class_db_pool.connection() as conn:
+                await conn.execute(f"SET search_path TO {test_schema}")
+                # Create the function
+                await conn.execute(f"""
+                    CREATE OR REPLACE FUNCTION {test_schema}.{function_name}(
+                        p_name TEXT,
+                        p_email TEXT DEFAULT 'user@example.com'
                     )
-                );
-            END;
-            $$;
-        """)
+                    RETURNS JSONB
+                    LANGUAGE plpgsql
+                    AS $$
+                    BEGIN
+                        -- Simulate user creation
+                        RETURN jsonb_build_object(
+                            'success', true,
+                            'user', jsonb_build_object(
+                                'id', 1,
+                                'name', p_name,
+                                'email', p_email,
+                                'created_at', NOW()
+                            )
+                        );
+                    END;
+                    $$;
+                """)
 
-        # Add comment with @fraiseql:mutation annotation
-        await db_connection.execute(f"""
-            COMMENT ON FUNCTION {function_name}(TEXT, TEXT) IS '@fraiseql:mutation
-            name: createUser
-            success_type: User
-            failure_type: ValidationError
-            description: Create a new user account'
-        """)
+                # Add comment with @fraiseql:mutation annotation
+                await conn.execute(f"""
+                    COMMENT ON FUNCTION {test_schema}.{function_name}(TEXT, TEXT) IS '@fraiseql:mutation
+                    name: createUser
+                    success_type: User
+                    failure_type: ValidationError
+                    description: Create a new user account'
+                """)
 
-        # Commit the transaction so the function is visible to other connections
-        await db_connection.execute("COMMIT")
+                # Commit the transaction so the function is visible to other connections
+                await conn.commit()
+
+        async def cleanup():
+            async with class_db_pool.connection() as conn:
+                await conn.execute(
+                    f"DROP FUNCTION IF EXISTS {test_schema}.{function_name}(TEXT, TEXT)"
+                )
+                await conn.commit()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(setup())
+        finally:
+            loop.close()
 
         yield function_name
 
-        # Cleanup (need to start a new transaction for cleanup)
-        await db_connection.execute("BEGIN")
-        await db_connection.execute(f"DROP FUNCTION IF EXISTS {function_name}(TEXT, TEXT)")
-        await db_connection.execute("COMMIT")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(cleanup())
+        finally:
+            loop.close()
 
     @pytest.mark.asyncio
     async def test_full_mutation_generation_pipeline(
@@ -102,11 +122,14 @@ class TestMutationGenerationIntegration:
         metadata_parser: MetadataParser,
         mutation_generator: MutationGenerator,
         test_mutation_function: str,
+        test_schema,
     ):
         """Test complete mutation generation from database function."""
         # Given: Database with annotated function
         # When: Discover and generate mutation
-        functions = await introspector.discover_functions(pattern=test_mutation_function)
+        functions = await introspector.discover_functions(
+            pattern=test_mutation_function, schemas=[test_schema]
+        )
 
         # Then: Function is discovered
         assert len(functions) == 1
@@ -163,10 +186,13 @@ class TestMutationGenerationIntegration:
         metadata_parser: MetadataParser,
         mutation_generator: MutationGenerator,
         test_mutation_function: str,
+        test_schema,
     ):
         """Test that mutation generation fails gracefully when types are missing."""
         # Given: Function with annotation but missing types in registry
-        functions = await introspector.discover_functions(pattern=test_mutation_function)
+        functions = await introspector.discover_functions(
+            pattern=test_mutation_function, schemas=[test_schema]
+        )
         function_metadata = functions[0]
         annotation = metadata_parser.parse_mutation_annotation(function_metadata.comment)
 
@@ -198,7 +224,8 @@ class TestMutationGenerationIntegration:
         introspector: PostgresIntrospector,
         metadata_parser: MetadataParser,
         mutation_generator: MutationGenerator,
-        db_connection,
+        class_db_pool,
+        test_schema,
     ):
         """Test that input_pk parameters are properly filtered."""
         import uuid
@@ -207,35 +234,39 @@ class TestMutationGenerationIntegration:
         function_name = f"fn_create_post_{function_suffix}"
 
         # Create function with auth parameter
-        await db_connection.execute(f"""
-            CREATE OR REPLACE FUNCTION {function_name}(
-                auth_user_id UUID,
-                p_title TEXT,
-                p_content TEXT
-            )
-            RETURNS JSONB
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                RETURN jsonb_build_object('success', true);
-            END;
-            $$;
-        """)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            await conn.execute(f"""
+                CREATE OR REPLACE FUNCTION {test_schema}.{function_name}(
+                    auth_user_id UUID,
+                    p_title TEXT,
+                    p_content TEXT
+                )
+                RETURNS JSONB
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    RETURN jsonb_build_object('success', true);
+                END;
+                $$;
+            """)
 
-        # Add comment
-        await db_connection.execute(f"""
-            COMMENT ON FUNCTION {function_name}(UUID, TEXT, TEXT) IS '@fraiseql:mutation
-            name: createPost
-            success_type: Post
-            failure_type: ValidationError'
-        """)
+            # Add comment
+            await conn.execute(f"""
+                COMMENT ON FUNCTION {test_schema}.{function_name}(UUID, TEXT, TEXT) IS '@fraiseql:mutation
+                name: createPost
+                success_type: Post
+                failure_type: ValidationError'
+            """)
 
-        # Commit the transaction so the function is visible to other connections
-        await db_connection.execute("COMMIT")
+            # Commit the transaction so the function is visible to other connections
+            await conn.commit()
 
         try:
             # When: Discover and generate input type
-            functions = await introspector.discover_functions(pattern=function_name)
+            functions = await introspector.discover_functions(
+                pattern=function_name, schemas=[test_schema]
+            )
             function_metadata = functions[0]
             annotation = metadata_parser.parse_mutation_annotation(function_metadata.comment)
 
@@ -254,6 +285,8 @@ class TestMutationGenerationIntegration:
 
         finally:
             # Cleanup
-            await db_connection.execute(
-                f"DROP FUNCTION IF EXISTS {function_name}(UUID, TEXT, TEXT)"
-            )
+            async with class_db_pool.connection() as conn:
+                await conn.execute(
+                    f"DROP FUNCTION IF EXISTS {test_schema}.{function_name}(UUID, TEXT, TEXT)"
+                )
+                await conn.commit()
