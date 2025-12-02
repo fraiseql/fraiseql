@@ -13,7 +13,13 @@ from uuid import UUID
 
 import pytest
 import pytest_asyncio
-from tests.fixtures.database.database_conftest import class_db_pool, clear_registry_class, test_schema
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry_class,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository
@@ -296,7 +302,9 @@ async def test_vector_l1_distance_combined(class_db_pool, test_schema, vector_te
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_hamming_distance_filter(class_db_pool, test_schema, binary_vector_test_setup) -> None:
+async def test_binary_vector_hamming_distance_filter(
+    class_db_pool, test_schema, binary_vector_test_setup
+) -> None:
     """Test filtering binary vectors by Hamming distance."""
     repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
@@ -311,7 +319,9 @@ async def test_binary_vector_hamming_distance_filter(class_db_pool, test_schema,
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_jaccard_distance_filter(class_db_pool, test_schema, binary_vector_test_setup) -> None:
+async def test_binary_vector_jaccard_distance_filter(
+    class_db_pool, test_schema, binary_vector_test_setup
+) -> None:
     """Test filtering binary vectors by Jaccard distance."""
     repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
@@ -326,7 +336,9 @@ async def test_binary_vector_jaccard_distance_filter(class_db_pool, test_schema,
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_hamming_distance_order_by(class_db_pool, test_schema, binary_vector_test_setup) -> None:
+async def test_binary_vector_hamming_distance_order_by(
+    class_db_pool, test_schema, binary_vector_test_setup
+) -> None:
     """Test ordering binary vectors by Hamming distance."""
     repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
@@ -345,7 +357,9 @@ async def test_binary_vector_hamming_distance_order_by(class_db_pool, test_schem
 
 
 @pytest.mark.asyncio
-async def test_binary_vector_jaccard_distance_order_by(class_db_pool, test_schema, binary_vector_test_setup) -> None:
+async def test_binary_vector_jaccard_distance_order_by(
+    class_db_pool, test_schema, binary_vector_test_setup
+) -> None:
     """Test ordering binary vectors by Jaccard distance."""
     repo = FraiseQLRepository(class_db_pool)
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
@@ -383,7 +397,9 @@ async def test_vector_limit_results(class_db_pool, test_schema, vector_test_setu
 
 
 @pytest.mark.asyncio
-async def test_vector_dimension_mismatch_error(class_db_pool, test_schema, vector_test_setup) -> None:
+async def test_vector_dimension_mismatch_error(
+    class_db_pool, test_schema, vector_test_setup
+) -> None:
     """Test that dimension validation is handled by PostgreSQL (not FraiseQL)."""
     # According to design, FraiseQL does NOT validate dimensions - PostgreSQL handles it
     repo = FraiseQLRepository(class_db_pool)

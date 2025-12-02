@@ -19,7 +19,12 @@ import pytest_asyncio
 pytestmark = pytest.mark.database
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import class_db_pool, test_schema
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes

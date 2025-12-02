@@ -11,6 +11,8 @@ import pytest_asyncio
 from tests.fixtures.database.database_conftest import (
     class_db_pool,
     clear_registry_class,
+    postgres_container,
+    postgres_url,
     test_schema,
 )
 

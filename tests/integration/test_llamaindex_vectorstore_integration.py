@@ -15,7 +15,13 @@ from unittest.mock import Mock
 import pytest
 import pytest_asyncio
 from psycopg.types.json import Json
-from tests.fixtures.database.database_conftest import class_db_pool, clear_registry_class, test_schema
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry_class,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -197,10 +203,7 @@ class TestFraiseQLVectorStore:
         nodes = []
         for i in range(3):
             node = TextNode(
-                id_=f"node_{i}",
-                text=f"Content {i}",
-                embedding=[0.1] * 384,
-                metadata={"index": i}
+                id_=f"node_{i}", text=f"Content {i}", embedding=[0.1] * 384, metadata={"index": i}
             )
             nodes.append(node)
 
@@ -220,10 +223,7 @@ class TestFraiseQLVectorStore:
         """Test deleting nodes."""
         # Add a node first
         node = TextNode(
-            id_="delete_test",
-            text="Content to delete",
-            embedding=[0.1] * 384,
-            metadata={}
+            id_="delete_test", text="Content to delete", embedding=[0.1] * 384, metadata={}
         )
 
         ids = await vectorstore.aadd([node])
@@ -251,7 +251,7 @@ class TestFraiseQLVectorStore:
                 text=f"Search content {i}",
                 # Create slightly different embeddings
                 embedding=[0.1 + i * 0.01] * 384,
-                metadata={"score": i}
+                metadata={"score": i},
             )
             nodes.append(node)
 
@@ -263,7 +263,7 @@ class TestFraiseQLVectorStore:
         query = VectorStoreQuery(
             query_embedding=[0.1] * 384,  # Similar to first node
             similarity_top_k=3,
-            filters=None
+            filters=None,
         )
 
         # Search
@@ -283,7 +283,7 @@ class TestFraiseQLVectorStore:
                 id_=f"filter_{category}_{len(nodes)}",
                 text=f"Content for {category}",
                 embedding=[0.1] * 384,
-                metadata={"category": category}
+                metadata={"category": category},
             )
             nodes.append(node)
 
@@ -299,9 +299,7 @@ class TestFraiseQLVectorStore:
         query = VectorStoreQuery(
             query_embedding=[0.1] * 384,
             similarity_top_k=10,
-            filters=MetadataFilters(
-                filters=[MetadataFilter(key="category", value="A")]
-            )
+            filters=MetadataFilters(filters=[MetadataFilter(key="category", value="A")]),
         )
 
         # Search with filter
@@ -369,7 +367,7 @@ class TestIntegration:
             id_=documents[0].metadata["id"],
             text=documents[0].text,
             embedding=[0.1] * 384,
-            metadata=documents[0].metadata
+            metadata=documents[0].metadata,
         )
 
         # Store in vectorstore

@@ -19,6 +19,8 @@ from fastapi.testclient import TestClient
 from tests.fixtures.database.database_conftest import (
     class_db_pool,
     clear_registry,
+    postgres_container,
+    postgres_url,
     test_schema,
 )
 
@@ -191,7 +193,9 @@ async def setup_typename_test_data(class_db_pool, test_schema) -> None:
 
 
 @pytest.fixture
-def graphql_client(class_db_pool, test_schema, setup_typename_test_data, clear_registry) -> TestClient:
+def graphql_client(
+    class_db_pool, test_schema, setup_typename_test_data, clear_registry
+) -> TestClient:
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool
@@ -201,6 +205,7 @@ def graphql_client(class_db_pool, test_schema, setup_typename_test_data, clear_r
     # Create custom context getter to inject test_schema
     async def custom_context_getter(request, user=None):
         from fraiseql.db import FraiseQLRepository
+
         return {
             "db": FraiseQLRepository(class_db_pool),
             "test_schema": test_schema,

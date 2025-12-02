@@ -22,6 +22,8 @@ from tests.fixtures.database.database_conftest import (
     class_db_pool,
     create_fraiseql_app_with_db,
     db_connection,
+    postgres_container,
+    postgres_url,
     test_schema,
 )
 

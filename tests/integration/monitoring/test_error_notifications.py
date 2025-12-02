@@ -15,7 +15,12 @@ from fraiseql.monitoring.notifications import (
 from fraiseql.monitoring.postgres_error_tracker import (
     PostgreSQLErrorTracker,
 )
-from tests.fixtures.database.database_conftest import class_db_pool, test_schema
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 
 pytestmark = pytest.mark.integration
 

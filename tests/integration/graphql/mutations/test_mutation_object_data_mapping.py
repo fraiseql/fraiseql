@@ -20,6 +20,8 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 from tests.fixtures.database.database_conftest import (
     class_db_pool,
     db_connection_committed,
+    postgres_container,
+    postgres_url,
     test_schema,
 )
 

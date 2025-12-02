@@ -11,6 +11,8 @@ from tests.fixtures.database.database_conftest import (
     class_db_pool,
     clear_registry,
     clear_registry_class,
+    postgres_container,
+    postgres_url,
     test_schema,
 )
 
@@ -30,7 +32,9 @@ class TestAutoGenerationIntegration:
         yield
 
     @pytest.mark.asyncio
-    async def test_auto_generated_where_input_in_query(self, class_db_pool, test_schema, clear_registry_fixture) -> None:
+    async def test_auto_generated_where_input_in_query(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test that auto-generated WhereInput works in db.find()."""
         clear_auto_generated_cache()
 
@@ -99,7 +103,9 @@ class TestAutoGenerationIntegration:
         assert len(results) == 2
 
     @pytest.mark.asyncio
-    async def test_auto_generated_order_by_in_query(self, class_db_pool, test_schema, clear_registry_fixture) -> None:
+    async def test_auto_generated_order_by_in_query(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test that auto-generated OrderBy works in db.find()."""
         clear_auto_generated_cache()
 
@@ -247,7 +253,9 @@ class TestAutoGenerationIntegration:
         assert results[1]["itemName"] == "Chair"
 
     @pytest.mark.asyncio
-    async def test_auto_generated_with_limit_and_offset(self, class_db_pool, test_schema, clear_registry_fixture) -> None:
+    async def test_auto_generated_with_limit_and_offset(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test auto-generated types work with pagination."""
         clear_auto_generated_cache()
 
@@ -320,7 +328,9 @@ class TestAutoGenerationIntegration:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_nested_auto_generation_with_fk_detection(class_db_pool, test_schema, clear_registry) -> None:
+async def test_nested_auto_generation_with_fk_detection(
+    class_db_pool, test_schema, clear_registry
+) -> None:
     """Test that nested auto-generated WhereInput works with FK detection."""
     clear_auto_generated_cache()
 
