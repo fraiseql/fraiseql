@@ -6,8 +6,10 @@ for example integration tests, with automatic installation and smart caching.
 """
 
 import asyncio
+import atexit
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import AsyncGenerator, Any
@@ -47,6 +49,41 @@ except ImportError:
     psycopg = None
     CQRSRepository = None
     AsyncClient = None
+
+
+def _cleanup_test_databases() -> None:
+    """Clean up orphaned test databases at session end."""
+    try:
+        env = os.environ.copy()
+        env["PGPASSWORD"] = "fraiseql"
+
+        # Get list of test databases
+        result = subprocess.run(
+            ["psql", "-h", "localhost", "-U", "fraiseql", "-d", "postgres", "-t", "-c",
+             "SELECT datname FROM pg_database WHERE datname LIKE 'blog%_test_%';"],
+            capture_output=True, text=True, env=env, timeout=10
+        )
+
+        if result.returncode != 0:
+            return
+
+        databases = [db.strip() for db in result.stdout.strip().split("\n") if db.strip()]
+
+        for db in databases:
+            subprocess.run(
+                ["psql", "-h", "localhost", "-U", "fraiseql", "-d", "postgres", "-c",
+                 f"DROP DATABASE IF EXISTS {db};"],
+                capture_output=True, env=env, timeout=5
+            )
+
+        if databases:
+            logger.info(f"Cleaned up {len(databases)} orphaned test databases")
+    except Exception as e:
+        logger.debug(f"Database cleanup failed (non-fatal): {e}")
+
+
+# Register cleanup at interpreter exit
+atexit.register(_cleanup_test_databases)
 
 
 def _reset_fraiseql_global_state() -> None:
@@ -191,12 +228,15 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
     }
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """Create blog_simple app for testing with guaranteed dependencies."""
     import sys
     import importlib.util
     from urllib.parse import urlparse
+
+    # Reset all FraiseQL state before creating app to ensure isolation
+    _reset_fraiseql_global_state()
 
     blog_simple_dir = EXAMPLES_DIR / "blog_simple"
     app_file = blog_simple_dir / "app.py"
@@ -245,7 +285,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenera
             del sys.modules[mod]
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_simple app with guaranteed dependencies."""
     import asyncio
@@ -269,16 +309,16 @@ async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenera
 
         set_db_pool(None)
 
-        # Close pool with timeout to avoid hanging
+        # Close pool with short timeout - we don't need graceful shutdown in tests
         try:
-            await asyncio.wait_for(pool.close(), timeout=10.0)
+            await asyncio.wait_for(pool.close(), timeout=2.0)
         except asyncio.TimeoutError:
-            logger.warning("Pool close timed out after 10s, continuing anyway")
+            logger.debug("Pool close timed out, continuing")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_simple_graphql_client(blog_simple_client) -> None:
-    """GraphQL client for blog_simple."""
+    """GraphQL client for blog_simple. Function-scoped for fresh state."""
 
     class GraphQLClient:
         def __init__(self, http_client: AsyncClient) -> None:
@@ -311,7 +351,7 @@ async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None
     # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_enterprise_app(
     smart_dependencies, blog_enterprise_db_url
 ) -> AsyncGenerator[Any, None]:
@@ -319,6 +359,9 @@ async def blog_enterprise_app(
     import sys
     import importlib.util
     from urllib.parse import urlparse
+
+    # Reset all FraiseQL state before creating app to ensure isolation
+    _reset_fraiseql_global_state()
 
     blog_enterprise_dir = EXAMPLES_DIR / "blog_enterprise"
     app_file = blog_enterprise_dir / "app.py"
@@ -369,7 +412,7 @@ async def blog_enterprise_app(
             del sys.modules[mod]
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_enterprise_client(
     blog_enterprise_app, blog_enterprise_db_url
 ) -> AsyncGenerator[Any, None]:
@@ -395,11 +438,11 @@ async def blog_enterprise_client(
 
         set_db_pool(None)
 
-        # Close pool with timeout to avoid hanging
+        # Close pool with short timeout - we don't need graceful shutdown in tests
         try:
-            await asyncio.wait_for(pool.close(), timeout=5.0)
+            await asyncio.wait_for(pool.close(), timeout=2.0)
         except asyncio.TimeoutError:
-            logger.warning("Pool close timed out, forcing termination")
+            logger.debug("Pool close timed out, continuing")
 
 
 # Sample data fixtures that work across examples

@@ -22,12 +22,6 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _reset_state_for_blog_simple(reset_fraiseql_state_module):
-    """Reset FraiseQL state once for this test module."""
-    yield
-
-
 @pytest.mark.asyncio
 async def test_smart_dependencies_available(smart_dependencies) -> None:
     """Test that smart dependency management successfully provides all required dependencies."""
