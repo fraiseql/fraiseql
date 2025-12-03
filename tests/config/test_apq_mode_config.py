@@ -45,41 +45,31 @@ class TestAPQModeEnum:
 class TestAPQModeConfig:
     """Tests for apq_mode in FraiseQLConfig."""
 
-    def test_apq_mode_default_is_optional(self) -> None:
+    def test_apq_mode_default_is_optional(self, test_config) -> None:
         """Test apq_mode defaults to 'optional'."""
-        from fraiseql.fastapi.config import APQMode, FraiseQLConfig
+        from fraiseql.fastapi.config import APQMode
 
-        config = FraiseQLConfig(database_url="postgresql://localhost/test")
-        assert config.apq_mode == APQMode.OPTIONAL
+        assert test_config.apq_mode == APQMode.OPTIONAL
 
-    def test_apq_mode_can_be_set_to_required(self) -> None:
+    def test_apq_mode_can_be_set_to_required(self, custom_config) -> None:
         """Test apq_mode can be set to 'required'."""
-        from fraiseql.fastapi.config import APQMode, FraiseQLConfig
+        from fraiseql.fastapi.config import APQMode
 
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            apq_mode="required",
-        )
+        config = custom_config(apq_mode="required")
         assert config.apq_mode == APQMode.REQUIRED
 
-    def test_apq_mode_can_be_set_to_disabled(self) -> None:
+    def test_apq_mode_can_be_set_to_disabled(self, custom_config) -> None:
         """Test apq_mode can be set to 'disabled'."""
-        from fraiseql.fastapi.config import APQMode, FraiseQLConfig
+        from fraiseql.fastapi.config import APQMode
 
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            apq_mode="disabled",
-        )
+        config = custom_config(apq_mode="disabled")
         assert config.apq_mode == APQMode.DISABLED
 
-    def test_apq_mode_accepts_enum_value(self) -> None:
+    def test_apq_mode_accepts_enum_value(self, custom_config) -> None:
         """Test apq_mode accepts APQMode enum directly."""
-        from fraiseql.fastapi.config import APQMode, FraiseQLConfig
+        from fraiseql.fastapi.config import APQMode
 
-        config = FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            apq_mode=APQMode.REQUIRED,
-        )
+        config = custom_config(apq_mode=APQMode.REQUIRED)
         assert config.apq_mode == APQMode.REQUIRED
 
     def test_apq_mode_invalid_value_raises_error(self) -> None:
@@ -91,7 +81,7 @@ class TestAPQModeConfig:
         with pytest.raises(ValidationError):
             FraiseQLConfig(
                 database_url="postgresql://localhost/test",
-                apq_mode="invalid_mode",
+                apq_mode="invalid_mode",  # type: ignore
             )
 
 

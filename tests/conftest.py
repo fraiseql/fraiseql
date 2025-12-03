@@ -31,6 +31,11 @@ try:
 except ImportError:
     pass  # Skip cascade fixtures if dependencies not available
 
+try:
+    from tests.fixtures.config.conftest import *  # noqa: F403
+except ImportError:
+    pass  # Skip config fixtures if dependencies not available
+
 
 @pytest.fixture
 def clear_registry() -> None:

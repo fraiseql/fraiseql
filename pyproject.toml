@@ -186,7 +186,13 @@ markers = [
     "regression: Regression tests for specific bugs and version features",
     "skip_ci: Skip in CI environment",
     "turbo: Tests for TurboRouter functionality",
-    "forked: Tests that require process isolation (schema registry singleton)"
+    "forked: Tests that require process isolation (schema registry singleton)",
+
+    # NEW: Dependency-specific markers for CI job splitting
+    "requires_postgres: Test requires PostgreSQL database only",
+    "requires_vault: Test requires HashiCorp Vault for KMS encryption",
+    "requires_auth0: Test requires Auth0 authentication service",
+    "requires_all: Test requires all services (PostgreSQL, Vault, Auth0)"
 ]
 
 # Async support
