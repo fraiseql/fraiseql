@@ -23,7 +23,7 @@ from tests.fixtures.database.database_conftest import (
     test_schema,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.database, pytest.mark.integration]
 
 
 class TestCommentDescriptionsIntegration:
