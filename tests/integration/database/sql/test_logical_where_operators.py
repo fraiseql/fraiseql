@@ -8,6 +8,8 @@ import uuid
 from decimal import Decimal
 from typing import Optional
 
+import pytest
+
 import fraiseql
 from fraiseql.sql import (
     BooleanFilter,
@@ -16,6 +18,8 @@ from fraiseql.sql import (
     StringFilter,
     create_graphql_where_input,
 )
+
+pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @fraiseql.type

@@ -15,9 +15,20 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
+
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
+
+pytestmark = pytest.mark.integration
 
 
 @fraise_type
@@ -38,11 +49,12 @@ class Post:
 async def user(info, id: uuid.UUID) -> Optional[User]:
     """Get a user by ID using real database query."""
     repo = info.context["db"]
+    test_schema = info.context.get("test_schema", "public")
 
     # Query the database directly
 
     query = repo._build_find_one_query(
-        "v_user", where={"id": str(id)}, field_paths=None, jsonb_column="data"
+        f"{test_schema}.v_user", where={"id": str(id)}, field_paths=None, jsonb_column="data"
     )
     results = await repo.run(query)
 
@@ -60,10 +72,11 @@ async def user(info, id: uuid.UUID) -> Optional[User]:
 async def users(info, limit: int = 10) -> list[User]:
     """Get list of users using real database query."""
     repo = info.context["db"]
+    test_schema = info.context.get("test_schema", "public")
 
     # Query the database directly
     query = repo._build_find_query(
-        "v_user", where=None, limit=limit, field_paths=None, jsonb_column="data"
+        f"{test_schema}.v_user", where=None, limit=limit, field_paths=None, jsonb_column="data"
     )
     results = await repo.run(query)
 
@@ -83,10 +96,11 @@ async def users(info, limit: int = 10) -> list[User]:
 async def posts(info, limit: int = 10) -> list[Post]:
     """Get list of posts using real database query."""
     repo = info.context["db"]
+    test_schema = info.context.get("test_schema", "public")
 
     # Query the database directly
     query = repo._build_find_query(
-        "v_post", where=None, limit=limit, field_paths=None, jsonb_column="data"
+        f"{test_schema}.v_post", where=None, limit=limit, field_paths=None, jsonb_column="data"
     )
     results = await repo.run(query)
 
@@ -106,29 +120,25 @@ async def posts(info, limit: int = 10) -> list[Post]:
     return posts_list
 
 
-@pytest_asyncio.fixture
-async def setup_typename_test_data(db_connection) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def setup_typename_test_data(class_db_pool, test_schema) -> None:
     """Set up real database with JSONB for typename tests following trinity pattern."""
-    async with db_connection.cursor() as cur:
-        # Drop existing objects to ensure clean state
-        await cur.execute("DROP VIEW IF EXISTS v_user CASCADE")
-        await cur.execute("DROP VIEW IF EXISTS v_post CASCADE")
-        await cur.execute("DROP TABLE IF EXISTS tv_user CASCADE")
-        await cur.execute("DROP TABLE IF EXISTS tv_post CASCADE")
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
 
         # Create tables with JSONB (trinity pattern: tv_* for tables)
-        await cur.execute(
-            """
-            CREATE TABLE tv_user (
+        await conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {test_schema}.tv_user (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
         """
         )
 
-        await cur.execute(
-            """
-            CREATE TABLE tv_post (
+        await conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {test_schema}.tv_post (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
@@ -136,65 +146,78 @@ async def setup_typename_test_data(db_connection) -> None:
         )
 
         # Create views (trinity pattern: v_* for views)
-        await cur.execute(
-            """
-            CREATE VIEW v_user AS
-            SELECT id, data FROM tv_user
+        await conn.execute(
+            f"""
+            CREATE OR REPLACE VIEW {test_schema}.v_user AS
+            SELECT id, data FROM {test_schema}.tv_user
         """
         )
 
-        await cur.execute(
-            """
-            CREATE VIEW v_post AS
-            SELECT id, data FROM tv_post
+        await conn.execute(
+            f"""
+            CREATE OR REPLACE VIEW {test_schema}.v_post AS
+            SELECT id, data FROM {test_schema}.tv_post
         """
         )
 
         # Insert test data into tables
-        await cur.execute(
-            """
-            INSERT INTO tv_user (id, data) VALUES
+        await conn.execute(
+            f"""
+            INSERT INTO {test_schema}.tv_user (id, data) VALUES
             (
                 '11111111-1111-1111-1111-111111111111',
-                '{"id": "11111111-1111-1111-1111-111111111111", "name": "Alice", "email": "alice@example.com"}'
+                '{{"id": "11111111-1111-1111-1111-111111111111", "name": "Alice", "email": "alice@example.com"}}'
             ),
             (
                 '22222222-2222-2222-2222-222222222222',
-                '{"id": "22222222-2222-2222-2222-222222222222", "name": "Bob", "email": "bob@example.com"}'
+                '{{"id": "22222222-2222-2222-2222-222222222222", "name": "Bob", "email": "bob@example.com"}}'
             )
+            ON CONFLICT (id) DO NOTHING
         """
         )
 
-        await cur.execute(
-            """
-            INSERT INTO tv_post (id, data) VALUES
+        await conn.execute(
+            f"""
+            INSERT INTO {test_schema}.tv_post (id, data) VALUES
             (
                 '33333333-3333-3333-3333-333333333333',
-                '{"id": "33333333-3333-3333-3333-333333333333", "title": "First Post", "content": "Content of first post"}'
+                '{{"id": "33333333-3333-3333-3333-333333333333", "title": "First Post", "content": "Content of first post"}}'
             ),
             (
                 '44444444-4444-4444-4444-444444444444',
-                '{"id": "44444444-4444-4444-4444-444444444444", "title": "Second Post", "content": "Content of second post"}'
+                '{{"id": "44444444-4444-4444-4444-444444444444", "title": "Second Post", "content": "Content of second post"}}'
             )
+            ON CONFLICT (id) DO NOTHING
         """
         )
 
-        await db_connection.commit()
-
 
 @pytest.fixture
-def graphql_client(db_pool, setup_typename_test_data, clear_registry) -> None:
+def graphql_client(
+    class_db_pool, test_schema, setup_typename_test_data, clear_registry
+) -> TestClient:
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool
 
-    set_db_pool(db_pool)
+    set_db_pool(class_db_pool)
+
+    # Create custom context getter to inject test_schema
+    async def custom_context_getter(request, user=None):
+        from fraiseql.db import FraiseQLRepository
+
+        return {
+            "db": FraiseQLRepository(class_db_pool),
+            "test_schema": test_schema,
+            "user": user,
+        }
 
     app = create_fraiseql_app(
         database_url="postgresql://test/test",  # Dummy URL since we're injecting pool
         types=[User, Post],
         queries=[user, users, posts],
         production=False,
+        context_getter=custom_context_getter,
     )
     return TestClient(app)
 

@@ -20,6 +20,8 @@ from fraiseql.validation import (
     validate_where_input,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:

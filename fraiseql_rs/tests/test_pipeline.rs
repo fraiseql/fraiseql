@@ -17,6 +17,8 @@ fn main() {
         "users",
         Some("User"),
         None, // No field projection
+        None, // No field selections
+        None, // Use default is_list
     ) {
         Ok(bytes) => {
             let result_str = String::from_utf8_lossy(&bytes);

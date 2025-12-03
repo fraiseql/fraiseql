@@ -1,14 +1,15 @@
 """Test Rust mutation executor."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
 async def test_execute_mutation_no_result():
     """Test mutation execution when no result is returned."""
-    from fraiseql.mutations.rust_executor import execute_mutation_rust
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - no result returned
     mock_cursor = AsyncMock()
@@ -45,8 +46,8 @@ async def test_execute_mutation_no_result():
 @pytest.mark.asyncio
 async def test_execute_mutation_simple_format():
     """Test mutation execution with simple format (just entity JSONB)."""
-    from fraiseql.mutations.rust_executor import execute_mutation_rust
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - simple format: just entity data, no status wrapper
     mock_cursor = AsyncMock()
@@ -87,8 +88,8 @@ async def test_execute_mutation_simple_format():
 @pytest.mark.asyncio
 async def test_execute_mutation_with_context_args():
     """Test mutation execution with context arguments."""
-    from fraiseql.mutations.rust_executor import execute_mutation_rust
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - simple format
     mock_cursor = AsyncMock()
@@ -127,8 +128,8 @@ async def test_execute_mutation_with_context_args():
 @pytest.mark.asyncio
 async def test_execute_mutation_v2_format():
     """Test mutation execution with v2 format (has status field)."""
-    from fraiseql.mutations.rust_executor import execute_mutation_rust
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - v2 format with status field
     mock_cursor = AsyncMock()
@@ -178,8 +179,8 @@ async def test_execute_mutation_v2_format():
 @pytest.mark.asyncio
 async def test_execute_mutation_error_format():
     """Test mutation execution with error format."""
-    from fraiseql.mutations.rust_executor import execute_mutation_rust
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.mutations.rust_executor import execute_mutation_rust
 
     # Mock connection - error format
     mock_cursor = AsyncMock()

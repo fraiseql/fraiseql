@@ -5,6 +5,7 @@ This test module specifically covers complex logical operator scenarios that can
 used with nested array where filtering, ensuring all combinations work correctly.
 """
 
+import pytest
 import uuid
 
 from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
@@ -133,6 +134,7 @@ class TestNestedArrayLogicalOperators:
             ],
         )
 
+    @pytest.mark.asyncio
     async def test_simple_and_conditions_implicit(self) -> None:
         """Test implicit AND behavior (multiple fields at same level)."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -153,6 +155,7 @@ class TestNestedArrayLogicalOperators:
         assert result[0].status == "active"
         assert result[0].is_virtual is False
 
+    @pytest.mark.asyncio
     async def test_explicit_and_conditions(self) -> None:
         """Test explicit AND logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -179,6 +182,7 @@ class TestNestedArrayLogicalOperators:
         hostnames = {server.hostname for server in result}
         assert hostnames == {"prod-web-01", "prod-web-02", "prod-db-01"}
 
+    @pytest.mark.asyncio
     async def test_or_conditions(self) -> None:
         """Test OR logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -207,6 +211,7 @@ class TestNestedArrayLogicalOperators:
             "dev-build-01",  # Development
         }
 
+    @pytest.mark.asyncio
     async def test_not_conditions(self) -> None:
         """Test NOT logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -231,6 +236,7 @@ class TestNestedArrayLogicalOperators:
             "dev-build-01",  # Development
         }
 
+    @pytest.mark.asyncio
     async def test_complex_and_or_combination(self) -> None:
         """Test complex combination of AND + OR operators."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -268,6 +274,7 @@ class TestNestedArrayLogicalOperators:
             "staging-web-01",  # Staging (staging-db-01 has no IP)
         }
 
+    @pytest.mark.asyncio
     async def test_nested_not_with_and_or(self) -> None:
         """Test NOT combined with AND/OR operators."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -298,6 +305,7 @@ class TestNestedArrayLogicalOperators:
             "staging-db-01",  # Staging
         }
 
+    @pytest.mark.asyncio
     async def test_deeply_nested_logical_operators(self) -> None:
         """Test deeply nested logical operator combinations."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -340,6 +348,7 @@ class TestNestedArrayLogicalOperators:
             "staging-web-01",  # Staging active virtual
         }
 
+    @pytest.mark.asyncio
     async def test_multiple_field_operators_with_logical_operators(self) -> None:
         """Test combining field operators (contains, gte, etc.) with logical operators."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -377,6 +386,7 @@ class TestNestedArrayLogicalOperators:
             "prod-db-01",  # DB with >=8 cores
         }
 
+    @pytest.mark.asyncio
     async def test_empty_logical_operator_arrays(self) -> None:
         """Test behavior with empty AND/OR arrays."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -396,6 +406,7 @@ class TestNestedArrayLogicalOperators:
         result = await resolver(self.test_datacenter, None, where=where_filter)
         assert len(result) == 0  # No servers
 
+    @pytest.mark.asyncio
     async def test_logical_operators_with_null_values(self) -> None:
         """Test logical operators with null value filtering."""
         ServerWhereInput = create_graphql_where_input(Server)
@@ -427,6 +438,7 @@ class TestNestedArrayLogicalOperators:
         }
         assert hostnames == expected_hostnames
 
+    @pytest.mark.asyncio
     async def test_performance_with_complex_nested_conditions(self) -> None:
         """Test that complex nested conditions don't cause performance issues."""
         ServerWhereInput = create_graphql_where_input(Server)

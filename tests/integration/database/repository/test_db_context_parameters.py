@@ -8,6 +8,8 @@ import pytest
 
 from fraiseql.db import FraiseQLRepository
 
+pytestmark = pytest.mark.database
+
 
 class TestDatabaseContextParameters:
     """Test context parameter support in database layer."""

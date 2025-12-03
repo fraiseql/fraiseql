@@ -2,9 +2,12 @@
 
 from unittest.mock import Mock
 
+import pytest
 from tests.integration.test_apq_context_propagation import ContextCapturingBackend
 
 from fraiseql.middleware.apq_caching import store_response_in_cache
+
+pytestmark = pytest.mark.integration
 
 
 def test_store_response_passes_context() -> None:

@@ -18,6 +18,8 @@ import pytest
 
 from fraiseql.caching import CacheConfig, PostgresCache
 
+pytestmark = pytest.mark.integration
+
 logger = logging.getLogger(__name__)
 
 

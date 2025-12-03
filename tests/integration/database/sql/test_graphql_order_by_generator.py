@@ -11,6 +11,9 @@ import pytest
 import fraiseql
 from fraiseql.sql import OrderByItem, OrderDirection, create_graphql_order_by_input
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
 # Define test types at module level
 
 
@@ -246,10 +249,12 @@ class TestGraphQLOrderByGenerator:
 
     def test_vector_order_by_input_generation(self) -> None:
         """Test generating order by input for types with vector fields."""
-        from fraiseql.sql.graphql_order_by_generator import VectorOrderBy
-
         # Clear cache
-        from fraiseql.sql.graphql_order_by_generator import _generation_stack, _order_by_input_cache
+        from fraiseql.sql.graphql_order_by_generator import (
+            VectorOrderBy,
+            _generation_stack,
+            _order_by_input_cache,
+        )
 
         _order_by_input_cache.clear()
         _generation_stack.clear()

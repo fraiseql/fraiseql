@@ -10,53 +10,54 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
+
+pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="module")
-async def setup_bridge_schema(db_pool) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def setup_bridge_schema(class_db_pool, test_schema) -> None:
     """Set up bridge schema and tenant.tb_audit_log table for testing."""
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            # Check if audit_events exists
-            await cur.execute(
-                """
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        # Check if audit_events exists
+        cur = await conn.execute(
+            """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'audit_events'
                 )
             """
+        )
+        exists = (await cur.fetchone())[0]
+
+        if not exists:
+            # Read and execute the migration
+            migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
+            migration_sql = migration_path.read_text()
+            await conn.execute(migration_sql)
+
+        # Disable partition trigger for tests
+        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+
+        # Ensure test signing key exists
+        cur = await conn.execute(
+            "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
+            ["test-key-for-testing"],
+        )
+        key_exists = (await cur.fetchone())[0] > 0
+
+        if not key_exists:
+            await conn.execute(
+                "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
+                ["test-key-for-testing", True],
             )
-            exists = (await cur.fetchone())[0]
 
-            if not exists:
-                # Read and execute the migration
-                migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
-                migration_sql = migration_path.read_text()
-                await cur.execute(migration_sql)
+        # Create tenant schema and tb_audit_log if not exists
+        await conn.execute("CREATE SCHEMA IF NOT EXISTS tenant")
 
-            # Disable partition trigger for tests
-            await cur.execute(
-                "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
-            )
-
-            # Ensure test signing key exists
-            await cur.execute(
-                "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
-                ["test-key-for-testing"],
-            )
-            key_exists = (await cur.fetchone())[0] > 0
-
-            if not key_exists:
-                await cur.execute(
-                    "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
-                    ["test-key-for-testing", True],
-                )
-
-            # Create tenant schema and tb_audit_log if not exists
-            await cur.execute("CREATE SCHEMA IF NOT EXISTS tenant")
-
-            await cur.execute(
-                """
+        await conn.execute(
+            """
                 CREATE TABLE IF NOT EXISTS tenant.tb_audit_log (
                     pk_audit_log UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     pk_organization UUID NOT NULL,
@@ -73,30 +74,31 @@ async def setup_bridge_schema(db_pool) -> None:
                     correlation_id UUID DEFAULT gen_random_uuid()
                 )
             """
-            )
+        )
 
-            # Enable the bridge trigger for testing
-            # First, drop if exists to avoid errors
-            await cur.execute(
-                """
+        # Enable the bridge trigger for testing
+        # First, drop if exists to avoid errors
+        await conn.execute(
+            """
                 DROP TRIGGER IF EXISTS bridge_to_cryptographic_audit
                 ON tenant.tb_audit_log
             """
-            )
+        )
 
-            await cur.execute(
-                """
+        await conn.execute(
+            """
                 CREATE TRIGGER bridge_to_cryptographic_audit
                     AFTER INSERT ON tenant.tb_audit_log
                     FOR EACH ROW
                     EXECUTE FUNCTION bridge_audit_to_chain()
             """
-            )
+        )
 
-            await conn.commit()
+        await conn.commit()
 
 
-async def test_bridge_automatically_populates_audit_events(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_automatically_populates_audit_events(db_repo, setup_bridge_schema) -> None:
     """Verify bridge trigger automatically creates audit_events from tb_audit_log."""
     import psycopg.types.json
 
@@ -174,7 +176,8 @@ async def test_bridge_automatically_populates_audit_events(db_repo) -> None:
     assert event["previous_hash"] is None
 
 
-async def test_bridge_creates_cryptographic_chain(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_creates_cryptographic_chain(db_repo, setup_bridge_schema) -> None:
     """Verify multiple mutations create a valid cryptographic chain."""
     import psycopg.types.json
 
@@ -244,7 +247,8 @@ async def test_bridge_creates_cryptographic_chain(db_repo) -> None:
         assert event["signature"] is not None
 
 
-async def test_bridge_preserves_debezium_style_data(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_bridge_preserves_debezium_style_data(db_repo, setup_bridge_schema) -> None:
     """Verify bridge preserves old_data and new_data (Debezium CDC style)."""
     import psycopg.types.json
 

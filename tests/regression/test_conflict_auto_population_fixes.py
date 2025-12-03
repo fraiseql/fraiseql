@@ -1,9 +1,13 @@
 """Phase 2: GREEN - Tests that verify conflict auto-population fixes work correctly."""
 
+import pytest
+
 import fraiseql
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import _populate_conflict_fields, parse_mutation_result
 from fraiseql.mutations.types import MutationResult
+
+pytestmark = pytest.mark.integration
 
 
 @fraiseql.type

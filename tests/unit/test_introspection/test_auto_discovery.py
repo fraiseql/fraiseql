@@ -4,14 +4,16 @@ import pytest
 
 from fraiseql.introspection.auto_discovery import AutoDiscovery
 
+pytestmark = [pytest.mark.asyncio, pytest.mark.database]
+
 
 class TestAutoDiscovery:
     """Test AutoDiscovery functionality."""
 
     @pytest.fixture
-    def auto_discovery(self, db_pool) -> None:
+    def auto_discovery(self, class_db_pool) -> None:
         """Create AutoDiscovery instance with real database pool."""
-        return AutoDiscovery(db_pool)
+        return AutoDiscovery(class_db_pool)
 
     @pytest.mark.asyncio
     async def test_discover_all_empty_database(self, auto_discovery: AutoDiscovery) -> None:

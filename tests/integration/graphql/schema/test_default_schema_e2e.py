@@ -6,6 +6,8 @@ from fraiseql import fraise_input, fraise_type, mutation, query
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 from fraiseql.gql.builders.registry import SchemaRegistry
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def clean_registry() -> None:
@@ -91,6 +93,7 @@ class TestDefaultSchemaE2E:
         # Verify the mutation uses the custom default schema
         assert TestMutation.__fraiseql_mutation__.schema == "custom_app"
 
+    @pytest.mark.asyncio
     async def test_multiple_apps_with_different_defaults(self, clean_registry) -> None:
         """Test that multiple apps can have different default schemas."""
         # Create first app with one default
@@ -150,6 +153,7 @@ class TestDefaultSchemaE2E:
         # Verify second mutation uses app2 schema
         assert Mutation2.__fraiseql_mutation__.schema == "app2"
 
+    @pytest.mark.asyncio
     async def test_override_still_works_with_defaults(self, clean_registry) -> None:
         """Test that explicit schema override still works when defaults are set."""
         # Create app with default schema

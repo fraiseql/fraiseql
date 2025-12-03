@@ -8,6 +8,8 @@ import fraiseql
 from fraiseql.mutations.decorators import success
 from fraiseql.types import JSON
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 @fraiseql.type

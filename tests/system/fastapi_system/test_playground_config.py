@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 import fraiseql
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 @asynccontextmanager

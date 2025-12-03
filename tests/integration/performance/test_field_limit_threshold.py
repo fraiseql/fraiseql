@@ -6,6 +6,8 @@ from psycopg.sql import SQL
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
 
+pytestmark = pytest.mark.integration
+
 
 class TestFieldLimitThreshold:
     """Test field limit threshold behavior in SQL generation."""

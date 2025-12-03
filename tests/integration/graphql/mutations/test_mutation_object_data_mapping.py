@@ -7,6 +7,7 @@ results return null for the object field despite successful creation.
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from graphql import execute, parse
 
 import fraiseql
@@ -14,6 +15,17 @@ from fraiseql import failure, mutation, success
 from fraiseql import input as input_type
 from fraiseql.db import FraiseQLRepository
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    db_connection_committed,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
+
+pytestmark = pytest.mark.integration
 
 
 # Define the GraphQL types
@@ -55,7 +67,7 @@ class CreateLocation:
 class TestMutationObjectDataMapping:
     """Test mutation object_data mapping in production mode."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def setup_database(self, db_connection_committed) -> None:
         """Set up test database schema and function."""
         conn = db_connection_committed
@@ -137,8 +149,8 @@ class TestMutationObjectDataMapping:
             query_types=[QueryRoot], mutation_resolvers=[CreateLocation], camel_case_fields=True
         )
 
-    @pytest.fixture
-    def mock_pool_production(self, setup_database) -> None:
+    @pytest_asyncio.fixture
+    async def mock_pool_production(self, setup_database) -> None:
         """Create a mock pool for production mode."""
 
         class MockPool:
@@ -154,8 +166,8 @@ class TestMutationObjectDataMapping:
 
         return MockPool()
 
-    @pytest.fixture
-    def mock_pool_development(self, setup_database) -> None:
+    @pytest_asyncio.fixture
+    async def mock_pool_development(self, setup_database) -> None:
         """Create a mock pool for development mode."""
 
         class MockPool:
@@ -171,6 +183,7 @@ class TestMutationObjectDataMapping:
 
         return MockPool()
 
+    @pytest.mark.asyncio
     async def test_mutation_object_data_mapping_production(
         self, graphql_schema, mock_pool_production, setup_database
     ):
@@ -221,6 +234,7 @@ class TestMutationObjectDataMapping:
         assert mutation_result["location"]["active"] is True
         assert isinstance(mutation_result["location"]["id"], str)
 
+    @pytest.mark.asyncio
     async def test_mutation_object_data_mapping_development(
         self, graphql_schema, mock_pool_development, setup_database
     ):
@@ -270,6 +284,7 @@ class TestMutationObjectDataMapping:
         assert mutation_result["location"]["identifier"] == "WH-002"
         assert mutation_result["location"]["active"] is True
 
+    @pytest.mark.asyncio
     async def test_mutation_with_entity_hint_in_metadata(
         self, graphql_schema, mock_pool_production, setup_database
     ):

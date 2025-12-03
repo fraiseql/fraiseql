@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test fix for object_data mapping issue in v0.1.0b6."""
 
 import uuid

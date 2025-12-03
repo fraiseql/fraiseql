@@ -84,7 +84,7 @@ await setup_auto_cascade_rules(cache, schema, verbose=True)
 # CASCADE: Created 3 CASCADE rules
 ```
 
-**Documentation**: [CASCADE Invalidation Guide](../performance/cascade-invalidation.md)
+**Documentation**: [CASCADE Best Practices](../guides/cascade-best-practices.md)
 
 ---
 
@@ -309,7 +309,7 @@ See each project's CONTRIBUTING.md for guidelines.
 
 - [PostgreSQL Extensions Guide](./postgresql-extensions.md) - Detailed extension docs
 - [Migrations Guide](./migrations.md) - confiture usage
-- [CASCADE Invalidation](../performance/cascade-invalidation.md) - pg_fraiseql_cache
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cascade patterns
 - [Explicit Sync](./explicit-sync.md) - jsonb_ivm integration
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/) - All components working together
 

@@ -7,6 +7,8 @@ from psycopg.types.json import Jsonb
 from fraiseql.mutations.sql_generator import generate_insert_json_call
 from fraiseql.types.definitions import UNSET
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 class TestGenerateInsertJsonCall:

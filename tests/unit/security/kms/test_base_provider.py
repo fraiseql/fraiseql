@@ -1,20 +1,19 @@
 """Tests for BaseKMSProvider ABC."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, UTC
-from unittest.mock import AsyncMock
 
 from fraiseql.security.kms.domain.base import BaseKMSProvider
-from fraiseql.security.kms.domain.models import (
-    EncryptedData,
-    KeyReference,
-    KeyPurpose,
-    DataKeyPair,
-    RotationPolicy,
-)
 from fraiseql.security.kms.domain.exceptions import (
-    EncryptionError,
     DecryptionError,
+    EncryptionError,
+)
+from fraiseql.security.kms.domain.models import (
+    DataKeyPair,
+    EncryptedData,
+    KeyPurpose,
+    KeyReference,
 )
 
 

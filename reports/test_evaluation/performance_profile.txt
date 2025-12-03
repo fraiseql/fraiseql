@@ -1,0 +1,13 @@
+=== FraiseQL Test Performance Profile ===
+Collection Time: s
+Total Tests: 4655
+
+Test Categories:
+- Unit tests (fast): 3452 tests
+- Database tests: 506 tests
+- Integration tests: 777 tests
+- E2E tests: 0 tests
+
+Optimization Potential:
+- Can run 74% of tests without database
+- Estimated CI speedup: 106x

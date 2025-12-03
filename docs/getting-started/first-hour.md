@@ -409,7 +409,7 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 - **[Performance Guide](../guides/performance-guide.md)** - Optimization techniques
 - **[Multi-tenancy](../advanced/multi-tenancy.md)** - Building SaaS applications
-- **[Migration Guide](../migration/v0-to-v1.md)** - Upgrading from older versions
+
 
 ### Need Help?
 

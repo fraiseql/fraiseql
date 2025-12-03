@@ -159,17 +159,12 @@ fn benchmark_components(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("simd_camel_case", |b| {
+    group.bench_function("snake_to_camel", |b| {
         let input = b"user_name_field";
-        let mut group = c.benchmark_group("simd_camel_case");
-        group.bench_function("snake_to_camel_simd", |b| {
-            b.iter(|| {
-                let arena = Arena::with_capacity(1024);
-                unsafe {
-                    black_box(fraiseql_rs::core::camel::snake_to_camel_simd(input, &arena));
-                }
-            })
-        });
+        b.iter(|| {
+            let arena = Arena::with_capacity(1024);
+            black_box(fraiseql_rs::core::camel::snake_to_camel(input, &arena));
+        })
     });
 
     group.finish();

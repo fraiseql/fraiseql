@@ -1,24 +1,71 @@
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.db import DatabaseQuery
 
+pytestmark = pytest.mark.integration
 
-@pytest.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool) -> None:
+
+@pytest_asyncio.fixture(autouse=True, scope="class")
+async def setup_rbac_schema(class_db_pool, test_schema) -> None:
     """Set up RBAC schema before running tests."""
-    # Read the migration file
-    migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
-    migration_sql = migration_path.read_text()
+    from pathlib import Path
 
-    # Execute the migration
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(migration_sql)
-            await conn.commit()
+    # Read the RBAC migration file
+    rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
+    rbac_migration_sql = rbac_migration_path.read_text()
+
+    # Execute the migrations
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        # Execute RBAC schema first
+        await conn.execute(rbac_migration_sql)
+
+        # Execute only the function definitions from RLS migration
+        # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
+        function_sql = """
+        -- Function to check if user has role (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_role(p_user_id UUID, p_role_name TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1 FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = p_user_id
+                AND r.name = p_role_name
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+
+        -- Function to check if user has permission (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_permission(p_user_id UUID, p_resource TEXT, p_action TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1
+                FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                INNER JOIN role_permissions rp ON r.id = rp.role_id
+                INNER JOIN permissions p ON rp.permission_id = p.id
+                WHERE ur.user_id = p_user_id
+                AND p.resource = p_resource
+                AND p.action = p_action
+                AND rp.granted = TRUE
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+        """
+
+        await conn.execute(function_sql)
+        await conn.commit()
+        print("RBAC schema migration executed successfully")
 
 
+@pytest.mark.asyncio
 async def test_rbac_tables_exist(db_repo) -> None:
     """Verify RBAC tables exist with correct schema."""
     tables = ["roles", "permissions", "role_permissions", "user_roles"]
@@ -39,6 +86,7 @@ async def test_rbac_tables_exist(db_repo) -> None:
         assert len(result) > 0, f"Table {table} should exist"
 
 
+@pytest.mark.asyncio
 async def test_roles_table_structure(db_repo) -> None:
     """Verify roles table has correct structure."""
     columns = await db_repo.run(
@@ -85,6 +133,7 @@ async def test_roles_table_structure(db_repo) -> None:
     assert "updated_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_permissions_table_structure(db_repo) -> None:
     """Verify permissions table has correct structure."""
     columns = await db_repo.run(
@@ -110,6 +159,7 @@ async def test_permissions_table_structure(db_repo) -> None:
     assert "created_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_role_permissions_table_structure(db_repo) -> None:
     """Verify role_permissions table has correct structure."""
     columns = await db_repo.run(
@@ -134,6 +184,7 @@ async def test_role_permissions_table_structure(db_repo) -> None:
     assert "created_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_user_roles_table_structure(db_repo) -> None:
     """Verify user_roles table has correct structure."""
     columns = await db_repo.run(
@@ -160,6 +211,7 @@ async def test_user_roles_table_structure(db_repo) -> None:
     assert "expires_at" in column_dict
 
 
+@pytest.mark.asyncio
 async def test_get_inherited_roles_function_exists(db_repo) -> None:
     """Verify get_inherited_roles function exists."""
     result = await db_repo.run(
@@ -178,6 +230,7 @@ async def test_get_inherited_roles_function_exists(db_repo) -> None:
     assert len(result) == 1, "get_inherited_roles function should exist"
 
 
+@pytest.mark.asyncio
 async def test_seed_data_exists(db_repo) -> None:
     """Verify seed data was inserted."""
     # Check system roles
@@ -224,6 +277,7 @@ async def test_seed_data_exists(db_repo) -> None:
     assert "role.assign" in permission_strings
 
 
+@pytest.mark.asyncio
 async def test_role_hierarchy_function_works(db_repo) -> None:
     """Test that the role hierarchy function works with seed data."""
     # Get the viewer role ID

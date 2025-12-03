@@ -7,6 +7,8 @@ from fraiseql import Error
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 class TestAutoMutationFields:

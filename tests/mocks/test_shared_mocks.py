@@ -27,7 +27,7 @@ class TestMockCursor:
 
     @pytest.mark.asyncio
     async def test_cursor_fetchone_returns_json_tuple(self) -> None:
-        """fetchone returns a tuple with JSON string."""
+        """Fetchone returns a tuple with JSON string."""
         cursor = MockCursor()
         async with cursor:
             result = await cursor.fetchone()
@@ -37,7 +37,7 @@ class TestMockCursor:
 
     @pytest.mark.asyncio
     async def test_cursor_fetchall_returns_list(self) -> None:
-        """fetchall returns a list of tuples."""
+        """Fetchall returns a list of tuples."""
         cursor = MockCursor()
         async with cursor:
             result = await cursor.fetchall()

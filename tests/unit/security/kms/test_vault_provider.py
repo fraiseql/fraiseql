@@ -1,14 +1,15 @@
 """Tests for Vault KMS provider."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import base64
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fraiseql.security.kms.infrastructure.vault import (
-    VaultKMSProvider,
-    VaultConfig,
-)
+import pytest
+
 from fraiseql.security.kms.domain.base import BaseKMSProvider
+from fraiseql.security.kms.infrastructure.vault import (
+    VaultConfig,
+    VaultKMSProvider,
+)
 
 
 class TestVaultConfig:

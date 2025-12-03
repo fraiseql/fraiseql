@@ -18,9 +18,8 @@ Expected Behavior:
 4. GraphQL validation should reject String variables for IpAddress fields
 """
 
-from graphql import parse, print_schema, validate
-
 import pytest
+from graphql import parse, print_schema, validate
 
 import fraiseql
 from fraiseql.gql.builders.registry import SchemaRegistry
@@ -224,6 +223,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
         failure: ServerConfigError
 
     @fraiseql.query
+    @pytest.mark.asyncio
     async def test_query(info) -> str:
         return "test"
 

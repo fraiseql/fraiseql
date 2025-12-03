@@ -18,6 +18,8 @@ from fraiseql.optimization.n_plus_one_detector import (
     track_resolver_execution,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestQueryPattern:
     """Test QueryPattern dataclass."""
@@ -596,6 +598,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
+            @pytest.mark.asyncio
             async def test_resolver(self, info) -> None:
                 return "result"
 
@@ -622,6 +625,7 @@ class TestTrackResolverExecution:
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
 
             @track_resolver_execution
+            @pytest.mark.asyncio
             async def test_resolver(self, info) -> None:
                 await asyncio.sleep(0.01)  # Small delay for timing
                 return "result"

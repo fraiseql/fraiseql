@@ -9,6 +9,8 @@ from fraiseql.mutations.error_config import (
     MutationErrorConfig,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 class TestMutationErrorConfig:

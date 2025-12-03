@@ -10,6 +10,8 @@ import pytest
 
 from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_config() -> None:

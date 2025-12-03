@@ -15,6 +15,8 @@ from fraiseql.security.rate_limiting import (
     setup_rate_limiting,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def app() -> None:
@@ -22,6 +24,7 @@ def app() -> None:
     app = FastAPI()
 
     @app.get("/test")
+    @pytest.mark.asyncio
     async def test_endpoint() -> None:
         return {"message": "success"}
 

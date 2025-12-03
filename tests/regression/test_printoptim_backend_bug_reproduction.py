@@ -23,6 +23,8 @@ from fraiseql.types import EmailAddress, IpAddress
 from fraiseql.types.coercion import coerce_input
 from fraiseql.types.definitions import UNSET
 
+pytestmark = pytest.mark.integration
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 

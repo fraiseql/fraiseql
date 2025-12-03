@@ -259,6 +259,7 @@ class TestMetricsIntegration:
         metrics = setup_metrics(app)
 
         @with_metrics("query")
+        @pytest.mark.asyncio
         async def test_function() -> None:
             await asyncio.sleep(0.01)
             return "result"

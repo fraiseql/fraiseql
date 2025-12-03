@@ -291,21 +291,31 @@ def create_fraiseql_app(
         @asynccontextmanager
         async def default_lifespan(app: FastAPI) -> AsyncGenerator[None]:
             """Manage application lifecycle."""
-            # Startup
-            pool = await create_db_pool(
-                str(config.database_url),
-                min_size=2,  # Keep 2 connections warm for better performance
-                max_size=config.database_pool_size,
-                timeout=config.database_pool_timeout,
-            )
-            set_db_pool(pool)
+            # Startup - only create pool if one doesn't already exist
+            # (allows test fixtures to inject their own pool)
+            try:
+                existing_pool = get_db_pool()
+            except RuntimeError:
+                existing_pool = None
+            pool_created_here = False
+
+            if existing_pool is None:
+                pool = await create_db_pool(
+                    str(config.database_url),
+                    min_size=2,  # Keep 2 connections warm for better performance
+                    max_size=config.database_pool_size,
+                    timeout=config.database_pool_timeout,
+                )
+                set_db_pool(pool)
+                pool_created_here = True
 
             yield
 
-            # Shutdown
-            pool_to_close = get_db_pool()
-            if pool_to_close:
-                await pool_to_close.close()
+            # Shutdown - only close pool if we created it
+            if pool_created_here:
+                pool_to_close = get_db_pool()
+                if pool_to_close:
+                    await pool_to_close.close()
 
             if auth_provider and hasattr(auth_provider, "close"):
                 await auth_provider.close()
@@ -419,77 +429,6 @@ def create_fraiseql_app(
             logger.error(f"Auto-discovery failed during app creation: {e}")
             # Continue with empty auto-discovered components
 
-    if auto_discover:
-        logger.info("Auto-discovery enabled - performing discovery during app creation")
-        # Perform synchronous discovery using the discover_fraiseql_schema function
-        import asyncio
-
-        async def sync_discover():
-            return await discover_fraiseql_schema(
-                str(config.database_url),
-                view_pattern="v_%",
-                function_pattern="fn_%",
-                schemas=["public"],
-            )
-
-        # Run the async discovery in a new event loop
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            discovered = loop.run_until_complete(sync_discover())
-            loop.close()
-
-            auto_types = discovered.get("types", [])
-            auto_queries = discovered.get("queries", [])
-            auto_mutations = discovered.get("mutations", [])
-
-            logger.info(
-                f"Auto-discovery completed: {len(auto_types)} types, "
-                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
-            )
-        except Exception as e:
-            logger.error(f"Auto-discovery failed during app creation: {e}")
-            # Continue with empty auto-discovered components
-            auto_types = []
-            auto_queries = []
-            auto_mutations = []
-
-    if auto_discover:
-        logger.info("Auto-discovery enabled - performing synchronous discovery during app creation")
-        # For now, perform synchronous discovery using the discover_fraiseql_schema function
-        # This is a temporary solution until we can make the full async integration work
-        import asyncio
-
-        async def sync_discover():
-            return await discover_fraiseql_schema(
-                str(config.database_url),
-                view_pattern="v_%",
-                function_pattern="fn_%",
-                schemas=["public"],
-            )
-
-        # Run the async discovery in a new event loop
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            discovered = loop.run_until_complete(sync_discover())
-            loop.close()
-
-            auto_types = discovered.get("types", [])
-            auto_queries = discovered.get("queries", [])
-            auto_mutations = discovered.get("mutations", [])
-
-            logger.info(
-                f"Auto-discovery completed: {len(auto_types)} types, "
-                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
-            )
-        except Exception as e:
-            logger.error(f"Auto-discovery failed during app creation: {e}")
-            # Continue with empty auto-discovered components
-            auto_types = []
-            auto_queries = []
-            auto_mutations = []
-
     # Build GraphQL schema
     # Combine both types and queries - types define GraphQL types, queries define query functions
     all_query_types = list(types) + list(queries) + auto_types + auto_queries
@@ -504,13 +443,14 @@ def create_fraiseql_app(
     # Initialize Rust schema registry for type resolution
     # This enables correct __typename for nested JSONB objects and field aliasing
     if enable_schema_registry:
+        import importlib
         import json
         import time
 
-        from fraiseql import _fraiseql_rs
         from fraiseql.core.schema_serializer import SchemaSerializer
 
         try:
+            _fraiseql_rs = importlib.import_module("fraiseql._fraiseql_rs")
             start_time = time.time()
 
             serializer = SchemaSerializer()

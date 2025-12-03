@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test that authentication is properly enforced when configured."""
 
 from typing import Optional
@@ -37,7 +39,7 @@ class TestAuthProvider(AuthProvider):
     async def validate_token(self, token: str) -> dict:
         if token == "valid-token":
             return {"sub": "user-123", "email": "test@example.com"}
-        raise Exception("Invalid token")
+        raise ValueError("Invalid token")
 
     async def get_user_from_token(self, token: str) -> Optional[UserContext]:
         if token == "valid-token":

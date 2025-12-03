@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = pytest.mark.enterprise
+
 
 async def evaluate_constraints(constraints: dict, context: dict, field_args: dict) -> bool:
     """Test version of constraint evaluation logic (matches directives.py)."""

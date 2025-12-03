@@ -32,7 +32,7 @@ pub fn build_mutation_response(
     error_type: &str,
     entity_field_name: Option<&str>,
     entity_type: Option<&str>,
-    cascade_selections: Option<&str>,
+    _cascade_selections: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Parse the mutation result with entity_type for simple format
     let result = MutationResult::from_json(mutation_json, entity_type)?;
@@ -199,6 +199,9 @@ impl MutationResult {
 
         if is_simple || v.is_array() {
             // SIMPLE FORMAT: Treat entire JSON as entity, assume success
+            // Extract '_cascade' field from simple format (note underscore prefix)
+            let cascade = v.get("_cascade").filter(|c| !c.is_null()).cloned();
+
             return Ok(MutationResult {
                 status: MutationStatus::Success("success".to_string()),
                 message: "Success".to_string(),
@@ -206,7 +209,7 @@ impl MutationResult {
                 entity_type: default_entity_type.map(String::from),
                 entity: Some(v.clone()),
                 updated_fields: None,
-                cascade: None,
+                cascade,
                 metadata: None,
                 is_simple_format: true,
             });
@@ -279,6 +282,11 @@ fn build_success_object(
     // Add __typename
     obj.insert("__typename".to_string(), json!(success_type));
 
+    // Add id from entity_id if present
+    if let Some(ref entity_id) = result.entity_id {
+        obj.insert("id".to_string(), json!(entity_id));
+    }
+
     // Add message
     obj.insert("message".to_string(), json!(result.message));
 
@@ -301,6 +309,11 @@ fn build_success_object(
             .map(|f| json!(to_camel_case(f)))
             .collect();
         obj.insert("updatedFields".to_string(), json!(camel_fields));
+    }
+
+    // Add cascade if present
+    if let Some(cascade) = &result.cascade {
+        obj.insert("cascade".to_string(), cascade.clone());
     }
 
     Ok(Value::Object(obj))

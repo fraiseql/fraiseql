@@ -1,14 +1,14 @@
 """Tests for KMS domain models."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, UTC
 
 from fraiseql.security.kms.domain.models import (
-    KeyPurpose,
-    KeyState,
-    KeyReference,
-    EncryptedData,
     DataKeyPair,
+    EncryptedData,
+    KeyPurpose,
+    KeyReference,
     RotationPolicy,
 )
 

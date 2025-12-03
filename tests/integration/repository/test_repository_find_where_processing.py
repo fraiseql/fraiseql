@@ -9,6 +9,14 @@ from unittest.mock import Mock, patch
 import pytest
 
 from fraiseql.db import FraiseQLRepository
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
+
+pytestmark = pytest.mark.integration
 
 
 class TestRepositoryFindWhereProcessing:
@@ -58,9 +66,11 @@ class TestRepositoryFindWhereProcessing:
         )
 
     @pytest.mark.asyncio
-    async def test_repository_find_should_use_operator_strategy_system(self, db_pool) -> None:
+    async def test_repository_find_should_use_operator_strategy_system(
+        self, class_db_pool, test_schema
+    ) -> None:
         """TEST SHOWING THE CORRECT BEHAVIOR: find() should use operator strategies."""
-        db = FraiseQLRepository(db_pool)
+        db = FraiseQLRepository(class_db_pool)
 
         # Mock the operator strategy system to show it should be called
         with patch("fraiseql.sql.operator_strategies.get_operator_registry") as mock_registry:

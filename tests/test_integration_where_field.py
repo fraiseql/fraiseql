@@ -10,18 +10,18 @@ from fraiseql.types import fraise_type
 
 
 @fraise_type
-class TestDevice:
+class DeviceModel:
     id: uuid.UUID
     name: str
     status: str = "active"
 
 
 @fraise_type
-class TestNetwork:
+class NetworkModel:
     id: uuid.UUID
     name: str
-    devices: list[TestDevice] = fraise_field(
-        default_factory=list, supports_where_filtering=True, nested_where_type=TestDevice
+    devices: list[DeviceModel] = fraise_field(
+        default_factory=list, supports_where_filtering=True, nested_where_type=DeviceModel
     )
 
 
@@ -31,19 +31,19 @@ class TestWhereFieldIntegration:
 
     def test_field_metadata_is_set_correctly(self) -> None:
         """Test that field metadata for where filtering is set correctly."""
-        network_fields = getattr(TestNetwork, "__gql_fields__", {})
+        network_fields = getattr(NetworkModel, "__gql_fields__", {})
         devices_field = network_fields.get("devices")
 
         assert devices_field is not None, "devices field should be present"
         assert hasattr(devices_field, "supports_where_filtering")
         assert devices_field.supports_where_filtering is True
         assert hasattr(devices_field, "nested_where_type")
-        assert devices_field.nested_where_type == TestDevice
+        assert devices_field.nested_where_type == DeviceModel
 
     def test_graphql_type_conversion_works(self) -> None:
         """Test that GraphQL type conversion works with where-enabled fields."""
         try:
-            gql_type = convert_type_to_graphql_output(TestNetwork)
+            gql_type = convert_type_to_graphql_output(NetworkModel)
             assert gql_type is not None
 
             # The type should be a GraphQLObjectType
@@ -60,7 +60,7 @@ class TestWhereFieldIntegration:
                     # Verify the where argument has the correct type
                     where_type_name = str(where_arg.type)
                     assert (
-                        "TestDeviceWhereInput" in where_type_name
+                        "DeviceModelWhereInput" in where_type_name
                         or "DeviceWhereInput" in where_type_name
                     )
 
@@ -71,13 +71,13 @@ class TestWhereFieldIntegration:
         """Test that WhereInput types are generated for nested types."""
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
-        TestDeviceWhereInput = create_graphql_where_input(TestDevice)
+        DeviceModelWhereInput = create_graphql_where_input(DeviceModel)
 
         # Verify the where input type has the expected structure
-        assert TestDeviceWhereInput is not None
+        assert DeviceModelWhereInput is not None
 
         # Create an instance to test
-        where_filter = TestDeviceWhereInput()
+        where_filter = DeviceModelWhereInput()
 
         # Should be able to set filter conditions
         where_filter.name = {"contains": "test"}
@@ -104,24 +104,24 @@ class TestWhereFieldIntegration:
         )
 
         # Get the field metadata
-        network_fields = getattr(TestNetwork, "__gql_fields__", {})
+        network_fields = getattr(NetworkModel, "__gql_fields__", {})
         devices_field = network_fields.get("devices")
 
         # Create the enhanced resolver
         resolver = create_nested_array_field_resolver_with_where(
-            "devices", list[TestDevice], devices_field
+            "devices", list[DeviceModel], devices_field
         )
 
         assert resolver is not None
         assert callable(resolver)
 
         # Test the resolver with sample data
-        network = TestNetwork(
+        network = NetworkModel(
             id=uuid.uuid4(),
             name="Test Network",
             devices=[
-                TestDevice(id=uuid.uuid4(), name="device-1", status="active"),
-                TestDevice(id=uuid.uuid4(), name="device-2", status="inactive"),
+                DeviceModel(id=uuid.uuid4(), name="device-1", status="active"),
+                DeviceModel(id=uuid.uuid4(), name="device-2", status="inactive"),
             ],
         )
 
@@ -134,9 +134,9 @@ class TestWhereFieldIntegration:
         # Test with where filter
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
-        TestDeviceWhereInput = create_graphql_where_input(TestDevice)
+        DeviceModelWhereInput = create_graphql_where_input(DeviceModel)
 
-        where_filter = TestDeviceWhereInput()
+        where_filter = DeviceModelWhereInput()
         where_filter.status = {"eq": "active"}
 
         result_filtered = asyncio.run(resolver(network, None, where=where_filter))
@@ -151,13 +151,13 @@ class TestWhereFieldIntegration:
         class NormalNetwork:
             id: uuid.UUID
             name: str
-            devices: list[TestDevice] = fraise_field(default_factory=list)
+            devices: list[DeviceModel] = fraise_field(default_factory=list)
 
         # This should work without where filtering
         normal_network = NormalNetwork(
             id=uuid.uuid4(),
             name="Normal Network",
-            devices=[TestDevice(id=uuid.uuid4(), name="normal-device", status="active")],
+            devices=[DeviceModel(id=uuid.uuid4(), name="normal-device", status="active")],
         )
 
         assert len(normal_network.devices) == 1
@@ -182,8 +182,8 @@ class TestWhereFieldIntegration:
         class ComplexNetwork:
             id: uuid.UUID
             name: str
-            devices: list[TestDevice] = fraise_field(
-                default_factory=list, supports_where_filtering=True, nested_where_type=TestDevice
+            devices: list[DeviceModel] = fraise_field(
+                default_factory=list, supports_where_filtering=True, nested_where_type=DeviceModel
             )
             servers: list[TestServer] = fraise_field(
                 default_factory=list, supports_where_filtering=True, nested_where_type=TestServer
@@ -194,7 +194,7 @@ class TestWhereFieldIntegration:
 
         devices_field = complex_fields.get("devices")
         assert devices_field and devices_field.supports_where_filtering
-        assert devices_field.nested_where_type == TestDevice
+        assert devices_field.nested_where_type == DeviceModel
 
         servers_field = complex_fields.get("servers")
         assert servers_field and servers_field.supports_where_filtering

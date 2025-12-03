@@ -11,6 +11,8 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:

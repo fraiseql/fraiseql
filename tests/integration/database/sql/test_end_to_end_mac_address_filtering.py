@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.database
+
 #!/usr/bin/env python3
 """End-to-end integration tests for MAC address filtering functionality.
 

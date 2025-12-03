@@ -1,13 +1,13 @@
 """Unit tests for CycloneDX adapter."""
 
 import json
+
 import pytest
 
 from fraiseql.sbom.domain.models import (
     SBOM,
     Component,
     ComponentIdentifier,
-    ComponentType,
     Hash,
     HashAlgorithm,
     License,

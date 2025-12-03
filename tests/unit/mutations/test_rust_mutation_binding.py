@@ -2,18 +2,25 @@
 
 import pytest
 
+# Import Rust extension for tests
+try:
+    from fraiseql import _fraiseql_rs
+except ImportError:
+    _fraiseql_rs = None
 
+requires_rust = pytest.mark.skipif(_fraiseql_rs is None, reason="Rust extension not available")
+
+
+@requires_rust
 def test_rust_binding_exists():
     """Test that build_mutation_response is exposed to Python."""
-    from fraiseql import _fraiseql_rs
-
     assert hasattr(_fraiseql_rs, "build_mutation_response")
 
 
+@requires_rust
 def test_rust_binding_simple_format():
     """Test simple format (just entity JSONB) transformation."""
     import json
-    from fraiseql import _fraiseql_rs
 
     # Simple format: just entity data, no status wrapper
     mutation_json = json.dumps({"id": "123", "first_name": "John", "email": "john@example.com"})
@@ -34,10 +41,10 @@ def test_rust_binding_simple_format():
     assert response["data"]["createUser"]["user"]["firstName"] == "John"
 
 
+@requires_rust
 def test_rust_binding_v2_success():
     """Test v2 format (full mutation_result) transformation."""
     import json
-    from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(
         {
@@ -67,10 +74,10 @@ def test_rust_binding_v2_success():
     assert response["data"]["createUser"]["user"]["firstName"] == "John"
 
 
+@requires_rust
 def test_rust_binding_error():
     """Test error mutation transformation."""
     import json
-    from fraiseql import _fraiseql_rs
 
     mutation_json = json.dumps(
         {
@@ -100,10 +107,9 @@ def test_rust_binding_error():
     assert response["data"]["createUser"]["code"] == 422
 
 
+@requires_rust
 def test_rust_binding_invalid_json():
     """Test error handling for invalid JSON."""
-    from fraiseql import _fraiseql_rs
-
     with pytest.raises(ValueError, match="Invalid JSON"):
         _fraiseql_rs.build_mutation_response(
             "not valid json",

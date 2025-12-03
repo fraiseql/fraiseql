@@ -19,7 +19,7 @@ class MockCursor:
     async def __aenter__(self) -> MockCursor:
         return self
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: object) -> None:
         pass
 
     async def fetchone(self) -> tuple[str]:
@@ -38,7 +38,7 @@ class MockConnection:
     async def __aenter__(self) -> MockConnection:
         return self
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: object) -> None:
         pass
 
     def cursor(self) -> MockCursor:

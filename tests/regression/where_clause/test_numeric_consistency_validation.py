@@ -9,6 +9,8 @@ from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.regression
 class TestNumericCastingConsistency:

@@ -1,6 +1,7 @@
 """RED-GREEN-REFACTOR Test for JSONB Network Type Casting Issue.
 
-This test reproduces the exact issue described in /tmp/fraiseql_jsonb_network_filtering_deep_dive.md:
+This test reproduces the exact issue described in
+/tmp/fraiseql_jsonb_network_filtering_deep_dive.md:
 
 PROBLEM: Network filtering fails when IP addresses are stored in JSONB columns because
          FraiseQL treats `data->>'ip_address'` as TEXT but network operations require
@@ -15,6 +16,7 @@ REPRODUCTION:
 This is the core issue causing 3 release failures.
 """
 
+import logging
 from dataclasses import dataclass
 
 import pytest
@@ -22,6 +24,10 @@ from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
+
+logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.integration
 
 
 @dataclass
@@ -58,7 +64,7 @@ class TestJSONBNetworkCastingIssue:
         result = strategy.build_sql(jsonb_path_sql, "eq", "8.8.8.8", IpAddress)
 
         sql_str = str(result)
-        print(f"Generated SQL for IP equality: {sql_str}")
+        logger.debug(f"Generated SQL for IP equality: {sql_str}")
 
         # CRITICAL: The failure is that JSONB text comparison doesn't work for IPs
         # We need ::inet casting for proper IP address operations
@@ -70,13 +76,13 @@ class TestJSONBNetworkCastingIssue:
         # Check what type of comparison we're getting
         if "::inet" in sql_str:
             # GREEN: Proper casting is happening
-            print("✓ PROPER CASTING: Found ::inet in SQL")
+            logger.debug("✓ PROPER CASTING: Found ::inet in SQL")
             assert "::inet" in sql_str, "Should cast to inet for IP operations"
         else:
             # RED: Text comparison (the bug!)
-            print("❌ TEXT COMPARISON BUG: No ::inet casting found")
-            print(f"   SQL: {sql_str}")
-            print("   This will fail to match IP addresses correctly")
+            logger.debug("❌ TEXT COMPARISON BUG: No ::inet casting found")
+            logger.debug(f"   SQL: {sql_str}")
+            logger.debug("   This will fail to match IP addresses correctly")
 
             # This is the bug - we're doing text comparison instead of inet comparison
             # This test should FAIL initially to demonstrate the issue
@@ -94,7 +100,7 @@ class TestJSONBNetworkCastingIssue:
         result = strategy.build_sql(jsonb_path_sql, "isPrivate", True, IpAddress)
 
         sql_str = str(result)
-        print(f"Generated SQL for isPrivate: {sql_str}")
+        logger.debug(f"Generated SQL for isPrivate: {sql_str}")
 
         # Private IP detection MUST use inet casting and subnet operators
         assert "::inet" in sql_str, "Private IP detection requires inet casting"
@@ -116,7 +122,7 @@ class TestJSONBNetworkCastingIssue:
         result = strategy.build_sql(jsonb_path_sql, "inSubnet", "192.168.0.0/16", IpAddress)
 
         sql_str = str(result)
-        print(f"Generated SQL for inSubnet: {sql_str}")
+        logger.debug(f"Generated SQL for inSubnet: {sql_str}")
 
         # Subnet matching MUST use PostgreSQL inet subnet operators
         assert "::inet" in sql_str, "Subnet matching requires inet casting"
@@ -134,7 +140,7 @@ class TestJSONBNetworkCastingIssue:
         # For IpAddress types, eq should ideally also use NetworkOperatorStrategy
         # or at least ComparisonOperatorStrategy with proper IP handling
         eq_strategy = registry.get_strategy("eq", IpAddress)
-        print(f"eq strategy for IpAddress: {eq_strategy.__class__.__name__}")
+        logger.debug(f"eq strategy for IpAddress: {eq_strategy.__class__.__name__}")
 
         # The issue might be here: if ComparisonOperatorStrategy handles eq for IpAddress,
         # it might not know to cast to inet for JSONB fields
@@ -154,7 +160,7 @@ class TestJSONBSpecialTypesCasting:
         result = strategy.build_sql(jsonb_path_sql, "ancestor_of", "top.middle.bottom", LTree)
 
         sql_str = str(result)
-        print(f"Generated SQL for LTree ancestor_of: {sql_str}")
+        logger.debug(f"Generated SQL for LTree ancestor_of: {sql_str}")
 
         # LTree operations need ltree casting
         assert "::ltree" in sql_str, "LTree operations require ltree casting"
@@ -170,7 +176,7 @@ class TestJSONBSpecialTypesCasting:
         result = strategy.build_sql(jsonb_path_sql, "contains_date", "2024-06-15", DateRange)
 
         sql_str = str(result)
-        print(f"Generated SQL for DateRange contains_date: {sql_str}")
+        logger.debug(f"Generated SQL for DateRange contains_date: {sql_str}")
 
         # DateRange operations need daterange casting
         assert "::daterange" in sql_str, "DateRange operations require daterange casting"
@@ -186,7 +192,7 @@ class TestJSONBSpecialTypesCasting:
         result = strategy.build_sql(jsonb_path_sql, "eq", "00:11:22:33:44:55", MacAddress)
 
         sql_str = str(result)
-        print(f"Generated SQL for MacAddress eq: {sql_str}")
+        logger.debug(f"Generated SQL for MacAddress eq: {sql_str}")
 
         # MacAddress operations need macaddr casting
         assert "::macaddr" in sql_str, "MacAddress operations require macaddr casting"
@@ -218,7 +224,7 @@ class TestProductionReproduction:
         result = build_operator_composed(jsonb_ip_path, "eq", "8.8.8.8", IpAddress)
 
         sql_str = str(result)
-        print(f"Production reproduction SQL: {sql_str}")
+        logger.debug(f"Production reproduction SQL: {sql_str}")
 
         # The critical question: is this doing text comparison or inet comparison?
         # Text comparison will fail to match IP addresses properly
@@ -229,9 +235,9 @@ class TestProductionReproduction:
 
         # For the RED phase, we expect this to reveal the casting issue
         if "::inet" not in sql_str:
-            print("❌ PRODUCTION BUG REPRODUCED: No inet casting for IP address equality")
-            print("   This explains why ipAddress: {eq: '8.8.8.8'} fails in production")
-            print(f"   SQL: {sql_str}")
+            logger.debug("❌ PRODUCTION BUG REPRODUCED: No inet casting for IP address equality")
+            logger.debug("   This explains why ipAddress: {eq: '8.8.8.8'} fails in production")
+            logger.debug(f"   SQL: {sql_str}")
 
     def test_production_network_operations_fail(self) -> None:
         """Test the network operations that definitely fail in production."""
@@ -252,7 +258,7 @@ class TestProductionReproduction:
             result = build_operator_composed(jsonb_ip_path, op, value, IpAddress)
             sql_str = str(result)
 
-            print(f"Operation {op} SQL: {sql_str}")
+            logger.debug(f"Operation {op} SQL: {sql_str}")
 
             # All network operations MUST have inet casting to work
             assert "::inet" in sql_str, f"Network operation {op} requires inet casting"
@@ -289,7 +295,7 @@ class TestEnvironmentalParity:
             result = build_operator_composed(jsonb_path, op, value, IpAddress)
             sql_str = str(result)
 
-            print(f"Environment test - {op}: {sql_str}")
+            logger.debug(f"Environment test - {op}: {sql_str}")
 
             # Document the exact SQL being generated
             # This will help us understand the discrepancy
@@ -297,23 +303,24 @@ class TestEnvironmentalParity:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     # Quick smoke test to run manually
-    print("Testing JSONB Network Casting Issue...")
+    logger.info("Testing JSONB Network Casting Issue...")
 
     test_instance = TestJSONBNetworkCastingIssue()
 
     try:
         test_instance.test_jsonb_ip_equality_fails_without_casting()
-        print("✓ IP equality test passed")
+        logger.info("✓ IP equality test passed")
     except Exception as e:
-        print(f"❌ IP equality test failed: {e}")
+        logger.error(f"❌ IP equality test failed: {e}")
 
     try:
         test_instance.test_jsonb_network_isprivate_requires_inet_casting()
-        print("✓ isPrivate test passed")
+        logger.info("✓ isPrivate test passed")
     except Exception as e:
-        print(f"❌ isPrivate test failed: {e}")
+        logger.error(f"❌ isPrivate test failed: {e}")
 
-    print(
+    logger.info(
         "\nRun full tests with: pytest tests/core/test_jsonb_network_casting_fix.py -m core -v -s"
     )

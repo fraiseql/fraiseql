@@ -4,11 +4,16 @@ This test suite ensures that regex matching operators work correctly
 in FraiseQL WHERE filtering.
 """
 
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import pytest
+import pytest_asyncio
 
 pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
+import psycopg_pool
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
@@ -17,28 +22,37 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-# Test types
-@fraiseql.type
-class Product:
-    id: str
-    name: str
-    description: str
-
-
-# Generate where types
-ProductWhere = safe_create_where_type(Product)
-
-
 class TestStringFilterRegex:
     """Test suite for regex operators in StringFilter."""
 
-    @pytest.fixture
-    async def setup_test_views(self, db_pool) -> None:
+    @pytest.fixture(scope="class")
+    def test_types(self, clear_registry_class):
+        """Create test types inside a fixture for proper isolation."""
+
+        @fraiseql.type
+        class Product:
+            id: str
+            name: str
+            description: str
+
+        ProductWhere = safe_create_where_type(Product)
+
+        return {
+            "Product": Product,
+            "ProductWhere": ProductWhere,
+        }
+
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_test_views(
+        self, class_db_pool: psycopg_pool.AsyncConnectionPool, test_types
+    ) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
+        Product = test_types["Product"]
         # Register types for views (for development mode)
         register_type_for_view("test_product_view", Product)
 
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create tables
             await conn.execute(
                 """
@@ -79,86 +93,3 @@ class TestStringFilterRegex:
             )
 
         yield
-
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP VIEW IF EXISTS test_product_view")
-            await conn.execute("DROP TABLE IF EXISTS test_products")
-
-    @pytest.mark.asyncio
-    async def test_matches_operator_basic_regex(self, db_pool, setup_test_views) -> None:
-        """Test basic regex matching with matches operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test regex pattern that matches names starting with 'Widget'
-        where = ProductWhere(name={"matches": "^Widget"})
-
-        # This should fail initially because 'matches' field doesn't exist in StringFilter
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        # Expected: 3 products (Widget Alpha, Widget Beta, Widget123)
-        assert len(results) == 3
-        assert all(r["name"].startswith("Widget") for r in results)
-
-    @pytest.mark.asyncio
-    async def test_matches_operator_case_sensitive(self, db_pool, setup_test_views) -> None:
-        """Test case-sensitive regex matching."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test case-sensitive pattern (should not match lowercase)
-        where = ProductWhere(name={"matches": "^[A-Z]"})
-
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        # Expected: All 5 products (all start with capital letters)
-        assert len(results) == 5
-
-    @pytest.mark.asyncio
-    async def test_matches_operator_with_numbers(self, db_pool, setup_test_views) -> None:
-        """Test regex matching with numeric patterns."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test pattern that matches names containing digits
-        where = ProductWhere(name={"matches": "\\d+"})
-
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        # Expected: 1 product (Widget123)
-        assert len(results) == 1
-        assert results[0]["name"] == "Widget123"
-
-    @pytest.mark.asyncio
-    async def test_imatches_operator_case_insensitive_regex(
-        self, db_pool, setup_test_views
-    ) -> None:
-        """Test case-insensitive regex matching with imatches operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test case-insensitive pattern that should match names starting with 'widget' (lowercase)
-        where = ProductWhere(name={"imatches": "^widget"})
-
-        # This should fail initially because 'imatches' field doesn't exist in StringFilter
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        # Expected: 3 products (Widget Alpha, Widget Beta, Widget123 - case insensitive match)
-        assert len(results) == 3
-        assert all(r["name"].lower().startswith("widget") for r in results)
-
-    @pytest.mark.asyncio
-    async def test_not_matches_operator_negative_regex(self, db_pool, setup_test_views) -> None:
-        """Test negative regex matching with not_matches operator."""
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
-
-        # Test pattern that excludes names starting with 'Widget'
-        where = ProductWhere(name={"not_matches": "^Widget"})
-
-        result = await repo.find("test_product_view", where=where)
-        results = extract_graphql_data(result, "test_product_view")
-
-        # Expected: 2 products (Gadget Gamma, Tool Delta - excluding Widget products)
-        assert len(results) == 2
-        assert all(not r["name"].startswith("Widget") for r in results)

@@ -12,11 +12,26 @@ from typing import Optional
 
 import pytest
 
-from fraiseql import _fraiseql_rs, query
+from fraiseql import query
 from fraiseql.core.schema_serializer import SchemaSerializer
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.mutations.decorators import clear_mutation_registries
 from fraiseql.types import fraise_type
+
+# Import Rust extension for tests
+try:
+    from fraiseql import _fraiseql_rs
+except ImportError:
+    _fraiseql_rs = None
+
+pytestmark = pytest.mark.integration
+
+
+# Skip tests if Rust extension is not available
+requires_rust = pytest.mark.skipif(
+    _fraiseql_rs is None,
+    reason="Rust extension not available"
+)
 
 
 class TestSchemaRegistryInitialization:
@@ -30,6 +45,7 @@ class TestSchemaRegistryInitialization:
         """Clear mutation registries before each test to avoid pollution."""
         clear_mutation_registries()
 
+    @requires_rust
     def test_01_initialize_simple_schema(self) -> None:
         """Test that schema can be initialized from Python with simple types.
 
@@ -146,6 +162,7 @@ class TestSchemaRegistryInitialization:
         assert tags_field["is_nested_object"] is True
         assert tags_field["type_name"] == "Tag"
 
+    @requires_rust
     def test_initialize_with_malformed_json(self) -> None:
         """Test that malformed JSON raises clear error.
 
@@ -161,6 +178,7 @@ class TestSchemaRegistryInitialization:
         error_msg = str(exc_info.value).lower()
         assert "json" in error_msg or "parse" in error_msg
 
+    @requires_rust
     def test_initialize_with_empty_json(self) -> None:
         """Test that empty JSON is rejected.
 
@@ -176,6 +194,7 @@ class TestSchemaRegistryInitialization:
         error_msg = str(exc_info.value).lower()
         assert "version" in error_msg or "types" in error_msg or "missing" in error_msg
 
+    @requires_rust
     def test_initialize_with_empty_string(self) -> None:
         """Test that empty string is rejected with clear error."""
         with pytest.raises(ValueError) as exc_info:
@@ -232,6 +251,7 @@ class TestSchemaRegistryInitialization:
         assert schema_ir["version"] == "1.0"
         assert "type_resolution" in schema_ir["features"]
 
+    @requires_rust
     def test_error_message_quality(self) -> None:
         """Test that error messages are helpful for debugging."""
         # Test with JSON missing 'version' field

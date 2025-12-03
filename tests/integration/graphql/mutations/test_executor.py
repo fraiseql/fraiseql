@@ -7,6 +7,8 @@ import pytest
 from fraiseql.mutations.executor import parse_mutation_result, run_fraiseql_mutation
 from fraiseql.types.errors import Error
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_repository() -> None:

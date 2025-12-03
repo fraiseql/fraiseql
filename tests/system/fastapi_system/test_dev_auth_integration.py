@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Integration tests for development auth with create_fraiseql_app."""
 
 import base64

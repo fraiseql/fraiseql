@@ -6,6 +6,8 @@ from uuid import uuid4
 import pytest
 from psycopg.sql import SQL, Literal
 
+pytestmark = pytest.mark.integration
+
 
 class TestSessionVariablesAcrossExecutionModes:
     """Test that session variables are set consistently in all execution modes."""

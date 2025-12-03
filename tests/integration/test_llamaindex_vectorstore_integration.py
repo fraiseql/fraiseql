@@ -1,5 +1,4 @@
-"""
-FraiseQL LlamaIndex Integration Tests
+"""FraiseQL LlamaIndex Integration Tests
 
 Tests complete LlamaIndex VectorStore functionality including:
 - Document storage and retrieval
@@ -9,13 +8,23 @@ Tests complete LlamaIndex VectorStore functionality including:
 - Performance with real database operations
 """
 
-import asyncio
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import List
 from unittest.mock import Mock
 
 import pytest
+import pytest_asyncio
 from psycopg.types.json import Json
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry_class,
+    pgvector_available,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
+
+pytestmark = pytest.mark.integration
 
 # Check if LlamaIndex is available
 try:
@@ -28,7 +37,7 @@ except ImportError:
     LlamaDocument = Mock  # type: ignore
     TextNode = Mock  # type: ignore
 
-from fraiseql.integrations.llamaindex import FraiseQLVectorStore, FraiseQLReader
+from fraiseql.integrations.llamaindex import FraiseQLReader, FraiseQLVectorStore
 
 
 # Mock embedding function for testing
@@ -51,17 +60,16 @@ class MockEmbeddings:
         return [0.1] * self.dimension
 
 
-@pytest.fixture
-async def vectorstore_table(db_pool) -> str:
+@pytest_asyncio.fixture
+async def vectorstore_table(class_db_pool, test_schema, pgvector_available):
     """Create a test table for vectorstore integration tests."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     table_name = f"test_llamaindex_docs_{uuid.uuid4().hex[:8]}"
 
-    async with db_pool.connection() as conn:
-        # Enable pgvector extension in this connection
-        try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        except Exception as e:
-            pytest.skip(f"pgvector extension not available: {e}")
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
 
         # Create test table with vector support
         await conn.execute(f"""
@@ -86,10 +94,6 @@ async def vectorstore_table(db_pool) -> str:
 
     yield table_name
 
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
-
 
 @pytest.fixture
 def mock_embeddings() -> MockEmbeddings:
@@ -97,21 +101,26 @@ def mock_embeddings() -> MockEmbeddings:
     return MockEmbeddings(dimension=384)
 
 
-@pytest.fixture
-async def vectorstore(db_pool, vectorstore_table: str) -> FraiseQLVectorStore:
+@pytest_asyncio.fixture
+async def vectorstore(
+    class_db_pool, vectorstore_table: str, pgvector_available
+) -> FraiseQLVectorStore:
     """Create a FraiseQLVectorStore instance for testing."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     return FraiseQLVectorStore(
-        db_pool=db_pool,
+        db_pool=class_db_pool,
         table_name=vectorstore_table,
         embedding_dimension=384,
     )
 
 
-@pytest.fixture
-async def reader(db_pool, vectorstore_table: str) -> FraiseQLReader:
+@pytest_asyncio.fixture
+async def reader(class_db_pool, vectorstore_table: str) -> FraiseQLReader:
     """Create a FraiseQLReader instance for testing."""
     return FraiseQLReader(
-        db_pool=db_pool,
+        db_pool=class_db_pool,
         table_name=vectorstore_table,
     )
 
@@ -121,10 +130,11 @@ class TestFraiseQLReader:
     """Test FraiseQLReader functionality."""
 
     @pytest.mark.asyncio
-    async def test_load_data_basic(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_basic(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test basic data loading from FraiseQL table."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("test1", "This is test content", Json({"author": "test", "category": "test"})),
@@ -140,10 +150,11 @@ class TestFraiseQLReader:
         assert documents[0].metadata["id"] == "test1"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_filters(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_with_filters(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test data loading with WHERE filters."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("test1", "Content 1", Json({"category": "A"})),
@@ -161,10 +172,11 @@ class TestFraiseQLReader:
         assert documents[0].metadata["category"] == "A"
 
     @pytest.mark.asyncio
-    async def test_load_data_with_limit(self, reader: FraiseQLReader, db_pool):
+    async def test_load_data_with_limit(self, reader: FraiseQLReader, class_db_pool, test_schema):
         """Test data loading with LIMIT."""
         # Insert test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             for i in range(5):
                 await conn.execute(
                     f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
@@ -194,10 +206,7 @@ class TestFraiseQLVectorStore:
         nodes = []
         for i in range(3):
             node = TextNode(
-                id_=f"node_{i}",
-                text=f"Content {i}",
-                embedding=[0.1] * 384,
-                metadata={"index": i}
+                id_=f"node_{i}", text=f"Content {i}", embedding=[0.1] * 384, metadata={"index": i}
             )
             nodes.append(node)
 
@@ -217,10 +226,7 @@ class TestFraiseQLVectorStore:
         """Test deleting nodes."""
         # Add a node first
         node = TextNode(
-            id_="delete_test",
-            text="Content to delete",
-            embedding=[0.1] * 384,
-            metadata={}
+            id_="delete_test", text="Content to delete", embedding=[0.1] * 384, metadata={}
         )
 
         ids = await vectorstore.aadd([node])
@@ -248,7 +254,7 @@ class TestFraiseQLVectorStore:
                 text=f"Search content {i}",
                 # Create slightly different embeddings
                 embedding=[0.1 + i * 0.01] * 384,
-                metadata={"score": i}
+                metadata={"score": i},
             )
             nodes.append(node)
 
@@ -260,7 +266,7 @@ class TestFraiseQLVectorStore:
         query = VectorStoreQuery(
             query_embedding=[0.1] * 384,  # Similar to first node
             similarity_top_k=3,
-            filters=None
+            filters=None,
         )
 
         # Search
@@ -280,21 +286,23 @@ class TestFraiseQLVectorStore:
                 id_=f"filter_{category}_{len(nodes)}",
                 text=f"Content for {category}",
                 embedding=[0.1] * 384,
-                metadata={"category": category}
+                metadata={"category": category},
             )
             nodes.append(node)
 
         await vectorstore.aadd(nodes)
 
         # Create query with metadata filter
-        from llama_index.core.vector_stores.types import VectorStoreQuery, MetadataFilters, MetadataFilter
+        from llama_index.core.vector_stores.types import (
+            MetadataFilter,
+            MetadataFilters,
+            VectorStoreQuery,
+        )
 
         query = VectorStoreQuery(
             query_embedding=[0.1] * 384,
             similarity_top_k=10,
-            filters=MetadataFilters(
-                filters=[MetadataFilter(key="category", value="A")]
-            )
+            filters=MetadataFilters(filters=[MetadataFilter(key="category", value="A")]),
         )
 
         # Search with filter
@@ -341,11 +349,12 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_reader_vectorstore_workflow(
-        self, reader: FraiseQLReader, vectorstore: FraiseQLVectorStore, db_pool
+        self, reader: FraiseQLReader, vectorstore: FraiseQLVectorStore, class_db_pool, test_schema
     ):
         """Test a complete workflow from reading to vector storage."""
         # Insert data via SQL
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 f"INSERT INTO {reader.table_name} (id, content, metadata) VALUES (%s, %s, %s)",
                 ("workflow_test", "Workflow test content", Json({"source": "test"})),
@@ -361,7 +370,7 @@ class TestIntegration:
             id_=documents[0].metadata["id"],
             text=documents[0].text,
             embedding=[0.1] * 384,
-            metadata=documents[0].metadata
+            metadata=documents[0].metadata,
         )
 
         # Store in vectorstore

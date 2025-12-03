@@ -31,7 +31,7 @@ class TestImportScriptStructure:
 
     def test_import_script_has_shebang(self) -> None:
         """Import script should start with proper shebang."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             first_line = f.readline().strip()
 
         assert first_line in [
@@ -41,7 +41,7 @@ class TestImportScriptStructure:
 
     def test_import_script_has_error_handling(self) -> None:
         """Import script should have error handling (set -e)."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         assert "set -e" in content, "Import script missing 'set -e' for error handling"
@@ -52,7 +52,7 @@ class TestImportScriptContent:
 
     def test_script_defines_configuration_variables(self) -> None:
         """Script should define configuration variables."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         required_vars = [
@@ -67,17 +67,16 @@ class TestImportScriptContent:
 
     def test_script_checks_grafana_connectivity(self) -> None:
         """Script should check Grafana connectivity before importing."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should have connectivity check using curl or similar
-        assert "curl" in content and "/api/health" in content, (
-            "Import script should check Grafana connectivity"
-        )
+        assert "curl" in content, "Import script should use curl for connectivity check"
+        assert "/api/health" in content, "Import script should check /api/health endpoint"
 
     def test_script_has_import_function(self) -> None:
         """Script should have function to import dashboards."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should define import_dashboard function
@@ -87,7 +86,7 @@ class TestImportScriptContent:
 
     def test_script_lists_dashboard_files(self) -> None:
         """Script should list all dashboard files to import."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         expected_dashboards = [
@@ -103,7 +102,7 @@ class TestImportScriptContent:
 
     def test_script_has_error_messages(self) -> None:
         """Script should have user-friendly error messages."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should have error messages
@@ -120,26 +119,29 @@ class TestImportScriptSafety:
 
     def test_script_uses_proper_quotes(self) -> None:
         """Script variables should be properly quoted to prevent injection."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             lines = f.readlines()
 
         # Check for common unquoted variable usage
-        for i, line in enumerate(lines, 1):
+        for _, line in enumerate(lines, 1):
             # Skip comments
             if line.strip().startswith("#"):
                 continue
 
             # Check for unquoted $variables in command positions
             # This is a simplified check - full validation would be complex
-            if " $GRAFANA" in line or " $DASHBOARD" in line:
+            if (
+                (" $GRAFANA" in line or " $DASHBOARD" in line)
+                and "echo" not in line.lower()
+                and "if" not in line.lower()
+            ):
                 # Should be quoted: "$VARIABLE"
                 # Allow exceptions for specific safe contexts
-                if "echo" not in line.lower() and "if" not in line.lower():
-                    pass  # Complex to validate, skip for now
+                pass  # Complex to validate, skip for now
 
     def test_script_has_safe_exit_codes(self) -> None:
         """Script should exit with proper exit codes."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should use exit codes
@@ -147,7 +149,7 @@ class TestImportScriptSafety:
 
     def test_script_validates_file_paths(self) -> None:
         """Script should validate file paths before using them."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should check if files exist
@@ -161,7 +163,7 @@ class TestImportScriptHelp:
 
     def test_script_has_header_comments(self) -> None:
         """Script should have header comments explaining usage."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should have comment header
@@ -177,13 +179,12 @@ class TestImportScriptHelp:
 
     def test_script_shows_usage_information(self) -> None:
         """Script should display usage information."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should explain configuration
-        assert "GRAFANA_URL" in content and "localhost:3000" in content, (
-            "Import script should document GRAFANA_URL configuration"
-        )
+        assert "GRAFANA_URL" in content, "Import script should document GRAFANA_URL configuration"
+        assert "localhost:3000" in content, "Import script should show localhost:3000 example"
 
 
 class TestImportScriptDependencies:
@@ -191,7 +192,7 @@ class TestImportScriptDependencies:
 
     def test_script_uses_standard_tools(self) -> None:
         """Script should use standard Unix tools available everywhere."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Required tools that should be available
@@ -202,7 +203,7 @@ class TestImportScriptDependencies:
 
     def test_script_uses_jq_for_json(self) -> None:
         """Script should use jq for JSON manipulation."""
-        with open(IMPORT_SCRIPT) as f:
+        with IMPORT_SCRIPT.open() as f:
             content = f.read()
 
         # Should use jq for JSON processing

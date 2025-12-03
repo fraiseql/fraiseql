@@ -172,6 +172,7 @@ async def build_graphql_context(
         "authenticated": user is not None,
         "loader_registry": loader_registry,
         "config": config,  # Add config for introspection policy access
+        "_http_mode": True,  # Enable Rust-first path for mutations
     }
 
     # Add query timeout to context if configured

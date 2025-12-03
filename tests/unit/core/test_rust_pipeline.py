@@ -2,17 +2,24 @@
 
 import json
 
+import fraiseql._fraiseql_rs as fraiseql_rs
 import pytest
 from src.fraiseql.core.rust_pipeline import RustResponseBytes
-
-from fraiseql import _fraiseql_rs as fraiseql_rs
 
 
 # Schema registry initialization fixture
 @pytest.fixture(scope="module", autouse=True)
 def init_schema_registry() -> None:
-    """Initialize schema registry for tests that need it."""
-    # Simple schema IR for testing
+    """Initialize schema registry for tests that need it.
+
+    Uses reset_schema_registry_for_testing() to ensure a clean state,
+    allowing re-initialization with the schema these tests need.
+    """
+    # Reset the schema registry to allow re-initialization
+    # This is safe for tests - in production, the registry is never reset
+    fraiseql_rs.reset_schema_registry_for_testing()
+
+    # Simple schema IR for testing (includes Equipment for nested object tests)
     schema_ir = {
         "version": "1.0",
         "features": ["type_resolution"],
@@ -26,6 +33,11 @@ def init_schema_registry() -> None:
                         "is_list": False,
                     },
                     "email": {"type_name": "String", "is_nested_object": False, "is_list": False},
+                    "password_hash": {
+                        "type_name": "String",
+                        "is_nested_object": False,
+                        "is_list": False,
+                    },
                     "equipment": {
                         "type_name": "Equipment",
                         "is_nested_object": True,
@@ -42,18 +54,8 @@ def init_schema_registry() -> None:
         },
     }
 
-    try:
-        result = fraiseql_rs.initialize_schema_registry(json.dumps(schema_ir))
-        print(f"Schema registry initialization result: {result}")
-    except RuntimeError as e:
-        # Registry is already initialized - this is expected in test sessions
-        if "already initialized" in str(e):
-            print("Schema registry already initialized (expected)")
-        else:
-            raise
-    except Exception as e:
-        print(f"Unexpected error initializing schema registry: {e}")
-        raise
+    result = fraiseql_rs.initialize_schema_registry(json.dumps(schema_ir))
+    print(f"Schema registry initialization result: {result}")
 
 
 def test_build_graphql_response_list() -> None:
@@ -163,6 +165,80 @@ def test_build_graphql_response_with_field_selections_and_aliases() -> None:
 
     # Note: Field projection (filtering non-selected fields) is not yet implemented
     # The "email" field will still be present in the output
+
+
+def test_build_graphql_response_field_projection_filters_unselected_fields() -> None:
+    """RED PHASE: Test that field projection filters out non-selected fields.
+
+    When field_selections are provided, fields NOT in the selections should be excluded
+    from the response. This includes sensitive data like passwords.
+
+    Currently: This test FAILS because field projection is not implemented.
+    After implementation: This test should PASS.
+    """
+    json_string = '{"id": 1, "user_name": "Alice", "email": "alice@example.com", "password_hash": "secret123"}'
+
+    # Only select id and user_name (exclude email and password_hash)
+    field_selections = [
+        {"materialized_path": "id", "alias": "id"},
+        {"materialized_path": "user_name", "alias": "userName"},
+    ]
+
+    response_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[json_string],
+        field_name="user",
+        type_name="User",
+        field_paths=None,
+        field_selections=json.dumps(field_selections),
+        is_list=False,  # Single object response
+    )
+
+    result = json.loads(response_bytes.decode("utf-8"))
+    user = result["data"]["user"]
+
+    # Should have selected fields
+    assert user["__typename"] == "User"
+    assert user["id"] == 1
+    assert user["userName"] == "Alice"
+
+    # Field projection: these should NOT be present
+    assert "email" not in user, "email should be filtered out by field projection"
+    assert "passwordHash" not in user, "password_hash should be filtered out by field projection"
+
+
+def test_build_graphql_response_field_projection_always_includes_typename() -> None:
+    """RED PHASE: Test that __typename is always included even when not in selections.
+
+    The __typename field is automatically injected by the GraphQL spec and should
+    always be present regardless of field selections.
+
+    Currently: This test PASSES because __typename is already injected.
+    """
+    json_string = '{"id": 1, "user_name": "Alice"}'
+
+    # Only select id (no explicit __typename)
+    field_selections = [
+        {"materialized_path": "id", "alias": "id"},
+    ]
+
+    response_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[json_string],
+        field_name="user",
+        type_name="User",
+        field_paths=None,
+        field_selections=json.dumps(field_selections),
+        is_list=False,  # Single object response
+    )
+
+    result = json.loads(response_bytes.decode("utf-8"))
+    user = result["data"]["user"]
+
+    # __typename should ALWAYS be present
+    assert user["__typename"] == "User"
+    assert user["id"] == 1
+
+    # user_name should NOT be present (not selected) - tests field projection
+    assert "userName" not in user, "user_name should be filtered out by field projection"
 
 
 def test_build_graphql_response_with_nested_object_aliases() -> None:

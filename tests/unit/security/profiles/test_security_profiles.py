@@ -1,20 +1,19 @@
 """Tests for security profiles."""
 
-import pytest
 from unittest.mock import Mock
 
+import pytest
+
 from fraiseql.security.profiles import (
-    SecurityProfile,
-    SecurityProfileConfig,
-    AuditLevel,
-    ErrorDetailLevel,
-    IntrospectionPolicy,
-    get_profile,
-    STANDARD_PROFILE,
     REGULATED_PROFILE,
     RESTRICTED_PROFILE,
+    STANDARD_PROFILE,
+    IntrospectionPolicy,
     ProfileEnforcer,
     QueryValidatorConfig,
+    SecurityProfile,
+    SecurityProfileConfig,
+    get_profile,
 )
 
 

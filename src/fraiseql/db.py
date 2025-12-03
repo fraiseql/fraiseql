@@ -623,9 +623,12 @@ class FraiseQLRepository:
                     )
 
                     # Serialize to JSON format for Rust
+                    # Use "materialized_path" (dot-separated string) as expected by Rust
                     field_selections_json = [
                         {
-                            "path": sel.path,
+                            "materialized_path": ".".join(sel.path)
+                            if isinstance(sel.path, list)
+                            else sel.path,
                             "alias": sel.alias,
                             "type_name": sel.type_name,
                             "is_nested_object": sel.is_nested_object,
@@ -730,9 +733,12 @@ class FraiseQLRepository:
                     )
 
                     # Serialize to JSON format for Rust
+                    # Use "materialized_path" (dot-separated string) as expected by Rust
                     field_selections_json = [
                         {
-                            "path": sel.path,
+                            "materialized_path": ".".join(sel.path)
+                            if isinstance(sel.path, list)
+                            else sel.path,
                             "alias": sel.alias,
                             "type_name": sel.type_name,
                             "is_nested_object": sel.is_nested_object,

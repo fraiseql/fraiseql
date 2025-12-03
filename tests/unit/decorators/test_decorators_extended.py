@@ -61,6 +61,7 @@ class TestRequiresAuth:
         mock_info = self.create_mock_info(user)
 
         @requires_auth
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -73,6 +74,7 @@ class TestRequiresAuth:
         mock_info = self.create_mock_info()
 
         @requires_auth
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -85,6 +87,7 @@ class TestRequiresAuth:
         mock_info = self.create_mock_info({"not": "a_user_context"})
 
         @requires_auth
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -120,6 +123,7 @@ class TestRequiresAuth:
         mock_info = self.create_mock_info(user)
 
         @requires_auth
+        @pytest.mark.asyncio
         async def test_resolver(info=None, other_arg="test") -> None:
             return {"success": True, "arg": other_arg}
 
@@ -155,6 +159,7 @@ class TestRequiresPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_permission("users:read")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -167,6 +172,7 @@ class TestRequiresPermission:
         mock_info = self.create_mock_info()
 
         @requires_permission("users:read")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -180,6 +186,7 @@ class TestRequiresPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_permission("users:write")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -228,6 +235,7 @@ class TestRequiresRole:
         mock_info = self.create_mock_info(user)
 
         @requires_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -240,6 +248,7 @@ class TestRequiresRole:
         mock_info = self.create_mock_info()
 
         @requires_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -253,6 +262,7 @@ class TestRequiresRole:
         mock_info = self.create_mock_info(user)
 
         @requires_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -301,6 +311,7 @@ class TestRequiresAnyPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_any_permission("users:read", "admin:all")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -314,6 +325,7 @@ class TestRequiresAnyPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_any_permission("users:read", "admin:all")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -326,6 +338,7 @@ class TestRequiresAnyPermission:
         mock_info = self.create_mock_info()
 
         @requires_any_permission("users:read", "admin:all")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -339,6 +352,7 @@ class TestRequiresAnyPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_any_permission("users:read", "admin:all")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -355,6 +369,7 @@ class TestRequiresAnyPermission:
         mock_info = self.create_mock_info(user)
 
         @requires_any_permission("users:read")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -389,6 +404,7 @@ class TestRequiresAnyRole:
         mock_info = self.create_mock_info(user)
 
         @requires_any_role("admin", "moderator")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -402,6 +418,7 @@ class TestRequiresAnyRole:
         mock_info = self.create_mock_info(user)
 
         @requires_any_role("admin", "moderator")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -414,6 +431,7 @@ class TestRequiresAnyRole:
         mock_info = self.create_mock_info()
 
         @requires_any_role("admin", "moderator")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -427,6 +445,7 @@ class TestRequiresAnyRole:
         mock_info = self.create_mock_info(user)
 
         @requires_any_role("admin", "moderator")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -443,6 +462,7 @@ class TestRequiresAnyRole:
         mock_info = self.create_mock_info(user)
 
         @requires_any_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -479,6 +499,7 @@ class TestDecoratorCombinations:
         @requires_auth
         @requires_permission("users:write")
         @requires_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -492,6 +513,7 @@ class TestDecoratorCombinations:
 
         @requires_auth
         @requires_permission("users:write")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -506,6 +528,7 @@ class TestDecoratorCombinations:
 
         @requires_auth
         @requires_permission("users:write")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -523,6 +546,7 @@ class TestDecoratorCombinations:
         @requires_auth
         @requires_permission("users:write")
         @requires_role("admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -546,6 +570,7 @@ class TestEdgeCases:
         mock_info = self.create_mock_info(user)
 
         @requires_permission("users:read")
+        @pytest.mark.asyncio
         async def test_resolver(info, user_id: str, filters: dict | None = None) -> None:
             return {"user_id": user_id, "filters": filters}
 
@@ -572,6 +597,7 @@ class TestEdgeCases:
         mock_info = self.create_mock_info(user)
 
         @requires_any_permission()
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -586,6 +612,7 @@ class TestEdgeCases:
         mock_info = self.create_mock_info(user)
 
         @requires_any_role()
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -600,6 +627,7 @@ class TestEdgeCases:
         mock_info.context = {"user": None}
 
         @requires_auth
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -613,6 +641,7 @@ class TestEdgeCases:
         mock_info = self.create_mock_info(user)
 
         @requires_permission("org:123:users:write")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 
@@ -626,6 +655,7 @@ class TestEdgeCases:
         mock_info = self.create_mock_info(user)
 
         @requires_role("org-admin")
+        @pytest.mark.asyncio
         async def test_resolver(info) -> None:
             return {"success": True}
 

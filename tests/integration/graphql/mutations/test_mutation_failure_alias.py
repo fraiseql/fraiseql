@@ -5,6 +5,9 @@ import pytest
 import fraiseql
 from fraiseql import failure, fraise_input, mutation, success
 
+pytestmark = pytest.mark.integration
+
+
 # Input type
 
 
@@ -66,18 +69,21 @@ def test_mutation_with_error_still_works() -> None:
     assert CreateUserLegacy.__fraiseql_mutation__.error_type == CreateUserFailure
 
 
-def test_mutation_without_failure_or_error_fails() -> None:
-    """Test that mutation without failure/error type fails."""
-    with pytest.raises(TypeError, match="must define 'failure' type"):
+def test_mutation_without_failure_or_error_stores_none() -> None:
+    """Test that mutation without failure/error type stores None (no validation at decoration time)."""
 
-        @mutation
-        class InvalidMutation:
-            input: CreateUserInput
-            success: CreateUserSuccess
-            # Missing failure/error type!
+    @mutation
+    class InvalidMutation:
+        input: CreateUserInput
+        success: CreateUserSuccess
+        # Missing failure/error type!
 
-            async def execute(self, db, input_data) -> None:
-                return CreateUserSuccess(user_id=3)
+        async def execute(self, db, input_data) -> None:
+            return CreateUserSuccess(user_id=3)
+
+    # Error type should be None when not provided
+    assert InvalidMutation.__fraiseql_mutation__ is not None
+    assert InvalidMutation.__fraiseql_mutation__.error_type is None
 
 
 def test_mutation_prefers_error_over_failure() -> None:

@@ -432,7 +432,7 @@ async def posts(
 
     # Use FraiseQL repository - handles JSONB extraction and type instantiation
     return await db.find(
-        "v_posts", "posts", info, limit=limit, offset=offset, order_by="-created_at", **filters
+        "v_posts", "posts", info, limit=limit, offset=offset, order_by="created_at DESC", **filters
     )
 
 

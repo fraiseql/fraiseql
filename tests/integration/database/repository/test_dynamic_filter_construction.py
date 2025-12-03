@@ -23,10 +23,11 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 class TestDynamicFilterConstruction:
     """Test suite for dynamic filter construction in repository find() method."""
 
-    async def test_dynamic_dict_filter_construction(self, db_pool) -> None:
+    async def test_dynamic_dict_filter_construction(self, class_db_pool, test_schema) -> None:
         """Test that dictionary where clauses are properly processed when constructed dynamically."""
         # Set up test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create test table
             await conn.execute(
                 """
@@ -78,7 +79,7 @@ class TestDynamicFilterConstruction:
             await conn.commit()
 
         # Create repository instance in production mode (returns dicts)
-        repo = FraiseQLRepository(db_pool, context={"mode": "production"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "production"})
 
         # Simulate the pattern from the bug report: dynamically building where clause
         where = None
@@ -103,10 +104,12 @@ class TestDynamicFilterConstruction:
         for r in results:
             assert r["isCurrent"] is True, f"Result has isCurrent={r['isCurrent']}, expected True"
 
-    async def test_merged_dict_filters(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_merged_dict_filters(self, class_db_pool, test_schema) -> None:
         """Test merging multiple dynamic filters into a where clause."""
         # Set up test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create test table
             await conn.execute(
                 """
@@ -174,7 +177,7 @@ class TestDynamicFilterConstruction:
 
         register_type_for_view("test_product", TestProduct)
 
-        repo = FraiseQLRepository(db_pool, context={"mode": "production"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "production"})
 
         # Build dynamic where clause with multiple conditions
         where = {}
@@ -209,10 +212,12 @@ class TestDynamicFilterConstruction:
         assert float(results[0]["price"]) == 149.99
         assert results[0]["isActive"] is True
 
-    async def test_empty_dict_where_to_populated(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_dict_where_to_populated(self, class_db_pool, test_schema) -> None:
         """Test that starting with empty dict and populating it works."""
         # Set up test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS test_items (
@@ -261,7 +266,7 @@ class TestDynamicFilterConstruction:
 
         register_type_for_view("test_items", TestItem)
 
-        repo = FraiseQLRepository(db_pool, context={"mode": "production"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "production"})
 
         # Start with empty where dict (common pattern in resolvers)
         where = {}
@@ -280,10 +285,12 @@ class TestDynamicFilterConstruction:
         assert len(results) == 2, f"Expected 2 active items, got {len(results)}"
         assert all(r["status"] == "active" for r in results)
 
-    async def test_complex_nested_dict_filters(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_complex_nested_dict_filters(self, class_db_pool, test_schema) -> None:
         """Test complex dictionary filters with multiple operators."""
         # Set up test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS test_events (
@@ -334,7 +341,7 @@ class TestDynamicFilterConstruction:
 
         register_type_for_view("test_events", TestEvent)
 
-        repo = FraiseQLRepository(db_pool, context={"mode": "production"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "production"})
 
         # Build complex where clause dynamically
         where = {}

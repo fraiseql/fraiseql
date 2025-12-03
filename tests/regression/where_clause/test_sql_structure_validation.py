@@ -13,6 +13,8 @@ from psycopg.sql import SQL
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.sql.where_generator import build_operator_composed
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.regression
 class TestSQLStructureValidation:

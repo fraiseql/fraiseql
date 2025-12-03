@@ -83,7 +83,7 @@ FraiseQL provides flexible filtering with two syntaxes:
 - [Performance Guide](performance/index.md)
 - [APQ Optimization](performance/apq-optimization-guide.md)
 - [Rust Pipeline](performance/rust-pipeline-optimization.md)
-- [CASCADE Performance](performance/cascade-invalidation.md)
+- [CASCADE Best Practices](guides/cascade-best-practices.md)
 
 ## Reference
 

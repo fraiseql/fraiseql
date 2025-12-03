@@ -1,5 +1,9 @@
+import pytest
+
 from fraiseql.core.graphql_type import convert_type_to_graphql_output
 from fraiseql.enterprise.audit.types import AuditEvent
+
+pytestmark = pytest.mark.integration
 
 
 def test_audit_event_graphql_type() -> None:

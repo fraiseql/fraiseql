@@ -268,54 +268,65 @@ pub fn transform_with_selections(
     selections: &[Value],
     registry: &SchemaRegistry,
 ) -> Value {
-    // Build alias map from selections
-    let alias_map = build_alias_map(selections);
+    // Build alias map and allowed fields from selections
+    let (alias_map, allowed_fields) = build_alias_map(selections);
 
-    // Transform with aliases applied
-    transform_with_aliases(value, current_type, "", &alias_map, registry)
+    // Transform with aliases and field projection applied
+    transform_with_aliases(value, current_type, "", &alias_map, &allowed_fields, registry)
 }
 
-/// Build a mapping from materialized paths to aliases
+/// Build a mapping from materialized paths to aliases and allowed field names
 ///
-/// Returns a HashMap where:
-/// - Key: materialized path (e.g., "user.posts.author_name")
-/// - Value: alias (e.g., "writerName")
-fn build_alias_map(selections: &[Value]) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
+/// Returns a tuple of:
+/// - HashMap: materialized path -> alias
+/// - HashSet: allowed root-level field names for field projection
+fn build_alias_map(selections: &[Value]) -> (std::collections::HashMap<String, String>, std::collections::HashSet<String>) {
+    let mut alias_map = std::collections::HashMap::new();
+    let mut allowed_fields = std::collections::HashSet::new();
 
     for selection in selections {
         if let (Some(path), Some(alias)) = (
             selection.get("materialized_path").and_then(|v| v.as_str()),
             selection.get("alias").and_then(|v| v.as_str()),
         ) {
-            map.insert(path.to_string(), alias.to_string());
+            alias_map.insert(path.to_string(), alias.to_string());
+
+            // Extract root-level field name for field projection
+            // e.g., "profile.bio" -> "profile", "id" -> "id"
+            if let Some(first_segment) = path.split('.').next() {
+                allowed_fields.insert(first_segment.to_string());
+            }
         }
     }
 
-    map
+    (alias_map, allowed_fields)
 }
 
-/// Transform JSON value with alias support
+/// Transform JSON value with alias support and field projection
 ///
 /// This is the core aliasing algorithm that applies GraphQL field aliases during
 /// transformation. It recursively traverses the JSON structure, maintaining a
-/// materialized path to match against the alias map.
+/// materialized path to match against the alias map, and filters fields based on
+/// allowed field names for field projection.
 ///
 /// # Algorithm
 /// 1. **Path Construction**: Build materialized path as we traverse (e.g., "user.posts.author_name")
 /// 2. **Alias Lookup**: Check if current path has an alias in the map
-/// 3. **Key Selection**: Use alias if present, otherwise camelCase
-/// 4. **Recursive Transform**: Apply same logic to nested objects/arrays
+/// 3. **Field Projection**: Check if field is in allowed set (skip if not)
+/// 4. **Key Selection**: Use alias if present, otherwise camelCase
+/// 5. **Recursive Transform**: Apply same logic to nested objects/arrays
 ///
 /// # Arguments
 /// * `value` - JSON value to transform
 /// * `current_type` - GraphQL type name for schema lookup
 /// * `current_path` - Materialized path to current position (e.g., "user.posts")
 /// * `alias_map` - Precomputed map from paths to aliases
+/// * `allowed_fields` - Set of allowed root-level field names (None for no filtering)
 /// * `registry` - Schema registry for type resolution
 ///
 /// # Performance
 /// - O(1) alias lookup via HashMap
+/// - O(1) field filtering via HashSet
 /// - Single-pass transformation (no backtracking)
 /// - Minimal allocations (path string constructed once per field)
 fn transform_with_aliases(
@@ -323,6 +334,7 @@ fn transform_with_aliases(
     current_type: &str,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
+    allowed_fields: &std::collections::HashSet<String>,
     registry: &SchemaRegistry,
 ) -> Value {
     match value {
@@ -336,7 +348,7 @@ fn transform_with_aliases(
                 Value::String(current_type.to_string()),
             );
 
-            // Transform each field with alias support
+            // Transform each field with alias support and field projection
             for (key, val) in map {
                 // Build materialized path for this field
                 // Example: "" + "user_name" → "user_name"
@@ -346,6 +358,11 @@ fn transform_with_aliases(
                 } else {
                     format!("{}.{}", current_path, key)
                 };
+
+                // Field projection: skip fields not in allowed set (only at root level)
+                if current_path.is_empty() && !allowed_fields.contains(key) {
+                    continue;
+                }
 
                 // Determine output key: alias or camelCase
                 // If alias is "user.posts.writerName", extract "writerName"
@@ -367,6 +384,7 @@ fn transform_with_aliases(
                             field_info.is_list(),
                             &field_path,
                             alias_map,
+                            allowed_fields,
                             registry,
                         )
                     }
@@ -391,7 +409,7 @@ fn transform_with_aliases(
     }
 }
 
-/// Helper to transform nested fields (objects and arrays) with alias support
+/// Helper to transform nested fields (objects and arrays) with alias support and field projection
 ///
 /// Extracted to reduce code duplication between list and single object cases.
 #[inline]
@@ -401,6 +419,7 @@ fn transform_nested_field_with_aliases(
     is_list: bool,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
+    allowed_fields: &std::collections::HashSet<String>,
     registry: &SchemaRegistry,
 ) -> Value {
     if is_list {
@@ -416,6 +435,7 @@ fn transform_nested_field_with_aliases(
                             nested_type,
                             current_path,
                             alias_map,
+                            allowed_fields,
                             registry,
                         ),
                     })
@@ -429,7 +449,7 @@ fn transform_nested_field_with_aliases(
         // Single nested object
         match value {
             Value::Null => Value::Null,
-            _ => transform_with_aliases(value, nested_type, current_path, alias_map, registry),
+            _ => transform_with_aliases(value, nested_type, current_path, alias_map, allowed_fields, registry),
         }
     }
 }
@@ -437,6 +457,76 @@ fn transform_nested_field_with_aliases(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use crate::schema_registry::SchemaRegistry;
+
+    /// Helper to create a FieldSelection structure for testing
+    fn make_selection(path: &str, alias: &str, type_name: &str, is_list: bool) -> Value {
+        json!({
+            "materialized_path": path,
+            "alias": alias,
+            "type_info": {
+                "type_name": type_name,
+                "is_list": is_list,
+                "is_nested_object": false
+            }
+        })
+    }
+
+    /// Helper to create test schema registry for field projection tests
+    fn create_field_projection_test_schema() -> SchemaRegistry {
+        let schema_json = r#"{
+            "version": "1.0",
+            "features": ["type_resolution", "field_projection"],
+            "types": {
+                "User": {
+                    "fields": {
+                        "id": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        },
+                        "user_name": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        },
+                        "email": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        },
+                        "password_hash": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        },
+                        "profile": {
+                            "type_name": "Profile",
+                            "is_nested_object": true,
+                            "is_list": false
+                        }
+                    }
+                },
+                "Profile": {
+                    "fields": {
+                        "bio": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        },
+                        "avatar_url": {
+                            "type_name": "String",
+                            "is_nested_object": false,
+                            "is_list": false
+                        }
+                    }
+                }
+            }
+        }"#;
+
+        SchemaRegistry::from_json(schema_json).unwrap()
+    }
 
     #[test]
     fn test_simple_object() {
@@ -501,5 +591,103 @@ mod tests {
 
         assert_eq!(parsed[0]["userId"], 1);
         assert_eq!(parsed[1]["userId"], 2);
+    }
+
+    /// RED PHASE TEST: Field projection should filter unselected fields
+    /// This test will FAIL because field projection is not yet implemented
+    #[test]
+    fn test_field_projection_filters_unselected_fields() {
+        let registry = create_field_projection_test_schema();
+
+        // Input: User object with multiple fields including sensitive data
+        let input = json!({
+            "id": 1,
+            "user_name": "Alice",
+            "email": "alice@example.com",
+            "password_hash": "secret123"
+        });
+
+        // Selections: Only include id and user_name (exclude email and password_hash)
+        let selections = vec![
+            make_selection("id", "id", "String", false),
+            make_selection("user_name", "userName", "String", false),
+        ];
+
+        // Transform with field selections
+        let result = transform_with_selections(&input, "User", &selections, &registry);
+
+        // Expected: Only selected fields should be present
+        // Currently this will FAIL because field projection is not implemented
+        assert_eq!(result["__typename"], "User");
+        assert_eq!(result["id"], 1);
+        assert_eq!(result["userName"], "Alice");
+
+        // These fields should NOT be present (field projection)
+        assert!(result.get("email").is_none(), "email should be filtered out");
+        assert!(result.get("passwordHash").is_none(), "password_hash should be filtered out");
+    }
+
+    /// RED PHASE TEST: Field projection with nested objects
+    /// This test will FAIL because field projection is not yet implemented
+    #[test]
+    fn test_field_projection_with_nested_objects() {
+        let registry = create_field_projection_test_schema();
+
+        // Input: User with nested profile object
+        let input = json!({
+            "id": 1,
+            "user_name": "Alice",
+            "profile": {
+                "bio": "Hello world!",
+                "avatar_url": "http://example.com/avatar.jpg"
+            }
+        });
+
+        // Selections: Only include id and profile.bio (exclude profile.avatar_url)
+        let selections = vec![
+            make_selection("id", "id", "String", false),
+            make_selection("profile.bio", "profile.bio", "String", false),
+        ];
+
+        let result = transform_with_selections(&input, "User", &selections, &registry);
+
+        // Expected: Root level fields
+        assert_eq!(result["__typename"], "User");
+        assert_eq!(result["id"], 1);
+
+        // Expected: Profile should exist but only contain selected field
+        let profile = result["profile"].as_object().unwrap();
+        assert_eq!(profile["__typename"], "Profile");
+        assert_eq!(profile["bio"], "Hello world!");
+
+        // This field should NOT be present (field projection)
+        assert!(profile.get("avatarUrl").is_none(), "avatar_url should be filtered out");
+    }
+
+    /// RED PHASE TEST: __typename is always included even when not in selections
+    /// This test will FAIL because field projection is not yet implemented
+    #[test]
+    fn test_field_projection_always_includes_typename() {
+        let registry = create_field_projection_test_schema();
+
+        // Input: Simple user object
+        let input = json!({
+            "id": 1,
+            "user_name": "Alice"
+        });
+
+        // Selections: Only include id (no explicit __typename selection)
+        let selections = vec![
+            make_selection("id", "id", "String", false),
+        ];
+
+        let result = transform_with_selections(&input, "User", &selections, &registry);
+
+        // Expected: __typename should ALWAYS be included
+        assert_eq!(result["__typename"], "User");
+        assert_eq!(result["id"], 1);
+
+        // user_name should NOT be present (not selected)
+        assert!(result.get("userName").is_none(), "user_name should be filtered out");
     }
 }

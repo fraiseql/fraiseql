@@ -12,34 +12,53 @@ Demonstrates the simplified architecture:
 from pathlib import Path
 from uuid import uuid4
 
+from typing import Any, cast
+
 import psycopg.types.json
+import psycopg_pool
 import pytest
+from psycopg.sql import Composed, SQL
+
+from fraiseql.db import FraiseQLRepository
+
+pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="module")
-async def setup_unified_audit(db_pool) -> None:
+@pytest.fixture(scope="function")
+def setup_unified_audit(class_db_pool: psycopg_pool.AsyncConnectionPool, test_schema) -> None:
+    import asyncio
+
+    asyncio.run(_setup_unified_audit(class_db_pool, test_schema))
+
+
+async def _setup_unified_audit(
+    class_db_pool: psycopg_pool.AsyncConnectionPool, test_schema
+) -> None:
     """Set up unified audit table."""
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            # Drop old tables if they exist
-            await cur.execute("DROP TABLE IF EXISTS audit_events CASCADE")
-            await cur.execute("DROP TABLE IF EXISTS audit_signing_keys CASCADE")
+    async with class_db_pool.connection() as conn:
+        await conn.execute(SQL(f"SET search_path TO {test_schema}, public"))
+        # Drop old tables if they exist
+        await conn.execute(SQL("DROP TABLE IF EXISTS audit_events CASCADE"))
+        await conn.execute(SQL("DROP TABLE IF EXISTS audit_signing_keys CASCADE"))
 
-            # Load unified migration
-            migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
-            migration_sql = migration_path.read_text()
-            await cur.execute(migration_sql)
+        # Load unified migration
+        migration_path = Path("src/fraiseql/enterprise/migrations/002_unified_audit.sql")
+        migration_sql = migration_path.read_text()
+        await conn.execute(migration_sql)
 
-            # Insert test signing key
-            await cur.execute(
-                "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
-                ["test-key-for-testing", True],
-            )
+        # Insert test signing key
+        await conn.execute(
+            "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
+            ["test-key-for-testing", True],
+        )
 
-            await conn.commit()
+        await conn.commit()
 
 
-async def test_unified_table_has_all_features(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_unified_table_has_all_features(
+    db_repo: FraiseQLRepository, setup_unified_audit
+) -> None:
     """Verify unified table has both CDC and crypto features."""
     from fraiseql.db import DatabaseQuery
 
@@ -50,7 +69,7 @@ async def test_unified_table_has_all_features(db_repo) -> None:
     # Insert a mutation (simulating log_and_return_mutation)
     await db_repo.run(
         DatabaseQuery(
-            statement="""
+            statement=SQL("""
                 INSERT INTO audit_events (
                     tenant_id, user_id, entity_type, entity_id,
                     operation_type, operation_subtype, changed_fields,
@@ -60,7 +79,7 @@ async def test_unified_table_has_all_features(db_repo) -> None:
                     %(operation_type)s, %(operation_subtype)s, %(changed_fields)s,
                     %(old_data)s, %(new_data)s, %(metadata)s
                 )
-            """,
+            """),
             params={
                 "tenant_id": tenant_id,
                 "user_id": user_id,
@@ -85,16 +104,19 @@ async def test_unified_table_has_all_features(db_repo) -> None:
     )
 
     # Retrieve and verify ALL features in one table
-    events = await db_repo.run(
-        DatabaseQuery(
-            statement="SELECT * FROM audit_events WHERE tenant_id = %(tenant_id)s",
-            params={"tenant_id": tenant_id},
-            fetch_result=True,
-        )
+    events = cast(
+        list[dict[str, Any]],
+        await db_repo.run(
+            DatabaseQuery(
+                statement=SQL("SELECT * FROM audit_events WHERE tenant_id = %(tenant_id)s"),
+                params={"tenant_id": tenant_id},
+                fetch_result=True,
+            )
+        ),
     )
 
     assert len(events) == 1
-    event = events[0]
+    event = cast(dict[str, Any], events[0])
 
     # ✅ CDC features
     assert event["operation_type"] == "INSERT"
@@ -115,7 +137,10 @@ async def test_unified_table_has_all_features(db_repo) -> None:
     # ✅ All in ONE row, ONE table
 
 
-async def test_log_and_return_mutation_function(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_log_and_return_mutation_function(
+    db_repo: FraiseQLRepository, setup_unified_audit
+) -> None:
     """Test the simplified log_and_return_mutation() function."""
     from fraiseql.db import DatabaseQuery
 
@@ -124,9 +149,11 @@ async def test_log_and_return_mutation_function(db_repo) -> None:
     post_id = uuid4()
 
     # Call log_and_return_mutation() - simpler, no bridge needed
-    result = await db_repo.run(
-        DatabaseQuery(
-            statement="""
+    result = cast(
+        list[dict[str, Any]],
+        await db_repo.run(
+            DatabaseQuery(
+                statement=SQL("""
                 SELECT * FROM log_and_return_mutation(
                     %(tenant_id)s,
                     %(user_id)s,
@@ -140,46 +167,53 @@ async def test_log_and_return_mutation_function(db_repo) -> None:
                     %(new_data)s,
                     %(metadata)s
                 )
-            """,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "post_id": post_id,
-                "new_data": psycopg.types.json.Jsonb(
-                    {"title": "My Post", "content": "Post content"}
-                ),
-                "metadata": psycopg.types.json.Jsonb(
-                    {"business_actions": ["created"], "word_count": 2}
-                ),
-            },
-            fetch_result=True,
-        )
+            """),
+                params={
+                    "tenant_id": tenant_id,
+                    "user_id": user_id,
+                    "post_id": post_id,
+                    "new_data": psycopg.types.json.Jsonb(
+                        {"title": "My Post", "content": "Post content"}
+                    ),
+                    "metadata": psycopg.types.json.Jsonb(
+                        {"business_actions": ["created"], "word_count": 2}
+                    ),
+                },
+                fetch_result=True,
+            )
+        ),
     )
 
     # Verify return value
     assert len(result) == 1
-    ret = result[0]
+    ret = cast(dict[str, Any], result[0])
     assert ret["success"] is True
     assert ret["operation_type"] == "INSERT"
     assert ret["message"] == "Post created successfully"
 
     # Verify audit event was logged
-    events = await db_repo.run(
-        DatabaseQuery(
-            statement="SELECT * FROM audit_events WHERE entity_id = %(post_id)s",
-            params={"post_id": post_id},
-            fetch_result=True,
-        )
+    events = cast(
+        list[dict[str, Any]],
+        await db_repo.run(
+            DatabaseQuery(
+                statement=SQL("SELECT * FROM audit_events WHERE entity_id = %(post_id)s"),
+                params={"post_id": post_id},
+                fetch_result=True,
+            )
+        ),
     )
 
     assert len(events) == 1
-    event = events[0]
+    event = cast(dict[str, Any], events[0])
     assert event["new_data"]["title"] == "My Post"
     assert event["event_hash"] is not None  # Crypto auto-added
     assert event["signature"] is not None
 
 
-async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_cryptographic_chain_with_cdc_data(
+    db_repo: FraiseQLRepository, setup_unified_audit
+) -> None:
     """Verify crypto chain works with full CDC data."""
     from fraiseql.db import DatabaseQuery
 
@@ -220,7 +254,7 @@ async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
     for m in mutations:
         await db_repo.run(
             DatabaseQuery(
-                statement="""
+                statement=SQL("""
                     INSERT INTO audit_events (
                         tenant_id, user_id, entity_type, entity_id,
                         operation_type, operation_subtype, changed_fields,
@@ -230,7 +264,7 @@ async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
                         %(op)s, %(subtype)s, %(fields)s,
                         %(old)s, %(new)s, '{}'::jsonb
                     )
-                """,
+                """),
                 params={
                     "tenant_id": tenant_id,
                     "user_id": user_id,
@@ -247,16 +281,19 @@ async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
         )
 
     # Verify chain integrity
-    events = await db_repo.run(
-        DatabaseQuery(
-            statement="""
+    events = cast(
+        list[dict[str, Any]],
+        await db_repo.run(
+            DatabaseQuery(
+                statement=SQL("""
                 SELECT * FROM audit_events
                 WHERE tenant_id = %(tenant_id)s
                 ORDER BY timestamp ASC
-            """,
-            params={"tenant_id": tenant_id},
-            fetch_result=True,
-        )
+            """),
+                params={"tenant_id": tenant_id},
+                fetch_result=True,
+            )
+        ),
     )
 
     assert len(events) == 3
@@ -273,7 +310,7 @@ async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
         assert event["new_data"] is not None
 
     # Verify specific CDC data for UPDATE
-    update_event = events[2]
+    update_event = cast(dict[str, Any], events[2])
     assert update_event["operation_type"] == "UPDATE"
     assert update_event["old_data"]["status"] == "draft"
     assert update_event["new_data"]["status"] == "published"
@@ -281,7 +318,8 @@ async def test_cryptographic_chain_with_cdc_data(db_repo) -> None:
     assert "status" in update_event["changed_fields"]
 
 
-async def test_verify_chain_function(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_verify_chain_function(db_repo: FraiseQLRepository, setup_unified_audit) -> None:
     """Test PostgreSQL chain verification function."""
     from fraiseql.db import DatabaseQuery
 
@@ -291,7 +329,7 @@ async def test_verify_chain_function(db_repo) -> None:
     for i in range(3):
         await db_repo.run(
             DatabaseQuery(
-                statement="""
+                statement=SQL("""
                     INSERT INTO audit_events (
                         tenant_id, user_id, entity_type, entity_id,
                         operation_type, operation_subtype, changed_fields,
@@ -301,7 +339,7 @@ async def test_verify_chain_function(db_repo) -> None:
                         'INSERT', 'test', ARRAY[]::TEXT[],
                         NULL, %(data)s, '{}'::jsonb
                     )
-                """,
+                """),
                 params={
                     "tenant_id": tenant_id,
                     "data": psycopg.types.json.Jsonb({"index": i}),
@@ -313,7 +351,7 @@ async def test_verify_chain_function(db_repo) -> None:
     # Verify chain using PostgreSQL function
     verification = await db_repo.run(
         DatabaseQuery(
-            statement="SELECT * FROM verify_audit_chain(%(tenant_id)s)",
+            statement=SQL("SELECT * FROM verify_audit_chain(%(tenant_id)s)"),
             params={"tenant_id": tenant_id},
             fetch_result=True,
         )
@@ -327,7 +365,8 @@ async def test_verify_chain_function(db_repo) -> None:
         assert v["expected_hash"] == v["actual_hash"]
 
 
-async def test_noop_operations(db_repo) -> None:
+@pytest.mark.asyncio
+async def test_noop_operations(db_repo: FraiseQLRepository, setup_unified_audit) -> None:
     """Test NOOP operations (duplicate detection, validation failures)."""
     from fraiseql.db import DatabaseQuery
 
@@ -336,9 +375,11 @@ async def test_noop_operations(db_repo) -> None:
     existing_post_id = uuid4()
 
     # Simulate NOOP: duplicate slug
-    result = await db_repo.run(
-        DatabaseQuery(
-            statement="""
+    result = cast(
+        list[dict[str, Any]],
+        await db_repo.run(
+            DatabaseQuery(
+                statement=SQL("""
                 SELECT * FROM log_and_return_mutation(
                     %(tenant_id)s,
                     %(user_id)s,
@@ -352,20 +393,21 @@ async def test_noop_operations(db_repo) -> None:
                     %(existing_data)s,
                     %(metadata)s
                 )
-            """,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "existing_post_id": existing_post_id,
-                "existing_data": psycopg.types.json.Jsonb(
-                    {"title": "Existing Post", "slug": "existing-post"}
-                ),
-                "metadata": psycopg.types.json.Jsonb(
-                    {"business_rule": "unique_slug", "attempted_title": "Existing Post"}
-                ),
-            },
-            fetch_result=True,
-        )
+            """),
+                params={
+                    "tenant_id": tenant_id,
+                    "user_id": user_id,
+                    "existing_post_id": existing_post_id,
+                    "existing_data": psycopg.types.json.Jsonb(
+                        {"title": "Existing Post", "slug": "existing-post"}
+                    ),
+                    "metadata": psycopg.types.json.Jsonb(
+                        {"business_rule": "unique_slug", "attempted_title": "Existing Post"}
+                    ),
+                },
+                fetch_result=True,
+            )
+        ),
     )
 
     # Verify NOOP result
@@ -376,7 +418,7 @@ async def test_noop_operations(db_repo) -> None:
     # Verify NOOP was logged to audit chain
     events = await db_repo.run(
         DatabaseQuery(
-            statement="SELECT * FROM audit_events WHERE entity_id = %(post_id)s",
+            statement=SQL("SELECT * FROM audit_events WHERE entity_id = %(post_id)s"),
             params={"post_id": existing_post_id},
             fetch_result=True,
         )

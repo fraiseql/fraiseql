@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Tests for mutation error-as-data functionality."""
 
 import fraiseql

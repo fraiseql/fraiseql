@@ -75,15 +75,39 @@ except ImportError:
 
 __version__ = "1.7.0"
 
-# Import bundled Rust extension and expose it as fraiseql_rs for compatibility
-try:
-    from . import _fraiseql_rs
 
-    # Re-export as fraiseql_rs for backward compatibility with tests and existing code
-    fraiseql_rs = _fraiseql_rs
-except ImportError:
-    _fraiseql_rs = None  # Rust extension not available
-    fraiseql_rs = None
+# Lazy Rust extension loading for performance optimization
+import os
+
+
+def _get_fraiseql_rs():
+    """Lazy-load the Rust extension."""
+    # Allow skipping Rust loading for unit tests via environment variable
+    if os.getenv("FRAISEQL_SKIP_RUST") == "1":
+        return None
+
+    try:
+        import importlib
+
+        return importlib.import_module("fraiseql._fraiseql_rs")
+    except ImportError:
+        return None
+
+
+def __getattr__(name: str):
+    """Lazy loading for Rust extension attributes."""
+    if name == "fraiseql_rs":
+        rs = _get_fraiseql_rs()
+        # Cache it for future access
+        globals()["fraiseql_rs"] = rs
+        return rs
+    if name == "_fraiseql_rs":
+        rs = _get_fraiseql_rs()
+        # Cache it for future access
+        globals()["_fraiseql_rs"] = rs
+        return rs
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",

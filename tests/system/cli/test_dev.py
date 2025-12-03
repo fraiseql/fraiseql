@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Tests for the dev command."""
 
 from pathlib import Path

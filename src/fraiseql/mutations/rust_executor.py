@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 def _get_fraiseql_rs():
     """Lazy-load Rust extension."""
     try:
-        from fraiseql import _fraiseql_rs
+        import importlib
 
-        return _fraiseql_rs
+        return importlib.import_module("fraiseql._fraiseql_rs")
     except ImportError as e:
         raise ImportError(
             "fraiseql Rust extension not available. "
@@ -111,8 +111,11 @@ async def execute_mutation_rust(
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
         # psycopg returned a dict (from JSONB or row_to_json composite)
-        # Map legacy field names to v2 format
-        if "object_data" in mutation_result:
+        # Check for mutation_result_v2 format (has 'status' and 'entity' fields)
+        if "status" in mutation_result and "entity" in mutation_result:
+            # mutation_result_v2 format from row_to_json - pass through as-is
+            pass
+        elif "object_data" in mutation_result:
             # Legacy composite type format - convert to v2
             mutation_result = {
                 "entity_id": str(mutation_result.get("id")) if mutation_result.get("id") else None,
@@ -131,20 +134,34 @@ async def execute_mutation_rust(
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, tuple):
         # psycopg returned a tuple from composite type
-        # Expected: (id, updated_fields, status, message, object_data, extra_metadata)
-        # Convert to v2 format JSON
-        composite_dict = {
-            "entity_id": str(mutation_result[0]) if mutation_result[0] else None,
-            "updated_fields": list(mutation_result[1]) if mutation_result[1] else None,
-            "status": mutation_result[2],
-            "message": mutation_result[3],
-            "entity": mutation_result[4],  # object_data -> entity
-            "metadata": mutation_result[5],  # extra_metadata -> metadata
-            "cascade": None,
-        }
-        # Extract entity_type from metadata if present
-        if composite_dict["metadata"] and isinstance(composite_dict["metadata"], dict):
-            composite_dict["entity_type"] = composite_dict["metadata"].get("entity")
+        # mutation_result_v2 order:
+        # (status, message, entity_id, entity_type, entity, updated_fields, cascade, metadata)
+        if len(mutation_result) == 8:
+            # mutation_result_v2 format
+            composite_dict = {
+                "status": mutation_result[0],
+                "message": mutation_result[1],
+                "entity_id": str(mutation_result[2]) if mutation_result[2] else None,
+                "entity_type": mutation_result[3],
+                "entity": mutation_result[4],
+                "updated_fields": list(mutation_result[5]) if mutation_result[5] else None,
+                "cascade": mutation_result[6],
+                "metadata": mutation_result[7],
+            }
+        else:
+            # Legacy format: (id, updated_fields, status, message, object_data, extra_metadata)
+            composite_dict = {
+                "entity_id": str(mutation_result[0]) if mutation_result[0] else None,
+                "updated_fields": list(mutation_result[1]) if mutation_result[1] else None,
+                "status": mutation_result[2],
+                "message": mutation_result[3],
+                "entity": mutation_result[4],  # object_data -> entity
+                "metadata": mutation_result[5],  # extra_metadata -> metadata
+                "cascade": None,
+            }
+            # Extract entity_type from metadata if present
+            if composite_dict["metadata"] and isinstance(composite_dict["metadata"], dict):
+                composite_dict["entity_type"] = composite_dict["metadata"].get("entity")
         mutation_json = json.dumps(composite_dict, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, str):
         # Already a JSON string

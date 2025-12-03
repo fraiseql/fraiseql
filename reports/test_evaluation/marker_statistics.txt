@@ -1,0 +1,39 @@
+=== Pytest Marker Usage Statistics ===
+
+    579     @pytest.mark.asyncio
+    180 @pytest.mark.unit
+    124 @pytest.mark.asyncio
+     28 @pytest.mark.integration
+     15     @pytest.mark.skipif(not LANGCHAIN_AVAILABLE, reason="LangChain not available")
+     15 @pytest.mark.core
+     14 @pytest.mark.database
+     12 @pytest.mark.regression
+     11 @pytest.mark.security
+      9     @pytest.mark.performance
+      9 @pytest.mark.parametrize(
+      8     @pytest.mark.parametrize(
+      6 @pytest.mark.usefixtures("clear_registry")
+      4     @pytest.mark.skip(
+      4     @pytest.mark.database
+      3 @pytest.mark.skipif(not LLAMAINDEX_AVAILABLE, reason="LlamaIndex not available")
+      3 @pytest.mark.skip(
+      2 @pytest.mark.slow
+      2 @pytest.mark.skip(reason="Schema registry singleton - only one initialization per process. Test passes individually. Run with
+      2 @pytest.mark.parametrize("value", [123, None, ["foo"], {"foo"
+      1     @pytest.mark.slow
+      1     @pytest.mark.skip(reason="Test uses undefined User type - test file has import/type issues")
+      1     @pytest.mark.skip(reason="Requires actual PostgreSQL connection")
+      1 @pytest.mark.skipif(not os.environ.get("VAULT_ADDR"), reason="Vault not configured")
+      1 @pytest.mark.skipif(not os.environ.get("AWS_REGION"), reason="AWS not configured")
+      1 @pytest.mark.skipif(
+      1 @pytest.mark.parametrize("value", ["invalid_ip", 1234, None, object()])
+      1 @pytest.mark.parametrize("value", ["invalid", 123, None])
+      1 @pytest.mark.parametrize(("value", "expected"), [("foo", "foo"), ("foo.bar", "foo.bar")])
+      1 @pytest.mark.parametrize(("value", "expected"), [("255.255.255.0", IPv4Address("255.255.255.0"))])
+      1 @pytest.mark.parametrize("value", ["255.0.255.0", "bad", 42])
+      1 @pytest.mark.parametrize("value", [123, None, True, "invalid", "91,0", "0,181"])
+      1 @pytest.mark.parametrize("value", [123, None, True])
+      1     @pytest.mark.parametrize("operator,value", [("depth_eq", 3), ("depth_gt", 2), ("depth_lt", 5)])
+      1     @pytest.mark.parametrize("operator", ["strictly_contains"])
+      1     @pytest.mark.parametrize("hard_delete_value", [True, False])
+      1 @pytest.mark.parametrize("ast_node", [StringValueNode(value="not-an-email")])

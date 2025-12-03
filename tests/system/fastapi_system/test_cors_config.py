@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 
 from fraiseql.fastapi.config import FraiseQLConfig
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 class TestCORSDefaults:

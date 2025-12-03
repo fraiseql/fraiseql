@@ -15,6 +15,9 @@ from fraiseql.sql import (
     create_graphql_where_input,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
 # Define test types at module level to avoid forward reference issues
 
 

@@ -11,6 +11,8 @@ from fraiseql.mutations.parser import (
 )
 from fraiseql.types.fraise_type import fraise_type
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_type
 class User:

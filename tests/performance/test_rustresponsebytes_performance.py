@@ -36,53 +36,38 @@ from fraiseql.core.rust_pipeline import RustResponseBytes
 class TestDetectionOverhead:
     """Benchmark the cost of isinstance(result, RustResponseBytes) checks."""
 
-    @pytest.mark.skip(
-        reason="Flaky performance test - threshold depends on system load. Target: <2ms for 10,000 checks"
-    )
     @pytest.mark.performance
-    def test_isinstance_check_overhead(self) -> None:
-        """Measure raw isinstance() check latency.
+    def test_isinstance_check_overhead_rust_bytes(self, benchmark) -> None:
+        """Measure isinstance() check latency for RustResponseBytes using pytest-benchmark.
 
         Target: < 2ms for 10,000 checks (< 0.2μs per check)
+        This benchmark measures the overhead of isinstance() checks for RustResponseBytes detection.
         """
         # Create test data
         rust_bytes = RustResponseBytes(b'{"test": "data"}', schema_type="TestType")
+
+        def benchmark_rust_check():
+            """Benchmark isinstance check for RustResponseBytes."""
+            return isinstance(rust_bytes, RustResponseBytes)
+
+        # Run benchmark - results automatically reported by pytest-benchmark
+        benchmark.pedantic(benchmark_rust_check, rounds=1000, iterations=10)
+
+    @pytest.mark.performance
+    def test_isinstance_check_overhead_regular_dict(self, benchmark) -> None:
+        """Measure isinstance() check latency for regular dict using pytest-benchmark.
+
+        This serves as a control benchmark to compare isinstance() performance.
+        """
+        # Create test data
         regular_dict = {"test": "data"}
 
-        # Warm up
-        for _ in range(100):
-            isinstance(rust_bytes, RustResponseBytes)
-            isinstance(regular_dict, RustResponseBytes)
+        def benchmark_dict_check():
+            """Benchmark isinstance check for regular dict."""
+            return isinstance(regular_dict, RustResponseBytes)
 
-        # Measure RustResponseBytes detection
-        start = time.perf_counter()
-        for _ in range(10000):
-            result = isinstance(rust_bytes, RustResponseBytes)
-            assert result is True
-        end = time.perf_counter()
-        rust_check_ms = (end - start) * 1000
-
-        # Measure non-RustResponseBytes detection (control)
-        start = time.perf_counter()
-        for _ in range(10000):
-            result = isinstance(regular_dict, RustResponseBytes)
-            assert result is False
-        end = time.perf_counter()
-        dict_check_ms = (end - start) * 1000
-
-        # Results
-        print("\n📊 isinstance() Check Performance:")
-        print(f"   RustResponseBytes (positive): {rust_check_ms:.3f}ms for 10,000 checks")
-        print(f"   Regular dict (negative): {dict_check_ms:.3f}ms for 10,000 checks")
-        print(f"   Average per check: {rust_check_ms / 10000:.6f}ms ({rust_check_ms / 10:.3f}μs)")
-
-        # RED Phase - These will initially fail until we verify actual performance
-        assert rust_check_ms < 2.0, (
-            f"isinstance() check too slow: {rust_check_ms:.3f}ms (target: < 2ms for 10,000 checks)"
-        )
-        assert dict_check_ms < 2.0, (
-            f"isinstance() check too slow: {dict_check_ms:.3f}ms (target: < 2ms for 10,000 checks)"
-        )
+        # Run benchmark - results automatically reported by pytest-benchmark
+        benchmark.pedantic(benchmark_dict_check, rounds=1000, iterations=10)
 
     @pytest.mark.performance
     def test_multi_layer_detection_overhead(self) -> None:

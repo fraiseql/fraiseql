@@ -4,9 +4,13 @@ import hashlib
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
+import pytest
+
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
 from fraiseql.storage.backends.memory import MemoryAPQBackend
+
+pytestmark = pytest.mark.integration
 
 
 class ContextCapturingBackend(MemoryAPQBackend):
@@ -122,17 +126,16 @@ class TestContextExtraction:
 
         with patch(
             "fraiseql.fastapi.dependencies.build_graphql_context", side_effect=mock_build_context
+        ), patch(
+            "fraiseql.middleware.apq_caching.handle_apq_request_with_cache",
+            side_effect=mock_apq_processing,
         ):
-            with patch(
-                "fraiseql.middleware.apq_caching.handle_apq_request_with_cache",
-                side_effect=mock_apq_processing,
-            ):
-                # Simulate the call sequence
-                mock_build_context()
-                mock_apq_processing()
+            # Simulate the call sequence
+            mock_build_context()
+            mock_apq_processing()
 
-                # Verify order
-                assert call_order.index("build_context") < call_order.index("apq_processing")
+            # Verify order
+            assert call_order.index("build_context") < call_order.index("apq_processing")
 
     def test_context_includes_jwt_tenant_info(self) -> None:
         """Test that JWT tenant_id is included in context."""

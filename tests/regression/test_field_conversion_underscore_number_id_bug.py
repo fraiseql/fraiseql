@@ -14,6 +14,8 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.mutations import mutation
 from fraiseql.types.definitions import UNSET
 
+pytestmark = pytest.mark.integration
+
 
 @fraiseql.input
 class CreateNetworkConfigurationInput:
@@ -66,8 +68,8 @@ class MockCursor:
 
         # Extract function name and input data from the query
         # Query looks like: SELECT row_to_json(app.create_network_configuration(%s::jsonb))
-        import re
         import json
+        import re
 
         match = re.search(r"row_to_json\((\w+)\.(\w+)\(%s::jsonb\)\)", query)
         if match:

@@ -15,6 +15,8 @@ from fraiseql.sql.where_generator import (
     unwrap_type,
 )
 
+pytestmark = pytest.mark.database
+
 
 @pytest.mark.unit
 @dataclass

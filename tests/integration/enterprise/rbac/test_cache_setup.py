@@ -1,6 +1,11 @@
 from pathlib import Path
 
+import pytest
 
+pytestmark = pytest.mark.integration
+
+
+@pytest.mark.asyncio
 async def test_rbac_cache_setup_migration_exists() -> None:
     """Verify RBAC cache setup migration file exists and has correct content."""
     cache_migration_path = Path("src/fraiseql/enterprise/migrations/003_rbac_cache_setup.sql")

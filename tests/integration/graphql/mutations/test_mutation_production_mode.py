@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test mutation result mapping in production mode."""
 
 from uuid import UUID

@@ -4,11 +4,14 @@ This test reproduces the exact issue reported in the PrintOptim Backend where
 IP filtering fails due to INET -> JSONB string conversion in CQRS patterns.
 """
 
+import pytest
 from psycopg.sql import SQL
 
 import fraiseql
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import IpAddress
+
+pytestmark = pytest.mark.database
 
 
 @fraiseql.type(sql_source="v_dns_server_cqrs_test")

@@ -363,7 +363,7 @@ config = FraiseQLConfig(
 - ✅ **Automatic camelCase** - snake_case → camelCase conversion
 - ✅ **Built-in __typename** - Automatic GraphQL type injection
 
-**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
+**Migration from v0.11.4 and earlier**: Remove all execution mode configuration.
 
 ```python
 # v0.11.4 and earlier (OLD - remove these)

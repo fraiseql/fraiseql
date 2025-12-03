@@ -15,6 +15,8 @@ import pytest
 from fraiseql import fraise_type, query
 from fraiseql.fastapi import create_fraiseql_app
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def clean_registries() -> None:

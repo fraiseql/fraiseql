@@ -9,6 +9,8 @@ import pytest
 
 from fraiseql.types.fraise_input import fraise_input
 
+pytestmark = pytest.mark.integration
+
 
 @fraise_input
 class CreateUserInput:
@@ -74,6 +76,7 @@ def test_list_of_inputs_validation() -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.asyncio
 async def test_async_context_validation() -> None:
     """Test that validation works in async contexts."""
 

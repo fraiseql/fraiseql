@@ -1,10 +1,9 @@
-"""
-Test fixtures for GraphQL Cascade functionality.
+"""Test fixtures for GraphQL Cascade functionality.
 
 Provides test app, client, and database setup for cascade integration tests.
 """
 
-from typing import Optional
+from typing import AsyncGenerator, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
+# Import database fixtures
 import fraiseql
-from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.mutations import mutation
 
 
@@ -54,7 +53,7 @@ class CreatePostError:
 
 
 # Test mutations
-@mutation(enable_cascade=True, function="create_post")
+@mutation(enable_cascade=True)
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
@@ -70,15 +69,38 @@ async def get_post(info: GraphQLResolveInfo, id: str) -> Optional[Post]:
     return None  # Not needed for cascade tests
 
 
-@pytest_asyncio.fixture
-async def cascade_db_schema(db_pool):
+@pytest_asyncio.fixture(scope="class")
+async def cascade_db_schema(
+    class_db_pool, test_schema, clear_registry_class
+) -> AsyncGenerator[None]:
     """Set up cascade test database schema with tables and PostgreSQL function.
 
-    Uses the shared db_pool fixture from database_conftest.py for proper database access.
-    Creates tables and a PostgreSQL function that returns cascade data.
+    Uses the shared class_db_pool fixture from database_conftest.py for proper database access.
+    Creates tables and a PostgreSQL function that returns mutation_result_v2 with cascade data.
+
+    CRITICAL: Creates all objects in test_schema for proper isolation.
     """
-    async with db_pool.connection() as conn:
-        # Create tables
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        # Create mutation_result_v2 type (from migrations/trinity/005_add_mutation_result_v2.sql)
+        await conn.execute("""
+            DO $$ BEGIN
+                CREATE TYPE mutation_result_v2 AS (
+                    status          text,
+                    message         text,
+                    entity_id       text,
+                    entity_type     text,
+                    entity          jsonb,
+                    updated_fields  text[],
+                    cascade         jsonb,
+                    metadata        jsonb
+                );
+            EXCEPTION
+                WHEN duplicate_object THEN null;
+            END $$;
+        """)
+
+        # Create tables in test_schema (via search_path - NO explicit public schema)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS tb_user (
                 id TEXT PRIMARY KEY,
@@ -92,37 +114,43 @@ async def cascade_db_schema(db_pool):
                 content TEXT,
                 author_id TEXT REFERENCES tb_user(id)
             );
+        """)
 
-            -- PostgreSQL function for cascade mutation
-            -- Takes JSONB input (as per FraiseQL mutation convention)
-            CREATE OR REPLACE FUNCTION create_post(input_data JSONB)
-            RETURNS JSONB AS $$
+        # Create PostgreSQL function in public schema (for FraiseQL default)
+        await conn.execute("""
+            CREATE OR REPLACE FUNCTION public.create_post(input_data JSONB)
+            RETURNS mutation_result_v2 AS $$
             DECLARE
                 p_title TEXT;
                 p_content TEXT;
                 p_author_id TEXT;
                 v_post_id TEXT;
                 v_cascade JSONB;
+                v_entity JSONB;
             BEGIN
-                -- Extract input parameters (camelCase from GraphQL)
+                -- Extract input parameters (snake_case from FraiseQL)
                 p_title := input_data->>'title';
                 p_content := input_data->>'content';
-                p_author_id := input_data->>'authorId';
+                p_author_id := input_data->>'author_id';
 
                 -- Validate input
                 IF p_title = '' OR p_title IS NULL THEN
-                    RETURN jsonb_build_object(
-                        'code', 'VALIDATION_ERROR',
-                        'message', 'Title cannot be empty'
-                    );
+                    RETURN ROW(
+                        'failed:validation',
+                        'Title cannot be empty',
+                        NULL, NULL, NULL, NULL, NULL,
+                        jsonb_build_object('field', 'title')
+                    )::mutation_result_v2;
                 END IF;
 
-                -- Check if user exists
+                -- Check if user exists (no schema prefix - uses search_path)
                 IF NOT EXISTS (SELECT 1 FROM tb_user WHERE id = p_author_id) THEN
-                    RETURN jsonb_build_object(
-                        'code', 'VALIDATION_ERROR',
-                        'message', 'Author not found'
-                    );
+                    RETURN ROW(
+                        'failed:not_found',
+                        'Author not found',
+                        NULL, NULL, NULL, NULL, NULL,
+                        jsonb_build_object('resource', 'User', 'id', p_author_id)
+                    )::mutation_result_v2;
                 END IF;
 
                 -- Create post
@@ -136,7 +164,16 @@ async def cascade_db_schema(db_pool):
                 SET post_count = post_count + 1
                 WHERE id = p_author_id;
 
-                -- Build cascade data (using camelCase for GraphQL)
+                -- Build entity data
+                v_entity := jsonb_build_object(
+                    'id', v_post_id,
+                    'title', p_title,
+                    'content', p_content,
+                    'author_id', p_author_id
+                );
+
+                -- Build cascade data per GraphQL Cascade spec
+                -- Use camelCase for cascade fields (passed through as-is)
                 v_cascade := jsonb_build_object(
                     'updated', jsonb_build_array(
                         jsonb_build_object(
@@ -178,16 +215,23 @@ async def cascade_db_schema(db_pool):
                     )
                 );
 
-                -- Return success with cascade (note the _cascade field)
-                RETURN jsonb_build_object(
-                    'id', v_post_id,
-                    'message', 'Post created successfully',
-                    '_cascade', v_cascade
-                );
+                -- Return success with cascade via mutation_result_v2
+                RETURN ROW(
+                    'new',
+                    'Post created successfully',
+                    v_post_id,
+                    'Post',
+                    v_entity,
+                    NULL::text[],
+                    v_cascade,
+                    NULL::jsonb
+                )::mutation_result_v2;
             END;
             $$ LANGUAGE plpgsql;
+        """)
 
-            -- Insert test user
+        # Insert test user (no schema prefix - uses search_path)
+        await conn.execute("""
             INSERT INTO tb_user (id, name, post_count)
             VALUES ('user-123', 'Test User', 0)
             ON CONFLICT (id) DO NOTHING;
@@ -196,49 +240,55 @@ async def cascade_db_schema(db_pool):
 
     yield
 
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute("""
-            DROP FUNCTION IF EXISTS create_post(JSONB);
-            DROP TABLE IF EXISTS tb_post CASCADE;
-            DROP TABLE IF EXISTS tb_user CASCADE;
-        """)
-        await conn.commit()
+    # Note: We intentionally skip cleanup here because:
+    # 1. The tables/functions are created with IF NOT EXISTS/CREATE OR REPLACE
+    # 2. The session-scoped pool may be closed before this function-scoped fixture tears down
+    # 3. The test database is ephemeral (testcontainer) so cleanup is not necessary
+    # This avoids async event loop issues during fixture teardown
 
 
 @pytest.fixture
-def cascade_app(cascade_db_schema, postgres_url) -> FastAPI:
+def cascade_app(cascade_db_schema, create_fraiseql_app_with_db) -> FastAPI:
     """FastAPI app configured with cascade mutations.
 
-    Uses the real postgres_url from database fixtures.
+    Uses create_fraiseql_app_with_db for shared database pool.
     Depends on cascade_db_schema to ensure schema is set up.
     """
-    app = create_fraiseql_app(
+    app = create_fraiseql_app_with_db(
         types=[CreatePostInput, Post, User, CreatePostSuccess, CreatePostError],
         queries=[get_post],
         mutations=[CreatePost],
-        database_url=postgres_url,
     )
     return app
 
 
 @pytest.fixture
 def cascade_client(cascade_app: FastAPI) -> TestClient:
-    """Test client for cascade app (synchronous client for simple tests)."""
-    with TestClient(cascade_app) as client:
+    """Test client for cascade app (synchronous client for simple tests).
+
+    Note: Uses raise_server_exceptions=False to avoid event loop conflicts
+    during teardown when mixing async and sync fixtures.
+    """
+    with TestClient(cascade_app, raise_server_exceptions=False) as client:
         yield client
 
 
 @pytest_asyncio.fixture
 async def cascade_http_client(cascade_app: FastAPI) -> AsyncClient:
-    """Async HTTP client for cascade app (for async test scenarios)."""
-    transport = ASGITransport(app=cascade_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    """Async HTTP client for cascade app (for async test scenarios).
+
+    Uses LifespanManager to properly trigger ASGI lifespan events.
+    """
+    from asgi_lifespan import LifespanManager
+
+    async with LifespanManager(cascade_app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
 
 
 @pytest.fixture
-def mock_apollo_client():
+def mock_apollo_client() -> MagicMock:
     """Mock Apollo Client for cascade integration testing."""
     client = MagicMock()
     client.cache = MagicMock()

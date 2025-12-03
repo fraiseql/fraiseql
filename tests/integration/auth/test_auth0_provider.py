@@ -16,6 +16,8 @@ from fraiseql.auth.base import (
     UserContext,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestAuth0Provider:
     """Test Auth0Provider class."""

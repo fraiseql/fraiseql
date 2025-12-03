@@ -11,6 +11,8 @@ import pytest
 
 from fraiseql.subscriptions.lifecycle import SubscriptionLifecycle, with_lifecycle
 
+pytestmark = pytest.mark.integration
+
 
 class TestSubscriptionLifecycle:
     """Test SubscriptionLifecycle class methods."""
@@ -242,6 +244,7 @@ class TestWithLifecycle:
         @with_lifecycle(
             on_start=on_start_mock, on_event=on_event_mock, on_complete=on_complete_mock
         )
+        @pytest.mark.asyncio
         async def test_subscription(info, param="default") -> None:
             yield "event1"
             yield "event2"
@@ -277,6 +280,7 @@ class TestWithLifecycle:
         on_start_mock = AsyncMock()
 
         @with_lifecycle(on_start=on_start_mock)
+        @pytest.mark.asyncio
         async def test_subscription(info) -> None:
             yield "single_event"
 
@@ -366,6 +370,7 @@ class TestWithLifecycle:
             return value.upper()
 
         @with_lifecycle(on_event=transform_event)
+        @pytest.mark.asyncio
         async def test_subscription(info) -> None:
             yield "hello"
             yield "world"
@@ -382,6 +387,7 @@ class TestWithLifecycle:
         on_event_mock = AsyncMock(side_effect=lambda info, value: value)
 
         @with_lifecycle(on_event=on_event_mock)
+        @pytest.mark.asyncio
         async def test_subscription(info) -> None:
             yield None
             yield "valid_event"
@@ -397,6 +403,7 @@ class TestWithLifecycle:
     def test_with_lifecycle_preserves_function_metadata(self) -> None:
         """Test that with_lifecycle preserves function metadata."""
 
+        @pytest.mark.asyncio
         async def test_subscription(info) -> None:
             """Test subscription docstring."""
             yield "test"

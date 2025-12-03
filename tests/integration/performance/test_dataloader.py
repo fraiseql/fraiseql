@@ -9,6 +9,8 @@ import pytest
 from fraiseql.optimization import DataLoader, LoaderRegistry, get_loader
 from fraiseql.optimization.loaders import UserLoader
 
+pytestmark = pytest.mark.integration
+
 
 class TestDataLoader:
     """Test DataLoader functionality."""
