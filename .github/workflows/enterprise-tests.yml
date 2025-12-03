@@ -20,7 +20,7 @@ on:
 
   # Run on pushes to main branch
   push:
-    branches: [ main ]
+    branches: [main]
 
   # Allow manual triggering
   workflow_dispatch:
