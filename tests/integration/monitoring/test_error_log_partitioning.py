@@ -270,10 +270,11 @@ class TestPartitionRetention:
     """Test partition retention and archival."""
 
     @pytest.mark.skip(
-        reason="TODO: Fix partition retention logic. The drop_old_error_occurrence_partitions() "
-        "function is not dropping partitions as expected. This is a database function issue, "
-        "not related to the GraphQL/operator layer. Requires investigation of the partition "
-        "management SQL function."
+        reason="Known database function bug: drop_old_error_occurrence_partitions() does not "
+        "drop partitions as expected. This is a PostgreSQL partition management function issue, "
+        "not a test infrastructure problem. Deferred to v1.8.0. "
+        "Workaround: Manual partition cleanup via SQL. "
+        "See: /tmp/UNSKIP_TESTS_PLAN.md Category 4 for details."
     )
     @pytest.mark.asyncio
     async def test_drop_old_partitions_function(self, partitioned_db) -> None:

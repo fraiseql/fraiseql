@@ -76,9 +76,22 @@ class TestVaultIntegration:
         assert decrypted1 == decrypted2 == test_data
 
 
-@pytest.mark.skipif(not os.environ.get("AWS_REGION"), reason="AWS not configured")
+@pytest.mark.skipif(not os.environ.get("AWS_REGION"), reason="AWS not configured - Manual testing only")
 class TestAWSKMSIntegration:
-    """Integration tests for AWS KMS provider."""
+    """Integration tests for AWS KMS provider.
+
+    NOTE: These tests require real AWS credentials and are NOT run in CI/CD for security reasons.
+    They remain skipped unless explicitly enabled with AWS environment variables.
+
+    To run manually:
+        export AWS_REGION=us-east-1
+        export AWS_ACCESS_KEY_ID=your_key
+        export AWS_SECRET_ACCESS_KEY=your_secret
+        pytest tests/integration/security/test_kms_integration.py::TestAWSKMSIntegration -v
+
+    WARNING: These tests use real AWS resources and may incur costs.
+    See: /tmp/UNSKIP_TESTS_PLAN.md Category 2 Phase 2 for details.
+    """
 
     @pytest.fixture
     def aws_provider(self) -> AWSKMSProvider:
