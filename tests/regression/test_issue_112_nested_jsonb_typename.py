@@ -21,6 +21,16 @@ from fraiseql.types import fraise_type
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def reset_schema_registry():
+    """Reset global schema registry before each test."""
+    from tests.fixtures.database.database_conftest import _clear_all_fraiseql_state
+
+    _clear_all_fraiseql_state()
+    yield
+    _clear_all_fraiseql_state()
+
+
 # Define GraphQL types matching issue #112
 @fraise_type
 class Equipment:
@@ -154,11 +164,11 @@ async def setup_issue_112_database(db_connection) -> None:
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_issue_112_database, clear_registry) -> None:
+def graphql_client(class_db_pool, setup_issue_112_database, clear_registry) -> None:
     """Create a GraphQL test client with real database connection."""
     from fraiseql.fastapi.dependencies import set_db_pool
 
-    set_db_pool(db_pool)
+    set_db_pool(class_db_pool)
 
     app = create_fraiseql_app(
         database_url="postgresql://test/test",  # Dummy URL since we're injecting pool
@@ -169,9 +179,6 @@ def graphql_client(db_pool, setup_issue_112_database, clear_registry) -> None:
     return TestClient(app)
 
 
-@pytest.mark.skip(
-    reason="Schema registry singleton - only one initialization per process. Tests pass individually. Run with: pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v"
-)
 class TestIssue112NestedJSONBTypename:
     """Test suite for Issue #112: Nested JSONB __typename bug.
 

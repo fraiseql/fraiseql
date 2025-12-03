@@ -114,6 +114,20 @@ jobs:
         ports:
           - 5432:5432
 
+      vault:
+        image: hashicorp/vault:latest
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: fraiseql-ci-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add=IPC_LOCK
+          --health-cmd "vault status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
 
@@ -190,10 +204,36 @@ jobs:
         echo "=== Rust Extension Verification ==="
         uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
+    - name: Initialize Vault for KMS tests
+      env:
+        VAULT_ADDR: http://localhost:8200
+        VAULT_TOKEN: fraiseql-ci-token
+      run: |
+        echo "=== Initializing Vault for KMS Tests ==="
+        # Wait for Vault to be ready
+        timeout 30 bash -c 'until curl -s http://localhost:8200/v1/sys/health; do sleep 1; done' || (echo "❌ Vault not ready" && exit 1)
+        echo "✅ Vault is ready"
+
+        # Enable transit engine
+        curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
+          http://localhost:8200/v1/sys/mounts/transit \
+          -d '{"type":"transit"}' || (echo "❌ Failed to enable transit engine" && exit 1)
+        echo "✅ Transit engine enabled"
+
+        # Create test keys
+        for key in test-integration-key test-data-key test-key-1 test-key-2; do
+          curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
+            http://localhost:8200/v1/transit/keys/$key || (echo "❌ Failed to create key $key" && exit 1)
+        done
+        echo "✅ Test keys created"
+
     - name: Run integration tests
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        VAULT_ADDR: http://localhost:8200
+        VAULT_TOKEN: fraiseql-ci-token
+        VAULT_TRANSIT_MOUNT: transit
         DB_HOST: localhost
         DB_PORT: 5432
         DB_USER: fraiseql

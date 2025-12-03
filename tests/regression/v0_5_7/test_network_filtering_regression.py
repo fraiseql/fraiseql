@@ -1,6 +1,11 @@
 """Test to reproduce JSONB+INET network filtering issue.
 
 This test reproduces a critical bug in FraiseQL v0.5.7:
+"""
+
+from __future__ import annotations
+
+"""
 - IP addresses stored as INET in PostgreSQL command tables
 - Exposed as JSONB text in query views (CQRS pattern)
 - Network equality operators (eq, neq, in, notin) return empty results
@@ -48,7 +53,7 @@ DnsServerWhereInput = create_graphql_where_input(DnsServer)
 
 @fraiseql.query
 async def dns_servers(
-    info, where: DnsServerWhereInput | None = None, first: int = 100
+    info, where: "DnsServerWhereInput | None" = None, first: int = 100
 ) -> list[DnsServer]:
     """Query DNS servers with filtering support."""
     # In real implementation, this would use the repository
@@ -75,9 +80,7 @@ class TestJSONBNetworkFilteringBug:
 
     @pytest.mark.database
     @pytest.mark.asyncio
-    async def test_cqrs_schema_setup(
-        self, db_connection, create_test_table, create_test_view
-    ) -> None:
+    async def test_cqrs_schema_setup(self, db_connection) -> None:
         """Set up the CQRS schema pattern that reproduces the bug."""
         # 1. Create command-side table (INET storage)
         command_table_schema = """
@@ -89,7 +92,7 @@ class TestJSONBNetworkFilteringBug:
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
         """
-        await create_test_table(db_connection, "tenant_tb_dns_server", command_table_schema)
+        await db_connection.execute(command_table_schema)
 
         # 2. Create query-side view (JSONB transformation)
         query_view_sql = """
@@ -101,7 +104,7 @@ class TestJSONBNetworkFilteringBug:
                 ) AS data
             FROM tenant_tb_dns_server
         """
-        await create_test_view(db_connection, "v_dns_server", query_view_sql)
+        await db_connection.execute(f"CREATE VIEW v_dns_server AS {query_view_sql}")
 
         # 3. Seed with test data
         await db_connection.execute(
@@ -420,7 +423,7 @@ class TestFraiseQLNetworkOperatorStrategy:
 
     def test_operator_registry_assigns_network_strategy_for_ip_equality(
         self,
-    ):
+    ) -> None:
         """Test operator registry assigns NetworkOperatorStrategy to IP equality operations."""
         from fraiseql.sql.operator_strategies import get_operator_registry
 

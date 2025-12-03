@@ -92,14 +92,13 @@ class TestRegisterQueries:
         # The method should be inherited from base class
         assert hasattr(PostgreSQLAPQBackend, "register_queries")
 
-    @pytest.mark.skip(reason="Requires actual PostgreSQL connection")
-    def test_postgresql_backend_register_queries_integration(self) -> None:
+    def test_postgresql_backend_register_queries_integration(self, class_db_pool) -> None:
         """Test PostgreSQL backend can register multiple queries (integration)."""
         from fraiseql.storage.apq_store import compute_query_hash
         from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 
-        # This test requires actual DB connection
-        backend = PostgreSQLAPQBackend(config={"auto_create_tables": False})
+        # Use test database pool
+        backend = PostgreSQLAPQBackend(config={"auto_create_tables": False}, pool=class_db_pool)
 
         queries = [
             "query A { a }",
