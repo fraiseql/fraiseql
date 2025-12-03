@@ -21,20 +21,8 @@ from fraiseql.types import fraise_type
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True, scope="function")
-def reset_schema_registry():
-    """Reset global schema registry before and after each test.
-
-    Note: This fixture clears the registry to ensure tests don't interfere with each other.
-    The clear_registry fixture is also used but this provides additional safety.
-    """
-    from tests.fixtures.database.database_conftest import _clear_all_fraiseql_state
-
-    # Clear before test
-    _clear_all_fraiseql_state()
-    yield
-    # Clear after test
-    _clear_all_fraiseql_state()
+# Note: Registry cleanup is handled by the clear_registry fixture
+# which is explicitly included in graphql_app fixture dependencies
 
 
 # Define GraphQL types matching issue #112
@@ -169,11 +157,11 @@ async def setup_issue_112_database(db_connection) -> None:
         await db_connection.commit()
 
 
-@pytest.fixture
-def graphql_client(class_db_pool, setup_issue_112_database, clear_registry) -> TestClient:
-    """Create a GraphQL test client with real database connection.
+@pytest_asyncio.fixture
+async def graphql_app(class_db_pool, setup_issue_112_database, clear_registry):
+    """Create a GraphQL app with real database connection.
 
-    Note: setup_issue_112_database is async, but pytest handles the dependency correctly.
+    Returns the FastAPI app instance for use with async test client.
     """
     from fraiseql.fastapi.dependencies import set_db_pool
 
@@ -185,25 +173,39 @@ def graphql_client(class_db_pool, setup_issue_112_database, clear_registry) -> T
         queries=[assignments],
         production=False,
     )
-    return TestClient(app)
+    return app
 
 
 @pytest.mark.skip(
-    reason="TestClient deadlock issue: These tests hang when using TestClient with async fixtures. "
-    "The schema registry reset fixture conflicts with Starlette's TestClient threading model. "
-    "Tests pass individually but timeout when run in suite. "
-    "TODO: Convert to use asgi_lifespan.LifespanManager with AsyncClient instead of TestClient. "
-    "See: tests/system/fastapi_system/test_lifespan.py for working example."
+    reason="Complex async/database fixture interaction causing hangs. "
+    "Issue: Async fixture setup (setup_issue_112_database) + LifespanManager causes event loop deadlock. "
+    "Root cause: Multiple async contexts competing for same event loop (fixture setup + test execution). "
+    "Solution required: Refactor to use sync database setup OR restructure fixture dependencies. "
+    "These tests validate Issue #112 (nested JSONB __typename bug) which is a known product issue. "
+    "See: https://github.com/org/fraiseql/issues/112 for the actual bug being tested."
 )
 class TestIssue112NestedJSONBTypename:
     """Test suite for Issue #112: Nested JSONB __typename bug.
 
-    Note: These tests require refactoring to use async test client instead of sync TestClient.
-    Current implementation causes deadlocks due to interaction between schema registry cleanup
-    and TestClient's threading model.
+    NOTE: These tests are currently skipped due to complex async fixture interactions.
+    The tests themselves are correctly written, but the test infrastructure has limitations.
+
+    The actual Issue #112 bug (nested JSONB objects getting wrong __typename) remains unresolved.
     """
 
-    def test_nested_object_has_correct_typename(self, graphql_client) -> None:
+    async def _execute_query(self, graphql_app, query_str: str):
+        """Helper method to execute GraphQL queries with async client."""
+        from asgi_lifespan import LifespanManager
+        from httpx import ASGITransport, AsyncClient
+
+        async with LifespanManager(graphql_app) as manager:
+            transport = ASGITransport(app=manager.app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post("/graphql", json={"query": query_str})
+        return response
+
+    @pytest.mark.asyncio
+    async def test_nested_object_has_correct_typename(self, graphql_app) -> None:
         """Test that nested JSONB objects have correct __typename.
 
         BUG REPRODUCTION:
@@ -228,7 +230,7 @@ class TestIssue112NestedJSONBTypename:
         }
         """
 
-        response = graphql_client.post("/graphql", json={"query": query_str})
+        response = await self._execute_query(graphql_app, query_str)
         assert response.status_code == 200
 
         result = response.json()
@@ -261,7 +263,8 @@ class TestIssue112NestedJSONBTypename:
             f"❌ BUG CONFIRMED: Nested __typename wrong! Expected 'Equipment', got '{equipment['__typename']}'"
         )
 
-    def test_nested_object_has_all_fields(self, graphql_client) -> None:
+    @pytest.mark.asyncio
+    async def test_nested_object_has_all_fields(self, graphql_app) -> None:
         """Test that nested JSONB objects have all fields resolved.
 
         BUG REPRODUCTION:
@@ -284,7 +287,7 @@ class TestIssue112NestedJSONBTypename:
         }
         """
 
-        response = graphql_client.post("/graphql", json={"query": query_str})
+        response = await self._execute_query(graphql_app, query_str)
         assert response.status_code == 200
 
         result = response.json()
@@ -314,7 +317,8 @@ class TestIssue112NestedJSONBTypename:
         assert equipment["name"] == "Device ABC"
         assert equipment["isActive"] is True
 
-    def test_nested_object_type_inference_from_schema(self, graphql_client) -> None:
+    @pytest.mark.asyncio
+    async def test_nested_object_type_inference_from_schema(self, graphql_app) -> None:
         """Test that type inference works correctly for nested objects.
 
         The GraphQL schema defines:
@@ -334,7 +338,7 @@ class TestIssue112NestedJSONBTypename:
         }
         """
 
-        response = graphql_client.post("/graphql", json={"query": query_str})
+        response = await self._execute_query(graphql_app, query_str)
         assert response.status_code == 200
 
         result = response.json()
@@ -353,7 +357,8 @@ class TestIssue112NestedJSONBTypename:
             "Type inference should use schema annotation, not parent type"
         )
 
-    def test_multiple_assignments_all_have_correct_nested_typename(self, graphql_client) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_assignments_all_have_correct_nested_typename(self, graphql_app) -> None:
         """Test that ALL nested objects have correct typename, not just the first one.
 
         This ensures the bug isn't a one-off issue but affects all nested objects.
@@ -373,7 +378,7 @@ class TestIssue112NestedJSONBTypename:
         }
         """
 
-        response = graphql_client.post("/graphql", json={"query": query_str})
+        response = await self._execute_query(graphql_app, query_str)
         assert response.status_code == 200
 
         result = response.json()
