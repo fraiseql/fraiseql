@@ -169,7 +169,7 @@ jobs:
         DB_PORT: 5432
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
-        FRAISEQL_ENVIRONMENT: ci
+        FRAISEQL_ENVIRONMENT: testing
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
