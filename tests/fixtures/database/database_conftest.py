@@ -163,14 +163,19 @@ async def pgvector_available(postgres_url: str) -> bool:
             await conn.commit()
             return True
         except psycopg.errors.InsufficientPrivilege:
-            # Check if already installed
-            result = await conn.execute("""
-                SELECT EXISTS(
-                    SELECT 1 FROM pg_extension WHERE extname = 'vector'
-                )
-            """)
-            row = await result.fetchone()
-            return row[0] if row else False
+            # Check if already installed using a fresh connection
+            # (since the current transaction is aborted)
+            async with await psycopg.AsyncConnection.connect(postgres_url) as check_conn:
+                try:
+                    result = await check_conn.execute("""
+                        SELECT EXISTS(
+                            SELECT 1 FROM pg_extension WHERE extname = 'vector'
+                        )
+                    """)
+                    row = await result.fetchone()
+                    return row[0] if row else False
+                except Exception:
+                    return False
         except Exception:
             return False
 

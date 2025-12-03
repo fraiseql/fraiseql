@@ -61,6 +61,29 @@ jobs:
         uv run python -c "from fraiseql import _fraiseql_rs; print(f'Bundled extension version: {_fraiseql_rs.__version__}')"
         uv run python -c "from fraiseql import _fraiseql_rs; print(f'Functions: {[f for f in dir(_fraiseql_rs) if not f.startswith(\"_\")]}')"
 
+        echo "=== Database Extensions Setup ==="
+        uv run python -c "
+        import psycopg
+        # Connect as postgres user to create extensions
+        try:
+            conn = psycopg.connect('postgresql://postgres@localhost:5432/fraiseql_test')
+            conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+            conn.commit()
+            print('✅ pgvector extension created')
+            conn.close()
+        except Exception as e:
+            print(f'Failed to connect as postgres: {e}')
+            # Try connecting as fraiseql and create extension if possible
+            try:
+                conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test')
+                conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+                conn.commit()
+                print('✅ pgvector extension created as fraiseql user')
+                conn.close()
+            except Exception as e2:
+                print(f'❌ Failed to create pgvector extension: {e2}')
+        " || echo "❌ Failed to create pgvector extension"
+
     - name: Run core tests with coverage
       run: |
         echo "=== Running Core Tests for Release ==="

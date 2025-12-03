@@ -201,6 +201,28 @@ jobs:
         rustc --version
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
         uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        echo "=== Database Extensions Setup ==="
+        uv run python -c "
+        import psycopg
+        # Connect as postgres user to create extensions
+        try:
+            conn = psycopg.connect('postgresql://postgres@localhost:5432/fraiseql_test')
+            conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+            conn.commit()
+            print('✅ pgvector extension created')
+            conn.close()
+        except Exception as e:
+            print(f'Failed to connect as postgres: {e}')
+            # Try connecting as fraiseql and create extension if possible
+            try:
+                conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test')
+                conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+                conn.commit()
+                print('✅ pgvector extension created as fraiseql user')
+                conn.close()
+            except Exception as e2:
+                print(f'❌ Failed to create pgvector extension: {e2}')
+        " || echo "❌ Failed to create pgvector extension"
         echo "=== Rust Extension Verification ==="
         uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
