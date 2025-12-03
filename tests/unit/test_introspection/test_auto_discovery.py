@@ -4,6 +4,8 @@ import pytest
 
 from fraiseql.introspection.auto_discovery import AutoDiscovery
 
+pytestmark = [pytest.mark.asyncio, pytest.mark.database]
+
 
 class TestAutoDiscovery:
     """Test AutoDiscovery functionality."""
