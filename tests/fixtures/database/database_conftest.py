@@ -149,6 +149,32 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
     await pool.close()
 
 
+@pytest_asyncio.fixture(scope="session")
+async def pgvector_available(postgres_url: str) -> bool:
+    """Check if pgvector extension is available for testing.
+
+    Returns True if pgvector extension can be used, False otherwise.
+    This allows tests to skip gracefully when pgvector is not available.
+    """
+    async with await psycopg.AsyncConnection.connect(postgres_url) as conn:
+        # Try to install extension
+        try:
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            await conn.commit()
+            return True
+        except psycopg.errors.InsufficientPrivilege:
+            # Check if already installed
+            result = await conn.execute("""
+                SELECT EXISTS(
+                    SELECT 1 FROM pg_extension WHERE extname = 'vector'
+                )
+            """)
+            row = await result.fetchone()
+            return row[0] if row else False
+        except Exception:
+            return False
+
+
 # ============================================================================
 # PER-TEST-CLASS FIXTURES
 # ============================================================================
@@ -221,9 +247,7 @@ async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnec
 
 
 @pytest_asyncio.fixture
-async def db_connection(
-    class_db_pool, test_schema
-) -> AsyncGenerator[psycopg.AsyncConnection]:
+async def db_connection(class_db_pool, test_schema) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Per-function connection with automatic transaction rollback.
 
     Each test function gets a connection from the class pool,

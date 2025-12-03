@@ -18,6 +18,7 @@ from psycopg.types.json import Json
 from tests.fixtures.database.database_conftest import (
     class_db_pool,
     clear_registry_class,
+    pgvector_available,
     postgres_container,
     postgres_url,
     test_schema,
@@ -60,18 +61,15 @@ class MockEmbeddings:
 
 
 @pytest_asyncio.fixture
-async def vectorstore_table(class_db_pool, test_schema) -> str:
+async def vectorstore_table(class_db_pool, test_schema, pgvector_available):
     """Create a test table for vectorstore integration tests."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     table_name = f"test_llamaindex_docs_{uuid.uuid4().hex[:8]}"
 
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
-
-        # Enable pgvector extension in this connection
-        try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        except Exception as e:
-            pytest.skip(f"pgvector extension not available: {e}")
 
         # Create test table with vector support
         await conn.execute(f"""
@@ -104,8 +102,13 @@ def mock_embeddings() -> MockEmbeddings:
 
 
 @pytest_asyncio.fixture
-async def vectorstore(class_db_pool, vectorstore_table: str) -> FraiseQLVectorStore:
+async def vectorstore(
+    class_db_pool, vectorstore_table: str, pgvector_available
+) -> FraiseQLVectorStore:
     """Create a FraiseQLVectorStore instance for testing."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     return FraiseQLVectorStore(
         db_pool=class_db_pool,
         table_name=vectorstore_table,

@@ -16,6 +16,7 @@ import pytest_asyncio
 from tests.fixtures.database.database_conftest import (
     class_db_pool,
     clear_registry_class,
+    pgvector_available,
     postgres_container,
     postgres_url,
     test_schema,
@@ -41,16 +42,13 @@ class DocumentType:
 
 
 @pytest_asyncio.fixture(scope="class")
-async def vector_test_setup(class_db_pool, test_schema) -> None:
+async def vector_test_setup(class_db_pool, test_schema, pgvector_available) -> None:
     """Set up test database with pgvector extension and test data."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
-
-        # Enable pgvector extension
-        try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        except Exception as e:
-            pytest.skip(f"pgvector extension not available: {e}")
 
         # Create test table with vector column
         await conn.execute("""
@@ -116,16 +114,13 @@ async def vector_test_setup(class_db_pool, test_schema) -> None:
 
 
 @pytest_asyncio.fixture(scope="class")
-async def binary_vector_test_setup(class_db_pool, test_schema) -> None:
+async def binary_vector_test_setup(class_db_pool, test_schema, pgvector_available) -> None:
     """Set up test database with binary vector test data."""
+    if not pgvector_available:
+        pytest.skip("pgvector extension not available")
+
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
-
-        # Enable pgvector extension
-        try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        except Exception as e:
-            pytest.skip(f"pgvector extension not available: {e}")
 
         # Create test table with bit vector column
         await conn.execute("""
