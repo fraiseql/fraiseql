@@ -1,0 +1,307 @@
+name: Enterprise Tests (Optional)
+
+# This workflow runs tests for enterprise features (Vault KMS, Auth0)
+# that require external services. It runs separately from the main CI
+# to prevent flaky external services from blocking merges.
+#
+# Runs:
+# - Weekly (Monday mornings)
+# - On pushes to main branch
+# - Manually via workflow_dispatch
+#
+# Does NOT block:
+# - Pull request merges (not required for quality gate)
+# - Releases (manual verification recommended)
+
+on:
+  # Run weekly on Monday at 6 AM UTC
+  schedule:
+    - cron: '0 6 * * 1'
+
+  # Run on pushes to main branch
+  push:
+    branches: [ main ]
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'Test filter (e.g., "requires_vault" or "requires_auth0")'
+        required: false
+        default: 'requires_vault or requires_auth0'
+
+concurrency:
+  group: enterprise-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  vault-kms-tests:
+    name: Vault KMS Integration
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail workflow if this job fails
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      vault:
+        image: hashicorp/vault:latest
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: fraiseql-ci-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add=IPC_LOCK
+          --health-cmd "vault status || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            fraiseql_rs/target/
+          key: rust-${{ runner.os }}-${{ hashFiles('fraiseql_rs/Cargo.lock') }}
+          restore-keys: |
+            rust-${{ runner.os }}-
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install maturin
+        run: uv tool install maturin
+
+      - name: Setup environment and install dependencies
+        run: |
+          uv venv
+          uv pip install setuptools wheel
+          uv pip install ".[dev,all]"
+          uv run maturin develop --uv
+
+      - name: Wait for Vault with exponential backoff
+        env:
+          VAULT_ADDR: http://localhost:8200
+        run: |
+          echo "=== Waiting for Vault with exponential backoff ==="
+
+          for attempt in {1..10}; do
+            echo "Attempt $attempt..."
+
+            if curl -sf http://localhost:8200/v1/sys/health > /dev/null 2>&1; then
+              echo "✅ Vault is ready!"
+              exit 0
+            fi
+
+            wait_time=$((2 ** attempt))
+            echo "Vault not ready, waiting ${wait_time}s before retry..."
+            sleep $wait_time
+          done
+
+          echo "❌ Vault failed to become ready after 10 attempts"
+          echo "This is a known issue with Vault in GitHub Actions."
+          echo "Tests will be skipped (marked with @pytest.mark.skipif)."
+          exit 1
+
+      - name: Initialize Vault
+        if: success()
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: fraiseql-ci-token
+        run: |
+          echo "=== Initializing Vault for KMS Tests ==="
+
+          # Enable transit engine
+          curl -sf -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
+            http://localhost:8200/v1/sys/mounts/transit \
+            -d '{"type":"transit"}' || {
+            echo "❌ Failed to enable transit engine"
+            exit 1
+          }
+          echo "✅ Transit engine enabled"
+
+          # Create test keys
+          for key in test-integration-key test-data-key test-key-1 test-key-2; do
+            curl -sf -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
+              http://localhost:8200/v1/transit/keys/$key || {
+              echo "❌ Failed to create key $key"
+              exit 1
+              }
+            echo "✅ Created key: $key"
+          done
+
+          echo "✅ Vault initialization complete"
+
+      - name: Run Vault KMS tests
+        if: success()
+        env:
+          DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+          TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+          FRAISEQL_ENVIRONMENT: testing
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: fraiseql-ci-token
+          VAULT_TRANSIT_MOUNT: transit
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: fraiseql
+          DB_PASSWORD: fraiseql
+        run: |
+          echo "=== Running Vault KMS Integration Tests ==="
+
+          uv run pytest tests/ \
+            -m 'requires_vault' \
+            -v \
+            --tb=short \
+            --disable-warnings \
+            || {
+              echo "❌ Vault KMS tests failed"
+              echo "This is non-blocking for the main CI pipeline."
+              exit 1
+            }
+
+          echo "✅ Vault KMS tests passed"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-test-results
+          path: |
+            .pytest_cache/
+            test-results.xml
+          retention-days: 7
+
+  auth0-tests:
+    name: Auth0 Integration (Mocked)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Setup environment and install dependencies
+        run: |
+          uv venv
+          uv pip install setuptools wheel
+          uv pip install ".[dev,all]"
+
+      - name: Run Auth0 tests (with mocks)
+        env:
+          DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+          TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+          FRAISEQL_ENVIRONMENT: testing
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: fraiseql
+          DB_PASSWORD: fraiseql
+          # Note: Not setting AUTH0_DOMAIN/etc - tests use mocks
+        run: |
+          echo "=== Running Auth0 Integration Tests (Mocked) ==="
+          echo "Note: These tests use mocked Auth0 responses"
+
+          uv run pytest tests/ \
+            -m 'requires_auth0' \
+            -v \
+            --tb=short \
+            --disable-warnings \
+            || {
+              echo "❌ Auth0 tests failed"
+              exit 1
+            }
+
+          echo "✅ Auth0 tests passed"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth0-test-results
+          path: |
+            .pytest_cache/
+            test-results.xml
+          retention-days: 7
+
+  enterprise-summary:
+    name: Enterprise Tests Summary
+    runs-on: ubuntu-latest
+    needs: [vault-kms-tests, auth0-tests]
+    if: always()
+
+    steps:
+      - name: Check results
+        run: |
+          echo "=== Enterprise Tests Summary ==="
+          echo ""
+          echo "Vault KMS Tests: ${{ needs.vault-kms-tests.result }}"
+          echo "Auth0 Tests: ${{ needs.auth0-tests.result }}"
+          echo ""
+
+          if [[ "${{ needs.vault-kms-tests.result }}" == "success" ]] && \
+             [[ "${{ needs.auth0-tests.result }}" == "success" ]]; then
+            echo "✅ All enterprise tests passed!"
+            exit 0
+          else
+            echo "⚠️  Some enterprise tests failed or were skipped"
+            echo "This is expected and does not block the main CI."
+            echo ""
+            echo "Note: Enterprise tests are optional and may be flaky due to"
+            echo "external service dependencies. Review failures to determine"
+            echo "if they represent real issues or infrastructure problems."
+            exit 0  # Don't fail the workflow
+          fi

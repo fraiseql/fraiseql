@@ -1,5 +1,16 @@
 name: Quality Gate
 
+# Main CI pipeline for FraiseQL
+#
+# This workflow runs on every PR and push to main/dev branches.
+# It includes:
+# - Unit tests (fast, no external dependencies)
+# - Integration tests (PostgreSQL only)
+# - Linting and security scans
+#
+# For enterprise feature tests (Vault KMS, Auth0), see:
+# .github/workflows/enterprise-tests.yml (runs weekly, doesn't block merges)
+
 # Comprehensive quality checks for all PR and main branch protection
 # This is the single unified workflow replacing legacy test/lint/security workflows
 on:
