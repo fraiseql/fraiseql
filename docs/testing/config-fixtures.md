@@ -449,4 +449,3 @@ def test_config(postgres_url: str):
 
 - [CI Architecture](./ci-architecture.md)
 - [Pytest Markers](./pytest-markers.md)
-- [FraiseQLConfig Documentation](../../api-reference/config.md)
