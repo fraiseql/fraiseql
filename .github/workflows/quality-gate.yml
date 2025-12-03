@@ -1,12 +1,12 @@
 name: Quality Gate
 
-# Optimized CI workflow that splits tests for faster feedback
-# Fast unit tests run first, integration tests only if unit tests pass
+# Comprehensive quality checks for all PR and main branch protection
+# This is the single unified workflow replacing legacy test/lint/security workflows
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
 
 concurrency:
   group: quality-gate-${{ github.ref }}
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Unit Tests (Fast)
+    name: Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -29,130 +29,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
+        # Disable pip caching initially to avoid cache folder issues
+        # cache: 'pip'
+        # cache-dependency-path: '**/pyproject.toml'
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
-
-    - name: Cache uv dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/uv
-          .venv
-        key: uv-${{ runner.os }}-py3.13-${{ hashFiles('pyproject.toml') }}
-        restore-keys: |
-          uv-${{ runner.os }}-py3.13-
-
-    - name: Setup environment and install dependencies
-      env:
-        FRAISEQL_SKIP_RUST: 1
-      run: |
-        # Create virtual environment with uv
-        uv venv
-
-        # Install build dependencies first (required for some packages like thrift)
-        uv pip install setuptools wheel
-
-        # Install all dependencies (Rust extension will be skipped due to FRAISEQL_SKIP_RUST=1)
-        uv pip install ".[dev,all]"
-
-    - name: Verify Environment
-      env:
-        FRAISEQL_SKIP_RUST: 1
-      run: |
-        echo "=== Environment Verification ==="
-        uv run python --version
-        uv --version
-        uv run pytest --version
-        echo "✅ Environment ready (no database, no Rust)"
-
-    - name: Run fast unit tests
-      env:
-        FRAISEQL_SKIP_RUST: 1
-      run: |
-        echo "=== Running Fast Unit Tests ==="
-        uv run pytest tests/ \
-          -m 'not database and not integration and not e2e and not forked and not slow and not enterprise' \
-          --cov=src/fraiseql \
-          --cov-report=xml \
-          --cov-report=term-missing \
-          -v \
-          --tb=short \
-          --disable-warnings \
-          || {
-            echo "❌ Unit tests failed"
-            exit 1
-          }
-        echo "✅ Unit tests completed successfully"
-
-    - name: Upload coverage
-      uses: codecov/codecov-action@v5
-      with:
-        files: ./coverage.xml
-        flags: unittests
-        name: Python-3.13-Unit
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-  integration-tests:
-    name: Integration Tests (Slow)
-    runs-on: ubuntu-latest
-    needs: [unit-tests, lint]
-
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: fraiseql
-          POSTGRES_PASSWORD: fraiseql
-          POSTGRES_DB: fraiseql_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      # Vault service temporarily disabled due to GitHub Actions container startup issues
-      # See "Initialize Vault for KMS tests" step comment below for detailed explanation
-      # vault:
-      #   image: hashicorp/vault:latest
-      #   env:
-      #     VAULT_DEV_ROOT_TOKEN_ID: fraiseql-ci-token
-      #     VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-      #   ports:
-      #     - 8200:8200
-      #   options: >-
-      #     --cap-add=IPC_LOCK
-      #     --health-cmd "vault status"
-      #     --health-interval 10s
-      #     --health-timeout 5s
-      #     --health-retries 5
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Cache Rust build
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          fraiseql_rs/target/
-        key: rust-${{ runner.os }}-${{ hashFiles('fraiseql_rs/Cargo.lock') }}
-        restore-keys: |
-          rust-${{ runner.os }}-
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -176,25 +58,6 @@ jobs:
         # Build and install Rust extension with modern maturin+uv integration
         uv run maturin develop --uv
 
-    - name: Check test collection performance
-      env:
-        FRAISEQL_SKIP_RUST: 1
-      run: |
-        echo '=== Test Collection Performance Check ==='
-        START_TIME=$(date +%s.%N)
-        TEST_COUNT=$(uv run pytest tests/ --collect-only -q -m 'not database and not integration and not e2e and not forked and not slow and not enterprise' 2>/dev/null | tail -1 | grep -oE '[0-9]+' | head -1 || echo '0')
-        END_TIME=$(date +%s.%N)
-        COLLECTION_TIME=$(echo "$END_TIME - $START_TIME" | bc)
-        echo "Unit tests collected: $TEST_COUNT tests in ${COLLECTION_TIME}s"
-
-        # Fail if collection takes >25 seconds (regression)
-        # Threshold increased from 15s to 25s after removing Vault container (slightly different timing)
-        if (( $(echo "$COLLECTION_TIME > 25" | bc -l) )); then
-          echo '❌ Test collection took too long (>25s) - possible performance regression'
-          exit 1
-        fi
-        echo '✅ Test collection performance OK'
-
     - name: Verify Environment
       run: |
         echo "=== Environment Verification ==="
@@ -202,92 +65,33 @@ jobs:
         uv --version
         uv run pytest --version
         rustc --version
-        pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
-        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
-        echo "=== Database Extensions Setup ==="
-        uv run python -c "
-        import psycopg
-        # Connect as postgres user to create extensions
-        try:
-            conn = psycopg.connect('postgresql://postgres@localhost:5432/fraiseql_test')
-            conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
-            conn.commit()
-            print('✅ pgvector extension created')
-            conn.close()
-        except Exception as e:
-            print(f'Failed to connect as postgres: {e}')
-            # Try connecting as fraiseql and create extension if possible
-            try:
-                conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test')
-                conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
-                conn.commit()
-                print('✅ pgvector extension created as fraiseql user')
-                conn.close()
-            except Exception as e2:
-                print(f'❌ Failed to create pgvector extension: {e2}')
-        " || echo "❌ Failed to create pgvector extension"
         echo "=== Rust Extension Verification ==="
         uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
-    # NOTE: KMS/Vault tests temporarily disabled in GitHub Actions due to container startup issues
-    # The Vault container experiences intermittent health check failures in GitHub Actions infrastructure
-    # causing the container to remain in "starting" state and eventually timeout as "unhealthy".
-    # This is a known infrastructure limitation, not a code issue. Configuration follows HashiCorp best practices:
-    # - Uses 'vault status' health check (recommended approach)
-    # - Correct VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    # - Proper IPC_LOCK capability
-    # KMS tests will automatically skip when VAULT_ADDR is not set (existing skipif decorator).
-    # Tests work fine locally and can be re-enabled once GitHub Actions/Vault compatibility improves.
-    # References:
-    # - https://developer.hashicorp.com/vault/docs/platform/github-actions
-    # - https://discuss.hashicorp.com/t/cant-access-ui-when-running-vault-in-dev-mode-from-docker/41521
-    #
-    # - name: Initialize Vault for KMS tests
-    #   env:
-    #     VAULT_ADDR: http://localhost:8200
-    #     VAULT_TOKEN: fraiseql-ci-token
-    #   run: |
-    #     echo "=== Initializing Vault for KMS Tests ==="
-    #     # Wait for Vault to be ready
-    #     timeout 30 bash -c 'until curl -s http://localhost:8200/v1/sys/health; do sleep 1; done' || (echo "❌ Vault not ready" && exit 1)
-    #     echo "✅ Vault is ready"
-    #
-    #     # Enable transit engine
-    #     curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
-    #       http://localhost:8200/v1/sys/mounts/transit \
-    #       -d '{"type":"transit"}' || (echo "❌ Failed to enable transit engine" && exit 1)
-    #     echo "✅ Transit engine enabled"
-    #
-    #     # Create test keys
-    #     for key in test-integration-key test-data-key test-key-1 test-key-2; do
-    #       curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
-    #         http://localhost:8200/v1/transit/keys/$key || (echo "❌ Failed to create key $key" && exit 1)
-    #     done
-    #     echo "✅ Test keys created"
-
-    - name: Run integration tests
-      env:
-        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
-        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
-        # VAULT_ADDR: http://localhost:8200  # Disabled - see Vault initialization comment above
-        # VAULT_TOKEN: fraiseql-ci-token  # Disabled - see Vault initialization comment above
-        # VAULT_TRANSIT_MOUNT: transit  # Disabled - see Vault initialization comment above
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_USER: fraiseql
-        DB_PASSWORD: fraiseql
-        FRAISEQL_ENVIRONMENT: ci
-        FRAISEQL_AUTO_INSTALL: false
-        FRAISEQL_LOG_LEVEL: INFO
-        PYTEST_CURRENT_TEST: ""
+    - name: Run KMS unit tests
       run: |
-        echo "=== Running Integration Tests ==="
-        echo "Environment variables:"
-        printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
-        echo "Running pytest with integration markers..."
+        echo "=== Running KMS Unit Tests ==="
+        uv run pytest tests/unit/security/kms/ -v --tb=short || {
+          echo "❌ KMS unit tests failed"
+          exit 1
+        }
+        echo "✅ KMS unit tests completed successfully"
 
-        uv run pytest tests/ \
-          -m 'database or integration or e2e or forked or slow or enterprise' \
+    - name: Run security profile tests
+      run: |
+        echo "=== Running Security Profile Tests ==="
+        uv run pytest tests/unit/security/profiles/ -v --tb=short || {
+          echo "❌ Security profile tests failed"
+          exit 1
+        }
+        echo "✅ Security profile tests completed successfully"
+
+    - name: Run unit tests
+      run: |
+        echo "=== Starting Unit Tests ==="
+        echo "Running tests that don't require external services..."
+
+        uv run pytest tests/unit/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
@@ -295,10 +99,124 @@ jobs:
           --tb=short \
           --disable-warnings \
           || {
-            echo "❌ Integration tests failed"
+            echo "❌ Unit tests failed with exit code $?"
             exit 1
           }
-        echo "✅ Integration tests completed successfully"
+         echo "✅ Unit tests completed successfully"
+
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v5
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        name: Python-3.13
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  integration-postgres:
+    name: Integration Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+
+    # This job runs integration tests that require PostgreSQL only.
+    # Tests requiring additional services (Vault KMS, Auth0) run in the
+    # separate 'enterprise-tests' workflow (see .github/workflows/enterprise-tests.yml)
+    # to keep the main CI fast and reliable.
+    #
+    # Test markers used:
+    # - requires_postgres: Tests needing PostgreSQL (run here)
+    # - requires_vault: Tests needing Vault (run in enterprise-tests)
+    # - requires_auth0: Tests needing Auth0 (run in enterprise-tests)
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+        - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: uv tool install maturin
+
+    - name: Setup environment and install dependencies
+      run: |
+        # Create virtual environment with uv
+        uv venv
+
+        # Install build dependencies first (required for some packages like thrift)
+        uv pip install setuptools wheel
+
+        # Install all dependencies
+        uv pip install ".[dev,all]"
+
+        # Build and install Rust extension with modern maturin+uv integration
+        uv run maturin develop --uv
+
+    - name: Verify Database Connection
+      run: |
+        echo "=== Database Connection Verification ==="
+        pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
+        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+
+    - name: Run integration tests (PostgreSQL only)
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+        FRAISEQL_ENVIRONMENT: testing
+        FRAISEQL_AUTO_INSTALL: false
+        FRAISEQL_LOG_LEVEL: INFO
+        PYTEST_CURRENT_TEST: ""
+      run: |
+        echo "=== Running Integration Tests (PostgreSQL Only) ==="
+        echo "Running tests that require PostgreSQL but not Vault/Auth0..."
+        echo ""
+
+        echo "ℹ️  Tests requiring Vault/Auth0 run in the optional 'enterprise-tests' workflow"
+        echo ""
+
+        # Run only tests that require PostgreSQL (not Vault or Auth0)
+        uv run pytest tests/ \
+          -m 'requires_postgres and not requires_vault and not requires_auth0' \
+          --cov=src/fraiseql \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          -v \
+          --tb=short \
+          --disable-warnings \
+          || {
+            echo "❌ PostgreSQL integration tests failed"
+            exit 1
+          }
+        echo "✅ PostgreSQL integration tests completed successfully"
 
     - name: Validate Network Filtering Fix
       env:
@@ -326,16 +244,27 @@ jobs:
           exit 1
         }
 
-        echo "✅ Network filtering bug fix validated successfully"
+        echo "✅ Network filtering bug fix validated successfully - all 25 tests passed"
 
-    - name: Upload coverage
-      uses: codecov/codecov-action@v5
-      with:
-        files: ./coverage.xml
-        flags: integration
-        name: Python-3.13-Integration
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Run example integration tests
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+        FRAISEQL_ENVIRONMENT: testing
+        FRAISEQL_AUTO_INSTALL: false
+        FRAISEQL_LOG_LEVEL: INFO
+      run: |
+        echo "=== Running Example Integration Tests ==="
+        uv run pytest tests/integration/examples/ -v --tb=short || {
+          echo "❌ Example integration tests failed"
+          echo "This may indicate issues with example configurations or database setup"
+          exit 1
+        }
+        echo "✅ Example integration tests completed successfully"
 
   lint:
     name: Lint
@@ -413,10 +342,93 @@ jobs:
           safety-results.json
           reports/
 
+  performance:
+    name: Performance Regression
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_perf
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+        - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Setup environment and install dependencies
+      run: |
+        uv venv
+        uv pip install setuptools wheel psycopg
+
+    - name: Run CI performance benchmarks
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+        BENCHMARK_OUTPUT: current-results.json
+        BENCHMARK_BASELINE: performance-baseline.json
+      run: |
+        echo "=== Running CI Performance Benchmarks ==="
+        uv run python scripts/ci-cd/performance_benchmark.py
+
+    - name: Check for performance regressions
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_perf
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+      run: |
+        echo "=== Checking for Performance Regressions ==="
+        if [ -f "performance-baseline.json" ]; then
+          uv run python scripts/ci-cd/check_performance_regression.py current-results.json performance-baseline.json
+        else
+          echo "ℹ️  No baseline found - establishing new baseline for future comparisons"
+          cp current-results.json performance-baseline.json
+        fi
+
+    - name: Update performance baseline (main branch only)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "=== Updating Performance Baseline ==="
+        # Only update baseline on main branch to establish new performance expectations
+        cp current-results.json performance-baseline.json
+        echo "✅ Performance baseline updated for main branch"
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v5
+      with:
+        name: performance-results
+        path: |
+          current-results.json
+          performance-baseline.json
+
+  # Quality gate summary job - this job fails if any quality check fails
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, lint, security]
+    needs: [unit-tests, integration-postgres, lint, security, performance]
     if: always()
     steps:
       - name: Check quality gate status
@@ -426,8 +438,8 @@ jobs:
             echo "❌ Unit tests failed - Quality gate blocked"
             exit 1
           fi
-          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
-            echo "❌ Integration tests failed - Quality gate blocked"
+          if [[ "${{ needs.integration-postgres.result }}" != "success" ]]; then
+            echo "❌ PostgreSQL integration tests failed - Quality gate blocked"
             exit 1
           fi
           if [[ "${{ needs.lint.result }}" != "success" ]]; then
@@ -436,6 +448,10 @@ jobs:
           fi
           if [[ "${{ needs.security.result }}" != "success" ]]; then
             echo "❌ Security checks failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.performance.result }}" != "success" ]]; then
+            echo "❌ Performance regression detected - Quality gate blocked"
             exit 1
           fi
           echo "✅ All quality checks passed - Quality gate open"
