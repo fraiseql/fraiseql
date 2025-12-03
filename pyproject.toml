@@ -209,6 +209,20 @@ filterwarnings = [
     "ignore::pytest.PytestUnraisableExceptionWarning"
 ]
 
+# Performance optimizations
+norecursedirs = [
+    ".git",
+    ".tox",
+    "dist",
+    "build",
+    "*.egg",
+    "node_modules",
+    "venv",
+    ".venv",
+    ".pytest_cache",
+    "__pycache__"
+]
+
 # Minimum version
 minversion = "8.0"
 

@@ -85,6 +85,16 @@ jobs:
         echo "=== Rust Extension Verification ==="
         uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
+    - name: Cache pytest
+      uses: actions/cache@v4
+      with:
+        path: |
+          .pytest_cache
+          tests/.pytest_cache
+        key: pytest-${{ runner.os }}-${{ hashFiles('tests/**/*.py', 'pyproject.toml') }}
+        restore-keys: |
+          pytest-${{ runner.os }}-
+
     - name: Run KMS unit tests
       run: |
         echo "=== Running KMS Unit Tests ==="
@@ -103,7 +113,7 @@ jobs:
         }
         echo "✅ Security profile tests completed successfully"
 
-    - name: Run core tests
+    - name: Run core tests (parallel)
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -114,15 +124,18 @@ jobs:
         # Environment variables for pytest configuration
         PYTEST_CURRENT_TEST: ""
       run: |
-        echo "=== Starting Core Tests ==="
+        echo "=== Starting Core Tests (Parallel) ==="
+        echo "Using pytest-xdist for parallel execution across CPU cores"
         echo "Environment variables:"
         printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
-        echo "Running pytest with explicit configuration..."
+        echo "Running pytest with parallel execution..."
 
         uv run pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
+          -n auto \
+          --dist loadscope \
           -v \
           -m "not blog_simple and not blog_enterprise" \
           --tb=short \
