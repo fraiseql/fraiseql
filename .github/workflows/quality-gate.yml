@@ -430,8 +430,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-postgres, lint, security, performance]
     if: always()
-  steps:
-    - name: Check quality gate status
+    steps:
+      - name: Check quality gate status
         run: |
           # This job will fail if any of the required jobs failed
           if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
