@@ -48,7 +48,7 @@ def test_rust_binding_v2_success():
 
     mutation_json = json.dumps(
         {
-            "status": "new",
+            "status": "created",
             "message": "User created",
             "entity_id": "123",
             "entity_type": "User",
