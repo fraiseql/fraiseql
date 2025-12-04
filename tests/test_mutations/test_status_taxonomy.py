@@ -7,10 +7,10 @@ from fraiseql.mutations.error_config import MutationErrorConfig
 @pytest.mark.asyncio
 async def test_validation_error_detected(db_connection, clear_registry):
     """Test that validation: prefix is detected as error."""
-    # Create mutation_result_v2 type
+    # Create mutation_response type
     await db_connection.execute("""
         DO $$ BEGIN
-            CREATE TYPE mutation_result_v2 AS (
+            CREATE TYPE mutation_response AS (
                 status          text,
                 message         text,
                 entity_id       text,
@@ -28,7 +28,7 @@ async def test_validation_error_detected(db_connection, clear_registry):
     # Create test function that returns validation error
     await db_connection.execute("""
         CREATE FUNCTION test_validation_error(input_data JSONB)
-        RETURNS mutation_result_v2 AS $$
+        RETURNS mutation_response AS $$
         BEGIN
             RETURN (
                 'failed:validation_error',
@@ -39,7 +39,7 @@ async def test_validation_error_detected(db_connection, clear_registry):
                 NULL,
                 NULL,
                 NULL
-            )::mutation_result_v2;
+            )::mutation_response;
         END;
         $$ LANGUAGE plpgsql;
     """)
@@ -84,10 +84,10 @@ async def test_validation_error_detected(db_connection, clear_registry):
 @pytest.mark.asyncio
 async def test_conflict_error_detected(db_connection, clear_registry):
     """Test that conflict: prefix is detected as error."""
-    # Create mutation_result_v2 type
+    # Create mutation_response type
     await db_connection.execute("""
         DO $$ BEGIN
-            CREATE TYPE mutation_result_v2 AS (
+            CREATE TYPE mutation_response AS (
                 status          text,
                 message         text,
                 entity_id       text,
@@ -104,7 +104,7 @@ async def test_conflict_error_detected(db_connection, clear_registry):
 
     await db_connection.execute("""
         CREATE FUNCTION test_conflict_error(input_data JSONB)
-        RETURNS mutation_result_v2 AS $$
+        RETURNS mutation_response AS $$
         BEGIN
             RETURN (
                 'conflict:duplicate_email',
@@ -115,7 +115,7 @@ async def test_conflict_error_detected(db_connection, clear_registry):
                 NULL,
                 NULL,
                 NULL
-            )::mutation_result_v2;
+            )::mutation_response;
         END;
         $$ LANGUAGE plpgsql;
     """)
@@ -158,10 +158,10 @@ async def test_conflict_error_detected(db_connection, clear_registry):
 @pytest.mark.asyncio
 async def test_noop_returns_success_type(db_connection, clear_registry):
     """Test that noop: prefix returns success type (not error)."""
-    # Create mutation_result_v2 type
+    # Create mutation_response type
     await db_connection.execute("""
         DO $$ BEGIN
-            CREATE TYPE mutation_result_v2 AS (
+            CREATE TYPE mutation_response AS (
                 status          text,
                 message         text,
                 entity_id       text,
@@ -178,7 +178,7 @@ async def test_noop_returns_success_type(db_connection, clear_registry):
 
     await db_connection.execute("""
         CREATE FUNCTION test_noop_status(input_data JSONB)
-        RETURNS mutation_result_v2 AS $$
+        RETURNS mutation_response AS $$
         BEGIN
             RETURN (
                 'noop:duplicate',
@@ -189,7 +189,7 @@ async def test_noop_returns_success_type(db_connection, clear_registry):
                 NULL,
                 NULL,
                 NULL
-            )::mutation_result_v2;
+            )::mutation_response;
         END;
         $$ LANGUAGE plpgsql;
     """)
@@ -232,10 +232,10 @@ async def test_noop_returns_success_type(db_connection, clear_registry):
 @pytest.mark.asyncio
 async def test_timeout_error_detected(db_connection, clear_registry):
     """Test that timeout: prefix is detected as error."""
-    # Create mutation_result_v2 type
+    # Create mutation_response type
     await db_connection.execute("""
         DO $$ BEGIN
-            CREATE TYPE mutation_result_v2 AS (
+            CREATE TYPE mutation_response AS (
                 status          text,
                 message         text,
                 entity_id       text,
@@ -252,7 +252,7 @@ async def test_timeout_error_detected(db_connection, clear_registry):
 
     await db_connection.execute("""
         CREATE FUNCTION test_timeout_error(input_data JSONB)
-        RETURNS mutation_result_v2 AS $$
+        RETURNS mutation_response AS $$
         BEGIN
             RETURN (
                 'timeout:database_query',
@@ -263,7 +263,7 @@ async def test_timeout_error_detected(db_connection, clear_registry):
                 NULL,
                 NULL,
                 NULL
-            )::mutation_result_v2;
+            )::mutation_response;
         END;
         $$ LANGUAGE plpgsql;
     """)
