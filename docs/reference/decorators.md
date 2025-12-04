@@ -234,7 +234,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | Configuration for error detection behavior |
+| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../mutations/status-strings.md) |
 
 **Examples**:
 ```python

@@ -11,6 +11,8 @@ This guide explains the return formats for PostgreSQL functions used with Fraise
 
 See [Mutation Result Reference](mutation-result-reference.md) for complete format specifications.
 
+**Error Detection**: FraiseQL's Rust layer automatically detects errors using a [comprehensive status taxonomy](../mutations/status-strings.md). Status strings like `failed:validation`, `unauthorized:token_expired`, `conflict:duplicate`, etc. are automatically mapped to appropriate error types and HTTP status codes.
+
 **Note**: The legacy format continues to work but the v2 format is recommended for new implementations.
 
 ## Table of Contents
