@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CRITICAL**: Fixed bug where custom `error_config` was ignored in HTTP mode (production)
+  - Error detection now happens in Rust layer using status string prefixes
+  - All mutations via FastAPI now correctly map status strings to Success/Error types
+  - Fixes issue where `validation:`, `conflict:`, and other custom prefixes returned as Success
+
+### Added
+- Comprehensive status taxonomy in Rust mutation layer
+  - Error prefixes: `failed:`, `unauthorized:`, `forbidden:`, `not_found:`, `conflict:`, `timeout:`
+  - Noop prefix: `noop:` (returns Success type with no changes)
+  - Success keywords: `success`, `created`, `updated`, `deleted`
+  - Case-insensitive status matching
+- Documentation: `docs/mutations/status-strings.md` - Complete guide to status string conventions
+
+### Changed
+- `error_config` parameter is now deprecated for HTTP mode (still works in non-HTTP mode)
+- Status detection moved from Python `parse_mutation_result()` to Rust `MutationStatus::from_str()`
+
+### Migration Guide
+If you have mutations using custom `error_config`:
+
+**Before:**
+```python
+CUSTOM_ERROR_CONFIG = MutationErrorConfig(
+    error_prefixes={"validation:", "error:", "failed:"}
+)
+
+@mutation(function="create_user", error_config=CUSTOM_ERROR_CONFIG)
+class CreateUser: ...
+```
+
+**After (update PostgreSQL functions):**
+```sql
+-- Use standardized prefixes in PostgreSQL
+RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_result_v2;
+RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_result_v2;
+RETURN ('noop:duplicate', 'Already exists', ...)::mutation_result_v2;
+```
+
+No Python changes needed - `error_config` can be removed.
+
 ## [1.7.0] - 2025-11-XX
 
 ### 🦀 Rust-First Architecture
