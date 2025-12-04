@@ -108,24 +108,31 @@ def flatten_entity_wrapper(
     flattened = mutation_result.copy()
 
     # Extract expected fields from entity or top-level
+    # Priority: top-level fields > entity fields (e.g., cascade from top-level wins)
     for field_name in expected_fields:
-        # For each field in Success type, try to find it in entity or top-level
-        if field_name in entity:
-            flattened[field_name] = entity[field_name]
-            logger.debug(f"Flattened field '{field_name}' from entity")
-        elif field_name in mutation_result and field_name != "entity":
-            # Keep top-level fields (including cascade if present)
+        # For each field in Success type, try to find it in top-level first, then entity
+        if field_name in mutation_result and field_name != "entity":
+            # Use top-level fields (including cascade if present) - highest priority
             flattened[field_name] = mutation_result[field_name]
             logger.debug(f"Flattened field '{field_name}' from top-level")
+        elif field_name in entity:
+            # Fall back to entity field if not at top-level
+            flattened[field_name] = entity[field_name]
+            logger.debug(f"Flattened field '{field_name}' from entity")
 
     # Remove entity wrapper but PRESERVE v2 internal fields for Rust parsing
     # Rust needs 'status', 'entity_id', 'entity_type' to detect v2 format
     v2_internal_fields = {"status", "entity_id", "entity_type", "updated_fields", "metadata"}
 
+    # Remove entity field explicitly
+    flattened.pop("entity", None)
+    logger.debug("Removed 'entity' wrapper field")
+
+    # Remove any extra fields not in expected_fields or v2_internal_fields
     fields_to_remove = []
     for key in flattened:
         # Keep expected fields AND v2 internal fields
-        if key not in expected_fields and key not in v2_internal_fields and key != "entity":
+        if key not in expected_fields and key not in v2_internal_fields:
             fields_to_remove.append(key)
 
     for key in fields_to_remove:
