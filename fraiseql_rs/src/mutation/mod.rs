@@ -194,7 +194,7 @@ pub struct MutationResult {
 /// Valid mutation status prefixes/values for format detection
 const VALID_STATUS_PREFIXES: &[&str] = &[
     // Success keywords (no colon)
-    "success", "created", "updated", "deleted",
+    "success", "created", "updated", "deleted", "new",
     // Error prefixes
     "failed:", "unauthorized:", "forbidden:", "not_found:", "conflict:", "timeout:",
     // Noop prefix
