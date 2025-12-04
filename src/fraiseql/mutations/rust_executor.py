@@ -36,6 +36,7 @@ async def execute_mutation_rust(
     entity_type: str | None = None,
     context_args: list[Any] | None = None,
     cascade_selections: str | None = None,
+    config: Any | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -53,11 +54,25 @@ async def execute_mutation_rust(
         entity_type: Entity type for __typename (e.g., "User") - REQUIRED for simple format
         context_args: Optional context arguments
         cascade_selections: Optional cascade selections JSON
+        config: Optional FraiseQLConfig instance. If None, uses global config.
 
     Returns:
         RustResponseBytes ready for HTTP response
     """
     fraiseql_rs = _get_fraiseql_rs()
+
+    # Get config if not provided
+    if config is None:
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            registry = SchemaRegistry.get_instance()
+            config = registry.config if registry else None
+        except (ImportError, AttributeError):
+            config = None
+
+    # Extract auto_camel_case from config (default True for backward compatibility)
+    auto_camel_case = getattr(config, "auto_camel_case", True) if config else True
 
     # Convert input to JSON
     input_json = json.dumps(input_data, separators=(",", ":"))
@@ -99,6 +114,7 @@ async def execute_mutation_rust(
             entity_field_name,
             entity_type,
             None,  # cascade_selections
+            auto_camel_case,  # Pass config flag
         )
         return RustResponseBytes(response_bytes)
 
@@ -179,6 +195,7 @@ async def execute_mutation_rust(
         entity_field_name,
         entity_type,
         cascade_selections,
+        auto_camel_case,  # Pass config flag
     )
 
     return RustResponseBytes(response_bytes, schema_type=success_type)
