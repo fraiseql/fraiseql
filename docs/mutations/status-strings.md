@@ -159,9 +159,3 @@ If you have existing functions using custom statuses:
 | `error:database` | `failed:database_error` | Error |
 | `duplicate:email` | `conflict:duplicate_email` | Error |
 | `already_exists` | `noop:duplicate` | Success |
-
-## Related
-
-- [Mutation Error Handling](./error-handling.md)
-- [mutation_result_v2 Type](./mutation-result-v2.md)
-- [GraphQL Cascade Compliance](./cascade-compliance.md)
