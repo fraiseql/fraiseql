@@ -383,16 +383,36 @@ compactor:
 
 **Assumptions:**
 - 100 req/sec = ~8.6M requests/day
+- Average **5-10 log entries per request** (start, end, DB queries, errors)
 - Average log entry: 500 bytes
-- Compression ratio: 10:1 (Loki is efficient)
+- Compression ratio: 10:1 (Loki uses efficient compression)
 
-**Storage per day:** 8.6M × 500 bytes ÷ 10 = **430 MB/day**
-**Storage for 90 days:** 430 MB × 90 = **~39 GB**
+**Calculations:**
 
-**For production:**
-- Monitor storage usage: `du -sh /loki/chunks`
-- Set alerts for disk usage > 80%
-- Use S3/GCS with lifecycle policies
+```
+Logs per day:
+  100 req/sec × 5 logs/req × 86,400 sec/day = 43M logs/day
+
+Raw size:
+  43M logs × 500 bytes = 21.5 GB/day (uncompressed)
+
+Compressed (Loki storage):
+  21.5 GB ÷ 10 = 2.15 GB/day
+```
+
+**Storage Requirements:**
+
+| Retention | Compressed Size | Raw Size (if exported) |
+|-----------|----------------|------------------------|
+| 7 days    | ~15 GB         | ~150 GB                |
+| 30 days   | ~65 GB         | ~645 GB                |
+| 90 days   | ~195 GB        | ~1.9 TB                |
+
+**For production monitoring:**
+- Check actual storage usage: `docker exec fraiseql-loki du -sh /loki/chunks`
+- Monitor ingestion rate: `curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total`
+- Set alerts if usage exceeds estimates by 50%
+- Use S3/GCS with lifecycle policies (archive to Glacier after 90 days)
 
 ---
 
@@ -591,6 +611,65 @@ networks:
 - Loki is not a Splunk replacement (no full-text search)
 - Best for structured logs (JSON)
 - Use labels for filtering, not grep-style searches
+
+---
+
+## Query Optimization Best Practices
+
+> **TODO:** Comprehensive query optimization guide
+>
+> Planned content:
+> - Label filters vs JSON filters (performance impact)
+> - Line filters before JSON parsing
+> - Time range optimization
+> - Cardinality management
+> - Common query patterns with performance notes
+>
+> See implementation plan: `.phases/loki_fixes_implementation_plan.md` Task 3.2
+
+---
+
+## PostgreSQL vs Loki: When to Use Each
+
+> **TODO:** Clarification of PostgreSQL errors table vs Loki logs
+>
+> Planned content:
+> - PostgreSQL: Error tracking, management, long-term storage
+> - Loki: Log context, debugging, trace correlation
+> - Decision matrix and recommended workflow
+>
+> See implementation plan: `.phases/loki_fixes_implementation_plan.md` Task 3.3
+
+---
+
+## Monitoring Loki Itself
+
+> **TODO:** Comprehensive Loki monitoring and alerting
+>
+> Planned content:
+> - Key metrics (ingestion, query performance, storage)
+> - Prometheus alert rules
+> - Health check endpoints
+> - Grafana dashboards for Loki operations
+> - Troubleshooting guide
+>
+> See implementation plan: `.phases/loki_fixes_implementation_plan.md` Task 3.4
+
+---
+
+## Security Hardening
+
+> **TODO:** Production security configuration
+>
+> Planned content:
+> - Authentication options (multi-tenancy, basic auth, OAuth2)
+> - TLS/SSL encryption
+> - Network isolation
+> - Log sanitization (removing PII/secrets)
+> - Docker socket security
+> - Secrets management
+>
+> See implementation plan: `.phases/loki_fixes_implementation_plan.md` Task 3.5
 
 ---
 
