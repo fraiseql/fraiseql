@@ -641,3 +641,246 @@ mod test_status_taxonomy {
         assert!(status.is_success());
     }
 }
+
+// ============================================================================
+// Tests for STATUS TAXONOMY INTEGRATION (Phase 3: REFACTOR)
+// ============================================================================
+
+#[cfg(test)]
+mod test_mutation_response_integration {
+    use super::*;
+
+    #[test]
+    fn test_build_error_response_validation() {
+        let mutation_json = r#"{
+            "status": "failed:validation_error",
+            "message": "Invalid email format",
+            "entity_id": null,
+            "entity_type": null,
+            "entity": null,
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+
+        // Parse JSON to verify structure
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        // Should be error type
+        assert_eq!(
+            response["data"]["createUser"]["__typename"],
+            "CreateUserError"
+        );
+        assert_eq!(
+            response["data"]["createUser"]["message"],
+            "Invalid email format"
+        );
+    }
+
+    #[test]
+    fn test_build_error_response_conflict() {
+        let mutation_json = r#"{
+            "status": "conflict:duplicate_email",
+            "message": "Email already exists",
+            "entity_id": null,
+            "entity_type": null,
+            "entity": null,
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        // Should be error type with conflict status
+        assert_eq!(
+            response["data"]["createUser"]["__typename"],
+            "CreateUserError"
+        );
+        assert!(response["data"]["createUser"]["status"]
+            .as_str()
+            .unwrap()
+            .starts_with("conflict:"));
+    }
+
+    #[test]
+    fn test_build_noop_response() {
+        let mutation_json = r#"{
+            "status": "noop:duplicate",
+            "message": "Already exists",
+            "entity_id": "123",
+            "entity_type": "User",
+            "entity": {"id": "123", "email": "test@example.com"},
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        // Noop should be SUCCESS type (no change, but not an error)
+        assert_eq!(
+            response["data"]["createUser"]["__typename"],
+            "CreateUserSuccess"
+        );
+        assert_eq!(
+            response["data"]["createUser"]["message"],
+            "Already exists"
+        );
+    }
+
+    #[test]
+    fn test_build_success_response() {
+        let mutation_json = r#"{
+            "status": "created",
+            "message": "User created successfully",
+            "entity_id": "456",
+            "entity_type": "User",
+            "entity": {"id": "456", "email": "new@example.com", "name": "Test User"},
+            "updated_fields": ["email", "name"],
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        // Should be success type
+        assert_eq!(
+            response["data"]["createUser"]["__typename"],
+            "CreateUserSuccess"
+        );
+        assert!(response["data"]["createUser"]["user"].is_object());
+        assert_eq!(response["data"]["createUser"]["user"]["id"], "456");
+    }
+
+    #[test]
+    fn test_unauthorized_error() {
+        let mutation_json = r#"{
+            "status": "unauthorized:token_expired",
+            "message": "Authentication token has expired",
+            "entity_id": null,
+            "entity_type": null,
+            "entity": null,
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "updateProfile",
+            "UpdateProfileSuccess",
+            "UpdateProfileError",
+            None,
+            None,
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        assert_eq!(
+            response["data"]["updateProfile"]["__typename"],
+            "UpdateProfileError"
+        );
+    }
+
+    #[test]
+    fn test_timeout_error() {
+        let mutation_json = r#"{
+            "status": "timeout:database_query",
+            "message": "Database query exceeded 30 second timeout",
+            "entity_id": null,
+            "entity_type": null,
+            "entity": null,
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
+
+        let result = build_mutation_response(
+            mutation_json,
+            "processLargeDataset",
+            "ProcessSuccess",
+            "ProcessError",
+            None,
+            None,
+            None,
+            true,
+        );
+
+        assert!(result.is_ok());
+        let response_bytes = result.unwrap();
+        let response_str = String::from_utf8(response_bytes).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
+
+        assert_eq!(
+            response["data"]["processLargeDataset"]["__typename"],
+            "ProcessError"
+        );
+        assert!(response["data"]["processLargeDataset"]["status"]
+            .as_str()
+            .unwrap()
+            .starts_with("timeout:"));
+    }
+}
