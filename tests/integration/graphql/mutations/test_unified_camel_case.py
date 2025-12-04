@@ -25,10 +25,10 @@ class TestUnifiedCamelCase:
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
 
-            # Create mutation_result_v2 type
+            # Create mutation_response type
             await conn.execute(
                 """
-                CREATE TYPE mutation_result_v2 AS (
+                CREATE TYPE mutation_response AS (
                     status TEXT,
                     message TEXT,
                     entity_id TEXT,
@@ -53,11 +53,11 @@ class TestUnifiedCamelCase:
                 """
             )
 
-            # Create mutation function that returns mutation_result_v2
+            # Create mutation function that returns mutation_response
             await conn.execute(
                 """
                 CREATE OR REPLACE FUNCTION create_test_server(input_data JSONB)
-                RETURNS mutation_result_v2 AS $$
+                RETURNS mutation_response AS $$
                 DECLARE
                     new_id TEXT;
                     server_data JSONB;
@@ -81,7 +81,7 @@ class TestUnifiedCamelCase:
                         NULL,
                         NULL,
                         NULL
-                    )::mutation_result_v2;
+                    )::mutation_response;
                 END;
                 $$ LANGUAGE plpgsql;
                 """
@@ -98,6 +98,7 @@ class TestUnifiedCamelCase:
 
         # Create a mock config with auto_camel_case=True
         from types import SimpleNamespace
+
         config = SimpleNamespace(auto_camel_case=True)
 
         # Execute mutation directly via rust_executor
@@ -152,6 +153,7 @@ class TestUnifiedCamelCase:
 
         # Create a mock config with auto_camel_case=False
         from types import SimpleNamespace
+
         config = SimpleNamespace(auto_camel_case=False)
 
         # Execute mutation directly via rust_executor
@@ -180,8 +182,12 @@ class TestUnifiedCamelCase:
         mutation_result = data["data"]["createTestServer"]
 
         # CRITICAL: Verify entity_field_name was NOT converted (stays snake_case)
-        assert "test_server" in mutation_result, "Entity field should remain snake_case when auto_camel_case=False"
-        assert "testServer" not in mutation_result, "Entity field should NOT be camelCase when auto_camel_case=False"
+        assert "test_server" in mutation_result, (
+            "Entity field should remain snake_case when auto_camel_case=False"
+        )
+        assert "testServer" not in mutation_result, (
+            "Entity field should NOT be camelCase when auto_camel_case=False"
+        )
 
         # Verify entity fields remain snake_case
         test_server = mutation_result["test_server"]

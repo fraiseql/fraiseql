@@ -41,9 +41,9 @@ class CreateUser: ...
 **After (update PostgreSQL functions):**
 ```sql
 -- Use standardized prefixes in PostgreSQL
-RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_result_v2;
-RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_result_v2;
-RETURN ('noop:duplicate', 'Already exists', ...)::mutation_result_v2;
+RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_response;
+RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_response;
+RETURN ('noop:duplicate', 'Already exists', ...)::mutation_response;
 ```
 
 No Python changes needed - `error_config` can be removed.
