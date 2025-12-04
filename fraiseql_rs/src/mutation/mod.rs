@@ -1,6 +1,6 @@
 //! Mutation result transformation module
 //!
-//! Transforms PostgreSQL mutation_result_v2 JSON into GraphQL responses.
+//! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
 #[cfg(test)]
 mod tests;
@@ -15,7 +15,7 @@ use crate::camel_case::to_camel_case;
 ///
 /// Supports TWO formats:
 /// 1. **Simple format**: Just entity JSONB (no status field) - auto-detected
-/// 2. **Full v2 format**: Complete mutation_result_v2 with status, message, etc.
+/// 2. **Full format**: Complete mutation_response with status, message, etc.
 ///
 /// # Arguments
 /// * `mutation_json` - Raw JSON from PostgreSQL (simple or v2 format)
@@ -176,7 +176,7 @@ impl MutationStatus {
 ///
 /// Supports TWO formats:
 /// 1. Simple: Just entity JSONB (detected by absence of "status" field)
-/// 2. Full v2: Complete mutation_result_v2 with status, message, entity, etc.
+/// 2. Full: Complete mutation_response with status, message, entity, etc.
 #[derive(Debug, Clone)]
 pub struct MutationResult {
     pub status: MutationStatus,
