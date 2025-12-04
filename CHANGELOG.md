@@ -8,12 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **BREAKING (Pre-release only)**: Renamed `mutation_response` to `mutation_response`
-  - PostgreSQL composite type renamed
-  - All helper functions updated
-  - Migration file: `005_add_mutation_response.sql` → `005_add_mutation_response.sql`
-  - **Impact**: None (no external users)
-  - **Migration**: Update PostgreSQL functions to return `mutation_response`
+- **BREAKING (Pre-release only)**: Renamed `mutation_result_v2` to `mutation_response`
+  - PostgreSQL composite type renamed from `mutation_result_v2` to `mutation_response`
+  - All helper functions updated (`row_to_mutation_response`, etc.)
+  - Migration file: `005_add_mutation_result_v2.sql` → `005_add_mutation_response.sql`
+  - Rust type: `MutationResultV2` → `MutationResponse`
+  - **Impact**: None (no external users yet)
+  - **Rationale**: Cleaner naming before v1.0 - removes confusing "v2" suffix
+  - **Migration**: Update PostgreSQL functions to return `mutation_response` type
 
 ## [1.7.2] - 2025-12-04
 
