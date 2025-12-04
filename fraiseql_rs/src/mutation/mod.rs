@@ -18,7 +18,7 @@ use crate::camel_case::to_camel_case;
 /// 2. **Full format**: Complete mutation_response with status, message, etc.
 ///
 /// # Arguments
-/// * `mutation_json` - Raw JSON from PostgreSQL (simple or v2 format)
+/// * `mutation_json` - Raw JSON from PostgreSQL (simple or full format)
 /// * `field_name` - GraphQL field name (e.g., "createUser")
 /// * `success_type` - Success type name (e.g., "CreateUserSuccess")
 /// * `error_type` - Error type name (e.g., "CreateUserError")
