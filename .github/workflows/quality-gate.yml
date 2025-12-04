@@ -203,9 +203,9 @@ jobs:
         echo "ℹ️  Tests requiring Vault/Auth0 run in the optional 'enterprise-tests' workflow"
         echo ""
 
-        # Run only tests that require PostgreSQL (not Vault or Auth0)
-        uv run pytest tests/ \
-          -m 'requires_postgres and not requires_vault and not requires_auth0' \
+        # Run integration tests that require database (not enterprise features)
+        uv run pytest tests/integration/ \
+          -m 'not enterprise' \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
