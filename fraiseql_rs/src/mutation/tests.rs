@@ -541,7 +541,7 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:validation");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, "validation"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation"),
             _ => panic!("Expected Error variant"),
         }
     }
@@ -613,8 +613,8 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:validation:email_invalid");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, "validation:email_invalid"),
-            _ => panic!("Expected Error with full reason"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation:email_invalid"),
+            _ => panic!("Expected Error with full status"),
         }
     }
 
@@ -623,8 +623,8 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, ""),
-            _ => panic!("Expected Error with empty reason"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:"),
+            _ => panic!("Expected Error with empty status"),
         }
     }
 

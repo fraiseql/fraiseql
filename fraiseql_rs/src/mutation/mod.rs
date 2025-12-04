@@ -40,7 +40,7 @@ pub fn build_mutation_response(
     let result = MutationResult::from_json(mutation_json, entity_type)?;
 
     // Step 2: Build response object based on status
-    let response_obj = if result.status.is_success() {
+    let response_obj = if result.status.is_success() || result.status.is_noop() {
         build_success_object(&result, success_type, entity_field_name, auto_camel_case)?
     } else {
         build_error_object(&result, error_type, auto_camel_case)?
@@ -104,7 +104,7 @@ impl MutationStatus {
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
-        // ERROR PREFIXES - Return Error type
+        // ERROR PREFIXES - Return Error type with full status string
         if status_lower.starts_with("failed:")
             || status_lower.starts_with("unauthorized:")
             || status_lower.starts_with("forbidden:")
@@ -112,26 +112,13 @@ impl MutationStatus {
             || status_lower.starts_with("conflict:")
             || status_lower.starts_with("timeout:")
         {
-            // Extract reason after first colon
-            let colon_pos = status.find(':').unwrap_or(status.len());
-            let reason = if colon_pos < status.len() - 1 {
-                &status[colon_pos + 1..]
-            } else {
-                ""
-            };
-            MutationStatus::Error(reason.to_string())
+            MutationStatus::Error(status.to_string())
         }
-        // NOOP PREFIX - Return Noop (success with no changes)
+        // NOOP PREFIX - Return Noop with full status string
         else if status_lower.starts_with("noop:") {
-            let colon_pos = status.find(':').unwrap_or(status.len());
-            let reason = if colon_pos < status.len() - 1 {
-                &status[colon_pos + 1..]
-            } else {
-                ""
-            };
-            MutationStatus::Noop(reason.to_string())
+            MutationStatus::Noop(status.to_string())
         }
-        // SUCCESS KEYWORDS - Return Success
+        // SUCCESS KEYWORDS - Return Success with full status string
         else if matches!(
             status_lower.as_str(),
             "success" | "created" | "updated" | "deleted"
@@ -415,9 +402,9 @@ fn build_error_object(
 
     // Add status string
     let status_str = match &result.status {
-        MutationStatus::Noop(reason) => format!("noop:{}", reason),
-        MutationStatus::Error(reason) => format!("failed:{}", reason),
-        MutationStatus::Success(s) => s.clone(),
+        MutationStatus::Noop(full_status) => full_status.clone(),
+        MutationStatus::Error(full_status) => full_status.clone(),
+        MutationStatus::Success(full_status) => full_status.clone(),
     };
     obj.insert("status".to_string(), json!(status_str));
 
@@ -432,13 +419,28 @@ fn build_error_object(
         obj.insert("errors".to_string(), json!(transformed));
     } else {
         // Auto-generate error from status/message
+        let code = match &result.status {
+            MutationStatus::Noop(full_status) => {
+                // Extract reason after "noop:"
+                full_status.strip_prefix("noop:").unwrap_or(full_status).to_string()
+            },
+            MutationStatus::Error(full_status) => {
+                // Extract reason after first colon
+                if let Some(colon_pos) = full_status.find(':') {
+                    if colon_pos < full_status.len() - 1 {
+                        full_status[colon_pos + 1..].to_string()
+                    } else {
+                        "".to_string()
+                    }
+                } else {
+                    full_status.clone()
+                }
+            },
+            MutationStatus::Success(s) => s.clone(),
+        };
         let auto_error = json!({
             "field": null,
-            "code": match &result.status {
-                MutationStatus::Noop(r) => r.clone(),
-                MutationStatus::Error(r) => r.clone(),
-                _ => "unknown".to_string(),
-            },
+            "code": code,
             "message": result.message
         });
         obj.insert("errors".to_string(), json!([auto_error]));
@@ -517,7 +519,7 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:validation");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, "validation"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation"),
             _ => panic!("Expected Error variant"),
         }
     }
@@ -589,8 +591,8 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:validation:email_invalid");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, "validation:email_invalid"),
-            _ => panic!("Expected Error with full reason"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation:email_invalid"),
+            _ => panic!("Expected Error with full status"),
         }
     }
 
@@ -599,8 +601,8 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(reason) => assert_eq!(reason, ""),
-            _ => panic!("Expected Error with empty reason"),
+            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:"),
+            _ => panic!("Expected Error with empty status"),
         }
     }
 
