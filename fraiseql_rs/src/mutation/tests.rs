@@ -157,6 +157,7 @@ fn test_build_simple_format_response() {
         Some("user"),           // Entity field name
         Some("User"),           // Entity type for __typename
         None,                   // No cascade selections
+        true,                   // auto_camel_case
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
