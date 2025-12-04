@@ -1,17 +1,17 @@
-"""Unit tests for AutoDiscovery."""
+"""Integration tests for AutoDiscovery."""
 
 import pytest
 
 from fraiseql.introspection.auto_discovery import AutoDiscovery
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.database]
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration, pytest.mark.database]
 
 
 class TestAutoDiscovery:
-    """Test AutoDiscovery functionality."""
+    """Test AutoDiscovery functionality with real database."""
 
     @pytest.fixture
-    def auto_discovery(self, class_db_pool) -> None:
+    def auto_discovery(self, class_db_pool) -> AutoDiscovery:
         """Create AutoDiscovery instance with real database pool."""
         return AutoDiscovery(class_db_pool)
 
@@ -81,10 +81,10 @@ class TestAutoDiscovery:
             )()
         ]
 
-        async def mock_discover_views(*args, **kwargs) -> None:
+        async def mock_discover_views(*args, **kwargs):
             return mock_views
 
-        async def mock_discover_functions(*args, **kwargs) -> None:
+        async def mock_discover_functions(*args, **kwargs):
             return mock_functions
 
         monkeypatch.setattr(auto_discovery.introspector, "discover_views", mock_discover_views)
@@ -95,13 +95,13 @@ class TestAutoDiscovery:
         # Mock the type generation methods
         mock_type_class = type("MockType", (), {"__name__": "User"})()
 
-        async def mock_generate_type(*args, **kwargs) -> None:
+        async def mock_generate_type(*args, **kwargs):
             return mock_type_class
 
-        def mock_generate_queries(*args, **kwargs) -> None:
+        def mock_generate_queries(*args, **kwargs):
             return [type("MockQuery", (), {})()]
 
-        async def mock_generate_mutation(*args, **kwargs) -> None:
+        async def mock_generate_mutation(*args, **kwargs):
             return type("MockMutation", (), {})()
 
         monkeypatch.setattr(auto_discovery, "_generate_type_from_view", mock_generate_type)
