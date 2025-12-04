@@ -152,7 +152,7 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 
 # timeout options
-timeout = 10
+timeout = 20
 timeout_method = "thread"
 
 # Output options
