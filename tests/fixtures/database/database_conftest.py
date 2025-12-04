@@ -389,6 +389,7 @@ def _clear_all_fraiseql_state() -> None:
     - FastAPI global dependencies
     - GraphQL type caches
     - Type registry (view mappings)
+    - Mutation registries
     """
     try:
         from fraiseql.core.graphql_type import _graphql_type_cache
@@ -440,6 +441,16 @@ def _clear_all_fraiseql_state() -> None:
         set_db_pool(None)
         set_auth_provider(None)
         set_fraiseql_config(None)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Clear mutation registries
+    try:
+        from fraiseql.mutations.decorators import clear_mutation_registries
+
+        clear_mutation_registries()
     except ImportError:
         pass
     except Exception:
