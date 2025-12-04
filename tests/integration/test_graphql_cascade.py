@@ -74,11 +74,12 @@ async def test_cascade_end_to_end(cascade_http_client):
     # Verify response structure
     assert "data" in data
     assert "createPost" in data["data"]
-    assert data["data"]["createPost"]["entity"]["entityId"]
-    assert data["data"]["createPost"]["entity"]["message"] == "Post created successfully"
+    assert data["data"]["createPost"]["id"]
+    # Verify message from PostgreSQL function is preserved
+    assert data["data"]["createPost"]["message"] == "Post created successfully"
 
     # Verify cascade data
-    cascade = data["data"]["createPost"]["entity"]["cascade"]
+    cascade = data["data"]["createPost"]["cascade"]
     assert cascade is not None
     assert "updated" in cascade
     assert "deleted" in cascade

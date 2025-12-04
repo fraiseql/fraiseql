@@ -5,9 +5,10 @@ PostgreSQL -> Rust -> HTTP bytes (zero Python parsing)
 
 import json
 import logging
-from typing import Any
+from typing import Any, Type
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ async def execute_mutation_rust(
     context_args: list[Any] | None = None,
     cascade_selections: str | None = None,
     config: Any | None = None,
+    success_type_class: Type | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -55,6 +57,8 @@ async def execute_mutation_rust(
         context_args: Optional context arguments
         cascade_selections: Optional cascade selections JSON
         config: Optional FraiseQLConfig instance. If None, uses global config.
+        success_type_class: Python Success type class for entity flattening.
+            If provided, will flatten entity JSONB fields to match Success type schema.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -147,6 +151,14 @@ async def execute_mutation_rust(
                 ),
                 "cascade": None,
             }
+
+        # ─────────────────────────────────────────────────────────────
+        # FLATTEN ENTITY WRAPPER for mutation_result_v2
+        # ─────────────────────────────────────────────────────────────
+        if success_type_class is not None:
+            mutation_result = flatten_entity_wrapper(mutation_result, success_type_class)
+        # ─────────────────────────────────────────────────────────────
+
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, tuple):
         # psycopg returned a tuple from composite type

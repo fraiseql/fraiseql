@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 # Import database fixtures
 import fraiseql
 from fraiseql.mutations import mutation
+from fraiseql.mutations.types import Cascade
 
 
 # Test types for cascade
@@ -44,6 +45,7 @@ class User:
 class CreatePostSuccess:
     id: str
     message: str
+    cascade: Cascade
 
 
 @fraiseql.type
@@ -217,7 +219,7 @@ async def cascade_db_schema(
 
                 -- Return success with cascade via mutation_result_v2
                 RETURN ROW(
-                    'new',
+                    'created',
                     'Post created successfully',
                     v_post_id,
                     'Post',
