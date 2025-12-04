@@ -1,3 +1,7 @@
+# Security Warning: Set environment variables before deploying:
+#   export GRAFANA_ADMIN_PASSWORD='your-secure-password'
+# For production, see docs/production/loki_integration.md#security
+
 version: '3.8'
 
 services:
@@ -42,7 +46,7 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:

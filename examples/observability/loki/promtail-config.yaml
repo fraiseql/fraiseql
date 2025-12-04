@@ -34,8 +34,6 @@ scrape_configs:
       # Extract labels for efficient filtering
       - labels:
           level:
-          trace_id:
-          span_id:
           exception_type:
 
       # Parse timestamp
@@ -72,9 +70,6 @@ scrape_configs:
 
       - labels:
           exception_type:
-          fingerprint:
-          trace_id:
-          span_id:
 
       - timestamp:
           source: timestamp
@@ -132,4 +127,3 @@ scrape_configs:
           level:
           stream:
           container:
-          trace_id:

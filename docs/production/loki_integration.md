@@ -208,8 +208,10 @@ logger.setLevel(logging.INFO)
 ### 1. All Errors in Last Hour
 
 ```logql
-{job="fraiseql-app"} | json | level="error" [1h]
+{job="fraiseql-app"} | json | level="error"
 ```
+
+**Note:** Time range is set in Grafana UI, not in the query. For range queries, use `count_over_time`.
 
 ### 2. Logs for Specific Trace
 
@@ -222,7 +224,7 @@ logger.setLevel(logging.INFO)
 ### 3. Rate of Errors Per Minute
 
 ```logql
-rate({job="fraiseql-app"} | json | level="error" [5m])
+rate(count_over_time({job="fraiseql-app"} | json | level="error" [5m]))
 ```
 
 ### 4. Top 10 Error Types
@@ -244,7 +246,11 @@ topk(10,
 ### 6. Slow Query Detection
 
 ```logql
-{job="postgresql"} | regexp "duration: (?P<duration>\\d+\\.\\d+) ms" | duration > 1000
+{job="postgresql"}
+  | regexp "duration: (?P<duration>\\d+\\.\\d+) ms"
+  | unwrap duration
+  | __error__=""
+  | duration > 1000
 ```
 
 ### 7. Database Connection Errors
