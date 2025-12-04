@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2025-12-04
+
 ### Fixed
 - **CRITICAL**: Fixed bug where custom `error_config` was ignored in HTTP mode (production)
   - Error detection now happens in Rust layer using status string prefixes
   - All mutations via FastAPI now correctly map status strings to Success/Error types
   - Fixes issue where `validation:`, `conflict:`, and other custom prefixes returned as Success
+- Critical Loki log aggregation configuration fixes
+  - Updated deprecated boltdb-shipper schema to TSDB v13
+  - Removed high-cardinality labels (trace_id, span_id, fingerprint) from Promtail
+  - Fixed LogQL syntax errors in documentation
+  - Fixed security issues (default passwords, Docker socket access)
 
 ### Added
 - Comprehensive status taxonomy in Rust mutation layer
@@ -20,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Success keywords: `success`, `created`, `updated`, `deleted`
   - Case-insensitive status matching
 - Documentation: `docs/mutations/status-strings.md` - Complete guide to status string conventions
+- Loki log aggregation with Grafana observability stack
+- Automated dependency updates via Dependabot
 
 ### Changed
 - `error_config` parameter is now deprecated for HTTP mode (still works in non-HTTP mode)
