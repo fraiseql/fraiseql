@@ -16,7 +16,7 @@ from fraiseql.auth.base import AuthProvider
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
-from fraiseql.fastapi.config import FraiseQLConfig
+from fraiseql.fastapi.config import FraiseQLConfig, IntrospectionPolicy
 from fraiseql.fastapi.dependencies import build_graphql_context
 from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
@@ -186,15 +186,20 @@ def create_graphql_router(
         """
         # Check authentication first (before APQ processing to ensure security)
         # For APQ requests, we need to check auth regardless of query availability
+        # Special case: Allow introspection queries to proceed to GraphQL layer when:
+        # 1. In development mode (for easier development)
+        # 2. introspection_policy is AUTHENTICATED (GraphQL layer will handle blocking)
+        is_introspection_query = request.query and "__schema" in request.query
+        should_allow_introspection = (
+            config.environment == "development"
+            or config.introspection_policy == IntrospectionPolicy.AUTHENTICATED
+        )
+
         if (
             config.auth_enabled
             and auth_provider
             and not context.get("authenticated", False)
-            and not (
-                config.environment == "development"
-                and request.query
-                and "__schema" in request.query
-            )
+            and not (is_introspection_query and should_allow_introspection)
         ):
             # Return 401 for unauthenticated requests when auth is required
             raise HTTPException(status_code=401, detail="Authentication required")
