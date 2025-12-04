@@ -78,19 +78,69 @@ pub enum MutationStatus {
 }
 
 impl MutationStatus {
-    /// Parse status string into enum
+    /// Parse status string into enum with minimal taxonomy
     ///
-    /// Examples:
-    /// - "success" -> Success("success")
-    /// - "new" -> Success("new")
-    /// - "noop:unchanged" -> Noop("unchanged")
-    /// - "failed:validation" -> Error("validation")
+    /// # Status Categories
+    ///
+    /// ## Success (no colon)
+    /// - "success", "created", "updated", "deleted"
+    ///
+    /// ## Error (colon-separated)
+    /// - "failed:", "unauthorized:", "forbidden:", "not_found:", "conflict:", "timeout:"
+    ///
+    /// ## Noop (colon-separated, success with no changes)
+    /// - "noop:"
+    ///
+    /// # Case Insensitivity
+    /// All status strings are matched case-insensitively.
+    ///
+    /// # Examples
+    /// ```
+    /// assert!(MutationStatus::from_str("success").is_success());
+    /// assert!(MutationStatus::from_str("failed:validation").is_error());
+    /// assert!(MutationStatus::from_str("noop:unchanged").is_noop());
+    /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
+    /// ```
     pub fn from_str(status: &str) -> Self {
-        if status.starts_with("noop:") {
-            MutationStatus::Noop(status[5..].to_string())
-        } else if status.starts_with("failed:") {
-            MutationStatus::Error(status[7..].to_string())
-        } else {
+        let status_lower = status.to_lowercase();
+
+        // ERROR PREFIXES - Return Error type
+        if status_lower.starts_with("failed:")
+            || status_lower.starts_with("unauthorized:")
+            || status_lower.starts_with("forbidden:")
+            || status_lower.starts_with("not_found:")
+            || status_lower.starts_with("conflict:")
+            || status_lower.starts_with("timeout:")
+        {
+            // Extract reason after first colon
+            let colon_pos = status.find(':').unwrap_or(status.len());
+            let reason = if colon_pos < status.len() - 1 {
+                &status[colon_pos + 1..]
+            } else {
+                ""
+            };
+            MutationStatus::Error(reason.to_string())
+        }
+        // NOOP PREFIX - Return Noop (success with no changes)
+        else if status_lower.starts_with("noop:") {
+            let colon_pos = status.find(':').unwrap_or(status.len());
+            let reason = if colon_pos < status.len() - 1 {
+                &status[colon_pos + 1..]
+            } else {
+                ""
+            };
+            MutationStatus::Noop(reason.to_string())
+        }
+        // SUCCESS KEYWORDS - Return Success
+        else if matches!(
+            status_lower.as_str(),
+            "success" | "created" | "updated" | "deleted"
+        ) {
+            MutationStatus::Success(status.to_string())
+        }
+        // DEFAULT - Unknown statuses become Success (backward compatibility)
+        else {
+            // Note: In production, this should log a warning
             MutationStatus::Success(status.to_string())
         }
     }
@@ -111,15 +161,24 @@ impl MutationStatus {
     pub fn http_code(&self) -> i32 {
         match self {
             MutationStatus::Success(_) => 200,
-            MutationStatus::Noop(_) => 422,
+            MutationStatus::Noop(_) => 200,  // Noop is success (no change made)
             MutationStatus::Error(reason) => {
-                match reason.as_str() {
-                    "not_found" => 404,
-                    "unauthorized" => 401,
-                    "forbidden" => 403,
-                    "conflict" | "duplicate" => 409,
-                    "validation" | "invalid" => 422,
-                    _ => 500,
+                // Map error reasons to HTTP status codes
+                let reason_lower = reason.to_lowercase();
+                if reason_lower.contains("not_found") || reason_lower.contains("missing") {
+                    404
+                } else if reason_lower.contains("unauthorized") || reason_lower.contains("unauthenticated") {
+                    401
+                } else if reason_lower.contains("forbidden") || reason_lower.contains("permission") {
+                    403
+                } else if reason_lower.contains("conflict") || reason_lower.contains("duplicate") {
+                    409
+                } else if reason_lower.contains("validation") || reason_lower.contains("invalid") {
+                    422
+                } else if reason_lower.contains("timeout") {
+                    408
+                } else {
+                    500  // Generic internal error
                 }
             }
         }
@@ -147,8 +206,12 @@ pub struct MutationResult {
 
 /// Valid mutation status prefixes/values for format detection
 const VALID_STATUS_PREFIXES: &[&str] = &[
-    "success", "new", "updated", "deleted", "completed", "ok",
-    "noop:", "failed:",
+    // Success keywords (no colon)
+    "success", "created", "updated", "deleted",
+    // Error prefixes
+    "failed:", "unauthorized:", "forbidden:", "not_found:", "conflict:", "timeout:",
+    // Noop prefix
+    "noop:",
 ];
 
 impl MutationResult {
@@ -429,4 +492,128 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
 /// Transform error object to camelCase
 fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
     transform_value(error, auto_camel_case)
+}
+
+// ============================================================================
+// Tests for STATUS TAXONOMY (Phase 2: GREEN)
+// ============================================================================
+
+#[cfg(test)]
+mod test_status_taxonomy {
+    use super::*;
+
+    // SUCCESS KEYWORDS (no colon)
+    #[test]
+    fn test_success_keywords() {
+        assert!(MutationStatus::from_str("success").is_success());
+        assert!(MutationStatus::from_str("created").is_success());
+        assert!(MutationStatus::from_str("updated").is_success());
+        assert!(MutationStatus::from_str("deleted").is_success());
+    }
+
+    // ERROR PREFIXES (colon-separated)
+    #[test]
+    fn test_failed_prefix() {
+        let status = MutationStatus::from_str("failed:validation");
+        assert!(status.is_error());
+        match status {
+            MutationStatus::Error(reason) => assert_eq!(reason, "validation"),
+            _ => panic!("Expected Error variant"),
+        }
+    }
+
+    #[test]
+    fn test_unauthorized_prefix() {
+        let status = MutationStatus::from_str("unauthorized:token_expired");
+        assert!(status.is_error());
+    }
+
+    #[test]
+    fn test_forbidden_prefix() {
+        let status = MutationStatus::from_str("forbidden:insufficient_permissions");
+        assert!(status.is_error());
+    }
+
+    #[test]
+    fn test_not_found_prefix() {
+        let status = MutationStatus::from_str("not_found:user_missing");
+        assert!(status.is_error());
+    }
+
+    #[test]
+    fn test_conflict_prefix() {
+        let status = MutationStatus::from_str("conflict:duplicate_email");
+        assert!(status.is_error());
+    }
+
+    #[test]
+    fn test_timeout_prefix() {
+        let status = MutationStatus::from_str("timeout:database_query");
+        assert!(status.is_error());
+    }
+
+    // NOOP PREFIX (success with no changes)
+    #[test]
+    fn test_noop_prefix() {
+        let status = MutationStatus::from_str("noop:unchanged");
+        assert!(status.is_noop());
+        match status {
+            MutationStatus::Noop(reason) => assert_eq!(reason, "unchanged"),
+            _ => panic!("Expected Noop variant"),
+        }
+    }
+
+    #[test]
+    fn test_noop_duplicate() {
+        let status = MutationStatus::from_str("noop:duplicate");
+        assert!(status.is_noop());
+    }
+
+    // CASE INSENSITIVITY
+    #[test]
+    fn test_case_insensitive_error_prefix() {
+        assert!(MutationStatus::from_str("FAILED:validation").is_error());
+        assert!(MutationStatus::from_str("Unauthorized:token").is_error());
+        assert!(MutationStatus::from_str("Conflict:DUPLICATE").is_error());
+    }
+
+    #[test]
+    fn test_case_insensitive_success() {
+        assert!(MutationStatus::from_str("SUCCESS").is_success());
+        assert!(MutationStatus::from_str("Created").is_success());
+    }
+
+    // EDGE CASES
+    #[test]
+    fn test_status_with_multiple_colons() {
+        let status = MutationStatus::from_str("failed:validation:email_invalid");
+        assert!(status.is_error());
+        match status {
+            MutationStatus::Error(reason) => assert_eq!(reason, "validation:email_invalid"),
+            _ => panic!("Expected Error with full reason"),
+        }
+    }
+
+    #[test]
+    fn test_error_prefix_without_reason() {
+        let status = MutationStatus::from_str("failed:");
+        assert!(status.is_error());
+        match status {
+            MutationStatus::Error(reason) => assert_eq!(reason, ""),
+            _ => panic!("Expected Error with empty reason"),
+        }
+    }
+
+    #[test]
+    fn test_unknown_status_becomes_success() {
+        // Unknown statuses default to success for backward compatibility
+        let status = MutationStatus::from_str("unknown_status");
+        assert!(status.is_success());
+    }
+
+    #[test]
+    fn test_empty_status() {
+        let status = MutationStatus::from_str("");
+        assert!(status.is_success());
+    }
 }

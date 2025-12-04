@@ -30,11 +30,19 @@ scrape_configs:
             span_id: span_id
             exception_type: exception_type
             fingerprint: fingerprint
+            # tenant_id: context.tenant_id  # OPTIONAL: Uncomment to extract tenant from context
 
       # Extract labels for efficient filtering
+      # Cardinality note: Only add tenant_id as label if you have:
+      # - < 1000 tenants (low-medium cardinality)
+      # - Need to filter/aggregate by tenant frequently
+      #
+      # If you have > 1000 tenants, keep as JSON field and query with:
+      # {job="fraiseql-app"} | json | tenant_id="specific_tenant"
       - labels:
           level:
           exception_type:
+          # tenant_id:  # OPTIONAL: Uncomment if tenant_id extracted above
 
       # Parse timestamp
       - timestamp:

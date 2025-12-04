@@ -10,8 +10,23 @@ datasources:
     jsonData:
       maxLines: 1000
       derivedFields:
-        # Link logs to traces via trace_id
+        # Link logs to traces via trace_id (JSON format)
         - datasourceUid: tempo
-          matcherRegex: "trace_id=(\\w+)"
+          matcherRegex: '"trace_id"\s*:\s*"([0-9a-f]{32})"'
           name: TraceID
-          url: "$${__value.raw}"
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Trace in Tempo'
+
+        # Also match plain text format: trace_id=abc123
+        - datasourceUid: tempo
+          matcherRegex: 'trace_id=([0-9a-f]{32})'
+          name: TraceID
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Trace in Tempo'
+
+  # Note: This requires Tempo datasource to be configured
+  # Add to your Tempo datasource config:
+  # - name: Tempo
+  #   uid: tempo
+  #   type: tempo
+  #   url: http://tempo:3200
