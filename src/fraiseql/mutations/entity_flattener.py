@@ -1,4 +1,7 @@
-"""Entity field flattening for mutation_result_v2 format."""
+"""Entity field flattening for mutation_response format.
+
+Note: mutation_result_v2 is deprecated but still supported (v1.8.0+).
+"""
 
 import logging
 from typing import Any, Type
@@ -79,7 +82,7 @@ def flatten_entity_wrapper(
             "entity_id": "123"
         }
     """
-    # Check if this is mutation_result_v2 format
+    # Check if this is mutation_response format (mutation_result_v2 is deprecated but supported)
     if "entity" not in mutation_result:
         logger.debug("No entity field found - not v2 format, skipping flattening")
         return mutation_result

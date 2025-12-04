@@ -131,9 +131,9 @@ async def execute_mutation_rust(
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
         # psycopg returned a dict (from JSONB or row_to_json composite)
-        # Check for mutation_result_v2 format (has 'status' and 'entity' fields)
+        # Check for mutation_response format (has 'status' and 'entity' fields)
         if "status" in mutation_result and "entity" in mutation_result:
-            # mutation_result_v2 format from row_to_json - pass through as-is
+            # mutation_response format from row_to_json - pass through as-is
             pass
         elif "object_data" in mutation_result:
             # Legacy composite type format - convert to v2
@@ -153,7 +153,7 @@ async def execute_mutation_rust(
             }
 
         # ─────────────────────────────────────────────────────────────
-        # FLATTEN ENTITY WRAPPER for mutation_result_v2
+        # FLATTEN ENTITY WRAPPER for mutation_response
         # ─────────────────────────────────────────────────────────────
         if success_type_class is not None:
             mutation_result = flatten_entity_wrapper(mutation_result, success_type_class)
@@ -162,10 +162,10 @@ async def execute_mutation_rust(
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, tuple):
         # psycopg returned a tuple from composite type
-        # mutation_result_v2 order:
+        # mutation_response order:
         # (status, message, entity_id, entity_type, entity, updated_fields, cascade, metadata)
         if len(mutation_result) == 8:
-            # mutation_result_v2 format
+            # mutation_response format
             composite_dict = {
                 "status": mutation_result[0],
                 "message": mutation_result[1],
