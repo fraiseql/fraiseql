@@ -100,14 +100,14 @@ RETURN jsonb_build_array(
 );
 ```
 
-## Full V2 Format (mutation_result_v2)
+## Full V2 Format (mutation_response)
 
 The v2 format uses a structured composite type for complete mutation responses.
 
 ### Composite Type Definition
 
 ```sql
-CREATE TYPE mutation_result_v2 AS (
+CREATE TYPE mutation_response AS (
     status          text,                    -- Status string
     message         text,                    -- Human-readable message
     entity_id       text,                    -- Optional entity ID
@@ -194,7 +194,7 @@ SELECT mutation_noop('unchanged', 'No fields were modified');
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.update_user(user_id uuid, input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     updated_fields text[] := ARRAY[]::text[];
     user_data jsonb;
@@ -471,7 +471,7 @@ SELECT cascade_merge(cascade1, cascade2);
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -513,4 +513,4 @@ $$ LANGUAGE plpgsql;
 **Related Documentation**:
 - [SQL Function Return Format](sql-function-return-format.md) - Existing return format guide
 - [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
-- [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutation_result_v2.sql) - SQL type definition and helpers
+- [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) - SQL type definition and helpers
