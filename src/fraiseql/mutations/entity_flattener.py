@@ -1,7 +1,4 @@
-"""Entity field flattening for mutation_response format.
-
-Note: mutation_result_v2 is deprecated but still supported (v1.8.0+).
-"""
+"""Entity field flattening for mutation_response format."""
 
 import logging
 from typing import Any, Type
@@ -82,9 +79,9 @@ def flatten_entity_wrapper(
             "entity_id": "123"
         }
     """
-    # Check if this is mutation_response format (mutation_result_v2 is deprecated but supported)
+    # Check if this is mutation_response format (full format with entity field)
     if "entity" not in mutation_result:
-        logger.debug("No entity field found - not v2 format, skipping flattening")
+        logger.debug("No entity field found - not full format, skipping flattening")
         return mutation_result
 
     # Check if entity is a dict (JSONB object)
@@ -123,19 +120,19 @@ def flatten_entity_wrapper(
             flattened[field_name] = entity[field_name]
             logger.debug(f"Flattened field '{field_name}' from entity")
 
-    # Remove entity wrapper but PRESERVE v2 internal fields for Rust parsing
-    # Rust needs 'status', 'entity_id', 'entity_type' to detect v2 format
-    v2_internal_fields = {"status", "entity_id", "entity_type", "updated_fields", "metadata"}
+    # Remove entity wrapper but PRESERVE internal fields for Rust parsing
+    # Rust needs 'status', 'entity_id', 'entity_type' to detect full format
+    internal_fields = {"status", "entity_id", "entity_type", "updated_fields", "metadata"}
 
     # Remove entity field explicitly
     flattened.pop("entity", None)
     logger.debug("Removed 'entity' wrapper field")
 
-    # Remove any extra fields not in expected_fields or v2_internal_fields
+    # Remove any extra fields not in expected_fields or internal_fields
     fields_to_remove = []
     for key in flattened:
-        # Keep expected fields AND v2 internal fields
-        if key not in expected_fields and key not in v2_internal_fields:
+        # Keep expected fields AND internal fields
+        if key not in expected_fields and key not in internal_fields:
             fields_to_remove.append(key)
 
     for key in fields_to_remove:

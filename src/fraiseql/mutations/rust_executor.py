@@ -42,7 +42,7 @@ async def execute_mutation_rust(
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
-    Supports both simple format (just entity JSONB) and full v2 format.
+    Supports both simple format (just entity JSONB) and full mutation_response format.
     Rust auto-detects the format based on presence of 'status' field.
 
     Args:
@@ -136,7 +136,7 @@ async def execute_mutation_rust(
             # mutation_response format from row_to_json - pass through as-is
             pass
         elif "object_data" in mutation_result:
-            # Legacy composite type format - convert to v2
+            # Legacy composite type format - convert to mutation_response
             mutation_result = {
                 "entity_id": str(mutation_result.get("id")) if mutation_result.get("id") else None,
                 "updated_fields": mutation_result.get("updated_fields"),
@@ -198,7 +198,7 @@ async def execute_mutation_rust(
         # Unknown type - try to convert to JSON
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
 
-    # Transform via Rust (auto-detects simple vs v2 format)
+    # Transform via Rust (auto-detects simple vs full format)
     response_bytes = fraiseql_rs.build_mutation_response(
         mutation_json,
         field_name,
