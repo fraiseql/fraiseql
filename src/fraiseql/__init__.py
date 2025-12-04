@@ -73,7 +73,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 
 
 # Lazy Rust extension loading for performance optimization
