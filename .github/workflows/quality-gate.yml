@@ -3,10 +3,9 @@ name: Quality Gate
 # Comprehensive quality checks for all PR and main branch protection
 # This is the single unified workflow replacing legacy test/lint/security workflows
 on:
-  push:
-    branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  # Removed push trigger - pre-push hooks validate locally before push
 
 concurrency:
   group: quality-gate-${{ github.ref }}

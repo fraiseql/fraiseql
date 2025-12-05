@@ -1,13 +1,6 @@
 name: Documentation Validation
 
 on:
-  push:
-    branches: [ main, dev ]
-    paths:
-      - 'docs/**'
-      - '*.md'
-      - 'scripts/validate-docs.sh'
-      - '.github/workflows/docs-validation.yml'
   pull_request:
     branches: [ main, dev ]
     paths:
@@ -15,6 +8,7 @@ on:
       - '*.md'
       - 'scripts/validate-docs.sh'
       - '.github/workflows/docs-validation.yml'
+  # Removed push trigger - docs.yml handles build/deploy on push
 
 jobs:
   validate-docs:

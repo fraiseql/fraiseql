@@ -50,75 +50,45 @@ validate_links() {
         local file_errors=0
 
         # Extract relative links (./ and ../)
-        while IFS= read -r line; do
-            # Extract markdown links
-            links=$(echo "$line" | grep -o '\[.*\](\([^)]*\))' | sed 's/.*(\([^)]*\))/\1/' || true)
+        # Use grep to find all links in the file at once for better performance
+        links=$(grep -o '\[.*\](\([^)]*\))' "$file" | sed 's/.*(\([^)]*\))/\1/' || true)
 
-            for link in $links; do
-                # Skip external links (http/https)
-                if [[ $link =~ ^https?:// ]]; then
-                    continue
-                fi
+        for link in $links; do
+            # Skip external links (http/https)
+            if [[ $link =~ ^https?:// ]]; then
+                continue
+            fi
 
-                # Skip anchor links (#section)
-                if [[ $link =~ ^# ]]; then
-                    continue
-                fi
+            # Skip anchor links (#section)
+            if [[ $link =~ ^# ]]; then
+                continue
+            fi
 
-                # Skip GitHub-relative links (issues, discussions)
-                if [[ $link =~ (issues|discussions)$ ]]; then
-                    continue
-                fi
+            # Skip GitHub-relative links (issues, discussions)
+            if [[ $link =~ (issues|discussions)$ ]]; then
+                continue
+            fi
 
-                # Skip regex patterns or invalid paths
-                if [[ $link =~ \\d\{[0-9,]+\} ]]; then
-                    continue
-                fi
+            # Skip regex patterns or invalid paths
+            if [[ $link =~ \\d\{[0-9,]+\} ]]; then
+                continue
+            fi
 
-                # Strip anchor from link (e.g., file.md#section -> file.md)
-                local link_path="$link"
-                if [[ $link_path =~ ^([^#]+)# ]]; then
-                    link_path="${BASH_REMATCH[1]}"
-                fi
+            # Strip anchor from link (e.g., file.md#section -> file.md)
+            local link_path="$link"
+            if [[ $link_path =~ ^([^#]+)# ]]; then
+                link_path="${BASH_REMATCH[1]}"
+            fi
 
-                # Resolve relative path
-                local target_path="$file"
+            # Resolve relative path
+            local target_path="$file"
 
-                # Get the directory of the file
-                local file_dir="$(dirname "$file")"
+            # Get the directory of the file
+            local file_dir="$(dirname "$file")"
 
-                # Handle absolute paths (starting with /)
-                if [[ $link_path =~ ^/ ]]; then
-                    target_path="$PROJECT_ROOT$link_path"
-
-                    # Remove trailing slash for directory checks
-                    local check_path="$target_path"
-                    if [[ $check_path =~ /$ ]]; then
-                        check_path="${check_path%/}"
-                    fi
-
-                    # Check if target exists
-                    if [[ ! -f $check_path ]] && [[ ! -d $check_path ]]; then
-                        log_error "Broken link in $file: $link (resolved to: $target_path)"
-                        ((file_errors++))
-                        ((errors++))
-                    fi
-                    continue
-                fi
-
-                # Handle relative links
-                if [[ $link_path =~ ^\.\./ ]]; then
-                    # Go up one directory for each ../
-                    local up_count=$(echo "$link_path" | grep -o '\.\./' | wc -l)
-                    for ((i=0; i<up_count; i++)); do
-                        file_dir="$(dirname "$file_dir")"
-                    done
-                    link_path="${link_path#$(printf '%.0s../' $(seq 1 $up_count))}"
-                elif [[ $link_path =~ ^\./ ]]; then
-                    link_path="${link_path#./}"
-                fi
-
-                target_path="$file_dir/$link_path"
+            # Handle absolute paths (starting with /)
+            if [[ $link_path =~ ^/ ]]; then
+                target_path="$PROJECT_ROOT$link_path"
 
                 # Remove trailing slash for directory checks
                 local check_path="$target_path"
@@ -126,14 +96,42 @@ validate_links() {
                     check_path="${check_path%/}"
                 fi
 
-                # Check if target exists (file or directory)
+                # Check if target exists
                 if [[ ! -f $check_path ]] && [[ ! -d $check_path ]]; then
                     log_error "Broken link in $file: $link (resolved to: $target_path)"
                     ((file_errors++))
                     ((errors++))
                 fi
-            done
-        done < "$file"
+                continue
+            fi
+
+            # Handle relative links
+            if [[ $link_path =~ ^\.\./ ]]; then
+                # Go up one directory for each ../
+                local up_count=$(echo "$link_path" | grep -o '\.\./' | wc -l)
+                for ((i=0; i<up_count; i++)); do
+                    file_dir="$(dirname "$file_dir")"
+                done
+                link_path="${link_path#$(printf '%.0s../' $(seq 1 $up_count))}"
+            elif [[ $link_path =~ ^\./ ]]; then
+                link_path="${link_path#./}"
+            fi
+
+            target_path="$file_dir/$link_path"
+
+            # Remove trailing slash for directory checks
+            local check_path="$target_path"
+            if [[ $check_path =~ /$ ]]; then
+                check_path="${check_path%/}"
+            fi
+
+            # Check if target exists (file or directory)
+            if [[ ! -f $check_path ]] && [[ ! -d $check_path ]]; then
+                log_error "Broken link in $file: $link (resolved to: $target_path)"
+                ((file_errors++))
+                ((errors++))
+            fi
+        done
 
         if [[ $file_errors -gt 0 ]]; then
             log_warning "$file: $file_errors broken links"
