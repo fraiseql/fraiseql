@@ -226,8 +226,13 @@ class TestMutationResolver:
             assert call_kwargs["success_type"] == "SampleSuccess"
             assert call_kwargs["error_type"] == "SampleError"
 
-        # Result is parsed because mutation has union return type (success and error)
-        assert isinstance(result, SampleSuccess)
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
+        assert result["message"] == "User created"
+        assert result["status"] == "success"
+        assert result["object_data"]["id"] == "123"
+        assert result["object_data"]["name"] == "John Doe"
+        assert result["object_data"]["email"] == "john@example.com"
 
     @pytest.mark.asyncio
     async def test_resolver_handles_error_result(self) -> None:
