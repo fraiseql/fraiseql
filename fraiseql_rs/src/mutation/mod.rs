@@ -349,9 +349,8 @@ fn build_success_object(
     // Add entity with __typename and camelCase keys
     if let Some(entity) = &result.entity {
         let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
-        let transformed = transform_entity(entity, entity_type, auto_camel_case);
 
-        // Use provided field name or derive from type
+        // Determine the field name for the entity in the response
         let field_name = entity_field_name
             .map(|name| {
                 // Convert entity_field_name based on auto_camel_case flag
@@ -370,7 +369,53 @@ fn build_success_object(
                 }
             });
 
+        // Check if entity is a wrapper object containing entity_field_name
+        // This happens when Python entity_flattener skips flattening (CASCADE case)
+        // The entity looks like: {"post": {...}, "message": "..."}
+        let actual_entity = if let Value::Object(entity_map) = entity {
+            // Check if the entity wrapper contains a field matching entity_field_name
+            if let Some(entity_field_name_raw) = entity_field_name {
+                if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
+                    // Found nested entity - extract it
+                    nested_entity
+                } else {
+                    // No nested field, use entire entity
+                    entity
+                }
+            } else {
+                // No entity_field_name hint, use entire entity
+                entity
+            }
+        } else {
+            // Entity is not an object (array or primitive), use as-is
+            entity
+        };
+
+        let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
         obj.insert(field_name, transformed);
+
+        // If entity was a wrapper, copy other fields from it (like "message")
+        if let Value::Object(entity_map) = entity {
+            if let Some(entity_field_name_raw) = entity_field_name {
+                if entity_map.contains_key(entity_field_name_raw) {
+                    // Entity was a wrapper - copy other fields
+                    for (key, value) in entity_map {
+                        if key != entity_field_name_raw && key != "entity" {
+                            // Don't copy the entity field itself or nested "entity"
+                            let field_key = if auto_camel_case {
+                                to_camel_case(key)
+                            } else {
+                                key.clone()
+                            };
+                            // Only add if not already present (message might be at top level)
+                            if !obj.contains_key(&field_key) {
+                                obj.insert(field_key, transform_value(value, auto_camel_case));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Add updatedFields (convert to camelCase)

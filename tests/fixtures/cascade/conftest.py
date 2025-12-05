@@ -355,7 +355,7 @@ async def cascade_db_schema(
                      'created',
                      'Post created successfully',
                      v_post_id,
-                     'post',
+                     'Post',  -- entity_type should be the GraphQL type name (capitalized)
                      v_entity,
                      NULL::text[],
                      v_cascade,
