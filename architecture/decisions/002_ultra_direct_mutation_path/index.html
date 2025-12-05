@@ -12,7 +12,7 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.readthedocs.io/architecture/decisions/002_ultra_direct_mutation_path/">
+        <link rel="canonical" href="https://fraiseql.dev/architecture/decisions/002_ultra_direct_mutation_path/">
       
       
       
@@ -459,7 +459,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../migration/v0-to-v1/" class="md-tabs__link">
+        <a href="../../../migration/v0-to-v1.md" class="md-tabs__link">
           
   
   
@@ -1985,14 +1985,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../performance/cascade-invalidation/" class="md-nav__link">
+      <a href="../../../guides/cascade-best-practices/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CASCADE Performance
+    Cascade Best Practices
   
 
     
@@ -2574,7 +2574,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../migration/v0-to-v1/" class="md-nav__link">
+      <a href="../../../migration/v0-to-v1.md" class="md-nav__link">
         
   
   
@@ -2602,7 +2602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../migration/cascade-adoption/" class="md-nav__link">
+      <a href="../../../migration/cascade-adoption.md" class="md-nav__link">
         
   
   
@@ -3308,28 +3308,29 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → Client
 </span></code></pre></div>
 <p><strong>Why not mutations too?</strong></p>
-<p>Current mutation path:
+<p><strong>Previous mutation path (deprecated):</strong>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>PostgreSQL JSONB → Python dict → parse_mutation_result() →
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Success/Error dataclass → GraphQL serializer → JSON → Client
 </span></code></pre></div></p>
-<p><strong>Ultra-direct mutation path:</strong>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → Client
+<p><strong>Current ultra-direct mutation path (implemented):</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>PostgreSQL JSONB → Rust Pipeline → GraphQL JSON Response → Client
 </span></code></pre></div></p>
 <hr />
 <h2 id="current-vs-ultra-direct-architecture">🔍 Current vs. Ultra-Direct Architecture<a class="headerlink" href="#current-vs-ultra-direct-architecture" title="Permanent link">&para;</a></h2>
 <h3 id="current-flow-slow"><strong>Current Flow (Slow)</strong><a class="headerlink" href="#current-flow-slow" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># mutation_decorator.py (line ~145)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">execute_function</span><span class="p">(</span><span class="n">full_function_name</span><span class="p">,</span> <span class="n">input_data</span><span class="p">)</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Returns: dict {&#39;success&#39;: True, &#39;customer&#39;: {...}, ...}</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">parsed_result</span> <span class="o">=</span> <span class="n">parse_mutation_result</span><span class="p">(</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">result</span><span class="p">,</span>  <span class="c1"># Parse dict into dataclass</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">success_type</span><span class="p">,</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">error_type</span><span class="p">,</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Returns: DeleteCustomerSuccess(customer=Customer(...), ...)</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">return</span> <span class="n">parsed_result</span>  <span class="c1"># GraphQL serializes back to JSON!</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># mutation_decorator.py (current implementation)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">execute_mutation_rust</span><span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">function_name</span><span class="o">=</span><span class="n">full_function_name</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">input_data</span><span class="o">=</span><span class="n">input_data</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="c1"># ... other params</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Returns: RustResponseBytes (direct JSON from Rust pipeline)</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># For GraphQL execution (non-HTTP mode):</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">graphql_response</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="n">mutation_result</span> <span class="o">=</span> <span class="n">graphql_response</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="n">field_name</span><span class="p">]</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="k">return</span> <span class="n">mutation_result</span>  <span class="c1"># Dict with GraphQL structure</span>
 </span></code></pre></div>
 <p><strong>Problems:</strong>
 - ❌ JSONB → Python dict parsing

@@ -12,13 +12,13 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.readthedocs.io/guides/cascade-best-practices/">
+        <link rel="canonical" href="https://fraiseql.dev/guides/cascade-best-practices/">
       
       
-        <link rel="prev" href="../understanding-fraiseql/">
+        <link rel="prev" href="../../performance/caching/">
       
       
-        <link rel="next" href="../performance-guide/">
+        <link rel="next" href="../../production/deployment/">
       
       
         
@@ -339,12 +339,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../filtering/" class="md-tabs__link">
           
   
@@ -385,10 +383,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../performance/" class="md-tabs__link">
           
   
@@ -465,7 +465,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../migration/v0-to-v1/" class="md-tabs__link">
+        <a href="../../migration/v0-to-v1.md" class="md-tabs__link">
           
   
   
@@ -1341,10 +1341,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -1364,22 +1362,21 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -1397,7 +1394,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2350,6 +2347,8 @@
       
   
   
+    
+  
   
   
     
@@ -2371,18 +2370,19 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -2404,13 +2404,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2511,17 +2511,44 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../performance/cascade-invalidation/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cascade Best Practices
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    CASCADE Performance
+    Cascade Best Practices
   
 
     
@@ -2530,6 +2557,499 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use Cascade
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When to Use Cascade">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#good-candidates-for-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Good Candidates for Cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-skip-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ❌ When to Skip Cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#designing-cascade-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Designing Cascade Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Designing Cascade Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity-selection-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entity Selection Principles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invalidation-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invalidation Strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Optimization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performance Optimization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#payload-size-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Payload Size Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-cache-efficiency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Cache Efficiency
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cascade-on-error-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cascade on Error Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Database Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity-view-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entity View Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#helper-function-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helper Function Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-integration-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Integration Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Client Integration Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#apollo-client-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apollo Client Best Practices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-and-observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring and Observability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitoring and Observability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-metrics-to-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Metrics to Track
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alerting-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alerting Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Strategies
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Strategies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unit-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unit Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-and-rollback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration and Rollback
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Migration and Rollback">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gradual-adoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradual Adoption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rollback-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rollback Strategies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Pitfalls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Pitfalls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#over-cascading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Over-Cascading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#under-cascading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Under-Cascading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inconsistent-entity-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inconsistent Entity Data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignoring-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ignoring Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#conditional-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditional Cascade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cascade-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cascade Composition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conclusion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3103,7 +3623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../migration/v0-to-v1/" class="md-nav__link">
+      <a href="../../migration/v0-to-v1.md" class="md-nav__link">
         
   
   
@@ -3131,7 +3651,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../migration/cascade-adoption/" class="md-nav__link">
+      <a href="../../migration/cascade-adoption.md" class="md-nav__link">
         
   
   
@@ -4434,7 +4954,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../understanding-fraiseql/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Understanding FraiseQL">
+          <a href="../../performance/caching/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Caching">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4444,20 +4964,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Understanding FraiseQL
+                Caching
               </div>
             </div>
           </a>
         
         
           
-          <a href="../performance-guide/" class="md-footer__link md-footer__link--next" aria-label="Next: Performance Guide">
+          <a href="../../production/deployment/" class="md-footer__link md-footer__link--next" aria-label="Next: Deployment">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Performance Guide
+                Deployment
               </div>
             </div>
             <div class="md-footer__button md-icon">
