@@ -4,69 +4,72 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = pytest.mark.integration
 
-@pytest.fixture(autouse=True, scope="module")
-async def setup_rbac_schema(db_pool) -> None:
+
+@pytest_asyncio.fixture(autouse=True, scope="class")
+async def setup_rbac_schema(class_db_pool, test_schema) -> None:
     """Set up RBAC schema before running tests."""
+    from pathlib import Path
+
     # Read the RBAC migration file
     rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
     rbac_migration_sql = rbac_migration_path.read_text()
 
-    # Read the RLS migration file (just the function definitions)
-    rls_migration_path = Path("src/fraiseql/enterprise/migrations/004_rbac_row_level_security.sql")
-    rls_migration_sql = rls_migration_path.read_text()
-
     # Execute the migrations
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            # Execute RBAC schema first
-            await cur.execute(rbac_migration_sql)
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        # Execute RBAC schema first
+        await conn.execute(rbac_migration_sql)
 
-            # Execute only the function definitions from RLS migration
-            # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
-            function_sql = """
-            -- Function to check if user has role (for use in policies)
-            CREATE OR REPLACE FUNCTION user_has_role(p_user_id UUID, p_role_name TEXT)
-            RETURNS BOOLEAN AS $$
-            BEGIN
-                RETURN EXISTS (
-                    SELECT 1 FROM user_roles ur
-                    INNER JOIN roles r ON ur.role_id = r.id
-                    WHERE ur.user_id = p_user_id
-                    AND r.name = p_role_name
-                    AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
-                );
-            END;
-            $$ LANGUAGE plpgsql STABLE;
+        # Execute only the function definitions from RLS migration
+        # (skip the ALTER TABLE and CREATE POLICY statements that require tables)
+        function_sql = """
+        -- Function to check if user has role (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_role(p_user_id UUID, p_role_name TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1 FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                WHERE ur.user_id = p_user_id
+                AND r.name = p_role_name
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
 
-            -- Function to check if user has permission (for use in policies)
-            CREATE OR REPLACE FUNCTION user_has_permission(p_user_id UUID, p_resource TEXT, p_action TEXT)
-            RETURNS BOOLEAN AS $$
-            BEGIN
-                RETURN EXISTS (
-                    SELECT 1
-                    FROM user_roles ur
-                    INNER JOIN roles r ON ur.role_id = r.id
-                    INNER JOIN role_permissions rp ON r.id = rp.role_id
-                    INNER JOIN permissions p ON rp.permission_id = p.id
-                    WHERE ur.user_id = p_user_id
-                    AND p.resource = p_resource
-                    AND p.action = p_action
-                    AND rp.granted = TRUE
-                    AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
-                );
-            END;
-            $$ LANGUAGE plpgsql STABLE;
-            """
+        -- Function to check if user has permission (for use in policies)
+        CREATE OR REPLACE FUNCTION user_has_permission(p_user_id UUID, p_resource TEXT, p_action TEXT)
+        RETURNS BOOLEAN AS $$
+        BEGIN
+            RETURN EXISTS (
+                SELECT 1
+                FROM user_roles ur
+                INNER JOIN roles r ON ur.role_id = r.id
+                INNER JOIN role_permissions rp ON r.id = rp.role_id
+                INNER JOIN permissions p ON rp.permission_id = p.id
+                WHERE ur.user_id = p_user_id
+                AND p.resource = p_resource
+                AND p.action = p_action
+                AND rp.granted = TRUE
+                AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+            );
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+        """
 
-            await cur.execute(function_sql)
-            await conn.commit()
+        await conn.execute(function_sql)
+        await conn.commit()
+        print("RBAC schema and functions migration executed successfully")
 
 
-async def test_session_variables_set_for_rls(db_pool) -> None:
+@pytest.mark.asyncio
+async def test_session_variables_set_for_rls(class_db_pool, test_schema) -> None:
     """Verify RBAC session variables are set correctly for RLS."""
     # Create repository with RBAC context
     user_id = uuid4()
@@ -77,7 +80,7 @@ async def test_session_variables_set_for_rls(db_pool) -> None:
         "roles": [{"name": "admin"}],  # Not super_admin
     }
 
-    repo = FraiseQLRepository(db_pool, context=context)
+    repo = FraiseQLRepository(class_db_pool, context=context)
 
     # Check that session variables are set
     result = await repo.run(
@@ -95,14 +98,15 @@ async def test_session_variables_set_for_rls(db_pool) -> None:
     assert row["is_super_admin"] == "false"  # Not super_admin
 
 
-async def test_super_admin_session_variable(db_pool) -> None:
+@pytest.mark.asyncio
+async def test_super_admin_session_variable(class_db_pool, test_schema) -> None:
     """Verify super_admin session variable is set correctly."""
     # Create repository with super_admin role
     user_id = uuid4()
     tenant_id = uuid4()
     context = {"user_id": user_id, "tenant_id": tenant_id, "roles": [{"name": "super_admin"}]}
 
-    repo = FraiseQLRepository(db_pool, context=context)
+    repo = FraiseQLRepository(class_db_pool, context=context)
 
     # Check that super_admin is set to true
     result = await repo.run(
@@ -117,6 +121,7 @@ async def test_super_admin_session_variable(db_pool) -> None:
     assert result[0]["is_super_admin"] == "true"
 
 
+@pytest.mark.asyncio
 async def test_rbac_utility_functions(db_repo) -> None:
     """Test the RBAC utility functions created in the migration."""
     # Test user_has_role function
@@ -220,6 +225,7 @@ async def test_rbac_utility_functions(db_repo) -> None:
     assert result[0]["user_has_permission"] is False
 
 
+@pytest.mark.asyncio
 async def test_rls_policies_applied(db_repo) -> None:
     """Test that RLS policies can be applied to tables (when they exist)."""
     # For now, just verify that the RLS migration file exists and is valid
@@ -234,6 +240,7 @@ async def test_rls_policies_applied(db_repo) -> None:
     assert "current_setting" in migration_sql, "Migration should use session variables"
 
 
+@pytest.mark.asyncio
 async def test_tenant_isolation_logic() -> None:
     """Test the logical correctness of tenant isolation (without actual data)."""
     # This test verifies the RLS policy logic is sound

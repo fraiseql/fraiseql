@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestAPQModeEnum:
     """Tests for APQMode enum."""

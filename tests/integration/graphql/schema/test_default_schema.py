@@ -7,8 +7,9 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.mutations.mutation_decorator import MutationDefinition
 
+pytestmark = pytest.mark.integration
 
-@pytest.mark.unit
+
 @pytest.fixture
 def reset_registry() -> None:
     """Reset the schema registry before each test."""

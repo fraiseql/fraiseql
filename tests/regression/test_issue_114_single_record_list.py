@@ -18,15 +18,19 @@ Actual (before fix):
 
 import json
 
+import pytest
+
+import fraiseql._fraiseql_rs as fraiseql_rs
+
+pytestmark = pytest.mark.rust
+
 
 class TestIssue114SingleRecordList:
     """Test that db.find() always returns list, even for single records."""
 
     def test_rust_pipeline_single_record_with_is_list_true(self) -> None:
         """Rust pipeline: single record with is_list=True should return array."""
-        from fraiseql import _fraiseql_rs
-
-        result = _fraiseql_rs.build_graphql_response(
+        result = fraiseql_rs.build_graphql_response(
             json_strings=['{"id": "1", "name": "router-01"}'],
             field_name="routers",
             type_name="Router",
@@ -41,9 +45,7 @@ class TestIssue114SingleRecordList:
 
     def test_rust_pipeline_single_record_with_is_list_false(self) -> None:
         """Rust pipeline: single record with is_list=False should return object."""
-        from fraiseql import _fraiseql_rs
-
-        result = _fraiseql_rs.build_graphql_response(
+        result = fraiseql_rs.build_graphql_response(
             json_strings=['{"id": "1", "name": "router-01"}'],
             field_name="router",
             type_name="Router",
@@ -57,9 +59,7 @@ class TestIssue114SingleRecordList:
 
     def test_rust_pipeline_multiple_records_with_is_list_true(self) -> None:
         """Rust pipeline: multiple records with is_list=True should return array."""
-        from fraiseql import _fraiseql_rs
-
-        result = _fraiseql_rs.build_graphql_response(
+        result = fraiseql_rs.build_graphql_response(
             json_strings=[
                 '{"id": "1", "name": "router-01"}',
                 '{"id": "2", "name": "router-02"}',
@@ -76,9 +76,7 @@ class TestIssue114SingleRecordList:
 
     def test_rust_pipeline_zero_records_with_is_list_true(self) -> None:
         """Rust pipeline: zero records with is_list=True should return empty array."""
-        from fraiseql import _fraiseql_rs
-
-        result = _fraiseql_rs.build_graphql_response(
+        result = fraiseql_rs.build_graphql_response(
             json_strings=[],
             field_name="routers",
             type_name=None,

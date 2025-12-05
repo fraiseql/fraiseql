@@ -1,11 +1,14 @@
 """Test that the network filtering fix resolves the reported issues."""
 
+import pytest
 from psycopg.sql import SQL
 
 import fraiseql
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import IpAddress
+
+pytestmark = pytest.mark.database
 
 
 @fraiseql.type

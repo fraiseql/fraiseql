@@ -17,6 +17,8 @@ from fraiseql.sql.graphql_where_generator import (
 )
 from fraiseql.types import CIDR, IpAddress
 
+pytestmark = pytest.mark.database
+
 
 @dataclass
 class NetworkDevice:

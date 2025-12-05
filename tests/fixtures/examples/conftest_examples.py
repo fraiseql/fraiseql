@@ -6,8 +6,10 @@ for example integration tests, with automatic installation and smart caching.
 """
 
 import asyncio
+import atexit
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import AsyncGenerator, Any
@@ -49,6 +51,107 @@ except ImportError:
     AsyncClient = None
 
 
+def _cleanup_test_databases() -> None:
+    """Clean up orphaned test databases at session end."""
+    try:
+        env = os.environ.copy()
+        env["PGPASSWORD"] = "fraiseql"
+
+        # Get list of test databases
+        result = subprocess.run(
+            ["psql", "-h", "localhost", "-U", "fraiseql", "-d", "postgres", "-t", "-c",
+             "SELECT datname FROM pg_database WHERE datname LIKE 'blog%_test_%';"],
+            capture_output=True, text=True, env=env, timeout=10
+        )
+
+        if result.returncode != 0:
+            return
+
+        databases = [db.strip() for db in result.stdout.strip().split("\n") if db.strip()]
+
+        for db in databases:
+            subprocess.run(
+                ["psql", "-h", "localhost", "-U", "fraiseql", "-d", "postgres", "-c",
+                 f"DROP DATABASE IF EXISTS {db};"],
+                capture_output=True, env=env, timeout=5
+            )
+
+        if databases:
+            logger.info(f"Cleaned up {len(databases)} orphaned test databases")
+    except Exception as e:
+        logger.debug(f"Database cleanup failed (non-fatal): {e}")
+
+
+# Register cleanup at interpreter exit
+atexit.register(_cleanup_test_databases)
+
+
+def _reset_fraiseql_global_state() -> None:
+    """Reset all FraiseQL global state to prevent test pollution."""
+    try:
+        # 1. Reset Rust schema registry FIRST (critical - prevents RwLock deadlock)
+        try:
+            from fraiseql._fraiseql_rs import reset_schema_registry_for_testing
+
+            reset_schema_registry_for_testing()
+            logger.debug("Rust schema registry reset")
+        except ImportError:
+            logger.debug("Rust extension not available, skipping Rust registry reset")
+
+        # 2. Reset Python SchemaRegistry singleton
+        from fraiseql.gql.builders.registry import SchemaRegistry
+
+        registry = SchemaRegistry.get_instance()
+        registry.clear()
+
+        # 3. Reset TypeRegistry singleton
+        from fraiseql.core.registry import TypeRegistry
+
+        type_registry = TypeRegistry()
+        type_registry.clear()
+
+        # 4. Reset global FastAPI dependencies
+        from fraiseql.fastapi.dependencies import set_auth_provider, set_db_pool, set_fraiseql_config
+
+        set_db_pool(None)
+        set_auth_provider(None)
+        set_fraiseql_config(None)
+
+        # 5. Reset view type registry (maps SQL views to Python types)
+        from fraiseql.db import _view_type_registry
+
+        _view_type_registry.clear()
+
+        logger.debug("FraiseQL global state reset successfully")
+    except Exception as e:
+        logger.warning(f"Error resetting FraiseQL state: {e}")
+
+
+@pytest.fixture
+def reset_fraiseql_state():
+    """Reset FraiseQL global state before and after a test.
+
+    Use this fixture explicitly on tests that create FraiseQL apps to prevent
+    pollution from singleton registries. Not autouse to avoid overhead on
+    tests that don't need it.
+    """
+    _reset_fraiseql_global_state()  # Before test
+    yield
+    _reset_fraiseql_global_state()  # After test
+
+
+@pytest.fixture(scope="module")
+def reset_fraiseql_state_module():
+    """Reset FraiseQL global state once per test module.
+
+    More efficient than per-test reset when tests within a module use
+    compatible schemas.
+    """
+    _reset_fraiseql_global_state()  # Before module
+    yield
+    _reset_fraiseql_global_state()  # After module
+
+
 @pytest.fixture(scope="session")
 def smart_dependencies() -> None:
     """Ensure all required dependencies are available for example tests."""
@@ -75,28 +178,21 @@ def examples_event_loop() -> None:
     loop.close()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def blog_simple_db_url(smart_dependencies) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_simple_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_simple test database using smart database manager."""
     db_manager = get_database_manager()
 
     try:
-        success, connection_string = await db_manager.ensure_test_database("blog_simple")
-
-        if success:
-            logger.info(f"Successfully set up blog_simple test database")
-            yield connection_string
-
-            # Cleanup test database (template is kept for future runs)
-            db_name = connection_string.split("/")[-1]
-            logger.info(f"Cleaning up test database: {db_name}")
-            db_manager._drop_database(db_name)
-        else:
-            pytest.skip(f"Failed to setup blog_simple test database: {connection_string}")
-
+        success, result = await db_manager.ensure_test_database("blog_simple")
+        if not success:
+            pytest.skip(f"Blog simple database setup failed: {result}")
+        yield result
     except Exception as e:
-        logger.error(f"Exception setting up blog_simple test database: {e}")
-        pytest.skip(f"Database setup failed: {e}")
+        logger.warning(f"Blog simple database setup failed: {e}")
+        pytest.skip(f"Blog simple database setup failed: {e}")
+    # Note: We don't clean up test databases here as it can hang if other tests
+    # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
 @pytest_asyncio.fixture
@@ -132,97 +228,97 @@ async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
     }
 
 
-@pytest_asyncio.fixture
-async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_simple_app(smart_dependencies, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """Create blog_simple app for testing with guaranteed dependencies."""
-    blog_simple_path = None
-    original_sys_modules = None
-    original_env = {}
+    import sys
+    import importlib.util
+    from urllib.parse import urlparse
+
+    # Reset all FraiseQL state before creating app to ensure isolation
+    _reset_fraiseql_global_state()
+
+    blog_simple_dir = EXAMPLES_DIR / "blog_simple"
+    app_file = blog_simple_dir / "app.py"
+
+    # Parse the test database URL and set individual env vars
+    # The example uses DB_NAME, DB_USER, etc. not DATABASE_URL
+    parsed = urlparse(blog_simple_db_url)
+    os.environ["DATABASE_URL"] = blog_simple_db_url
+    os.environ["DB_NAME"] = parsed.path.lstrip("/")
+    os.environ["DB_USER"] = parsed.username or "fraiseql"
+    os.environ["DB_PASSWORD"] = parsed.password or "fraiseql"
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
 
     try:
-        # Store original environment variables we'll modify
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key in os.environ:
-                original_env[key] = os.environ[key]
-
-        # Clear the FraiseQL registry completely to prevent schema conflicts
-        try:
-            from fraiseql.gql.builders.registry import SchemaRegistry
-
-            SchemaRegistry.get_instance().clear()
-            logger.info("Successfully cleared SchemaRegistry before creating blog_simple app")
-        except ImportError:
-            logger.warning("Could not import SchemaRegistry - continuing without clearing")
-
-        # Clear any fraiseql modules from sys.modules to prevent contamination
-        modules_to_remove = [
-            name
-            for name in sys.modules.keys()
-            if name.startswith("fraiseql.") and "registry" in name.lower()
-        ]
-        original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
-
-        # Import blog_simple app - dependencies guaranteed by smart_dependencies fixture
-        blog_simple_path = EXAMPLES_DIR / "blog_simple"
-        sys.path.insert(0, str(blog_simple_path))
-
-        # Override database settings for testing
-        db_name = blog_simple_db_url.split("/")[-1]
-        os.environ["DB_NAME"] = db_name
-        os.environ["DATABASE_URL"] = blog_simple_db_url
-        os.environ["ENV"] = "test"
-
-        # Import the app module and create app
-        import importlib.util
-
+        # Force fresh module load using importlib (bypass Python cache)
         spec = importlib.util.spec_from_file_location(
-            "blog_simple_app", blog_simple_path / "app.py"
+            "blog_simple_app_module", app_file, submodule_search_locations=[str(blog_simple_dir)]
         )
-        app_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(app_module)
+        if spec is None or spec.loader is None:
+            pytest.skip(f"Could not load app module from {app_file}")
 
-        app = app_module.create_app()
-        logger.info(f"Successfully created blog_simple app with database: {db_name}")
+        # Add directory to path for imports within the module
+        sys.path.insert(0, str(blog_simple_dir))
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["app"] = module  # Register so internal imports work
+        spec.loader.exec_module(module)
+
+        # Create app
+        app = module.create_app()
         yield app
 
     except Exception as e:
-        logger.error(f"Failed to create blog_simple app: {e}")
-        pytest.skip(f"Failed to create blog_simple app: {e}")
+        logger.warning(f"Blog simple app creation failed: {e}")
+        pytest.skip(f"Blog simple app creation failed: {e}")
     finally:
-        # Restore original environment
-        for key, value in original_env.items():
-            os.environ[key] = value
-
-        # Remove test environment variables that weren't in original env
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key not in original_env and key in os.environ:
-                del os.environ[key]
-
-        # Restore sys.modules if we removed any
-        if original_sys_modules:
-            sys.modules.update(original_sys_modules)
-
-        # Clean up sys.path
-        if blog_simple_path and str(blog_simple_path) in sys.path:
-            sys.path.remove(str(blog_simple_path))
+        # Clean up
+        if str(blog_simple_dir) in sys.path:
+            sys.path.remove(str(blog_simple_dir))
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        # Clear any cached modules from the example
+        modules_to_remove = [k for k in sys.modules.keys() if "blog_simple" in k.lower()]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
 
 
-@pytest_asyncio.fixture
-async def blog_simple_client(blog_simple_app) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_simple_client(blog_simple_app, blog_simple_db_url) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_simple app with guaranteed dependencies."""
-    # Dependencies guaranteed by smart_dependencies fixture
+    import asyncio
     from httpx import AsyncClient, ASGITransport
+    import psycopg_pool
 
-    # Start the lifespan context to initialize database pool
-    async with blog_simple_app.router.lifespan_context(blog_simple_app):
+    # Create and set pool manually to ensure database pool is initialized
+    pool = psycopg_pool.AsyncConnectionPool(blog_simple_db_url)
+    await pool.open()
+
+    try:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(pool)
+
         transport = ASGITransport(app=blog_simple_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
+    finally:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(None)
+
+        # Close pool with short timeout - we don't need graceful shutdown in tests
+        try:
+            await asyncio.wait_for(pool.close(), timeout=2.0)
+        except asyncio.TimeoutError:
+            logger.debug("Pool close timed out, continuing")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def blog_simple_graphql_client(blog_simple_client) -> None:
-    """GraphQL client for blog_simple."""
+    """GraphQL client for blog_simple. Function-scoped for fresh state."""
 
     class GraphQLClient:
         def __init__(self, http_client: AsyncClient) -> None:
@@ -238,116 +334,115 @@ async def blog_simple_graphql_client(blog_simple_client) -> None:
     yield GraphQLClient(blog_simple_client)
 
 
-@pytest_asyncio.fixture(scope="session")
-async def blog_enterprise_db_url(smart_dependencies) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_enterprise_db_url(smart_dependencies) -> AsyncGenerator[str, None]:
     """Setup blog_enterprise test database using smart database manager."""
     db_manager = get_database_manager()
 
     try:
-        success, connection_string = await db_manager.ensure_test_database("blog_enterprise")
-
-        if success:
-            logger.info(f"Successfully set up blog_enterprise test database")
-            yield connection_string
-
-            # Cleanup test database (template is kept for future runs)
-            db_name = connection_string.split("/")[-1]
-            logger.info(f"Cleaning up test database: {db_name}")
-            db_manager._drop_database(db_name)
-        else:
-            pytest.skip(f"Failed to setup blog_enterprise test database: {connection_string}")
-
+        success, result = await db_manager.ensure_test_database("blog_enterprise")
+        if not success:
+            pytest.skip(f"Blog enterprise database setup failed: {result}")
+        yield result
     except Exception as e:
-        logger.error(f"Exception setting up blog_enterprise test database: {e}")
-        pytest.skip(f"Database setup failed: {e}")
+        logger.warning(f"Blog enterprise database setup failed: {e}")
+        pytest.skip(f"Blog enterprise database setup failed: {e}")
+    # Note: We don't clean up test databases here as it can hang if other tests
+    # have open connections. Test databases are unique (UUID suffix) and ephemeral.
 
 
-@pytest_asyncio.fixture
-async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_enterprise_app(
+    smart_dependencies, blog_enterprise_db_url
+) -> AsyncGenerator[Any, None]:
     """Create blog_enterprise app for testing with guaranteed dependencies."""
-    blog_enterprise_path = None
-    original_sys_modules = None
-    original_env = {}
+    import sys
+    import importlib.util
+    from urllib.parse import urlparse
+
+    # Reset all FraiseQL state before creating app to ensure isolation
+    _reset_fraiseql_global_state()
+
+    blog_enterprise_dir = EXAMPLES_DIR / "blog_enterprise"
+    app_file = blog_enterprise_dir / "app.py"
+
+    # Parse the test database URL and set individual env vars
+    # The example uses DB_NAME, DB_USER, etc. not DATABASE_URL
+    parsed = urlparse(blog_enterprise_db_url)
+    os.environ["DATABASE_URL"] = blog_enterprise_db_url
+    os.environ["DB_NAME"] = parsed.path.lstrip("/")
+    os.environ["DB_USER"] = parsed.username or "fraiseql"
+    os.environ["DB_PASSWORD"] = parsed.password or "fraiseql"
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
 
     try:
-        # Store original environment variables we'll modify
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key in os.environ:
-                original_env[key] = os.environ[key]
-
-        # Clear the FraiseQL registry completely to prevent schema conflicts
-        try:
-            from fraiseql.gql.builders.registry import SchemaRegistry
-
-            SchemaRegistry.get_instance().clear()
-            logger.info("Successfully cleared SchemaRegistry before creating blog_enterprise app")
-        except ImportError:
-            logger.warning("Could not import SchemaRegistry - continuing without clearing")
-
-        # Clear any fraiseql modules from sys.modules to prevent contamination
-        modules_to_remove = [
-            name
-            for name in sys.modules.keys()
-            if name.startswith("fraiseql.") and "registry" in name.lower()
-        ]
-        original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
-
-        # Import blog_enterprise app - dependencies guaranteed by smart_dependencies fixture
-        blog_enterprise_path = EXAMPLES_DIR / "blog_enterprise"
-        sys.path.insert(0, str(blog_enterprise_path))
-
-        # Override database settings for testing
-        db_name = blog_enterprise_db_url.split("/")[-1]
-        os.environ["DB_NAME"] = db_name
-        os.environ["DATABASE_URL"] = blog_enterprise_db_url
-        os.environ["ENV"] = "test"
-
-        # Import the app module and create app
-        import importlib.util
-
+        # Force fresh module load using importlib (bypass Python cache)
         spec = importlib.util.spec_from_file_location(
-            "blog_enterprise_app", blog_enterprise_path / "app.py"
+            "blog_enterprise_app_module",
+            app_file,
+            submodule_search_locations=[str(blog_enterprise_dir)],
         )
-        app_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(app_module)
+        if spec is None or spec.loader is None:
+            pytest.skip(f"Could not load app module from {app_file}")
 
-        app = app_module.create_app()
-        logger.info(f"Successfully created blog_enterprise app with database: {db_name}")
+        # Add directory to path for imports within the module
+        sys.path.insert(0, str(blog_enterprise_dir))
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["app"] = module  # Register so internal imports work
+        spec.loader.exec_module(module)
+
+        # Create app
+        app = module.create_app()
         yield app
 
     except Exception as e:
-        logger.error(f"Failed to create blog_enterprise app: {e}")
-        pytest.skip(f"Failed to create blog_enterprise app: {e}")
+        logger.warning(f"Blog enterprise app creation failed: {e}")
+        pytest.skip(f"Blog enterprise app creation failed: {e}")
     finally:
-        # Restore original environment
-        for key, value in original_env.items():
-            os.environ[key] = value
-
-        # Remove test environment variables that weren't in original env
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key not in original_env and key in os.environ:
-                del os.environ[key]
-
-        # Restore sys.modules if we removed any
-        if original_sys_modules:
-            sys.modules.update(original_sys_modules)
-
-        # Clean up sys.path
-        if blog_enterprise_path and str(blog_enterprise_path) in sys.path:
-            sys.path.remove(str(blog_enterprise_path))
+        # Clean up
+        if str(blog_enterprise_dir) in sys.path:
+            sys.path.remove(str(blog_enterprise_dir))
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        # Clear any cached modules from the example
+        modules_to_remove = [k for k in sys.modules.keys() if "blog_enterprise" in k.lower()]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
 
 
-@pytest_asyncio.fixture
-async def blog_enterprise_client(blog_enterprise_app) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def blog_enterprise_client(
+    blog_enterprise_app, blog_enterprise_db_url
+) -> AsyncGenerator[Any, None]:
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
-    # Dependencies guaranteed by smart_dependencies fixture
+    import asyncio
     from httpx import AsyncClient, ASGITransport
+    import psycopg_pool
 
-    # Start the lifespan context to initialize database pool
-    async with blog_enterprise_app.router.lifespan_context(blog_enterprise_app):
+    # Create and set pool manually to ensure database pool is initialized
+    pool = psycopg_pool.AsyncConnectionPool(blog_enterprise_db_url)
+    await pool.open()
+
+    try:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(pool)
+
         transport = ASGITransport(app=blog_enterprise_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
+    finally:
+        from fraiseql.fastapi.dependencies import set_db_pool
+
+        set_db_pool(None)
+
+        # Close pool with short timeout - we don't need graceful shutdown in tests
+        try:
+            await asyncio.wait_for(pool.close(), timeout=2.0)
+        except asyncio.TimeoutError:
+            logger.debug("Pool close timed out, continuing")
 
 
 # Sample data fixtures that work across examples
@@ -396,132 +491,6 @@ def sample_comment_data() -> None:
     }
 
 
-# Cascade Example Fixtures
-
-
-@pytest_asyncio.fixture(scope="session")
-async def cascade_db_url(smart_dependencies) -> None:
-    """Setup cascade test database using smart database manager."""
-    db_manager = get_database_manager()
-
-    try:
-        success, connection_string = await db_manager.ensure_test_database("graphql_cascade")
-
-        if success:
-            logger.info("Successfully set up cascade test database")
-            yield connection_string
-        else:
-            pytest.skip("Could not set up cascade test database")
-
-    except Exception as e:
-        logger.error(f"Failed to set up cascade test database: {e}")
-        pytest.skip(f"Cascade test database setup failed: {e}")
-
-
-@pytest_asyncio.fixture
-async def cascade_app(smart_dependencies, cascade_db_url) -> None:
-    """Create cascade app for testing with guaranteed dependencies."""
-    cascade_path = None
-    original_sys_modules = None
-    original_env = {}
-
-    try:
-        # Store original environment variables we'll modify
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key in os.environ:
-                original_env[key] = os.environ[key]
-
-        # Clear the FraiseQL registry completely to prevent schema conflicts
-        try:
-            from fraiseql.gql.builders.registry import SchemaRegistry
-
-            SchemaRegistry.get_instance().clear()
-            logger.info("Successfully cleared SchemaRegistry before creating cascade app")
-        except ImportError:
-            logger.warning("Could not import SchemaRegistry - continuing without clearing")
-
-        # Clear any fraiseql modules from sys.modules to prevent contamination
-        modules_to_remove = [
-            name
-            for name in sys.modules.keys()
-            if name.startswith("fraiseql.") and "registry" in name.lower()
-        ]
-        original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
-
-        # Import cascade app - dependencies guaranteed by smart_dependencies fixture
-        cascade_path = EXAMPLES_DIR / "graphql-cascade"
-        sys.path.insert(0, str(cascade_path))
-
-        # Override database settings for testing
-        db_name = cascade_db_url.split("/")[-1]
-        os.environ["DB_NAME"] = db_name
-        os.environ["DATABASE_URL"] = cascade_db_url
-        os.environ["ENV"] = "test"
-
-        # Import the app module and create app
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("cascade_app", cascade_path / "main.py")
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load cascade app from {cascade_path / 'main.py'}")
-
-        cascade_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cascade_module)
-
-        # Get the app from the module
-        app = cascade_module.app
-
-        # Set up database schema
-        db_manager = get_database_manager()
-        schema_file = cascade_path / "schema.sql"
-        if schema_file.exists():
-            success = await db_manager.setup_database_schema(cascade_db_url, schema_file)
-            if not success:
-                logger.warning("Failed to set up cascade database schema")
-
-        yield app
-
-    finally:
-        # Restore environment variables
-        for key, value in original_env.items():
-            os.environ[key] = value
-        for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
-            if key not in original_env and key in os.environ:
-                del os.environ[key]
-
-        # Restore sys.modules if we removed any
-        if original_sys_modules:
-            sys.modules.update(original_sys_modules)
-
-        # Clean up sys.path
-        if cascade_path and str(cascade_path) in sys.path:
-            sys.path.remove(str(cascade_path))
-
-
-@pytest.fixture
-def cascade_client(cascade_app) -> None:
-    """HTTP client for cascade app with guaranteed dependencies."""
-    # Dependencies guaranteed by smart_dependencies fixture
-    from fastapi.testclient import TestClient
-
-    # Create synchronous TestClient
-    with TestClient(cascade_app) as client:
-        yield client
-
-
-@pytest_asyncio.fixture
-async def cascade_graphql_client(cascade_client) -> None:
-    """GraphQL client for cascade."""
-
-    class GraphQLClient:
-        def __init__(self, http_client: AsyncClient) -> None:
-            self.client = http_client
-
-        async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
-            """Execute GraphQL query/mutation."""
-            response = await self.client.post(
-                "/graphql", json={"query": query, "variables": variables or {}}
-            )
-            return response.json()
-
-    yield GraphQLClient(cascade_client)
+# Cascade Example Fixtures - Removed
+# The cascade fixtures are now in tests/fixtures/cascade/conftest.py
+# to avoid conflicts and use the proper db_pool-based setup

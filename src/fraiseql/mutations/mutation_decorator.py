@@ -1,5 +1,6 @@
 """PostgreSQL function-based mutation decorator."""
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any, TypeVar, get_type_hints
@@ -7,11 +8,12 @@ from typing import Any, TypeVar, get_type_hints
 from graphql import GraphQLResolveInfo
 
 from fraiseql.mutations.error_config import MutationErrorConfig
-from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.definitions import UNSET
 from fraiseql.utils.casing import to_snake_case
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class MutationDefinition:
@@ -32,9 +34,10 @@ class MutationDefinition:
         # Store the provided schema for lazy resolution
         self._provided_schema = schema
         self._resolved_schema = None  # Will be resolved lazily
+        self._provided_error_config = error_config  # <-- NEW: Store provided value
+        self._resolved_error_config = None  # <-- NEW: Lazy resolution
 
         self.context_params = context_params or {}
-        self.error_config = error_config
         self.enable_cascade = enable_cascade
 
         # Get type hints
@@ -45,21 +48,6 @@ class MutationDefinition:
             "failure",
         )  # Support both 'error' and 'failure'
 
-        if not self.input_type:
-            msg = f"Mutation {self.name} must define 'input' type"
-            raise TypeError(msg)
-        if not self.success_type:
-            msg = f"Mutation {self.name} must define 'success' type"
-            raise TypeError(msg)
-        if not self.error_type:
-            msg = (
-                f"Mutation {self.name} must define 'failure' type "
-                "(or 'error' for backwards compatibility)"
-            )
-            raise TypeError(
-                msg,
-            )
-
         # Derive function name from class name if not provided
         if function_name:
             self.function_name = function_name
@@ -67,6 +55,56 @@ class MutationDefinition:
             # Convert CamelCase to snake_case
             # CreateUser -> create_user
             self.function_name = _camel_to_snake(self.name)
+
+        # Derive entity field name and type from success type
+        self.entity_field_name, self.entity_type = self._derive_entity_info()
+
+    def _derive_entity_info(self) -> tuple[str | None, str | None]:
+        """Derive entity field name and type from success type annotations.
+
+        Returns:
+            Tuple of (entity_field_name, entity_type)
+        """
+        if not self.success_type:
+            return None, None
+
+        # Get annotations from the success type
+        success_hints = get_type_hints(self.success_type)
+
+        # Look for common entity field names
+        entity_fields = [
+            "user",
+            "post",
+            "comment",
+            "tag",
+            "organization",
+            "project",
+            "task",
+            "location",
+            "category",
+            "item",
+            "entity",
+        ]
+
+        for field_name, field_type in success_hints.items():
+            if field_name in entity_fields:
+                # Get the type name (e.g., "User" from <class 'User'>)
+                type_name = getattr(field_type, "__name__", None)
+                if type_name:
+                    return field_name, type_name
+
+        # Fallback: try to find any field that looks like an entity
+        for field_name, field_type in success_hints.items():
+            # Skip common non-entity fields
+            if field_name in ["id", "message", "success", "error", "errors", "code", "status"]:
+                continue
+
+            # If it's a type (class), assume it's the entity
+            if hasattr(field_type, "__name__"):
+                type_name = field_type.__name__
+                return field_name, type_name
+
+        return None, None
 
     @property
     def schema(self) -> str:
@@ -100,6 +138,41 @@ class MutationDefinition:
         # Fall back to "public" as per feature requirements
         return "public"
 
+    @property
+    def error_config(self) -> MutationErrorConfig | None:
+        """Get the error config, resolving it lazily if needed."""
+        if self._resolved_error_config is None:
+            self._resolved_error_config = self._resolve_error_config(self._provided_error_config)
+        return self._resolved_error_config
+
+    def _resolve_error_config(
+        self, provided_error_config: MutationErrorConfig | None
+    ) -> MutationErrorConfig | None:
+        """Resolve the error config to use, considering defaults from config.
+
+        Resolution order:
+        1. Explicit error_config parameter on decorator (highest priority)
+        2. default_error_config from FraiseQLConfig
+        3. None (no error configuration)
+        """
+        # If error_config was explicitly provided, use it (even if None)
+        if provided_error_config is not None:
+            return provided_error_config
+
+        # Try to get default from registry config
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            registry = SchemaRegistry.get_instance()
+
+            if registry.config and hasattr(registry.config, "default_error_config"):
+                return registry.config.default_error_config
+        except ImportError:
+            pass
+
+        # Fall back to None (no error configuration)
+        return None
+
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
@@ -118,12 +191,18 @@ class MutationDefinition:
             if hasattr(self.mutation_class, "prepare_input"):
                 input_data = self.mutation_class.prepare_input(input_data)
 
-            # Call PostgreSQL function
-            full_function_name = f"{self.schema}.{self.function_name}"
+            # Call PostgreSQL function via Rust executor
+            from fraiseql.mutations.rust_executor import execute_mutation_rust
 
+            full_function_name = f"{self.schema}.{self.function_name}"
+            # GraphQL field name: CreatePost -> createPost (lowercase first letter)
+            field_name = self.name[0].lower() + self.name[1:] if self.name else self.name
+            success_type_name = getattr(self.success_type, "__name__", "Success")
+            error_type_name = getattr(self.error_type, "__name__", "Error")
+
+            # Extract context arguments
+            context_args = []
             if self.context_params:
-                # Extract context arguments
-                context_args = []
                 for context_key in self.context_params:
                     context_value = info.context.get(context_key)
                     if context_value is None:
@@ -139,101 +218,84 @@ class MutationDefinition:
                     else:
                         context_args.append(context_value)
 
-                result = await db.execute_function_with_context(
-                    full_function_name,
-                    context_args,
-                    input_data,
+            # Get connection pool from repository
+            # db is a FraiseQLRepository, we need to get the underlying pool
+            pool = db.get_pool() if hasattr(db, "get_pool") else db._pool
+
+            # Call Rust executor with a connection from the pool
+            async with pool.connection() as conn:
+                logger.debug(f"Executing mutation {self.name} with function {full_function_name}")
+                logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
+                logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
+
+                # Extract success type fields for schema validation
+                success_type_fields = None
+                if self.success_type:
+                    success_type_fields = list(self.success_type.__annotations__.keys())
+                    logger.debug(f"Success type fields for validation: {success_type_fields}")
+
+                try:
+                    rust_response = await execute_mutation_rust(
+                        conn=conn,
+                        function_name=full_function_name,
+                        input_data=input_data,
+                        field_name=field_name,
+                        success_type=success_type_name,
+                        error_type=error_type_name,
+                        entity_field_name=self.entity_field_name,
+                        entity_type=self.entity_type,
+                        context_args=context_args if context_args else None,
+                        success_type_class=self.success_type,
+                        success_type_fields=success_type_fields,
+                    )
+                    logger.debug(f"Mutation {self.name} executed successfully")
+                except Exception as e:
+                    logger.error(
+                        f"Mutation {self.name} failed during execution",
+                        extra={
+                            "function": full_function_name,
+                            "success_type": success_type_name,
+                            "error_type": error_type_name,
+                            "entity_field_name": self.entity_field_name,
+                            "entity_type": self.entity_type,
+                            "input_keys": list(input_data.keys()) if input_data else None,
+                            "error": str(e),
+                        },
+                    )
+                    raise
+
+            # Check if we're in HTTP mode (set by FastAPI routers)
+            # HTTP mode: return RustResponseBytes directly for performance
+            # Non-HTTP mode: parse and return Python objects for direct GraphQL execution
+            http_mode = info.context.get("_http_mode", False)
+
+            if http_mode:
+                # RUST-FIRST PATH: Return RustResponseBytes directly to HTTP
+                # This bypasses Python JSON parsing entirely for maximum performance
+                # PostgreSQL → Rust → HTTP bytes (zero Python string operations)
+                return rust_response
+
+            # NON-HTTP PATH: Convert to dict for GraphQL execute()
+            # Used in tests and direct GraphQL execute() calls
+            try:
+                graphql_response = rust_response.to_json()
+                mutation_result = graphql_response["data"][field_name]
+                logger.debug(f"Parsed GraphQL response for field '{field_name}'")
+            except Exception as e:
+                logger.error(
+                    f"Failed to parse GraphQL response for mutation {self.name}",
+                    extra={
+                        "field_name": field_name,
+                        "error": str(e),
+                        "response_type": type(rust_response).__name__,
+                    },
                 )
-            else:
-                # Use original single-parameter function
-                result = await db.execute_function(full_function_name, input_data)
+                raise
 
-            # Parse result into Success or Error type
-            parsed_result = parse_mutation_result(
-                result,
-                self.success_type,
-                self.error_type,
-                self.error_config,
-            )
-
-            # Check for cascade data if enabled
-            if self.enable_cascade:
-                # Extract cascade field selections from GraphQL query
-                cascade_data = None
-                if "_cascade" in result:
-                    cascade_data = result["_cascade"]
-                elif parsed_result.extra_metadata and "_cascade" in parsed_result.extra_metadata:
-                    cascade_data = parsed_result.extra_metadata["_cascade"]
-
-                if cascade_data:
-                    # Try to filter cascade data based on GraphQL selections
-                    try:
-                        from fraiseql.mutations.cascade_selections import extract_cascade_selections
-
-                        cascade_selections = extract_cascade_selections(info)
-
-                        if cascade_selections:
-                            # Filter using Rust
-                            filtered_cascade = _filter_cascade_rust(
-                                cascade_data, cascade_selections
-                            )
-                            parsed_result.__cascade__ = filtered_cascade
-                        else:
-                            # No selections - return all cascade data
-                            parsed_result.__cascade__ = cascade_data
-                    except Exception as e:
-                        # Fallback: return unfiltered cascade data
-                        import logging
-
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Cascade filtering failed, using unfiltered data: {e}")
-                        parsed_result.__cascade__ = cascade_data
-
-            # Return the parsed result directly - let GraphQL handle object resolution
-            # Serialization will be handled at the JSON encoding stage
-
-            # IMPORTANT: Add cascade resolver if enabled
-            if self.enable_cascade and hasattr(parsed_result, "__cascade__"):
-                # Attach a resolver for the cascade field
-                def resolve_cascade(obj: Any, info: Any) -> Any:
-                    return getattr(obj, "__cascade__", None)
-
-                parsed_result.__resolve_cascade__ = resolve_cascade
-
-            # DEBUG: Check if errors field is being set correctly for enterprise compatibility
-            if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
-                class_name = parsed_result.__class__.__name__
-                errors_value = parsed_result.errors
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.info(f"Mutation result: {class_name}, errors={errors_value}")
-
-                # CRITICAL FIX: Force populate errors for frontend compatibility
-                if class_name.endswith("Error") and errors_value is None:
-                    status = getattr(parsed_result, "status", "unknown")
-                    message = getattr(parsed_result, "message", "Unknown error")
-
-                    # Create error from status and message
-                    if ":" in status:
-                        error_code = 422
-                        identifier = status.split(":", 1)[1]
-                    else:
-                        error_code = 500
-                        identifier = "general_error"
-
-                    error_obj = {
-                        "code": error_code,
-                        "identifier": identifier,
-                        "message": message,
-                        "details": {},
-                    }
-
-                    # Force set errors array
-                    parsed_result.errors = [error_obj]
-                    logger.info(f"FORCED errors population: {[error_obj]}")
-
-            return parsed_result
+            # Return dict directly (no parsing into Python objects)
+            # CASCADE is already at correct level from Rust
+            # Tests will work with dict access: result["user"]["id"]
+            return mutation_result
 
         # Set metadata for GraphQL introspection
         # Create unique resolver name to prevent collisions between similar mutation names

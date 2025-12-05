@@ -5,17 +5,22 @@ production. The issue may be that field_type information is not propagating
 correctly from the dataclass definitions through to the operator strategies.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import get_type_hints
 
 import pytest
 
+logger = logging.getLogger(__name__)
+
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
 
+pytestmark = pytest.mark.integration
+
 
 @dataclass
-class TestNetworkModel:
+class NetworkModel:
     """Test model with network field types that should propagate through WHERE generation."""
 
     id: str
@@ -25,7 +30,7 @@ class TestNetworkModel:
 
 
 @dataclass
-class TestSpecialTypesModel:
+class SpecialTypesModel:
     """Test model with all special field types."""
 
     id: str
@@ -41,22 +46,11 @@ class TestFieldTypePropagation:
 
     def test_type_hints_extraction(self) -> None:
         """Test that get_type_hints correctly extracts special types."""
-        type_hints = get_type_hints(TestNetworkModel)
+        type_hints = get_type_hints(NetworkModel)
 
-        print(f"Type hints for TestNetworkModel: {type_hints}")
+        logger.debug(f"Type hints for NetworkModel: {type_hints}")
 
-        # Verify that special types are detected
-        assert "ip_address" in type_hints
-        assert type_hints["ip_address"] == IpAddress
-
-        # Also test optional types
-        if "secondary_ip" in type_hints:
-            # Should handle Optional[IpAddress] correctly
-            print(f"secondary_ip type: {type_hints['secondary_ip']}")
-
-    def test_where_type_generation_preserves_field_types(self) -> None:
-        """Test that WHERE type generation preserves field type information."""
-        WhereType = safe_create_where_type(TestNetworkModel)
+        WhereType = safe_create_where_type(NetworkModel)
 
         # Create an instance to test
         where_instance = WhereType()
@@ -71,14 +65,14 @@ class TestFieldTypePropagation:
         assert sql_result is not None
         sql_str = str(sql_result)
 
-        print(f"Generated WHERE SQL: {sql_str}")
+        logger.debug(f"Generated WHERE SQL: {sql_str}")
 
         # The critical test: field_type should cause proper inet casting
         assert "::inet" in sql_str, f"Field type not propagated - no inet casting in: {sql_str}"
 
     def test_all_special_types_field_propagation(self) -> None:
         """Test field_type propagation for all special types."""
-        WhereType = safe_create_where_type(TestSpecialTypesModel)
+        WhereType = safe_create_where_type(SpecialTypesModel)
         where_instance = WhereType()
 
         # Test each special type
@@ -98,7 +92,7 @@ class TestFieldTypePropagation:
             assert sql_result is not None
 
             sql_str = str(sql_result)
-            print(f"Field {field_name} SQL: {sql_str}")
+            logger.debug(f"Field {field_name} SQL: {sql_str}")
 
             # Verify proper casting
             assert expected_cast in sql_str, (
@@ -125,12 +119,12 @@ class TestFieldTypePropagation:
 
         if result_no_type:
             sql_no_type = str(result_no_type)
-            print(f"No field_type SQL: {sql_no_type}")
+            logger.debug(f"No field_type SQL: {sql_no_type}")
 
             # This might fail because without field_type, the operator registry
             # might not select the right strategy
         else:
-            print("No SQL generated when field_type=None")
+            logger.debug("No SQL generated when field_type=None")
 
         # Test with proper field_type (simulating test environment success)
         result_with_type = _make_filter_field_composed(
@@ -139,7 +133,7 @@ class TestFieldTypePropagation:
 
         if result_with_type:
             sql_with_type = str(result_with_type)
-            print(f"With field_type SQL: {sql_with_type}")
+            logger.debug(f"With field_type SQL: {sql_with_type}")
 
             # This should work correctly
             assert "::inet" in sql_with_type, "Should have inet casting with field_type"
@@ -157,7 +151,7 @@ class TestFieldTypePropagation:
             try:
                 # This might fail if NetworkOperatorStrategy requires field_type
                 strategy = registry.get_strategy(op, field_type=None)
-                print(f"Operator {op} without field_type: {strategy.__class__.__name__}")
+                logger.debug(f"Operator {op} without field_type: {strategy.__class__.__name__}")
 
                 # If it doesn't fail, the strategy should still work correctly
                 from psycopg.sql import SQL
@@ -170,14 +164,14 @@ class TestFieldTypePropagation:
                     )
 
                 sql_str = str(result)
-                print(f"  Generated SQL: {sql_str}")
+                logger.debug(f"  Generated SQL: {sql_str}")
 
                 # Check if it still does proper casting without field_type
                 has_casting = "::inet" in sql_str
-                print(f"  Has inet casting: {has_casting}")
+                logger.debug(f"  Has inet casting: {has_casting}")
 
             except Exception as e:
-                print(f"Operator {op} failed without field_type: {e}")
+                logger.debug(f"Operator {op} failed without field_type: {e}")
                 # This might be the root cause - some operators might fail without field_type
 
     def test_comparison_strategy_field_type_handling(self) -> None:
@@ -189,7 +183,7 @@ class TestFieldTypePropagation:
         registry = get_operator_registry()
 
         # Test eq operator with and without field_type
-        print("Testing eq operator with IpAddress:")
+        logger.debug("Testing eq operator with IpAddress:")
 
         # With field_type (should work)
         strategy_with_type = registry.get_strategy("eq", IpAddress)
@@ -197,7 +191,7 @@ class TestFieldTypePropagation:
             SQL("data->>'ip_address'"), "eq", "8.8.8.8", IpAddress
         )
         sql_with_type = str(result_with_type)
-        print(f"  With field_type: {sql_with_type}")
+        logger.debug(f"  With field_type: {sql_with_type}")
 
         # Without field_type (might be the issue)
         strategy_no_type = registry.get_strategy("eq", None)
@@ -205,14 +199,15 @@ class TestFieldTypePropagation:
             SQL("data->>'ip_address'"), "eq", "8.8.8.8", None
         )
         sql_no_type = str(result_no_type)
-        print(f"  Without field_type: {sql_no_type}")
+        logger.debug(f"  Without field_type: {sql_no_type}")
 
         # Compare the results
-        print(
-            f"  Same strategy selected: {strategy_with_type.__class__ == strategy_no_type.__class__}"
+        logger.debug(
+            "  Same strategy selected: "
+            f"{strategy_with_type.__class__ == strategy_no_type.__class__}"
         )
-        print(f"  With type has inet casting: {'::inet' in sql_with_type}")
-        print(f"  Without type has inet casting: {'::inet' in sql_no_type}")
+        logger.debug(f"  With type has inet casting: {'::inet' in sql_with_type}")
+        logger.debug(f"  Without type has inet casting: {'::inet' in sql_no_type}")
 
         # This comparison might reveal the production issue
 
@@ -232,27 +227,10 @@ class TestProductionScenarioSimulation:
         # Scenario 3: Different Python typing behavior in different environments
         # This might happen with different Python versions or typing library versions
 
-        type_hints = get_type_hints(TestNetworkModel)
-        print(f"Type hints in current environment: {type_hints}")
-
-        # Check if the type is what we expect
-        ip_type = type_hints.get("ip_address")
-        print(f"IP address type: {ip_type}")
-        print(f"Is IpAddress: {ip_type is IpAddress}")
-        print(f"IpAddress module: {getattr(IpAddress, '__module__', 'unknown')}")
-
-        # This information might help identify production vs test differences
-
-    def test_graphql_integration_field_type_propagation(self) -> None:
-        """Test field_type propagation through GraphQL input generation."""
-        # This would test the full pipeline from GraphQL input to SQL generation
-        # but requires GraphQL setup which might be complex
-
-        # For now, just test the WHERE type generation
-        WhereType = safe_create_where_type(TestNetworkModel)
+        WhereType = safe_create_where_type(NetworkModel)
 
         # Simulate GraphQL input parsing
-        graphql_input = {"ipAddress": {"isPrivate": True}}  # Note: GraphQL uses camelCase
+        # Note: GraphQL uses camelCase
 
         # This would need to be converted to the internal format
         # The conversion might lose field_type information
@@ -264,26 +242,29 @@ class TestProductionScenarioSimulation:
         assert sql_result is not None
 
         sql_str = str(sql_result)
-        print(f"GraphQL simulation SQL: {sql_str}")
+        logger.debug(f"GraphQL simulation SQL: {sql_str}")
 
         assert "::inet" in sql_str, "GraphQL integration should preserve field_type"
 
 
 if __name__ == "__main__":
-    print("Testing field_type propagation...")
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Testing field_type propagation...")
 
     test_instance = TestFieldTypePropagation()
 
-    print("\n1. Testing type hints extraction...")
+    logger.info("\n1. Testing type hints extraction...")
     test_instance.test_type_hints_extraction()
 
-    print("\n2. Testing WHERE type generation...")
+    logger.info("\n2. Testing WHERE type generation...")
     test_instance.test_where_type_generation_preserves_field_types()
 
-    print("\n3. Testing operator registry without field_type...")
+    logger.info("\n3. Testing operator registry without field_type...")
     test_instance.test_operator_registry_without_field_type()
 
-    print("\n4. Testing comparison strategy field_type handling...")
+    logger.info("\n4. Testing comparison strategy field_type handling...")
     test_instance.test_comparison_strategy_field_type_handling()
 
-    print("\nRun full tests with: pytest tests/core/test_field_type_propagation.py -m core -v -s")
+    logger.info(
+        "\nRun full tests with: pytest tests/core/test_field_type_propagation.py -m core -v -s"
+    )

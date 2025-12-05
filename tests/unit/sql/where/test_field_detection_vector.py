@@ -4,7 +4,6 @@ These tests focus on detecting vector fields based on field name patterns
 for PostgreSQL pgvector support.
 """
 
-import pytest
 
 from fraiseql.sql.where.core.field_detection import FieldType, detect_field_type
 

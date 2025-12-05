@@ -62,12 +62,18 @@ def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLFie
 
 
 def collect_annotations(cls: type) -> dict[str, Any]:
-    """Collect type annotations across MRO with full support for Annotated/Extras."""
+    """Collect type annotations across MRO with full support for Annotated/Extras.
+
+    Supports self-referential types by passing localns={cls.__name__: cls}
+    to get_type_hints().
+    """
     annotations: dict[str, Any] = {}
+    # Build localns with the target class to support self-referential types
+    localns = {cls.__name__: cls}
     for base in reversed(cls.__mro__):
         if base is object:
             continue
-        base_hints = get_type_hints(base, include_extras=True)
+        base_hints = get_type_hints(base, localns=localns, include_extras=True)
         annotations.update({k: v for k, v in base_hints.items() if not k.startswith("__")})
     return annotations
 

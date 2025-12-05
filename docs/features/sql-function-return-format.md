@@ -1,14 +1,24 @@
 # SQL Function Return Format for FraiseQL Mutations
 
-**Navigation**: [← Queries & Mutations](../core/queries-and-mutations.md) • [GraphQL Cascade →](graphql-cascade.md)
+**Navigation**: [← Queries & Mutations](../core/queries-and-mutations.md) • [Mutation Result Reference →](mutation-result-reference.md) • [GraphQL Cascade →](graphql-cascade.md)
 
 ## Overview
 
-This guide explains the standard return format for PostgreSQL functions used with FraiseQL mutations, including support for GraphQL Cascade.
+This guide explains the return formats for PostgreSQL functions used with FraiseQL mutations. FraiseQL supports two formats:
+
+- **Legacy Format** (v1.4+): Simple `success`/`data`/`error` structure
+- **V2 Format** (v1.7+): Structured `mutation_response` type with comprehensive error handling
+
+See [Mutation Result Reference](mutation-result-reference.md) for complete format specifications.
+
+**Error Detection**: FraiseQL's Rust layer automatically detects errors using a [comprehensive status taxonomy](../mutations/status-strings.md). Status strings like `failed:validation`, `unauthorized:token_expired`, `conflict:duplicate`, etc. are automatically mapped to appropriate error types and HTTP status codes.
+
+**Note**: The legacy format continues to work but the v2 format is recommended for new implementations.
 
 ## Table of Contents
 
-- [Basic Return Format](#basic-return-format)
+- [Legacy Return Format (v1.4)](#legacy-return-format-v14)
+- [V2 Return Format (v1.7+)](#v2-return-format-v17)
 - [Ultra-Direct Path Compatibility](#ultra-direct-path-compatibility)
 - [GraphQL Cascade Support](#graphql-cascade-support)
 - [Complete Examples](#complete-examples)
@@ -16,11 +26,11 @@ This guide explains the standard return format for PostgreSQL functions used wit
 
 ---
 
-## Basic Return Format
+## Legacy Return Format (v1.4)
 
 ### Standard Success Response
 
-FraiseQL mutations expect PostgreSQL functions to return JSONB in this format:
+The legacy format uses a simple JSONB structure with `success`, `data`, and `error` fields:
 
 ```sql
 CREATE OR REPLACE FUNCTION app.create_user(input jsonb)
@@ -53,6 +63,8 @@ $$ LANGUAGE plpgsql;
 - `success` (boolean): `true` for successful operations
 - `data` (jsonb): The success payload containing entity data and messages
 
+**Note**: This format is auto-detected as "simple format" in the v2 system and works with both legacy and modern pipelines.
+
 ### Standard Error Response
 
 ```sql
@@ -78,6 +90,57 @@ END;
 
 ---
 
+## V2 Return Format (v1.7+)
+
+For comprehensive mutation handling, use the `mutation_response` composite type:
+
+```sql
+-- Enable the v2 types and helpers
+-- (Run: migrations/trinity/005_add_mutation_response.sql)
+
+CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
+RETURNS mutation_response AS $$
+DECLARE
+    user_data jsonb;
+    user_id uuid;
+BEGIN
+    -- Check for existing email
+    IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email') THEN
+        RETURN mutation_validation_error('Email already exists', 'email');
+    END IF;
+
+    -- Create user
+    user_id := gen_random_uuid();
+    INSERT INTO users (id, name, email, created_at)
+    VALUES (user_id, input->>'name', input->>'email', now());
+
+    -- Build response data
+    user_data := jsonb_build_object(
+        'id', user_id,
+        'name', input->>'name',
+        'email', input->>'email',
+        'created_at', now()
+    );
+
+    RETURN mutation_created(
+        'User created successfully',
+        user_data,
+        'User'
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Benefits of V2 Format:**
+- Structured error handling with HTTP status codes
+- Built-in helper functions for common operations
+- Automatic cascade data construction
+- Better type safety and consistency
+
+See [Mutation Result Reference](mutation-result-reference.md) for complete v2 format documentation.
+
+---
+
 ## Ultra-Direct Path Compatibility
 
 FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002_ultra_direct_mutation_path.md)) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.
@@ -86,11 +149,11 @@ FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002_ultra_
 
 Your PostgreSQL functions **automatically work** with the ultra-direct path if they:
 
-1. ✅ Return JSONB type
-2. ✅ Follow the standard format (`success`, `data`/`error`)
+1. ✅ Return JSONB type (or `mutation_response`)
+2. ✅ Follow either format: legacy (`success`/`data`/`error`) or v2 (`mutation_response`)
 3. ✅ Use snake_case field names (Rust transforms to camelCase automatically)
 
-### Example: Ultra-Direct Compatible Function
+### Example: Ultra-Direct Compatible Function (Legacy Format)
 
 ```sql
 CREATE OR REPLACE FUNCTION app.update_post(input jsonb)
@@ -158,6 +221,19 @@ GraphQL Response (camelCase):
     }
   }
 }
+```
+
+### V2 Format Ultra-Direct Path
+
+The v2 format also works with the ultra-direct path and provides richer error handling:
+
+```sql
+-- V2 format function (also ultra-direct compatible)
+CREATE OR REPLACE FUNCTION graphql.update_user(user_id uuid, input jsonb)
+RETURNS mutation_response AS $$
+-- Uses structured error handling and helper functions
+-- See Mutation Result Reference for details
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -759,6 +835,7 @@ END LOOP;
 
 ## See Also
 
+- [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications (v1.7+)
 - [Queries and Mutations](../core/queries-and-mutations.md) - FraiseQL mutation decorator
 - [GraphQL Cascade](graphql-cascade.md) - Full cascade specification
 - [ADR-002: Ultra-Direct Mutation Path](../architecture/decisions/002_ultra_direct_mutation_path.md) - Performance optimization
@@ -766,6 +843,6 @@ END LOOP;
 
 ---
 
-**Document Status**: Complete
-**Last Updated**: 2025-11-11
-**Applies To**: FraiseQL v1.4+
+**Document Status**: Updated for v1.7
+**Last Updated**: 2025-11-25
+**Applies To**: FraiseQL v1.4+ (legacy), v1.7+ (v2 format)

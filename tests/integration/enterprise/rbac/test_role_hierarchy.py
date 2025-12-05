@@ -10,31 +10,34 @@ import pytest
 
 from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
 
+pytestmark = pytest.mark.enterprise
 
-@pytest.fixture(autouse=True, scope="module")
-async def ensure_rbac_schema(db_pool) -> None:
+
+@pytest.fixture(autouse=True, scope="class")
+async def ensure_rbac_schema(class_db_pool, test_schema) -> None:
     """Ensure RBAC schema exists before running tests."""
     # Check if roles table exists
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        cur = await conn.execute(
+            """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'roles'
                 )
             """
-            )
-            exists = (await cur.fetchone())[0]
+        )
+        exists = (await cur.fetchone())[0]
 
-            if not exists:
-                # Read and execute the migration
-                migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
-                migration_sql = migration_path.read_text()
-                await cur.execute(migration_sql)
-                await conn.commit()
+        if not exists:
+            # Read and execute the migration
+            migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
+            migration_sql = migration_path.read_text()
+            await conn.execute(migration_sql)
+            await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_role_inheritance_chain(db_repo) -> None:
     """Verify role inherits permissions from parent roles."""
     # Create role chain: admin -> manager -> developer -> junior_dev
@@ -57,6 +60,7 @@ async def test_role_inheritance_chain(db_repo) -> None:
     assert True  # Basic import test
 
 
+@pytest.mark.asyncio
 async def test_hierarchy_validation(db_repo) -> None:
     """Test hierarchy validation (cycle detection)."""
     hierarchy = RoleHierarchy(db_repo)
@@ -67,6 +71,7 @@ async def test_hierarchy_validation(db_repo) -> None:
     assert hasattr(hierarchy, "get_hierarchy_depth")
 
 
+@pytest.mark.asyncio
 async def test_get_inherited_roles_method_exists(db_repo) -> None:
     """Verify the get_inherited_roles method exists and is callable."""
     hierarchy = RoleHierarchy(db_repo)

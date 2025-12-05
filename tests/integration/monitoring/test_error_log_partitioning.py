@@ -1,78 +1,78 @@
 """Tests for PostgreSQL table partitioning in monitoring module."""
 
 from datetime import datetime, timedelta
+from typing import AsyncGenerator
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
+
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry_class,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
+
+pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-async def partitioned_db(db_pool) -> None:
+@pytest_asyncio.fixture(scope="class")
+async def partitioned_db(class_db_pool, test_schema):
     """Set up partitioned schema for testing."""
     # Read and execute partitioned schema
     with open("src/fraiseql/monitoring/schema.sql") as f:
         schema_sql = f.read()
 
-    async with db_pool.connection() as conn:
+    # Setup
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}")
         await conn.execute(schema_sql)
         await conn.commit()
 
-    yield db_pool
-
-    # Cleanup
-    async with db_pool.connection() as conn:
-        # Drop all monitoring tables
-        await conn.execute(
-            """
-            DROP TABLE IF EXISTS tb_error_notification_log CASCADE;
-            DROP TABLE IF EXISTS tb_error_notification_config CASCADE;
-            DROP TABLE IF EXISTS tb_error_occurrence CASCADE;
-            DROP TABLE IF EXISTS tb_error_log CASCADE;
-            DROP TABLE IF EXISTS otel_traces CASCADE;
-            DROP TABLE IF EXISTS otel_metrics CASCADE;
-            DROP TABLE IF EXISTS fraiseql_schema_version CASCADE;
-        """
-        )
-        await conn.commit()
+    yield class_db_pool
 
 
 class TestErrorOccurrencePartitioning:
     """Test monthly partitioning of error occurrences."""
 
     @pytest.mark.asyncio
-    async def test_partitions_created_automatically(self, partitioned_db) -> None:
+    async def test_partitions_created_automatically(self, partitioned_db, test_schema) -> None:
         """Test that initial partitions are created."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Check that partitions were created
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            # Check that partitions were created
+            await cur.execute(
+                f"""
                     SELECT tablename
                     FROM pg_tables
-                    WHERE schemaname = 'public'
+                    WHERE schemaname = '{test_schema}'
                     AND tablename LIKE 'tb_error_occurrence_%'
                     ORDER BY tablename
                 """
-                )
+            )
 
-                partitions = [row[0] for row in await cur.fetchall()]
+            partitions = [row[0] for row in await cur.fetchall()]
 
-                # Should have at least 3 partitions (current month + 2 ahead)
-                assert len(partitions) >= 3
+            # Should have at least 3 partitions (current month + 2 ahead)
+            assert len(partitions) >= 3
 
-                # Verify naming pattern
-                for partition in partitions:
-                    assert partition.startswith("tb_error_occurrence_")
-                    # Should be in format: tb_error_occurrence_YYYY_MM
-                    assert len(partition) == len("tb_error_occurrence_2024_01")
+            # Verify naming pattern
+            for partition in partitions:
+                assert partition.startswith("tb_error_occurrence_")
+                # Should be in format: tb_error_occurrence_YYYY_MM
+                assert len(partition) == len("tb_error_occurrence_2024_01")
 
     @pytest.mark.asyncio
-    async def test_write_to_correct_partition(self, partitioned_db) -> None:
+    async def test_write_to_correct_partition(self, partitioned_db, test_schema) -> None:
         """Test that data goes to correct partition based on timestamp."""
         error_id = str(uuid4())
 
         # Create error log entry first
         async with partitioned_db.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             async with conn.cursor() as cur:
                 await cur.execute(
                     """
@@ -133,67 +133,68 @@ class TestErrorOccurrencePartitioning:
                 assert "tb_error_occurrence_" in partition2
 
     @pytest.mark.asyncio
-    async def test_create_partition_function(self, partitioned_db) -> None:
+    async def test_create_partition_function(self, partitioned_db, test_schema) -> None:
         """Test manual partition creation function."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Create partition for a future month
-                future_date = datetime.now() + timedelta(days=180)  # ~6 months ahead
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            # Create partition for a future month
+            future_date = datetime.now() + timedelta(days=180)  # ~6 months ahead
 
-                await cur.execute(
-                    """
+            await cur.execute(
+                """
                     SELECT create_error_occurrence_partition(%s::date)
                 """,
-                    (future_date,),
-                )
+                (future_date,),
+            )
 
-                partition_name = (await cur.fetchone())[0]
+            partition_name = (await cur.fetchone())[0]
 
-                # Verify partition was created
-                assert partition_name is not None
-                assert "tb_error_occurrence_" in partition_name
+            # Verify partition was created
+            assert partition_name is not None
+            assert "tb_error_occurrence_" in partition_name
 
-                # Verify it exists in pg_tables
-                await cur.execute(
-                    """
+            # Verify it exists in pg_tables
+            await cur.execute(
+                f"""
                     SELECT EXISTS (
                         SELECT 1 FROM pg_tables
-                        WHERE schemaname = 'public' AND tablename = %s
+                        WHERE schemaname = '{test_schema}' AND tablename = %s
                     )
                 """,
-                    (partition_name,),
-                )
+                (partition_name,),
+            )
 
-                exists = (await cur.fetchone())[0]
-                assert exists is True
+            exists = (await cur.fetchone())[0]
+            assert exists is True
 
     @pytest.mark.asyncio
-    async def test_ensure_partitions_function(self, partitioned_db) -> None:
+    async def test_ensure_partitions_function(self, partitioned_db, test_schema) -> None:
         """Test automatic partition creation function."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Call function to ensure next 3 months have partitions
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            # Call function to ensure next 3 months have partitions
+            await cur.execute(
+                """
                     SELECT partition_name, created
                     FROM ensure_error_occurrence_partitions(3)
                 """
-                )
+            )
 
-                results = await cur.fetchall()
+            results = await cur.fetchall()
 
-                # May return 0 results if all partitions already exist
-                # Or 1+ if new partitions were created
-                for partition_name, created in results:
-                    assert "tb_error_occurrence_" in partition_name
-                    assert created is True
+            # May return 0 results if all partitions already exist
+            # Or 1+ if new partitions were created
+            for partition_name, created in results:
+                assert "tb_error_occurrence_" in partition_name
+                assert created is True
 
     @pytest.mark.asyncio
-    async def test_partition_pruning_query(self, partitioned_db) -> None:
+    async def test_partition_pruning_query(self, partitioned_db, test_schema) -> None:
         """Test that partition pruning works for date-based queries."""
         error_id = str(uuid4())
 
         async with partitioned_db.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             async with conn.cursor() as cur:
                 # Create error log
                 await cur.execute(
@@ -245,173 +246,176 @@ class TestErrorOccurrencePartitioning:
     @pytest.mark.asyncio
     async def test_get_partition_stats(self, partitioned_db) -> None:
         """Test partition statistics function."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Get partition statistics
-                await cur.execute("SELECT * FROM get_partition_stats()")
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            # Get partition statistics
+            await cur.execute("SELECT * FROM get_partition_stats()")
 
-                results = await cur.fetchall()
+            results = await cur.fetchall()
 
-                # Should have multiple partitions
-                assert len(results) >= 3  # At least current + 2 ahead
+            # Should have multiple partitions
+            assert len(results) >= 3  # At least current + 2 ahead
 
-                for row in results:
-                    table_name, partition_name, row_count, total_size, index_size = row
+            for row in results:
+                table_name, partition_name, row_count, total_size, index_size = row
 
-                    # Verify structure
-                    assert table_name == "tb_error_occurrence"
-                    assert partition_name.startswith("tb_error_occurrence_")
-                    assert isinstance(row_count, int)
-                    assert isinstance(total_size, str)  # pg_size_pretty returns text
-                    assert isinstance(index_size, str)
+                # Verify structure
+                assert table_name == "tb_error_occurrence"
+                assert partition_name.startswith("tb_error_occurrence_")
+                assert isinstance(row_count, int)
+                assert isinstance(total_size, str)  # pg_size_pretty returns text
+                assert isinstance(index_size, str)
 
 
 class TestPartitionRetention:
     """Test partition retention and archival."""
 
     @pytest.mark.skip(
-        reason="TODO: Fix partition retention logic. The drop_old_error_occurrence_partitions() "
-        "function is not dropping partitions as expected. This is a database function issue, "
-        "not related to the GraphQL/operator layer. Requires investigation of the partition "
-        "management SQL function."
+        reason="Known database function bug: drop_old_error_occurrence_partitions() does not "
+        "drop partitions as expected. This is a PostgreSQL partition management function issue, "
+        "not a test infrastructure problem. Deferred to v1.8.0. "
+        "Workaround: Manual partition cleanup via SQL. "
+        "See: /tmp/UNSKIP_TESTS_PLAN.md Category 4 for details."
     )
     @pytest.mark.asyncio
     async def test_drop_old_partitions_function(self, partitioned_db) -> None:
         """Test dropping old partitions based on retention policy."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Create an old partition manually (7 months ago)
-                old_date = datetime.now() - timedelta(days=210)
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            # Create an old partition manually (7 months ago)
+            old_date = datetime.now() - timedelta(days=210)
+            await cur.execute(
+                """
                     SELECT create_error_occurrence_partition(%s::date)
                 """,
-                    (old_date,),
-                )
+                (old_date,),
+            )
 
-                old_partition = (await cur.fetchone())[0]
+            old_partition = (await cur.fetchone())[0]
 
-                # Verify it exists
-                await cur.execute(
-                    """
+            # Verify it exists
+            await cur.execute(
+                """
                     SELECT EXISTS (
                         SELECT 1 FROM pg_tables
                         WHERE schemaname = 'public' AND tablename = %s
                     )
                 """,
-                    (old_partition,),
-                )
+                (old_partition,),
+            )
 
-                exists_before = (await cur.fetchone())[0]
-                assert exists_before is True
+            exists_before = (await cur.fetchone())[0]
+            assert exists_before is True
 
-                # Call drop function with 6-month retention
-                await cur.execute(
-                    """
+            # Call drop function with 6-month retention
+            await cur.execute(
+                """
                     SELECT partition_name, dropped
                     FROM drop_old_error_occurrence_partitions(6)
                 """
-                )
+            )
 
-                dropped = await cur.fetchall()
+            dropped = await cur.fetchall()
 
-                # Should have dropped at least the 7-month-old partition
-                assert len(dropped) >= 1
-                dropped_names = [name for name, _ in dropped]
-                assert old_partition in dropped_names
+            # Should have dropped at least the 7-month-old partition
+            assert len(dropped) >= 1
+            dropped_names = [name for name, _ in dropped]
+            assert old_partition in dropped_names
 
-                # Verify it's actually gone
-                await cur.execute(
-                    """
+            # Verify it's actually gone
+            await cur.execute(
+                """
                     SELECT EXISTS (
                         SELECT 1 FROM pg_tables
                         WHERE schemaname = 'public' AND tablename = %s
                     )
                 """,
-                    (old_partition,),
-                )
+                (old_partition,),
+            )
 
-                exists_after = (await cur.fetchone())[0]
-                assert exists_after is False
+            exists_after = (await cur.fetchone())[0]
+            assert exists_after is False
 
 
 class TestSchemaVersioning:
     """Test schema version tracking."""
 
     @pytest.mark.asyncio
-    async def test_schema_version_table_exists(self, partitioned_db) -> None:
-        """Test that schema version tracking table exists."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
+    async def test_schema_version_table_exists(self, partitioned_db, test_schema) -> None:
+        """Test that schema version table exists."""
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            await cur.execute(
+                f"""
                     SELECT EXISTS (
                         SELECT 1 FROM pg_tables
-                        WHERE schemaname = 'public'
+                        WHERE schemaname = '{test_schema}'
                         AND tablename = 'fraiseql_schema_version'
                     )
                 """
-                )
+            )
 
-                exists = (await cur.fetchone())[0]
-                assert exists is True
+            exists = (await cur.fetchone())[0]
+            assert exists is True
 
     @pytest.mark.asyncio
-    async def test_monitoring_schema_version(self, partitioned_db) -> None:
+    async def test_monitoring_schema_version(self, partitioned_db, test_schema) -> None:
         """Test that monitoring module version is tracked."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            await cur.execute(
+                """
                     SELECT module, version, description
                     FROM fraiseql_schema_version
                     WHERE module = 'monitoring'
                 """
-                )
+            )
 
-                result = await cur.fetchone()
-                assert result is not None
+            result = await cur.fetchone()
+            assert result is not None
 
-                module, version, description = result
-                assert module == "monitoring"
-                assert version == 1
-                assert "partitioned" in description.lower()
+            module, version, description = result
+            assert module == "monitoring"
+            assert version == 1
+            assert "partitioned" in description.lower()
 
 
 class TestNotificationLogPartitioning:
     """Test notification log partitioning."""
 
     @pytest.mark.asyncio
-    async def test_notification_log_is_partitioned(self, partitioned_db) -> None:
+    async def test_notification_log_is_partitioned(self, partitioned_db, test_schema) -> None:
         """Test that notification log uses partitioning."""
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                # Check if table is partitioned
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await conn.execute(f"SET search_path TO {test_schema}")
+            # Check if table is partitioned
+            await cur.execute(
+                """
                     SELECT
                         relname,
                         relkind
                     FROM pg_class
                     WHERE relname = 'tb_error_notification_log'
                 """
-                )
+            )
 
-                result = await cur.fetchone()
-                assert result is not None
+            result = await cur.fetchone()
+            assert result is not None
 
-                relname, relkind = result
-                # relkind 'p' means partitioned table
-                assert relkind == "p"
+            relname, relkind = result
+            # relkind 'p' means partitioned table
+            assert relkind == "p"
 
 
 class TestBackwardsCompatibility:
     """Test that code works with partitioned schema."""
 
     @pytest.mark.asyncio
-    async def test_error_tracker_with_partitions(self, partitioned_db) -> None:
+    async def test_error_tracker_with_partitions(self, partitioned_db, test_schema) -> None:
         """Test that error tracker works with partitioned schema."""
         from fraiseql.monitoring import init_error_tracker
+
+        # Set search path for the tracker operations
+        async with partitioned_db.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
 
         tracker = init_error_tracker(
             partitioned_db,
@@ -435,15 +439,14 @@ class TestBackwardsCompatibility:
         assert error["occurrence_count"] == 1
 
         # Verify occurrence was written to partition
-        async with partitioned_db.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
+        async with partitioned_db.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                """
                     SELECT COUNT(*) FROM tb_error_occurrence
                     WHERE error_id = %s
                 """,
-                    (error_id,),
-                )
+                (error_id,),
+            )
 
-                count = (await cur.fetchone())[0]
-                assert count == 1
+            count = (await cur.fetchone())[0]
+            assert count == 1

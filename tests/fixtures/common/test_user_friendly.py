@@ -11,6 +11,8 @@ from fraiseql.errors.user_friendly import (
     SQLGenerationError,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 class TestFraiseQLError:

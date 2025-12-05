@@ -1,5 +1,7 @@
 import pytest
 
+pytestmark = pytest.mark.integration
+
 """Test the redesigned introspection policy system.
 
 This module tests the new enum-based introspection policy that replaces

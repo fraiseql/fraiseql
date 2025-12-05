@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
+pytestmark = pytest.mark.integration
+
 # Track lifecycle events
 lifecycle_events = []
 
@@ -154,13 +156,9 @@ def test_custom_lifespan_with_context_getter() -> None:
         assert response.status_code == 200
 
 
-@pytest.mark.skip(
-    reason="Starlette TestClient hangs on lifespan errors due to thread join deadlock. "
-    "This is a known limitation - lifespan error handling works in production but "
-    "cannot be reliably tested with TestClient. See: starlette issue #1315"
-)
-def test_lifespan_error_handling() -> None:
-    """Test that errors in custom lifespan are handled properly."""
+@pytest.mark.asyncio
+async def test_lifespan_error_handling() -> None:
+    """Test that errors in custom lifespan are handled properly using ASGI LifespanManager."""
 
     @asynccontextmanager
     async def failing_lifespan(app: FastAPI) -> None:
@@ -170,22 +168,41 @@ def test_lifespan_error_handling() -> None:
         raise RuntimeError(msg)
         yield  # Never reached
 
-    def create_failing_app() -> None:
-        """Create app with failing lifespan."""
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
-            types=[Status],
-            queries=[get_status],
-            lifespan=failing_lifespan,
-            production=False,
-        )
-        # Try to use the app - should fail
-        with TestClient(app):
-            pass
+    # Create app with failing lifespan
+    app = create_fraiseql_app(
+        database_url="postgresql://localhost/test",
+        types=[Status],
+        queries=[get_status],
+        lifespan=failing_lifespan,
+        production=False,
+    )
 
-    # This should raise an error during app creation
+    # Use ASGI LifespanManager to properly handle lifespan errors
+    from asgi_lifespan import LifespanManager
+
+    # This should raise an error during lifespan startup
     with pytest.raises(RuntimeError, match="Startup failed!"):
-        create_failing_app()
+        async with LifespanManager(app):
+            pass  # Should not reach here
+
+    # Verify startup was attempted
+    assert "failing_startup" in lifecycle_events
+
+    # Explicit cleanup for CI/Tox environments to prevent async teardown hangs
+    # Close any database pool that may have been created before the lifespan failure
+    import asyncio
+
+    from fraiseql.fastapi.dependencies import get_db_pool
+
+    try:
+        pool = get_db_pool()
+        if pool:
+            await pool.close()
+            # Give time for pool cleanup to complete
+            await asyncio.sleep(0.1)
+    except RuntimeError:
+        # No pool was set, which is fine
+        pass
 
 
 def test_lifespan_with_existing_app() -> None:

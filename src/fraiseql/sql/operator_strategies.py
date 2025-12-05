@@ -623,7 +623,7 @@ class JsonOperatorStrategy(BaseOperatorStrategy):
     """Strategy for JSONB-specific operators."""
 
     def __init__(self) -> None:
-        super().__init__(["overlaps", "strictly_contains"])  # Removed "contains"
+        super().__init__(["overlaps", "strictly_contains"])
 
     def build_sql(
         self,

@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 def test_mock_auth_context(mock_auth_context) -> None:

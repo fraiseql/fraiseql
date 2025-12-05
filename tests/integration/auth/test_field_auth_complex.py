@@ -1,6 +1,7 @@
 """Tests for complex field authorization scenarios."""
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +16,8 @@ from fraiseql.security.field_auth import (
     combine_permissions,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestComplexFieldAuthorization:
     """Test complex field authorization scenarios."""
@@ -24,13 +27,13 @@ class TestComplexFieldAuthorization:
 
         # Create nested permission checks
         # Permission checks receive (info, *args, **kwargs) but can ignore extra args
-        def is_authenticated(info, *args, **kwargs) -> None:
+        def is_authenticated(info, *args: Any, **kwargs: Any) -> bool:
             return info.context.get("user") is not None
 
-        def is_admin(info, *args, **kwargs) -> None:
+        def is_admin(info, *args: Any, **kwargs: Any) -> bool:
             return info.context.get("user", {}).get("role") == "admin"
 
-        def is_owner(info, *args, **kwargs) -> None:
+        def is_owner(info, *args: Any, **kwargs: Any) -> bool:
             return info.context.get("user", {}).get("""id""") == info.context.get(
                 "resource_owner_id"
             )
@@ -273,7 +276,7 @@ class TestComplexFieldAuthorization:
     def test_context_based_field_visibility(self) -> None:
         """Test fields that are conditionally visible based on context."""
 
-        def can_see_field(field_name: str) -> None:
+        def can_see_field(field_name: str):
             """Factory for field-specific permission checks."""
 
             def check(info, *args, **kwargs) -> bool:
@@ -329,7 +332,7 @@ class TestComplexFieldAuthorization:
                 super().__init__(message)
                 self.extensions = {"code": code, "type": "AUTHORIZATION_ERROR"}
 
-        def check_subscription_tier(required_tier: str) -> None:
+        def check_subscription_tier(required_tier: str):
             def check(info, *args, **kwargs) -> bool:
                 user = info.context.get("user", {})
                 user_tier = user.get("tier", "free")

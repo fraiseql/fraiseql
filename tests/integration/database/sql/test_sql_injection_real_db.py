@@ -10,7 +10,8 @@ to ensure parameterization works correctly in practice.
 import json
 
 import pytest
-from psycopg.sql import SQL
+import pytest_asyncio
+from psycopg.sql import SQL, Identifier
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
@@ -18,6 +19,8 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 import fraiseql
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 from fraiseql.sql.where_generator import safe_create_where_type
+
+pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @fraiseql.type
@@ -33,20 +36,20 @@ class User:
 class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
-    @pytest.fixture
-    async def test_users(self, db_pool) -> None:
-        """Create users table and test data within test transaction."""
-        async with db_pool.connection() as db_connection:
-            # Drop table if it exists to ensure clean state
-            await db_connection.execute("DROP TABLE IF EXISTS users CASCADE")
+    @pytest_asyncio.fixture(scope="class")
+    async def test_users(self, class_db_pool, test_schema, clear_registry_class):
+        """Create users table and test data within committed schema."""
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
 
-            await db_connection.execute(
+            # Create users table
+            await conn.execute(
                 """
                 CREATE TABLE users (
                     id SERIAL PRIMARY KEY,
                     data JSONB NOT NULL DEFAULT '{}'
                 )
-            """
+                """
             )
 
             # Insert test data
@@ -57,24 +60,23 @@ class TestSQLInjectionPrevention:
             ]
 
             for user_data in test_users:
-                await db_connection.execute(
+                await conn.execute(
                     """INSERT INTO users (data) VALUES (%s::jsonb)""", (json.dumps(user_data),)
                 )
 
             # Commit the data so it's visible to other connections from the pool
-            await db_connection.commit()
+            await conn.commit()
 
-        yield  # Let the test run
-
-        # Cleanup after test
-        async with db_pool.connection() as db_connection:
-            await db_connection.execute("DROP TABLE IF EXISTS users CASCADE")
-            await db_connection.commit()
+        # Return the schema name for use in queries
+        return test_schema
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_string_fields(self, db_pool, test_users) -> None:
+    async def test_sql_injection_in_string_fields(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test SQL injection attempts in string fields."""
-        repo = FraiseQLRepository(db_pool)
+        schema = test_users
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Various SQL injection attempts
@@ -94,7 +96,8 @@ class TestSQLInjectionPrevention:
 
             # Build the complete SQL query
             query = DatabaseQuery(
-                statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
+                statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+                + sql_where,
                 params={},
                 fetch_result=True,
             )
@@ -107,7 +110,9 @@ class TestSQLInjectionPrevention:
 
             # Verify table still exists and has correct row count
             count_query = DatabaseQuery(
-                statement=SQL("SELECT COUNT(*) FROM users"), params={}, fetch_result=True
+                statement=SQL("SELECT COUNT(*) FROM {}.users").format(Identifier(schema)),
+                params={},
+                fetch_result=True,
             )
             count_result = await repo.run(count_query)
             assert count_result[0]["count"] == 3, (
@@ -115,9 +120,12 @@ class TestSQLInjectionPrevention:
             )
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_list_operations(self, db_pool, test_users) -> None:
+    async def test_sql_injection_in_list_operations(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test SQL injection in IN/NOT IN operations."""
-        repo = FraiseQLRepository(db_pool)
+        schema = test_users
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Try injection via IN operator
@@ -127,7 +135,8 @@ class TestSQLInjectionPrevention:
         sql_where = where.to_sql()
 
         query = DatabaseQuery(
-            statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
+            statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+            + sql_where,
             params={},
             fetch_result=True,
         )
@@ -141,15 +150,20 @@ class TestSQLInjectionPrevention:
 
         # Verify table integrity
         count_query = DatabaseQuery(
-            statement=SQL("SELECT COUNT(*) FROM users"), params={}, fetch_result=True
+            statement=SQL("SELECT COUNT(*) FROM {}.users").format(Identifier(schema)),
+            params={},
+            fetch_result=True,
         )
         count_result = await repo.run(count_query)
         assert count_result[0]["count"] == 3, "Table corrupted via IN operator injection"
 
     @pytest.mark.asyncio
-    async def test_sql_injection_with_special_characters(self, db_pool, test_users) -> None:
+    async def test_sql_injection_with_special_characters(
+        self, class_db_pool, test_schema, test_users
+    ) -> None:
         """Test handling of special characters that could be used in injections."""
-        repo = FraiseQLRepository(db_pool)
+        schema = test_users
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Special characters that might be used in injection attempts
@@ -171,7 +185,8 @@ class TestSQLInjectionPrevention:
                 sql_where = where.to_sql()
 
                 query = DatabaseQuery(
-                    statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
+                    statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+                    + sql_where,
                     params={},
                     fetch_result=True,
                 )
@@ -188,7 +203,9 @@ class TestSQLInjectionPrevention:
 
             # Verify database integrity
             count_query = DatabaseQuery(
-                statement=SQL("SELECT COUNT(*) FROM users"), params={}, fetch_result=True
+                statement=SQL("SELECT COUNT(*) FROM {}.users").format(Identifier(schema)),
+                params={},
+                fetch_result=True,
             )
             count_result = await repo.run(count_query)
             assert count_result[0]["count"] == 3, (
@@ -196,9 +213,10 @@ class TestSQLInjectionPrevention:
             )
 
     @pytest.mark.asyncio
-    async def test_verify_parameterization(self, db_pool, test_users) -> None:
+    async def test_verify_parameterization(self, class_db_pool, test_schema, test_users) -> None:
         """Verify that queries are properly parameterized."""
-        repo = FraiseQLRepository(db_pool)
+        schema = test_users
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Create a query with potential injection
@@ -209,7 +227,8 @@ class TestSQLInjectionPrevention:
 
         sql_where = where.to_sql()
         query = DatabaseQuery(
-            statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
+            statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+            + sql_where,
             params={},
             fetch_result=True,
         )
@@ -227,30 +246,32 @@ class TestSQLInjectionPrevention:
                 """
                 SELECT COUNT(*)
                 FROM information_schema.columns
-                WHERE table_name = 'users'
+                WHERE table_name = 'users' AND table_schema = %(schema)s
             """
             ),
-            params={},
+            params={"schema": schema},
             fetch_result=True,
         )
         table_check_result = await repo.run(table_check_query)
         assert table_check_result[0]["count"] == 2, "Table structure was modified"
 
     @pytest.mark.asyncio
-    async def test_actual_database_execution(self, db_pool, test_users) -> None:
+    async def test_actual_database_execution(self, class_db_pool, test_schema, test_users) -> None:
         """Real integration test that executes against database.
 
         This replaces the placeholder test in the original SQL injection
         prevention tests with actual database execution.
         """
-        repo = FraiseQLRepository(db_pool)
+        schema = test_users
+        repo = FraiseQLRepository(class_db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Test that normal queries work correctly
         where_normal = UserWhere(name={"eq": "Admin"})
         sql_where = where_normal.to_sql()
         query_normal = DatabaseQuery(
-            statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
+            statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+            + sql_where,
             params={},
             fetch_result=True,
         )
@@ -263,7 +284,8 @@ class TestSQLInjectionPrevention:
         where_injection = UserWhere(name={"eq": "'; DROP TABLE users; --"})
         sql_where_injection = where_injection.to_sql()
         query_injection = DatabaseQuery(
-            statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where_injection,
+            statement=SQL("SELECT id, data FROM {}.users WHERE ").format(Identifier(schema))
+            + sql_where_injection,
             params={},
             fetch_result=True,
         )
@@ -277,11 +299,11 @@ class TestSQLInjectionPrevention:
                 """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
-                    WHERE table_name = 'users'
+                    WHERE table_name = 'users' AND table_schema = %(schema)s
                 )
             """
             ),
-            params={},
+            params={"schema": schema},
             fetch_result=True,
         )
         verify_result = await repo.run(verify_query)

@@ -1,10 +1,11 @@
 """Tests for APQ query loader from .graphql files."""
 
-import os
 import tempfile
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestLoadQueriesFromDirectory:

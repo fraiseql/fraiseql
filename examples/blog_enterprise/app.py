@@ -9,6 +9,7 @@ An enterprise-grade blog application demonstrating:
 - Performance optimization and caching
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -23,6 +24,8 @@ from graphql import GraphQLResolveInfo
 import fraiseql
 from fraiseql.cqrs import CQRSRepository
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
+from fraiseql.fastapi.app import create_db_pool
+from fraiseql.fastapi.dependencies import set_db_pool, get_db_pool
 
 # Configure logging
 logging.basicConfig(
@@ -119,7 +122,7 @@ def _create_base_app() -> FastAPI:
         return {
             "status": "healthy",
             "service": "blog_enterprise",
-            "timestamp": "2024-01-01T00:00:00Z"
+            "timestamp": "2024-01-01T00:00:00Z",
         }
 
     ENTERPRISE_TYPES = []
@@ -136,6 +139,47 @@ def _create_base_app() -> FastAPI:
         enable_playground=DEBUG,
     )
 
+    # Custom lifespan with timeout protection for database pool creation
+    @asynccontextmanager
+    async def enterprise_lifespan(app: FastAPI):
+        """Enterprise lifespan with robust database pool initialization."""
+        logger.info("🚀 Starting FraiseQL Blog Enterprise with timeout protection")
+
+        try:
+            # Create database pool with timeout protection
+            pool = await asyncio.wait_for(
+                create_db_pool(
+                    str(config.database_url),
+                    min_size=2,
+                    max_size=config.database_pool_size,
+                    timeout=config.database_pool_timeout,
+                ),
+                timeout=30.0,  # 30 second timeout for pool creation
+            )
+            set_db_pool(pool)
+            logger.info("✅ Database pool created successfully")
+
+        except asyncio.TimeoutError:
+            logger.error("❌ Database pool creation timed out after 30 seconds")
+            # Continue without pool - app will fail gracefully on database requests
+            raise RuntimeError("Database pool creation timed out")
+        except Exception as e:
+            logger.error(f"❌ Database pool creation failed: {e}")
+            # Continue without pool for testing purposes
+            raise
+
+        yield
+
+        # Cleanup
+        logger.info("🔒 Blog Enterprise shutdown")
+        try:
+            pool = get_db_pool()
+            if pool:
+                await pool.close()
+                logger.info("Database pool closed")
+        except Exception as e:
+            logger.error(f"Error closing database pool: {e}")
+
     # Create FraiseQL app with enterprise configuration - this becomes our main app
     app = create_fraiseql_app(
         database_url=get_database_url(),
@@ -147,7 +191,7 @@ def _create_base_app() -> FastAPI:
         title="FraiseQL Blog Enterprise API",
         description="Enterprise blog API with advanced patterns and multi-tenancy",
         production=not DEBUG,
-        # lifespan=lifespan,  # Let FraiseQL handle its own lifespan
+        # Note: lifespan removed - let FraiseQL handle pool management or tests provide pool via fixtures
     )
 
     # CORS configuration for enterprise
@@ -187,7 +231,6 @@ def _create_base_app() -> FastAPI:
                 "admin": "/admin",
             },
         }
-
 
     @app.get("/metrics")
     async def metrics():
@@ -242,26 +285,54 @@ def create_app():
             # Get our custom health function from the base app
             # It was already defined in the base app
             async def custom_health():
-                """Enterprise health check with dependencies."""
-                try:
-                    # Check database connectivity
-                    import psycopg
-                    conn = await psycopg.AsyncConnection.connect(get_database_url())
-                    db_status = "healthy"
-                    await conn.close()
-                except Exception as e:
-                    db_status = f"unhealthy: {e!s}"
+                """Enterprise health check with realistic dependency validation."""
+
+                async def check_database() -> str:
+                    """Check database connectivity with timeout."""
+                    try:
+                        conn = await asyncio.wait_for(
+                            psycopg.AsyncConnection.connect(
+                                get_database_url(),
+                                connect_timeout=3,  # Shorter timeout for health checks
+                            ),
+                            timeout=5.0,  # Overall timeout including connection
+                        )
+                        # Try a simple query to verify the connection works
+                        await conn.execute("SELECT 1")
+                        await conn.close()
+                        return "healthy"
+                    except asyncio.TimeoutError:
+                        return "unhealthy: timeout"
+                    except Exception as e:
+                        return f"unhealthy: {e!s}"
+
+                async def check_cache() -> str:
+                    """Check cache connectivity (Redis placeholder)."""
+                    # In a real implementation, this would check Redis connectivity
+                    # For now, return healthy since cache is optional
+                    return "healthy"
+
+                # Run dependency checks concurrently with individual timeouts
+                db_task = asyncio.create_task(check_database())
+                cache_task = asyncio.create_task(check_cache())
 
                 try:
-                    # Check Redis connectivity (placeholder)
-                    cache_status = "healthy"  # Would check Redis in real implementation
-                except Exception as e:
-                    cache_status = f"unhealthy: {e!s}"
+                    db_status, cache_status = await asyncio.gather(
+                        asyncio.wait_for(db_task, timeout=10.0),
+                        asyncio.wait_for(cache_task, timeout=5.0),
+                    )
+                except asyncio.TimeoutError:
+                    # If any check times out, mark as unhealthy
+                    db_status = "unhealthy: timeout" if not db_task.done() else await db_task
+                    cache_status = (
+                        "unhealthy: timeout" if not cache_task.done() else await cache_task
+                    )
+
+                # Determine overall status
+                all_healthy = all(status == "healthy" for status in [db_status, cache_status])
 
                 return {
-                    "status": "healthy"
-                    if db_status == "healthy" and cache_status == "healthy"
-                    else "degraded",
+                    "status": "healthy" if all_healthy else "degraded",
                     "service": "blog_enterprise",
                     "version": "2.0.0",
                     "environment": ENV,
@@ -269,11 +340,12 @@ def create_app():
                         "database": db_status,
                         "cache": cache_status,
                     },
-                    "uptime": "0s",  # Would track actual uptime
+                    "uptime": "0s",  # Would track actual uptime in production
                 }
 
             # Create new route with our endpoint
             from fastapi.routing import APIRoute
+
             new_route = APIRoute("/health", custom_health, methods=["GET"])
             # Replace the route at the same position
             routes_list = list(app.routes)

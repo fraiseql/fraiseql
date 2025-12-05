@@ -12,6 +12,8 @@ from fraiseql.gql.complexity import (
     calculate_field_complexity,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class TestFieldComplexity:
     """Test field-level complexity calculations."""

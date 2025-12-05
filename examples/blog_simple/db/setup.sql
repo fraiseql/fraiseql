@@ -301,7 +301,7 @@ CREATE VIEW v_users AS
 SELECT
     id,
     identifier,
-    username,
+    identifier AS username,  -- Use identifier as username since table only has identifier
     email,
     password_hash,
     role,
@@ -314,7 +314,7 @@ CREATE VIEW v_posts AS
 SELECT
     p.id,
     p.identifier,
-    p.slug,
+    p.identifier AS slug,  -- Use identifier as slug since table only has identifier
     p.title,
     p.content,
     p.excerpt,
@@ -347,7 +347,7 @@ SELECT
     id,
     identifier,
     name,
-    slug,
+    identifier AS slug,  -- Use identifier as slug since table only has identifier
     color,
     description,
     created_at

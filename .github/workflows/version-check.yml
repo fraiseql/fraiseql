@@ -1,0 +1,27 @@
+name: Version Consistency Check
+
+on:
+  push:
+    paths:
+      - 'pyproject.toml'
+      - 'fraiseql_rs/Cargo.toml'
+      - 'src/fraiseql/__init__.py'
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'fraiseql_rs/Cargo.toml'
+      - 'src/fraiseql/__init__.py'
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Check version consistency
+        run: python scripts/check_versions.py

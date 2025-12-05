@@ -92,7 +92,7 @@ impl CascadeSelections {
 
         let updated_fields = updated_obj
             .and_then(|u| u.get("fields"))
-            .and_then(|f| Self::parse_field_set_from_value(f));
+            .and_then(Self::parse_field_set_from_value);
 
         // Parse entity selections
         let entity_selections = updated_obj

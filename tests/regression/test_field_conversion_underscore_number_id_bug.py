@@ -10,8 +10,11 @@ from typing import Any
 import pytest
 
 import fraiseql
+from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.mutations import mutation
 from fraiseql.types.definitions import UNSET
+
+pytestmark = pytest.mark.integration
 
 
 @fraiseql.input
@@ -51,12 +54,100 @@ class CreateNetworkConfiguration:
 
 
 # Mock database function execution to capture the actual parameters being passed
+class MockCursor:
+    """Mock cursor for database operations."""
+
+    def __init__(self, db):
+        self.db = db
+        self.executed_query = None
+        self.executed_params = None
+
+    async def execute(self, query, params):
+        self.executed_query = query
+        self.executed_params = params
+
+        # Extract function name and input data from the query
+        # Query looks like: SELECT row_to_json(app.create_network_configuration(%s::jsonb))
+        import json
+        import re
+
+        match = re.search(r"row_to_json\((\w+)\.(\w+)\(%s::jsonb\)\)", query)
+        if match:
+            schema, function_name = match.groups()
+            self.db.last_function_call = f"{schema}.{function_name}"
+
+            # Parse the JSON input data
+            if params and len(params) > 0:
+                try:
+                    input_json = params[0]
+                    if isinstance(input_json, str):
+                        self.db.last_input_data = json.loads(input_json)
+                    else:
+                        self.db.last_input_data = input_json
+                except (json.JSONDecodeError, TypeError):
+                    self.db.last_input_data = params[0] if params else None
+
+    async def fetchone(self):
+        # Return a mock JSON result that matches the expected structure
+        import json
+
+        mock_result = {
+            "status": "success",
+            "object_data": {
+                "id": "mock-id",
+                "name": "Mock Result",
+            },
+            "message": "Mock success",
+            "extra_metadata": {"entity": "mock"},
+        }
+        return [json.dumps(mock_result)]
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+
+class MockConnection:
+    """Mock async connection context manager."""
+
+    def __init__(self, db):
+        self._db = db
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    async def execute(self, *args, **kwargs):
+        pass
+
+    def cursor(self):
+        return MockCursor(self._db)
+
+
+class MockPool:
+    """Mock connection pool."""
+
+    def __init__(self, db):
+        self._db = db
+
+    def connection(self):
+        return MockConnection(self._db)
+
+
 class MockDatabase:
     """Mock database to capture function calls."""
 
     def __init__(self) -> None:
         self.last_function_call = None
         self.last_input_data = None
+        self._pool = MockPool(self)
+
+    def get_pool(self):
+        return self._pool
 
     async def execute_function(
         self, function_name: str, input_data: dict[str, Any]
@@ -91,6 +182,15 @@ class MockInfo:
 
     def __init__(self, db: MockDatabase) -> None:
         self.context = {"db": db}
+
+
+@pytest.fixture(autouse=True)
+def clear_schema_registry():
+    """Clear the schema registry before and after each test."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+    yield
+    registry.clear()
 
 
 @pytest.mark.asyncio

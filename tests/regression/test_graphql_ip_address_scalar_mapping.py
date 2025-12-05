@@ -18,9 +18,11 @@ Expected Behavior:
 4. GraphQL validation should reject String variables for IpAddress fields
 """
 
+import pytest
 from graphql import parse, print_schema, validate
 
 import fraiseql
+from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.types import IpAddress
 
@@ -64,6 +66,15 @@ class CreateDnsServer:
 async def health_check(info) -> str:
     """Required query for valid GraphQL schema."""
     return "OK"
+
+
+@pytest.fixture(autouse=True)
+def clear_schema_registry():
+    """Clear the schema registry before and after each test."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+    yield
+    registry.clear()
 
 
 def test_ip_address_scalar_mapping() -> None:
@@ -212,6 +223,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
         failure: ServerConfigError
 
     @fraiseql.query
+    @pytest.mark.asyncio
     async def test_query(info) -> str:
         return "test"
 

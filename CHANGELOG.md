@@ -7,6 +7,289 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.3] - 2025-12-05
+
+### 🚀 Major: Unified Rust Mutation Pipeline
+
+**BREAKING CHANGE (Internal)**: Complete rewrite of mutation processing pipeline from fragile 5-layer Python/Rust hybrid to clean 2-layer Rust-first architecture.
+
+**For Users**: No breaking changes - all changes are internal. Existing code continues to work.
+
+**For Tests**: Non-HTTP mode now returns dicts instead of typed objects. Update: `result.user.id` → `result["user"]["id"]`
+
+#### Architecture Changes
+
+**Before (5 layers, ~2300 LOC)**:
+```
+PostgreSQL → Python Normalize → Python Flatten → Rust Transform → Python Parse → JSON
+```
+
+**After (2 layers, ~1000 LOC Rust)**:
+```
+PostgreSQL → Rust Pipeline → JSON/Dict
+```
+
+**Net impact**: -3,569 LOC (30% reduction), single source of truth, type-safe throughout
+
+#### What Changed
+
+**New Rust Modules** (Phases 1-3):
+- `fraiseql_rs/src/mutation/types.rs` - Core type system
+- `fraiseql_rs/src/mutation/parser.rs` - Format detection & parsing
+- `fraiseql_rs/src/mutation/entity_processor.rs` - Entity processing & __typename
+- `fraiseql_rs/src/mutation/response_builder.rs` - GraphQL response building
+- Two formats: Simple (entity-only) and Full (mutation_response)
+- Auto-detection based on status field presence
+- CASCADE as optional field (not separate format)
+
+**Deleted Python Code** (Phase 4):
+- `src/fraiseql/mutations/entity_flattener.py` (-199 LOC)
+- `src/fraiseql/mutations/parser.py` (-822 LOC)
+- Simplified `rust_executor.py` (removed flattening logic)
+- Updated `mutation_decorator.py` (dict responses, not typed objects)
+
+**Tests** (Phase 5):
+- Comprehensive Rust unit tests (>95% coverage)
+- Integration tests with PostgreSQL
+- Property-based tests for invariants
+- Edge case coverage (CASCADE placement, __typename, format detection)
+
+**Documentation** (Phase 6):
+- `docs/architecture/mutation_pipeline.md` - Architecture overview
+- `docs/advanced/rust-mutation-pipeline.md` - Implementation details
+- `docs/advanced/migration-guide.md` - Migration from old patterns
+- `docs/advanced/examples.md` - Usage examples
+
+**Cleanup** (Phase 7-8):
+- Removed "v2" terminology → standardized "Simple" and "Full" format naming
+- Deleted 20 obsolete test files (5,313 LOC) testing deleted internals
+- Archived old planning docs to `docs/planning/archived-pre-v1.9/`
+- Updated architecture docs to reflect new pipeline
+
+#### Key Features
+
+✅ **Single source of truth**: All transformation in Rust
+✅ **Type-safe**: Rust type system throughout pipeline
+✅ **Auto-detection**: Simple vs Full format based on status field
+✅ **CASCADE correct**: Always at success level, never nested in entity
+✅ **__typename consistency**: Always present in responses and entities
+✅ **Introspection compatible**: No changes needed to mutation generation
+✅ **Performance**: <1ms overhead for typical mutations, <2ms with CASCADE
+
+#### Behavior Changes
+
+1. **Dict responses in non-HTTP mode**: Tests now receive dicts instead of typed objects
+   - Update: `result.user.id` → `result["user"]["id"]`
+   - CASCADE access: `result["cascade"]` (not `result.user.cascade`)
+   - HTTP mode unchanged (already returns bytes)
+
+2. **CASCADE placement**: Always at success level (sibling to entity, not nested)
+   - Before: Sometimes nested in entity (bug)
+   - After: Always at success level (correct)
+
+3. **Format detection**: Auto-detects Simple vs Full based on valid status field
+   - Simple: No status field OR invalid status value
+   - Full: Valid mutation status (success, failed:*, etc.)
+
+#### Migration Notes
+
+**For most users**: No changes needed - existing code works as-is
+
+**For tests using non-HTTP mode**:
+```python
+# Before
+result = await execute_mutation(...)
+user_id = result.user.id  # Typed object
+
+# After
+result = await execute_mutation(...)
+user_id = result["user"]["id"]  # Dict
+```
+
+**For CASCADE access**:
+```python
+# Before
+cascade = result.__cascade__  # Attribute
+
+# After
+cascade = result.get("cascade")  # Dict key
+```
+
+See `docs/advanced/migration-guide.md` for full details.
+
+### Added
+- `default_error_config` field in `FraiseQLConfig` for global mutation error handling (#159)
+  - Set a global default error configuration for all mutations
+  - Individual mutations can override with explicit `error_config` parameter
+  - Reduces boilerplate by eliminating repetitive `error_config` on every mutation
+  - Resolution order: explicit decorator param > global default > None
+  - Follows existing `default_mutation_schema` pattern
+  - Comprehensive tests with 100% coverage of resolution scenarios
+  - Full documentation in `docs/reference/config.md` and `docs/reference/decorators.md`
+- Pre-push git hook to prevent pushing broken code
+  - Runs tests automatically before `git push`
+  - Blocks push if tests fail
+  - Documentation in `docs/development/pre-push-hooks.md`
+
+### Fixed
+- CASCADE placement bug: Now always at success level, never nested in entity
+- __typename consistency: Always present in success responses and entities
+- Cascade entity field resolution when `enable_cascade=True`
+  - Fixed incorrect `__typename` capitalization in nested entity fields
+  - Entity fields now properly resolved at all nesting levels
+  - Corrected field name handling in entity flattener for cascaded entities
+
+## [1.8.0-alpha.1] - 2025-12-05
+
+### Changed
+- **BREAKING (Pre-release only)**: Renamed `mutation_result_v2` to `mutation_response`
+  - PostgreSQL composite type renamed from `mutation_result_v2` to `mutation_response`
+  - All helper functions updated (`row_to_mutation_response`, etc.)
+  - Migration file: `005_add_mutation_result_v2.sql` → `005_add_mutation_response.sql`
+  - Rust type: `MutationResultV2` → `MutationResponse`
+  - **Impact**: None (no external users yet)
+  - **Rationale**: Cleaner naming before v1.0 - removes confusing "v2" suffix
+  - **Migration**: Update PostgreSQL functions to return `mutation_response` type
+
+### Fixed
+- Entity flattening issues with input type nullability in mutations
+- Input fields now correctly marked as non-null when required
+- GraphQL type conversion for non-null input fields
+
+### Internal
+- Improved entity flattener field removal and cascade priority handling
+- Updated tests to expect non-null enums in input types
+- Enhanced mutation object data mapping for production and development modes
+
+## [1.7.2] - 2025-12-04
+
+### Fixed
+- **CRITICAL**: Fixed bug where custom `error_config` was ignored in HTTP mode (production)
+  - Error detection now happens in Rust layer using status string prefixes
+  - All mutations via FastAPI now correctly map status strings to Success/Error types
+  - Fixes issue where `validation:`, `conflict:`, and other custom prefixes returned as Success
+- Critical Loki log aggregation configuration fixes
+  - Updated deprecated boltdb-shipper schema to TSDB v13
+  - Removed high-cardinality labels (trace_id, span_id, fingerprint) from Promtail
+  - Fixed LogQL syntax errors in documentation
+  - Fixed security issues (default passwords, Docker socket access)
+
+### Added
+- Comprehensive status taxonomy in Rust mutation layer
+  - Error prefixes: `failed:`, `unauthorized:`, `forbidden:`, `not_found:`, `conflict:`, `timeout:`
+  - Noop prefix: `noop:` (returns Success type with no changes)
+  - Success keywords: `success`, `created`, `updated`, `deleted`
+  - Case-insensitive status matching
+- Documentation: `docs/mutations/status-strings.md` - Complete guide to status string conventions
+- Loki log aggregation with Grafana observability stack
+- Automated dependency updates via Dependabot
+
+### Changed
+- `error_config` parameter is now deprecated for HTTP mode (still works in non-HTTP mode)
+- Status detection moved from Python `parse_mutation_result()` to Rust `MutationStatus::from_str()`
+
+### Migration Guide
+If you have mutations using custom `error_config`:
+
+**Before:**
+```python
+CUSTOM_ERROR_CONFIG = MutationErrorConfig(
+    error_prefixes={"validation:", "error:", "failed:"}
+)
+
+@mutation(function="create_user", error_config=CUSTOM_ERROR_CONFIG)
+class CreateUser: ...
+```
+
+**After (update PostgreSQL functions):**
+```sql
+-- Use standardized prefixes in PostgreSQL
+RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_response;
+RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_response;
+RETURN ('noop:duplicate', 'Already exists', ...)::mutation_response;
+```
+
+No Python changes needed - `error_config` can be removed.
+
+## [1.7.0] - 2025-11-XX
+
+### 🦀 Rust-First Architecture
+
+**Unified Rust Pipeline for ALL Mutations**
+- ALL mutations now flow: PostgreSQL → Rust → HTTP bytes
+- Cascade filtering moved from Python to Rust
+- ~50% faster mutation responses
+- Zero Python JSON parsing overhead
+
+**GraphQL Cascade** ⚡
+- Automatic client cache updates
+- Entity tracking (created, updated, deleted)
+- Filtered entirely in Rust for performance
+- Opt-in with `@mutation(enable_cascade=True)`
+
+**Security Hardening** 🛡️
+- Multi-Provider KMS (Vault, AWS, GCP)
+- Security Profiles (STANDARD, REGULATED, RESTRICTED)
+- SBOM Generation (CycloneDX 1.5)
+- OpenTelemetry integration
+
+### 🔧 Breaking Changes
+
+- Mutation resolvers now return `RustResponseBytes` instead of Python objects
+- Tests mocking mutation internals need updates
+
+### 📚 Documentation
+
+- Complete GraphQL Cascade guide
+- Global compliance coverage
+- Mutation result format reference
+
+## [1.6.2] - 2025-11-24
+
+### 🔐 Security Hardening
+
+**Multi-Provider KMS Integration** 🛡️
+- **Production-Ready KMS Support**: Full integration with HashiCorp Vault, AWS KMS, and GCP Cloud KMS
+- **Envelope Encryption**: Secure data encryption with automatic key rotation
+- **Rust Pipeline Compatibility**: KMS operations integrated into the Rust JSON processing pipeline
+- **Local Development Provider**: Secure fallback for development environments
+
+**Security Profiles** 🔒
+- **STANDARD Profile**: Input validation, rate limiting, CSRF protection, basic security headers
+- **REGULATED Profile**: All STANDARD features plus required KMS encryption and audit logging
+- **RESTRICTED Profile**: Government/defense-grade security with external call blocking and strict CSP
+
+**Supply Chain Security** 📦
+- **SBOM Generation**: CycloneDX 1.5 format SBOM generation for federal compliance (EO 14028)
+- **Cryptographic Verification**: Cosign integration for SBOM signing and verification
+- **Procurement Officer Support**: Comprehensive documentation for enterprise procurement
+
+**Observability & Monitoring** 📊
+- **OpenTelemetry Integration**: Distributed tracing for security events and performance monitoring
+- **Audit Logging**: Comprehensive security event logging with configurable retention
+- **Performance Metrics**: Real-time monitoring of query performance and security metrics
+
+### 🚀 New Features
+
+**APQ Security Enhancements** ✨
+- **Query Hash Validation**: Enhanced persisted query validation with configurable security modes
+- **Build-Time Registration**: Secure query registration at application startup
+- **Directory-Based Loading**: Automatic loading of `.graphql`/`.gql` files from configured directories
+
+### 📚 Documentation
+
+**Global Compliance Coverage** 🌍
+- **Multi-Jurisdiction Support**: US (EO 14028, NIST, FedRAMP), EU (NIS2, CRA), Canada (CCCS), Australia (Essential Eight), Singapore (Cybersecurity Act)
+- **Regulatory Mapping**: Clear feature-to-requirement mapping for enterprise compliance
+- **SBOM Process Documentation**: Complete procurement and compliance officer guidance
+
+### 🔧 Internal Improvements
+
+**CI/CD Security Pipeline** ⚙️
+- **SARIF Upload**: Security scan results integration with GitHub Security tab
+- **Dependency Scanning**: Automated vulnerability detection in CI pipeline
+- **Security Audit Preparation**: Framework preparation for third-party security audits
+
 ## [1.6.1] - 2025-11-23
 
 ### 📚 Documentation
@@ -1406,8 +1689,6 @@ FraiseQL v1.0.0 is fully backward compatible with v0.11.5. Simply upgrade:
 ```bash
 pip install --upgrade fraiseql
 ```
-
-For detailed migration instructions, see [docs/migration/v0-to-v1.md](docs/migration/v0-to-v1.md).
 
 ### 🙏 Acknowledgments
 

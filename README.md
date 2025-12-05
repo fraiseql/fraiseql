@@ -5,11 +5,11 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
+[![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.6.1) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.8.0-alpha.3) - Alpha Release**
 
-**Current Version**: v1.6.1 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.0a3 | **Status**: Alpha | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -275,34 +275,48 @@ query {
 
 **Result:** Attackers cannot exceed the depth you define in views. No middleware needed.
 
-### Mutation Security Example
+---
 
-```sql
-CREATE OR REPLACE FUNCTION fn_update_user_email(
-    p_user_id UUID,
-    p_new_email TEXT
-) RETURNS JSONB AS $$
-BEGIN
-    -- Explicit validation (visible in code)
-    IF p_new_email !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$' THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Invalid email');
-    END IF;
+## 🔐 Security Features
 
-    -- Only updates the email column (nothing else is possible)
-    UPDATE tb_user
-    SET email = p_new_email
-    WHERE id = p_user_id;
+FraiseQL includes enterprise-grade security features designed for global regulatory compliance and production deployment:
 
-    -- Automatic audit logging
-    INSERT INTO audit_log (action, user_id, details, timestamp)
-    VALUES ('email_updated', p_user_id, jsonb_build_object('new_email', p_new_email), NOW());
+### 📋 Software Bill of Materials (SBOM)
+- **Automated generation** via `fraiseql sbom generate`
+- **Global compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001
+- **CycloneDX 1.5 format** with cryptographic signing
+- **CI/CD integration** for continuous compliance
 
-    RETURN jsonb_build_object('success', true);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
+### 🔑 Key Management Service (KMS)
+- **HashiCorp Vault**: Production-ready with transit engine
+- **AWS KMS**: Native integration with GenerateDataKey
+- **GCP Cloud KMS**: Envelope encryption support
+- **Local Provider**: Development-only with warnings
 
-**No ORM magic. No hidden behavior. Everything is explicit and auditable.**
+### 🛡️ Security Profiles
+- `STANDARD`: Default protections for general applications
+- `REGULATED`: PCI-DSS/HIPAA/SOC 2 compliance
+- `RESTRICTED`: Government, defence, critical infrastructure
+  - 🇺🇸 FedRAMP, DoD, NIST 800-53
+  - 🇪🇺 NIS2 Essential Entities, EU CRA
+  - 🇨🇦 CPCSC (defence contractors)
+  - 🇦🇺 Essential Eight Level 3
+  - 🇸🇬 Singapore CII operators
+
+### 📊 Observability
+- OpenTelemetry tracing with sensitive data sanitization
+- Security event logging
+- Audit trail support
+
+### 🔒 Advanced Security Controls
+- **Rate limiting** for API endpoints and GraphQL operations
+- **CSRF protection** for mutations and forms
+- **Security headers** middleware for defense in depth
+- **Input validation** and sanitization
+- **Field-level authorization** with role inheritance
+- **Row-level security** via PostgreSQL RLS
+
+**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
 
 ---
 
@@ -1106,16 +1120,11 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.6.1** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.8.0-alpha.3** | Root level | Alpha | Testing mutation_response + cascade fixes | ⚠️ Testing Only |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.6.0** | Superseded | Legacy | Use v1.6.1 | ⚠️ Migrate |
+| **v1.7.2** | Superseded | Legacy | Use v1.8.0-alpha.3 or wait for v1.8.0 stable | ⚠️ Upgrade |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
-
-**Migration Guides:**
-
-- [v1 to v2 Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/migration/v1-to-v2.md) - Unified Rust-first architecture
-- [Monitoring Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/production/monitoring.md) - From Redis and Sentry
 
 **[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)**
 

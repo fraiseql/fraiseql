@@ -2,9 +2,13 @@
 
 import json
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
+from typing import Any
 
+import psycopg_pool
 import pytest
+import pytest_asyncio
 
 # Import database fixtures
 from tests.fixtures.database.database_conftest import *  # noqa: F403
@@ -12,6 +16,9 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
+
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 # Define test types
 
@@ -36,7 +43,10 @@ class TestNestedObjectFilterLogicalOperators:
     """Test logical operators (OR, AND, NOT) work within nested object filters."""
 
     def test_nested_or_logical_operator(self) -> None:
-        """Test nested OR operator: {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}"""
+        """Test nested OR operator.
+
+        {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
+        """
         # This test validates that the dict structure is accepted
         # The actual functionality will be tested in database integration tests
         where_dict = {
@@ -54,7 +64,10 @@ class TestNestedObjectFilterLogicalOperators:
         # but the structure validation should work
 
     def test_nested_and_logical_operator(self) -> None:
-        """Test nested AND operator: {device: {AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}"""
+        """Test nested AND operator.
+
+        {device: {AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
+        """
         # This test validates that the dict structure is accepted
         where_dict = {
             "device": {"AND": [{"is_active": {"eq": True}}, {"name": {"contains": "router"}}]}
@@ -78,7 +91,10 @@ class TestNestedObjectFilterLogicalOperators:
         assert "is_active" in where_dict["device"]["NOT"]
 
     def test_top_level_or_with_nested_objects(self) -> None:
-        """Test top-level OR with nested objects: {OR: [{device: {is_active: {eq: true}}}, {status: {eq: "pending"}}]}"""
+        """Test top-level OR with nested objects.
+
+        {OR: [{device: {is_active: {eq: true}}}, {status: {eq: "pending"}}]}
+        """
         where_dict = {
             "OR": [{"device": {"is_active": {"eq": True}}}, {"status": {"eq": "pending"}}]
         }
@@ -91,7 +107,10 @@ class TestNestedObjectFilterLogicalOperators:
         assert "status" in where_dict["OR"][1]
 
     def test_mixed_logical_operators(self) -> None:
-        """Test mixed logical operators: {device: {AND: [{is_active: {eq: true}}, {NOT: {name: {contains: "deprecated"}}}]}}"""
+        """Test mixed logical operators.
+
+        {device: {AND: [{is_active: {eq: true}}, {NOT: {name: {contains: "deprecated"}}}]}}
+        """
         where_dict = {
             "device": {
                 "AND": [{"is_active": {"eq": True}}, {"NOT": {"name": {"contains": "deprecated"}}}]
@@ -106,7 +125,10 @@ class TestNestedObjectFilterLogicalOperators:
         assert "NOT" in where_dict["device"]["AND"][1]
 
     def test_camelcase_in_logical_operators(self) -> None:
-        """Test camelCase field names within logical operators: {device: {OR: [{isActive: {eq: true}}, {deviceName: {contains: "router"}}]}}"""
+        """Test camelCase field names within logical operators.
+
+        {device: {OR: [{isActive: {eq: true}}, {deviceName: {contains: "router"}}]}}
+        """
         where_dict = {
             "device": {
                 "OR": [
@@ -124,7 +146,7 @@ class TestNestedObjectFilterLogicalOperators:
         assert "isActive" in where_dict["device"]["OR"][0]  # camelCase preserved in input
 
 
-def _parse_rust_response(result) -> None:
+def _parse_rust_response(result: Any) -> Any:
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
         raw_json_str = bytes(result).decode("utf-8")
@@ -132,7 +154,7 @@ def _parse_rust_response(result) -> None:
         # Extract data from GraphQL response structure
         if "data" in response_json:
             # Get the first key in data (the field name)
-            field_name = list(response_json["data"].keys())[0]
+            field_name = next(iter(response_json["data"].keys()))
             data = response_json["data"][field_name]
 
             # Normalize: always return a list for consistency
@@ -147,13 +169,14 @@ def _parse_rust_response(result) -> None:
 class TestNestedObjectFilterLogicalOperatorsDatabase:
     """End-to-end database integration tests for logical operators in nested object filtering."""
 
-    @pytest.fixture
-    async def setup_test_data(self, db_pool) -> None:
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_test_data(
+        self, class_db_pool: psycopg_pool.AsyncConnectionPool
+    ) -> AsyncGenerator[dict[str, uuid.UUID]]:
         """Set up test tables and data for nested object filtering tests."""
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Clean up any existing test data
-            await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
 
             # Create test table with JSONB data column
             await conn.execute(
@@ -258,220 +281,3 @@ class TestNestedObjectFilterLogicalOperatorsDatabase:
             "active_switch_id": test_id_active_switch,
             "pending_id": test_id_pending,
         }
-
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP VIEW IF EXISTS test_assignment_view CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS test_assignments CASCADE")
-
-    @pytest.mark.asyncio
-    async def test_nested_or_returns_correct_results(self, db_pool, setup_test_data) -> None:
-        """Test that nested OR operator returns correct database results.
-
-        {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
-        Should match:
-        - active_router_id (is_active=true)
-        - inactive_router_id (name contains "router")
-        Should NOT match:
-        - active_switch_id (is_active=true but name doesn't contain "router")
-        - pending_id (no device)
-        """
-
-        @fraiseql.type
-        class Device:
-            id: uuid.UUID
-            name: str
-            is_active: bool
-
-        @fraiseql.type
-        class Assignment:
-            id: uuid.UUID
-            status: str
-            device: Device | None
-
-        register_type_for_view(
-            "test_assignment_view", Assignment, has_jsonb_data=True, jsonb_column="data"
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test nested OR: is_active=true OR name contains "router"
-        where_dict = {
-            "device": {"OR": [{"is_active": {"eq": True}}, {"name": {"contains": "router"}}]}
-        }
-
-        raw_results = await repo.find("test_assignment_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # Should return 3 results: active_router, inactive_router, active_switch
-        assert len(results) == 3, (
-            f"Expected 3 results with nested OR, got {len(results)}. "
-            f"Should match active devices OR devices with 'router' in name. "
-            f"Results: {results}"
-        )
-
-        result_ids = {str(r["id"]) for r in results}
-        expected_ids = {
-            str(setup_test_data["active_router_id"]),
-            str(setup_test_data["inactive_router_id"]),
-            str(setup_test_data["active_switch_id"]),
-        }
-
-        assert result_ids == expected_ids, (
-            f"Result IDs {result_ids} don't match expected {expected_ids}"
-        )
-
-    @pytest.mark.asyncio
-    async def test_nested_and_returns_correct_results(self, db_pool, setup_test_data) -> None:
-        """Test that nested AND operator returns correct database results.
-
-        {device: {AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
-        Should match:
-        - active_router_id (is_active=true AND name contains "router")
-        Should NOT match:
-        - inactive_router_id (is_active=false)
-        - active_switch_id (name doesn't contain "router")
-        - pending_id (no device)
-        """
-
-        @fraiseql.type
-        class Device:
-            id: uuid.UUID
-            name: str
-            is_active: bool
-
-        @fraiseql.type
-        class Assignment:
-            id: uuid.UUID
-            status: str
-            device: Device | None
-
-        register_type_for_view(
-            "test_assignment_view", Assignment, has_jsonb_data=True, jsonb_column="data"
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test nested AND: is_active=true AND name contains "router"
-        where_dict = {
-            "device": {"AND": [{"is_active": {"eq": True}}, {"name": {"contains": "router"}}]}
-        }
-
-        raw_results = await repo.find("test_assignment_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # Should return 1 result: only active_router matches both conditions
-        assert len(results) == 1, (
-            f"Expected 1 result with nested AND, got {len(results)}. "
-            f"Should match devices that are active AND have 'router' in name. "
-            f"Results: {results}"
-        )
-
-        assert str(results[0]["id"]) == str(setup_test_data["active_router_id"])
-
-    @pytest.mark.asyncio
-    async def test_nested_not_returns_correct_results(self, db_pool, setup_test_data) -> None:
-        """Test that nested NOT operator returns correct database results.
-
-        {device: {NOT: {is_active: {eq: true}}}}
-        Should match:
-        - inactive_router_id (is_active=false)
-        Should NOT match:
-        - active_router_id (is_active=true)
-        - active_switch_id (is_active=true)
-        - pending_id (no device)
-        """
-
-        @fraiseql.type
-        class Device:
-            id: uuid.UUID
-            name: str
-            is_active: bool
-
-        @fraiseql.type
-        class Assignment:
-            id: uuid.UUID
-            status: str
-            device: Device | None
-
-        register_type_for_view(
-            "test_assignment_view", Assignment, has_jsonb_data=True, jsonb_column="data"
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test nested NOT: NOT(is_active=true) i.e. is_active=false
-        where_dict = {"device": {"NOT": {"is_active": {"eq": True}}}}
-
-        raw_results = await repo.find("test_assignment_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # Should return 1 result: only inactive_router has is_active=false
-        assert len(results) == 1, (
-            f"Expected 1 result with nested NOT, got {len(results)}. "
-            f"Should match devices where is_active is NOT true. "
-            f"Results: {results}"
-        )
-
-        assert str(results[0]["id"]) == str(setup_test_data["inactive_router_id"])
-
-    @pytest.mark.asyncio
-    async def test_complex_nested_logical_expression(self, db_pool, setup_test_data) -> None:
-        """Test complex nested logical expression.
-
-        {device: {OR: [{AND: [{is_active: {eq: true}}, {name: {contains: "router"}}]}, {AND: [{is_active: {eq: false}}, {name: {contains: "router"}}]}]}}
-        Should match:
-        - active_router_id ((is_active=true AND name contains "router"))
-        - inactive_router_id ((is_active=false AND name contains "router"))
-        Should NOT match:
-        - active_switch_id (is_active=true but name doesn't contain "router")
-        - pending_id (no device)
-        """
-
-        @fraiseql.type
-        class Device:
-            id: uuid.UUID
-            name: str
-            is_active: bool
-
-        @fraiseql.type
-        class Assignment:
-            id: uuid.UUID
-            status: str
-            device: Device | None
-
-        register_type_for_view(
-            "test_assignment_view", Assignment, has_jsonb_data=True, jsonb_column="data"
-        )
-
-        repo = FraiseQLRepository(db_pool, context={"mode": "test"})
-
-        # Test complex nested logical expression
-        where_dict = {
-            "device": {
-                "OR": [
-                    {"AND": [{"is_active": {"eq": True}}, {"name": {"contains": "router"}}]},
-                    {"AND": [{"is_active": {"eq": False}}, {"name": {"contains": "router"}}]},
-                ]
-            }
-        }
-
-        raw_results = await repo.find("test_assignment_view", where=where_dict)
-        results = _parse_rust_response(raw_results)
-
-        # Should return 2 results: active_router and inactive_router
-        assert len(results) == 2, (
-            f"Expected 2 results with complex nested logical expression, got {len(results)}. "
-            f"Should match routers that are either active or inactive. "
-            f"Results: {results}"
-        )
-
-        result_ids = {str(r["id"]) for r in results}
-        expected_ids = {
-            str(setup_test_data["active_router_id"]),
-            str(setup_test_data["inactive_router_id"]),
-        }
-
-        assert result_ids == expected_ids, (
-            f"Result IDs {result_ids} don't match expected {expected_ids}"
-        )

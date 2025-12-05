@@ -17,6 +17,8 @@ from fraiseql.subscriptions.websocket import (
     WebSocketConnection,
 )
 
+pytestmark = pytest.mark.integration
+
 
 class MockWebSocket:
     """Mock WebSocket for testing."""
@@ -75,6 +77,7 @@ class TestWebSocketConnection:
         assert conn.connection_id is not None
         assert len(conn.subscriptions) == 0
 
+    @pytest.mark.asyncio
     async def test_graphql_ws_handshake(self) -> None:
         """Test GraphQL-WS protocol handshake."""
         ws = MockWebSocket()
@@ -99,6 +102,7 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
+    @pytest.mark.asyncio
     async def test_graphql_transport_ws_handshake(self) -> None:
         """Test GraphQL-Transport-WS protocol handshake."""
         ws = MockWebSocket()
@@ -121,6 +125,7 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
+    @pytest.mark.asyncio
     async def test_subscription_flow(self) -> None:
         """Test complete subscription flow."""
         ws = MockWebSocket()
@@ -183,6 +188,7 @@ class TestWebSocketConnection:
             with contextlib.suppress(asyncio.CancelledError):
                 await handle_task
 
+    @pytest.mark.asyncio
     async def test_subscription_error_handling(self) -> None:
         """Test subscription error handling."""
         ws = MockWebSocket()
@@ -226,6 +232,7 @@ class TestWebSocketConnection:
             ws.add_disconnect()
             await handle_task
 
+    @pytest.mark.asyncio
     async def test_ping_pong(self) -> None:
         """Test ping/pong keep-alive."""
         ws = MockWebSocket()
@@ -251,6 +258,7 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
+    @pytest.mark.asyncio
     async def test_connection_timeout(self) -> None:
         """Test connection initialization timeout."""
         ws = MockWebSocket()
@@ -284,6 +292,7 @@ class TestSubscriptionManager:
         assert len(manager.connections) == 0
         assert manager.schema is None
 
+    @pytest.mark.asyncio
     async def test_add_remove_connection(self) -> None:
         """Test adding and removing connections."""
         manager = SubscriptionManager()
@@ -299,6 +308,7 @@ class TestSubscriptionManager:
         assert conn.connection_id not in manager.connections
         assert len(manager.connections) == 0
 
+    @pytest.mark.asyncio
     async def test_broadcast(self) -> None:
         """Test broadcasting to multiple connections."""
         manager = SubscriptionManager()
@@ -330,6 +340,7 @@ class TestSubscriptionManager:
             assert ws.sent_messages[0]["type"] == MessageType.NEXT
             assert ws.sent_messages[0]["payload"]["data"]["announcement"] == "Hello everyone!"
 
+    @pytest.mark.asyncio
     async def test_connection_cleanup_on_error(self) -> None:
         """Test connection cleanup when error occurs."""
         manager = SubscriptionManager()
@@ -353,6 +364,7 @@ class TestSubscriptionManager:
         # Connection should be removed
         assert conn_id not in manager.connections
 
+    @pytest.mark.asyncio
     async def test_protocol_selection(self) -> None:
         """Test WebSocket subprotocol selection."""
         manager = SubscriptionManager()
@@ -372,6 +384,7 @@ class TestSubscriptionManager:
         conn3 = await manager.add_connection(ws3, subprotocol=None)
         assert conn3.subprotocol == SubProtocol.GRAPHQL_WS
 
+    @pytest.mark.asyncio
     async def test_concurrent_subscriptions(self) -> None:
         """Test handling multiple concurrent subscriptions."""
         manager = SubscriptionManager()

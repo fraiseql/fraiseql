@@ -61,6 +61,29 @@ jobs:
         uv run python -c "from fraiseql import _fraiseql_rs; print(f'Bundled extension version: {_fraiseql_rs.__version__}')"
         uv run python -c "from fraiseql import _fraiseql_rs; print(f'Functions: {[f for f in dir(_fraiseql_rs) if not f.startswith(\"_\")]}')"
 
+        echo "=== Database Extensions Setup ==="
+        uv run python -c "
+        import psycopg
+        # Connect as postgres user to create extensions
+        try:
+            conn = psycopg.connect('postgresql://postgres@localhost:5432/fraiseql_test')
+            conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+            conn.commit()
+            print('✅ pgvector extension created')
+            conn.close()
+        except Exception as e:
+            print(f'Failed to connect as postgres: {e}')
+            # Try connecting as fraiseql and create extension if possible
+            try:
+                conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test')
+                conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+                conn.commit()
+                print('✅ pgvector extension created as fraiseql user')
+                conn.close()
+            except Exception as e2:
+                print(f'❌ Failed to create pgvector extension: {e2}')
+        " || echo "❌ Failed to create pgvector extension"
+
     - name: Run core tests with coverage
       run: |
         echo "=== Running Core Tests for Release ==="
@@ -330,13 +353,14 @@ jobs:
         echo "Wheels: $(ls dist/*.whl 2>/dev/null | wc -l)"
         echo "Source distributions: $(ls dist/*.tar.gz 2>/dev/null | wc -l)"
 
-  publish:
-    name: Publish to PyPI
+  sign-artifacts:
+    name: Sign artifacts with attestations
     runs-on: ubuntu-latest
     needs: [validate]
-    environment: release
     permissions:
-      id-token: write  # Required for trusted publishing
+      id-token: write      # Required for Sigstore OIDC
+      attestations: write  # Required to store attestations
+      contents: read
 
     steps:
     - name: Download all artifacts
@@ -344,6 +368,51 @@ jobs:
       with:
         pattern: '{wheels-*,sdist}'
         merge-multiple: true
+        path: dist
+
+    - name: Generate artifact attestations (SLSA Provenance)
+      uses: actions/attest-build-provenance@v3
+      with:
+        subject-path: 'dist/*'
+
+    - name: Generate SHA256 checksums
+      run: |
+        cd dist
+        for file in *.whl *.tar.gz; do
+          if [ -f "$file" ]; then
+            sha256sum "$file" > "$file.sha256"
+            echo "✅ Generated checksum for $file"
+          fi
+        done
+
+    - name: List signed artifacts
+      run: |
+        echo "=== Signed Artifacts ==="
+        ls -lh dist/
+        echo ""
+        echo "=== Checksums ==="
+        cat dist/*.sha256
+
+    - name: Upload signed artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: signed-artifacts
+        path: dist/
+        retention-days: 90
+
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [sign-artifacts]
+    environment: release
+    permissions:
+      id-token: write  # Required for trusted publishing + PyPI attestations
+
+    steps:
+    - name: Download signed artifacts
+      uses: actions/download-artifact@v6
+      with:
+        name: signed-artifacts
         path: dist
 
     - name: Install uv
@@ -363,15 +432,15 @@ jobs:
     needs: [publish]
     permissions:
       contents: write
+      attestations: read  # Required to access attestations
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download artifacts for release
+    - name: Download signed artifacts for release
       uses: actions/download-artifact@v6
       with:
-        pattern: '{wheels-*,sdist}'
-        merge-multiple: true
+        name: signed-artifacts
         path: dist
 
     - name: Create Release
@@ -381,3 +450,27 @@ jobs:
         files: dist/*
         draft: false
         prerelease: false
+        body: |
+          ## 🔐 Artifact Verification
+
+          All release artifacts are cryptographically signed and can be verified:
+
+          ### Verify GitHub Attestations (SLSA Provenance)
+          ```bash
+          # Install GitHub CLI
+          gh attestation verify <artifact-file> --owner fraiseql --repo fraiseql
+          ```
+
+          ### Verify PyPI Attestations (PEP 740)
+          ```bash
+          # Coming in pip 25.0+
+          pip install fraiseql==${{ github.ref_name }} --verify-attestations
+          ```
+
+          ### Verify SHA256 Checksums
+          ```bash
+          sha256sum -c <artifact-file>.sha256
+          ```
+
+          📋 **SBOM**: Generated separately via SBOM workflow
+          🔒 **Supply Chain Security**: SLSA Level 3, Sigstore, PEP 740 compliant

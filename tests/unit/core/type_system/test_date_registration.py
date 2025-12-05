@@ -8,7 +8,6 @@ import fraiseql
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
-@pytest.mark.unit
 @pytest.fixture(autouse=True)
 def clear_registry() -> None:
     """Clear the schema registry before each test."""

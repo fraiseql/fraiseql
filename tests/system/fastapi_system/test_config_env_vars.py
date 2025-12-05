@@ -4,6 +4,8 @@ import pytest
 
 from fraiseql.fastapi.config import FraiseQLConfig
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 def test_config_ignores_non_prefixed_env_vars(monkeypatch) -> None:

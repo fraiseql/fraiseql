@@ -87,6 +87,7 @@ class TestTypeGenerator:
             # Should register the class
             mock_registry.__setitem__.assert_called_once_with("MockClass", MockClass)
 
+    @pytest.mark.asyncio
     async def test_introspect_jsonb_column_with_data(self, type_generator) -> None:
         """Test JSONB introspection when view has data."""
         # Mock database connection (psycopg style)
@@ -129,6 +130,7 @@ class TestTypeGenerator:
         assert result["age"]["type"] == "integer"
         assert result["active"]["type"] == "boolean"
 
+    @pytest.mark.asyncio
     async def test_introspect_jsonb_column_empty_view(self, type_generator) -> None:
         """Test JSONB introspection when view is empty."""
         # Mock database connection - no data (psycopg style)
@@ -167,6 +169,7 @@ class TestTypeGenerator:
             mock_fallback.assert_called_once()
             assert result == {"id": {"type": "uuid", "nullable": False}}
 
+    @pytest.mark.asyncio
     async def test_introspect_view_definition(self, type_generator) -> None:
         """Test view definition introspection fallback."""
         mock_conn = AsyncMock()
@@ -193,6 +196,7 @@ class TestTypeGenerator:
         assert result["name"]["type"] == "text"
         assert result["name"]["nullable"] is True
 
+    @pytest.mark.asyncio
     async def test_view_comment_used_as_type_description(self, type_generator) -> None:
         """Test that PostgreSQL view comments become GraphQL type descriptions."""
         # Arrange

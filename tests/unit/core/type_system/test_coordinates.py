@@ -175,6 +175,7 @@ def test_coordinate_scalar_in_graphql_schema() -> None:
         failure: CreateLocationError
 
     @fraiseql.query
+    @pytest.mark.asyncio
     async def test_query(info) -> str:
         """Required query for valid GraphQL schema."""
         return "OK"

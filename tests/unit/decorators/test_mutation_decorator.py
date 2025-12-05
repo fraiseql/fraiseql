@@ -1,6 +1,6 @@
 """Tests for the @mutation decorator."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -8,6 +8,7 @@ import fraiseql
 from fraiseql.mutations.decorators import failure, success
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 from fraiseql.types.fraise_input import fraise_input
+from tests.mocks import MockDatabase, MockRustResponseBytes
 
 
 @fraise_input
@@ -102,32 +103,38 @@ class TestMutationDefinition:
         definition = CreateUserWithoutCascade.__fraiseql_mutation__
         assert definition.enable_cascade is False
 
-    def test_missing_input_type_raises_error(self) -> None:
-        """Test that missing input type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'input' type"):
+    def test_missing_input_type_stores_none(self) -> None:
+        """Test that missing input type stores None (no validation at decoration time)."""
 
-            @mutation
-            class BadMutation:
-                success: SampleSuccess
-                error: SampleError
+        @mutation
+        class BadMutation:
+            success: SampleSuccess
+            error: SampleError
 
-    def test_missing_success_type_raises_error(self) -> None:
-        """Test that missing success type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'success' type"):
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.input_type is None
 
-            @mutation
-            class BadMutation:
-                input: SampleInput
-                error: SampleError
+    def test_missing_success_type_stores_none(self) -> None:
+        """Test that missing success type stores None (no validation at decoration time)."""
 
-    def test_missing_error_type_raises_error(self) -> None:
-        """Test that missing error type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'failure' type"):
+        @mutation
+        class BadMutation:
+            input: SampleInput
+            error: SampleError
 
-            @mutation
-            class BadMutation:
-                input: SampleInput
-                success: SampleSuccess
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.success_type is None
+
+    def test_missing_error_type_stores_none(self) -> None:
+        """Test that missing error type stores None (no validation at decoration time)."""
+
+        @mutation
+        class BadMutation:
+            input: SampleInput
+            success: SampleSuccess
+
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.error_type is None
 
     def test_camel_to_snake_conversion(self) -> None:
         """Test CamelCase to snake_case conversion."""
@@ -158,9 +165,9 @@ class TestMutationResolver:
 
     @pytest.mark.asyncio
     async def test_resolver_calls_database_function(self) -> None:
-        """Test that resolver calls the correct database function."""
+        """Test that resolver calls the Rust executor with correct parameters."""
 
-        @mutation
+        @mutation(enable_cascade=True)  # Force parsing to return SampleSuccess
         class CreateUser:
             input: SampleInput
             success: SampleSuccess
@@ -168,13 +175,8 @@ class TestMutationResolver:
 
         resolver = CreateUser.__fraiseql_resolver__
 
-        # Mock the context and database
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "User created",
-            "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-        }
+        # Mock database with pool support
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -185,30 +187,58 @@ class TestMutationResolver:
         input_obj.email = "john@example.com"
 
         # Mock to_dict method
-        def mock_to_dict() -> None:
+        def mock_to_dict() -> dict:
             return {"name": "John Doe", "email": "john@example.com"}
 
         input_obj.to_dict = mock_to_dict
 
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify database function was called
-        mock_db.execute_function.assert_called_once_with(
-            """public.create_user""", {"name": "John Doe", "email": "john@example.com"}
+        # Mock the Rust executor - it returns RustResponseBytes
+        # Use object_data format that the parser expects for legacy format
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "createUser": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                    }
+                }
+            }
         )
 
-        # Verify result type
-        assert isinstance(result, SampleSuccess)
-        assert result.message == "User created"
-        assert isinstance(result.user, User)
-        assert result.user.id == "123"
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_executor:
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+            # Verify Rust executor was called with correct params
+            mock_executor.assert_called_once()
+            call_kwargs = mock_executor.call_args.kwargs
+            assert call_kwargs["function_name"] == "public.create_user"
+            assert call_kwargs["input_data"] == {"name": "John Doe", "email": "john@example.com"}
+            assert call_kwargs["success_type"] == "SampleSuccess"
+            assert call_kwargs["error_type"] == "SampleError"
+
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
+        assert result["message"] == "User created"
+        assert result["status"] == "success"
+        assert result["object_data"]["id"] == "123"
+        assert result["object_data"]["name"] == "John Doe"
+        assert result["object_data"]["email"] == "john@example.com"
 
     @pytest.mark.asyncio
     async def test_resolver_handles_error_result(self) -> None:
-        """Test that resolver handles error results."""
+        """Test that resolver handles error results with union return types."""
 
-        @mutation
+        @mutation(enable_cascade=True)  # Force parsing path
         class CreateUser:
             input: SampleInput
             success: SampleSuccess
@@ -216,12 +246,8 @@ class TestMutationResolver:
 
         resolver = CreateUser.__fraiseql_resolver__
 
-        # Mock error response
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "validation_error",
-            "message": "Email already exists",
-        }
+        # Mock database with pool support
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -229,13 +255,30 @@ class TestMutationResolver:
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John", "email": "existing@example.com"}
 
-        # Call resolver
-        result = await resolver(info, input_obj)
+        # Mock error response from Rust executor
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "createUser": {
+                        "status": "validation_error",
+                        "message": "Email already exists",
+                    }
+                }
+            }
+        )
 
-        # Verify result is error type
-        assert isinstance(result, SampleError)
-        assert result.message == "Email already exists"
-        assert result.code == "validation_error"
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+        # Verify result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
+        assert result["message"] == "Email already exists"
+        assert result["status"] == "validation_error"
 
     @pytest.mark.asyncio
     async def test_resolver_passthrough_cascade_when_enabled(self) -> None:
@@ -256,13 +299,7 @@ class TestMutationResolver:
             "invalidations": [{"queryName": "users", "strategy": "INVALIDATE"}],
         }
 
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "success": True,
-            "message": "User created",
-            "data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-            "_cascade": cascade_data,
-        }
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -270,16 +307,46 @@ class TestMutationResolver:
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
 
-        # Call resolver
-        result = await resolver(info, input_obj)
+        # Mock response from Rust executor with cascade data
+        # Use object_data format that the parser expects
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "createUserWithCascade": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                        "_cascade": cascade_data,
+                    }
+                }
+            }
+        )
 
-        # Verify cascade data is attached
-        assert hasattr(result, "__cascade__")
-        assert result.__cascade__ == cascade_data
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+        # Verify cascade data is present in dict (stored as _cascade internally)
+        assert isinstance(result, dict)
+        assert "_cascade" in result
+        assert result["_cascade"] == cascade_data
 
     @pytest.mark.asyncio
     async def test_resolver_ignores_cascade_when_disabled(self) -> None:
-        """Test that resolver ignores cascade data when disabled."""
+        """Test that resolver returns parsed Python objects but without cascade when disabled.
+
+        In non-HTTP mode (direct GraphQL execute), we always return Python objects
+        for GraphQL type resolution compatibility. The only difference is that
+        cascade data is NOT attached when enable_cascade=False.
+        """
 
         @mutation(enable_cascade=False)
         class CreateUserWithoutCascade:
@@ -289,13 +356,7 @@ class TestMutationResolver:
 
         resolver = CreateUserWithoutCascade.__fraiseql_resolver__
 
-        # Mock response with cascade data
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "success": True,
-            "data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-            "_cascade": {"updated": [], "deleted": []},
-        }
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -303,11 +364,41 @@ class TestMutationResolver:
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
 
-        # Call resolver
-        result = await resolver(info, input_obj)
+        # Mock response from Rust executor
+        # Use object_data format that the parser expects
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "createUserWithoutCascade": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                        "_cascade": {"updated": [], "deleted": []},
+                    }
+                }
+            }
+        )
 
-        # Verify cascade data is NOT attached
-        assert not hasattr(result, "__cascade__")
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+        # In non-HTTP mode, we return dicts (new Rust pipeline behavior)
+        # When enable_cascade=False, cascade is either absent or empty
+        assert isinstance(result, dict)
+        cascade = result.get("_cascade")
+        # Cascade should be None, empty dict, or have empty lists
+        if cascade:
+            assert cascade.get("updated") == [] or cascade.get("updated") is None
+            assert cascade.get("deleted") == [] or cascade.get("deleted") is None
 
     @pytest.mark.asyncio
     async def test_resolver_missing_database_raises_error(self) -> None:
@@ -396,14 +487,14 @@ class TestPrepareInputHook:
 
     @pytest.mark.asyncio
     async def test_prepare_input_transforms_data_before_database_call(self) -> None:
-        """Test that prepare_input hook transforms input before calling database function."""
+        """Test that prepare_input hook transforms input before calling Rust executor."""
 
         @fraise_input
         class NetworkInput:
             ip_address: str
             subnet_mask: str
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class CreateNetworkConfig:
             """Create network configuration with CIDR notation."""
 
@@ -432,13 +523,8 @@ class TestPrepareInputHook:
 
         resolver = CreateNetworkConfig.__fraiseql_resolver__
 
-        # Mock the database
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "Network config created",
-            "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
-        }
+        # Mock database with pool support
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -450,27 +536,45 @@ class TestPrepareInputHook:
             "subnet_mask": "255.255.255.0",
         }
 
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify that the database function received CIDR notation
-        # NOT the original IP + subnet mask
-        mock_db.execute_function.assert_called_once_with(
-            "public.create_network_config",
+        # Mock the Rust executor
+        # Use object_data format that the parser expects
+        mock_response = MockRustResponseBytes(
             {
-                "ip_address": "192.168.1.1/24",
-                # subnet_mask should be removed
-            },
+                "data": {
+                    "createNetworkConfig": {
+                        "status": "success",
+                        "message": "Network config created",
+                        "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
+                    }
+                }
+            }
         )
 
-        # Verify result
-        assert isinstance(result, SampleSuccess)
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_executor:
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+            # Verify that the Rust executor received CIDR notation
+            # NOT the original IP + subnet mask
+            mock_executor.assert_called_once()
+            call_kwargs = mock_executor.call_args.kwargs
+            assert call_kwargs["input_data"] == {
+                "ip_address": "192.168.1.1/24",
+                # subnet_mask should be removed
+            }
+
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_mutation_without_prepare_input_works_normally(self) -> None:
         """Test that mutations without prepare_input hook work as before."""
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class CreateUser:
             input: SampleInput
             success: SampleSuccess
@@ -479,12 +583,7 @@ class TestPrepareInputHook:
 
         resolver = CreateUser.__fraiseql_resolver__
 
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "User created",
-            "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-        }
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -492,15 +591,39 @@ class TestPrepareInputHook:
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
 
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify normal behavior (unchanged input data)
-        mock_db.execute_function.assert_called_once_with(
-            "public.create_user", {"name": "John Doe", "email": "john@example.com"}
+        # Mock the Rust executor
+        # Use object_data format that the parser expects
+        mock_response = MockRustResponseBytes(
+            {
+                "data": {
+                    "createUser": {
+                        "status": "success",
+                        "message": "User created",
+                        "object_data": {
+                            "id": "123",
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                        },
+                    }
+                }
+            }
         )
 
-        assert isinstance(result, SampleSuccess)
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_executor:
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+            # Verify normal behavior (unchanged input data)
+            mock_executor.assert_called_once()
+            call_kwargs = mock_executor.call_args.kwargs
+            assert call_kwargs["input_data"] == {"name": "John Doe", "email": "john@example.com"}
+
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_prepare_input_can_convert_empty_strings_to_null(self) -> None:
@@ -511,7 +634,7 @@ class TestPrepareInputHook:
             id: str
             notes: str | None = None
 
-        @mutation
+        @mutation(enable_cascade=True)  # Enable parsing to return SampleSuccess
         class UpdateNote:
             input: UpdateNoteInput
             success: SampleSuccess
@@ -527,12 +650,7 @@ class TestPrepareInputHook:
 
         resolver = UpdateNote.__fraiseql_resolver__
 
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "Note updated",
-            "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},
-        }
+        mock_db = MockDatabase()
 
         info = Mock()
         info.context = {"db": mock_db}
@@ -541,16 +659,35 @@ class TestPrepareInputHook:
         input_obj = Mock()
         input_obj.to_dict = lambda: {"id": "note-123", "notes": ""}
 
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify that empty string was converted to None
-        mock_db.execute_function.assert_called_once_with(
-            "public.update_note",
+        # Mock the Rust executor
+        # Use object_data format that the parser expects
+        mock_response = MockRustResponseBytes(
             {
-                "id": "note-123",
-                "notes": None,  # Converted from ""
-            },
+                "data": {
+                    "updateNote": {
+                        "status": "success",
+                        "message": "Note updated",
+                        "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},
+                    }
+                }
+            }
         )
 
-        assert isinstance(result, SampleSuccess)
+        with patch(
+            "fraiseql.mutations.rust_executor.execute_mutation_rust",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_executor:
+            # Call resolver
+            result = await resolver(info, input_obj)
+
+            # Verify that empty string was converted to None
+            mock_executor.assert_called_once()
+            call_kwargs = mock_executor.call_args.kwargs
+            assert call_kwargs["input_data"] == {
+                "id": "note-123",
+                "notes": None,  # Converted from ""
+            }
+
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)

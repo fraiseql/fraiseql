@@ -14,13 +14,22 @@ import json
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.integration
 pytestmark = pytest.mark.database
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry,
+    clear_registry_class,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
@@ -88,8 +97,13 @@ class TestFastAPIJSONBIntegration:
         → RustResponseBytes → HTTP Response
     """
 
-    @pytest.fixture
-    async def setup_fastapi_jsonb_test(self, db_pool) -> None:
+    @pytest.fixture(scope="class")
+    def clear_registry_fixture(self, clear_registry_class):
+        """Clear registry before class tests."""
+        yield
+
+    @pytest_asyncio.fixture(scope="class")
+    async def setup_fastapi_jsonb_test(self, class_db_pool, test_schema) -> None:
         """Create test data and register types for FastAPI testing."""
         # Register type with has_jsonb_data=True
         register_type_for_view(
@@ -100,7 +114,8 @@ class TestFastAPIJSONBIntegration:
             jsonb_column="data",
         )
 
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             # Create test table with JSONB column
             await conn.execute(
                 """
@@ -141,15 +156,19 @@ class TestFastAPIJSONBIntegration:
             """
             )
 
+            await conn.commit()
+
         yield
 
         # Cleanup
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await conn.execute("DROP VIEW IF EXISTS test_products_fastapi_jsonb_view")
             await conn.execute("DROP TABLE IF EXISTS test_products_fastapi_jsonb")
+            await conn.commit()
 
     @pytest.fixture
-    def fastapi_app(self, db_pool) -> None:
+    def fastapi_app(self, class_db_pool) -> None:
         """Create FastAPI app with GraphQL router configured for testing.
 
         This fixture creates a real FastAPI app with the create_graphql_router,
@@ -165,7 +184,7 @@ class TestFastAPIJSONBIntegration:
         )
 
         # Set globals so dependencies work
-        set_db_pool(db_pool)
+        set_db_pool(class_db_pool)
         set_fraiseql_config(config)
 
         # DEBUG: Verify pool was set
@@ -181,9 +200,10 @@ class TestFastAPIJSONBIntegration:
         )
 
         # Create custom context getter that adds pool to context
+        @pytest.mark.asyncio
         async def test_context_getter(request) -> None:
             """Add pool to context for our test resolvers."""
-            return {"pool": db_pool}
+            return {"pool": class_db_pool}
 
         # Create router with custom context getter
         router = create_graphql_router(
@@ -202,7 +222,7 @@ class TestFastAPIJSONBIntegration:
 
     @pytest.mark.asyncio
     async def test_fastapi_list_query_with_jsonb_entities(
-        self, db_pool, setup_fastapi_jsonb_test, fastapi_app
+        self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
     ):
         """Test FastAPI HTTP endpoint with list query returning JSONB entities.
 
@@ -282,7 +302,7 @@ class TestFastAPIJSONBIntegration:
 
     @pytest.mark.asyncio
     async def test_fastapi_single_query_with_jsonb_entity(
-        self, db_pool, setup_fastapi_jsonb_test, fastapi_app
+        self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
     ):
         """Test FastAPI HTTP endpoint with single-object query returning JSONB entity.
 
@@ -339,7 +359,7 @@ class TestFastAPIJSONBIntegration:
 
     @pytest.mark.asyncio
     async def test_fastapi_mutation_with_jsonb_entity(
-        self, db_pool, setup_fastapi_jsonb_test, fastapi_app
+        self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
     ):
         """Test FastAPI HTTP endpoint with mutation creating JSONB entity.
 
@@ -419,7 +439,7 @@ class TestFastAPIJSONBIntegration:
 
     @pytest.mark.asyncio
     async def test_fastapi_error_handling_with_graphql_errors(
-        self, db_pool, setup_fastapi_jsonb_test, fastapi_app
+        self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
     ):
         """Test that FastAPI router handles GraphQL errors correctly.
 
@@ -452,7 +472,7 @@ class TestFastAPIJSONBIntegration:
 
     @pytest.mark.asyncio
     async def test_fastapi_rustresponsebytes_content_type(
-        self, db_pool, setup_fastapi_jsonb_test, fastapi_app
+        self, class_db_pool, setup_fastapi_jsonb_test, fastapi_app
     ):
         """Test that RustResponseBytes returns proper content-type header.
 

@@ -1,10 +1,12 @@
 """Tests for APQ mode enforcement in request handling."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.integration
 
 
 class TestAPQDisabledMode:
@@ -133,22 +135,22 @@ class TestAPQModeMiddlewareHelpers:
 
     def test_should_process_apq_request_optional(self) -> None:
         """Test should_process_apq_request with optional mode."""
-        from fraiseql.middleware.apq import should_process_apq_request
         from fraiseql.fastapi.config import APQMode
+        from fraiseql.middleware.apq import should_process_apq_request
 
         assert should_process_apq_request(APQMode.OPTIONAL) is True
 
     def test_should_process_apq_request_required(self) -> None:
         """Test should_process_apq_request with required mode."""
-        from fraiseql.middleware.apq import should_process_apq_request
         from fraiseql.fastapi.config import APQMode
+        from fraiseql.middleware.apq import should_process_apq_request
 
         assert should_process_apq_request(APQMode.REQUIRED) is True
 
     def test_should_process_apq_request_disabled(self) -> None:
         """Test should_process_apq_request with disabled mode."""
-        from fraiseql.middleware.apq import should_process_apq_request
         from fraiseql.fastapi.config import APQMode
+        from fraiseql.middleware.apq import should_process_apq_request
 
         assert should_process_apq_request(APQMode.DISABLED) is False
 

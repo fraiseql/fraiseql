@@ -8,6 +8,8 @@ from fraiseql.mutations.decorators import failure, success
 from fraiseql.types import JSON
 from fraiseql.utils.fraiseql_builder import collect_fraise_fields
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.unit
 @success

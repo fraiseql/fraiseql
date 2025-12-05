@@ -7,6 +7,9 @@ import uuid
 import fraiseql
 from fraiseql.sql import OrderDirection, create_graphql_order_by_input
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
 # Define test types
 
 

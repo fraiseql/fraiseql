@@ -4,10 +4,13 @@ These tests focus on VectorFilter type generation and field mapping
 for PostgreSQL pgvector support.
 """
 
-import pytest
 import typing
 
+import pytest
+
 from fraiseql.sql.graphql_where_generator import VectorFilter
+
+pytestmark = pytest.mark.integration
 
 
 class TestVectorFilterSchema:

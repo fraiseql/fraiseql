@@ -9,12 +9,14 @@ from fraiseql.routing.config import EntityRoutingConfig
 from fraiseql.routing.entity_extractor import EntityExtractor
 from fraiseql.routing.query_router import QueryRouter
 
+pytestmark = pytest.mark.integration
+
 
 class TestEntityRoutingSystem:
     """Test the complete entity routing system."""
 
     @pytest.fixture
-    def test_schema(self) -> None:
+    def test_schema(self):
         """Create a test GraphQL schema."""
         schema_def = """
             type Query {
@@ -55,7 +57,7 @@ class TestEntityRoutingSystem:
         return build_schema(schema_def)
 
     @pytest.fixture
-    def routing_config(self) -> None:
+    def routing_config(self):
         """Create entity routing configuration."""
         return EntityRoutingConfig(
             turbo_entities=["allocation", "contract", "machine"],
@@ -65,7 +67,7 @@ class TestEntityRoutingSystem:
         )
 
     @pytest.fixture
-    def fraiseql_config_with_routing(self, routing_config) -> None:
+    def fraiseql_config_with_routing(self, routing_config):
         """Create FraiseQLConfig with entity routing."""
         return FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/test",
@@ -254,3 +256,137 @@ class TestEntityRoutingSystem:
         assert metrics["mixed_query_strategy"] == "normal"
         assert "allocation" in metrics["turbo_entities"]
         assert "dns_server" in metrics["normal_entities"]
+
+    @pytest.mark.parametrize(
+        "turbo_entities,normal_entities,expected_error",
+        [
+            ([], [], None),  # Empty lists should be valid
+            (["valid_entity"], [], None),  # Single entity in turbo
+            ([], ["valid_entity"], None),  # Single entity in normal
+            (["entity_with_underscore"], [], None),  # Underscore in name
+            (["entity-with-dash"], [], None),  # Dash in name
+            (["entity123"], [], None),  # Numbers in name
+            (["café"], [], None),  # Unicode characters
+            # Note: EntityRoutingConfig accepts any strings without validation
+            # The following are edge cases that are accepted (no validation)
+            ([""], [], None),  # Empty string entity name (accepted)
+            (["   "], [], None),  # Whitespace-only entity name (accepted)
+            (["\n\t"], [], None),  # Control characters (accepted)
+            (["a" * 1000], [], None),  # Very long entity name (accepted)
+            (None, ["valid"], TypeError),  # None turbo entities
+            (["valid"], None, TypeError),  # None normal entities
+        ],
+    )
+    def test_entity_routing_config_edge_cases(
+        self, turbo_entities, normal_entities, expected_error
+    ) -> None:
+        """Test EntityRoutingConfig with various edge case inputs.
+
+        Note: EntityRoutingConfig currently accepts any string values without
+        validation for entity names. This test documents the actual behavior.
+        """
+        if expected_error:
+            with pytest.raises(expected_error):
+                EntityRoutingConfig(
+                    turbo_entities=turbo_entities,
+                    normal_entities=normal_entities,
+                    auto_routing_enabled=True,
+                )
+        else:
+            config = EntityRoutingConfig(
+                turbo_entities=turbo_entities,
+                normal_entities=normal_entities,
+                auto_routing_enabled=True,
+            )
+            assert config.turbo_entities == (turbo_entities or [])
+            assert config.normal_entities == (normal_entities or [])
+
+    def test_disabled_routing_with_empty_config(self, test_schema) -> None:
+        """Test disabled routing with empty entity lists."""
+        config = FraiseQLConfig(
+            database_url="postgresql://user:pass@localhost/test",
+            entity_routing=EntityRoutingConfig(
+                turbo_entities=[],
+                normal_entities=[],
+                auto_routing_enabled=False,
+            ),
+        )
+
+        mode_selector = ModeSelector(config)
+        extractor = EntityExtractor(test_schema)
+        router = QueryRouter(config.entity_routing, extractor)
+        mode_selector.set_query_router(router)
+
+        query = """
+            query GetAllocations {
+                allocations { id }
+            }
+        """
+
+        mode = mode_selector.select_mode(query, {}, {})
+        assert mode == ExecutionMode.NORMAL
+
+    def test_disabled_routing_with_none_routing_config(self) -> None:
+        """Test behavior when routing config is None."""
+        config = FraiseQLConfig(
+            database_url="postgresql://user:pass@localhost/test",
+            entity_routing=None,
+        )
+
+        mode_selector = ModeSelector(config)
+        # Should not crash and default to normal mode
+        query = "query { test }"
+        mode = mode_selector.select_mode(query, {}, {})
+        assert mode == ExecutionMode.NORMAL
+
+    def test_routing_with_max_entities(self) -> None:
+        """Test routing config with maximum number of entities."""
+        # Create a large number of entities
+        max_entities = 1000
+        turbo_entities = [f"entity_{i}" for i in range(max_entities)]
+        normal_entities = [f"normal_entity_{i}" for i in range(max_entities)]
+
+        config = EntityRoutingConfig(
+            turbo_entities=turbo_entities,
+            normal_entities=normal_entities,
+            auto_routing_enabled=True,
+        )
+
+        assert len(config.turbo_entities) == max_entities
+        assert len(config.normal_entities) == max_entities
+
+    def test_query_router_with_invalid_query(self, test_schema, routing_config) -> None:
+        """Test QueryRouter handles invalid GraphQL queries gracefully."""
+        extractor = EntityExtractor(test_schema)
+        router = QueryRouter(routing_config, extractor)
+
+        # Invalid GraphQL query
+        invalid_query = "not a valid graphql query {"
+
+        # Should not crash, should return NORMAL mode as fallback
+        mode = router.determine_execution_mode(invalid_query)
+        assert mode == ExecutionMode.NORMAL
+
+    def test_query_router_with_empty_query(self, test_schema, routing_config) -> None:
+        """Test QueryRouter handles empty queries."""
+        extractor = EntityExtractor(test_schema)
+        router = QueryRouter(routing_config, extractor)
+
+        # Empty query
+        empty_query = ""
+
+        # Should not crash, should return NORMAL mode as fallback
+        mode = router.determine_execution_mode(empty_query)
+        assert mode == ExecutionMode.NORMAL
+
+    def test_query_router_with_whitespace_only_query(self, test_schema, routing_config) -> None:
+        """Test QueryRouter handles whitespace-only queries."""
+        extractor = EntityExtractor(test_schema)
+        router = QueryRouter(routing_config, extractor)
+
+        # Whitespace-only query
+        whitespace_query = "   \n\t   "
+
+        # Should not crash, should return NORMAL mode as fallback
+        mode = router.determine_execution_mode(whitespace_query)
+        assert mode == ExecutionMode.NORMAL

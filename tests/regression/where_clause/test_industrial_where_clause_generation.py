@@ -16,7 +16,10 @@ This test suite creates the "industrial steel grade" coverage missing from v0.7.
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from psycopg.sql import SQL
+
+pytestmark = pytest.mark.integration
 
 pytestmark = pytest.mark.database
 
@@ -216,10 +219,10 @@ class TestREDPhaseCastingLocationBug:
 class TestREDPhaseProductionScenarios:
     """RED: Real production scenarios that must work perfectly."""
 
-    @pytest.fixture
-    async def setup_realistic_network_devices(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_realistic_network_devices(self, class_db_pool) -> None:
         """Create realistic network device data that triggers all the bugs."""
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
             # Create production-like hybrid table
             await conn.execute(
                 """
@@ -287,7 +290,7 @@ class TestREDPhaseProductionScenarios:
 
     @pytest.mark.asyncio
     async def test_production_hostname_filtering(
-        self, db_pool, setup_realistic_network_devices
+        self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test hostname filtering with .local domains works correctly."""
         setup_realistic_network_devices
@@ -298,7 +301,7 @@ class TestREDPhaseProductionScenarios:
             table_columns={"id", "name", "device_type", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # This is the exact query that should work with Rust pipeline
         where = {"hostname": {"eq": "printserver01.local"}}
@@ -314,7 +317,7 @@ class TestREDPhaseProductionScenarios:
 
     @pytest.mark.asyncio
     async def test_production_port_filtering(
-        self, db_pool, setup_realistic_network_devices
+        self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test port filtering with numeric values works correctly."""
         setup_realistic_network_devices
@@ -325,7 +328,7 @@ class TestREDPhaseProductionScenarios:
             table_columns={"id", "name", "device_type", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Filter by port - should work with Rust pipeline
         where = {"port": {"eq": 443}}
@@ -338,7 +341,7 @@ class TestREDPhaseProductionScenarios:
 
     @pytest.mark.asyncio
     async def test_production_boolean_filtering(
-        self, db_pool, setup_realistic_network_devices
+        self, class_db_pool, setup_realistic_network_devices
     ) -> None:
         """Test boolean filtering works correctly."""
         setup_realistic_network_devices
@@ -349,7 +352,7 @@ class TestREDPhaseProductionScenarios:
             table_columns={"id", "name", "device_type", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # Filter by active status - should work with Rust pipeline
         where = {"is_active": {"eq": True}}
@@ -364,7 +367,7 @@ class TestREDPhaseProductionScenarios:
 
     @pytest.mark.asyncio
     async def test_production_mixed_filtering_comprehensive(
-        self, db_pool, setup_realistic_network_devices
+        self, class_db_pool, setup_realistic_network_devices
     ):
         """Test mixed filters combining hostname, port, and boolean work correctly."""
         setup_realistic_network_devices
@@ -375,7 +378,7 @@ class TestREDPhaseProductionScenarios:
             table_columns={"id", "name", "device_type", "data"},
             has_jsonb_data=True,
         )
-        repo = FraiseQLRepository(db_pool, context={"mode": "development"})
+        repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
 
         # This complex filter combines all the patterns
         where = {

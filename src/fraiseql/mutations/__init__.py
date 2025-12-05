@@ -8,7 +8,6 @@ from .error_config import (
     MutationErrorConfig,
 )
 from .mutation_decorator import mutation
-from .parser import parse_mutation_result
 from .types import MutationResult
 
 __all__ = [
@@ -19,7 +18,6 @@ __all__ = [
     "MutationResult",
     "failure",
     "mutation",
-    "parse_mutation_result",
     "resolve_union_annotation",
     "result",
     "success",

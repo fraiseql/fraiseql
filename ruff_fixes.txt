@@ -1,0 +1,89 @@
+# Ruff Linting Fixes for Tests Directory
+
+## Summary of Errors Found:
+- T201: `print` found (many instances) - Remove debug print statements
+- ANN001: Missing type annotation for function argument (1 instance)
+- E501: Line too long (2 instances)
+- F841: Local variable assigned but never used (3 instances)
+- S104: Possible binding to all interfaces (2 instances)
+- PT018: Assertion should be broken down into multiple parts (1 instance)
+
+## Detailed Fixes:
+
+### ANN001 Missing type annotation for function argument `monkeypatch`
+**File:** tests/config/test_apq_backend_config.py:126
+**Fix:** Add type annotation for `monkeypatch` parameter
+```python
+def test_apq_config_from_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+```
+
+### T201 `print` found (Multiple instances)
+**Files:**
+- tests/core/test_all_special_types_fix.py (20+ instances)
+- tests/core/test_field_type_propagation.py (20+ instances)
+- tests/core/test_jsonb_network_casting_fix.py (20+ instances)
+- tests/core/test_production_fix_validation.py (10+ instances)
+- tests/core/test_special_types_tier1_core.py (2 instances)
+
+**Fix:** Remove all `print()` statements from test files. These appear to be debug prints that should be removed for clean test code.
+
+### E501 Line too long (2 instances)
+**File 1:** tests/core/test_field_type_propagation.py:203
+**Current:** `f"  Same strategy selected: {strategy_with_type.__class__ == strategy_no_type.__class__}"`
+**Fix:** Break the long line:
+```python
+print(
+    "  Same strategy selected: "
+    f"{strategy_with_type.__class__ == strategy_no_type.__class__}"
+)
+```
+
+**File 2:** tests/core/test_jsonb_network_casting_fix.py:3
+**Current:** Long docstring line
+**Fix:** Break the line in the docstring to under 100 characters.
+
+### F841 Local variable assigned but never used (3 instances)
+**File 1:** tests/core/test_field_type_propagation.py:226
+**Fix:** Remove `type_hints = get_type_hints(NetworkModel)` if not used
+
+**File 2:** tests/core/test_field_type_propagation.py:231
+**Fix:** Remove `graphql_input = {"ipAddress": {"isPrivate": True}}` if not used
+
+**File 3:** tests/core/test_production_fix_validation.py:99
+**Fix:** Remove `expected_pattern = f"(data ->> 'identifier') = '{text}'"` if not used
+
+**File 4:** tests/core/test_special_types_tier1_core.py (truncated output)
+**Fix:** Remove unused variable assignment
+
+### S104 Possible binding to all interfaces (2 instances)
+**File 1:** tests/core/test_production_fix_validation.py:51
+**Current:** `"0.0.0.0"`
+**Fix:** Change to `"127.0.0.1"` or add `# noqa: S104` comment if intentional for testing
+
+**File 2:** tests/core/test_production_fix_validation.py:206
+**Current:** `"0.0.0.0"`
+**Fix:** Same as above
+
+### PT018 Assertion should be broken down into multiple parts
+**File:** tests/core/test_special_types_tier1_core.py:267
+**Current:** `assert "2024-01-01" in sql_str and "2024-12-31" in sql_str, "Should include date range"`
+**Fix:** Break into separate assertions:
+```python
+assert "2024-01-01" in sql_str, "Should include start date"
+assert "2024-12-31" in sql_str, "Should include end date"
+```
+
+## Recommended Actions:
+1. Remove all debug `print()` statements from test files
+2. Add missing type annotations
+3. Fix line length violations
+4. Remove unused variable assignments
+5. Address security warnings for IP binding (if applicable)
+6. Break down complex assertions
+
+## Command to apply fixes automatically:
+```bash
+uv run ruff check tests/ --fix
+```
+
+Note: Some fixes like removing prints may require manual review to ensure no important debug information is lost.

@@ -11,6 +11,8 @@ from fraiseql.utils.sql_helpers import (
     get_jsonb_field_value,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.unit
 class TestSQLHelpers:

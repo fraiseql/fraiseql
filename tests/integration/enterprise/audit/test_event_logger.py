@@ -4,57 +4,59 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
+
+pytestmark = pytest.mark.enterprise
 
 
-@pytest.fixture(autouse=True, scope="session")
-async def setup_audit_schema(db_pool) -> None:
+@pytest_asyncio.fixture(autouse=True, scope="class")
+async def setup_audit_schema(class_db_pool, test_schema) -> None:
     """Set up audit schema before running tests."""
     # Check if schema already exists
-    async with db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}, public")
+        cur = await conn.execute(
+            """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'audit_events'
                 )
             """
+        )
+        exists = (await cur.fetchone())[0]
+
+        if not exists:
+            # Read the migration file
+            migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
+            migration_sql = migration_path.read_text()
+
+            # Execute the migration
+            await conn.execute(migration_sql)
+
+        # Keep PostgreSQL crypto trigger ENABLED (FraiseQL philosophy: "In PostgreSQL Everything")
+        # PostgreSQL handles hashing, signing, and chain linking
+
+        # Disable the partition trigger for tests to avoid complexity
+        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+
+        # Check if test signing key exists
+        cur = await conn.execute(
+            "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
+            ["test-key-for-testing"],
+        )
+        key_exists = (await cur.fetchone())[0] > 0
+
+        if not key_exists:
+            # Insert a test signing key
+            await conn.execute(
+                "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
+                ["test-key-for-testing", True],
             )
-            exists = (await cur.fetchone())[0]
 
-            if not exists:
-                # Read the migration file
-                migration_path = Path("src/fraiseql/enterprise/migrations/001_audit_tables.sql")
-                migration_sql = migration_path.read_text()
-
-                # Execute the migration
-                await cur.execute(migration_sql)
-
-            # Keep PostgreSQL crypto trigger ENABLED (FraiseQL philosophy: "In PostgreSQL Everything")
-            # PostgreSQL handles hashing, signing, and chain linking
-
-            # Disable the partition trigger for tests to avoid complexity
-            await cur.execute(
-                "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
-            )
-
-            # Check if test signing key exists
-            await cur.execute(
-                "SELECT COUNT(*) FROM audit_signing_keys WHERE key_value = %s",
-                ["test-key-for-testing"],
-            )
-            key_exists = (await cur.fetchone())[0] > 0
-
-            if not key_exists:
-                # Insert a test signing key
-                await cur.execute(
-                    "INSERT INTO audit_signing_keys (key_value, active) VALUES (%s, %s)",
-                    ["test-key-for-testing", True],
-                )
-
-            await conn.commit()
+        await conn.commit()
 
 
+@pytest.mark.asyncio
 async def test_log_audit_event(db_repo) -> None:
     """Verify audit event is logged to database with proper chain."""
     # This test will fail until we implement the AuditLogger
@@ -88,6 +90,7 @@ async def test_log_audit_event(db_repo) -> None:
     assert event["signature"] is not None
 
 
+@pytest.mark.asyncio
 async def test_log_event_batching(db_repo) -> None:
     """Verify batching functionality works correctly."""
     from fraiseql.enterprise.audit.event_logger import AuditLogger
@@ -127,6 +130,7 @@ async def test_log_event_batching(db_repo) -> None:
         assert len(events) == 1
 
 
+@pytest.mark.asyncio
 async def test_audit_chain_integrity(db_repo) -> None:
     """Verify cryptographic chain integrity."""
     import uuid

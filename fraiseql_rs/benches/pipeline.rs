@@ -71,6 +71,8 @@ fn benchmark_small_response(c: &mut Criterion) {
                 black_box("users"),
                 black_box(Some("User")),
                 black_box(None),
+                black_box(None),
+                black_box(None),
             )
         })
     });
@@ -92,6 +94,8 @@ fn benchmark_medium_response(c: &mut Criterion) {
                 black_box(json_rows.clone()),
                 black_box("users"),
                 black_box(Some("User")),
+                black_box(None),
+                black_box(None),
                 black_box(None),
             )
         })
@@ -116,6 +120,8 @@ fn benchmark_large_response(c: &mut Criterion) {
                 black_box("users"),
                 black_box(Some("User")),
                 black_box(None),
+                black_box(None),
+                black_box(None),
             )
         })
     });
@@ -137,6 +143,8 @@ fn benchmark_nested_response(c: &mut Criterion) {
                 black_box(json_rows.clone()),
                 black_box("users"),
                 black_box(Some("User")),
+                black_box(None),
+                black_box(None),
                 black_box(None),
             )
         })

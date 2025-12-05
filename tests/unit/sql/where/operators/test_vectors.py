@@ -6,18 +6,17 @@ These tests focus on SQL generation for pgvector's three native distance operato
 - <#> : negative inner product
 """
 
-import pytest
 from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.core.field_detection import FieldType
 from fraiseql.sql.where.operators import get_operator_function
 from fraiseql.sql.where.operators.vectors import (
     build_cosine_distance_sql,
-    build_l2_distance_sql,
-    build_inner_product_sql,
-    build_l1_distance_sql,
     build_hamming_distance_sql,
+    build_inner_product_sql,
     build_jaccard_distance_sql,
+    build_l1_distance_sql,
+    build_l2_distance_sql,
 )
 
 

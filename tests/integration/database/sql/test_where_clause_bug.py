@@ -6,18 +6,22 @@ The bug has been fixed by integrating proper WHERE clause generation.
 """
 
 import pytest
+import pytest_asyncio
 
 from fraiseql.cqrs.repository import CQRSRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
 
-@pytest.mark.database
+
+@pytest.mark.asyncio
 class TestWhereClauseFix:
     """Test cases demonstrating the WHERE clause generation fix."""
 
-    async def test_simple_string_filter_works(self, db_connection_committed) -> None:
+    async def test_simple_string_filter_works(self, class_db_pool, test_schema) -> None:
         """Test that string filters with operators now work correctly."""
-        conn = db_connection_committed
-        repo = CQRSRepository(conn)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            repo = CQRSRepository(conn)
 
         # Create test data
         await conn.execute(
@@ -45,10 +49,11 @@ class TestWhereClauseFix:
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "router" in results[0]["name"]
 
-    async def test_network_address_filter_works(self, db_connection_committed) -> None:
+    async def test_network_address_filter_works(self, class_db_pool, test_schema) -> None:
         """Test that network address filters now work correctly."""
-        conn = db_connection_committed
-        repo = CQRSRepository(conn)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            repo = CQRSRepository(conn)
 
         # Create test data with IP addresses - use unique table name to avoid conflicts
         import uuid
@@ -59,7 +64,6 @@ class TestWhereClauseFix:
 
         await conn.execute(
             f"""
-            DROP TABLE IF EXISTS {table_name} CASCADE;
             CREATE TEMP TABLE {table_name} (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -82,10 +86,11 @@ class TestWhereClauseFix:
         # FIXED: This now works correctly with network address filtering
         assert len(results) == 2, f"Expected 2 private IPs, got {len(results)}"
 
-    async def test_multiple_operators_work(self, db_connection_committed) -> None:
+    async def test_multiple_operators_work(self, class_db_pool, test_schema) -> None:
         """Test that multiple operators in WHERE clause now work correctly."""
-        conn = db_connection_committed
-        repo = CQRSRepository(conn)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            repo = CQRSRepository(conn)
 
         # Create test data
         await conn.execute(
@@ -113,10 +118,11 @@ class TestWhereClauseFix:
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert results[0]["name"] == "item-02"
 
-    async def test_working_simple_equality(self, db_connection_committed) -> None:
+    async def test_working_simple_equality(self, class_db_pool, test_schema) -> None:
         """Test that simple equality still works (this should pass)."""
-        conn = db_connection_committed
-        repo = CQRSRepository(conn)
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
+            repo = CQRSRepository(conn)
 
         # Create test data
         await conn.execute(
@@ -144,6 +150,7 @@ class TestWhereClauseFix:
         assert len(results) == 1
         assert results[0]["status"] == "active"
 
+    @pytest.mark.asyncio
     async def test_expected_where_clause_generation(self) -> None:
         """Test what the WHERE clause generation should produce."""
         # This test documents the expected behavior after the fix

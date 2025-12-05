@@ -4,17 +4,37 @@ from dataclasses import asdict, dataclass
 from uuid import UUID
 
 import pytest
+import pytest_asyncio
+
+# Import database fixtures
+from tests.fixtures.database.database_conftest import (
+    class_db_pool,
+    clear_registry,
+    clear_registry_class,
+    postgres_container,
+    postgres_url,
+    test_schema,
+)
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
 
+pytestmark = pytest.mark.integration
 
-@pytest.mark.integration
+
 class TestAutoGenerationIntegration:
     """Test auto-generation works with actual database queries."""
 
-    async def test_auto_generated_where_input_in_query(self, db_pool) -> None:
+    @pytest.fixture(scope="class")
+    def clear_registry_fixture(self, clear_registry_class):
+        """Clear registry before class tests."""
+        yield
+
+    @pytest.mark.asyncio
+    async def test_auto_generated_where_input_in_query(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test that auto-generated WhereInput works in db.find()."""
         clear_auto_generated_cache()
 
@@ -26,9 +46,9 @@ class TestAutoGenerationIntegration:
             email: str
 
         # Setup test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await conn.execute("""
-                DROP TABLE IF EXISTS tv_customers_auto_test CASCADE;
                 CREATE TABLE tv_customers_auto_test (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
@@ -51,7 +71,7 @@ class TestAutoGenerationIntegration:
             has_jsonb_data=True,
         )
 
-        db = FraiseQLRepository(db_pool)
+        db = FraiseQLRepository(class_db_pool)
 
         # Use auto-generated WhereInput
         WhereInput = CustomerAutoTest.WhereInput
@@ -82,12 +102,10 @@ class TestAutoGenerationIntegration:
         results = response.to_json()["data"]["tv_customers_auto_test"]
         assert len(results) == 2
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP TABLE IF EXISTS tv_customers_auto_test CASCADE")
-            await conn.commit()
-
-    async def test_auto_generated_order_by_in_query(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_auto_generated_order_by_in_query(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test that auto-generated OrderBy works in db.find()."""
         clear_auto_generated_cache()
 
@@ -99,9 +117,9 @@ class TestAutoGenerationIntegration:
             price: float
 
         # Setup test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await conn.execute("""
-                DROP TABLE IF EXISTS tv_products_auto_test CASCADE;
                 CREATE TABLE tv_products_auto_test (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
@@ -124,7 +142,7 @@ class TestAutoGenerationIntegration:
             has_jsonb_data=True,
         )
 
-        db = FraiseQLRepository(db_pool)
+        db = FraiseQLRepository(class_db_pool)
 
         # Use auto-generated OrderBy
         OrderBy = ProductAutoTest.OrderBy
@@ -160,12 +178,10 @@ class TestAutoGenerationIntegration:
         assert results[1]["name"] == "Gadget"
         assert results[2]["name"] == "Widget"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP TABLE IF EXISTS tv_products_auto_test CASCADE")
-            await conn.commit()
-
-    async def test_combined_where_and_order_by_auto_generated(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_combined_where_and_order_by_auto_generated(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test using both auto-generated WhereInput and OrderBy together."""
         clear_auto_generated_cache()
 
@@ -178,7 +194,8 @@ class TestAutoGenerationIntegration:
             category: str
 
         # Setup test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await conn.execute("""
                 DROP TABLE IF EXISTS tv_inventory_auto_test CASCADE;
                 CREATE TABLE tv_inventory_auto_test (
@@ -205,7 +222,7 @@ class TestAutoGenerationIntegration:
             has_jsonb_data=True,
         )
 
-        db = FraiseQLRepository(db_pool)
+        db = FraiseQLRepository(class_db_pool)
 
         # Use both auto-generated types
         WhereInput = InventoryAutoTest.WhereInput
@@ -235,12 +252,10 @@ class TestAutoGenerationIntegration:
         assert results[0]["itemName"] == "Desk"
         assert results[1]["itemName"] == "Chair"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP TABLE IF EXISTS tv_inventory_auto_test CASCADE")
-            await conn.commit()
-
-    async def test_auto_generated_with_limit_and_offset(self, db_pool) -> None:
+    @pytest.mark.asyncio
+    async def test_auto_generated_with_limit_and_offset(
+        self, class_db_pool, test_schema, clear_registry_fixture
+    ) -> None:
         """Test auto-generated types work with pagination."""
         clear_auto_generated_cache()
 
@@ -252,7 +267,8 @@ class TestAutoGenerationIntegration:
             age: int
 
         # Setup test data
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}")
             await conn.execute("""
                 DROP TABLE IF EXISTS tv_users_auto_test CASCADE;
                 CREATE TABLE tv_users_auto_test (
@@ -279,7 +295,7 @@ class TestAutoGenerationIntegration:
             has_jsonb_data=True,
         )
 
-        db = FraiseQLRepository(db_pool)
+        db = FraiseQLRepository(class_db_pool)
 
         OrderBy = UserAutoTest.OrderBy
 
@@ -309,14 +325,12 @@ class TestAutoGenerationIntegration:
         assert len(results) == 1
         assert results[0]["username"] == "user5"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await conn.execute("DROP TABLE IF EXISTS tv_users_auto_test CASCADE")
-            await conn.commit()
 
-
+@pytest.mark.asyncio
 @pytest.mark.integration
-async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
+async def test_nested_auto_generation_with_fk_detection(
+    class_db_pool, test_schema, clear_registry
+) -> None:
     """Test that nested auto-generated WhereInput works with FK detection."""
     clear_auto_generated_cache()
 
@@ -335,7 +349,8 @@ async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
         customer: CustomerNestedAuto | None
 
     # Setup test data
-    async with db_pool.connection() as conn:
+    async with class_db_pool.connection() as conn:
+        await conn.execute(f"SET search_path TO {test_schema}")
         await conn.execute("""
             DROP TABLE IF EXISTS tv_orders_nested_auto CASCADE;
             DROP TABLE IF EXISTS tv_customers_nested_auto CASCADE;
@@ -380,7 +395,7 @@ async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
         )
         await conn.commit()
 
-    db = FraiseQLRepository(db_pool)
+    db = FraiseQLRepository(class_db_pool)
 
     # Register FK metadata
     register_type_for_view(
@@ -416,9 +431,3 @@ async def test_nested_auto_generation_with_fk_detection(db_pool) -> None:
 
     assert len(results) == 1
     assert results[0]["orderNumber"] == "ORD-003"
-
-    # Cleanup
-    async with db_pool.connection() as conn:
-        await conn.execute("DROP TABLE IF EXISTS tv_orders_nested_auto CASCADE")
-        await conn.execute("DROP TABLE IF EXISTS tv_customers_nested_auto CASCADE")
-        await conn.commit()

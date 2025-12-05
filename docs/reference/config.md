@@ -363,7 +363,7 @@ config = FraiseQLConfig(
 - ✅ **Automatic camelCase** - snake_case → camelCase conversion
 - ✅ **Built-in __typename** - Automatic GraphQL type injection
 
-**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
+**Migration from v0.11.4 and earlier**: Remove all execution mode configuration.
 
 ```python
 # v0.11.4 and earlier (OLD - remove these)
@@ -760,6 +760,109 @@ config = FraiseQLConfig(
     default_query_schema="api"
 )
 ```
+
+## Mutation Error Handling Settings
+
+### default_error_config
+
+- **Type**: `MutationErrorConfig | None`
+- **Default**: `None`
+- **Description**: Default error configuration for all mutations when not explicitly specified in the `@mutation` decorator
+
+**Impact**:
+- When set, all mutations without an explicit `error_config` parameter will use this global default
+- Individual mutations can override the global default by specifying `error_config` in the decorator
+- Only used in non-HTTP mode (direct GraphQL execution); HTTP mode uses [status string taxonomy](../mutations/status-strings.md)
+
+**Available Configurations**:
+
+| Configuration | Description |
+|---------------|-------------|
+| `DEFAULT_ERROR_CONFIG` | Standard error handling with common error keywords and prefixes |
+| `STRICT_STATUS_CONFIG` | Strict prefix-based error detection, fewer keywords |
+| `ALWAYS_DATA_CONFIG` | Returns all statuses as data (never raises GraphQL errors) |
+| Custom `MutationErrorConfig` | Define your own error detection rules |
+
+**Examples**:
+
+```python
+from fraiseql import FraiseQLConfig, DEFAULT_ERROR_CONFIG, STRICT_STATUS_CONFIG
+
+# Development: Use standard error handling globally
+dev_config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    environment="development",
+    default_error_config=DEFAULT_ERROR_CONFIG,
+)
+
+# Production: Use stricter error handling globally
+prod_config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    environment="production",
+    default_error_config=STRICT_STATUS_CONFIG,
+)
+
+# Custom error configuration
+from fraiseql import MutationErrorConfig
+
+custom_config = MutationErrorConfig(
+    success_keywords={"success", "ok", "done"},
+    error_prefixes={"error:", "failed:"},
+    always_return_as_data=False,
+)
+
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_error_config=custom_config,
+)
+```
+
+**With Mutations**:
+
+```python
+from fraiseql import mutation, FraiseQLConfig, DEFAULT_ERROR_CONFIG, STRICT_STATUS_CONFIG
+
+# Global config with default error handling
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_error_config=DEFAULT_ERROR_CONFIG,  # Applied to all mutations by default
+)
+
+# Mutation uses global default (no error_config specified)
+@mutation(function="create_user")
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+    # Uses DEFAULT_ERROR_CONFIG from config
+
+# Mutation overrides global default
+@mutation(
+    function="delete_user",
+    error_config=STRICT_STATUS_CONFIG,  # Override: Use stricter config for deletions
+)
+class DeleteUser:
+    input: DeleteUserInput
+    success: DeleteUserSuccess
+    failure: DeleteUserError
+    # Uses STRICT_STATUS_CONFIG (explicit override)
+```
+
+**Resolution Order**:
+1. Explicit `error_config` in `@mutation` decorator (highest priority)
+2. `default_error_config` from `FraiseQLConfig`
+3. `None` (no error configuration, uses default behavior)
+
+**Benefits**:
+- **DRY Principle**: Set error handling once, apply everywhere
+- **Environment-aware**: Different configs for dev/staging/prod
+- **Maintainability**: Change error strategy in one place
+- **Flexibility**: Override per-mutation when needed
+
+**See Also**:
+- [Mutation Decorator](./decorators.md#fraiseqlmutation) - Mutation decorator reference
+- [Status Strings](../mutations/status-strings.md) - Status string conventions (HTTP mode)
+- [MutationErrorConfig](../api-reference/README.md) - Error config API reference
 
 ## Entity Routing Settings
 

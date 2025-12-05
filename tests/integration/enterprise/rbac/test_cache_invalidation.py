@@ -2,9 +2,14 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
 from fraiseql.enterprise.rbac.models import Permission
 
+pytestmark = pytest.mark.enterprise
 
+
+@pytest.mark.asyncio
 async def test_permission_cache_invalidates_on_role_change() -> None:
     """Verify cache invalidates when user roles change."""
     from fraiseql.enterprise.rbac.cache import PermissionCache
@@ -86,6 +91,7 @@ async def test_permission_cache_invalidates_on_role_change() -> None:
         assert permissions2 is None
 
 
+@pytest.mark.asyncio
 async def test_cascade_invalidation_on_role_permission_change() -> None:
     """Verify CASCADE rule invalidates user permissions when role permissions change."""
     from fraiseql.enterprise.rbac.cache import PermissionCache

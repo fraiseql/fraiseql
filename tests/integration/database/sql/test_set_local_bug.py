@@ -8,6 +8,8 @@ from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = pytest.mark.database
+
 
 @pytest.mark.asyncio
 async def test_set_local_with_timeout_should_not_use_prepared_statement() -> None:

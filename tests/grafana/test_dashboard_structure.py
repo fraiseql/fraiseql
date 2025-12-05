@@ -34,7 +34,7 @@ def dashboards(dashboard_files) -> None:
     """Load all dashboard JSON files."""
     dashboards = {}
     for filepath in dashboard_files:
-        with open(filepath) as f:
+        with filepath.open() as f:
             dashboards[filepath.stem] = json.load(f)
     return dashboards
 
@@ -50,7 +50,7 @@ class TestDashboardStructure:
     def test_dashboards_are_valid_json(self, dashboard_files) -> None:
         """All dashboard files should contain valid JSON."""
         for filepath in dashboard_files:
-            with open(filepath) as f:
+            with filepath.open() as f:
                 try:
                     json.load(f)
                 except json.JSONDecodeError as e:
@@ -95,7 +95,8 @@ class TestDashboardStructure:
             for i, panel in enumerate(panels):
                 for field in required_panel_fields:
                     assert field in panel, (
-                        f"{name}, panel {i} ({panel.get('title', 'untitled')}): Missing field '{field}'"
+                        f"{name}, panel {i} ({panel.get('title', 'untitled')}): "
+                        f"Missing field '{field}'"
                     )
 
                 # Verify panel ID is unique

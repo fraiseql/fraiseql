@@ -593,7 +593,7 @@ async def setup_ivm():
 ## See Also
 
 - Complete CQRS Example (../../examples/complete_cqrs_blog/)
-- [CASCADE Invalidation Guide](../performance/cascade-invalidation.md)
+- [CASCADE Best Practices](../guides/cascade-best-practices.md)
 - [Explicit Sync Guide](./explicit-sync.md)
 - [Database Patterns](../advanced/database-patterns.md)
 - [confiture on GitHub](https://github.com/fraiseql/confiture) - Migration library

@@ -1,14 +1,36 @@
 import asyncio
 import uuid
+from collections.abc import Generator
 from typing import Any, ClassVar
 
 import pytest
 from graphql import get_introspection_query, graphql
 
 import fraiseql
+from fraiseql.core.graphql_type import _graphql_type_cache
 from fraiseql.fields import FRAISE_MISSING, FraiseQLField, fraise_field
-from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 from fraiseql.types import JSON
+
+
+@pytest.fixture
+def clear_registry() -> Generator[None]:
+    """Clear schema registry and type cache for tests that define GraphQL types.
+
+    This fixture provides full type isolation for tests that define types like
+    CreateUserSuccess, CreateUserError, etc. to prevent conflicts with
+    identically-named types from other tests.
+    """
+    # Clear before test
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+    _graphql_type_cache.clear()
+
+    yield
+
+    # Clear after test
+    registry.clear()
+    _graphql_type_cache.clear()
 
 
 def test_fraise_field_with_purpose() -> None:

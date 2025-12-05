@@ -1,9 +1,9 @@
 # GraphQL Cascade
 
-**Navigation**: [← SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
+**Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
 
-> **Deep Dive**: For performance tuning, monitoring, and advanced patterns, see the
-> [CASCADE Performance Guide](../performance/cascade-invalidation.md).
+> **Deep Dive**: For best practices, patterns, and recommendations, see the
+> [CASCADE Best Practices Guide](../guides/cascade-best-practices.md).
 
 GraphQL Cascade enables automatic cache updates and side effect tracking for mutations in FraiseQL. When a mutation modifies data, it can include cascade information that clients use to update their caches without additional queries.
 
@@ -15,6 +15,8 @@ Cascade works by having PostgreSQL functions return not just the mutation result
 - **Deleted entities**: IDs of objects that were deleted
 - **Invalidations**: Query cache invalidation hints
 - **Metadata**: Timestamps and operation counts
+
+**Note**: Cascade is fully integrated with both legacy and v2 mutation formats. For v2 format, use the built-in SQL helper functions for easier cascade construction.
 
 ### How It Works
 
@@ -38,11 +40,13 @@ sequenceDiagram
 
 ## Quick Start
 
-For detailed information on SQL function return formats, see [SQL Function Return Format](sql-function-return-format.md).
+For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference.md) and [SQL Function Return Format](sql-function-return-format.md).
 
 ## PostgreSQL Function Pattern
 
-To enable cascade for a mutation, include a `_cascade` field in the function's JSONB return value:
+To enable cascade for a mutation, include cascade data in your return value. For v2 format, cascade data goes in the `cascade` field of `mutation_response`. For legacy format, use the `_cascade` field:
+
+### Legacy Format (v1.4)
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
@@ -67,16 +71,16 @@ BEGIN
         'data', jsonb_build_object('id', v_post_id, 'message', 'Post created'),
         '_cascade', jsonb_build_object(
             'updated', jsonb_build_array(
-                -- The created post
+                -- The created post (use type_name in SQL, Rust converts to __typename)
                 jsonb_build_object(
-                    '__typename', 'Post',
+                    'type_name', 'Post',
                     'id', v_post_id,
                     'operation', 'CREATED',
                     'entity', (SELECT data FROM v_post WHERE id = v_post_id)
                 ),
                 -- The updated author
                 jsonb_build_object(
-                    '__typename', 'User',
+                    'type_name', 'User',
                     'id', v_author_id,
                     'operation', 'UPDATED',
                     'entity', (SELECT data FROM v_user WHERE id = v_author_id)
@@ -85,16 +89,73 @@ BEGIN
             'deleted', '[]'::jsonb,
             'invalidations', jsonb_build_array(
                 jsonb_build_object(
-                    'queryName', 'posts',
+                    'query_name', 'posts',
                     'strategy', 'INVALIDATE',
                     'scope', 'PREFIX'
                 )
             ),
             'metadata', jsonb_build_object(
                 'timestamp', now(),
-                'affectedCount', 2
+                'affected_count', 2
             )
         )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### V2 Format (v1.7+)
+
+```sql
+CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
+RETURNS mutation_response AS $$
+DECLARE
+    v_post_id uuid;
+    v_author_id uuid;
+    v_post_data jsonb;
+    v_author_data jsonb;
+    v_cascade_data jsonb;
+BEGIN
+    -- Create post
+    v_post_id := gen_random_uuid();
+    INSERT INTO posts (id, title, content, author_id, created_at)
+    VALUES (v_post_id, input->>'title', input->>'content', (input->>'author_id')::uuid, now());
+
+    v_author_id := (input->>'author_id')::uuid;
+
+    -- Update author stats
+    UPDATE users SET post_count = post_count + 1 WHERE id = v_author_id;
+
+    -- Fetch complete entity data
+    SELECT jsonb_build_object('id', id, 'title', title, 'content', content, 'author_id', author_id, 'created_at', created_at)
+    INTO v_post_data FROM posts WHERE id = v_post_id;
+
+    SELECT jsonb_build_object('id', id, 'name', name, 'email', email, 'post_count', post_count)
+    INTO v_author_data FROM users WHERE id = v_author_id;
+
+    -- Build cascade using helper functions
+    v_cascade_data := cascade_merge(
+        cascade_entity_created('Post', v_post_id, v_post_data),
+        cascade_entity_update('User', v_author_id, v_author_data)
+    );
+
+    -- Add invalidations
+    v_cascade_data := cascade_merge(
+        v_cascade_data,
+        cascade_invalidate_cache(ARRAY['posts', 'user_posts'], 'INVALIDATE')
+    );
+
+    -- Add metadata
+    v_cascade_data := cascade_merge(
+        v_cascade_data,
+        cascade_metadata(2, 1, NULL)
+    );
+
+    RETURN mutation_created(
+        'Post created successfully',
+        v_post_data,
+        'Post',
+        v_cascade_data
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -114,19 +175,21 @@ class CreatePost:
 
 ## Cascade Structure
 
-The `_cascade` object contains:
+The cascade object (from `cascade` field in v2 format or `_cascade` in legacy format) contains:
 
 ### `updated` (Array)
 Array of entities that were created or updated:
 
 ```json
 {
-  "__typename": "Post",
+  "type_name": "Post",        // In SQL: snake_case (Rust converts to __typename)
   "id": "uuid",
   "operation": "CREATED" | "UPDATED",
   "entity": { /* full entity data */ }
 }
 ```
+
+**Note**: Use `type_name` in SQL (snake_case). The Rust transformer automatically converts this to `__typename` in the GraphQL response.
 
 ### `deleted` (Array)
 Array of entity IDs that were deleted:
@@ -134,8 +197,9 @@ Array of entity IDs that were deleted:
 ```json
 [
   {
-    "__typename": "Post",
-    "id": "uuid"
+    "type_name": "Post",      // In SQL: snake_case (Rust converts to __typename)
+    "id": "uuid",
+    "deleted_at": "2025-11-25T10:30:00Z"  // Optional timestamp
   }
 ]
 ```
@@ -145,7 +209,7 @@ Query cache invalidation hints:
 
 ```json
 {
-  "queryName": "posts",
+  "query_name": "posts",      // In SQL: snake_case (Rust converts to queryName)
   "strategy": "INVALIDATE" | "REFETCH",
   "scope": "PREFIX" | "EXACT" | "ALL"
 }
@@ -156,8 +220,10 @@ Operation metadata:
 
 ```json
 {
-  "timestamp": "2025-11-11T10:30:00Z",
-  "affectedCount": 2
+  "timestamp": "2025-11-25T10:30:00Z",
+  "transaction_id": "optional-uuid",     // In SQL: snake_case
+  "depth": 1,
+  "affected_count": 2                    // In SQL: snake_case
 }
 ```
 
@@ -257,24 +323,56 @@ commitMutation(environment, {
 
 ## Helper Functions
 
-PostgreSQL helper functions are available to simplify cascade construction:
+PostgreSQL helper functions (available in v1.7+) simplify cascade construction:
+
+### Entity Operations
 
 ```sql
--- Build cascade entity
-SELECT app.cascade_entity('Post', v_post_id, 'CREATED', 'v_post');
+-- Entity created
+SELECT cascade_entity_created('Post', post_id, post_data);
 
--- Build invalidation hint
-SELECT app.cascade_invalidation('posts', 'INVALIDATE', 'PREFIX');
+-- Entity updated
+SELECT cascade_entity_update('User', user_id, user_data);
+
+-- Entity deleted
+SELECT cascade_entity_deleted('Comment', comment_id);
+
+-- Count field updated
+SELECT cascade_count_update('Organization', org_id, 'user_count', 5, 6);
 ```
+
+### Cache Operations
+
+```sql
+-- Cache invalidation
+SELECT cascade_invalidate_cache(ARRAY['posts', 'user_posts'], 'INVALIDATE');
+
+-- Cache metadata
+SELECT cascade_metadata(2, 1, NULL);
+```
+
+### Utilities
+
+```sql
+-- Merge multiple cascade objects
+SELECT cascade_merge(cascade1, cascade2);
+
+-- Check if cascade contains specific entity type
+SELECT cascade_has_entity_type(cascade_data, 'User');
+```
+
+See [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) for complete function definitions.
 
 ## Best Practices
 
 ### PostgreSQL Functions
 
-1. **Include all side effects**: Any data modified by the mutation should be included in cascade
-2. **Use appropriate operations**: `CREATED` for inserts, `UPDATED` for updates, `DELETED` for deletes
-3. **Provide full entities**: Include complete entity data for cache updates
-4. **Add invalidations**: Include query invalidation hints for list views
+1. **Use v2 format for new implementations**: Leverage helper functions for consistent cascade construction
+2. **Include all side effects**: Any data modified by the mutation should be included in cascade
+3. **Use appropriate operations**: `CREATED` for inserts, `UPDATED` for updates, `DELETED` for deletes
+4. **Use snake_case field names**: `type_name`, `query_name`, `affected_count` (Rust converts to camelCase)
+5. **Provide full entities**: Include complete entity data for cache updates
+6. **Add invalidations**: Include query invalidation hints for list views
 
 ### Client Integration
 
@@ -291,7 +389,12 @@ SELECT app.cascade_invalidation('posts', 'INVALIDATE', 'PREFIX');
 
 ## Migration
 
-Mutations without cascade work unchanged. Add `enable_cascade=True` and `_cascade` return data incrementally.
+Mutations without cascade work unchanged. Add `enable_cascade=True` and cascade return data incrementally.
+
+**For v2 format**: Use the `cascade` field in `mutation_response` return type.
+**For legacy format**: Use the `_cascade` field in JSONB return value.
+
+Both formats support the same cascade structure and client integration patterns.
 
 ## Examples
 
@@ -303,6 +406,7 @@ See `examples/cascade/` for complete working examples including:
 
 ## Next Steps
 
-- [CASCADE Performance Guide](../performance/cascade-invalidation.md) - Tuning, monitoring, advanced patterns
+- [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Tuning, monitoring, advanced patterns
 - [Migrating to Cascade](../guides/migrating-to-cascade.md) - Adoption guide
 - [Cascade Best Practices](../guides/cascade-best-practices.md) - Production recommendations

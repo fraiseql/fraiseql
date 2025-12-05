@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestRegisterQueries:
     """Tests for register_queries() method on storage backends."""
@@ -14,8 +16,8 @@ class TestRegisterQueries:
 
     def test_memory_backend_register_queries(self) -> None:
         """Test memory backend can register multiple queries at once."""
-        from fraiseql.storage.backends.memory import MemoryAPQBackend
         from fraiseql.storage.apq_store import compute_query_hash
+        from fraiseql.storage.backends.memory import MemoryAPQBackend
 
         backend = MemoryAPQBackend()
 
@@ -44,8 +46,8 @@ class TestRegisterQueries:
 
     def test_memory_backend_register_queries_returns_hashes(self) -> None:
         """Test that register_queries returns the computed hashes."""
-        from fraiseql.storage.backends.memory import MemoryAPQBackend
         from fraiseql.storage.apq_store import compute_query_hash
+        from fraiseql.storage.backends.memory import MemoryAPQBackend
 
         backend = MemoryAPQBackend()
 
@@ -69,8 +71,8 @@ class TestRegisterQueries:
 
     def test_memory_backend_register_queries_duplicates(self) -> None:
         """Test registering duplicate queries only stores once."""
-        from fraiseql.storage.backends.memory import MemoryAPQBackend
         from fraiseql.storage.apq_store import compute_query_hash
+        from fraiseql.storage.backends.memory import MemoryAPQBackend
 
         backend = MemoryAPQBackend()
 
@@ -90,14 +92,13 @@ class TestRegisterQueries:
         # The method should be inherited from base class
         assert hasattr(PostgreSQLAPQBackend, "register_queries")
 
-    @pytest.mark.skip(reason="Requires actual PostgreSQL connection")
-    def test_postgresql_backend_register_queries_integration(self) -> None:
+    def test_postgresql_backend_register_queries_integration(self, class_db_pool) -> None:
         """Test PostgreSQL backend can register multiple queries (integration)."""
-        from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
         from fraiseql.storage.apq_store import compute_query_hash
+        from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 
-        # This test requires actual DB connection
-        backend = PostgreSQLAPQBackend(config={"auto_create_tables": False})
+        # Use test database pool
+        backend = PostgreSQLAPQBackend(config={"auto_create_tables": False}, pool=class_db_pool)
 
         queries = [
             "query A { a }",
@@ -134,8 +135,8 @@ class TestRegisterQueriesFromApp:
     def test_register_queries_with_config_context(self) -> None:
         """Test registering queries works with config-created backend."""
         from fraiseql.fastapi.config import FraiseQLConfig
-        from fraiseql.storage.backends.factory import create_apq_backend
         from fraiseql.storage.apq_store import compute_query_hash
+        from fraiseql.storage.backends.factory import create_apq_backend
 
         config = FraiseQLConfig(
             database_url="postgresql://localhost/test",

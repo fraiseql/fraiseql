@@ -2,6 +2,10 @@
 //!
 //! This script detects available CPU features and sets up build configuration
 //! for maximum performance with SIMD optimizations.
+//!
+//! NOTE: `cargo test` does not work directly for this crate because it uses
+//! PyO3 with the `extension-module` feature, which prevents linking to libpython.
+//! Tests should be run via pytest after `maturin develop`.
 
 use std::process::Command;
 

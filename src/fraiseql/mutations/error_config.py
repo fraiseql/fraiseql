@@ -7,10 +7,20 @@ from typing import Pattern
 
 @dataclass
 class MutationErrorConfig:
-    """Configuration for how mutation statuses are interpreted.
+    """Configurable error detection for mutations.
 
-    This allows projects to define their own patterns for what constitutes
-    an error vs successful data return.
+    ⚠️ DEPRECATION NOTICE:
+    Starting with FraiseQL v0.2.0, error detection is handled by the Rust layer
+    using standardized status prefixes. The error_config parameter is only used
+    in non-HTTP mode (direct GraphQL execution).
+
+    For HTTP mode (production), use status strings in PostgreSQL functions:
+    - Error prefixes: "failed:", "unauthorized:", "forbidden:", "not_found:",
+      "conflict:", "timeout:"
+    - Noop prefix: "noop:"
+    - Success keywords: "success", "created", "updated", "deleted"
+
+    See docs/mutations/status-strings.md for complete guide.
     """
 
     # Statuses that are always treated as success (returned in data field)

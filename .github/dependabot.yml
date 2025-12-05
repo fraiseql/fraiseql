@@ -5,17 +5,39 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # Ignore benchmark and example directories
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-patch"]
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "security"
+    groups:
+      patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+      minor-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "ci"
+      - "dependencies"
 
 # Note: We intentionally do not scan benchmark directories as they:
 # - Are not part of the distributed package

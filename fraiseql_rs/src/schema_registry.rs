@@ -1,17 +1,26 @@
-/// GraphQL Schema Registry for Rust
-///
-/// This module provides a thread-safe registry for storing GraphQL schema metadata
-/// that enables type resolution and transformation at runtime.
-///
-/// The registry is initialized once at application startup with schema data from Python
-/// and then used for all subsequent query transformations.
+//! GraphQL Schema Registry for Rust
+//!
+//! This module provides a thread-safe registry for storing GraphQL schema metadata
+//! that enables type resolution and transformation at runtime.
+//!
+//! The registry is initialized once at application startup with schema data from Python
+//! and then used for all subsequent query transformations.
 
+use arc_swap::ArcSwap;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::Arc;
 
-/// Global schema registry instance (initialized once at startup)
-static REGISTRY: OnceLock<SchemaRegistry> = OnceLock::new();
+/// Empty registry constant for efficient atomic operations
+/// This avoids allocating new Arc instances during compare_and_swap
+static EMPTY_REGISTRY: Lazy<Arc<SchemaRegistry>> =
+    Lazy::new(|| Arc::new(SchemaRegistry::empty()));
+
+/// Global schema registry using lock-free atomic access
+/// Instead of RwLock<Option<T>>, we use ArcSwap<T> directly
+static REGISTRY: Lazy<ArcSwap<SchemaRegistry>> =
+    Lazy::new(|| ArcSwap::from(EMPTY_REGISTRY.clone()));
 
 /// Field metadata describing a GraphQL field's type information
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -72,6 +81,17 @@ pub struct SchemaRegistry {
 }
 
 impl SchemaRegistry {
+    /// Create an empty SchemaRegistry
+    ///
+    /// Used internally for initializing the global registry before it's populated.
+    pub fn empty() -> Self {
+        Self {
+            version: String::new(),
+            features: Vec::new(),
+            types: HashMap::new(),
+        }
+    }
+
     /// Create a new SchemaRegistry from JSON schema IR
     ///
     /// # Arguments
@@ -125,28 +145,84 @@ impl SchemaRegistry {
     }
 }
 
-/// Initialize the global schema registry
-///
-/// This should be called once at application startup.
-/// Subsequent calls will be ignored (returns false).
-///
-/// # Arguments
-/// * `registry` - The SchemaRegistry instance to install
+/// Get a reference-counted handle to the current schema registry
 ///
 /// # Returns
-/// * `true` - Registry was successfully initialized
-/// * `false` - Registry was already initialized
-pub fn initialize_registry(registry: SchemaRegistry) -> bool {
-    REGISTRY.set(registry).is_ok()
+/// An `Arc<SchemaRegistry>` that keeps the registry alive while in use.
+/// This is a lock-free atomic load operation.
+///
+/// # Performance
+/// O(1) and wait-free - no locks or syscalls.
+///
+/// # Example
+/// ```
+/// let registry = get_registry();
+/// let field = registry.get_field_type("User", "name");
+/// // Arc is dropped here, registry may be freed if no other references
+/// ```
+pub fn get_registry() -> Arc<SchemaRegistry> {
+    REGISTRY.load_full()
 }
 
-/// Get a reference to the global schema registry
+/// Convenience function for single registry operations
+/// Use this when you only need to read once
+///
+/// # Example
+/// ```
+/// let field_type = with_registry(|registry| {
+///     registry.get_field_type("User", "name").cloned()
+/// });
+/// ```
+pub fn with_registry<T, F: FnOnce(&SchemaRegistry) -> T>(f: F) -> T {
+    let registry = REGISTRY.load();
+    f(&registry)
+}
+
+/// Initialize the global schema registry
+/// This should be called once at application startup
+///
+/// # Arguments
+/// * `registry` - The SchemaRegistry to install
 ///
 /// # Returns
-/// * `Some(&SchemaRegistry)` - If registry has been initialized
-/// * `None` - If registry has not been initialized yet
-pub fn get_registry() -> Option<&'static SchemaRegistry> {
-    REGISTRY.get()
+/// * `true` - Registry was initialized (was previously empty)
+/// * `false` - Registry was already initialized (no change made)
+///
+/// # Thread Safety
+/// Safe to call from multiple threads. Only the first call will succeed.
+pub fn initialize_registry(registry: SchemaRegistry) -> bool {
+    let new_arc = Arc::new(registry);
+    let old = REGISTRY.compare_and_swap(&*EMPTY_REGISTRY, new_arc);
+
+    // If old was the empty registry, we successfully initialized
+    Arc::ptr_eq(&old, &*EMPTY_REGISTRY)
+}
+
+/// Set/replace the schema registry (for hot-reload scenarios)
+/// WARNING: Existing Arc references will continue to work with the old registry.
+/// Do not cache raw references across calls to this function.
+///
+/// # Safety Note
+/// This is safe, but callers must not cache &SchemaRegistry references
+/// across calls to this function.
+pub fn set_registry(registry: SchemaRegistry) {
+    REGISTRY.store(Arc::new(registry));
+}
+
+/// Reset the schema registry to empty state (for testing)
+/// This is safe to call at any time. Existing Arc references
+/// will continue to work with the old registry until dropped.
+///
+/// # Thread Safety
+/// This is an atomic operation. No locks are held.
+pub fn reset_for_testing() {
+    REGISTRY.store(EMPTY_REGISTRY.clone());
+}
+
+/// Check if the schema registry has been initialized
+/// Returns true if the registry contains a real schema (not empty)
+pub fn is_initialized() -> bool {
+    !Arc::ptr_eq(&REGISTRY.load(), &EMPTY_REGISTRY)
 }
 
 #[cfg(test)]
@@ -209,5 +285,55 @@ mod tests {
 
         let field = registry.get_field_type("User", "id").unwrap();
         assert_eq!(field.type_name(), "ID");
+    }
+
+    #[test]
+    fn test_multiple_resets_no_deadlock() {
+        // This test would deadlock with the old implementation
+        for i in 0..100 {
+            // Reset
+            reset_for_testing();
+
+            // Initialize with new schema
+            let schema = SchemaRegistry {
+                version: "1.0".to_string(),
+                features: vec![],
+                types: HashMap::new(),
+            };
+            initialize_registry(schema);
+
+            // Access multiple times (simulates test operations)
+            for _ in 0..10 {
+                let registry = get_registry();
+                assert!(is_initialized());
+            }
+        }
+
+        // Final reset should work instantly (no deadlock!)
+        reset_for_testing();
+        assert!(!is_initialized());
+    }
+
+    #[test]
+    fn test_concurrent_access_and_reset() {
+        use std::thread;
+
+        // Spawn 10 threads that read and reset concurrently
+        let handles: Vec<_> = (0..10).map(|_| {
+            thread::spawn(|| {
+                for _ in 0..100 {
+                    // Concurrent reads
+                    let _registry = get_registry();
+
+                    // Concurrent resets (safe with arc-swap!)
+                    reset_for_testing();
+                }
+            })
+        }).collect();
+
+        // Wait for all threads to complete
+        for h in handles {
+            h.join().unwrap();
+        }
     }
 }

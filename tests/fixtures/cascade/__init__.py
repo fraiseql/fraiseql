@@ -1,1 +1,1 @@
-# Cascade test fixtures
+"""Cascade test fixtures for GraphQL cascade testing."""

@@ -15,6 +15,7 @@ Complete overview of all FraiseQL capabilities.
 | **GraphQL Types** | ✅ Stable | [Types Guide](../core/types-and-schema.md) | [blog_simple](../../examples/blog_simple/) |
 | **Queries** | ✅ Stable | [Queries Guide](../core/queries-and-mutations.md) | [blog_api](../../examples/blog_api/) |
 | **Mutations** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md) | [mutations_demo](../../examples/mutations_demo/) |
+| **Mutation Result Formats** | ✅ Stable | [Result Reference](mutation-result-reference.md) | [mutations_demo](../../examples/mutations_demo/) |
 | **Input Types** | ✅ Stable | [Types Guide](../core/types-and-schema.md#input-types) | [blog_simple](../../examples/blog_simple/) |
 | **Success/Failure Responses** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md#success-failure-pattern) | [mutations_demo](../../examples/mutations_demo/) |
 | **Nested Relations** | ✅ Stable | [Database API](../core/database-api.md#nested-relations) | [blog_api](../../examples/blog_api/) |
@@ -162,6 +163,7 @@ Complete overview of all FraiseQL capabilities.
 | **pgvector Integration** | ✅ Stable | [pgvector Guide](pgvector.md) | [vector_search](../../examples/vector_search/) |
 | **Vector Similarity Search** | ✅ Stable | [pgvector Guide](pgvector.md#distance-operators) | [vector_search](../../examples/vector_search/) |
 | **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [graphql-cascade](../../examples/graphql-cascade/) |
+| **SQL Function Return Format** | ✅ Stable | [SQL Function Guide](sql-function-return-format.md) | [mutations_demo](../../examples/mutations_demo/) |
 | **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration.md) | [Documentation](../guides/langchain-integration.md) |
 | **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native.md) | [Documentation](ai-native.md) |
 

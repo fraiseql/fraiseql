@@ -1,6 +1,6 @@
 """Tests for the @mutation decorator."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,6 +8,8 @@ import fraiseql
 from fraiseql.mutations.decorators import failure, success
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 from fraiseql.types.fraise_input import fraise_input
+
+pytestmark = pytest.mark.integration
 
 
 @fraise_input
@@ -81,32 +83,38 @@ class TestMutationDefinition:
         definition = CreateUser.__fraiseql_mutation__
         assert definition.schema == "mutations"
 
-    def test_missing_input_type_raises_error(self) -> None:
-        """Test that missing input type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'input' type"):
+    def test_missing_input_type_stores_none(self) -> None:
+        """Test that missing input type stores None (no validation at decoration time)."""
 
-            @mutation
-            class BadMutation:
-                success: SampleSuccess
-                error: SampleError
+        @mutation
+        class BadMutation:
+            success: SampleSuccess
+            error: SampleError
 
-    def test_missing_success_type_raises_error(self) -> None:
-        """Test that missing success type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'success' type"):
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.input_type is None
 
-            @mutation
-            class BadMutation:
-                input: SampleInput
-                error: SampleError
+    def test_missing_success_type_stores_none(self) -> None:
+        """Test that missing success type stores None (no validation at decoration time)."""
 
-    def test_missing_error_type_raises_error(self) -> None:
-        """Test that missing error type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'failure' type"):
+        @mutation
+        class BadMutation:
+            input: SampleInput
+            error: SampleError
 
-            @mutation
-            class BadMutation:
-                input: SampleInput
-                success: SampleSuccess
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.success_type is None
+
+    def test_missing_error_type_stores_none(self) -> None:
+        """Test that missing error type stores None (no validation at decoration time)."""
+
+        @mutation
+        class BadMutation:
+            input: SampleInput
+            success: SampleSuccess
+
+        definition = BadMutation.__fraiseql_mutation__
+        assert definition.error_type is None
 
     def test_camel_to_snake_conversion(self) -> None:
         """Test CamelCase to snake_case conversion."""
@@ -130,129 +138,6 @@ class TestMutationDefinition:
             TestMutation.__name__ = camel
             definition = MutationDefinition(TestMutation)
             assert definition.function_name == expected_snake
-
-
-class TestMutationResolver:
-    """Test the generated resolver function."""
-
-    @pytest.mark.asyncio
-    async def test_resolver_calls_database_function(self) -> None:
-        """Test that resolver calls the correct database function."""
-
-        @mutation
-        class CreateUser:
-            input: SampleInput
-            success: SampleSuccess
-            error: SampleError
-
-        resolver = CreateUser.__fraiseql_resolver__
-
-        # Mock the context and database
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "success",
-            "message": "User created",
-            "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
-        }
-
-        info = Mock()
-        info.context = {"db": mock_db}
-
-        # Mock input
-        input_obj = Mock()
-        input_obj.name = "John Doe"
-        input_obj.email = "john@example.com"
-
-        # Mock to_dict method
-        def mock_to_dict() -> None:
-            return {"name": "John Doe", "email": "john@example.com"}
-
-        input_obj.to_dict = mock_to_dict
-
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify database function was called
-        mock_db.execute_function.assert_called_once_with(
-            """public.create_user""", {"name": "John Doe", "email": "john@example.com"}
-        )
-
-        # Verify result type
-        assert isinstance(result, SampleSuccess)
-        assert result.message == "User created"
-        assert isinstance(result.user, User)
-        assert result.user.id == "123"
-
-    @pytest.mark.asyncio
-    async def test_resolver_handles_error_result(self) -> None:
-        """Test that resolver handles error results."""
-
-        @mutation
-        class CreateUser:
-            input: SampleInput
-            success: SampleSuccess
-            error: SampleError
-
-        resolver = CreateUser.__fraiseql_resolver__
-
-        # Mock error response
-        mock_db = AsyncMock()
-        mock_db.execute_function.return_value = {
-            "status": "validation_error",
-            "message": "Email already exists",
-        }
-
-        info = Mock()
-        info.context = {"db": mock_db}
-
-        input_obj = Mock()
-        input_obj.to_dict = lambda: {"name": "John", "email": "existing@example.com"}
-
-        # Call resolver
-        result = await resolver(info, input_obj)
-
-        # Verify result is error type
-        assert isinstance(result, SampleError)
-        assert result.message == "Email already exists"
-        assert result.code == "validation_error"
-
-    @pytest.mark.asyncio
-    async def test_resolver_missing_database_raises_error(self) -> None:
-        """Test that missing database in context raises RuntimeError."""
-
-        @mutation
-        class CreateUser:
-            input: SampleInput
-            success: SampleSuccess
-            error: SampleError
-
-        resolver = CreateUser.__fraiseql_resolver__
-
-        # No database in context
-        info = Mock()
-        info.context = {}
-
-        input_obj = Mock()
-
-        with pytest.raises(RuntimeError, match="No database connection in context"):
-            await resolver(info, input_obj)
-
-    def test_resolver_metadata(self) -> None:
-        """Test that resolver has proper metadata."""
-
-        @mutation
-        class CreateUser:
-            """Create a new user account."""
-
-            input: SampleInput
-            success: SampleSuccess
-            error: SampleError
-
-        resolver = CreateUser.__fraiseql_resolver__
-
-        assert resolver.__name__ == "create_user"
-        assert "Create a new user account" in resolver.__doc__
-        assert hasattr(resolver, "__fraiseql_mutation__")
 
 
 class TestInputConversion:

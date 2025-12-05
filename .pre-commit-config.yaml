@@ -91,3 +91,61 @@ repos:
   #      pass_filenames: false
   #      always_run: true
   #      stages: [pre-commit]
+
+  # Pre-push hook: Run tests before pushing to remote
+  # This prevents pushing broken code to the repository
+  - repo: local
+    hooks:
+      - id: pytest-pre-push
+        name: pytest (pre-push - all tests must pass)
+        entry: |
+          bash -c '
+          set -e  # Exit on any error
+
+          # Skip in CI - GitHub Actions runs tests
+          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ] || \
+             [ -n "$GITHUB_WORKSPACE" ] || [ "$USER" = "runner" ]; then
+            echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"
+            exit 0
+          fi
+
+          # Check for uv
+          if ! command -v uv >/dev/null 2>&1; then
+            echo ""
+            echo "❌ uv not found - cannot run tests!"
+            echo "📦 Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
+            echo "🚨 PUSH BLOCKED - install uv to run tests before pushing"
+            echo ""
+            exit 1
+          fi
+
+          echo ""
+          echo "🔒 PRE-PUSH PROTECTION: Running tests before push..."
+          echo "📊 This prevents pushing broken code to remote repository"
+          echo ""
+
+          # Run core tests (exclude slow integration tests)
+          if TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true \
+             uv run pytest tests/ --tb=short -x \
+             -m "not blog_simple and not blog_enterprise" \
+             --ignore=tests/integration/performance/ \
+             -q; then
+            echo ""
+            echo "✅ All tests passed - push allowed"
+            echo "🚀 Pushing to remote repository..."
+            echo ""
+          else
+            echo ""
+            echo "❌ TESTS FAILED - PUSH BLOCKED"
+            echo "🚨 Cannot push broken code to remote repository"
+            echo "💡 Fix failing tests and try again"
+            echo "🔧 Run: uv run pytest --tb=short -v"
+            echo ""
+            exit 1
+          fi
+          '
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

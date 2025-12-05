@@ -20,18 +20,21 @@ from fraiseql.security.security_headers import (
     setup_security_headers,
 )
 
+pytestmark = pytest.mark.integration
 
-@pytest.mark.security
+
 @pytest.fixture
 def app() -> None:
     """Create test FastAPI app."""
     app = FastAPI()
 
     @app.get("/test")
+    @pytest.mark.asyncio
     async def test_endpoint() -> None:
         return {"message": "success"}
 
     @app.post("/test")
+    @pytest.mark.asyncio
     async def test_post() -> None:
         return {"message": "success"}
 

@@ -7,6 +7,9 @@ from typing import Optional
 
 import fraiseql
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
 # Define test types
 
 

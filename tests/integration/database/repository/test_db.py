@@ -7,6 +7,8 @@ from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
+pytestmark = [pytest.mark.integration, pytest.mark.database]
+
 
 @pytest.mark.integration
 @pytest.mark.database
@@ -218,6 +220,7 @@ class TestFraiseQLRepository:
         mock_pool.connection.return_value = mock_connection_cm
 
         # Define a test function to run in transaction
+        @pytest.mark.asyncio
         async def test_func(conn, value) -> str:
             return f"Result: {value}"
 

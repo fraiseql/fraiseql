@@ -66,8 +66,7 @@ class User:
 
 ## Related Documentation
 
-- Migration guide: `docs/migration-guides/v0.11.0.md`
-- Rust pipeline: `docs/rust/RUST_FIRST_PIPELINE.md`
+- Rust pipeline: `docs/rust/README.md`
 - Performance guide: `docs/performance/PERFORMANCE_GUIDE.md`
 
 ---

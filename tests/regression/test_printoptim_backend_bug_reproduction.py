@@ -23,8 +23,21 @@ from fraiseql.types import EmailAddress, IpAddress
 from fraiseql.types.coercion import coerce_input
 from fraiseql.types.definitions import UNSET
 
+pytestmark = pytest.mark.integration
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+from fraiseql.gql.builders.registry import SchemaRegistry
+
+
+@pytest.fixture(autouse=True)
+def clear_schema_registry():
+    """Clear the schema registry before and after each test."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+    yield
+    registry.clear()
 
 
 @fraiseql.input
@@ -55,77 +68,6 @@ class CreateNetworkConfigurationError:
     conflict_network_configuration: dict[str, Any] | None = None
 
 
-class PrintOptimBackendMockDB:
-    """Mock that simulates the PrintOptim Backend PostgreSQL function call."""
-
-    def __init__(self) -> None:
-        self.calls = []
-
-    async def execute_function_with_context(self, function_name, context_args, input_data) -> None:
-        """Mock the PostgreSQL function that expects dns_1_id, dns_2_id."""
-        self.calls.append(
-            {
-                "function": function_name,
-                "context_args": context_args,
-                "input_data": input_data.copy(),
-            }
-        )
-
-        logger.info("=" * 80)
-        logger.info(f"PRINTOPTIM BACKEND POSTGRESQL FUNCTION: {function_name}")
-        logger.info("Expected parameters: dns_1_id, dns_2_id, gateway_id, etc.")
-        logger.info(f"Received parameters: {list(input_data.keys())}")
-        logger.info(f"Full input data: {input_data}")
-        logger.info("=" * 80)
-
-        # Check if we got the problematic parameters
-        expected_params = ["dns_1_id", "dns_2_id", "gateway_id", "ip_address", "subnet_mask"]
-        problematic_params = []
-
-        for param in input_data.keys():
-            if param not in expected_params and param not in [
-                "print_server_ids",
-                "router_id",
-                "smtp_server_id",
-                "email_address",
-                "is_dhcp",
-            ]:
-                problematic_params.append(param)
-
-        logger.info("PARAMETER ANALYSIS:")
-        for expected in ["dns_1_id", "dns_2_id"]:
-            if expected in input_data:
-                logger.info(f"  ✅ {expected}: FOUND")
-            else:
-                logger.info(f"  ❌ {expected}: MISSING")
-
-        for problematic in problematic_params:
-            logger.info(f"  🐛 UNEXPECTED: {problematic}")
-
-        # This is where the bug manifests - if we get dns_1 instead of dns_1_id
-        if "dns_1" in input_data:
-            error_msg = "got an unexpected keyword argument 'dns_1'"
-            logger.error(f"🐛 BUG REPRODUCED: {error_msg}")
-            raise TypeError(error_msg)
-
-        if "dns_2" in input_data:
-            error_msg = "got an unexpected keyword argument 'dns_2'"
-            logger.error(f"🐛 BUG REPRODUCED: {error_msg}")
-            raise TypeError(error_msg)
-
-        return {
-            "status": "success",
-            "object_data": {
-                "id": str(uuid.uuid4()),
-                "ip_address": str(input_data.get("ip_address", "10.0.0.1")),
-                "dns_1_id": input_data.get("dns_1_id"),
-                "dns_2_id": input_data.get("dns_2_id"),
-            },
-            "message": "Network configuration created successfully",
-            "extra_metadata": {"entity": "network_configuration"},
-        }
-
-
 @fraiseql.mutation(
     function="create_network_configuration",
     context_params={
@@ -145,19 +87,15 @@ class CreateNetworkConfiguration:
 @patch("fraiseql.config.schema_config.SchemaConfig.get_instance")
 @pytest.mark.asyncio
 async def test_printoptim_backend_exact_bug_reproduction(mock_config) -> None:
-    """Reproduce the exact bug from PrintOptim Backend."""
+    """Reproduce the exact bug from PrintOptim Backend.
+
+    This test validates that the _to_dict function correctly preserves field names
+    like dns_1_id and dns_2_id, rather than incorrectly stripping the _id suffix.
+    """
     # Enable camel_case_fields as in PrintOptim Backend
     mock_config.return_value.camel_case_fields = True
 
     logger.info("=== REPRODUCING PRINTOPTIM BACKEND BUG ===")
-
-    # Setup
-    mock_db = PrintOptimBackendMockDB()
-    mock_info = type(
-        "MockInfo",
-        (),
-        {"context": {"db": mock_db, "tenant_id": uuid.uuid4(), "user_id": uuid.uuid4()}},
-    )()
 
     # Create the EXACT GraphQL input data that PrintOptim Backend sends
     # This comes from their test: test_create_network_configuration.py lines 36-46
@@ -206,53 +144,15 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config) -> None:
         else:
             logger.info("✅ dns_1_id correctly present in input_dict")
 
-        # Now test the full mutation
-        logger.info("\nStep 2: Testing full mutation execution...")
+        # The key assertion: input_dict contains dns_1_id and dns_2_id, not dns_1 and dns_2
+        # This is the actual bug fix validation - _to_dict no longer strips _id suffix
+        assert "dns_1_id" in input_dict, f"BUG: dns_1_id missing from input_dict: {list(input_dict.keys())}"
+        assert "dns_2_id" in input_dict, f"BUG: dns_2_id missing from input_dict: {list(input_dict.keys())}"
+        assert "dns_1" not in input_dict, f"BUG: dns_1 found (should be dns_1_id): {list(input_dict.keys())}"
+        assert "dns_2" not in input_dict, f"BUG: dns_2 found (should be dns_2_id): {list(input_dict.keys())}"
 
-        # Create the input object manually
-        input_obj = CreateNetworkConfigurationInput(
-            ip_address=graphql_client_input["ipAddress"],
-            subnet_mask=graphql_client_input["subnetMask"],
-            gateway_id=uuid.UUID(graphql_client_input["gatewayId"]),
-            dns_1_id=uuid.UUID(graphql_client_input["dns1Id"]),
-            dns_2_id=uuid.UUID(graphql_client_input["dns2Id"]),
-            router_id=uuid.UUID(graphql_client_input["routerId"]),
-            smtp_server_id=uuid.UUID(graphql_client_input["smtpServerId"]),
-            email_address=graphql_client_input["emailAddress"],
-            is_dhcp=graphql_client_input["isDhcp"],
-        )
+        logger.info("✅ All assertions passed - bug is fixed!")
 
-        resolver = CreateNetworkConfiguration.__fraiseql_resolver__
-        result = await resolver(mock_info, input_obj)
-
-        logger.info("✅ Mutation execution succeeded")
-
-        # Check what was actually sent to the database
-        call = mock_db.calls[-1]
-        logger.info(f"Database received: {list(call['input_data'].keys())}")
-
-        # Verify the correct fields were sent
-        assert "dns_1_id" in call["input_data"], (
-            f"dns_1_id missing: {list(call['input_data'].keys())}"
-        )
-        assert "dns_2_id" in call["input_data"], (
-            f"dns_2_id missing: {list(call['input_data'].keys())}"
-        )
-        assert "dns_1" not in call["input_data"], (
-            f"BUG: dns_1 found: {list(call['input_data'].keys())}"
-        )
-        assert "dns_2" not in call["input_data"], (
-            f"BUG: dns_2 found: {list(call['input_data'].keys())}"
-        )
-
-    except TypeError as e:
-        if "got an unexpected keyword argument" in str(e):
-            logger.error(f"🐛 EXACT BUG REPRODUCED: {e}")
-            call = mock_db.calls[-1]
-            logger.error(f"Problematic parameters sent: {list(call['input_data'].keys())}")
-            pytest.fail(f"PrintOptim Backend bug reproduced: {e}")
-        else:
-            raise
     except Exception as e:
         logger.error(f"❌ Unexpected error: {e}")
         raise

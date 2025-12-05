@@ -7,6 +7,8 @@ from fraiseql.storage.backends.base import APQStorageBackend
 from fraiseql.storage.backends.factory import create_apq_backend
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
+pytestmark = pytest.mark.integration
+
 
 def test_factory_creates_memory_backend() -> None:
     """Test that factory creates memory backend for memory config."""

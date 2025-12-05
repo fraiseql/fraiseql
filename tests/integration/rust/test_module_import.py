@@ -6,6 +6,8 @@ This test should FAIL initially because the module doesn't exist yet.
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 def test_fraiseql_rs_module_exists() -> None:
     """Test that fraiseql_rs module can be imported.

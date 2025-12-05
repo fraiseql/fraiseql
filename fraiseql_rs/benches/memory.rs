@@ -20,7 +20,7 @@ fn profile_memory() {
     println!();
 
     println!("--- ZERO-COPY IMPLEMENTATION ---");
-    let result = build_graphql_response(json_rows, "users", Some("User"), None);
+    let result = build_graphql_response(json_rows, "users", Some("User"), None, None, None);
     match result {
         Ok(bytes) => {
             println!("✓ Response generated successfully");

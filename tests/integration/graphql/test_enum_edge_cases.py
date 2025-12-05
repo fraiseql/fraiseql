@@ -9,6 +9,8 @@ from graphql import GraphQLResolveInfo
 import fraiseql
 from fraiseql.gql.resolver_wrappers import _coerce_to_enum, wrap_resolver
 
+pytestmark = pytest.mark.integration
+
 
 @fraiseql.enum
 class Color(Enum):

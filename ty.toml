@@ -1,0 +1,28 @@
+# ty type checker configuration
+# See: https://github.com/astral-sh/ty
+
+[environment]
+# Target Python version
+python-version = "3.13"
+
+[rules]
+# Disable noisy rules for framework code with heavy metaprogramming
+unresolved-import = "ignore"           # Rust extension imports
+invalid-assignment = "ignore"          # Optional import fallbacks
+unresolved-attribute = "ignore"        # Dynamic attributes and GraphQL introspection
+unknown-argument = "ignore"            # RBAC dataclass-like dynamic init
+invalid-argument-type = "ignore"       # Framework type coercion patterns
+call-non-callable = "ignore"           # Dynamic callable patterns
+invalid-method-override = "ignore"     # Middleware dispatch overrides
+too-many-positional-arguments = "ignore"  # Decorator argument patterns
+invalid-await = "ignore"               # Union type awaitable patterns
+invalid-return-type = "ignore"         # Descriptor __get__ patterns
+invalid-type-form = "ignore"           # any → Any typo issues (to be fixed)
+possibly-missing-attribute = "ignore"  # GraphQL type introspection
+missing-argument = "ignore"            # Partial function patterns
+invalid-parameter-default = "ignore"   # Default value type patterns
+no-matching-overload = "ignore"        # Overload resolution issues
+deprecated = "ignore"                  # Deprecated usage warnings
+invalid-attribute-access = "ignore"    # Exception attribute access patterns
+implicit-concatenated-string-type-annotation = "ignore"  # Multi-line type annotations
+not-iterable = "ignore"                # GraphQL node iteration patterns

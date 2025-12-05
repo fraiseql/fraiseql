@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime
 
 import pytest
+import pytest_asyncio
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
@@ -54,10 +55,11 @@ class Allocation:
 class TestWhereInputNestedFilterHybridTables:
     """Test that WhereInput nested filtering works on hybrid tables."""
 
-    @pytest.fixture
-    async def setup_test_data(self, db_pool) -> None:
+    @pytest_asyncio.fixture
+    async def setup_test_data(self, class_db_pool, test_schema, clear_registry_class) -> dict:
         """Create hybrid allocation table and test data."""
-        async with db_pool.connection() as conn:
+        async with class_db_pool.connection() as conn:
+            await conn.execute(f"SET search_path TO {test_schema}, public")
             # Create hybrid table with both SQL columns and JSONB data
             await conn.execute(
                 """
@@ -183,7 +185,9 @@ class TestWhereInputNestedFilterHybridTables:
                 }
 
     @pytest.mark.asyncio
-    async def test_whereinput_nested_filter_returns_zero_results(self, db_pool, setup_test_data):
+    async def test_whereinput_nested_filter_returns_zero_results(
+        self, class_db_pool, setup_test_data
+    ) -> None:
         """Test WhereInput nested filter for machine with 0 allocations.
 
         This is the exact scenario from issue #124 where the filter should
@@ -200,7 +204,7 @@ class TestWhereInputNestedFilterHybridTables:
             has_jsonb_data=True,
         )
 
-        repo = FraiseQLRepository(db_pool, context={"tenant_id": "test"})
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
         # Create WhereInput filter - this is what GraphQL generates
         MachineWhereInput = create_graphql_where_input(Machine)
@@ -224,7 +228,9 @@ class TestWhereInputNestedFilterHybridTables:
         )
 
     @pytest.mark.asyncio
-    async def test_whereinput_nested_filter_returns_correct_results(self, db_pool, setup_test_data):
+    async def test_whereinput_nested_filter_returns_correct_results(
+        self, class_db_pool, setup_test_data
+    ) -> None:
         """Test WhereInput nested filter for machine with 2 allocations.
 
         Ensures the filter correctly returns only matching allocations.
@@ -238,7 +244,7 @@ class TestWhereInputNestedFilterHybridTables:
             has_jsonb_data=True,
         )
 
-        repo = FraiseQLRepository(db_pool, context={"tenant_id": "test"})
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
@@ -266,7 +272,9 @@ class TestWhereInputNestedFilterHybridTables:
             )
 
     @pytest.mark.asyncio
-    async def test_whereinput_vs_dict_filter_equivalence(self, db_pool, setup_test_data) -> None:
+    async def test_whereinput_vs_dict_filter_equivalence(
+        self, class_db_pool, setup_test_data
+    ) -> None:
         """Test that WhereInput and dict filters produce identical results.
 
         Dict-based filtering works correctly. This test ensures WhereInput
@@ -281,7 +289,7 @@ class TestWhereInputNestedFilterHybridTables:
             has_jsonb_data=True,
         )
 
-        repo = FraiseQLRepository(db_pool, context={"tenant_id": "test"})
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
         # Query 1: Using WhereInput (GraphQL way)
         MachineWhereInput = create_graphql_where_input(Machine)
@@ -312,7 +320,9 @@ class TestWhereInputNestedFilterHybridTables:
         )
 
     @pytest.mark.asyncio
-    async def test_whereinput_uses_sql_column_not_jsonb(self, db_pool, setup_test_data) -> None:
+    async def test_whereinput_uses_sql_column_not_jsonb(
+        self, class_db_pool, setup_test_data
+    ) -> None:
         """Test that WhereInput uses the SQL column (machine_id) not JSONB path.
 
         This is a performance test - SQL column access should be used for
@@ -327,7 +337,7 @@ class TestWhereInputNestedFilterHybridTables:
             has_jsonb_data=True,
         )
 
-        repo = FraiseQLRepository(db_pool, context={"tenant_id": "test"})
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
 
         MachineWhereInput = create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
