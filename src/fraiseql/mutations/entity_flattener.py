@@ -107,7 +107,27 @@ def flatten_entity_wrapper(
     # Create flattened result (copy original dict)
     flattened = mutation_result.copy()
 
-    # Extract expected fields from entity or top-level
+    # Check if Success type expects an 'entity' field
+    # If so, don't flatten - keep entity wrapper as-is
+    if "entity" in expected_fields:
+        logger.debug("Success type has 'entity' field, keeping entity wrapper (no flattening)")
+        return mutation_result
+
+    # Check if entity_type hint matches any expected field
+    # entity_type is a hint like 'machine', 'post', etc. that indicates which
+    # field should receive entity data
+    entity_type_hint = mutation_result.get("entity_type")
+    if entity_type_hint and entity_type_hint in expected_fields and entity_type_hint != "entity":
+        # Custom entity field name detected (e.g., 'machine', 'post')
+        # The Rust transformer doesn't fully support custom field names yet,
+        # so we skip flattening and let the Python parser handle it
+        logger.debug(
+            f"Success type has custom entity field '{entity_type_hint}', "
+            f"skipping flattening (Rust transformer limitation)"
+        )
+        return mutation_result
+
+    # Legacy behavior: extract individual fields from entity dict
     # Priority: top-level fields > entity fields (e.g., cascade from top-level wins)
     for field_name in expected_fields:
         # For each field in Success type, try to find it in top-level first, then entity
