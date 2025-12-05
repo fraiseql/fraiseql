@@ -234,7 +234,38 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../mutations/status-strings.md) |
+| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../mutations/status-strings.md) |
+
+**Global Default**: If you don't specify `error_config` on a mutation, FraiseQL will use `default_error_config` from your `FraiseQLConfig` (if set). This allows you to set a global error handling strategy and override it per-mutation when needed.
+
+```python
+from fraiseql import FraiseQLConfig, DEFAULT_ERROR_CONFIG, STRICT_STATUS_CONFIG
+
+# Set global default
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_error_config=DEFAULT_ERROR_CONFIG,
+)
+
+# Uses global default
+@fraiseql.mutation(function="create_user")
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+# Overrides global default
+@fraiseql.mutation(
+    function="delete_user",
+    error_config=STRICT_STATUS_CONFIG,  # Override
+)
+class DeleteUser:
+    input: DeleteUserInput
+    success: DeleteUserSuccess
+    failure: DeleteUserError
+```
+
+**See**: [FraiseQLConfig.default_error_config](./config.md#default_error_config) for details.
 
 **Examples**:
 ```python
