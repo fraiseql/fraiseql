@@ -8,7 +8,6 @@ from typing import Any, TypeVar, get_type_hints
 from graphql import GraphQLResolveInfo
 
 from fraiseql.mutations.error_config import MutationErrorConfig
-from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.definitions import UNSET
 from fraiseql.utils.casing import to_snake_case
 
@@ -276,8 +275,8 @@ class MutationDefinition:
                 # PostgreSQL → Rust → HTTP bytes (zero Python string operations)
                 return rust_response
 
-            # NON-HTTP PATH: Parse Rust response into Python objects
-            # This is needed for direct GraphQL execute() calls (tests, GraphiQL, etc.)
+            # NON-HTTP PATH: Convert to dict for GraphQL execute()
+            # Used in tests and direct GraphQL execute() calls
             try:
                 graphql_response = rust_response.to_json()
                 mutation_result = graphql_response["data"][field_name]
@@ -293,37 +292,10 @@ class MutationDefinition:
                 )
                 raise
 
-            # Parse result into Success or Error type
-            try:
-                parsed_result = parse_mutation_result(
-                    mutation_result,
-                    self.success_type,
-                    self.error_type,
-                    self.error_config,
-                )
-                logger.debug(
-                    f"Successfully parsed mutation result into {type(parsed_result).__name__}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to parse mutation result for {self.name}",
-                    extra={
-                        "success_type": self.success_type.__name__ if self.success_type else None,
-                        "error_type": self.error_type.__name__ if self.error_type else None,
-                        "mutation_result_keys": list(mutation_result.keys())
-                        if isinstance(mutation_result, dict)
-                        else None,
-                        "error": str(e),
-                    },
-                )
-                raise
-
-            # Attach cascade data if present (when enable_cascade=True)
-            if self.enable_cascade and "_cascade" in mutation_result:
-                parsed_result.__cascade__ = mutation_result["_cascade"]
-                logger.debug(f"Attached CASCADE data to {type(parsed_result).__name__}")
-
-            return parsed_result
+            # Return dict directly (no parsing into Python objects)
+            # CASCADE is already at correct level from Rust
+            # Tests will work with dict access: result["user"]["id"]
+            return mutation_result
 
         # Set metadata for GraphQL introspection
         # Create unique resolver name to prevent collisions between similar mutation names

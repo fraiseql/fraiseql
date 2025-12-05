@@ -2,11 +2,33 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
+mod types;
+mod parser;
+mod entity_processor;
+mod response_builder;
+
+pub use types::{
+    MutationResponse, SimpleResponse, FullResponse,
+    StatusKind
+};
+pub use parser::parse_mutation_response;
+pub use entity_processor::{
+    ProcessedEntity,
+    process_entity,
+    process_entity_with_typename,
+    add_typename_to_entity,
+    process_cascade,
+};
+pub use response_builder::{
+    build_graphql_response,
+    build_success_response,
+    build_error_response,
+};
+
 #[cfg(test)]
 mod tests;
 
-use serde_json::{json, Map, Value};
-use crate::camel_case::to_camel_case;
+use serde_json::Value;
 
 /// Build complete GraphQL mutation response
 ///
@@ -41,33 +63,82 @@ pub fn build_mutation_response(
     // Step 1: Parse the mutation result with entity_type for simple format
     let result = MutationResult::from_json(mutation_json, entity_type)?;
 
-    // Step 2: Build response object based on status
-    let response_obj = if result.status.is_success() || result.status.is_noop() {
-        build_success_object(&result, success_type, entity_field_name, auto_camel_case, success_type_fields.as_ref())?
-    } else {
-        build_error_object(&result, error_type, auto_camel_case)?
-    };
+    // Step 2: Build GraphQL response using response_builder
+    let graphql_response = response_builder::build_graphql_response(
+        &result,
+        field_name,
+        success_type,
+        error_type,
+        entity_field_name,
+        entity_type,
+        auto_camel_case,
+        success_type_fields.as_ref(),
+    )?;
 
-    // Step 3: Wrap in GraphQL response structure
-    let graphql_response = json!({
-        "data": {
-            field_name: response_obj
-        }
-    });
-
-    // Step 4: Serialize to bytes
+    // Step 3: Serialize to bytes
     serde_json::to_vec(&graphql_response)
         .map_err(|e| format!("Failed to serialize: {}", e))
 }
 
 #[cfg(test)]
-mod test_stub {
+mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_stub_function() {
-        let result = build_mutation_response("", "", "", "", None, None, None, true, None);
-        assert!(result.is_ok());
+    fn test_end_to_end_simple() {
+        let json = r#"{"id": "123", "name": "John"}"#;
+        let result = build_mutation_response(
+            json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+            None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+        assert_eq!(
+            response["data"]["createUser"]["__typename"],
+            "CreateUserSuccess"
+        );
+        assert_eq!(
+            response["data"]["createUser"]["user"]["__typename"],
+            "User"
+        );
+    }
+
+    #[test]
+    fn test_end_to_end_cascade() {
+        let json = r#"{
+            "status": "created",
+            "message": "Success",
+            "entity_type": "User",
+            "entity": {"id": "123"},
+            "cascade": {"updated": []}
+        }"#;
+
+        let result = build_mutation_response(
+            json,
+            "createUser",
+            "CreateUserSuccess",
+            "CreateUserError",
+            Some("user"),
+            Some("User"),
+            None,
+            true,
+            None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+        let mutation_result = &response["data"]["createUser"];
+
+        // CASCADE at success level
+        assert!(mutation_result["cascade"].is_object());
+        // NOT in entity
+        assert!(mutation_result["user"]["cascade"].is_null());
     }
 }
 
@@ -269,7 +340,7 @@ impl MutationResult {
             });
         }
 
-        // FULL V2 FORMAT: Parse all fields
+        // FULL FORMAT: Parse all fields
         let status_str = v.get("status")
             .and_then(|s| s.as_str())
             .ok_or("Missing 'status' field")?;
@@ -325,283 +396,9 @@ impl MutationResult {
     }
 }
 
-/// Build success response object
-fn build_success_object(
-    result: &MutationResult,
-    success_type: &str,
-    entity_field_name: Option<&str>,
-    auto_camel_case: bool,
-    success_type_fields: Option<&Vec<String>>,
-) -> Result<Value, String> {
-    let mut obj = Map::new();
 
-    // Add __typename
-    obj.insert("__typename".to_string(), json!(success_type));
 
-    // Add id from entity_id if present
-    if let Some(ref entity_id) = result.entity_id {
-        obj.insert("id".to_string(), json!(entity_id));
-    }
 
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
-
-    // Add entity with __typename and camelCase keys
-    if let Some(entity) = &result.entity {
-        let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
-
-        // Determine the field name for the entity in the response
-        let field_name = entity_field_name
-            .map(|name| {
-                // Convert entity_field_name based on auto_camel_case flag
-                if auto_camel_case {
-                    to_camel_case(name)
-                } else {
-                    name.to_string()
-                }
-            })
-            .unwrap_or_else(|| {
-                // No entity_field_name provided, derive from type
-                if auto_camel_case {
-                    to_camel_case(&entity_type.to_lowercase())
-                } else {
-                    entity_type.to_lowercase()
-                }
-            });
-
-        // Check if entity is a wrapper object containing entity_field_name
-        // This happens when Python entity_flattener skips flattening (CASCADE case)
-        // The entity looks like: {"post": {...}, "message": "..."}
-        let actual_entity = if let Value::Object(entity_map) = entity {
-            // Check if the entity wrapper contains a field matching entity_field_name
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
-                    // Found nested entity - extract it
-                    nested_entity
-                } else {
-                    // No nested field, use entire entity
-                    entity
-                }
-            } else {
-                // No entity_field_name hint, use entire entity
-                entity
-            }
-        } else {
-            // Entity is not an object (array or primitive), use as-is
-            entity
-        };
-
-        let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
-        obj.insert(field_name, transformed);
-
-        // If entity was a wrapper, copy other fields from it (like "message")
-        if let Value::Object(entity_map) = entity {
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if entity_map.contains_key(entity_field_name_raw) {
-                    // Entity was a wrapper - copy other fields
-                    for (key, value) in entity_map {
-                        if key != entity_field_name_raw && key != "entity" {
-                            // Don't copy the entity field itself or nested "entity"
-                            let field_key = if auto_camel_case {
-                                to_camel_case(key)
-                            } else {
-                                key.clone()
-                            };
-                            // Only add if not already present (message might be at top level)
-                            if !obj.contains_key(&field_key) {
-                                obj.insert(field_key, transform_value(value, auto_camel_case));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Add updatedFields (convert to camelCase)
-    if let Some(fields) = &result.updated_fields {
-        let transformed_fields: Vec<Value> = fields.iter()
-            .map(|f| json!(if auto_camel_case { to_camel_case(f) } else { f.clone() }))
-            .collect();
-        obj.insert("updatedFields".to_string(), json!(transformed_fields));
-    }
-
-    // Add cascade if present (add __typename for GraphQL)
-    if let Some(cascade) = &result.cascade {
-        let cascade_with_typename = transform_cascade(cascade, auto_camel_case);
-        obj.insert("cascade".to_string(), cascade_with_typename);
-    }
-
-    // Phase 3: Schema validation - check that all expected fields are present
-    if let Some(expected_fields) = success_type_fields {
-        let mut missing_fields = Vec::new();
-        let mut extra_fields = Vec::new();
-
-        // Check for missing expected fields
-        for field in expected_fields {
-            if !obj.contains_key(field) {
-                missing_fields.push(field.clone());
-            }
-        }
-
-        // Check for unexpected fields (warn about them)
-        for key in obj.keys() {
-            if !expected_fields.contains(key) && !key.starts_with("__") {
-                // Allow special fields like __typename
-                extra_fields.push(key.clone());
-            }
-        }
-
-        // Report validation results
-        if !missing_fields.is_empty() {
-            eprintln!(
-                "Schema validation warning: Missing expected fields in {}: {:?}",
-                success_type, missing_fields
-            );
-        }
-
-        if !extra_fields.is_empty() {
-            eprintln!(
-                "Schema validation warning: Extra fields in {} not in schema: {:?}",
-                success_type, extra_fields
-            );
-        }
-    }
-
-    Ok(Value::Object(obj))
-}
-
-/// Build error response object
-fn build_error_object(
-    result: &MutationResult,
-    error_type: &str,
-    auto_camel_case: bool,
-) -> Result<Value, String> {
-    let mut obj = Map::new();
-
-    // Add __typename
-    obj.insert("__typename".to_string(), json!(error_type));
-
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
-
-    // Add status string
-    let status_str = match &result.status {
-        MutationStatus::Noop(full_status) => full_status.clone(),
-        MutationStatus::Error(full_status) => full_status.clone(),
-        MutationStatus::Success(full_status) => full_status.clone(),
-    };
-    obj.insert("status".to_string(), json!(status_str));
-
-    // Add HTTP code
-    obj.insert("code".to_string(), json!(result.status.http_code()));
-
-    // Add errors array
-    if let Some(errors) = result.errors() {
-        let transformed: Vec<Value> = errors.iter()
-            .map(|e| transform_error(e, auto_camel_case))
-            .collect();
-        obj.insert("errors".to_string(), json!(transformed));
-    } else {
-        // Auto-generate error from status/message
-        let code = match &result.status {
-            MutationStatus::Noop(full_status) => {
-                // Extract reason after "noop:"
-                full_status.strip_prefix("noop:").unwrap_or(full_status).to_string()
-            },
-            MutationStatus::Error(full_status) => {
-                // Extract reason after first colon
-                if let Some(colon_pos) = full_status.find(':') {
-                    if colon_pos < full_status.len() - 1 {
-                        full_status[colon_pos + 1..].to_string()
-                    } else {
-                        "".to_string()
-                    }
-                } else {
-                    full_status.clone()
-                }
-            },
-            MutationStatus::Success(s) => s.clone(),
-        };
-        let auto_error = json!({
-            "field": null,
-            "code": code,
-            "message": result.message
-        });
-        obj.insert("errors".to_string(), json!([auto_error]));
-    }
-
-    Ok(Value::Object(obj))
-}
-
-/// Transform entity: add __typename and convert keys to camelCase
-fn transform_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) -> Value {
-    match entity {
-        Value::Object(map) => {
-            let mut result = Map::with_capacity(map.len() + 1);
-
-            // Add __typename first
-            result.insert("__typename".to_string(), json!(entity_type));
-
-            // Transform each field to camelCase
-            for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
-                result.insert(transformed_key, transform_value(val, auto_camel_case));
-            }
-
-            Value::Object(result)
-        }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(|v| transform_entity(v, entity_type, auto_camel_case)).collect())
-        }
-        other => other.clone(),
-    }
-}
-
-/// Transform value: convert keys to camelCase (no __typename)
-fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
-    match value {
-        Value::Object(map) => {
-            let mut result = Map::new();
-            for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
-                result.insert(transformed_key, transform_value(val, auto_camel_case));
-            }
-            Value::Object(result)
-        }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(|v| transform_value(v, auto_camel_case)).collect())
-        }
-        other => other.clone(),
-    }
-}
-
-/// Transform error object to camelCase
-fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
-    transform_value(error, auto_camel_case)
-}
-
-/// Transform cascade object: add __typename and convert keys to camelCase
-fn transform_cascade(cascade: &Value, auto_camel_case: bool) -> Value {
-    match cascade {
-        Value::Object(map) => {
-            let mut result = Map::with_capacity(map.len() + 1);
-
-            // Add __typename for GraphQL
-            result.insert("__typename".to_string(), json!("Cascade"));
-
-            // Transform each field to camelCase and recursively transform nested values
-            for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
-                result.insert(transformed_key, transform_value(val, auto_camel_case));
-            }
-
-            Value::Object(result)
-        }
-        // If cascade is not an object, return as-is (shouldn't happen)
-        other => other.clone(),
-    }
-}
 
 // ============================================================================
 // Tests for STATUS TAXONOMY (Phase 2: GREEN)

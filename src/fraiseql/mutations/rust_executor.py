@@ -8,7 +8,6 @@ import logging
 from typing import Any, Type
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
-from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -153,13 +152,6 @@ async def execute_mutation_rust(
                 ),
                 "cascade": None,
             }
-
-        # ─────────────────────────────────────────────────────────────
-        # FLATTEN ENTITY WRAPPER for mutation_response
-        # ─────────────────────────────────────────────────────────────
-        if success_type_class is not None:
-            mutation_result = flatten_entity_wrapper(mutation_result, success_type_class)
-        # ─────────────────────────────────────────────────────────────
 
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, tuple):

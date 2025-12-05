@@ -281,7 +281,7 @@ pub fn filter_cascade_data(
 /// Build complete GraphQL mutation response from PostgreSQL JSON
 ///
 /// This function transforms PostgreSQL mutation_response JSON into GraphQL responses.
-/// It supports both simple format (just entity JSONB) and full v2 format with status.
+/// It supports both simple format (just entity JSONB) and full format with status.
 ///
 /// Examples:
 ///     >>> # Simple format
@@ -296,7 +296,7 @@ pub fn filter_cascade_data(
 ///     ... )
 ///
 /// Args:
-///     mutation_json: Raw JSON from PostgreSQL (simple or v2 format)
+///     mutation_json: Raw JSON from PostgreSQL (simple or full format)
 ///     field_name: GraphQL field name (e.g., "createUser")
 ///     success_type: Success type name (e.g., "CreateUserSuccess")
 ///     error_type: Error type name (e.g., "CreateUserError")

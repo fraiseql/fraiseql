@@ -1,13 +1,13 @@
 //! Tests for mutation module
 
 use super::*;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 // ============================================================================
 // Tests for SIMPLE format (just entity JSONB, no status field)
 // ============================================================================
 
-// #[test]
+#[test]
 fn test_parse_simple_format() {
     // Simple format: just entity data, no status/message wrapper
     let json = r#"{"id": "123", "first_name": "John", "email": "john@example.com"}"#;
@@ -25,7 +25,7 @@ fn test_parse_simple_format() {
     assert_eq!(entity["first_name"], "John");
 }
 
-// #[test]
+#[test]
 fn test_parse_simple_format_array() {
     // Simple format can also be an array of entities
     let json = r#"[{"id": "1", "name": "A"}, {"id": "2", "name": "B"}]"#;
@@ -37,11 +37,11 @@ fn test_parse_simple_format_array() {
 }
 
 // ============================================================================
-// Tests for FULL v2 format (with status field)
+// Tests for FULL format (mutation_response with status field)
 // ============================================================================
 
-// #[test]
-fn test_parse_v2_success_result() {
+#[test]
+fn test_parse_full_success_result() {
     let json = r#"{
         "status": "new",
         "message": "User created",
@@ -62,8 +62,8 @@ fn test_parse_v2_success_result() {
     assert!(result.entity.is_some());
 }
 
-// #[test]
-fn test_parse_v2_error_result() {
+#[test]
+fn test_parse_full_error_result() {
     let json = r#"{
         "status": "failed:validation",
         "message": "Email already exists",
@@ -83,8 +83,8 @@ fn test_parse_v2_error_result() {
     assert!(result.errors().is_some());
 }
 
-// #[test]
-fn test_parse_v2_with_updated_fields() {
+#[test]
+fn test_parse_full_with_updated_fields() {
     let json = r#"{
         "status": "updated",
         "message": "User updated",
@@ -107,15 +107,15 @@ fn test_parse_v2_with_updated_fields() {
 // Test format detection
 // ============================================================================
 
-// #[test]
-fn test_format_detection_simple_vs_v2() {
+#[test]
+fn test_format_detection_simple_vs_full() {
     // Simple: no status field
     let simple = r#"{"id": "123", "name": "Test"}"#;
     assert!(MutationResult::is_simple_format_json(simple));
 
-    // v2: has status field
-    let v2 = r#"{"status": "new", "message": "ok", "entity": {}}"#;
-    assert!(!MutationResult::is_simple_format_json(v2));
+    // Full: has status field
+    let full = r#"{"status": "success", "message": "OK"}"#;
+    assert!(!MutationResult::is_simple_format_json(full));
 
     // Edge case: status as a data field (not mutation status)
     // This would be rare but we handle it by checking for valid status values
@@ -124,9 +124,9 @@ fn test_format_detection_simple_vs_v2() {
     assert!(MutationResult::is_simple_format_json(data_with_status_field));
 }
 
-// #[test]
+#[test]
 fn test_parse_missing_status_fails() {
-    // This should fail because we require status for v2 format, but let's test edge cases
+    // This should fail because we require status for full format, but let's test edge cases
     let json = r#"{"message": "No status"}"#;
     // This will be treated as simple format since no status field
     let result = MutationResult::from_json(json, Some("User")).unwrap();
@@ -134,7 +134,7 @@ fn test_parse_missing_status_fails() {
     assert!(result.status.is_success());
 }
 
-// #[test]
+#[test]
 fn test_parse_invalid_json_fails() {
     let result = MutationResult::from_json("not json", Some("User"));
     assert!(result.is_err());
@@ -144,7 +144,7 @@ fn test_parse_invalid_json_fails() {
 // Tests for SIMPLE format response building
 // ============================================================================
 
-// #[test]
+#[test]
 fn test_build_simple_format_response() {
     // Simple format: just entity data, no status wrapper
     let mutation_json = r#"{"id": "123", "first_name": "John", "last_name": "Doe"}"#;
@@ -174,7 +174,7 @@ fn test_build_simple_format_response() {
     assert_eq!(user["lastName"], "Doe");    // camelCase!
 }
 
-// #[test]
+#[test]
 fn test_build_simple_format_with_status_data_field() {
     // Entity has a "status" field but it's not a mutation status
     let mutation_json = r#"{"id": "123", "name": "Test", "status": "active"}"#;
@@ -202,11 +202,11 @@ fn test_build_simple_format_with_status_data_field() {
 }
 
 // ============================================================================
-// Tests for FULL v2 format response building
+// Tests for FULL format response building
 // ============================================================================
 
-// #[test]
-fn test_build_v2_success_response() {
+#[test]
+fn test_build_full_success_response() {
     let mutation_json = r#"{
         "status": "new",
         "message": "User created",
@@ -224,7 +224,7 @@ fn test_build_v2_success_response() {
         "CreateUserSuccess",
         "CreateUserError",
         Some("user"),  // entity_field_name,
-        None,  // entity_type (comes from JSON in v2),
+        None,  // entity_type (comes from JSON in full format),
         None,
         true,
         None
@@ -242,8 +242,8 @@ fn test_build_v2_success_response() {
     assert_eq!(user["lastName"], "Doe");
 }
 
-// #[test]
-fn test_build_v2_error_response() {
+#[test]
+fn test_build_full_error_response() {
     let mutation_json = r#"{
         "status": "failed:validation",
         "message": "Email already exists",
@@ -276,7 +276,7 @@ fn test_build_v2_error_response() {
     assert!(create_user["errors"].as_array().unwrap().len() > 0);
 }
 
-// #[test]
+#[test]
 fn test_build_simple_format_array_response() {
     // Simple format with array of entities
     let mutation_json = r#"[{"id": "1", "name": "Alice"}, {"id": "2", "name": "Bob"}]"#;
@@ -316,8 +316,8 @@ fn test_build_simple_format_array_response() {
     assert_eq!(users_array[1]["name"], "Bob");
 }
 
-// #[test]
-fn test_build_v2_noop_response() {
+#[test]
+fn test_build_full_noop_response() {
     let mutation_json = r#"{
         "status": "noop:unchanged",
         "message": "No changes needed",
@@ -354,7 +354,7 @@ fn test_build_v2_noop_response() {
     assert!(updated_fields.contains(&json!("lastName")));
 }
 
-// #[test]
+#[test]
 fn test_mutation_status_parsing() {
     // Test success status
     let status = MutationStatus::from_str("success");
@@ -376,7 +376,7 @@ fn test_mutation_status_parsing() {
     assert!(!status.is_success());
 }
 
-// #[test]
+#[test]
 fn test_mutation_status_http_codes() {
     assert_eq!(MutationStatus::from_str("success").http_code(), 200);
     assert_eq!(MutationStatus::from_str("noop:unchanged").http_code(), 422);
@@ -389,7 +389,7 @@ fn test_mutation_status_http_codes() {
 // Tests for CASCADE data extraction and inclusion
 // ============================================================================
 
-// #[test]
+#[test]
 fn test_parse_simple_format_with_cascade() {
     // Simple format with _cascade field (underscore prefix)
     let json = r#"{
@@ -426,7 +426,7 @@ fn test_parse_simple_format_with_cascade() {
     assert_eq!(updated[0]["post_count"], 5);
 }
 
-// #[test]
+#[test]
 fn test_build_simple_format_response_with_cascade() {
     // Simple format with cascade data
     let mutation_json = r#"{
@@ -449,6 +449,7 @@ fn test_build_simple_format_response_with_cascade() {
         Some("Post"),           // Entity type for __typename
         None,                   // No cascade selections,
         true,
+        None,                   // No success type fields validation
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -644,6 +645,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -686,6 +688,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -726,6 +729,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -766,6 +770,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -804,6 +809,7 @@ mod test_mutation_response_integration {
             None,
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -839,6 +845,7 @@ mod test_mutation_response_integration {
             None,
             None,
             true,
+        None,
         );
 
         assert!(result.is_ok());
@@ -854,5 +861,281 @@ mod test_mutation_response_integration {
             .as_str()
             .unwrap()
             .starts_with("timeout:"));
+    }
+}
+
+// ============================================================================
+// COMPREHENSIVE EDGE CASE TESTS (Phase 5)
+// ============================================================================
+
+#[cfg(test)]
+mod edge_cases {
+    use super::*;
+
+    // ===== CASCADE PLACEMENT =====
+
+    #[test]
+    fn test_cascade_never_nested_in_entity() {
+        let json = r#"{
+            "status": "created",
+            "entity_type": "Post",
+            "entity": {"id": "123", "title": "Test"},
+            "cascade": {"updated": []}
+        }"#;
+
+        let result = build_mutation_response(
+            json, "createPost", "CreatePostSuccess", "CreatePostError",
+            Some("post"), Some("Post"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+        let success = &response["data"]["createPost"];
+
+        // CASCADE at success level
+        assert!(success["cascade"].is_object());
+        // NOT in entity
+        assert!(success["post"]["cascade"].is_null());
+    }
+
+    // ===== __typename CORRECTNESS =====
+
+    #[test]
+    fn test_typename_always_present() {
+        let json = r#"{"id": "123"}"#;
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            Some("entity"), Some("Entity"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Success type has __typename
+        assert_eq!(response["data"]["test"]["__typename"], "TestSuccess");
+        // Entity has __typename
+        assert_eq!(response["data"]["test"]["entity"]["__typename"], "Entity");
+    }
+
+    #[test]
+    fn test_typename_matches_entity_type() {
+        let json = r#"{
+            "status": "success",
+            "entity_type": "CustomType",
+            "entity": {"id": "123"}
+        }"#;
+
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            Some("entity"), Some("CustomType"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // __typename must match entity_type from JSON
+        assert_eq!(
+            response["data"]["test"]["entity"]["__typename"],
+            "CustomType"
+        );
+    }
+
+    // ===== FORMAT DETECTION =====
+
+    #[test]
+    fn test_ambiguous_status_treated_as_simple() {
+        // Has "status" field but value is not a valid mutation status
+        let json = r#"{"status": "active", "name": "User"}"#;
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            Some("entity"), Some("Entity"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Should be treated as simple format (entity only)
+        // The entire object becomes the entity
+        assert_eq!(response["data"]["test"]["entity"]["status"], "active");
+    }
+
+    // ===== NULL HANDLING =====
+
+    #[test]
+    fn test_null_entity() {
+        let json = r#"{
+            "status": "success",
+            "message": "OK",
+            "entity": null
+        }"#;
+
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            None, None, None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Should have message but no entity field
+        assert_eq!(response["data"]["test"]["message"], "OK");
+        assert!(response["data"]["test"].get("entity").is_none());
+    }
+
+    // ===== ARRAY ENTITIES =====
+
+    #[test]
+    fn test_array_of_entities() {
+        let json = r#"[
+            {"id": "1", "name": "Alice"},
+            {"id": "2", "name": "Bob"}
+        ]"#;
+
+        let result = build_mutation_response(
+            json, "listUsers", "ListUsersSuccess", "ListUsersError",
+            Some("users"), Some("User"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Each array element should have __typename
+        let users = response["data"]["listUsers"]["users"].as_array().unwrap();
+        assert_eq!(users[0]["__typename"], "User");
+        assert_eq!(users[1]["__typename"], "User");
+    }
+
+    // ===== DEEP NESTING =====
+
+    #[test]
+    fn test_deeply_nested_objects() {
+        let json = r#"{
+            "id": "1",
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "value": "deep"
+                    }
+                }
+            }
+        }"#;
+
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            Some("entity"), Some("Entity"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Should handle deep nesting
+        assert_eq!(
+            response["data"]["test"]["entity"]["level1"]["level2"]["level3"]["value"],
+            "deep"
+        );
+    }
+
+    // ===== SPECIAL CHARACTERS =====
+
+    #[test]
+    fn test_special_characters_in_fields() {
+        let json = r#"{
+            "id": "123",
+            "field_with_unicode": "Hello 世界",
+            "field_with_quotes": "He said \"hello\""
+        }"#;
+
+        let result = build_mutation_response(
+            json, "test", "TestSuccess", "TestError",
+            Some("entity"), Some("Entity"), None, false, None,  // No camelCase
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+        // Should preserve special characters
+        assert_eq!(
+            response["data"]["test"]["entity"]["field_with_unicode"],
+            "Hello 世界"
+        );
+    }
+}
+
+// ============================================================================
+// PROPERTY-BASED TESTS (Phase 5)
+// ============================================================================
+
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn cascade_never_in_entity(
+            entity_id in ".*",
+            cascade_data in prop::bool::ANY,
+        ) {
+            let json = if cascade_data {
+                format!(r#"{{
+                    "status": "success",
+                    "entity_type": "Test",
+                    "entity": {{"id": "{}"}},
+                    "cascade": {{"updated": []}}
+                }}"#, entity_id)
+            } else {
+                format!(r#"{{
+                    "status": "success",
+                    "entity_type": "Test",
+                    "entity": {{"id": "{}"}}
+                }}"#, entity_id)
+            };
+
+            let result = super::build_mutation_response(
+                &json, "test", "TestSuccess", "TestError",
+                Some("entity"), Some("Test"), None, true, None,
+            ).unwrap();
+
+            let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+            let entity = &response["data"]["test"]["entity"];
+
+            // INVARIANT: CASCADE must NEVER be in entity
+            prop_assert!(entity.get("cascade").is_none());
+        }
+
+        #[test]
+        fn typename_always_present_in_success(
+            entity_id in ".*",
+        ) {
+            let json = format!(r#"{{"id": "{}"}}"#, entity_id);
+
+            let result = build_mutation_response(
+                &json, "test", "TestSuccess", "TestError",
+                Some("entity"), Some("Entity"), None, true, None,
+            ).unwrap();
+
+            let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+
+            // INVARIANT: __typename always present
+            prop_assert_eq!(
+                response["data"]["test"]["__typename"].as_str(),
+                Some("TestSuccess")
+            );
+            prop_assert_eq!(
+                response["data"]["test"]["entity"]["__typename"].as_str(),
+                Some("Entity")
+            );
+        }
+
+        #[test]
+        fn format_detection_deterministic(
+            has_status in prop::bool::ANY,
+            entity_data in ".*",
+        ) {
+            let json = if has_status {
+                format!(r#"{{"status": "success", "data": "{}"}}"#, entity_data)
+            } else {
+                format!(r#"{{"data": "{}"}}"#, entity_data)
+            };
+
+            // Parse twice - should get same format
+            let result_first_parse = MutationResult::from_json(&json, None);
+            let result_reparsed = MutationResult::from_json(&json, None);
+
+            // INVARIANT: Format detection is deterministic (same JSON → same result)
+            prop_assert_eq!(result_first_parse.is_ok(), result_reparsed.is_ok());
+        }
     }
 }
