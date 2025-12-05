@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql"
-version = "1.8.0-alpha.1"
+version = "1.8.0-alpha.3"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
@@ -23,6 +23,7 @@ simd = []
 pyo3 = { version = "0.25.0", features = ["extension-module"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+thiserror = "1.0"
 once_cell = "1.20"
 arc-swap = "1.7"
 
