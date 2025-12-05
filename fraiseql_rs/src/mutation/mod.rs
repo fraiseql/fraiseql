@@ -26,6 +26,7 @@ use crate::camel_case::to_camel_case;
 /// * `entity_type` - Entity type for __typename (e.g., "User") - REQUIRED for simple format
 /// * `cascade_selections` - Optional cascade field selections (not implemented yet)
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
+/// * `success_type_fields` - Optional list of expected fields in success type for validation
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -35,13 +36,14 @@ pub fn build_mutation_response(
     entity_type: Option<&str>,
     _cascade_selections: Option<&str>,
     auto_camel_case: bool,
+    success_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Parse the mutation result with entity_type for simple format
     let result = MutationResult::from_json(mutation_json, entity_type)?;
 
     // Step 2: Build response object based on status
     let response_obj = if result.status.is_success() || result.status.is_noop() {
-        build_success_object(&result, success_type, entity_field_name, auto_camel_case)?
+        build_success_object(&result, success_type, entity_field_name, auto_camel_case, success_type_fields.as_ref())?
     } else {
         build_error_object(&result, error_type, auto_camel_case)?
     };
@@ -64,7 +66,7 @@ mod test_stub {
 
     #[test]
     fn test_stub_function() {
-        let result = build_mutation_response("", "", "", "", None, None, None, true);
+        let result = build_mutation_response("", "", "", "", None, None, None, true, None);
         assert!(result.is_ok());
     }
 }
@@ -329,6 +331,7 @@ fn build_success_object(
     success_type: &str,
     entity_field_name: Option<&str>,
     auto_camel_case: bool,
+    success_type_fields: Option<&Vec<String>>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
@@ -382,6 +385,42 @@ fn build_success_object(
     if let Some(cascade) = &result.cascade {
         let cascade_with_typename = transform_cascade(cascade, auto_camel_case);
         obj.insert("cascade".to_string(), cascade_with_typename);
+    }
+
+    // Phase 3: Schema validation - check that all expected fields are present
+    if let Some(expected_fields) = success_type_fields {
+        let mut missing_fields = Vec::new();
+        let mut extra_fields = Vec::new();
+
+        // Check for missing expected fields
+        for field in expected_fields {
+            if !obj.contains_key(field) {
+                missing_fields.push(field.clone());
+            }
+        }
+
+        // Check for unexpected fields (warn about them)
+        for key in obj.keys() {
+            if !expected_fields.contains(key) && !key.starts_with("__") {
+                // Allow special fields like __typename
+                extra_fields.push(key.clone());
+            }
+        }
+
+        // Report validation results
+        if !missing_fields.is_empty() {
+            eprintln!(
+                "Schema validation warning: Missing expected fields in {}: {:?}",
+                success_type, missing_fields
+            );
+        }
+
+        if !extra_fields.is_empty() {
+            eprintln!(
+                "Schema validation warning: Extra fields in {} not in schema: {:?}",
+                success_type, extra_fields
+            );
+        }
     }
 
     Ok(Value::Object(obj))

@@ -173,9 +173,17 @@ def _parse_success(
         fields["status"] = result.status
 
     # Process each field in the success type
+    logger.debug(f"Processing {len(annotations)} fields for {success_cls.__name__}")
+    object_data_keys = list(result.object_data.keys()) if result.object_data else None
+    logger.debug(f"Available object_data keys: {object_data_keys}")
+    metadata_keys = list(result.extra_metadata.keys()) if result.extra_metadata else None
+    logger.debug(f"Available extra_metadata keys: {metadata_keys}")
+
     for field_name, field_type in annotations.items():
         if field_name in ("message", "status"):
             continue
+
+        logger.debug(f"Processing field '{field_name}' of type {field_type}")
 
         # Try to get value from different sources
         value = _extract_field_value(
@@ -188,7 +196,10 @@ def _parse_success(
 
         if value is not None:
             fields[field_name] = value
+            logger.debug(f"Successfully extracted field '{field_name}'")
             continue
+
+        logger.debug(f"Direct extraction failed for field '{field_name}', trying fallback methods")
 
         # NEW: Check if this is an entity field that should receive the entire object_data
         # Only do this for single-entity results where object_data is the entity itself
@@ -197,6 +208,8 @@ def _parse_success(
             and _is_entity_field(field_name, field_type)
             and _is_single_entity_object_data(result.object_data, annotations)
         ):
+            logger.debug(f"Attempting to map entire object_data to entity field '{field_name}'")
+
             # Clean UNSET values before processing
             from fraiseql.fastapi.json_encoder import clean_unset_values
 
@@ -206,6 +219,9 @@ def _parse_success(
             value = _instantiate_type(field_type, cleaned_object_data)
             if value is not None:
                 fields[field_name] = value
+                logger.debug(f"Successfully mapped object_data to field '{field_name}'")
+            else:
+                logger.warning(f"Failed to instantiate field '{field_name}' with object_data")
 
     # Handle main entity from object_data if not already mapped
     if result.object_data:
@@ -484,6 +500,7 @@ def _extract_field_value(
 
     # Then check if field exists in object_data by exact name
     if object_data and field_name in object_data:
+        logger.debug(f"Extracted field '{field_name}' directly from object_data")
         # Clean UNSET values before instantiation
         from fraiseql.fastapi.json_encoder import clean_unset_values
 
@@ -494,11 +511,16 @@ def _extract_field_value(
     # This handles the case where object_data = {id: "...", name: "..."}
     # and we want to map it to field "location" of type Location
     if object_data and _is_matching_type(field_type, object_data):
+        logger.debug(f"Mapped entire object_data to field '{field_name}'")
         from fraiseql.fastapi.json_encoder import clean_unset_values
 
         cleaned_data = clean_unset_values(object_data)
         return _instantiate_type(field_type, cleaned_data)
 
+    logger.debug(
+        f"Field '{field_name}' not found in object_data. "
+        f"Available keys: {object_data.keys() if object_data else None}"
+    )
     return None
 
 

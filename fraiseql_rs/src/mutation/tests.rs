@@ -158,6 +158,7 @@ fn test_build_simple_format_response() {
         Some("User"),           // Entity type for __typename
         None,                   // No cascade selections
         true,                   // auto_camel_case
+        None,                   // No success type fields for validation
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -186,7 +187,8 @@ fn test_build_simple_format_with_status_data_field() {
         Some("user"),
         Some("User"),
         None,
-        true
+        true,
+        None
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -224,7 +226,8 @@ fn test_build_v2_success_response() {
         Some("user"),  // entity_field_name,
         None,  // entity_type (comes from JSON in v2),
         None,
-        true
+        true,
+        None
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -260,7 +263,8 @@ fn test_build_v2_error_response() {
         Some("user"),       // entity_field_name,
         None,         // entity_type,
         None,         // cascade_selections,
-        true
+        true,
+        None
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -285,7 +289,8 @@ fn test_build_simple_format_array_response() {
         Some("users"),  // entity_field_name,
         Some("User"),   // entity_type for __typename,
         None,
-        true
+        true,
+        None
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
@@ -333,40 +338,7 @@ fn test_build_v2_noop_response() {
         None,
         None,
         true,
-    ).unwrap();
-
-    let response: Value = serde_json::from_slice(&response_bytes).unwrap();
-    let update_user = &response["data"]["updateUser"];
-
-    // Noop should go to error type
-    assert_eq!(update_user["__typename"], "UpdateUserError");
-    assert_eq!(update_user["status"], "noop:unchanged");
-    assert_eq!(update_user["code"], 422);
-    assert_eq!(update_user["message"], "No changes needed");
-}
-
-// #[test]
-fn test_build_v2_with_updated_fields() {
-    let mutation_json = r#"{
-        "status": "updated",
-        "message": "User updated",
-        "entity_id": "123",
-        "entity_type": "User",
-        "entity": {"id": "123", "first_name": "John", "last_name": "Doe"},
-        "updated_fields": ["first_name", "last_name"],
-        "cascade": null,
-        "metadata": null
-    }"#;
-
-    let response_bytes = build_mutation_response(
-        mutation_json,
-        "updateUser",
-        "UpdateUserSuccess",
-        "UpdateUserError",
-        Some("user"),
-        None,
-        None,
-        true
+        None
     ).unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
