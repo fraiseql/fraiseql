@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `default_error_config` field in `FraiseQLConfig` for global mutation error handling (#159)
+  - Set a global default error configuration for all mutations
+  - Individual mutations can override with explicit `error_config` parameter
+  - Reduces boilerplate by eliminating repetitive `error_config` on every mutation
+  - Resolution order: explicit decorator param > global default > None
+  - Follows existing `default_mutation_schema` pattern
+  - Comprehensive tests with 100% coverage of resolution scenarios
+  - Full documentation in `docs/reference/config.md` and `docs/reference/decorators.md`
+
 ## [1.8.0-alpha.1] - 2025-12-05
 
 ### Changed
