@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.1] - 2025-12-05
+
 ### Changed
 - **BREAKING (Pre-release only)**: Renamed `mutation_result_v2` to `mutation_response`
   - PostgreSQL composite type renamed from `mutation_result_v2` to `mutation_response`
@@ -16,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: None (no external users yet)
   - **Rationale**: Cleaner naming before v1.0 - removes confusing "v2" suffix
   - **Migration**: Update PostgreSQL functions to return `mutation_response` type
+
+### Fixed
+- Entity flattening issues with input type nullability in mutations
+- Input fields now correctly marked as non-null when required
+- GraphQL type conversion for non-null input fields
+
+### Internal
+- Improved entity flattener field removal and cascade priority handling
+- Updated tests to expect non-null enums in input types
+- Enhanced mutation object data mapping for production and development modes
 
 ## [1.7.2] - 2025-12-04
 
