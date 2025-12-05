@@ -7,11 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.1] - 2025-12-05
+
+### Changed
+- **BREAKING (Pre-release only)**: Renamed `mutation_result_v2` to `mutation_response`
+  - PostgreSQL composite type renamed from `mutation_result_v2` to `mutation_response`
+  - All helper functions updated (`row_to_mutation_response`, etc.)
+  - Migration file: `005_add_mutation_result_v2.sql` → `005_add_mutation_response.sql`
+  - Rust type: `MutationResultV2` → `MutationResponse`
+  - **Impact**: None (no external users yet)
+  - **Rationale**: Cleaner naming before v1.0 - removes confusing "v2" suffix
+  - **Migration**: Update PostgreSQL functions to return `mutation_response` type
+
+### Fixed
+- Entity flattening issues with input type nullability in mutations
+- Input fields now correctly marked as non-null when required
+- GraphQL type conversion for non-null input fields
+
+### Internal
+- Improved entity flattener field removal and cascade priority handling
+- Updated tests to expect non-null enums in input types
+- Enhanced mutation object data mapping for production and development modes
+
+## [1.7.2] - 2025-12-04
+
 ### Fixed
 - **CRITICAL**: Fixed bug where custom `error_config` was ignored in HTTP mode (production)
   - Error detection now happens in Rust layer using status string prefixes
   - All mutations via FastAPI now correctly map status strings to Success/Error types
   - Fixes issue where `validation:`, `conflict:`, and other custom prefixes returned as Success
+- Critical Loki log aggregation configuration fixes
+  - Updated deprecated boltdb-shipper schema to TSDB v13
+  - Removed high-cardinality labels (trace_id, span_id, fingerprint) from Promtail
+  - Fixed LogQL syntax errors in documentation
+  - Fixed security issues (default passwords, Docker socket access)
 
 ### Added
 - Comprehensive status taxonomy in Rust mutation layer
@@ -20,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Success keywords: `success`, `created`, `updated`, `deleted`
   - Case-insensitive status matching
 - Documentation: `docs/mutations/status-strings.md` - Complete guide to status string conventions
+- Loki log aggregation with Grafana observability stack
+- Automated dependency updates via Dependabot
 
 ### Changed
 - `error_config` parameter is now deprecated for HTTP mode (still works in non-HTTP mode)
@@ -41,9 +72,9 @@ class CreateUser: ...
 **After (update PostgreSQL functions):**
 ```sql
 -- Use standardized prefixes in PostgreSQL
-RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_result_v2;
-RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_result_v2;
-RETURN ('noop:duplicate', 'Already exists', ...)::mutation_result_v2;
+RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_response;
+RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_response;
+RETURN ('noop:duplicate', 'Already exists', ...)::mutation_response;
 ```
 
 No Python changes needed - `error_config` can be removed.

@@ -5,9 +5,10 @@ PostgreSQL -> Rust -> HTTP bytes (zero Python parsing)
 
 import json
 import logging
-from typing import Any
+from typing import Any, Type
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +38,11 @@ async def execute_mutation_rust(
     context_args: list[Any] | None = None,
     cascade_selections: str | None = None,
     config: Any | None = None,
+    success_type_class: Type | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
-    Supports both simple format (just entity JSONB) and full v2 format.
+    Supports both simple format (just entity JSONB) and full mutation_response format.
     Rust auto-detects the format based on presence of 'status' field.
 
     Args:
@@ -55,6 +57,8 @@ async def execute_mutation_rust(
         context_args: Optional context arguments
         cascade_selections: Optional cascade selections JSON
         config: Optional FraiseQLConfig instance. If None, uses global config.
+        success_type_class: Python Success type class for entity flattening.
+            If provided, will flatten entity JSONB fields to match Success type schema.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -127,12 +131,12 @@ async def execute_mutation_rust(
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
         # psycopg returned a dict (from JSONB or row_to_json composite)
-        # Check for mutation_result_v2 format (has 'status' and 'entity' fields)
+        # Check for mutation_response format (has 'status' and 'entity' fields)
         if "status" in mutation_result and "entity" in mutation_result:
-            # mutation_result_v2 format from row_to_json - pass through as-is
+            # mutation_response format from row_to_json - pass through as-is
             pass
         elif "object_data" in mutation_result:
-            # Legacy composite type format - convert to v2
+            # Legacy composite type format - convert to mutation_response
             mutation_result = {
                 "entity_id": str(mutation_result.get("id")) if mutation_result.get("id") else None,
                 "updated_fields": mutation_result.get("updated_fields"),
@@ -147,13 +151,21 @@ async def execute_mutation_rust(
                 ),
                 "cascade": None,
             }
+
+        # ─────────────────────────────────────────────────────────────
+        # FLATTEN ENTITY WRAPPER for mutation_response
+        # ─────────────────────────────────────────────────────────────
+        if success_type_class is not None:
+            mutation_result = flatten_entity_wrapper(mutation_result, success_type_class)
+        # ─────────────────────────────────────────────────────────────
+
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
     elif isinstance(mutation_result, tuple):
         # psycopg returned a tuple from composite type
-        # mutation_result_v2 order:
+        # mutation_response order:
         # (status, message, entity_id, entity_type, entity, updated_fields, cascade, metadata)
         if len(mutation_result) == 8:
-            # mutation_result_v2 format
+            # mutation_response format
             composite_dict = {
                 "status": mutation_result[0],
                 "message": mutation_result[1],
@@ -186,7 +198,7 @@ async def execute_mutation_rust(
         # Unknown type - try to convert to JSON
         mutation_json = json.dumps(mutation_result, separators=(",", ":"), default=str)
 
-    # Transform via Rust (auto-detects simple vs v2 format)
+    # Transform via Rust (auto-detects simple vs full format)
     response_bytes = fraiseql_rs.build_mutation_response(
         mutation_json,
         field_name,

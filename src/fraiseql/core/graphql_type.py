@@ -237,9 +237,17 @@ def convert_type_to_graphql_input(
             else:
                 graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
-            gql_fields[graphql_field_name] = GraphQLInputField(
-                convert_type_to_graphql_input(field_type),
-            )
+            # Convert field type to GraphQL input type
+            gql_input_type = convert_type_to_graphql_input(field_type)
+
+            # Wrap in GraphQLNonNull if field has no default and is not already optional
+            # (Optional types are already handled in convert_type_to_graphql_input)
+            if not field.has_default() and not is_optional_type(field_type):
+                from graphql import GraphQLNonNull
+
+                gql_input_type = GraphQLNonNull(gql_input_type)
+
+            gql_fields[graphql_field_name] = GraphQLInputField(gql_input_type)
 
         gql_type = GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
         _graphql_type_cache[cache_key] = gql_type

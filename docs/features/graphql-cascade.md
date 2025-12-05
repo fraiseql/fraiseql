@@ -44,7 +44,7 @@ For detailed information on SQL function return formats, see [Mutation Result Re
 
 ## PostgreSQL Function Pattern
 
-To enable cascade for a mutation, include cascade data in your return value. For v2 format, cascade data goes in the `cascade` field of `mutation_result_v2`. For legacy format, use the `_cascade` field:
+To enable cascade for a mutation, include cascade data in your return value. For v2 format, cascade data goes in the `cascade` field of `mutation_response`. For legacy format, use the `_cascade` field:
 
 ### Legacy Format (v1.4)
 
@@ -108,7 +108,7 @@ $$ LANGUAGE plpgsql;
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     v_post_id uuid;
     v_author_id uuid;
@@ -361,7 +361,7 @@ SELECT cascade_merge(cascade1, cascade2);
 SELECT cascade_has_entity_type(cascade_data, 'User');
 ```
 
-See [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutation_result_v2.sql) for complete function definitions.
+See [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) for complete function definitions.
 
 ## Best Practices
 
@@ -391,7 +391,7 @@ See [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutatio
 
 Mutations without cascade work unchanged. Add `enable_cascade=True` and cascade return data incrementally.
 
-**For v2 format**: Use the `cascade` field in `mutation_result_v2` return type.
+**For v2 format**: Use the `cascade` field in `mutation_response` return type.
 **For legacy format**: Use the `_cascade` field in JSONB return value.
 
 Both formats support the same cascade structure and client integration patterns.

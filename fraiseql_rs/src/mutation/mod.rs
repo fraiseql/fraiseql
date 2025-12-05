@@ -1,6 +1,6 @@
 //! Mutation result transformation module
 //!
-//! Transforms PostgreSQL mutation_result_v2 JSON into GraphQL responses.
+//! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
 #[cfg(test)]
 mod tests;
@@ -15,10 +15,10 @@ use crate::camel_case::to_camel_case;
 ///
 /// Supports TWO formats:
 /// 1. **Simple format**: Just entity JSONB (no status field) - auto-detected
-/// 2. **Full v2 format**: Complete mutation_result_v2 with status, message, etc.
+/// 2. **Full format**: Complete mutation_response with status, message, etc.
 ///
 /// # Arguments
-/// * `mutation_json` - Raw JSON from PostgreSQL (simple or v2 format)
+/// * `mutation_json` - Raw JSON from PostgreSQL (simple or full format)
 /// * `field_name` - GraphQL field name (e.g., "createUser")
 /// * `success_type` - Success type name (e.g., "CreateUserSuccess")
 /// * `error_type` - Error type name (e.g., "CreateUserError")
@@ -176,7 +176,7 @@ impl MutationStatus {
 ///
 /// Supports TWO formats:
 /// 1. Simple: Just entity JSONB (detected by absence of "status" field)
-/// 2. Full v2: Complete mutation_result_v2 with status, message, entity, etc.
+/// 2. Full: Complete mutation_response with status, message, entity, etc.
 #[derive(Debug, Clone)]
 pub struct MutationResult {
     pub status: MutationStatus,
@@ -378,9 +378,10 @@ fn build_success_object(
         obj.insert("updatedFields".to_string(), json!(transformed_fields));
     }
 
-    // Add cascade if present
+    // Add cascade if present (add __typename for GraphQL)
     if let Some(cascade) = &result.cascade {
-        obj.insert("cascade".to_string(), cascade.clone());
+        let cascade_with_typename = transform_cascade(cascade, auto_camel_case);
+        obj.insert("cascade".to_string(), cascade_with_typename);
     }
 
     Ok(Value::Object(obj))
@@ -494,6 +495,28 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
 /// Transform error object to camelCase
 fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
     transform_value(error, auto_camel_case)
+}
+
+/// Transform cascade object: add __typename and convert keys to camelCase
+fn transform_cascade(cascade: &Value, auto_camel_case: bool) -> Value {
+    match cascade {
+        Value::Object(map) => {
+            let mut result = Map::with_capacity(map.len() + 1);
+
+            // Add __typename for GraphQL
+            result.insert("__typename".to_string(), json!("Cascade"));
+
+            // Transform each field to camelCase and recursively transform nested values
+            for (key, val) in map {
+                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
+                result.insert(transformed_key, transform_value(val, auto_camel_case));
+            }
+
+            Value::Object(result)
+        }
+        // If cascade is not an object, return as-is (shouldn't happen)
+        other => other.clone(),
+    }
 }
 
 // ============================================================================

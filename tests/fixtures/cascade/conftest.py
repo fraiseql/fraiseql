@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 # Import database fixtures
 import fraiseql
 from fraiseql.mutations import mutation
+from fraiseql.mutations.types import Cascade
 
 
 # Test types for cascade
@@ -44,6 +45,7 @@ class User:
 class CreatePostSuccess:
     id: str
     message: str
+    cascade: Cascade
 
 
 @fraiseql.type
@@ -76,16 +78,16 @@ async def cascade_db_schema(
     """Set up cascade test database schema with tables and PostgreSQL function.
 
     Uses the shared class_db_pool fixture from database_conftest.py for proper database access.
-    Creates tables and a PostgreSQL function that returns mutation_result_v2 with cascade data.
+    Creates tables and a PostgreSQL function that returns mutation_response with cascade data.
 
     CRITICAL: Creates all objects in test_schema for proper isolation.
     """
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")
-        # Create mutation_result_v2 type (from migrations/trinity/005_add_mutation_result_v2.sql)
+        # Create mutation_response type (from migrations/trinity/005_add_mutation_response.sql)
         await conn.execute("""
             DO $$ BEGIN
-                CREATE TYPE mutation_result_v2 AS (
+                CREATE TYPE mutation_response AS (
                     status          text,
                     message         text,
                     entity_id       text,
@@ -119,7 +121,7 @@ async def cascade_db_schema(
         # Create PostgreSQL function in public schema (for FraiseQL default)
         await conn.execute("""
             CREATE OR REPLACE FUNCTION public.create_post(input_data JSONB)
-            RETURNS mutation_result_v2 AS $$
+            RETURNS mutation_response AS $$
             DECLARE
                 p_title TEXT;
                 p_content TEXT;
@@ -140,7 +142,7 @@ async def cascade_db_schema(
                         'Title cannot be empty',
                         NULL, NULL, NULL, NULL, NULL,
                         jsonb_build_object('field', 'title')
-                    )::mutation_result_v2;
+                    )::mutation_response;
                 END IF;
 
                 -- Check if user exists (no schema prefix - uses search_path)
@@ -150,7 +152,7 @@ async def cascade_db_schema(
                         'Author not found',
                         NULL, NULL, NULL, NULL, NULL,
                         jsonb_build_object('resource', 'User', 'id', p_author_id)
-                    )::mutation_result_v2;
+                    )::mutation_response;
                 END IF;
 
                 -- Create post
@@ -215,9 +217,9 @@ async def cascade_db_schema(
                     )
                 );
 
-                -- Return success with cascade via mutation_result_v2
+                -- Return success with cascade via mutation_response
                 RETURN ROW(
-                    'new',
+                    'created',
                     'Post created successfully',
                     v_post_id,
                     'Post',
@@ -225,7 +227,7 @@ async def cascade_db_schema(
                     NULL::text[],
                     v_cascade,
                     NULL::jsonb
-                )::mutation_result_v2;
+                )::mutation_response;
             END;
             $$ LANGUAGE plpgsql;
         """)

@@ -75,6 +75,7 @@ async def test_cascade_end_to_end(cascade_http_client):
     assert "data" in data
     assert "createPost" in data["data"]
     assert data["data"]["createPost"]["id"]
+    # Verify message from PostgreSQL function is preserved
     assert data["data"]["createPost"]["message"] == "Post created successfully"
 
     # Verify cascade data

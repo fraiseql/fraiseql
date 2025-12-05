@@ -17,7 +17,7 @@ Simple keywords indicating successful operations:
 
 **Example:**
 ```sql
-RETURN ('created', 'User created successfully', v_user_id, 'User', v_user_json, ...)::mutation_result_v2;
+RETURN ('created', 'User created successfully', v_user_id, 'User', v_user_json, ...)::mutation_response;
 ```
 
 ### 2. Error Prefixes (Colon-Separated)
@@ -36,7 +36,7 @@ Prefixes indicating operation failures. These map to the Error type in GraphQL.
 **Example:**
 ```sql
 IF EXISTS (SELECT 1 FROM users WHERE email = v_email) THEN
-    RETURN ('conflict:duplicate_email', 'Email already exists', ...)::mutation_result_v2;
+    RETURN ('conflict:duplicate_email', 'Email already exists', ...)::mutation_response;
 END IF;
 ```
 
@@ -60,7 +60,7 @@ VALUES (v_user_id, v_plan_id)
 ON CONFLICT DO NOTHING;
 
 IF NOT FOUND THEN
-    RETURN ('noop:duplicate', 'Already subscribed', v_user_id, ...)::mutation_result_v2;
+    RETURN ('noop:duplicate', 'Already subscribed', v_user_id, ...)::mutation_response;
 END IF;
 ```
 
@@ -78,7 +78,7 @@ All status strings are matched **case-insensitively**:
 
 ```sql
 CREATE FUNCTION create_user(input_data JSONB)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     v_email TEXT;
     v_user_id UUID;
@@ -92,7 +92,7 @@ BEGIN
             'failed:validation_error',
             'Email is required',
             NULL, NULL, NULL, NULL, NULL, NULL
-        )::mutation_result_v2;
+        )::mutation_response;
     END IF;
 
     -- Conflict error (duplicate)
@@ -101,7 +101,7 @@ BEGIN
             'conflict:duplicate_email',
             'Email already exists',
             NULL, NULL, NULL, NULL, NULL, NULL
-        )::mutation_result_v2;
+        )::mutation_response;
     END IF;
 
     -- Success - create user
@@ -118,7 +118,7 @@ BEGIN
         ARRAY['email', 'name'],
         NULL,
         NULL
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql;
 ```
@@ -159,9 +159,3 @@ If you have existing functions using custom statuses:
 | `error:database` | `failed:database_error` | Error |
 | `duplicate:email` | `conflict:duplicate_email` | Error |
 | `already_exists` | `noop:duplicate` | Success |
-
-## Related
-
-- [Mutation Error Handling](./error-handling.md)
-- [mutation_result_v2 Type](./mutation-result-v2.md)
-- [GraphQL Cascade Compliance](./cascade-compliance.md)

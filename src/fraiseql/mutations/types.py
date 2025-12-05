@@ -56,22 +56,22 @@ class MutationResult:
             # Include _cascade in extra_metadata if present
             if "_cascade" in row:
                 extra_metadata["_cascade"] = row["_cascade"]
-        elif "status" in row or "object_data" in row:
-            # Legacy format (explicit status or object_data key)
+        elif "object_data" in row:
+            # Legacy format with explicit object_data key (NOT flattened)
             status = row.get("status", "")
             message = row.get("message", "")
             object_data = row.get("object_data")
             extra_metadata = row.get("extra_metadata")
         else:
-            # Flat format: success type fields at top level
-            # e.g., {id, message, _cascade}
-            # Common with cascade mutations returning success type directly
-            status = "success"  # Assume success if we have flat fields
+            # Flat/Flattened format: success type fields at top level
+            # e.g., {id, message, _cascade} OR {status, message, machine: {...}, entity_id, ...}
+            # Common with cascade mutations or flattened entity mutations
+            status = row.get("status", "success")  # Use status if present, otherwise assume success
             message = row.get("message", "")
 
             # Don't extract _cascade - leave it in original result dict
             # for the resolver to access
-            extra_metadata = None
+            extra_metadata = row.get("extra_metadata") or row.get("metadata")
 
             # All other fields (except system fields) go into object_data
             # This allows the parser to extract them as success type fields
@@ -81,7 +81,10 @@ class MutationResult:
                 "status",
                 "object_data",
                 "extra_metadata",
+                "metadata",
                 "updated_fields",
+                "entity_id",
+                "entity_type",
             }
             object_data = {k: v for k, v in row.items() if k not in system_fields}
 

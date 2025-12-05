@@ -1,4 +1,4 @@
--- Example PostgreSQL functions using mutation_result_v2 format
+-- Example PostgreSQL functions using mutation_response format
 -- Demonstrates the new standardized mutation result format
 
 -- =====================================================
@@ -7,7 +7,7 @@
 
 -- Example: Create User with v2 format
 CREATE OR REPLACE FUNCTION app.create_user_v2(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -37,7 +37,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Update User with v2 format
 CREATE OR REPLACE FUNCTION app.update_user_v2(user_id uuid, input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     updated_fields text[] := ARRAY[]::text[];
     user_data jsonb;
@@ -83,7 +83,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Delete User with v2 format
 CREATE OR REPLACE FUNCTION app.delete_user_v2(user_id uuid)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_exists boolean;
 BEGIN
@@ -102,7 +102,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Create Post with v2 format and cascade data
 CREATE OR REPLACE FUNCTION app.create_post_v2(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     post_data jsonb;
     post_id uuid;
@@ -168,7 +168,7 @@ $$ LANGUAGE plpgsql;
 
 -- After: New v2 format function
 CREATE OR REPLACE FUNCTION app.create_user_new(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -197,7 +197,7 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 
 -- Helper to test mutation functions
-CREATE OR REPLACE FUNCTION test_mutation_result(result mutation_result_v2)
+CREATE OR REPLACE FUNCTION test_mutation_result(result mutation_response)
 RETURNS jsonb AS $$
 BEGIN
     RETURN jsonb_build_object(

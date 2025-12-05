@@ -76,12 +76,12 @@ class TestMutationObjectDataMapping:
         await conn.execute("CREATE SCHEMA IF NOT EXISTS app")
 
         # Drop the type if it exists
-        await conn.execute("DROP TYPE IF EXISTS app.mutation_result CASCADE")
+        await conn.execute("DROP TYPE IF EXISTS app.mutation_response CASCADE")
 
-        # Create the mutation_result type
+        # Create the mutation_response type
         await conn.execute(
             """
-            CREATE TYPE app.mutation_result AS (
+            CREATE TYPE app.mutation_response AS (
                 id UUID,
                 updated_fields TEXT[],
                 status TEXT,
@@ -92,15 +92,15 @@ class TestMutationObjectDataMapping:
         """
         )
 
-        # Create the function that returns mutation_result
+        # Create the function that returns mutation_response
         await conn.execute(
             """
             CREATE OR REPLACE FUNCTION app.create_location(
                 p_input JSONB
-            ) RETURNS app.mutation_result AS $$
+            ) RETURNS app.mutation_response AS $$
             DECLARE
                 v_id UUID;
-                v_result app.mutation_result;
+                v_result app.mutation_response;
                 v_name TEXT;
                 v_identifier TEXT;
             BEGIN

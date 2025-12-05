@@ -135,7 +135,7 @@ async def test_execute_mutation_v2_format():
     mock_cursor = AsyncMock()
     mock_cursor.fetchone.return_value = (
         {
-            "status": "new",
+            "status": "created",
             "message": "User created",
             "entity_id": "123",
             "entity_type": "User",

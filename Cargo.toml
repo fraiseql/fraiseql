@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql"
-version = "1.7.1"
+version = "1.8.0-alpha.1"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"

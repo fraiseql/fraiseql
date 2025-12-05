@@ -35,6 +35,23 @@ def get_versions() -> dict[str, str]:
     return versions
 
 
+def normalize_version(version: str) -> str:
+    """Normalize version strings to handle Python vs Rust pre-release formats.
+
+    Python (PEP 440): 1.8.0a1
+    Rust (SemVer 2.0): 1.8.0-alpha.1
+
+    Both are normalized to: 1.8.0-alpha.1 for comparison.
+    """
+    # Convert Python alpha format (1.8.0a1) to Rust format (1.8.0-alpha.1)
+    version = re.sub(r'(\d+\.\d+\.\d+)a(\d+)', r'\1-alpha.\2', version)
+    # Convert Python beta format (1.8.0b1) to Rust format (1.8.0-beta.1)
+    version = re.sub(r'(\d+\.\d+\.\d+)b(\d+)', r'\1-beta.\2', version)
+    # Convert Python rc format (1.8.0rc1) to Rust format (1.8.0-rc.1)
+    version = re.sub(r'(\d+\.\d+\.\d+)rc(\d+)', r'\1-rc.\2', version)
+    return version
+
+
 def main() -> int:
     versions = get_versions()
 
@@ -42,13 +59,17 @@ def main() -> int:
     for file, version in versions.items():
         print(f"  {file}: {version}")
 
-    unique = set(versions.values())
-    if len(unique) == 1:
-        print(f"\n✅ All versions consistent: {unique.pop()}")
+    # Normalize versions for comparison
+    normalized = {normalize_version(v) for v in versions.values()}
+
+    if len(normalized) == 1:
+        print(f"\n✅ All versions consistent: {list(versions.values())[0]}")
+        print(f"   (Normalized: {normalized.pop()})")
         return 0
     else:
         print(f"\n❌ Version mismatch detected!")
-        print(f"   Found versions: {unique}")
+        print(f"   Found versions: {set(versions.values())}")
+        print(f"   Normalized: {normalized}")
         return 1
 
 

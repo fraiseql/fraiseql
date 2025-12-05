@@ -196,6 +196,7 @@ class MutationDefinition:
                     entity_field_name=self.entity_field_name,
                     entity_type=self.entity_type,
                     context_args=context_args if context_args else None,
+                    success_type_class=self.success_type,
                 )
 
             # Check if we're in HTTP mode (set by FastAPI routers)

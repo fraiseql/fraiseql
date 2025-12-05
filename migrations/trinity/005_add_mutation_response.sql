@@ -1,15 +1,15 @@
--- Migration: Add mutation_result_v2 type and helper functions
+-- Migration: Add mutation_response type and helper functions
 -- Description: Creates PostgreSQL composite type and helper functions for consistent mutation results
 -- Version: 0.1.0
 -- Date: 2025-01-25
 
 -- =====================================================
--- MUTATION RESULT V2 TYPE AND HELPERS
+-- MUTATION RESPONSE TYPE AND HELPERS
 -- =====================================================
 
--- Create the mutation_result_v2 composite type
+-- Create the mutation_response composite type
 -- This provides a standardized format for all mutation responses
-CREATE TYPE mutation_result_v2 AS (
+CREATE TYPE mutation_response AS (
     status          text,                    -- Status: 'success', 'new', 'updated', 'deleted', 'noop:*', 'failed:*'
     message         text,                    -- Human-readable message
     entity_id       text,                    -- Optional entity ID (for updates/deletes)
@@ -31,7 +31,7 @@ CREATE OR REPLACE FUNCTION mutation_success(
     entity_type_name text DEFAULT NULL,
     cascade_data jsonb DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     entity_id_val text;
 BEGIN
@@ -47,7 +47,7 @@ BEGIN
         NULL::text[],  -- No specific updated fields for full success
         cascade_data,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -58,7 +58,7 @@ CREATE OR REPLACE FUNCTION mutation_created(
     entity_type_name text DEFAULT NULL,
     cascade_data jsonb DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     entity_id_val text;
 BEGIN
@@ -73,7 +73,7 @@ BEGIN
         NULL::text[],
         cascade_data,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -85,7 +85,7 @@ CREATE OR REPLACE FUNCTION mutation_updated(
     entity_type_name text DEFAULT NULL,
     cascade_data jsonb DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     entity_id_val text;
 BEGIN
@@ -100,7 +100,7 @@ BEGIN
         updated_fields_list,
         cascade_data,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -111,7 +111,7 @@ CREATE OR REPLACE FUNCTION mutation_deleted(
     entity_type_name text DEFAULT NULL,
     cascade_data jsonb DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     RETURN ROW(
         'deleted'::text,
@@ -122,7 +122,7 @@ BEGIN
         NULL::text[],
         cascade_data,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -135,7 +135,7 @@ CREATE OR REPLACE FUNCTION mutation_noop(
     reason text,
     message_text text DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     RETURN ROW(
         'noop:' || reason,
@@ -146,7 +146,7 @@ BEGIN
         NULL::text[],
         NULL::jsonb,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -159,7 +159,7 @@ CREATE OR REPLACE FUNCTION mutation_validation_error(
     message_text text,
     field_name text DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     error_metadata jsonb;
 BEGIN
@@ -185,7 +185,7 @@ BEGIN
         NULL::text[],
         NULL::jsonb,
         error_metadata
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -194,7 +194,7 @@ CREATE OR REPLACE FUNCTION mutation_not_found(
     resource_type text DEFAULT 'Resource',
     resource_id text DEFAULT NULL,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     message_text text;
     error_metadata jsonb;
@@ -222,7 +222,7 @@ BEGIN
         NULL::text[],
         NULL::jsonb,
         error_metadata
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -231,7 +231,7 @@ CREATE OR REPLACE FUNCTION mutation_conflict(
     message_text text,
     conflict_type text DEFAULT 'duplicate',
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 DECLARE
     error_metadata jsonb;
 BEGIN
@@ -249,7 +249,7 @@ BEGIN
         NULL::text[],
         NULL::jsonb,
         error_metadata
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -258,7 +258,7 @@ CREATE OR REPLACE FUNCTION mutation_error(
     error_type text,
     message_text text,
     metadata_data jsonb DEFAULT NULL
-) RETURNS mutation_result_v2 AS $$
+) RETURNS mutation_response AS $$
 BEGIN
     RETURN ROW(
         'failed:' || error_type,
@@ -269,7 +269,7 @@ BEGIN
         NULL::text[],
         NULL::jsonb,
         metadata_data
-    )::mutation_result_v2;
+    )::mutation_response;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -278,28 +278,28 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- =====================================================
 
 -- Check if a mutation result is successful
-CREATE OR REPLACE FUNCTION mutation_is_success(result mutation_result_v2) RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION mutation_is_success(result mutation_response) RETURNS boolean AS $$
 BEGIN
     RETURN result.status NOT LIKE 'failed:%' AND result.status NOT LIKE 'noop:%';
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Check if a mutation result is an error
-CREATE OR REPLACE FUNCTION mutation_is_error(result mutation_result_v2) RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION mutation_is_error(result mutation_response) RETURNS boolean AS $$
 BEGIN
     RETURN result.status LIKE 'failed:%';
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Check if a mutation result is a no-op
-CREATE OR REPLACE FUNCTION mutation_is_noop(result mutation_result_v2) RETURNS boolean AS $$
+CREATE OR REPLACE FUNCTION mutation_is_noop(result mutation_response) RETURNS boolean AS $$
 BEGIN
     RETURN result.status LIKE 'noop:%';
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Get error type from a failed status (e.g., 'validation' from 'failed:validation')
-CREATE OR REPLACE FUNCTION mutation_error_type(result mutation_result_v2) RETURNS text AS $$
+CREATE OR REPLACE FUNCTION mutation_error_type(result mutation_response) RETURNS text AS $$
 BEGIN
     IF result.status LIKE 'failed:%' THEN
         RETURN substring(result.status from 8); -- Remove 'failed:' prefix
@@ -309,7 +309,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Get noop reason from a noop status (e.g., 'unchanged' from 'noop:unchanged')
-CREATE OR REPLACE FUNCTION mutation_noop_reason(result mutation_result_v2) RETURNS text AS $$
+CREATE OR REPLACE FUNCTION mutation_noop_reason(result mutation_response) RETURNS text AS $$
 BEGIN
     IF result.status LIKE 'noop:%' THEN
         RETURN substring(result.status from 6); -- Remove 'noop:' prefix
@@ -535,7 +535,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 /*
 -- Example: Create user mutation with cascade
 CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -580,7 +580,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Create post with complex cascade
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     post_data jsonb;
     post_id uuid;
@@ -648,7 +648,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Update user with cascade
 CREATE OR REPLACE FUNCTION graphql.update_user(user_id uuid, input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     updated_fields text[] := ARRAY[]::text[];
     user_data jsonb;
