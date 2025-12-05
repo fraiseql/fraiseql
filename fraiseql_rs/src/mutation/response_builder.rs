@@ -16,7 +16,7 @@ pub fn build_graphql_response(
     success_type: &str,
     error_type: &str,
     entity_field_name: Option<&str>,
-    entity_type: Option<&str>,
+    _entity_type: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
 ) -> Result<Value, String> {

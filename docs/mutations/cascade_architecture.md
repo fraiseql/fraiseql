@@ -40,16 +40,16 @@ The CASCADE implementation uses a three-layer architecture:
 
 ### Key Components
 
-#### 1. Entity Flattener (`src/fraiseql/mutations/entity_flattener.py`)
+#### 1. Rust Mutation Pipeline (`fraiseql_rs/src/mutation/`)
 
-**Purpose**: Normalizes PostgreSQL mutation responses for GraphQL serialization.
+**Purpose**: Unified Rust pipeline that processes PostgreSQL mutation responses into GraphQL-compatible format.
 
-**Key Functions**:
-- `should_flatten_entity()` - Determines if Success type needs flattening
-- `get_success_type_fields()` - Extracts field names from Success type annotations
-- `flatten_entity_wrapper()` - Main flattening logic with case-insensitive matching
+**Key Components**:
+- `parser.rs` - Parses JSON responses with format auto-detection
+- `entity_processor.rs` - Handles entity extraction, __typename injection, and CASCADE processing
+- `response_builder.rs` - Builds GraphQL-compliant responses
 
-**Critical Fix**: Case-insensitive entity type matching prevents the wrong code path from executing when `enable_cascade=True`.
+**Architecture**: Single 2-layer pipeline (PostgreSQL → Rust → JSON) replacing the previous 5-layer Python/Rust architecture.
 
 #### 2. Mutation Decorator (`src/fraiseql/mutations/mutation_decorator.py`)
 
