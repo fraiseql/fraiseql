@@ -49,6 +49,15 @@ class CreatePostSuccess:
 
 
 @fraiseql.type
+class CreatePostWithEntitySuccess:
+    """Success type with nested entity field - tests bug from cascade_bug_report.md."""
+
+    post: Post
+    message: str
+    cascade: Cascade
+
+
+@fraiseql.type
 class CreatePostError:
     code: str
     message: str
@@ -59,6 +68,15 @@ class CreatePostError:
 class CreatePost:
     input: CreatePostInput
     success: CreatePostSuccess
+    error: CreatePostError
+
+
+@mutation(enable_cascade=True, function="create_post_with_entity")
+class CreatePostWithEntity:
+    """Mutation that returns entity in success type - tests CASCADE doesn't break entity fields."""
+
+    input: CreatePostInput
+    success: CreatePostWithEntitySuccess
     error: CreatePostError
 
 
@@ -232,6 +250,121 @@ async def cascade_db_schema(
             $$ LANGUAGE plpgsql;
         """)
 
+        # Create PostgreSQL function for mutation with entity return
+        # This function returns the entity in a way that FraiseQL can map to the Post field
+        await conn.execute("""
+            CREATE OR REPLACE FUNCTION public.create_post_with_entity(input_data JSONB)
+            RETURNS mutation_response AS $$
+            DECLARE
+                p_title TEXT;
+                p_content TEXT;
+                p_author_id TEXT;
+                v_post_id TEXT;
+                v_cascade JSONB;
+                v_entity JSONB;
+            BEGIN
+                -- Extract input parameters (snake_case from FraiseQL)
+                p_title := input_data->>'title';
+                p_content := input_data->>'content';
+                p_author_id := input_data->>'author_id';
+
+                -- Validate input
+                IF p_title = '' OR p_title IS NULL THEN
+                    RETURN ROW(
+                        'failed:validation',
+                        'Title cannot be empty',
+                        NULL, NULL, NULL, NULL, NULL,
+                        jsonb_build_object('field', 'title')
+                    )::mutation_response;
+                END IF;
+
+                -- Check if user exists
+                IF NOT EXISTS (SELECT 1 FROM tb_user WHERE id = p_author_id) THEN
+                    RETURN ROW(
+                        'failed:not_found',
+                        'Author not found',
+                        NULL, NULL, NULL, NULL, NULL,
+                        jsonb_build_object('resource', 'User', 'id', p_author_id)
+                    )::mutation_response;
+                END IF;
+
+                -- Create post
+                v_post_id := 'post-' || gen_random_uuid()::text;
+
+                INSERT INTO tb_post (id, title, content, author_id)
+                VALUES (v_post_id, p_title, p_content, p_author_id);
+
+                -- Update user post count
+                UPDATE tb_user
+                SET post_count = post_count + 1
+                WHERE id = p_author_id;
+
+                 -- Build entity data for the Post field (this goes to CreatePostWithEntitySuccess.post)
+                 -- For single entity mutations, entity should be the entity data directly
+                 v_entity := jsonb_build_object(
+                     'id', v_post_id,
+                     'title', p_title,
+                     'content', p_content,
+                     'author_id', p_author_id
+                 );
+
+                -- Build cascade data
+                v_cascade := jsonb_build_object(
+                    'updated', jsonb_build_array(
+                        jsonb_build_object(
+                            '__typename', 'Post',
+                            'id', v_post_id,
+                            'operation', 'CREATED',
+                            'entity', jsonb_build_object(
+                                'id', v_post_id,
+                                'title', p_title,
+                                'content', p_content,
+                                'authorId', p_author_id
+                            )
+                        ),
+                        jsonb_build_object(
+                            '__typename', 'User',
+                            'id', p_author_id,
+                            'operation', 'UPDATED',
+                            'entity', (
+                                SELECT jsonb_build_object(
+                                    'id', id,
+                                    'name', name,
+                                    'postCount', post_count
+                                )
+                                FROM tb_user WHERE id = p_author_id
+                            )
+                        )
+                    ),
+                    'deleted', jsonb_build_array(),
+                    'invalidations', jsonb_build_array(
+                        jsonb_build_object(
+                            'queryName', 'posts',
+                            'strategy', 'INVALIDATE',
+                            'scope', 'PREFIX'
+                        )
+                    ),
+                    'metadata', jsonb_build_object(
+                        'timestamp', NOW()::text,
+                        'affectedCount', 2
+                    )
+                );
+
+                 -- Return success with cascade
+                 RETURN ROW(
+                     'created',
+                     'Post created successfully',
+                     v_post_id,
+                     'Post',  -- entity_type should be the GraphQL type name (capitalized)
+                     v_entity,
+                     NULL::text[],
+                     v_cascade,
+                     NULL
+                 )::mutation_response;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+
         # Insert test user (no schema prefix - uses search_path)
         await conn.execute("""
             INSERT INTO tb_user (id, name, post_count)
@@ -257,9 +390,16 @@ def cascade_app(cascade_db_schema, create_fraiseql_app_with_db) -> FastAPI:
     Depends on cascade_db_schema to ensure schema is set up.
     """
     app = create_fraiseql_app_with_db(
-        types=[CreatePostInput, Post, User, CreatePostSuccess, CreatePostError],
+        types=[
+            CreatePostInput,
+            Post,
+            User,
+            CreatePostSuccess,
+            CreatePostWithEntitySuccess,
+            CreatePostError,
+        ],
         queries=[get_post],
-        mutations=[CreatePost],
+        mutations=[CreatePost, CreatePostWithEntity],
     )
     return app
 

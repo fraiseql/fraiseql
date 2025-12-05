@@ -39,6 +39,7 @@ async def execute_mutation_rust(
     cascade_selections: str | None = None,
     config: Any | None = None,
     success_type_class: Type | None = None,
+    success_type_fields: list[str] | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -59,6 +60,7 @@ async def execute_mutation_rust(
         config: Optional FraiseQLConfig instance. If None, uses global config.
         success_type_class: Python Success type class for entity flattening.
             If provided, will flatten entity JSONB fields to match Success type schema.
+        success_type_fields: List of field names expected in Success type for validation.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -208,6 +210,7 @@ async def execute_mutation_rust(
         entity_type,
         cascade_selections,
         auto_camel_case,  # Pass config flag
+        success_type_fields,  # Pass field list for schema validation
     )
 
     return RustResponseBytes(response_bytes, schema_type=success_type)

@@ -26,6 +26,7 @@ use crate::camel_case::to_camel_case;
 /// * `entity_type` - Entity type for __typename (e.g., "User") - REQUIRED for simple format
 /// * `cascade_selections` - Optional cascade field selections (not implemented yet)
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
+/// * `success_type_fields` - Optional list of expected fields in success type for validation
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -35,13 +36,14 @@ pub fn build_mutation_response(
     entity_type: Option<&str>,
     _cascade_selections: Option<&str>,
     auto_camel_case: bool,
+    success_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Parse the mutation result with entity_type for simple format
     let result = MutationResult::from_json(mutation_json, entity_type)?;
 
     // Step 2: Build response object based on status
     let response_obj = if result.status.is_success() || result.status.is_noop() {
-        build_success_object(&result, success_type, entity_field_name, auto_camel_case)?
+        build_success_object(&result, success_type, entity_field_name, auto_camel_case, success_type_fields.as_ref())?
     } else {
         build_error_object(&result, error_type, auto_camel_case)?
     };
@@ -64,7 +66,7 @@ mod test_stub {
 
     #[test]
     fn test_stub_function() {
-        let result = build_mutation_response("", "", "", "", None, None, None, true);
+        let result = build_mutation_response("", "", "", "", None, None, None, true, None);
         assert!(result.is_ok());
     }
 }
@@ -329,6 +331,7 @@ fn build_success_object(
     success_type: &str,
     entity_field_name: Option<&str>,
     auto_camel_case: bool,
+    success_type_fields: Option<&Vec<String>>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
@@ -346,9 +349,8 @@ fn build_success_object(
     // Add entity with __typename and camelCase keys
     if let Some(entity) = &result.entity {
         let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
-        let transformed = transform_entity(entity, entity_type, auto_camel_case);
 
-        // Use provided field name or derive from type
+        // Determine the field name for the entity in the response
         let field_name = entity_field_name
             .map(|name| {
                 // Convert entity_field_name based on auto_camel_case flag
@@ -367,7 +369,53 @@ fn build_success_object(
                 }
             });
 
+        // Check if entity is a wrapper object containing entity_field_name
+        // This happens when Python entity_flattener skips flattening (CASCADE case)
+        // The entity looks like: {"post": {...}, "message": "..."}
+        let actual_entity = if let Value::Object(entity_map) = entity {
+            // Check if the entity wrapper contains a field matching entity_field_name
+            if let Some(entity_field_name_raw) = entity_field_name {
+                if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
+                    // Found nested entity - extract it
+                    nested_entity
+                } else {
+                    // No nested field, use entire entity
+                    entity
+                }
+            } else {
+                // No entity_field_name hint, use entire entity
+                entity
+            }
+        } else {
+            // Entity is not an object (array or primitive), use as-is
+            entity
+        };
+
+        let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
         obj.insert(field_name, transformed);
+
+        // If entity was a wrapper, copy other fields from it (like "message")
+        if let Value::Object(entity_map) = entity {
+            if let Some(entity_field_name_raw) = entity_field_name {
+                if entity_map.contains_key(entity_field_name_raw) {
+                    // Entity was a wrapper - copy other fields
+                    for (key, value) in entity_map {
+                        if key != entity_field_name_raw && key != "entity" {
+                            // Don't copy the entity field itself or nested "entity"
+                            let field_key = if auto_camel_case {
+                                to_camel_case(key)
+                            } else {
+                                key.clone()
+                            };
+                            // Only add if not already present (message might be at top level)
+                            if !obj.contains_key(&field_key) {
+                                obj.insert(field_key, transform_value(value, auto_camel_case));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Add updatedFields (convert to camelCase)
@@ -382,6 +430,42 @@ fn build_success_object(
     if let Some(cascade) = &result.cascade {
         let cascade_with_typename = transform_cascade(cascade, auto_camel_case);
         obj.insert("cascade".to_string(), cascade_with_typename);
+    }
+
+    // Phase 3: Schema validation - check that all expected fields are present
+    if let Some(expected_fields) = success_type_fields {
+        let mut missing_fields = Vec::new();
+        let mut extra_fields = Vec::new();
+
+        // Check for missing expected fields
+        for field in expected_fields {
+            if !obj.contains_key(field) {
+                missing_fields.push(field.clone());
+            }
+        }
+
+        // Check for unexpected fields (warn about them)
+        for key in obj.keys() {
+            if !expected_fields.contains(key) && !key.starts_with("__") {
+                // Allow special fields like __typename
+                extra_fields.push(key.clone());
+            }
+        }
+
+        // Report validation results
+        if !missing_fields.is_empty() {
+            eprintln!(
+                "Schema validation warning: Missing expected fields in {}: {:?}",
+                success_type, missing_fields
+            );
+        }
+
+        if !extra_fields.is_empty() {
+            eprintln!(
+                "Schema validation warning: Extra fields in {} not in schema: {:?}",
+                success_type, extra_fields
+            );
+        }
     }
 
     Ok(Value::Object(obj))

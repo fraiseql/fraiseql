@@ -59,7 +59,7 @@ def test_flatten_entity_wrapper_basic():
             "extra": "data",
         },
         "cascade": {"updated": [], "deleted": []},
-        "entity_type": "Post",
+        "entity_type": "Article",  # Doesn't match 'post' field, so should flatten
         "entity_id": "123",
     }
 
@@ -76,7 +76,7 @@ def test_flatten_entity_wrapper_basic():
     assert flattened["cascade"] == {"updated": [], "deleted": []}
 
     # Other fields preserved
-    assert flattened["entity_type"] == "Post"
+    assert flattened["entity_type"] == "Article"
     assert flattened["entity_id"] == "123"
 
 

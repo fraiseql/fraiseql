@@ -113,19 +113,23 @@ def flatten_entity_wrapper(
         logger.debug("Success type has 'entity' field, keeping entity wrapper (no flattening)")
         return mutation_result
 
-    # Check if entity_type hint matches any expected field
+    # Check if entity_type hint matches any expected field (case-insensitive)
     # entity_type is a hint like 'machine', 'post', etc. that indicates which
     # field should receive entity data
     entity_type_hint = mutation_result.get("entity_type")
-    if entity_type_hint and entity_type_hint in expected_fields and entity_type_hint != "entity":
-        # Custom entity field name detected (e.g., 'machine', 'post')
-        # The Rust transformer doesn't fully support custom field names yet,
-        # so we skip flattening and let the Python parser handle it
-        logger.debug(
-            f"Success type has custom entity field '{entity_type_hint}', "
-            f"skipping flattening (Rust transformer limitation)"
-        )
-        return mutation_result
+    if entity_type_hint and entity_type_hint != "entity":
+        # Case-insensitive matching: check if any expected field matches entity_type
+        entity_type_lower = entity_type_hint.lower()
+        for field_name in expected_fields:
+            if field_name.lower() == entity_type_lower:
+                # Custom entity field name detected (e.g., 'machine', 'post')
+                # The Rust transformer doesn't fully support custom field names yet,
+                # so we skip flattening and let the Python parser handle it
+                logger.debug(
+                    f"Entity type '{entity_type_hint}' matches field '{field_name}', "
+                    f"skipping flattening (Rust will handle)"
+                )
+                return mutation_result
 
     # Legacy behavior: extract individual fields from entity dict
     # Priority: top-level fields > entity fields (e.g., cascade from top-level wins)
@@ -160,6 +164,36 @@ def flatten_entity_wrapper(
 
     logger.debug(f"Removed extra fields: {fields_to_remove}")
 
-    logger.debug(f"Flattened result keys: {flattened.keys()}")
+    for key in fields_to_remove:
+        flattened.pop(key, None)
+
+    # PHASE 1: Add field validation after flattening
+    # Ensure all expected fields are present in the flattened result
+    missing_fields = []
+    for field_name in expected_fields:
+        if field_name not in flattened and field_name in entity:
+            # Field was in entity but didn't get flattened
+            missing_fields.append(field_name)
+
+    if missing_fields:
+        logger.error(
+            f"Flattening failed: expected fields {missing_fields} not found. "
+            f"Entity keys: {entity.keys()}, Flattened keys: {flattened.keys()}"
+        )
+        raise ValueError(
+            f"Flattening failed: expected fields {missing_fields} not found. "
+            f"Entity keys: {entity.keys()}, Flattened keys: {flattened.keys()}"
+        )
+
+    # PHASE 1: Keep internal fields for now - Rust transformer may need them
+    # TODO(@fraiseql/team): Remove internal fields after Rust schema validation (Phase 3)
+    # https://github.com/fraiseql/fraiseql/issues/XXX
+    # internal_only_fields = {"entity_id", "entity_type", "updated_fields", "metadata"}
+    # for field in internal_only_fields:
+    #     if field in flattened and field not in expected_fields:
+    #         flattened.pop(field, None)
+    #         logger.debug(f"Removed internal field '{field}'")
+
+    logger.debug(f"Final flattened result: {flattened}")
 
     return flattened

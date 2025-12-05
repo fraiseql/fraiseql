@@ -27,7 +27,9 @@ Automatic cache invalidation that propagates when related data changes.
 - Auto-detection from GraphQL schema
 - Apollo Client and Relay integration
 - Zero manual cache management
-- **[Learn about Cascade →](features/graphql-cascade.md)**
+- **[Architecture Overview →](mutations/cascade_architecture.md)**
+- **[Migration Guide →](mutations/migration_guide.md)**
+- **[Best Practices & Examples →](guides/cascade-best-practices.md)**
 
 ### LangChain Integration
 
@@ -84,6 +86,7 @@ FraiseQL provides flexible filtering with two syntaxes:
 - [APQ Optimization](performance/apq-optimization-guide.md)
 - [Rust Pipeline](performance/rust-pipeline-optimization.md)
 - [CASCADE Best Practices](guides/cascade-best-practices.md)
+- [CASCADE Architecture](mutations/cascade_architecture.md)
 
 ## Reference
 
@@ -97,6 +100,11 @@ FraiseQL provides flexible filtering with two syntaxes:
 - [Troubleshooting Decision Tree](guides/troubleshooting-decision-tree.md)
 - [Cascade Best Practices](guides/cascade-best-practices.md)
 - [Migrating to Cascade](guides/migrating-to-cascade.md)
+
+## Mutations
+
+- [CASCADE Architecture](mutations/cascade_architecture.md) - Complete technical overview
+- [CASCADE Migration Guide](mutations/migration_guide.md) - Step-by-step migration instructions
 
 ## Development
 
