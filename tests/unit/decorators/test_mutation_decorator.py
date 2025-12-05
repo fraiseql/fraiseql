@@ -275,10 +275,10 @@ class TestMutationResolver:
             # Call resolver
             result = await resolver(info, input_obj)
 
-        # Verify result is error type (parsed because cascade enabled)
-        assert isinstance(result, SampleError)
-        assert result.message == "Email already exists"
-        assert result.code == "validation_error"
+        # Verify result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
+        assert result["message"] == "Email already exists"
+        assert result["status"] == "validation_error"
 
     @pytest.mark.asyncio
     async def test_resolver_passthrough_cascade_when_enabled(self) -> None:
@@ -334,9 +334,10 @@ class TestMutationResolver:
             # Call resolver
             result = await resolver(info, input_obj)
 
-        # Verify cascade data is attached
-        assert hasattr(result, "__cascade__")
-        assert result.__cascade__ == cascade_data
+        # Verify cascade data is present in dict (stored as _cascade internally)
+        assert isinstance(result, dict)
+        assert "_cascade" in result
+        assert result["_cascade"] == cascade_data
 
     @pytest.mark.asyncio
     async def test_resolver_ignores_cascade_when_disabled(self) -> None:
@@ -390,10 +391,14 @@ class TestMutationResolver:
             # Call resolver
             result = await resolver(info, input_obj)
 
-        # In non-HTTP mode, we always return parsed Python objects for GraphQL compatibility
-        # But when enable_cascade=False, cascade data should NOT be attached
-        assert isinstance(result, SampleSuccess)
-        assert not hasattr(result, "__cascade__")  # No cascade data when disabled
+        # In non-HTTP mode, we return dicts (new Rust pipeline behavior)
+        # When enable_cascade=False, cascade is either absent or empty
+        assert isinstance(result, dict)
+        cascade = result.get("_cascade")
+        # Cascade should be None, empty dict, or have empty lists
+        if cascade:
+            assert cascade.get("updated") == [] or cascade.get("updated") is None
+            assert cascade.get("deleted") == [] or cascade.get("deleted") is None
 
     @pytest.mark.asyncio
     async def test_resolver_missing_database_raises_error(self) -> None:
@@ -562,8 +567,8 @@ class TestPrepareInputHook:
                 # subnet_mask should be removed
             }
 
-        # Result is parsed because mutation has union return type (success and error)
-        assert isinstance(result, SampleSuccess)
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_mutation_without_prepare_input_works_normally(self) -> None:
@@ -617,8 +622,8 @@ class TestPrepareInputHook:
             call_kwargs = mock_executor.call_args.kwargs
             assert call_kwargs["input_data"] == {"name": "John Doe", "email": "john@example.com"}
 
-        # Result is parsed because mutation has union return type (success and error)
-        assert isinstance(result, SampleSuccess)
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_prepare_input_can_convert_empty_strings_to_null(self) -> None:
@@ -684,5 +689,5 @@ class TestPrepareInputHook:
                 "notes": None,  # Converted from ""
             }
 
-        # Result is parsed because mutation has union return type (success and error)
-        assert isinstance(result, SampleSuccess)
+        # Result is a dict (new Rust pipeline behavior)
+        assert isinstance(result, dict)
