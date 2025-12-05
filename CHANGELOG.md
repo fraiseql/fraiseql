@@ -7,7 +7,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.0-alpha.2] - 2025-12-05
+## [1.8.0-alpha.3] - 2025-12-05
+
+### 🚀 Major: Unified Rust Mutation Pipeline
+
+**BREAKING CHANGE (Internal)**: Complete rewrite of mutation processing pipeline from fragile 5-layer Python/Rust hybrid to clean 2-layer Rust-first architecture.
+
+**For Users**: No breaking changes - all changes are internal. Existing code continues to work.
+
+**For Tests**: Non-HTTP mode now returns dicts instead of typed objects. Update: `result.user.id` → `result["user"]["id"]`
+
+#### Architecture Changes
+
+**Before (5 layers, ~2300 LOC)**:
+```
+PostgreSQL → Python Normalize → Python Flatten → Rust Transform → Python Parse → JSON
+```
+
+**After (2 layers, ~1000 LOC Rust)**:
+```
+PostgreSQL → Rust Pipeline → JSON/Dict
+```
+
+**Net impact**: -3,569 LOC (30% reduction), single source of truth, type-safe throughout
+
+#### What Changed
+
+**New Rust Modules** (Phases 1-3):
+- `fraiseql_rs/src/mutation/types.rs` - Core type system
+- `fraiseql_rs/src/mutation/parser.rs` - Format detection & parsing
+- `fraiseql_rs/src/mutation/entity_processor.rs` - Entity processing & __typename
+- `fraiseql_rs/src/mutation/response_builder.rs` - GraphQL response building
+- Two formats: Simple (entity-only) and Full (mutation_response)
+- Auto-detection based on status field presence
+- CASCADE as optional field (not separate format)
+
+**Deleted Python Code** (Phase 4):
+- `src/fraiseql/mutations/entity_flattener.py` (-199 LOC)
+- `src/fraiseql/mutations/parser.py` (-822 LOC)
+- Simplified `rust_executor.py` (removed flattening logic)
+- Updated `mutation_decorator.py` (dict responses, not typed objects)
+
+**Tests** (Phase 5):
+- Comprehensive Rust unit tests (>95% coverage)
+- Integration tests with PostgreSQL
+- Property-based tests for invariants
+- Edge case coverage (CASCADE placement, __typename, format detection)
+
+**Documentation** (Phase 6):
+- `docs/architecture/mutation_pipeline.md` - Architecture overview
+- `docs/advanced/rust-mutation-pipeline.md` - Implementation details
+- `docs/advanced/migration-guide.md` - Migration from old patterns
+- `docs/advanced/examples.md` - Usage examples
+
+**Cleanup** (Phase 7-8):
+- Removed "v2" terminology → standardized "Simple" and "Full" format naming
+- Deleted 20 obsolete test files (5,313 LOC) testing deleted internals
+- Archived old planning docs to `docs/planning/archived-pre-v1.9/`
+- Updated architecture docs to reflect new pipeline
+
+#### Key Features
+
+✅ **Single source of truth**: All transformation in Rust
+✅ **Type-safe**: Rust type system throughout pipeline
+✅ **Auto-detection**: Simple vs Full format based on status field
+✅ **CASCADE correct**: Always at success level, never nested in entity
+✅ **__typename consistency**: Always present in responses and entities
+✅ **Introspection compatible**: No changes needed to mutation generation
+✅ **Performance**: <1ms overhead for typical mutations, <2ms with CASCADE
+
+#### Behavior Changes
+
+1. **Dict responses in non-HTTP mode**: Tests now receive dicts instead of typed objects
+   - Update: `result.user.id` → `result["user"]["id"]`
+   - CASCADE access: `result["cascade"]` (not `result.user.cascade`)
+   - HTTP mode unchanged (already returns bytes)
+
+2. **CASCADE placement**: Always at success level (sibling to entity, not nested)
+   - Before: Sometimes nested in entity (bug)
+   - After: Always at success level (correct)
+
+3. **Format detection**: Auto-detects Simple vs Full based on valid status field
+   - Simple: No status field OR invalid status value
+   - Full: Valid mutation status (success, failed:*, etc.)
+
+#### Migration Notes
+
+**For most users**: No changes needed - existing code works as-is
+
+**For tests using non-HTTP mode**:
+```python
+# Before
+result = await execute_mutation(...)
+user_id = result.user.id  # Typed object
+
+# After
+result = await execute_mutation(...)
+user_id = result["user"]["id"]  # Dict
+```
+
+**For CASCADE access**:
+```python
+# Before
+cascade = result.__cascade__  # Attribute
+
+# After
+cascade = result.get("cascade")  # Dict key
+```
+
+See `docs/advanced/migration-guide.md` for full details.
 
 ### Added
 - `default_error_config` field in `FraiseQLConfig` for global mutation error handling (#159)
@@ -18,8 +126,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Follows existing `default_mutation_schema` pattern
   - Comprehensive tests with 100% coverage of resolution scenarios
   - Full documentation in `docs/reference/config.md` and `docs/reference/decorators.md`
+- Pre-push git hook to prevent pushing broken code
+  - Runs tests automatically before `git push`
+  - Blocks push if tests fail
+  - Documentation in `docs/development/pre-push-hooks.md`
 
 ### Fixed
+- CASCADE placement bug: Now always at success level, never nested in entity
+- __typename consistency: Always present in success responses and entities
 - Cascade entity field resolution when `enable_cascade=True`
   - Fixed incorrect `__typename` capitalization in nested entity fields
   - Entity fields now properly resolved at all nesting levels
