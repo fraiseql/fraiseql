@@ -32,9 +32,10 @@ class MutationDefinition:
         # Store the provided schema for lazy resolution
         self._provided_schema = schema
         self._resolved_schema = None  # Will be resolved lazily
+        self._provided_error_config = error_config  # <-- NEW: Store provided value
+        self._resolved_error_config = None  # <-- NEW: Lazy resolution
 
         self.context_params = context_params or {}
-        self.error_config = error_config
         self.enable_cascade = enable_cascade
 
         # Get type hints
@@ -134,6 +135,41 @@ class MutationDefinition:
 
         # Fall back to "public" as per feature requirements
         return "public"
+
+    @property
+    def error_config(self) -> MutationErrorConfig | None:
+        """Get the error config, resolving it lazily if needed."""
+        if self._resolved_error_config is None:
+            self._resolved_error_config = self._resolve_error_config(self._provided_error_config)
+        return self._resolved_error_config
+
+    def _resolve_error_config(
+        self, provided_error_config: MutationErrorConfig | None
+    ) -> MutationErrorConfig | None:
+        """Resolve the error config to use, considering defaults from config.
+
+        Resolution order:
+        1. Explicit error_config parameter on decorator (highest priority)
+        2. default_error_config from FraiseQLConfig
+        3. None (no error configuration)
+        """
+        # If error_config was explicitly provided, use it (even if None)
+        if provided_error_config is not None:
+            return provided_error_config
+
+        # Try to get default from registry config
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            registry = SchemaRegistry.get_instance()
+
+            if registry.config and hasattr(registry.config, "default_error_config"):
+                return registry.config.default_error_config
+        except ImportError:
+            pass
+
+        # Fall back to None (no error configuration)
+        return None
 
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
