@@ -750,6 +750,7 @@ class TestEdgeCases:
         """Test parse success when constructor fails."""
         # Create a mock success class that fails construction
         mock_success_cls = MagicMock()
+        mock_success_cls.__name__ = "MockSuccess"
         mock_success_cls.__annotations__ = {"message": str}
         mock_success_cls.side_effect = TypeError("Constructor failed")
 

@@ -173,8 +173,13 @@ def _parse_success(
         fields["status"] = result.status
 
     # Process each field in the success type
-    logger.debug(f"Processing {len(annotations)} fields for {success_cls.__name__}")
-    object_data_keys = list(result.object_data.keys()) if result.object_data else None
+    class_name = getattr(success_cls, "__name__", str(success_cls))
+    logger.debug(f"Processing {len(annotations)} fields for {class_name}")
+    object_data_keys = (
+        list(result.object_data.keys())
+        if result.object_data and isinstance(result.object_data, dict)
+        else None
+    )
     logger.debug(f"Available object_data keys: {object_data_keys}")
     metadata_keys = list(result.extra_metadata.keys()) if result.extra_metadata else None
     logger.debug(f"Available extra_metadata keys: {metadata_keys}")
@@ -517,10 +522,8 @@ def _extract_field_value(
         cleaned_data = clean_unset_values(object_data)
         return _instantiate_type(field_type, cleaned_data)
 
-    logger.debug(
-        f"Field '{field_name}' not found in object_data. "
-        f"Available keys: {object_data.keys() if object_data else None}"
-    )
+    available_keys = object_data.keys() if object_data and isinstance(object_data, dict) else None
+    logger.debug(f"Field '{field_name}' not found in object_data. Available keys: {available_keys}")
     return None
 
 
