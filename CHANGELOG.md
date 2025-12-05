@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.2] - 2025-12-05
+
 ### Added
 - `default_error_config` field in `FraiseQLConfig` for global mutation error handling (#159)
   - Set a global default error configuration for all mutations
@@ -16,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Follows existing `default_mutation_schema` pattern
   - Comprehensive tests with 100% coverage of resolution scenarios
   - Full documentation in `docs/reference/config.md` and `docs/reference/decorators.md`
+
+### Fixed
+- Cascade entity field resolution when `enable_cascade=True`
+  - Fixed incorrect `__typename` capitalization in nested entity fields
+  - Entity fields now properly resolved at all nesting levels
+  - Corrected field name handling in entity flattener for cascaded entities
 
 ## [1.8.0-alpha.1] - 2025-12-05
 
