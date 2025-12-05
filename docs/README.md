@@ -29,7 +29,7 @@ Automatic cache invalidation that propagates when related data changes.
 - Zero manual cache management
 - **[Architecture Overview →](mutations/cascade_architecture.md)**
 - **[Migration Guide →](mutations/migration_guide.md)**
-- **[Examples →](examples/cascade-create-post/)**
+- **[Best Practices & Examples →](guides/cascade-best-practices.md)**
 
 ### LangChain Integration
 
