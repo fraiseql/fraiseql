@@ -60,11 +60,8 @@ fn add_cascade_if_selected(
     let selections: crate::mutation::CascadeSelections = serde_json::from_str(selections_json)
         .map_err(|e| format!("Invalid CASCADE selections JSON: {}", e))?;
 
-    let filtered_cascade = crate::mutation::filter_cascade_by_selections(
-        cascade,
-        &selections,
-        auto_camel_case
-    )?;
+    let filtered_cascade =
+        crate::mutation::filter_cascade_by_selections(cascade, &selections, auto_camel_case)?;
 
     obj.insert("cascade".to_string(), filtered_cascade);
 
@@ -381,7 +378,8 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+                .unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserSuccess");
@@ -408,7 +406,8 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+                .unwrap();
         let obj = response.as_object().unwrap();
 
         // CASCADE at success level
@@ -435,7 +434,8 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+                .unwrap();
         let obj = response.as_object().unwrap();
 
         // Entity extracted and has __typename

@@ -5,7 +5,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use fraiseql_rs::core::arena::Arena;
-use fraiseql_rs::core::transform::{TransformConfig, ZeroCopyTransformer, ByteBuf};
+use fraiseql_rs::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
 
 /// Generate small workload: 10 objects, 5 fields each (~1KB total)
 fn generate_small_workload() -> Vec<String> {
@@ -51,16 +51,15 @@ fn benchmark_zero_copy_small(c: &mut Criterion) {
                 add_graphql_wrapper: false,
             };
 
-            let transformer = ZeroCopyTransformer::new(
-                &arena,
-                config,
-                Some("User"),
-                None,
-            );
+            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(transformer.transform_bytes(json_str.as_bytes(), &mut output).unwrap());
+                black_box(
+                    transformer
+                        .transform_bytes(json_str.as_bytes(), &mut output)
+                        .unwrap(),
+                );
             }
         })
     });
@@ -85,16 +84,15 @@ fn benchmark_zero_copy_medium(c: &mut Criterion) {
                 add_graphql_wrapper: false,
             };
 
-            let transformer = ZeroCopyTransformer::new(
-                &arena,
-                config,
-                Some("User"),
-                None,
-            );
+            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(transformer.transform_bytes(json_str.as_bytes(), &mut output).unwrap());
+                black_box(
+                    transformer
+                        .transform_bytes(json_str.as_bytes(), &mut output)
+                        .unwrap(),
+                );
             }
         })
     });
@@ -120,16 +118,15 @@ fn benchmark_zero_copy_large(c: &mut Criterion) {
                 add_graphql_wrapper: false,
             };
 
-            let transformer = ZeroCopyTransformer::new(
-                &arena,
-                config,
-                Some("User"),
-                None,
-            );
+            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(transformer.transform_bytes(json_str.as_bytes(), &mut output).unwrap());
+                black_box(
+                    transformer
+                        .transform_bytes(json_str.as_bytes(), &mut output)
+                        .unwrap(),
+                );
             }
         })
     });
@@ -170,7 +167,8 @@ fn benchmark_components(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches,
+criterion_group!(
+    benches,
     benchmark_zero_copy_small,
     benchmark_zero_copy_medium,
     benchmark_zero_copy_large,

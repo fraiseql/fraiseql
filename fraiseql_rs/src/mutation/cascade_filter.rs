@@ -182,7 +182,10 @@ mod tests {
     #[test]
     fn test_convert_field_name_no_camel_case() {
         assert_eq!(convert_field_name("updated", false), "updated");
-        assert_eq!(convert_field_name("affected_count", false), "affected_count");
+        assert_eq!(
+            convert_field_name("affected_count", false),
+            "affected_count"
+        );
     }
 
     #[test]

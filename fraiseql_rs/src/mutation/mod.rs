@@ -9,6 +9,7 @@ mod postgres_composite;
 mod response_builder;
 mod types;
 
+pub use cascade_filter::{filter_cascade_by_selections, CascadeSelections};
 pub use entity_processor::{
     add_typename_to_entity, process_cascade, process_entity, process_entity_with_typename,
     ProcessedEntity,
@@ -16,7 +17,6 @@ pub use entity_processor::{
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
 pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
-pub use cascade_filter::{filter_cascade_by_selections, CascadeSelections};
 pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]

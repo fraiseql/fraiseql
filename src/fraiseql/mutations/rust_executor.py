@@ -126,9 +126,6 @@ async def execute_mutation_rust(
     # Get mutation result
     mutation_result = row[0]
 
-    # Debug logging
-    logger.debug(f"Mutation result type: {type(mutation_result)}, value: {mutation_result}")
-
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
         # psycopg returned a dict (from JSONB or row_to_json composite)

@@ -555,6 +555,36 @@ $$ LANGUAGE plpgsql;
 
 **Business logic, validation, logging - all in the database function. Crystal clear for humans and AI.**
 
+### Selective CASCADE Querying
+
+Request only the CASCADE data you need:
+
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    post { id title }
+
+    # Option 1: No CASCADE (smallest payload)
+    # Just omit the cascade field
+
+    # Option 2: Metadata only
+    cascade {
+      metadata { affectedCount }
+    }
+
+    # Option 3: Full CASCADE
+    cascade {
+      updated { __typename id entity }
+      deleted { __typename id }
+      invalidations { queryName }
+      metadata { affectedCount }
+    }
+  }
+}
+```
+
+Performance: Not requesting CASCADE reduces response size by 2-10x.
+
 ---
 
 ## 💰 In PostgreSQL Everything

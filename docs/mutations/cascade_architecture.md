@@ -6,6 +6,72 @@ This document provides a comprehensive overview of the CASCADE feature in Fraise
 
 GraphQL CASCADE is a FraiseQL feature that enables automatic client cache updates after mutations. When `enable_cascade=True` is set on a mutation, the server returns additional metadata about entities that were affected by the mutation, allowing clients to update their caches without additional queries.
 
+## Selection-Aware Behavior
+
+**Important**: CASCADE data is only included in GraphQL responses when explicitly requested in the selection set. This follows GraphQL's fundamental principle that clients should only receive the data they request.
+
+### Selection Filtering
+
+**No CASCADE Requested**:
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      id
+      message
+      post { id title }
+      # cascade NOT requested
+    }
+  }
+}
+```
+**Response**: No `cascade` field in response (smaller payload)
+
+**Full CASCADE Requested**:
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      id
+      message
+      cascade {
+        updated { __typename id operation entity }
+        deleted { __typename id }
+        invalidations { queryName strategy scope }
+        metadata { timestamp affectedCount }
+      }
+    }
+  }
+}
+```
+**Response**: Complete CASCADE data included
+
+**Partial CASCADE Requested**:
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      id
+      message
+      cascade {
+        metadata { affectedCount }
+        # Only metadata requested
+      }
+    }
+  }
+}
+```
+**Response**: Only `metadata` field in CASCADE object
+
+### Performance Benefits
+
+Not requesting CASCADE can reduce response payload size by 2-10x for typical mutations:
+
+- Simple mutation without CASCADE: ~200-500 bytes
+- Same mutation with full CASCADE: ~1,500-5,000 bytes
+
+Clients should only request CASCADE when they need the side effect information for cache updates or UI synchronization.
+
 ## Architecture Overview
 
 ### Three-Layer Data Flow

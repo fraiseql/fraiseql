@@ -4,6 +4,77 @@ This guide provides recommendations for effectively using GraphQL Cascade in you
 
 ## When to Use Cascade
 
+### ✅ Request CASCADE When:
+
+**You Need Cache Updates**
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      post { id title }
+      cascade {
+        updated { __typename id entity }
+        invalidations { queryName }
+      }
+    }
+  }
+}
+```
+Use CASCADE when your client needs to update its cache based on side effects.
+
+**You're Using Apollo Client or Similar**
+CASCADE works seamlessly with Apollo Client's automatic cache updates.
+
+**You Have Complex Mutations**
+Mutations that affect multiple entities benefit from CASCADE for consistency.
+
+### ❌ Don't Request CASCADE When:
+
+**Simple Display-Only Mutations**
+```graphql
+mutation UpdateUserPreference($input: PreferenceInput!) {
+  updatePreference(input: $input) {
+    ... on UpdatePreferenceSuccess {
+      message
+      # No cascade needed - just showing success message
+    }
+  }
+}
+```
+
+**Server-Side Only Operations**
+Background jobs, webhooks, or API-to-API calls typically don't need CASCADE.
+
+**Mobile Clients with Limited Bandwidth**
+Mobile clients on slow connections should avoid CASCADE unless absolutely necessary.
+
+### Partial CASCADE Selections
+
+Request only the CASCADE fields you need:
+
+```graphql
+# Only need to know affected count
+cascade {
+  metadata { affectedCount }
+}
+
+# Only need invalidations for cache clearing
+cascade {
+  invalidations { queryName strategy }
+}
+
+# Only need updated entities (not deletes or invalidations)
+cascade {
+  updated {
+    __typename
+    id
+    entity
+  }
+}
+```
+
+This reduces payload size while still getting needed side effect information.
+
 ### ✅ Good Candidates for Cascade
 
 **Multi-Entity Mutations**
