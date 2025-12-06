@@ -897,6 +897,84 @@ mod edge_cases {
         assert!(success["post"]["cascade"].is_null());
     }
 
+    #[test]
+    fn test_cascade_never_copied_from_entity_wrapper() {
+        // REGRESSION TEST for CASCADE bug: When entity is a wrapper containing
+        // both the entity field AND cascade data, CASCADE should NOT be copied
+        // from the wrapper into the entity object.
+        //
+        // This mimics the PrintOptim backend bug where PostgreSQL returns:
+        // entity: {"allocation": {...}, "cascade": {...}, "message": "..."}
+        let json = r#"{
+            "status": "created",
+            "entity_type": "Allocation",
+            "entity": {
+                "allocation": {
+                    "id": "d8c7c0b3-6b21-44c7-9195-504ca1c63e47",
+                    "identifier": "test-allocation"
+                },
+                "cascade": {
+                    "updated": [
+                        {
+                            "__typename": "Allocation",
+                            "id": "d8c7c0b3-6b21-44c7-9195-504ca1c63e47",
+                            "operation": "CREATED"
+                        }
+                    ],
+                    "deleted": [],
+                    "invalidations": [
+                        {
+                            "queryName": "allocations",
+                            "scope": "PREFIX",
+                            "strategy": "INVALIDATE"
+                        }
+                    ]
+                },
+                "message": "New allocation created"
+            },
+            "cascade": {
+                "updated": [
+                    {
+                        "__typename": "Allocation",
+                        "id": "d8c7c0b3-6b21-44c7-9195-504ca1c63e47",
+                        "operation": "CREATED"
+                    }
+                ],
+                "deleted": [],
+                "invalidations": [
+                    {
+                        "queryName": "allocations",
+                        "scope": "PREFIX",
+                        "strategy": "INVALIDATE"
+                    }
+                ]
+            }
+        }"#;
+
+        let result = build_mutation_response(
+            json, "createAllocation", "CreateAllocationSuccess", "CreateAllocationError",
+            Some("allocation"), Some("Allocation"), None, true, None,
+        ).unwrap();
+
+        let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
+        let success = &response["data"]["createAllocation"];
+
+        // CASCADE must be at success level
+        assert!(success["cascade"].is_object(), "CASCADE missing at success level");
+        assert!(success["cascade"]["updated"].is_array(), "CASCADE.updated should be array");
+
+        // CASCADE must NEVER be in the entity object
+        assert!(success["allocation"]["cascade"].is_null(),
+            "BUG: CASCADE should NOT be copied from entity wrapper into allocation object");
+
+        // Message from wrapper should be copied (this is correct behavior)
+        assert_eq!(success["message"], "New allocation created");
+
+        // Verify entity has correct fields
+        assert_eq!(success["allocation"]["id"], "d8c7c0b3-6b21-44c7-9195-504ca1c63e47");
+        assert_eq!(success["allocation"]["identifier"], "test-allocation");
+    }
+
     // ===== __typename CORRECTNESS =====
 
     #[test]
