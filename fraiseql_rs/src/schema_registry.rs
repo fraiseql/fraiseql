@@ -14,8 +14,7 @@ use std::sync::Arc;
 
 /// Empty registry constant for efficient atomic operations
 /// This avoids allocating new Arc instances during compare_and_swap
-static EMPTY_REGISTRY: Lazy<Arc<SchemaRegistry>> =
-    Lazy::new(|| Arc::new(SchemaRegistry::empty()));
+static EMPTY_REGISTRY: Lazy<Arc<SchemaRegistry>> = Lazy::new(|| Arc::new(SchemaRegistry::empty()));
 
 /// Global schema registry using lock-free atomic access
 /// Instead of RwLock<Option<T>>, we use ArcSwap<T> directly
@@ -107,8 +106,7 @@ impl SchemaRegistry {
     /// let registry = SchemaRegistry::from_json(schema_json)?;
     /// ```
     pub fn from_json(json: &str) -> Result<Self, String> {
-        serde_json::from_str(json)
-            .map_err(|e| format!("Failed to parse schema JSON: {}", e))
+        serde_json::from_str(json).map_err(|e| format!("Failed to parse schema JSON: {}", e))
     }
 
     /// Get the schema IR version
@@ -290,7 +288,7 @@ mod tests {
     #[test]
     fn test_multiple_resets_no_deadlock() {
         // This test would deadlock with the old implementation
-        for i in 0..100 {
+        for _i in 0..100 {
             // Reset
             reset_for_testing();
 
@@ -304,7 +302,7 @@ mod tests {
 
             // Access multiple times (simulates test operations)
             for _ in 0..10 {
-                let registry = get_registry();
+                let _registry = get_registry();
                 assert!(is_initialized());
             }
         }
@@ -319,17 +317,19 @@ mod tests {
         use std::thread;
 
         // Spawn 10 threads that read and reset concurrently
-        let handles: Vec<_> = (0..10).map(|_| {
-            thread::spawn(|| {
-                for _ in 0..100 {
-                    // Concurrent reads
-                    let _registry = get_registry();
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                thread::spawn(|| {
+                    for _ in 0..100 {
+                        // Concurrent reads
+                        let _registry = get_registry();
 
-                    // Concurrent resets (safe with arc-swap!)
-                    reset_for_testing();
-                }
+                        // Concurrent resets (safe with arc-swap!)
+                        reset_for_testing();
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads to complete
         for h in handles {

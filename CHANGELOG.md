@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.5] - 2025-12-06
+
+### Fixed
+- **CASCADE nesting bug**: CASCADE data now appears at success wrapper level instead of nested inside entity objects
+  - Added support for PrintOptim's 8-field `mutation_response` composite type
+  - CASCADE field extracted from Position 7 (explicit field in composite type)
+  - Maintains backward compatibility with simple format responses
+  - Zero breaking changes
+
+### Added
+- New `postgres_composite` module for parsing 8-field mutation_response composite types
+  - File: `fraiseql_rs/src/mutation/postgres_composite.rs` (172 lines)
+  - Supports PrintOptim's migration to FraiseQL v1.8.0+ standard
+  - Comprehensive unit tests for composite type parsing
+
+### Changed
+- Updated mutation parser to try 8-field composite format first, then fallback to simple format
+- Enhanced test coverage for mutation response handling
+
+### Technical Details
+- **Files Modified:** 29 files (885 insertions, 446 deletions)
+- **Breaking Changes:** None (backward compatible)
+- **Migration Required:** None (automatic)
+- **PrintOptim Compatibility:** Requires fraiseql>=1.8.0a5 for CASCADE fix
+
+### Migration Guide
+No migration needed. The fix is automatic:
+- PrintOptim users: Upgrade to fraiseql>=1.8.0a5 to get CASCADE at correct location
+- Other users: Simple format continues working unchanged
+
+### References
+- Bug Report: CASCADE appeared in entity object instead of success wrapper
+- Design Document: `docs/architecture/mutation_pipeline.md`
+- Phase Documentation: `.phases/phase_cascade_fix_v1.8.0a5/`
+
+---
+
 ## [1.8.0-alpha.4] - 2025-12-06
 
 ### 🐛 Bug Fixes

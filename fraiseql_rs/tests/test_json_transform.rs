@@ -6,7 +6,7 @@
 //! 3. Handles list types (arrays of objects)
 //! 4. Handles null values and edge cases
 
-use serde_json::{json, Value};
+use serde_json::json;
 
 /// Helper to create test schema registry
 fn create_test_schema() -> fraiseql_rs::schema_registry::SchemaRegistry {
@@ -75,11 +75,8 @@ fn test_transform_nested_object_with_correct_typename() {
 
     // Transform with schema awareness
     // This function doesn't exist yet - RED PHASE (test should fail)
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     // Expected: Nested equipment has correct __typename = "Equipment" (not "Assignment")
     let expected = json!({
@@ -137,11 +134,8 @@ fn test_transform_deeply_nested_objects() {
         }
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Organization",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Organization", &registry);
 
     let expected = json!({
         "__typename": "Organization",
@@ -173,11 +167,8 @@ fn test_transform_array_of_nested_objects() {
         ]
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     let expected = json!({
         "__typename": "Assignment",
@@ -201,11 +192,8 @@ fn test_transform_null_nested_field() {
         "equipment": null
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     let expected = json!({
         "__typename": "Assignment",
@@ -226,11 +214,8 @@ fn test_transform_empty_array() {
         "equipments": []
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     let expected = json!({
         "__typename": "Assignment",
@@ -255,11 +240,8 @@ fn test_transform_array_with_null_items() {
         ]
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     let expected = json!({
         "__typename": "Assignment",
@@ -289,11 +271,8 @@ fn test_transform_with_missing_schema_type() {
     });
 
     // Should still transform (without __typename for unknown field)
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     // Expected: Root type has __typename, unknown field passes through
     let expected = json!({
@@ -317,11 +296,8 @@ fn test_transform_scalar_only_object() {
         "id": "assignment-1"
     });
 
-    let result = fraiseql_rs::json_transform::transform_with_schema(
-        &input,
-        "Assignment",
-        &registry,
-    );
+    let result =
+        fraiseql_rs::json_transform::transform_with_schema(&input, "Assignment", &registry);
 
     let expected = json!({
         "__typename": "Assignment",

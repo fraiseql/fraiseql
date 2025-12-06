@@ -38,7 +38,6 @@ fn main() {
             println!("cargo:rustc-cfg=has_avx2");
             println!("cargo:rustc-cfg=has_sse42");
         }
-
     } else if target.contains("aarch64") {
         // ARM64 SIMD (NEON) support
         println!("cargo:rustc-cfg=feature=\"simd\"");

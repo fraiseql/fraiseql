@@ -1,5 +1,5 @@
 use fraiseql_rs::core::arena::Arena;
-use fraiseql_rs::core::transform::{TransformConfig, ZeroCopyTransformer, ByteBuf};
+use fraiseql_rs::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
 
 fn main() {
     println!("🧪 Testing Zero-Copy Transformer - Phase 1 Validation");
@@ -23,12 +23,7 @@ fn main() {
     };
 
     // Create transformer
-    let transformer = ZeroCopyTransformer::new(
-        &arena,
-        config,
-        Some("User"),
-        None,
-    );
+    let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
     // Transform
     let mut output = ByteBuf::with_estimated_capacity(json_input.len(), &config);
@@ -41,7 +36,10 @@ fn main() {
             println!("📤 Output: {}", result_str);
             println!("📏 Input size: {} bytes", json_input.len());
             println!("📏 Output size: {} bytes", result.len());
-            println!("📈 Overhead: {:.1}x", result.len() as f64 / json_input.len() as f64);
+            println!(
+                "📈 Overhead: {:.1}x",
+                result.len() as f64 / json_input.len() as f64
+            );
         }
         Err(e) => {
             println!("❌ Transformation failed: {:?}", e);

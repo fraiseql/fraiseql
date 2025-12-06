@@ -2,33 +2,25 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
-mod types;
-mod parser;
 mod entity_processor;
+mod parser;
+mod postgres_composite;
 mod response_builder;
+mod types;
 
-pub use types::{
-    MutationResponse, SimpleResponse, FullResponse,
-    StatusKind
+pub use entity_processor::{
+    add_typename_to_entity, process_cascade, process_entity, process_entity_with_typename,
+    ProcessedEntity,
 };
 pub use parser::parse_mutation_response;
-pub use entity_processor::{
-    ProcessedEntity,
-    process_entity,
-    process_entity_with_typename,
-    add_typename_to_entity,
-    process_cascade,
-};
-pub use response_builder::{
-    build_graphql_response,
-    build_success_response,
-    build_error_response,
-};
+pub use postgres_composite::PostgresMutationResponse;
+pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
+pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod test_status_only;
+#[cfg(test)]
+mod tests;
 
 use serde_json::Value;
 
@@ -62,8 +54,19 @@ pub fn build_mutation_response(
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
-    // Step 1: Parse the mutation result with entity_type for simple format
-    let result = MutationResult::from_json(mutation_json, entity_type)?;
+    // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
+    let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
+        Ok(pg_response) => {
+            // SUCCESS: Valid 8-field composite type
+            // CASCADE from Position 7 will be placed at success wrapper level
+            pg_response.to_mutation_result(entity_type)
+        }
+        Err(_parse_error) => {
+            // FALLBACK: Try simple format (backward compatibility)
+            // This handles users with simple entity responses
+            MutationResult::from_json(mutation_json, entity_type)?
+        }
+    };
 
     // Step 2: Build GraphQL response using response_builder
     let graphql_response = response_builder::build_graphql_response(
@@ -78,8 +81,7 @@ pub fn build_mutation_response(
     )?;
 
     // Step 3: Serialize to bytes
-    serde_json::to_vec(&graphql_response)
-        .map_err(|e| format!("Failed to serialize: {}", e))
+    serde_json::to_vec(&graphql_response).map_err(|e| format!("Failed to serialize: {}", e))
 }
 
 #[cfg(test)]
@@ -99,17 +101,15 @@ mod integration_tests {
             None,
             true,
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         assert_eq!(
             response["data"]["createUser"]["__typename"],
             "CreateUserSuccess"
         );
-        assert_eq!(
-            response["data"]["createUser"]["user"]["__typename"],
-            "User"
-        );
+        assert_eq!(response["data"]["createUser"]["user"]["__typename"], "User");
     }
 
     #[test]
@@ -132,7 +132,8 @@ mod integration_tests {
             None,
             true,
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         let mutation_result = &response["data"]["createUser"];
@@ -147,9 +148,9 @@ mod integration_tests {
 /// Mutation result status classification
 #[derive(Debug, Clone, PartialEq)]
 pub enum MutationStatus {
-    Success(String),      // "success", "new", "updated", "deleted"
-    Noop(String),         // "noop:reason" - no changes made
-    Error(String),        // "failed:reason" - actual error
+    Success(String), // "success", "new", "updated", "deleted"
+    Noop(String),    // "noop:reason" - no changes made
+    Error(String),   // "failed:reason" - actual error
 }
 
 impl MutationStatus {
@@ -223,15 +224,18 @@ impl MutationStatus {
     pub fn http_code(&self) -> i32 {
         match self {
             MutationStatus::Success(_) => 200,
-            MutationStatus::Noop(_) => 200,  // Noop is success (no change made)
+            MutationStatus::Noop(_) => 200, // Noop is success (no change made)
             MutationStatus::Error(reason) => {
                 // Map error reasons to HTTP status codes
                 let reason_lower = reason.to_lowercase();
                 if reason_lower.contains("not_found") || reason_lower.contains("missing") {
                     404
-                } else if reason_lower.contains("unauthorized") || reason_lower.contains("unauthenticated") {
+                } else if reason_lower.contains("unauthorized")
+                    || reason_lower.contains("unauthenticated")
+                {
                     401
-                } else if reason_lower.contains("forbidden") || reason_lower.contains("permission") {
+                } else if reason_lower.contains("forbidden") || reason_lower.contains("permission")
+                {
                     403
                 } else if reason_lower.contains("conflict") || reason_lower.contains("duplicate") {
                     409
@@ -240,7 +244,7 @@ impl MutationStatus {
                 } else if reason_lower.contains("timeout") {
                     408
                 } else {
-                    500  // Generic internal error
+                    500 // Generic internal error
                 }
             }
         }
@@ -269,9 +273,17 @@ pub struct MutationResult {
 /// Valid mutation status prefixes/values for format detection
 const VALID_STATUS_PREFIXES: &[&str] = &[
     // Success keywords (no colon)
-    "success", "created", "updated", "deleted",
+    "success",
+    "created",
+    "updated",
+    "deleted",
     // Error prefixes
-    "failed:", "unauthorized:", "forbidden:", "not_found:", "conflict:", "timeout:",
+    "failed:",
+    "unauthorized:",
+    "forbidden:",
+    "not_found:",
+    "conflict:",
+    "timeout:",
     // Noop prefix
     "noop:",
 ];
@@ -280,9 +292,9 @@ impl MutationResult {
     /// Check if a status string is a valid mutation status
     /// (vs. a data field that happens to be named "status")
     fn is_valid_mutation_status(status: &str) -> bool {
-        VALID_STATUS_PREFIXES.iter().any(|prefix| {
-            status == *prefix || status.starts_with(prefix)
-        })
+        VALID_STATUS_PREFIXES
+            .iter()
+            .any(|prefix| status == *prefix || status.starts_with(prefix))
     }
 
     /// Check if JSON is simple format (entity only, no mutation status)
@@ -310,8 +322,8 @@ impl MutationResult {
     /// * `json_str` - Raw JSON from PostgreSQL
     /// * `default_entity_type` - Entity type to use for simple format (e.g., "User")
     pub fn from_json(json_str: &str, default_entity_type: Option<&str>) -> Result<Self, String> {
-        let v: Value = serde_json::from_str(json_str)
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
+        let v: Value =
+            serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
 
         Self::from_value(&v, default_entity_type)
     }
@@ -343,30 +355,33 @@ impl MutationResult {
         }
 
         // FULL FORMAT: Parse all fields
-        let status_str = v.get("status")
+        let status_str = v
+            .get("status")
             .and_then(|s| s.as_str())
             .ok_or("Missing 'status' field")?;
 
-        let message = v.get("message")
+        let message = v
+            .get("message")
             .and_then(|m| m.as_str())
             .unwrap_or("")
             .to_string();
 
-        let entity_id = v.get("entity_id")
+        let entity_id = v
+            .get("entity_id")
             .and_then(|id| id.as_str())
             .map(String::from);
 
         // Use entity_type from JSON, fall back to default
-        let entity_type = v.get("entity_type")
+        let entity_type = v
+            .get("entity_type")
             .and_then(|t| t.as_str())
             .map(String::from)
             .or_else(|| default_entity_type.map(String::from));
 
-        let entity = v.get("entity")
-            .filter(|e| !e.is_null())
-            .cloned();
+        let entity = v.get("entity").filter(|e| !e.is_null()).cloned();
 
-        let updated_fields = v.get("updated_fields")
+        let updated_fields = v
+            .get("updated_fields")
             .and_then(|f| f.as_array())
             .map(|arr| {
                 arr.iter()
@@ -392,7 +407,8 @@ impl MutationResult {
 
     /// Get errors array from metadata
     pub fn errors(&self) -> Option<&Vec<Value>> {
-        self.metadata.as_ref()
+        self.metadata
+            .as_ref()
             .and_then(|m| m.get("errors"))
             .and_then(|e| e.as_array())
     }

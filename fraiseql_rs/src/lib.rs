@@ -148,12 +148,14 @@ pub fn build_graphql_response(
     // Parse field_selections JSON string if provided
     let selections_json = match field_selections {
         Some(json_str) => {
-            serde_json::from_str::<Vec<serde_json::Value>>(&json_str)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(
-                    format!("Invalid field_selections JSON: {}", e)
-                ))?
+            serde_json::from_str::<Vec<serde_json::Value>>(&json_str).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid field_selections JSON: {}",
+                    e
+                ))
+            })?
         }
-        None => Vec::new()
+        None => Vec::new(),
     };
 
     let selections_opt = if selections_json.is_empty() {
@@ -270,12 +272,9 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
 ///     ValueError: If JSON is malformed or filtering fails
 #[pyfunction]
 #[pyo3(signature = (cascade_json, selections_json=None))]
-pub fn filter_cascade_data(
-    cascade_json: &str,
-    selections_json: Option<&str>,
-) -> PyResult<String> {
+pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) -> PyResult<String> {
     cascade::filter_cascade_data(cascade_json, selections_json)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+        .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
 /// Build complete GraphQL mutation response from PostgreSQL JSON
@@ -333,7 +332,7 @@ pub fn build_mutation_response(
         auto_camel_case,
         success_type_fields,
     )
-    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
 /// Reset the schema registry for testing purposes
@@ -387,19 +386,22 @@ fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__author__", "FraiseQL Contributors")?;
 
     // Set __all__ to control what's exported
-    m.add("__all__", vec![
-        "__version__",
-        "__doc__",
-        "__author__",
-        "to_camel_case",
-        "transform_keys",
-        "transform_json",
-        "test_function",
-        "build_graphql_response",
-        "initialize_schema_registry",
-        "filter_cascade_data",
-        "build_mutation_response",
-    ])?;
+    m.add(
+        "__all__",
+        vec![
+            "__version__",
+            "__doc__",
+            "__author__",
+            "to_camel_case",
+            "transform_keys",
+            "transform_json",
+            "test_function",
+            "build_graphql_response",
+            "initialize_schema_registry",
+            "filter_cascade_data",
+            "build_mutation_response",
+        ],
+    )?;
 
     // Add functions
     m.add_function(wrap_pyfunction!(to_camel_case, m)?)?;
