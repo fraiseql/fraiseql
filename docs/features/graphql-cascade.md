@@ -71,16 +71,16 @@ BEGIN
         'data', jsonb_build_object('id', v_post_id, 'message', 'Post created'),
         '_cascade', jsonb_build_object(
             'updated', jsonb_build_array(
-                -- The created post (use type_name in SQL, Rust converts to __typename)
+                -- The created post (must use __typename, not type_name)
                 jsonb_build_object(
-                    'type_name', 'Post',
+                    '__typename', 'Post',
                     'id', v_post_id,
                     'operation', 'CREATED',
                     'entity', (SELECT data FROM v_post WHERE id = v_post_id)
                 ),
                 -- The updated author
                 jsonb_build_object(
-                    'type_name', 'User',
+                    '__typename', 'User',
                     'id', v_author_id,
                     'operation', 'UPDATED',
                     'entity', (SELECT data FROM v_user WHERE id = v_author_id)
@@ -182,14 +182,31 @@ Array of entities that were created or updated:
 
 ```json
 {
-  "type_name": "Post",        // In SQL: snake_case (Rust converts to __typename)
+  "__typename": "Post",       // MUST use __typename (not type_name)
   "id": "uuid",
   "operation": "CREATED" | "UPDATED",
   "entity": { /* full entity data */ }
 }
 ```
 
-**Note**: Use `type_name` in SQL (snake_case). The Rust transformer automatically converts this to `__typename` in the GraphQL response.
+**Note**: Unlike regular query data, CASCADE entities require explicit `__typename` in SQL. Rust cannot auto-inject because CASCADE is opaque JSONB without schema context.
+
+#### Why CASCADE is Different from Queries
+
+**For regular GraphQL queries:**
+- PostgreSQL returns plain JSONB (no `__typename` in database)
+- Rust automatically injects `__typename` using the schema registry
+- Rust knows the type of each field from the GraphQL schema
+
+**For CASCADE data:**
+- PostgreSQL must include `__typename` in the JSONB
+- Rust cannot auto-inject because CASCADE is a generic JSONB structure
+- Rust doesn't know what types are inside `updated`/`deleted` arrays
+- You must explicitly include `__typename` for each entity
+
+Think of it this way:
+- **Query data**: Rust knows the schema → auto-injects `__typename`
+- **CASCADE data**: Rust doesn't know what's inside → you provide `__typename`
 
 ### `deleted` (Array)
 Array of entity IDs that were deleted:
@@ -197,7 +214,7 @@ Array of entity IDs that were deleted:
 ```json
 [
   {
-    "type_name": "Post",      // In SQL: snake_case (Rust converts to __typename)
+    "__typename": "Post",     // MUST use __typename (not type_name)
     "id": "uuid",
     "deleted_at": "2025-11-25T10:30:00Z"  // Optional timestamp
   }
@@ -370,9 +387,10 @@ See [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation
 1. **Use v2 format for new implementations**: Leverage helper functions for consistent cascade construction
 2. **Include all side effects**: Any data modified by the mutation should be included in cascade
 3. **Use appropriate operations**: `CREATED` for inserts, `UPDATED` for updates, `DELETED` for deletes
-4. **Use snake_case field names**: `type_name`, `query_name`, `affected_count` (Rust converts to camelCase)
-5. **Provide full entities**: Include complete entity data for cache updates
-6. **Add invalidations**: Include query invalidation hints for list views
+4. **Use `__typename` for entity types**: CASCADE entities need explicit `__typename` (unlike queries where Rust auto-injects)
+5. **Use snake_case for other fields**: `query_name`, `affected_count`, etc. (Rust converts to camelCase)
+6. **Provide full entities**: Include complete entity data for cache updates
+7. **Add invalidations**: Include query invalidation hints for list views
 
 ### Client Integration
 

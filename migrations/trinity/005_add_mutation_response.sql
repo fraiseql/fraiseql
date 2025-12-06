@@ -341,7 +341,7 @@ BEGIN
     RETURN jsonb_build_object(
         'updated', jsonb_build_array(
             jsonb_build_object(
-                'type_name', entity_type,
+                '__typename', entity_type,
                 'id', entity_id,
                 'operation', 'CREATED',
                 'entity', COALESCE(entity_data, '{}'::jsonb)
@@ -361,7 +361,7 @@ BEGIN
     RETURN jsonb_build_object(
         'updated', jsonb_build_array(
             jsonb_build_object(
-                'type_name', entity_type,
+                '__typename', entity_type,
                 'id', entity_id,
                 'operation', 'UPDATED',
                 'entity', entity_data
@@ -384,7 +384,7 @@ BEGIN
     RETURN jsonb_build_object(
         'updated', jsonb_build_array(
             jsonb_build_object(
-                'type_name', entity_type,
+                '__typename', entity_type,
                 'id', entity_id,
                 'operation', 'UPDATED',
                 'entity', jsonb_build_object(
@@ -409,7 +409,7 @@ BEGIN
     RETURN jsonb_build_object(
         'deleted', jsonb_build_array(
             jsonb_build_object(
-                'type_name', entity_type,
+                '__typename', entity_type,
                 'id', entity_id,
                 'deleted_at', to_jsonb(deleted_at)
             )
@@ -522,8 +522,8 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 CREATE OR REPLACE FUNCTION cascade_has_entity_type(cascade_data jsonb, entity_type text) RETURNS boolean AS $$
 BEGIN
     RETURN (
-        (cascade_data->'updated' @> jsonb_build_array(jsonb_build_object('type_name', entity_type))) OR
-        (cascade_data->'deleted' @> jsonb_build_array(jsonb_build_object('type_name', entity_type)))
+        (cascade_data->'updated' @> jsonb_build_array(jsonb_build_object('__typename', entity_type))) OR
+        (cascade_data->'deleted' @> jsonb_build_array(jsonb_build_object('__typename', entity_type)))
     );
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
@@ -616,7 +616,7 @@ BEGIN
             'created', (
                 SELECT jsonb_agg(
                     jsonb_build_object(
-                        'type_name', 'PostTag',
+                        '__typename', 'PostTag',
                         'post_id', post_id,
                         'tag_id', tag_id,
                         'tagged_at', to_jsonb(now())
