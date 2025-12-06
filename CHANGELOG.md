@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-alpha.4] - 2025-12-06
+
+### 🐛 Bug Fixes
+
+#### CASCADE Field Incorrectly Nested in Entity Object
+
+**Fixed**: CASCADE data was being incorrectly copied from entity wrapper into the entity object, violating the GraphQL schema.
+
+**Root Cause**: In `fraiseql_rs/src/mutation/response_builder.rs:119`, when PostgreSQL returned a wrapper entity structure like:
+```json
+{
+  "entity": {
+    "allocation": {...},
+    "cascade": {...},
+    "message": "..."
+  }
+}
+```
+
+The wrapper field copying logic excluded only `entity_field_name` and `"entity"` fields, but CASCADE also needed to be excluded.
+
+**Result**: CASCADE appeared at `allocation.cascade` (wrong) instead of only at `CreateAllocationSuccess.cascade` (correct).
+
+**Fix**: Added `&& key != "cascade"` check at line 119 to prevent CASCADE from being copied from wrapper fields. CASCADE now only appears at the success type level, never in the entity object.
+
+**Test**: Added regression test `test_cascade_never_copied_from_entity_wrapper()` that specifically tests the entity wrapper scenario with CASCADE data.
+
+**Impact**: Fixes PrintOptim backend CASCADE bug where GraphQL queries requesting `success.cascade` returned empty, but `allocation.cascade` contained the data (schema violation).
+
+**File**: `fraiseql_rs/src/mutation/response_builder.rs:119`
+
 ## [1.8.0-alpha.3] - 2025-12-05
 
 ### 🚀 Major: Unified Rust Mutation Pipeline
