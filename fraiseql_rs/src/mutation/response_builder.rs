@@ -116,8 +116,9 @@ pub fn build_success_response(
                 if entity_map.contains_key(entity_field_name_raw) {
                     // Entity was a wrapper - copy other fields
                     for (key, value) in entity_map {
-                        if key != entity_field_name_raw && key != "entity" {
-                            // Don't copy the entity field itself or nested "entity"
+                        if key != entity_field_name_raw && key != "entity" && key != "cascade" {
+                            // Don't copy the entity field itself, nested "entity", or CASCADE
+                            // CASCADE must only appear at success type level, never in entity
                             let field_key = if auto_camel_case {
                                 to_camel_case(&key)
                             } else {
