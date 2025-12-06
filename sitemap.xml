@@ -2,678 +2,678 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://fraiseql.dev/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/advanced-patterns/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/authentication/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/bounded-contexts/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/database-patterns/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/event-sourcing/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/examples/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/filter-operators/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/migration-guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/multi-tenancy/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/nested-array-filtering/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/rust-mutation-pipeline/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/advanced/where_input_types/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/api-reference/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/api-reference/database/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/DIRECT_PATH_IMPLEMENTATION/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/mutation_pipeline/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/type-operator-architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/decisions/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/decisions/0003-kms-architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/decisions/002_ultra_direct_mutation_path/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/decisions/003_unified_audit_table/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/architecture/decisions/005_simplified_single_source_cdc/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/FAKE_DATA_GENERATOR_DESIGN/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/GETTING_STARTED/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/ROADMAP/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/TESTING_CHECKLIST/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/archive/fraiseql_enterprise_gap_analysis/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/autofraiseql/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/autofraiseql/postgresql-comments/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/benchmarks/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/benchmarks/methodology/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/case-studies/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/case-studies/template/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/compliance/GLOBAL_REGULATIONS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/concepts-glossary/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/configuration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/database-api/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/ddl-organization/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/dependencies/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/explicit-sync/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/fraiseql-philosophy/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/migrations/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/postgresql-extensions/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/project-structure/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/queries-and-mutations/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/rust-pipeline-integration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/core/types-and-schema/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/database/DATABASE_LEVEL_CACHING/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/database/TABLE_NAMING_CONVENTIONS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/database/ltree-index-optimization/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/deployment/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/deployment/operations-runbook/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/deployment/production-deployment/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/FRAMEWORK_SUBMISSION_GUIDE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/NEW_USER_CONFUSIONS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/PHILOSOPHY/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/link-best-practices/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/methodology/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/pre-push-hooks/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/development/style-guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/apq-cache-flow/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/cqrs-pattern/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/database-schema-conventions/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/multi-tenant-isolation/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/request-flow/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/diagrams/rust-pipeline/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/enterprise/ENTERPRISE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/enterprise/RBAC_POSTGRESQL_ASSESSMENT/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/enterprise/RBAC_POSTGRESQL_REFACTORED/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/examples/advanced-filtering/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/examples/dict-based-nested-filtering/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/examples/semantic-search/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/ai-native/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/depth-protection/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/graphql-cascade/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/in-postgresql-everything/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/mutation-result-reference/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/pgvector/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/security-architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/sql-function-return-format/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/features/zero-n-plus-one/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/getting-started/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/getting-started/first-hour/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/getting-started/getting-started-legacy/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/getting-started/installation/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/getting-started/quickstart/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/cascade-best-practices/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/filtering/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/langchain-integration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/migrating-to-cascade/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/nested-array-filtering/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/performance-guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/troubleshooting-decision-tree/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/troubleshooting/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/guides/understanding-fraiseql/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/mutations/cascade_architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/mutations/migration_guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/mutations/status-strings/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/patterns/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/patterns/trinity_identifiers/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/APQ_ASSESSMENT/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/PERFORMANCE_GUIDE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/apq-optimization-guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/caching-migration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/caching/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/coordinate_performance_guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/rust-pipeline-optimization/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/performance/server-cache-invalidation/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/pgvector-implementation-plan/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/pgvector-phase2-implementation-plan/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/pgvector-phase3-implementation-plan/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/phase4-ecosystem-implementation-plan/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/archived-pre-v1.9/cascade-implementation-recommendation/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/planning/archived-pre-v1.9/graphql-cascade-simplified-approach/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/deployment/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/health-checks/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/loki_integration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/monitoring/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/observability/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/production/security/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/cli/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/config/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/database/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/decorators/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/quick-reference/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/repositories/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/testing-checklist/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/reference/where-clause-syntax-comparison/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/rollback/schema_registry_rollback/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/runbooks/ci-troubleshooting/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/rust/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/rust/RUST_FIELD_PROJECTION/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/rust/RUST_FIRST_PIPELINE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/rust/RUST_PIPELINE_IMPLEMENTATION_GUIDE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/security/configuration/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/security/controls-matrix/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/security/threat-model/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/AUDIENCES/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/ENTERPRISE_ROADMAP/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/FRAISEQL_INDUSTRIAL_READINESS_ASSESSMENT_2025-10-20/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/IMPROVEMENT_ANALYSIS_PROMPT/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/PROJECT_STRUCTURE/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/TIER_1_IMPLEMENTATION_PLANS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/V1_ADVANCED_PATTERNS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/V1_VISION/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/strategic/VERSION_STATUS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/ENABLING_EXTERNAL_TESTS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/SKIPPED_TESTS/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/ci-architecture/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/config-fixtures/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/developer-guide/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/enterprise-workflow/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/testing/pytest-markers/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/tutorials/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/tutorials/INTERACTIVE_EXAMPLES/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/tutorials/beginner-path/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/tutorials/blog-api/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/tutorials/production-deployment/</loc>
-         <lastmod>2025-12-05</lastmod>
+         <lastmod>2025-12-06</lastmod>
     </url>
 </urlset>
