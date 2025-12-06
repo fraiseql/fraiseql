@@ -39,8 +39,14 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
                     authorId
                 }
                 cascade {
-                    updated
-                    deleted
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
                     invalidations {
                         queryName
                         strategy
@@ -182,11 +188,12 @@ async def test_cascade_entity_fields_without_querying_cascade(cascade_http_clien
     assert post["content"] == "Content 2"
     assert post["authorId"] == "user-123"
 
-    # CASCADE field is always included in schema when enable_cascade=True
-    # It will be None if not populated, but field is still present
-    # This is current implementation behavior - CASCADE fields are always in schema
-    assert "cascade" in result  # Field is in schema
-    # Value may be present or None depending on implementation
+    # CASCADE field should NOT be present when not requested in selection set
+    # This follows GraphQL spec: only return requested fields
+    assert "cascade" not in result, (
+        "CASCADE should not be in response when not requested in selection set. "
+        "This follows GraphQL spec: only return requested fields."
+    )
 
 
 @pytest.mark.asyncio
@@ -201,7 +208,10 @@ async def test_cascade_with_only_cascade_no_entity_query(cascade_http_client):
             ... on CreatePostWithEntitySuccess {
                 message
                 cascade {
-                    updated
+                    updated {
+                        id
+                        operation
+                    }
                     metadata {
                         affectedCount
                     }
@@ -253,8 +263,14 @@ async def test_cascade_end_to_end(cascade_http_client):
                 id
                 message
                 cascade {
-                    updated
-                    deleted
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
                     invalidations {
                         queryName
                         strategy
@@ -628,8 +644,14 @@ async def test_schema_validation_with_success_type_fields(cascade_http_client):
                     authorId
                 }
                 cascade {
-                    updated
-                    deleted
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
                     invalidations {
                         queryName
                         strategy

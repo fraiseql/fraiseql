@@ -19,6 +19,7 @@ pub fn build_graphql_response(
     _entity_type: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
+    cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     let response_obj = if result.status.is_success() || result.status.is_noop() {
         build_success_response(
@@ -27,6 +28,7 @@ pub fn build_graphql_response(
             entity_field_name,
             auto_camel_case,
             success_type_fields,
+            cascade_selections,
         )?
     } else {
         build_error_response(result, error_type, auto_camel_case)?
@@ -38,6 +40,35 @@ pub fn build_graphql_response(
             field_name: response_obj
         }
     }))
+}
+
+/// Add cascade to response object if selected in GraphQL query
+fn add_cascade_if_selected(
+    obj: &mut Map<String, Value>,
+    result: &MutationResult,
+    cascade_selections: Option<&str>,
+    auto_camel_case: bool,
+) -> Result<(), String> {
+    let Some(cascade) = &result.cascade else {
+        return Ok(());
+    };
+
+    let Some(selections_json) = cascade_selections else {
+        return Ok(());
+    };
+
+    let selections: crate::mutation::CascadeSelections = serde_json::from_str(selections_json)
+        .map_err(|e| format!("Invalid CASCADE selections JSON: {}", e))?;
+
+    let filtered_cascade = crate::mutation::filter_cascade_by_selections(
+        cascade,
+        &selections,
+        auto_camel_case
+    )?;
+
+    obj.insert("cascade".to_string(), filtered_cascade);
+
+    Ok(())
 }
 
 /// Build success response object
@@ -54,6 +85,7 @@ pub fn build_success_response(
     entity_field_name: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
+    cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
@@ -156,11 +188,8 @@ pub fn build_success_response(
         obj.insert("updatedFields".to_string(), json!(transformed_fields));
     }
 
-    // Add cascade if present (add __typename for GraphQL)
-    if let Some(cascade) = &result.cascade {
-        let cascade_with_typename = transform_cascade(cascade, auto_camel_case);
-        obj.insert("cascade".to_string(), cascade_with_typename);
-    }
+    // Add cascade if present AND requested in selection
+    add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 
     // Phase 3: Schema validation - check that all expected fields are present
     if let Some(expected_fields) = success_type_fields {
@@ -332,32 +361,6 @@ fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
     transform_value(error, auto_camel_case)
 }
 
-/// Transform cascade object: add __typename and convert keys to camelCase
-fn transform_cascade(cascade: &Value, auto_camel_case: bool) -> Value {
-    match cascade {
-        Value::Object(map) => {
-            let mut result = Map::with_capacity(map.len() + 1);
-
-            // Add __typename for GraphQL
-            result.insert("__typename".to_string(), json!("Cascade"));
-
-            // Transform each field to camelCase and recursively transform nested values
-            for (key, val) in map {
-                let transformed_key = if auto_camel_case {
-                    to_camel_case(key)
-                } else {
-                    key.clone()
-                };
-                result.insert(transformed_key, transform_value(val, auto_camel_case));
-            }
-
-            Value::Object(result)
-        }
-        // If cascade is not an object, return as-is (shouldn't happen)
-        other => other.clone(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -378,7 +381,7 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserSuccess");
@@ -405,7 +408,7 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // CASCADE at success level
@@ -432,7 +435,7 @@ mod tests {
         };
 
         let response =
-            build_success_response(&result, "CreatePostSuccess", Some("post"), true, None).unwrap();
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // Entity extracted and has __typename

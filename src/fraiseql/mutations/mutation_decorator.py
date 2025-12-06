@@ -173,6 +173,15 @@ class MutationDefinition:
         # Fall back to None (no error configuration)
         return None
 
+    def _get_cascade_selections(self, info: GraphQLResolveInfo) -> str | None:
+        """Extract CASCADE selections from GraphQL query if enabled."""
+        if not self.enable_cascade:
+            return None
+
+        from fraiseql.mutations.cascade_selections import extract_cascade_selections
+
+        return extract_cascade_selections(info)
+
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
@@ -234,6 +243,9 @@ class MutationDefinition:
                     success_type_fields = list(self.success_type.__annotations__.keys())
                     logger.debug(f"Success type fields for validation: {success_type_fields}")
 
+                # Extract CASCADE selections from GraphQL query
+                cascade_selections_json = self._get_cascade_selections(info)
+
                 try:
                     rust_response = await execute_mutation_rust(
                         conn=conn,
@@ -245,6 +257,7 @@ class MutationDefinition:
                         entity_field_name=self.entity_field_name,
                         entity_type=self.entity_type,
                         context_args=context_args if context_args else None,
+                        cascade_selections=cascade_selections_json,
                         success_type_class=self.success_type,
                         success_type_fields=success_type_fields,
                     )

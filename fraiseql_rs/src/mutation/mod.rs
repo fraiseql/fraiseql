@@ -2,6 +2,7 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
+mod cascade_filter;
 mod entity_processor;
 mod parser;
 mod postgres_composite;
@@ -15,6 +16,7 @@ pub use entity_processor::{
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
 pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
+pub use cascade_filter::{filter_cascade_by_selections, CascadeSelections};
 pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
@@ -40,7 +42,7 @@ use serde_json::Value;
 /// * `error_type` - Error type name (e.g., "CreateUserError")
 /// * `entity_field_name` - Field name for entity (e.g., "user")
 /// * `entity_type` - Entity type for __typename (e.g., "User") - REQUIRED for simple format
-/// * `cascade_selections` - Optional cascade field selections (not implemented yet)
+/// * `cascade_selections` - Optional cascade field selections JSON
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
 pub fn build_mutation_response(
@@ -50,7 +52,7 @@ pub fn build_mutation_response(
     error_type: &str,
     entity_field_name: Option<&str>,
     entity_type: Option<&str>,
-    _cascade_selections: Option<&str>,
+    cascade_selections: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
@@ -78,6 +80,7 @@ pub fn build_mutation_response(
         entity_type,
         auto_camel_case,
         success_type_fields.as_ref(),
+        cascade_selections,
     )?;
 
     // Step 3: Serialize to bytes

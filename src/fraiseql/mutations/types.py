@@ -103,7 +103,6 @@ class MutationResult:
 class CascadeEntity:
     """Represents an entity affected by the mutation."""
 
-    __typename: str
     id: str
     operation: str
     entity: Dict[str, Any]
@@ -130,7 +129,7 @@ class CascadeMetadata:
 class Cascade:
     """Complete cascade response with side effects."""
 
-    updated: Any  # JSON array preserves __typename from Rust
-    deleted: List[str]
+    updated: List[CascadeEntity]  # List of updated entities
+    deleted: List[CascadeEntity]  # List of deleted entities
     invalidations: List[CascadeInvalidation]
     metadata: CascadeMetadata
