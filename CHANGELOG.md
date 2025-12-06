@@ -39,7 +39,7 @@ No migration needed. The fix is automatic:
 
 ### References
 - Bug Report: CASCADE appeared in entity object instead of success wrapper
-- Design Document: `/tmp/fraiseql_mutation_pipeline_design.md`
+- Design Document: `docs/architecture/mutation_pipeline.md`
 - Phase Documentation: `.phases/phase_cascade_fix_v1.8.0a5/`
 
 ---
