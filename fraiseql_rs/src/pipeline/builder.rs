@@ -3,13 +3,13 @@
 //! This module provides the high-level API for building complete GraphQL
 //! responses from PostgreSQL JSON rows using schema-aware transformation.
 
+use crate::core::arena::Arena;
+use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
+use crate::json_transform;
+use crate::pipeline::projection::FieldSet;
+use crate::schema_registry;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
-use crate::core::arena::Arena;
-use crate::core::transform::{TransformConfig, ZeroCopyTransformer, ByteBuf};
-use crate::pipeline::projection::FieldSet;
-use crate::json_transform;
-use crate::schema_registry;
 
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
@@ -66,9 +66,18 @@ pub fn build_graphql_response(
 ) -> PyResult<Vec<u8>> {
     let registry = schema_registry::get_registry();
 
-    if schema_registry::is_initialized() && type_name.is_some() {
-        let type_name_str = type_name.unwrap();
-        return build_with_schema(json_rows, field_name, type_name_str, field_paths, field_selections, &*registry, is_list);
+    if schema_registry::is_initialized() {
+        if let Some(type_name_str) = type_name {
+            return build_with_schema(
+                json_rows,
+                field_name,
+                type_name_str,
+                field_paths,
+                field_selections,
+                &registry,
+                is_list,
+            );
+        }
     }
 
     build_zero_copy(json_rows, field_name, type_name, field_paths, is_list)
@@ -87,12 +96,14 @@ fn build_with_schema(
         .iter()
         .map(|row_str| {
             serde_json::from_str::<Value>(row_str)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(
-                    format!("Failed to parse JSON: {}", e)
-                ))
+                .map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!("Failed to parse JSON: {}", e))
+                })
                 .map(|value| {
                     if let Some(ref selections) = field_selections {
-                        json_transform::transform_with_selections(&value, type_name, selections, registry)
+                        json_transform::transform_with_selections(
+                            &value, type_name, selections, registry,
+                        )
                     } else {
                         json_transform::transform_with_schema(&value, type_name, registry)
                     }
@@ -114,7 +125,7 @@ fn build_with_schema(
     } else if !transformed_items.is_empty() {
         json!({
             "data": {
-                field_name: transformed_items.get(0).cloned().unwrap_or(Value::Null)
+                field_name: transformed_items.first().cloned().unwrap_or(Value::Null)
             }
         })
     } else {
@@ -126,10 +137,9 @@ fn build_with_schema(
         })
     };
 
-    serde_json::to_vec(&response_data)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(
-            format!("Failed to serialize response: {}", e)
-        ))
+    serde_json::to_vec(&response_data).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize response: {}", e))
+    })
 }
 
 fn build_zero_copy(
@@ -148,15 +158,9 @@ fn build_zero_copy(
         add_graphql_wrapper: false,
     };
 
-    let field_set = field_paths
-        .map(|paths| FieldSet::from_paths(&paths, &arena));
+    let field_set = field_paths.map(|paths| FieldSet::from_paths(&paths, &arena));
 
-    let transformer = ZeroCopyTransformer::new(
-        &arena,
-        config,
-        type_name,
-        field_set.as_ref(),
-    );
+    let transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
 
     let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
     let wrapper_overhead = 50 + field_name.len();
@@ -204,5 +208,5 @@ fn build_zero_copy(
 
 fn estimate_arena_size(json_rows: &[String]) -> usize {
     let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
-    (total_input_size / 4).max(8192).min(65536)
+    (total_input_size / 4).clamp(8192, 65536)
 }

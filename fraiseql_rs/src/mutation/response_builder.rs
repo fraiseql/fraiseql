@@ -2,9 +2,9 @@
 //!
 //! Builds GraphQL-compliant Success and Error responses from mutation results.
 
-use serde_json::{json, Map, Value};
-use crate::camel_case::to_camel_case;
 use super::{MutationResult, MutationStatus};
+use crate::camel_case::to_camel_case;
+use serde_json::{json, Map, Value};
 
 /// Build GraphQL response from mutation result
 ///
@@ -21,7 +21,13 @@ pub fn build_graphql_response(
     success_type_fields: Option<&Vec<String>>,
 ) -> Result<Value, String> {
     let response_obj = if result.status.is_success() || result.status.is_noop() {
-        build_success_response(result, success_type, entity_field_name, auto_camel_case, success_type_fields)?
+        build_success_response(
+            result,
+            success_type,
+            entity_field_name,
+            auto_camel_case,
+            success_type_fields,
+        )?
     } else {
         build_error_response(result, error_type, auto_camel_case)?
     };
@@ -96,7 +102,7 @@ pub fn build_success_response(
                     nested_entity
                 } else {
                     // No nested field, use entire entity
-                    &entity
+                    entity
                 }
             } else {
                 // No entity_field_name hint, use entire entity
@@ -120,13 +126,13 @@ pub fn build_success_response(
                             // Don't copy the entity field itself, nested "entity", or CASCADE
                             // CASCADE must only appear at success type level, never in entity
                             let field_key = if auto_camel_case {
-                                to_camel_case(&key)
+                                to_camel_case(key)
                             } else {
                                 key.clone()
                             };
                             // Only add if not already present (message might be at top level)
                             if !obj.contains_key(&field_key) {
-                                obj.insert(field_key, transform_value(&value, auto_camel_case));
+                                obj.insert(field_key, transform_value(value, auto_camel_case));
                             }
                         }
                     }
@@ -137,8 +143,15 @@ pub fn build_success_response(
 
     // Add updatedFields (convert to camelCase)
     if let Some(fields) = &result.updated_fields {
-        let transformed_fields: Vec<Value> = fields.iter()
-            .map(|f| json!(if auto_camel_case { to_camel_case(f) } else { f.to_string() }))
+        let transformed_fields: Vec<Value> = fields
+            .iter()
+            .map(|f| {
+                json!(if auto_camel_case {
+                    to_camel_case(f)
+                } else {
+                    f.to_string()
+                })
+            })
             .collect();
         obj.insert("updatedFields".to_string(), json!(transformed_fields));
     }
@@ -220,7 +233,8 @@ pub fn build_error_response(
 
     // Add errors array
     if let Some(errors) = result.errors() {
-        let transformed: Vec<Value> = errors.iter()
+        let transformed: Vec<Value> = errors
+            .iter()
             .map(|e| transform_error(e, auto_camel_case))
             .collect();
         obj.insert("errors".to_string(), json!(transformed));
@@ -229,8 +243,11 @@ pub fn build_error_response(
         let code = match &result.status {
             MutationStatus::Noop(full_status) => {
                 // Extract reason after "noop:"
-                full_status.strip_prefix("noop:").unwrap_or(full_status).to_string()
-            },
+                full_status
+                    .strip_prefix("noop:")
+                    .unwrap_or(full_status)
+                    .to_string()
+            }
             MutationStatus::Error(full_status) => {
                 // Extract reason after first colon
                 if let Some(colon_pos) = full_status.find(':') {
@@ -242,7 +259,7 @@ pub fn build_error_response(
                 } else {
                     full_status.clone()
                 }
-            },
+            }
             MutationStatus::Success(s) => s.clone(),
         };
         let auto_error = json!({
@@ -267,15 +284,21 @@ fn transform_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) ->
 
             // Transform each field to camelCase
             for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
+                let transformed_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
                 result.insert(transformed_key, transform_value(val, auto_camel_case));
             }
 
             Value::Object(result)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(|v| transform_entity(v, entity_type, auto_camel_case)).collect())
-        }
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| transform_entity(v, entity_type, auto_camel_case))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -286,14 +309,20 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
         Value::Object(map) => {
             let mut result = Map::new();
             for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
+                let transformed_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
                 result.insert(transformed_key, transform_value(val, auto_camel_case));
             }
             Value::Object(result)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(|v| transform_value(v, auto_camel_case)).collect())
-        }
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| transform_value(v, auto_camel_case))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -314,7 +343,11 @@ fn transform_cascade(cascade: &Value, auto_camel_case: bool) -> Value {
 
             // Transform each field to camelCase and recursively transform nested values
             for (key, val) in map {
-                let transformed_key = if auto_camel_case { to_camel_case(key) } else { key.clone() };
+                let transformed_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
                 result.insert(transformed_key, transform_value(val, auto_camel_case));
             }
 
@@ -344,7 +377,8 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
+        let response =
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserSuccess");
@@ -370,7 +404,8 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
+        let response =
+            build_success_response(&result, "CreateUserSuccess", Some("user"), true, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // CASCADE at success level
@@ -396,7 +431,8 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_success_response(&result, "CreatePostSuccess", Some("post"), true, None).unwrap();
+        let response =
+            build_success_response(&result, "CreatePostSuccess", Some("post"), true, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // Entity extracted and has __typename
@@ -418,7 +454,9 @@ mod tests {
             entity: None,
             updated_fields: None,
             cascade: None,
-            metadata: Some(json!({"errors": [{"field": "email", "code": "invalid", "message": "Invalid email"}]})),
+            metadata: Some(
+                json!({"errors": [{"field": "email", "code": "invalid", "message": "Invalid email"}]}),
+            ),
             is_simple_format: false,
         };
 
@@ -488,7 +526,11 @@ mod tests {
 
             let response = build_error_response(&result, "TestError", true).unwrap();
             let obj = response.as_object().unwrap();
-            assert_eq!(obj["code"], expected_code, "Status '{}' should map to HTTP code {}", status_str, expected_code);
+            assert_eq!(
+                obj["code"], expected_code,
+                "Status '{}' should map to HTTP code {}",
+                status_str, expected_code
+            );
         }
     }
 }

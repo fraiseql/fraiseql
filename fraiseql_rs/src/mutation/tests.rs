@@ -55,7 +55,7 @@ fn test_parse_full_success_result() {
 
     let result = MutationResult::from_json(json, Some("User")).unwrap();
 
-    assert!(!result.is_simple_format);  // Not simple - has status
+    assert!(!result.is_simple_format); // Not simple - has status
     assert!(result.status.is_success());
     assert_eq!(result.message, "User created");
     assert_eq!(result.entity_type, Some("User".to_string()));
@@ -121,7 +121,9 @@ fn test_format_detection_simple_vs_full() {
     // This would be rare but we handle it by checking for valid status values
     let data_with_status_field = r#"{"id": "123", "status": "active"}"#;
     // "active" is not a valid mutation status, so treat as simple
-    assert!(MutationResult::is_simple_format_json(data_with_status_field));
+    assert!(MutationResult::is_simple_format_json(
+        data_with_status_field
+    ));
 }
 
 #[test]
@@ -151,27 +153,28 @@ fn test_build_simple_format_response() {
 
     let response_bytes = build_mutation_response(
         mutation_json,
-        "createUser",           // GraphQL field name
-        "CreateUserSuccess",    // Success type name
-        "CreateUserError",      // Error type name
-        Some("user"),           // Entity field name
-        Some("User"),           // Entity type for __typename
-        None,                   // No cascade selections
-        true,                   // auto_camel_case
-        None,                   // No success type fields for validation
-    ).unwrap();
+        "createUser",        // GraphQL field name
+        "CreateUserSuccess", // Success type name
+        "CreateUserError",   // Error type name
+        Some("user"),        // Entity field name
+        Some("User"),        // Entity type for __typename
+        None,                // No cascade selections
+        true,                // auto_camel_case
+        None,                // No success type fields for validation
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
 
     let create_user = &response["data"]["createUser"];
     assert_eq!(create_user["__typename"], "CreateUserSuccess");
-    assert_eq!(create_user["message"], "Success");  // Default message for simple format
+    assert_eq!(create_user["message"], "Success"); // Default message for simple format
 
     // Check entity with __typename and camelCase
     let user = &create_user["user"];
     assert_eq!(user["__typename"], "User");
-    assert_eq!(user["firstName"], "John");  // camelCase!
-    assert_eq!(user["lastName"], "Doe");    // camelCase!
+    assert_eq!(user["firstName"], "John"); // camelCase!
+    assert_eq!(user["lastName"], "Doe"); // camelCase!
 }
 
 #[test]
@@ -188,8 +191,9 @@ fn test_build_simple_format_with_status_data_field() {
         Some("User"),
         None,
         true,
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
     let create_user = &response["data"]["createUser"];
@@ -223,12 +227,13 @@ fn test_build_full_success_response() {
         "createUser",
         "CreateUserSuccess",
         "CreateUserError",
-        Some("user"),  // entity_field_name,
-        None,  // entity_type (comes from JSON in full format),
+        Some("user"), // entity_field_name,
+        None,         // entity_type (comes from JSON in full format),
         None,
         true,
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
 
@@ -260,12 +265,13 @@ fn test_build_full_error_response() {
         "createUser",
         "CreateUserSuccess",
         "CreateUserError",
-        Some("user"),       // entity_field_name,
+        Some("user"), // entity_field_name,
         None,         // entity_type,
         None,         // cascade_selections,
         true,
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
     let create_user = &response["data"]["createUser"];
@@ -286,12 +292,13 @@ fn test_build_simple_format_array_response() {
         "createUsers",
         "CreateUsersSuccess",
         "CreateUsersError",
-        Some("users"),  // entity_field_name,
-        Some("User"),   // entity_type for __typename,
+        Some("users"), // entity_field_name,
+        Some("User"),  // entity_type for __typename,
         None,
         true,
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
 
@@ -338,8 +345,9 @@ fn test_build_full_noop_response() {
         None,
         None,
         true,
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
     let update_user = &response["data"]["updateUser"];
@@ -380,8 +388,14 @@ fn test_mutation_status_parsing() {
 fn test_mutation_status_http_codes() {
     assert_eq!(MutationStatus::from_str("success").http_code(), 200);
     assert_eq!(MutationStatus::from_str("noop:unchanged").http_code(), 422);
-    assert_eq!(MutationStatus::from_str("failed:not_found").http_code(), 404);
-    assert_eq!(MutationStatus::from_str("failed:validation").http_code(), 422);
+    assert_eq!(
+        MutationStatus::from_str("failed:not_found").http_code(),
+        404
+    );
+    assert_eq!(
+        MutationStatus::from_str("failed:validation").http_code(),
+        422
+    );
     assert_eq!(MutationStatus::from_str("failed:conflict").http_code(), 409);
 }
 
@@ -442,15 +456,16 @@ fn test_build_simple_format_response_with_cascade() {
 
     let response_bytes = build_mutation_response(
         mutation_json,
-        "createPost",           // GraphQL field name
-        "CreatePostSuccess",    // Success type name
-        "CreatePostError",      // Error type name
-        Some("post"),           // Entity field name
-        Some("Post"),           // Entity type for __typename
-        None,                   // No cascade selections,
+        "createPost",        // GraphQL field name
+        "CreatePostSuccess", // Success type name
+        "CreatePostError",   // Error type name
+        Some("post"),        // Entity field name
+        Some("Post"),        // Entity type for __typename
+        None,                // No cascade selections,
         true,
-        None,                   // No success type fields validation
-    ).unwrap();
+        None, // No success type fields validation
+    )
+    .unwrap();
 
     let response: Value = serde_json::from_slice(&response_bytes).unwrap();
 
@@ -586,7 +601,9 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("failed:validation:email_invalid");
         assert!(status.is_error());
         match status {
-            MutationStatus::Error(full_status) => assert_eq!(full_status, "failed:validation:email_invalid"),
+            MutationStatus::Error(full_status) => {
+                assert_eq!(full_status, "failed:validation:email_invalid")
+            }
             _ => panic!("Expected Error with full status"),
         }
     }
@@ -645,7 +662,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -688,7 +705,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -729,7 +746,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -742,10 +759,7 @@ mod test_mutation_response_integration {
             response["data"]["createUser"]["__typename"],
             "CreateUserSuccess"
         );
-        assert_eq!(
-            response["data"]["createUser"]["message"],
-            "Already exists"
-        );
+        assert_eq!(response["data"]["createUser"]["message"], "Already exists");
     }
 
     #[test]
@@ -770,7 +784,7 @@ mod test_mutation_response_integration {
             Some("User"),
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -809,7 +823,7 @@ mod test_mutation_response_integration {
             None,
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -845,7 +859,7 @@ mod test_mutation_response_integration {
             None,
             None,
             true,
-        None,
+            None,
         );
 
         assert!(result.is_ok());
@@ -884,9 +898,17 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "createPost", "CreatePostSuccess", "CreatePostError",
-            Some("post"), Some("Post"), None, true, None,
-        ).unwrap();
+            json,
+            "createPost",
+            "CreatePostSuccess",
+            "CreatePostError",
+            Some("post"),
+            Some("Post"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         let success = &response["data"]["createPost"];
@@ -899,11 +921,11 @@ mod edge_cases {
 
     #[test]
     fn test_cascade_never_copied_from_entity_wrapper() {
-        // REGRESSION TEST for CASCADE bug: When entity is a wrapper containing
-        // both the entity field AND cascade data, CASCADE should NOT be copied
-        // from the wrapper into the entity object.
+        // TEST: When entity is a wrapper containing both the entity field
+        // AND cascade data, CASCADE should NOT be copied from the wrapper
+        // into the entity object.
         //
-        // This mimics the PrintOptim backend bug where PostgreSQL returns:
+        // This tests the case where PostgreSQL returns:
         // entity: {"allocation": {...}, "cascade": {...}, "message": "..."}
         let json = r#"{
             "status": "created",
@@ -952,26 +974,45 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "createAllocation", "CreateAllocationSuccess", "CreateAllocationError",
-            Some("allocation"), Some("Allocation"), None, true, None,
-        ).unwrap();
+            json,
+            "createAllocation",
+            "CreateAllocationSuccess",
+            "CreateAllocationError",
+            Some("allocation"),
+            Some("Allocation"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
         let success = &response["data"]["createAllocation"];
 
         // CASCADE must be at success level
-        assert!(success["cascade"].is_object(), "CASCADE missing at success level");
-        assert!(success["cascade"]["updated"].is_array(), "CASCADE.updated should be array");
+        assert!(
+            success["cascade"].is_object(),
+            "CASCADE missing at success level"
+        );
+        assert!(
+            success["cascade"]["updated"].is_array(),
+            "CASCADE.updated should be array"
+        );
 
         // CASCADE must NEVER be in the entity object
-        assert!(success["allocation"]["cascade"].is_null(),
-            "BUG: CASCADE should NOT be copied from entity wrapper into allocation object");
+        assert!(
+            success["allocation"]["cascade"].is_null(),
+            "BUG: CASCADE should NOT be copied from entity wrapper into allocation object"
+        );
 
         // Message from wrapper should be copied (this is correct behavior)
         assert_eq!(success["message"], "New allocation created");
 
         // Verify entity has correct fields
-        assert_eq!(success["allocation"]["id"], "d8c7c0b3-6b21-44c7-9195-504ca1c63e47");
+        assert_eq!(
+            success["allocation"]["id"],
+            "d8c7c0b3-6b21-44c7-9195-504ca1c63e47"
+        );
         assert_eq!(success["allocation"]["identifier"], "test-allocation");
     }
 
@@ -981,9 +1022,17 @@ mod edge_cases {
     fn test_typename_always_present() {
         let json = r#"{"id": "123"}"#;
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            Some("entity"), Some("Entity"), None, true, None,
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            Some("entity"),
+            Some("Entity"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1002,9 +1051,17 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            Some("entity"), Some("CustomType"), None, true, None,
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            Some("entity"),
+            Some("CustomType"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1022,9 +1079,17 @@ mod edge_cases {
         // Has "status" field but value is not a valid mutation status
         let json = r#"{"status": "active", "name": "User"}"#;
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            Some("entity"), Some("Entity"), None, true, None,
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            Some("entity"),
+            Some("Entity"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1044,9 +1109,17 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            None, None, None, true, None,
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            None,
+            None,
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1065,9 +1138,17 @@ mod edge_cases {
         ]"#;
 
         let result = build_mutation_response(
-            json, "listUsers", "ListUsersSuccess", "ListUsersError",
-            Some("users"), Some("User"), None, true, None,
-        ).unwrap();
+            json,
+            "listUsers",
+            "ListUsersSuccess",
+            "ListUsersError",
+            Some("users"),
+            Some("User"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1093,9 +1174,17 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            Some("entity"), Some("Entity"), None, true, None,
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            Some("entity"),
+            Some("Entity"),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1117,9 +1206,17 @@ mod edge_cases {
         }"#;
 
         let result = build_mutation_response(
-            json, "test", "TestSuccess", "TestError",
-            Some("entity"), Some("Entity"), None, false, None,  // No camelCase
-        ).unwrap();
+            json,
+            "test",
+            "TestSuccess",
+            "TestError",
+            Some("entity"),
+            Some("Entity"),
+            None,
+            false,
+            None, // No camelCase
+        )
+        .unwrap();
 
         let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
 
@@ -1215,5 +1312,68 @@ mod property_tests {
             // INVARIANT: Format detection is deterministic (same JSON → same result)
             prop_assert_eq!(result_first_parse.is_ok(), result_reparsed.is_ok());
         }
+    }
+}
+
+// ============================================================================
+// CASCADE FIX TESTS (Phase 1: RED) - 8-field composite type parsing
+// ============================================================================
+
+#[cfg(test)]
+mod postgres_composite_tests {
+    use crate::mutation::PostgresMutationResponse;
+
+    #[test]
+    fn test_parse_8field_mutation_response() {
+        // Test parsing of 8-field mutation response format
+        let json = r#"{
+            "status": "created",
+            "message": "Allocation created successfully",
+            "entity_id": "4d16b78b-7d9b-495f-9094-a65b57b33916",
+            "entity_type": "Allocation",
+            "entity": {"id": "4d16b78b-7d9b-495f-9094-a65b57b33916", "identifier": "test"},
+            "updated_fields": ["location_id", "machine_id"],
+            "cascade": {
+                "updated": [{"id": "some-id", "operation": "UPDATED"}],
+                "deleted": [],
+                "invalidations": [{"queryName": "allocations", "strategy": "INVALIDATE"}]
+            },
+            "metadata": {"extra": "data"}
+        }"#;
+
+        // Try to parse as 8-field format
+        // Test parsing of 8-field composite type
+        let result = PostgresMutationResponse::from_json(json).unwrap();
+
+        assert_eq!(result.status, "created");
+        assert_eq!(result.entity_type, Some("Allocation".to_string()));
+        assert!(result.cascade.is_some());
+
+        let cascade = result.cascade.as_ref().unwrap();
+        assert!(cascade.get("updated").is_some());
+    }
+
+    #[test]
+    fn test_cascade_extraction_from_position_7() {
+        let json = r#"{
+            "status": "created",
+            "message": "Success",
+            "entity_id": "uuid",
+            "entity_type": "Allocation",
+            "entity": {},
+            "updated_fields": [],
+            "cascade": {"updated": [{"id": "1"}]},
+            "metadata": {}
+        }"#;
+
+        let pg_response = PostgresMutationResponse::from_json(json).unwrap();
+        let result = pg_response.to_mutation_result(None);
+
+        // CASCADE should come from Position 7, not metadata
+        assert!(result.cascade.is_some());
+        assert_eq!(
+            result.cascade.unwrap().get("updated").unwrap()[0]["id"],
+            "1"
+        );
     }
 }

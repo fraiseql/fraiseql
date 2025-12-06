@@ -2,19 +2,13 @@
 //!
 //! Handles entity extraction, __typename injection, and CASCADE processing.
 
-use serde_json::{Map, Value};
 use crate::camel_case::to_camel_case;
+use serde_json::{Map, Value};
 
 /// Process entity: extract from wrapper if needed
-pub fn process_entity(
-    entity: &Value,
-    entity_field_name: Option<&str>,
-) -> ProcessedEntity {
+pub fn process_entity(entity: &Value, entity_field_name: Option<&str>) -> ProcessedEntity {
     // Check if entity is a wrapper object
-    let (actual_entity, wrapper_fields) = detect_and_extract_wrapper(
-        entity,
-        entity_field_name,
-    );
+    let (actual_entity, wrapper_fields) = detect_and_extract_wrapper(entity, entity_field_name);
 
     ProcessedEntity {
         entity: actual_entity.clone(),
@@ -68,11 +62,7 @@ fn detect_and_extract_wrapper<'a>(
 }
 
 /// Add __typename to entity (recursively for nested objects)
-pub fn add_typename_to_entity(
-    entity: &Value,
-    entity_type: &str,
-    auto_camel_case: bool,
-) -> Value {
+pub fn add_typename_to_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) -> Value {
     match entity {
         Value::Object(map) => {
             let mut result = Map::with_capacity(map.len() + 1);
@@ -97,7 +87,8 @@ pub fn add_typename_to_entity(
         }
         Value::Array(arr) => {
             // For arrays, add __typename to each element
-            let transformed: Vec<Value> = arr.iter()
+            let transformed: Vec<Value> = arr
+                .iter()
                 .map(|v| add_typename_to_entity(v, entity_type, auto_camel_case))
                 .collect();
             Value::Array(transformed)
@@ -122,7 +113,8 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
             Value::Object(result)
         }
         Value::Array(arr) => {
-            let transformed: Vec<Value> = arr.iter()
+            let transformed: Vec<Value> = arr
+                .iter()
                 .map(|v| transform_value(v, auto_camel_case))
                 .collect();
             Value::Array(transformed)
@@ -139,17 +131,10 @@ pub fn process_entity_with_typename(
     auto_camel_case: bool,
 ) -> ProcessedEntity {
     // Extract from wrapper
-    let (actual_entity, wrapper_fields) = detect_and_extract_wrapper(
-        entity,
-        entity_field_name,
-    );
+    let (actual_entity, wrapper_fields) = detect_and_extract_wrapper(entity, entity_field_name);
 
     // Add __typename
-    let entity_with_typename = add_typename_to_entity(
-        actual_entity,
-        entity_type,
-        auto_camel_case,
-    );
+    let entity_with_typename = add_typename_to_entity(actual_entity, entity_type, auto_camel_case);
 
     ProcessedEntity {
         entity: entity_with_typename,
@@ -195,10 +180,7 @@ mod tests {
             "extra": "data"
         });
 
-        let (actual, wrapper_fields) = detect_and_extract_wrapper(
-            &entity,
-            Some("post"),
-        );
+        let (actual, wrapper_fields) = detect_and_extract_wrapper(&entity, Some("post"));
 
         assert_eq!(actual.get("id").unwrap(), "123");
         assert_eq!(wrapper_fields.get("message").unwrap(), "Success");
@@ -209,10 +191,7 @@ mod tests {
     fn test_direct_entity() {
         let entity = json!({"id": "123", "title": "Test"});
 
-        let (actual, wrapper_fields) = detect_and_extract_wrapper(
-            &entity,
-            Some("post"),
-        );
+        let (actual, wrapper_fields) = detect_and_extract_wrapper(&entity, Some("post"));
 
         assert_eq!(actual, &entity);
         assert!(wrapper_fields.is_empty());
@@ -222,10 +201,7 @@ mod tests {
     fn test_no_field_name_no_wrapper() {
         let entity = json!({"post": {"id": "123"}, "message": "Test"});
 
-        let (actual, wrapper_fields) = detect_and_extract_wrapper(
-            &entity,
-            None,
-        );
+        let (actual, wrapper_fields) = detect_and_extract_wrapper(&entity, None);
 
         // Without field name hint, treat entire object as entity
         assert_eq!(actual, &entity);
@@ -256,8 +232,8 @@ mod tests {
         let result = add_typename_to_entity(&entity, "User", true);
 
         assert_eq!(result.get("__typename").unwrap(), "User");
-        assert_eq!(result.get("firstName").unwrap(), "John");  // camelCase
-        assert!(result.get("first_name").is_none());  // Original removed
+        assert_eq!(result.get("firstName").unwrap(), "John"); // camelCase
+        assert!(result.get("first_name").is_none()); // Original removed
     }
 
     #[test]
@@ -270,7 +246,7 @@ mod tests {
         let result = add_typename_to_entity(&entity, "User", false);
 
         assert_eq!(result.get("__typename").unwrap(), "User");
-        assert_eq!(result.get("first_name").unwrap(), "John");  // Kept original
+        assert_eq!(result.get("first_name").unwrap(), "John"); // Kept original
     }
 
     #[test]
@@ -298,12 +274,7 @@ mod tests {
             "count": 5
         });
 
-        let processed = process_entity_with_typename(
-            &entity,
-            "User",
-            Some("user"),
-            true,
-        );
+        let processed = process_entity_with_typename(&entity, "User", Some("user"), true);
 
         // Entity should have __typename and camelCase
         assert_eq!(processed.entity.get("__typename").unwrap(), "User");

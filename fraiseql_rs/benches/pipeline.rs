@@ -61,7 +61,7 @@ fn benchmark_small_response(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("small_response");
     group.throughput(Throughput::Bytes(
-        json_rows.iter().map(|s| s.len() as u64).sum()
+        json_rows.iter().map(|s| s.len() as u64).sum(),
     ));
 
     group.bench_function("v0.2_zero_copy", |b| {
@@ -85,7 +85,7 @@ fn benchmark_medium_response(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("medium_response");
     group.throughput(Throughput::Bytes(
-        json_rows.iter().map(|s| s.len() as u64).sum()
+        json_rows.iter().map(|s| s.len() as u64).sum(),
     ));
 
     group.bench_function("v0.2_zero_copy", |b| {
@@ -109,7 +109,7 @@ fn benchmark_large_response(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("large_response");
     group.throughput(Throughput::Bytes(
-        json_rows.iter().map(|s| s.len() as u64).sum()
+        json_rows.iter().map(|s| s.len() as u64).sum(),
     ));
     group.sample_size(10); // Fewer samples for large benchmark
 
@@ -134,7 +134,7 @@ fn benchmark_nested_response(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("nested_response");
     group.throughput(Throughput::Bytes(
-        json_rows.iter().map(|s| s.len() as u64).sum()
+        json_rows.iter().map(|s| s.len() as u64).sum(),
     ));
 
     group.bench_function("v0.2_zero_copy", |b| {
@@ -153,7 +153,8 @@ fn benchmark_nested_response(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches,
+criterion_group!(
+    benches,
     benchmark_small_response,
     benchmark_medium_response,
     benchmark_large_response,

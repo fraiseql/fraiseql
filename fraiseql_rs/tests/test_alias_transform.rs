@@ -251,7 +251,12 @@ fn test_deep_nesting_with_multiple_aliases() {
         make_selection("user_name", "name", "String", false), // alias at root
         make_selection("posts.id", "posts.postId", "String", false), // alias in array
         make_selection("posts.author_name", "posts.writer", "String", false), // alias in array
-        make_selection("posts.comments.id", "posts.comments.commentId", "String", false),
+        make_selection(
+            "posts.comments.id",
+            "posts.comments.commentId",
+            "String",
+            false,
+        ),
         make_selection(
             "posts.comments.comment_text",
             "posts.comments.text",

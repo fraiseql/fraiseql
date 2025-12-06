@@ -3,8 +3,8 @@
 //! This module provides direct JSON string → transformed JSON string conversion,
 //! bypassing Python dict intermediate steps for maximum performance.
 
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use serde_json::{Map, Value};
 
 use crate::camel_case::to_camel_case;
@@ -77,10 +77,7 @@ fn transform_value(value: Value) -> Value {
             Value::Object(new_map)
         }
         Value::Array(arr) => {
-            let transformed_arr: Vec<Value> = arr
-                .into_iter()
-                .map(transform_value)
-                .collect();
+            let transformed_arr: Vec<Value> = arr.into_iter().map(transform_value).collect();
             Value::Array(transformed_arr)
         }
         // Primitives: return as-is
@@ -123,8 +120,7 @@ fn transform_nested_object(
                 #[cfg(debug_assertions)]
                 eprintln!(
                     "Warning: Expected array for list type '{}', got {}",
-                    type_name,
-                    value
+                    type_name, value
                 );
                 value.clone()
             }
@@ -272,7 +268,14 @@ pub fn transform_with_selections(
     let (alias_map, allowed_fields) = build_alias_map(selections);
 
     // Transform with aliases and field projection applied
-    transform_with_aliases(value, current_type, "", &alias_map, &allowed_fields, registry)
+    transform_with_aliases(
+        value,
+        current_type,
+        "",
+        &alias_map,
+        &allowed_fields,
+        registry,
+    )
 }
 
 /// Build a mapping from materialized paths to aliases and allowed field names
@@ -280,7 +283,12 @@ pub fn transform_with_selections(
 /// Returns a tuple of:
 /// - HashMap: materialized path -> alias
 /// - HashSet: allowed root-level field names for field projection
-fn build_alias_map(selections: &[Value]) -> (std::collections::HashMap<String, String>, std::collections::HashSet<String>) {
+fn build_alias_map(
+    selections: &[Value],
+) -> (
+    std::collections::HashMap<String, String>,
+    std::collections::HashSet<String>,
+) {
     let mut alias_map = std::collections::HashMap::new();
     let mut allowed_fields = std::collections::HashSet::new();
 
@@ -449,7 +457,14 @@ fn transform_nested_field_with_aliases(
         // Single nested object
         match value {
             Value::Null => Value::Null,
-            _ => transform_with_aliases(value, nested_type, current_path, alias_map, allowed_fields, registry),
+            _ => transform_with_aliases(
+                value,
+                nested_type,
+                current_path,
+                alias_map,
+                allowed_fields,
+                registry,
+            ),
         }
     }
 }
@@ -457,8 +472,8 @@ fn transform_nested_field_with_aliases(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use crate::schema_registry::SchemaRegistry;
+    use serde_json::json;
 
     /// Helper to create a FieldSelection structure for testing
     fn make_selection(path: &str, alias: &str, type_name: &str, is_list: bool) -> Value {
@@ -623,8 +638,14 @@ mod tests {
         assert_eq!(result["userName"], "Alice");
 
         // These fields should NOT be present (field projection)
-        assert!(result.get("email").is_none(), "email should be filtered out");
-        assert!(result.get("passwordHash").is_none(), "password_hash should be filtered out");
+        assert!(
+            result.get("email").is_none(),
+            "email should be filtered out"
+        );
+        assert!(
+            result.get("passwordHash").is_none(),
+            "password_hash should be filtered out"
+        );
     }
 
     /// RED PHASE TEST: Field projection with nested objects
@@ -661,7 +682,10 @@ mod tests {
         assert_eq!(profile["bio"], "Hello world!");
 
         // This field should NOT be present (field projection)
-        assert!(profile.get("avatarUrl").is_none(), "avatar_url should be filtered out");
+        assert!(
+            profile.get("avatarUrl").is_none(),
+            "avatar_url should be filtered out"
+        );
     }
 
     /// RED PHASE TEST: __typename is always included even when not in selections
@@ -677,9 +701,7 @@ mod tests {
         });
 
         // Selections: Only include id (no explicit __typename selection)
-        let selections = vec![
-            make_selection("id", "id", "String", false),
-        ];
+        let selections = vec![make_selection("id", "id", "String", false)];
 
         let result = transform_with_selections(&input, "User", &selections, &registry);
 
@@ -688,6 +710,9 @@ mod tests {
         assert_eq!(result["id"], 1);
 
         // user_name should NOT be present (not selected)
-        assert!(result.get("userName").is_none(), "user_name should be filtered out");
+        assert!(
+            result.get("userName").is_none(),
+            "user_name should be filtered out"
+        );
     }
 }

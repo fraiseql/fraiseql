@@ -4,11 +4,11 @@
 //! Value allocations. It reads JSON bytes directly and writes transformed
 //! output in a single pass.
 
-use pyo3::PyErr;
 use crate::core::arena::Arena;
 use crate::core::camel::snake_to_camel;
 use crate::json::escape;
 use crate::pipeline::projection::FieldSet;
+use pyo3::PyErr;
 
 /// Transform configuration (zero-cost at compile time)
 #[derive(Clone, Copy)]
@@ -78,7 +78,8 @@ impl<'a> ZeroCopyTransformer<'a> {
         let mut writer = JsonWriter::new(output);
 
         // Conditionally wrap in GraphQL response structure
-        if false {  // self.config.add_graphql_wrapper {
+        if false {
+            // self.config.add_graphql_wrapper {
             writer.write_object_start()?;
             writer.write_key(b"data")?;
             writer.write_object_start()?;
@@ -238,16 +239,13 @@ impl ByteBuf {
     /// - Field names: +50% if camelCase (longer keys)
     /// - Projection: -50% if projecting (fewer fields)
     #[inline]
-    pub fn with_estimated_capacity(
-        input_size: usize,
-        config: &TransformConfig,
-    ) -> Self {
+    pub fn with_estimated_capacity(input_size: usize, config: &TransformConfig) -> Self {
         let base = (input_size as f32 * 1.2) as usize;
 
         let multiplier = match (config.camel_case, config.project_fields) {
-            (true, true) => 1.0,   // +50% -50% = 0
-            (true, false) => 1.5,  // +50%
-            (false, true) => 0.7,  // -50%
+            (true, true) => 1.0,  // +50% -50% = 0
+            (true, false) => 1.5, // +50%
+            (false, true) => 0.7, // -50%
             (false, false) => 1.0,
         };
 
@@ -294,7 +292,8 @@ impl<'a> ByteReader<'a> {
     #[inline(always)]
     pub fn peek_byte(&mut self) -> Result<u8, TransformError> {
         self.skip_whitespace();
-        self.bytes.get(self.pos)
+        self.bytes
+            .get(self.pos)
             .copied()
             .ok_or(TransformError::UnexpectedEof)
     }
@@ -302,7 +301,9 @@ impl<'a> ByteReader<'a> {
     #[inline]
     pub fn expect_byte(&mut self, expected: u8) -> Result<(), TransformError> {
         self.skip_whitespace();
-        let byte = self.bytes.get(self.pos)
+        let byte = self
+            .bytes
+            .get(self.pos)
             .copied()
             .ok_or(TransformError::UnexpectedEof)?;
 
@@ -609,8 +610,6 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 }
-
-
 
 /// Transform errors
 #[derive(Debug)]

@@ -97,7 +97,7 @@ unsafe fn snake_to_camel_avx2<'a>(input: &[u8], arena: &'a crate::core::Arena) -
     let mut write_pos = 0;
     let mut capitalize_next = false;
 
-    for (_i, &byte) in input.iter().enumerate() {
+    for &byte in input.iter() {
         if byte == b'_' {
             capitalize_next = true;
         } else {
