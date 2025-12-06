@@ -202,4 +202,42 @@ async def execute_mutation_rust(
         success_type_fields,  # Pass field list for schema validation
     )
 
+    # v1.8.0: Validate Rust response structure
+    # Parse the response to check for required fields
+    try:
+        response_dict = json.loads(response_bytes.decode("utf-8"))
+        data = response_dict.get("data", {})
+        mutation_result = data.get(field_name)
+
+        if mutation_result and isinstance(mutation_result, dict):
+            typename = mutation_result.get("__typename")
+
+            # Success type: entity must be non-null
+            if typename == success_type:
+                entity_field = entity_field_name or "entity"
+                if entity_field in mutation_result and mutation_result[entity_field] is None:
+                    raise ValueError(
+                        f"Success type '{typename}' returned null entity. "
+                        f"This indicates a logic error in the mutation or Rust pipeline. "
+                        f"Validation failures should return Error type, not Success type."
+                    )
+
+            # Error type: code field must be present (v1.8.0)
+            elif typename == error_type:
+                if "code" not in mutation_result:
+                    raise ValueError(
+                        f"Error type '{typename}' missing required 'code' field. "
+                        f"Ensure Rust pipeline is updated to v1.8.0."
+                    )
+                if not isinstance(mutation_result["code"], int):
+                    raise ValueError(
+                        f"Error type '{typename}' has invalid 'code' type: {type(mutation_result['code'])}. "  # noqa: E501
+                        f"Expected int (422, 404, 409, 500)."
+                    )
+
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        # If we can't parse the response, log warning but don't fail
+        # This preserves backward compatibility during migration
+        logger.warning(f"Could not validate Rust response structure: {e}")
+
     return RustResponseBytes(response_bytes, schema_type=success_type)

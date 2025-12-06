@@ -133,3 +133,76 @@ class Cascade:
     deleted: List[CascadeEntity]  # List of deleted entities
     invalidations: List[CascadeInvalidation]
     metadata: CascadeMetadata
+
+
+@dataclass
+class MutationError:
+    """Error response for mutations (v1.8.0).
+
+    Attributes:
+        code: Application-level error code (422, 404, 409, 500, etc.)
+              This is NOT an HTTP status code. HTTP is always 200 OK.
+              The code field provides REST-like semantics for DX.
+        status: Domain-specific status string (e.g., "noop:invalid_contract_id")
+        message: Human-readable error message
+        cascade: Optional cascade metadata (if enable_cascade=True)
+        errors: Optional detailed error list (legacy compatibility)
+    """
+
+    code: int
+    status: str
+    message: str
+    cascade: dict[str, Any] | None = None
+    errors: list[dict[str, Any]] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "code": self.code,
+            "status": self.status,
+            "message": self.message,
+        }
+        if self.cascade is not None:
+            result["cascade"] = self.cascade
+        if self.errors:
+            result["errors"] = self.errors
+        return result
+
+
+@dataclass
+class MutationSuccess:
+    """Success response for mutations (v1.8.0).
+
+    v1.8.0: Success type ALWAYS has non-null entity.
+    If entity is None, the mutation should return MutationError instead.
+
+    Attributes:
+        entity: The created/updated/deleted entity (REQUIRED)
+        cascade: Optional cascade metadata (if enable_cascade=True)
+        message: Optional success message
+        updated_fields: Optional list of updated field names
+    """
+
+    entity: Any  # REQUIRED - never None in v1.8.0
+    cascade: dict[str, Any] | None = None
+    message: str | None = None
+    updated_fields: list[str] | None = None
+
+    def __post_init__(self):
+        """Validate that entity is not None."""
+        if self.entity is None:
+            raise ValueError(
+                "MutationSuccess requires non-null entity. "
+                "For validation failures or errors, use MutationError instead."
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {"entity": self.entity}
+        if self.cascade is not None:
+            result["cascade"] = self.cascade
+        if self.message is not None:
+            result["message"] = self.message
+        if self.updated_fields is not None:
+            result["updated_fields"] = self.updated_fields
+        return result

@@ -323,81 +323,85 @@ fn test_build_simple_format_array_response() {
     assert_eq!(users_array[1]["name"], "Bob");
 }
 
-#[test]
-fn test_build_full_noop_response() {
-    let mutation_json = r#"{
-        "status": "noop:unchanged",
-        "message": "No changes needed",
-        "entity_id": null,
-        "entity_type": null,
-        "entity": null,
-        "updated_fields": null,
-        "cascade": null,
-        "metadata": null
-    }"#;
+    #[test]
+    fn test_build_full_noop_response() {
+        let mutation_json = r#"{
+            "status": "noop:unchanged",
+            "message": "No changes needed",
+            "entity_id": null,
+            "entity_type": null,
+            "entity": null,
+            "updated_fields": null,
+            "cascade": null,
+            "metadata": null
+        }"#;
 
-    let response_bytes = build_mutation_response(
-        mutation_json,
-        "updateUser",
-        "UpdateUserSuccess",
-        "UpdateUserError",
-        Some("user"),
-        None,
-        None,
-        true,
-        None,
-    )
-    .unwrap();
+        let response_bytes = build_mutation_response(
+            mutation_json,
+            "updateUser",
+            "UpdateUserSuccess",
+            "UpdateUserError",
+            Some("user"),
+            None,
+            None,
+            true,
+            None,
+        )
+        .unwrap();
 
-    let response: Value = serde_json::from_slice(&response_bytes).unwrap();
-    let update_user = &response["data"]["updateUser"];
+        let response: Value = serde_json::from_slice(&response_bytes).unwrap();
+        let update_user = &response["data"]["updateUser"];
 
-    assert_eq!(update_user["__typename"], "UpdateUserSuccess");
-    assert_eq!(update_user["message"], "User updated");
+        // v1.8.0: noop now returns Error type with code 422
+        assert_eq!(update_user["__typename"], "UpdateUserError");
+        assert_eq!(update_user["code"], 422);
+        assert_eq!(update_user["status"], "noop:unchanged");
+        assert_eq!(update_user["message"], "No changes needed");
+    }
 
-    // Check updatedFields are camelCased
-    let updated_fields = update_user["updatedFields"].as_array().unwrap();
-    assert_eq!(updated_fields.len(), 2);
-    assert!(updated_fields.contains(&json!("firstName")));
-    assert!(updated_fields.contains(&json!("lastName")));
-}
+    #[test]
+    fn test_mutation_status_parsing() {
+        // Test success status
+        let status = MutationStatus::from_str("success");
+        assert!(status.is_success());
+        assert!(!status.is_error());
+        assert!(!status.is_noop());
 
-#[test]
-fn test_mutation_status_parsing() {
-    // Test success status
-    let status = MutationStatus::from_str("success");
-    assert!(status.is_success());
-    assert!(!status.is_error());
+        // Test new status
+        let status = MutationStatus::from_str("new");
+        assert!(status.is_success());
+        assert!(!status.is_error());
 
-    // Test new status
-    let status = MutationStatus::from_str("new");
-    assert!(status.is_success());
+        // Test noop status - v1.8.0: noop is now error type
+        let status = MutationStatus::from_str("noop:unchanged");
+        assert!(status.is_noop());
+        assert!(status.is_error()); // NEW: noop is error
+        assert!(!status.is_success());
 
-    // Test noop status
-    let status = MutationStatus::from_str("noop:unchanged");
-    assert!(status.is_noop());
-    assert!(!status.is_success());
+        // Test error status
+        let status = MutationStatus::from_str("failed:validation");
+        assert!(status.is_error());
+        assert!(!status.is_success());
+        assert!(!status.is_noop());
+    }
 
-    // Test error status
-    let status = MutationStatus::from_str("failed:validation");
-    assert!(status.is_error());
-    assert!(!status.is_success());
-}
+    #[test]
+    fn test_mutation_status_codes() {
+        // HTTP codes are always 200 for GraphQL
+        assert_eq!(MutationStatus::from_str("success").http_code(), 200);
+        assert_eq!(MutationStatus::from_str("noop:unchanged").http_code(), 200);
+        assert_eq!(MutationStatus::from_str("failed:not_found").http_code(), 200);
 
-#[test]
-fn test_mutation_status_http_codes() {
-    assert_eq!(MutationStatus::from_str("success").http_code(), 200);
-    assert_eq!(MutationStatus::from_str("noop:unchanged").http_code(), 422);
-    assert_eq!(
-        MutationStatus::from_str("failed:not_found").http_code(),
-        404
-    );
-    assert_eq!(
-        MutationStatus::from_str("failed:validation").http_code(),
-        422
-    );
-    assert_eq!(MutationStatus::from_str("failed:conflict").http_code(), 409);
-}
+        // Application codes provide REST-like semantics
+        assert_eq!(MutationStatus::from_str("success").application_code(), 200);
+        assert_eq!(MutationStatus::from_str("noop:unchanged").application_code(), 422);
+        assert_eq!(
+            MutationStatus::from_str("failed:not_found").application_code(),
+            404
+        );
+        assert_eq!(MutationStatus::from_str("failed:validation").application_code(), 422);
+        assert_eq!(MutationStatus::from_str("failed:conflict").application_code(), 409);
+    }
 
 // ============================================================================
 // Tests for CASCADE data extraction and inclusion
@@ -507,6 +511,161 @@ fn test_build_simple_format_response_with_cascade() {
 }
 
 // ============================================================================
+// v1.8.0 VALIDATION AS ERROR TYPE TESTS
+// ============================================================================
+
+#[cfg(test)]
+mod validation_as_error_tests {
+    use super::*;
+
+    #[test]
+    fn test_noop_returns_error_type_v1_8() {
+        let result = MutationResult {
+            status: MutationStatus::Noop("noop:invalid_contract_id".to_string()),
+            message: "Contract not found".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: Some(json!({"status": "noop:invalid_contract_id"})),
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(
+            &result,
+            "createMachine",
+            "CreateMachineSuccess",
+            "CreateMachineError",
+            Some("machine"),
+            Some("Machine"),
+            true,
+            None,
+            Some(r#"{"status": true}"#),
+        ).unwrap();
+
+        let data = &response["data"]["createMachine"];
+        assert_eq!(data["__typename"], "CreateMachineError");
+        assert_eq!(data["code"], 422);
+        assert_eq!(data["status"], "noop:invalid_contract_id");
+        assert_eq!(data["message"], "Contract not found");
+        assert!(data["cascade"].is_object());
+    }
+
+    #[test]
+    fn test_not_found_returns_error_type_with_404() {
+        let result = MutationResult {
+            status: MutationStatus::Error("not_found:machine".to_string()),
+            message: "Machine not found".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(&result, "deleteMachine", "DeleteMachineSuccess", "DeleteMachineError", None, None, true, None, None).unwrap();
+        let data = &response["data"]["deleteMachine"];
+
+        assert_eq!(data["__typename"], "DeleteMachineError");
+        assert_eq!(data["code"], 404);
+        assert_eq!(data["status"], "not_found:machine");
+    }
+
+    #[test]
+    fn test_conflict_returns_error_type_with_409() {
+        let result = MutationResult {
+            status: MutationStatus::Error("conflict:duplicate_serial".to_string()),
+            message: "Serial number already exists".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", None, None, true, None, None).unwrap();
+        let data = &response["data"]["createMachine"];
+
+        assert_eq!(data["__typename"], "CreateMachineError");
+        assert_eq!(data["code"], 409);
+        assert_eq!(data["status"], "conflict:duplicate_serial");
+    }
+
+    #[test]
+    fn test_success_with_null_entity_returns_error() {
+        // v1.8.0: Success type with null entity should return error
+        let result = MutationResult {
+            status: MutationStatus::Success("created".to_string()),
+            message: "Created".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None, // ❌ Null entity with Success status
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", Some("machine"), None, true, None, None);
+        assert!(response.is_err());
+        let error_msg = response.unwrap_err();
+        assert!(error_msg.contains("Success type"));
+        assert!(error_msg.contains("requires non-null entity"));
+    }
+
+    #[test]
+    fn test_success_always_has_entity() {
+        let result = MutationResult {
+            status: MutationStatus::Success("created".to_string()),
+            message: "Machine created".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: Some(json!({"id": "123", "name": "Test"})),
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", Some("machine"), None, true, None, None).unwrap();
+        let data = &response["data"]["createMachine"];
+
+        assert_eq!(data["__typename"], "CreateMachineSuccess");
+        assert!(data["machine"].is_object());
+        assert_eq!(data["machine"]["id"], "123");
+    }
+
+    #[test]
+    fn test_error_response_includes_cascade() {
+        let result = MutationResult {
+            status: MutationStatus::Noop("noop:validation_failed".to_string()),
+            message: "Validation failed".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: Some(json!({"status": "noop:validation_failed", "reason": "invalid_input"})),
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", None, None, true, None, Some(r#"{"status": true, "reason": true}"#)).unwrap();
+        let data = &response["data"]["createMachine"];
+
+        assert_eq!(data["__typename"], "CreateMachineError");
+        assert_eq!(data["code"], 422);
+        assert!(data["cascade"].is_object());
+        assert_eq!(data["cascade"]["status"], "noop:validation_failed");
+        assert_eq!(data["cascade"]["reason"], "invalid_input");
+    }
+}
+
+// ============================================================================
 // Tests for STATUS TAXONOMY (Phase 2: GREEN)
 // ============================================================================
 
@@ -569,6 +728,7 @@ mod test_status_taxonomy {
     fn test_noop_prefix() {
         let status = MutationStatus::from_str("noop:unchanged");
         assert!(status.is_noop());
+        assert!(status.is_error()); // v1.8.0: noop is error type
         match status {
             MutationStatus::Noop(reason) => assert_eq!(reason, "unchanged"),
             _ => panic!("Expected Noop variant"),
@@ -754,11 +914,13 @@ mod test_mutation_response_integration {
         let response_str = String::from_utf8(response_bytes).unwrap();
         let response: serde_json::Value = serde_json::from_str(&response_str).unwrap();
 
-        // Noop should be SUCCESS type (no change, but not an error)
+        // v1.8.0: Noop now returns ERROR type with code 422
         assert_eq!(
             response["data"]["createUser"]["__typename"],
-            "CreateUserSuccess"
+            "CreateUserError"
         );
+        assert_eq!(response["data"]["createUser"]["code"], 422);
+        assert_eq!(response["data"]["createUser"]["status"], "noop:duplicate");
         assert_eq!(response["data"]["createUser"]["message"], "Already exists");
     }
 

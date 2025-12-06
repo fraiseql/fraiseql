@@ -182,6 +182,114 @@ class MutationDefinition:
 
         return extract_cascade_selections(info)
 
+    def validate_types(self) -> None:
+        """Validate Success and Error types conform to v1.8.0 requirements."""
+        # Validate Success type
+        if not self.success_type:
+            raise ValueError(f"Mutation {self.name} must have a success type")
+
+        success_type_name = getattr(self.success_type, "__name__", "Success")
+        if not hasattr(self.success_type, "__annotations__"):
+            raise ValueError(f"Success type {success_type_name} must have annotations")
+
+        success_annotations = self.success_type.__annotations__
+
+        # Success must have entity field
+        entity_field = self._get_entity_field_name()
+        if entity_field not in success_annotations:
+            raise ValueError(
+                f"Success type {success_type_name} must have '{entity_field}' field. "
+                f"v1.8.0 requires Success types to always have non-null entity."
+            )
+
+        # Entity field must NOT be Optional
+        entity_type = success_annotations[entity_field]
+        if self._is_optional(entity_type):
+            raise ValueError(
+                f"Success type {success_type_name} has nullable entity field. "
+                f"v1.8.0 requires entity to be non-null. "
+                f"Change '{entity_field}: {entity_type}' to non-nullable type."
+            )
+
+        # Validate Error type
+        if not self.error_type:
+            raise ValueError(f"Mutation {self.name} must have an error type")
+
+        error_type_name = getattr(self.error_type, "__name__", "Error")
+        if not hasattr(self.error_type, "__annotations__"):
+            raise ValueError(f"Error type {error_type_name} must have annotations")
+
+        error_annotations = self.error_type.__annotations__
+
+        # Error must have code field (v1.8.0)
+        if "code" not in error_annotations:
+            raise ValueError(
+                f"Error type {error_type_name} must have 'code: int' field. "
+                f"v1.8.0 requires Error types to include REST-like error codes."
+            )
+
+        # Code must be int
+        code_type = error_annotations["code"]
+        if code_type != int:  # noqa: E721
+            raise ValueError(
+                f"Error type {error_type_name} has wrong 'code' type: {code_type}. Expected 'int'."
+            )
+
+        # Error must have status field
+        if "status" not in error_annotations:
+            raise ValueError(f"Error type {error_type_name} must have 'status: str' field.")
+
+        # Error must have message field
+        if "message" not in error_annotations:
+            raise ValueError(f"Error type {error_type_name} must have 'message: str' field.")
+
+    def _get_entity_field_name(self) -> str:
+        """Get entity field name from Success type.
+
+        Looks for common patterns: entity, <lowercase_type>, etc.
+        """
+        if not self.success_type:
+            raise ValueError("Success type not set")
+
+        annotations = self.success_type.__annotations__
+
+        # Common patterns
+        if "entity" in annotations:
+            return "entity"
+
+        # Try lowercase type name (e.g., CreateMachineSuccess → machine)
+        mutation_name = getattr(self.success_type, "__name__", "").replace("Success", "")
+        entity_name_candidate = mutation_name.lower()
+        if entity_name_candidate in annotations:
+            return entity_name_candidate
+
+        # Fallback: first non-standard field
+        standard_fields = {"cascade", "message", "updated_fields", "code", "status"}
+        for field in annotations:
+            if field not in standard_fields:
+                return field
+
+        raise ValueError(
+            f"Could not determine entity field name for {getattr(self.success_type, '__name__', 'Success')}. "  # noqa: E501
+            f"Expected 'entity' or lowercase mutation name."
+        )
+
+    def _is_optional(self, type_hint: Any) -> bool:
+        """Check if type hint is Optional (includes None)."""
+        import typing
+
+        # Check for X | None (Python 3.10+)
+        if hasattr(typing, "get_args") and hasattr(typing, "get_origin"):
+            origin = typing.get_origin(type_hint)
+            if origin is typing.Union:
+                args = typing.get_args(type_hint)
+                return type(None) in args
+
+        # Check for Optional[X] (older syntax)
+        return getattr(type_hint, "__origin__", None) is typing.Union and type(None) in getattr(
+            type_hint, "__args__", []
+        )
+
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
@@ -206,7 +314,7 @@ class MutationDefinition:
             full_function_name = f"{self.schema}.{self.function_name}"
             # GraphQL field name: CreatePost -> createPost (lowercase first letter)
             field_name = self.name[0].lower() + self.name[1:] if self.name else self.name
-            success_type_name = getattr(self.success_type, "__name__", "Success")
+            success_type_name = getattr(self.success_type, "__name__", "Success")  # type: ignore[attr-defined]
             error_type_name = getattr(self.error_type, "__name__", "Error")
 
             # Extract context arguments

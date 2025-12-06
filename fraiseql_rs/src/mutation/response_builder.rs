@@ -21,7 +21,9 @@ pub fn build_graphql_response(
     success_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-    let response_obj = if result.status.is_success() || result.status.is_noop() {
+    // v1.8.0: Only TRUE success returns Success type
+    // All errors (noop, failed, conflict, etc.) return Error type
+    let response_obj = if result.status.is_success() {
         build_success_response(
             result,
             success_type,
@@ -31,7 +33,13 @@ pub fn build_graphql_response(
             cascade_selections,
         )?
     } else {
-        build_error_response(result, error_type, auto_camel_case)?
+        // NEW: Error response includes REST-like code
+        build_error_response_with_code(
+            result,
+            error_type,
+            auto_camel_case,
+            cascade_selections,
+        )?
     };
 
     // Wrap in GraphQL response structure
@@ -96,6 +104,18 @@ pub fn build_success_response(
 
     // Add message
     obj.insert("message".to_string(), json!(result.message));
+
+    // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
+    if result.entity.is_none() {
+        return Err(format!(
+            "Success type '{}' requires non-null entity. \
+             Status '{}' returned null entity. \
+             This indicates a logic error: non-success statuses (noop:*, failed:*, etc.) \
+             should return Error type, not Success type.",
+            success_type,
+            result.status.to_string()
+        ));
+    }
 
     // Add entity with __typename and camelCase keys
     if let Some(entity) = &result.entity {
@@ -227,76 +247,96 @@ pub fn build_success_response(
     Ok(Value::Object(obj))
 }
 
-/// Build error response object
+/// Build error response object with REST-like code field
 ///
 /// Key behaviors:
-/// - Extract error code from status string (part after ':')
-/// - Auto-generate errors array if not in metadata
-/// - Map status to HTTP code
-pub fn build_error_response(
+/// - Adds `code` field (422, 404, 409, 500) for DX
+/// - Preserves `status` field (domain semantics)
+/// - Includes `message` field (human-readable)
+/// - Adds CASCADE if selected
+/// - HTTP 200 OK at transport layer (code is application-level only)
+pub fn build_error_response_with_code(
     result: &MutationResult,
     error_type: &str,
     auto_camel_case: bool,
+    cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
     // Add __typename
     obj.insert("__typename".to_string(), json!(error_type));
 
+    // Add REST-like code field (application-level, NOT HTTP status)
+    let code = map_status_to_code(&result.status);
+    obj.insert("code".to_string(), json!(code));
+
+    // Add status (domain semantics)
+    obj.insert("status".to_string(), json!(result.status.to_string()));
+
     // Add message
     obj.insert("message".to_string(), json!(result.message));
 
-    // Add status string
-    let status_str = match &result.status {
-        MutationStatus::Noop(full_status) => full_status.clone(),
-        MutationStatus::Error(full_status) => full_status.clone(),
-        MutationStatus::Success(full_status) => full_status.clone(),
-    };
-    obj.insert("status".to_string(), json!(status_str));
-
-    // Add HTTP code
-    obj.insert("code".to_string(), json!(result.status.http_code()));
-
-    // Add errors array
-    if let Some(errors) = result.errors() {
-        let transformed: Vec<Value> = errors
-            .iter()
-            .map(|e| transform_error(e, auto_camel_case))
-            .collect();
-        obj.insert("errors".to_string(), json!(transformed));
-    } else {
-        // Auto-generate error from status/message
-        let code = match &result.status {
-            MutationStatus::Noop(full_status) => {
-                // Extract reason after "noop:"
-                full_status
-                    .strip_prefix("noop:")
-                    .unwrap_or(full_status)
-                    .to_string()
-            }
-            MutationStatus::Error(full_status) => {
-                // Extract reason after first colon
-                if let Some(colon_pos) = full_status.find(':') {
-                    if colon_pos < full_status.len() - 1 {
-                        full_status[colon_pos + 1..].to_string()
-                    } else {
-                        "".to_string()
-                    }
-                } else {
-                    full_status.clone()
-                }
-            }
-            MutationStatus::Success(s) => s.clone(),
-        };
-        let auto_error = json!({
-            "field": null,
-            "code": code,
-            "message": result.message
-        });
-        obj.insert("errors".to_string(), json!([auto_error]));
-    }
+    // Add cascade if present AND requested in selection
+    add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 
     Ok(Value::Object(obj))
+}
+
+/// Map mutation status to REST-like code (application-level only)
+///
+/// These codes are for DX and categorization only.
+/// HTTP response is always 200 OK (GraphQL convention).
+fn map_status_to_code(status: &MutationStatus) -> i32 {
+    match status {
+        MutationStatus::Success(_) => {
+            // Should never reach here (only errors call this function)
+            500
+        }
+        MutationStatus::Noop(_) => {
+            // Validation failure or business rule rejection
+            422 // Unprocessable Entity
+        }
+        MutationStatus::Error(reason) => {
+            let reason_lower = reason.to_lowercase();
+
+            // Map error reasons to codes
+            if reason_lower.starts_with("not_found:") {
+                404 // Not Found
+            } else if reason_lower.starts_with("unauthorized:") {
+                401 // Unauthorized
+            } else if reason_lower.starts_with("forbidden:") {
+                403 // Forbidden
+            } else if reason_lower.starts_with("conflict:") {
+                409 // Conflict
+            } else if reason_lower.starts_with("timeout:") {
+                408 // Request Timeout
+            } else if reason_lower.starts_with("failed:") {
+                500 // Internal Server Error
+            } else {
+                // Unknown error type
+                500
+            }
+        }
+    }
+}
+
+/// Build error response object
+///
+/// Key behaviors:
+/// - Extract error code from status string (part after ':')
+/// - Auto-generate errors array if not in metadata
+/// - Map status to HTTP code
+#[deprecated(
+    since = "1.8.0",
+    note = "Use build_error_response_with_code instead"
+)]
+pub fn build_error_response(
+    result: &MutationResult,
+    error_type: &str,
+    auto_camel_case: bool,
+) -> Result<Value, String> {
+    // Delegate to new function
+    build_error_response_with_code(result, error_type, auto_camel_case, None)
 }
 
 /// Transform entity: add __typename and convert keys to camelCase

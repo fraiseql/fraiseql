@@ -134,13 +134,13 @@ mod test_status_taxonomy {
         assert!(!status.is_noop(), "timeout:expired should not be Noop");
     }
 
-    // NOOP PREFIX (success with no changes) - should be Noop variant
+    // NOOP PREFIX (validation/business rule failure) - should be Noop variant AND Error type
     #[test]
     fn test_noop_prefix_unchanged() {
         let status = MutationStatus::from_str("noop:unchanged");
         assert!(status.is_noop(), "noop:unchanged should be Noop");
         assert!(!status.is_success(), "noop:unchanged should not be Success");
-        assert!(!status.is_error(), "noop:unchanged should not be Error");
+        assert!(status.is_error(), "noop:unchanged should be Error (v1.8.0)"); // NEW
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod test_status_taxonomy {
             !status.is_success(),
             "noop:no_changes should not be Success"
         );
-        assert!(!status.is_error(), "noop:no_changes should not be Error");
+        assert!(status.is_error(), "noop:no_changes should be Error (v1.8.0)"); // NEW
     }
 
     // CASE INSENSITIVITY - should handle mixed case
@@ -193,7 +193,7 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("Noop:Unchanged");
         assert!(status.is_noop(), "Noop:Unchanged should be Noop");
         assert!(!status.is_success(), "Noop:Unchanged should not be Success");
-        assert!(!status.is_error(), "Noop:Unchanged should not be Error");
+        assert!(status.is_error(), "Noop:Unchanged should be Error (v1.8.0)"); // NEW
     }
 
     // EDGE CASES
@@ -261,7 +261,7 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("noop:");
         assert!(status.is_noop(), "noop: should be Noop");
         assert!(!status.is_success(), "noop: should not be Success");
-        assert!(!status.is_error(), "noop: should not be Error");
+        assert!(status.is_error(), "noop: should be Error (v1.8.0)"); // NEW
     }
 
     #[test]
@@ -269,6 +269,55 @@ mod test_status_taxonomy {
         let status = MutationStatus::from_str("NOOP:UNCHANGED");
         assert!(status.is_noop(), "NOOP:UNCHANGED should be Noop");
         assert!(!status.is_success(), "NOOP:UNCHANGED should not be Success");
-        assert!(!status.is_error(), "NOOP:UNCHANGED should not be Error");
+        assert!(status.is_error(), "NOOP:UNCHANGED should be Error (v1.8.0)"); // NEW
+    }
+
+    // ============================================================================
+    // v1.8.0 VALIDATION AS ERROR TYPE - NEW STATUS METHOD TESTS
+    // ============================================================================
+
+    #[test]
+    fn test_noop_is_error_v1_8() {
+        let status = MutationStatus::from_str("noop:unchanged");
+        assert!(status.is_noop());
+        assert!(status.is_error()); // ✅ v1.8.0: noop is error
+        assert!(!status.is_success());
+        assert_eq!(status.application_code(), 422);
+        assert_eq!(status.http_code(), 200); // Still HTTP 200
+    }
+
+    #[test]
+    fn test_not_found_is_error() {
+        let status = MutationStatus::from_str("not_found:user");
+        assert!(!status.is_noop());
+        assert!(status.is_error());
+        assert!(!status.is_success());
+        assert_eq!(status.application_code(), 404);
+        assert_eq!(status.http_code(), 200);
+    }
+
+    #[test]
+    fn test_conflict_is_error() {
+        let status = MutationStatus::from_str("conflict:duplicate");
+        assert!(status.is_error());
+        assert_eq!(status.application_code(), 409);
+    }
+
+    #[test]
+    fn test_success_is_not_error() {
+        let status = MutationStatus::from_str("created");
+        assert!(status.is_success());
+        assert!(!status.is_error());
+        assert!(!status.is_noop());
+        assert_eq!(status.application_code(), 200);
+    }
+
+    #[test]
+    fn test_is_graphql_success_method() {
+        // Only true success returns true for is_graphql_success
+        assert!(MutationStatus::from_str("created").is_graphql_success());
+        assert!(MutationStatus::from_str("success").is_graphql_success());
+        assert!(!MutationStatus::from_str("noop:unchanged").is_graphql_success());
+        assert!(!MutationStatus::from_str("failed:validation").is_graphql_success());
     }
 }

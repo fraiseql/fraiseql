@@ -156,6 +156,16 @@ pub enum MutationStatus {
     Error(String),   // "failed:reason" - actual error
 }
 
+impl std::fmt::Display for MutationStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MutationStatus::Success(s) => write!(f, "{}", s),
+            MutationStatus::Noop(s) => write!(f, "{}", s),
+            MutationStatus::Error(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 impl MutationStatus {
     /// Parse status string into enum with minimal taxonomy
     ///
@@ -219,39 +229,56 @@ impl MutationStatus {
         matches!(self, MutationStatus::Noop(_))
     }
 
+    /// Returns true if this status should return Error type
+    ///
+    /// v1.8.0: Both Noop and Error return Error type
     pub fn is_error(&self) -> bool {
-        matches!(self, MutationStatus::Error(_))
+        matches!(self, MutationStatus::Error(_) | MutationStatus::Noop(_))
     }
 
-    /// Map status to HTTP code
+    /// Returns true if this status should return Success type
+    ///
+    /// v1.8.0: Only Success(_) returns Success type
+    pub fn is_graphql_success(&self) -> bool {
+        matches!(self, MutationStatus::Success(_))
+    }
+
+    /// Map status to HTTP code (ALWAYS 200 for GraphQL)
+    ///
+    /// GraphQL always returns HTTP 200 OK.
+    /// Use application_code() for REST-like categorization.
     pub fn http_code(&self) -> i32 {
+        200 // Always 200 OK for GraphQL
+    }
+
+    /// Map status to application-level code (for DX and categorization)
+    ///
+    /// This is NOT an HTTP status code. It's an application-level field
+    /// that mirrors REST semantics for better developer experience.
+    pub fn application_code(&self) -> i32 {
         match self {
             MutationStatus::Success(_) => 200,
-            MutationStatus::Noop(_) => 200, // Noop is success (no change made)
+            MutationStatus::Noop(_) => 422, // Validation/business rule
             MutationStatus::Error(reason) => {
-                // Map error reasons to HTTP status codes
                 let reason_lower = reason.to_lowercase();
-                if reason_lower.contains("not_found") || reason_lower.contains("missing") {
+                if reason_lower.starts_with("not_found:") {
                     404
-                } else if reason_lower.contains("unauthorized")
-                    || reason_lower.contains("unauthenticated")
-                {
+                } else if reason_lower.starts_with("unauthorized:") {
                     401
-                } else if reason_lower.contains("forbidden") || reason_lower.contains("permission")
-                {
+                } else if reason_lower.starts_with("forbidden:") {
                     403
-                } else if reason_lower.contains("conflict") || reason_lower.contains("duplicate") {
+                } else if reason_lower.starts_with("conflict:") {
                     409
-                } else if reason_lower.contains("validation") || reason_lower.contains("invalid") {
-                    422
-                } else if reason_lower.contains("timeout") {
+                } else if reason_lower.starts_with("timeout:") {
                     408
                 } else {
-                    500 // Generic internal error
+                    500
                 }
             }
         }
     }
+
+
 }
 
 /// Parsed mutation result from PostgreSQL
