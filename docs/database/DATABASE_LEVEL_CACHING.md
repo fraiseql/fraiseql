@@ -74,7 +74,7 @@ work_mem = 64MB
 **What We're Currently Doing**:
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id INT PRIMARY KEY,
     first_name TEXT,
     last_name TEXT,
