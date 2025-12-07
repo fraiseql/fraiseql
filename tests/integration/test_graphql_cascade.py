@@ -13,6 +13,234 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
+async def test_cascade_with_nested_entity_fields(cascade_http_client):
+    """Test that CASCADE doesn't break nested entity field access.
+
+    CRITICAL: This tests the bug pattern from fraiseql_cascade_bug_report.md where
+    enable_cascade=True caused entity fields to be replaced by cascade metadata.
+
+    The bug manifests when:
+    1. Success type has a nested entity field (post: Post)
+    2. CASCADE is enabled
+    3. GraphQL queries entity fields directly
+
+    Expected: Entity fields accessible at allocation.id, allocation.title, etc.
+    Bug behavior: Only cascade field present, entity fields missing.
+    """
+    mutation_query = """
+    mutation CreatePostWithEntity($input: CreatePostInput!) {
+        createPostWithEntity(input: $input) {
+            ... on CreatePostWithEntitySuccess {
+                message
+                post {
+                    id
+                    title
+                    content
+                    authorId
+                }
+                cascade {
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
+                    invalidations {
+                        queryName
+                        strategy
+                        scope
+                    }
+                    metadata {
+                        timestamp
+                        affectedCount
+                    }
+                }
+            }
+            ... on CreatePostError {
+                code
+                message
+            }
+        }
+    }
+    """
+
+    variables = {"input": {"title": "Test Post", "content": "Test content", "authorId": "user-123"}}
+
+    response = await cascade_http_client.post(
+        "/graphql", json={"query": mutation_query, "variables": variables}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Debug: print the response
+    import json
+
+    print(f"\n\n=== CASCADE WITH ENTITY FIELD RESPONSE ===")
+    print(json.dumps(data, indent=2))
+    print("=" * 50)
+
+    # Verify response structure
+    assert "data" in data
+    assert "createPostWithEntity" in data["data"]
+    result = data["data"]["createPostWithEntity"]
+
+    # Verify message is accessible
+    assert result["message"] == "Post created successfully"
+
+    # CRITICAL: Entity fields must be accessible directly on the post object
+    post = result["post"]
+    assert "id" in post, "Entity 'id' field missing - CASCADE bug detected!"
+    assert "title" in post, "Entity 'title' field missing - CASCADE bug detected!"
+    assert "content" in post, "Entity 'content' field missing - CASCADE bug detected!"
+    assert "authorId" in post, "Entity 'authorId' field missing - CASCADE bug detected!"
+
+    # Verify entity field values
+    assert post["title"] == "Test Post"
+    assert post["content"] == "Test content"
+    assert post["authorId"] == "user-123"
+
+    # Verify CASCADE should NOT be on the entity object
+    assert "cascade" not in post, "CASCADE metadata should be on success type, NOT on entity object"
+
+    # Verify CASCADE data is accessible separately on the success type
+    assert "cascade" in result, "CASCADE metadata should be on success type"
+    cascade = result["cascade"]
+    assert cascade is not None
+    assert "updated" in cascade
+    assert "deleted" in cascade
+    assert "invalidations" in cascade
+    assert "metadata" in cascade
+
+    # Verify cascade content
+    assert len(cascade["updated"]) == 2  # Post + User
+
+    # Find Post entity in CASCADE
+    post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
+    assert post_entity is not None
+    assert post_entity["operation"] == "CREATED"
+    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Since we didn't query entity field, it won't be present
+
+    # Find User entity in CASCADE
+    user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
+    assert user_entity is not None
+    assert user_entity["operation"] == "UPDATED"
+    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+
+    # Verify invalidations
+    assert len(cascade["invalidations"]) >= 1
+    posts_invalidation = next(
+        (i for i in cascade["invalidations"] if i["queryName"] == "posts"), None
+    )
+    assert posts_invalidation is not None
+    assert posts_invalidation["strategy"] == "INVALIDATE"
+
+    # Verify metadata
+    assert cascade["metadata"]["affectedCount"] == 2
+    assert "timestamp" in cascade["metadata"]
+
+
+@pytest.mark.asyncio
+async def test_cascade_entity_fields_without_querying_cascade(cascade_http_client):
+    """Test entity fields work when CASCADE metadata is not queried.
+
+    This tests that entity fields remain accessible even when the client
+    doesn't request CASCADE metadata in the query.
+    """
+    mutation_query = """
+    mutation CreatePostWithEntity($input: CreatePostInput!) {
+        createPostWithEntity(input: $input) {
+            ... on CreatePostWithEntitySuccess {
+                message
+                post {
+                    id
+                    title
+                    content
+                    authorId
+                }
+            }
+            ... on CreatePostError {
+                code
+                message
+            }
+        }
+    }
+    """
+
+    variables = {"input": {"title": "Test Post 2", "content": "Content 2", "authorId": "user-123"}}
+
+    response = await cascade_http_client.post(
+        "/graphql", json={"query": mutation_query, "variables": variables}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    result = data["data"]["createPostWithEntity"]
+
+    # Verify entity fields are accessible without querying CASCADE
+    post = result["post"]
+    assert "id" in post
+    assert "title" in post
+    assert post["title"] == "Test Post 2"
+    assert post["content"] == "Content 2"
+    assert post["authorId"] == "user-123"
+
+    # CASCADE field should NOT be present when not requested in selection set
+    # This follows GraphQL spec: only return requested fields
+    assert "cascade" not in result, (
+        "CASCADE should not be in response when not requested in selection set. "
+        "This follows GraphQL spec: only return requested fields."
+    )
+
+
+@pytest.mark.asyncio
+async def test_cascade_with_only_cascade_no_entity_query(cascade_http_client):
+    """Test that CASCADE works when entity fields are not queried.
+
+    This verifies CASCADE metadata is accessible independently of entity fields.
+    """
+    mutation_query = """
+    mutation CreatePostWithEntity($input: CreatePostInput!) {
+        createPostWithEntity(input: $input) {
+            ... on CreatePostWithEntitySuccess {
+                message
+                cascade {
+                    updated {
+                        id
+                        operation
+                    }
+                    metadata {
+                        affectedCount
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    variables = {"input": {"title": "Test Post 3", "content": "Content 3", "authorId": "user-123"}}
+
+    response = await cascade_http_client.post(
+        "/graphql", json={"query": mutation_query, "variables": variables}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    result = data["data"]["createPostWithEntity"]
+
+    # CASCADE should be accessible
+    assert "cascade" in result
+    assert result["cascade"] is not None
+    assert "updated" in result["cascade"]
+    assert result["cascade"]["metadata"]["affectedCount"] == 2
+
+
+@pytest.mark.asyncio
 async def test_cascade_end_to_end(cascade_http_client):
     """Test complete cascade flow from PostgreSQL function to GraphQL response.
 
@@ -36,8 +264,14 @@ async def test_cascade_end_to_end(cascade_http_client):
                 id
                 message
                 cascade {
-                    updated
-                    deleted
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
                     invalidations {
                         queryName
                         strategy
@@ -75,6 +309,7 @@ async def test_cascade_end_to_end(cascade_http_client):
     assert "data" in data
     assert "createPost" in data["data"]
     assert data["data"]["createPost"]["id"]
+    # Verify message from PostgreSQL function is preserved
     assert data["data"]["createPost"]["message"] == "Post created successfully"
 
     # Verify cascade data
@@ -92,13 +327,13 @@ async def test_cascade_end_to_end(cascade_http_client):
     post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
     assert post_entity is not None
     assert post_entity["operation"] == "CREATED"
-    assert post_entity["entity"]["title"] == "Test Post"
+    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
 
     # Find User entity
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    assert user_entity["entity"]["postCount"] == 1  # camelCase from cascade
+    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1
@@ -384,3 +619,97 @@ def validate_cascade_structure(cascade: Dict[str, Any]) -> bool:
             return False
 
     return True
+
+
+@pytest.mark.asyncio
+async def test_schema_validation_with_success_type_fields(cascade_http_client):
+    """Test that Rust schema validation works with success_type_fields parameter.
+
+    This test verifies Phase 3: Rust Schema Validation is working correctly.
+    The Rust transformer should validate that all expected fields from the Success type
+    are present in the mutation response, and warn about missing/extra fields.
+    """
+    # This test uses the existing CreatePostWithEntity mutation which has:
+    # - Success type: CreatePostWithEntitySuccess with fields: post, message, cascade
+    # - The test should pass because all expected fields are present
+
+    mutation_query = """
+    mutation CreatePostWithEntity($input: CreatePostInput!) {
+        createPostWithEntity(input: $input) {
+            ... on CreatePostWithEntitySuccess {
+                message
+                post {
+                    id
+                    title
+                    content
+                    authorId
+                }
+                cascade {
+                    updated {
+                        id
+                        operation
+                    }
+                    deleted {
+                        id
+                        operation
+                    }
+                    invalidations {
+                        queryName
+                        strategy
+                        scope
+                    }
+                    metadata {
+                        timestamp
+                        affectedCount
+                    }
+                }
+            }
+            ... on CreatePostError {
+                message
+                code
+            }
+        }
+    }
+    """
+
+    variables = {
+        "input": {
+            "title": "Schema Validation Test Post",
+            "content": "Testing Rust schema validation with success_type_fields",
+            "authorId": "user-123",
+        }
+    }
+
+    response = await cascade_http_client.post(
+        "/graphql",
+        json={"query": mutation_query, "variables": variables},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+
+    # Should not have GraphQL errors
+    assert "errors" not in result or not result["errors"]
+
+    # Should have successful mutation result
+    mutation_result = result["data"]["createPostWithEntity"]
+    assert mutation_result["__typename"] == "CreatePostWithEntitySuccess"
+
+    # All expected fields should be present (this validates schema compliance)
+    assert "message" in mutation_result
+    assert "post" in mutation_result
+    assert "cascade" in mutation_result
+
+    # Post entity should have expected structure
+    post = mutation_result["post"]
+    assert post["id"].startswith("post-")
+    assert post["title"] == "Schema Validation Test Post"
+    assert post["content"] == "Testing Rust schema validation with success_type_fields"
+    assert post["authorId"] == "user-123"
+
+    # Cascade should be present and valid
+    cascade = mutation_result["cascade"]
+    assert isinstance(cascade["updated"], list)
+    assert isinstance(cascade["deleted"], list)
+    assert isinstance(cascade["invalidations"], list)
+    assert "metadata" in cascade

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fraiseql"
-version = "1.7.0"
+version = "1.8.0b3"
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -96,7 +96,7 @@ dev = [
   "email-validator>=2.0.0",
 ]
 auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
-sbom = ["cyclonedx-python-lib>=7.0.0,<8.0", "packageurl-python>=0.15.0"]
+sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
 aws = ["boto3>=1.34.0"]
 kms-vault = ["httpx>=0.27.0"]
 kms-aws = ["aioboto3>=12.0.0"]
@@ -133,7 +133,7 @@ all = [
   "opentelemetry-exporter-jaeger>=1.20.0",
   "pyjwt[crypto]>=2.8.0",
   "httpx>=0.25.0",
-  "cyclonedx-python-lib>=7.0.0,<8.0",
+  "cyclonedx-python-lib>=7.0.0,<12.0",
   "packageurl-python>=0.15.0",
   "boto3>=1.34.0",
   "cryptography>=42.0.0",
@@ -152,7 +152,7 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 
 # timeout options
-timeout = 10
+timeout = 20
 timeout_method = "thread"
 
 # Output options

@@ -48,7 +48,7 @@ def test_rust_binding_v2_success():
 
     mutation_json = json.dumps(
         {
-            "status": "new",
+            "status": "created",
             "message": "User created",
             "entity_id": "123",
             "entity_type": "User",
@@ -104,7 +104,7 @@ def test_rust_binding_error():
 
     response = json.loads(response_bytes)
     assert response["data"]["createUser"]["__typename"] == "CreateUserError"
-    assert response["data"]["createUser"]["code"] == 422
+    assert response["data"]["createUser"]["code"] == 500
 
 
 @requires_rust

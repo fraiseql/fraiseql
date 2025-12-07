@@ -25,7 +25,7 @@ pub struct FieldSet {
 
     // For > 128 fields (rare), fall back to HashSet
     #[allow(dead_code)]
-    overflow: Option<Box<HashSet<u32>>>,
+    overflow: Option<HashSet<u32>>,
 }
 
 impl FieldSet {
@@ -60,7 +60,7 @@ impl FieldSet {
 
     #[inline(always)]
     fn contains_hash(&self, hash: u32) -> bool {
-        let bit_pos = (hash % 128) as u32;
+        let bit_pos = hash % 128;
 
         if bit_pos < 64 {
             // Check primary bitmap
@@ -74,7 +74,7 @@ impl FieldSet {
 
     #[inline(always)]
     fn insert_hash(&mut self, hash: u32) {
-        let bit_pos = (hash % 128) as u32;
+        let bit_pos = hash % 128;
 
         if bit_pos < 64 {
             self.bitmap |= 1u64 << bit_pos;

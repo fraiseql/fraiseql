@@ -5,11 +5,11 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
+[![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.7.0) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.8.0-alpha.5) - Alpha Release**
 
-**Current Version**: v1.7.0 | **Status**: Production Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.0a5 | **Status**: Alpha | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -554,6 +554,36 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Business logic, validation, logging - all in the database function. Crystal clear for humans and AI.**
+
+### Selective CASCADE Querying
+
+Request only the CASCADE data you need:
+
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    post { id title }
+
+    # Option 1: No CASCADE (smallest payload)
+    # Just omit the cascade field
+
+    # Option 2: Metadata only
+    cascade {
+      metadata { affectedCount }
+    }
+
+    # Option 3: Full CASCADE
+    cascade {
+      updated { __typename id entity }
+      deleted { __typename id }
+      invalidations { queryName }
+      metadata { affectedCount }
+    }
+  }
+}
+```
+
+Performance: Not requesting CASCADE reduces response size by 2-10x.
 
 ---
 
@@ -1120,9 +1150,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.7.0** | Root level | Production Stable | Latest stable release | ✅ Recommended |
+| **v1.8.0-alpha.3** | Root level | Alpha | Testing mutation_response + cascade fixes | ⚠️ Testing Only |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.6.x** | Superseded | Legacy | Use v1.7.0 | ⚠️ Upgrade |
+| **v1.7.2** | Superseded | Legacy | Use v1.8.0-alpha.3 or wait for v1.8.0 stable | ⚠️ Upgrade |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

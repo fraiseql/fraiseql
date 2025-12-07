@@ -7,9 +7,11 @@
 This guide explains the return formats for PostgreSQL functions used with FraiseQL mutations. FraiseQL supports two formats:
 
 - **Legacy Format** (v1.4+): Simple `success`/`data`/`error` structure
-- **V2 Format** (v1.7+): Structured `mutation_result_v2` type with comprehensive error handling
+- **V2 Format** (v1.7+): Structured `mutation_response` type with comprehensive error handling
 
 See [Mutation Result Reference](mutation-result-reference.md) for complete format specifications.
+
+**Error Detection**: FraiseQL's Rust layer automatically detects errors using a [comprehensive status taxonomy](../mutations/status-strings.md). Status strings like `failed:validation`, `unauthorized:token_expired`, `conflict:duplicate`, etc. are automatically mapped to appropriate error types and HTTP status codes.
 
 **Note**: The legacy format continues to work but the v2 format is recommended for new implementations.
 
@@ -90,14 +92,14 @@ END;
 
 ## V2 Return Format (v1.7+)
 
-For comprehensive mutation handling, use the `mutation_result_v2` composite type:
+For comprehensive mutation handling, use the `mutation_response` composite type:
 
 ```sql
 -- Enable the v2 types and helpers
--- (Run: migrations/trinity/005_add_mutation_result_v2.sql)
+-- (Run: migrations/trinity/005_add_mutation_response.sql)
 
 CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -147,8 +149,8 @@ FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002_ultra_
 
 Your PostgreSQL functions **automatically work** with the ultra-direct path if they:
 
-1. ✅ Return JSONB type (or `mutation_result_v2`)
-2. ✅ Follow either format: legacy (`success`/`data`/`error`) or v2 (`mutation_result_v2`)
+1. ✅ Return JSONB type (or `mutation_response`)
+2. ✅ Follow either format: legacy (`success`/`data`/`error`) or v2 (`mutation_response`)
 3. ✅ Use snake_case field names (Rust transforms to camelCase automatically)
 
 ### Example: Ultra-Direct Compatible Function (Legacy Format)
@@ -228,7 +230,7 @@ The v2 format also works with the ultra-direct path and provides richer error ha
 ```sql
 -- V2 format function (also ultra-direct compatible)
 CREATE OR REPLACE FUNCTION graphql.update_user(user_id uuid, input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 -- Uses structured error handling and helper functions
 -- See Mutation Result Reference for details
 $$ LANGUAGE plpgsql;

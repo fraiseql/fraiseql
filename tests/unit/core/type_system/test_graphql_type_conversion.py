@@ -10,6 +10,7 @@ from graphql import (
     GraphQLInputObjectType,
     GraphQLInt,
     GraphQLList,
+    GraphQLNonNull,
     GraphQLObjectType,
     GraphQLScalarType,
     GraphQLString,  # Added this import
@@ -72,8 +73,11 @@ class TestConvertTypeToGraphQLInput:
         fields = result.fields
         assert "name" in fields
         assert "age" in fields
-        assert fields["name"].type == GraphQLString
-        assert fields["age"].type == GraphQLInt
+        # Required fields (no defaults) should be non-null
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        assert isinstance(fields["age"].type, GraphQLNonNull)
+        assert fields["age"].type.of_type == GraphQLInt
 
     def test_fraise_input_with_defaults(self) -> None:
         """Test conversion of FraiseQL input class with defaults."""
@@ -89,7 +93,10 @@ class TestConvertTypeToGraphQLInput:
 
         fields = result.fields
         assert len(fields) == 3
-        assert fields["name"].type == GraphQLString
+        # Required field (no default) should be non-null
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        # Fields with defaults should be nullable
         assert fields["age"].type == GraphQLInt
         assert fields["active"].type == GraphQLBoolean
 
@@ -105,10 +112,13 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(result, GraphQLInputObjectType)
 
         fields = result.fields
-        assert isinstance(fields["tags"].type, GraphQLList)
-        assert fields["tags"].type.of_type == GraphQLString
-        assert isinstance(fields["scores"].type, GraphQLList)
-        assert fields["scores"].type.of_type == GraphQLInt
+        # Required list fields (no defaults) should be non-null
+        assert isinstance(fields["tags"].type, GraphQLNonNull)
+        assert isinstance(fields["tags"].type.of_type, GraphQLList)
+        assert fields["tags"].type.of_type.of_type == GraphQLString
+        assert isinstance(fields["scores"].type, GraphQLNonNull)
+        assert isinstance(fields["scores"].type.of_type, GraphQLList)
+        assert fields["scores"].type.of_type.of_type == GraphQLInt
 
     def test_fraise_input_with_any_field(self) -> None:
         """Test conversion of FraiseQL input class with Any field."""
@@ -122,10 +132,14 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(result, GraphQLInputObjectType)
 
         fields = result.fields
-        assert fields["name"].type == GraphQLString
-        assert fields["metadata"].type == JSONScalar
-        assert isinstance(fields["metadata"].type, GraphQLScalarType)
-        assert fields["metadata"].type.name == "JSON"
+        # Required field (no default) should be non-null
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        # metadata is also required (no default)
+        assert isinstance(fields["metadata"].type, GraphQLNonNull)
+        assert isinstance(fields["metadata"].type.of_type, GraphQLScalarType)
+        assert fields["metadata"].type.of_type == JSONScalar
+        assert fields["metadata"].type.of_type.name == "JSON"
 
     def test_fraise_input_with_fraise_field_annotation(self) -> None:
         """Test conversion of FraiseQL input class with fraise_field annotations."""
@@ -139,8 +153,11 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(result, GraphQLInputObjectType)
 
         fields = result.fields
-        assert fields["email"].type == GraphQLString
-        assert fields["count"].type == GraphQLInt
+        # Required fields (no defaults) should be non-null
+        assert isinstance(fields["email"].type, GraphQLNonNull)
+        assert fields["email"].type.of_type == GraphQLString
+        assert isinstance(fields["count"].type, GraphQLNonNull)
+        assert fields["count"].type.of_type == GraphQLInt
 
     def test_fraise_input_inheritance(self) -> None:
         """Test conversion of inherited FraiseQL input classes."""
@@ -180,9 +197,12 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(result, GraphQLInputObjectType)
 
         fields = result.fields
-        assert fields["name"].type == GraphQLString
-        assert isinstance(fields["address"].type, GraphQLInputObjectType)
-        assert fields["address"].type.name == "AddressInput"
+        # Required fields (no defaults) should be non-null
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        assert isinstance(fields["address"].type, GraphQLNonNull)
+        assert isinstance(fields["address"].type.of_type, GraphQLInputObjectType)
+        assert fields["address"].type.of_type.name == "AddressInput"
 
     def test_union_types_raise_error(self) -> None:
         """Test that Union types raise TypeError."""
@@ -464,9 +484,12 @@ class TestEdgeCases:
         assert nested_field is not None
         assert nested_list_field is not None
 
-        assert isinstance(nested_field.type, GraphQLInputObjectType)
-        assert isinstance(nested_list_field.type, GraphQLList)
-        assert isinstance(nested_list_field.type.of_type, GraphQLInputObjectType)
+        # Required fields (no defaults) should be non-null
+        assert isinstance(nested_field.type, GraphQLNonNull)
+        assert isinstance(nested_field.type.of_type, GraphQLInputObjectType)
+        assert isinstance(nested_list_field.type, GraphQLNonNull)
+        assert isinstance(nested_list_field.type.of_type, GraphQLList)
+        assert isinstance(nested_list_field.type.of_type.of_type, GraphQLInputObjectType)
 
 
 # Custom scalar type tests (if you have custom scalars)
@@ -513,7 +536,9 @@ class TestRecursiveJSONField:
         result = convert_type_to_graphql_input(RecursiveInput)
         assert isinstance(result, GraphQLInputObjectType)
         assert "field" in result.fields
-        assert isinstance(result.fields["field"].type, GraphQLScalarType)  # JSON scalar type
+        # Required field (no default) should be non-null
+        assert isinstance(result.fields["field"].type, GraphQLNonNull)
+        assert isinstance(result.fields["field"].type.of_type, GraphQLScalarType)  # JSON scalar type
 
 
 class TestMissingFieldsInComplexTypes:
@@ -546,7 +571,10 @@ class TestMissingFieldsInComplexTypes:
         assert isinstance(result, GraphQLInputObjectType)
 
         fields = result.fields
-        assert fields["name"].type == GraphQLString
+        # Required field (no default) should be non-null
+        assert isinstance(fields["name"].type, GraphQLNonNull)
+        assert fields["name"].type.of_type == GraphQLString
+        # Fields with defaults should be nullable
         assert fields["age"].type == GraphQLInt
         assert fields["active"].type == GraphQLBoolean
 
@@ -580,7 +608,9 @@ class TestPerformance:
         result = convert_type_to_graphql_input(DeeplyNestedJSON)
         assert isinstance(result, GraphQLInputObjectType)
         assert "data" in result.fields
-        assert isinstance(result.fields["data"].type, GraphQLScalarType)
+        # Required field (no default) should be non-null
+        assert isinstance(result.fields["data"].type, GraphQLNonNull)
+        assert isinstance(result.fields["data"].type.of_type, GraphQLScalarType)
 
         end = time.time()
         assert (end - start) < 1  # Conversion should take less than 1 second
@@ -663,7 +693,9 @@ class TestJSONFieldWithList:
         result = convert_type_to_graphql_input(InputWithListOfJSON)
         assert isinstance(result, GraphQLInputObjectType)
         assert "items" in result.fields
-        assert isinstance(result.fields["items"].type, GraphQLList)
+        # Required field (no default) should be non-null
+        assert isinstance(result.fields["items"].type, GraphQLNonNull)
+        assert isinstance(result.fields["items"].type.of_type, GraphQLList)
 
     def test_list_of_json_field_in_output(self) -> None:
         """Test list of JSONField in output."""

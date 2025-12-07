@@ -181,3 +181,20 @@ security_events.log
 
 # TODO directory (deployment analysis and guides)
 TODO/
+
+# Temporary implementation and planning files (root directory only)
+/*_GUIDE*.md
+/*_IMPLEMENTATION*.md
+/*_PLAN*.md
+/assessment*.md
+/tmp_*.sh
+/migrate_*.sh
+/*.json
+!/package.json
+!/tsconfig.json
+
+# Archive directory
+/archive/
+
+# Phase tracking directory for Pentagon-Readiness implementation
+.phases/

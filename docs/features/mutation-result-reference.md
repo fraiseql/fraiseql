@@ -100,14 +100,14 @@ RETURN jsonb_build_array(
 );
 ```
 
-## Full V2 Format (mutation_result_v2)
+## Full V2 Format (mutation_response)
 
 The v2 format uses a structured composite type for complete mutation responses.
 
 ### Composite Type Definition
 
 ```sql
-CREATE TYPE mutation_result_v2 AS (
+CREATE TYPE mutation_response AS (
     status          text,                    -- Status string
     message         text,                    -- Human-readable message
     entity_id       text,                    -- Optional entity ID
@@ -121,19 +121,31 @@ CREATE TYPE mutation_result_v2 AS (
 
 ### Status Values
 
+FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Status String Conventions](../mutations/status-strings.md) for complete details.
+
 #### Success States
 - `success` - Generic success
-- `new` - Entity created
+- `new` / `created` - Entity created
 - `updated` - Entity modified
 - `deleted` - Entity removed
 - `completed` - Operation finished
 - `ok` - Alternative success
 
 #### Noop States
-- `noop:<reason>` - No changes made (e.g., `noop:unchanged`)
+- `noop:<reason>` - No changes made (e.g., `noop:unchanged`, `noop:duplicate`)
 
 #### Error States
-- `failed:<type>` - Operation failed (e.g., `failed:validation`, `failed:not_found`)
+
+FraiseQL recognizes specific error prefixes that map to HTTP status codes:
+
+- `failed:<type>` - Generic failure (500) - e.g., `failed:validation`, `failed:database_error`
+- `unauthorized:<type>` - Authentication required (401) - e.g., `unauthorized:token_expired`
+- `forbidden:<type>` - Insufficient permissions (403) - e.g., `forbidden:admin_only`
+- `not_found:<type>` - Resource doesn't exist (404) - e.g., `not_found:user_missing`
+- `conflict:<type>` - Resource conflict (409) - e.g., `conflict:duplicate_email`
+- `timeout:<type>` - Operation timeout (408/504) - e.g., `timeout:external_api`
+
+**Note**: All status matching is case-insensitive (`FAILED:validation` = `failed:validation`).
 
 ### SQL Helper Functions
 
@@ -182,7 +194,7 @@ SELECT mutation_noop('unchanged', 'No fields were modified');
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.update_user(user_id uuid, input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     updated_fields text[] := ARRAY[]::text[];
     user_data jsonb;
@@ -279,16 +291,21 @@ For REST-like semantics, error responses include a `code` field with equivalent 
 
 ### Status to Code Mapping
 
+FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See [Status String Conventions](../mutations/status-strings.md) for complete reference.
+
 | Status Pattern | Code | Description | Use Case |
 |----------------|------|-------------|----------|
-| `success`, `new`, `updated`, `deleted`, `completed`, `ok` | 200 | Success | All successful operations |
-| `noop:*` | 422 | Unprocessable Entity | No changes made |
-| `failed:not_found` | 404 | Not Found | Resource doesn't exist |
-| `failed:validation`, `failed:invalid` | 422 | Unprocessable Entity | Invalid input |
-| `failed:conflict`, `failed:duplicate` | 409 | Conflict | Duplicate/conflict |
-| `failed:unauthorized` | 401 | Unauthorized | Auth required |
-| `failed:forbidden` | 403 | Forbidden | Permission denied |
-| `failed:*` (other) | 500 | Internal Server Error | Server error |
+| `success`, `created`, `updated`, `deleted`, `completed`, `ok` | 200 | Success | All successful operations |
+| `noop:*` | 200 | Success (no changes) | Idempotent operations, no fields changed |
+| `unauthorized:*` | 401 | Unauthorized | Authentication required or token expired |
+| `forbidden:*` | 403 | Forbidden | Authenticated but insufficient permissions |
+| `not_found:*` | 404 | Not Found | Resource doesn't exist |
+| `timeout:*` | 408 | Request Timeout | Operation timed out |
+| `conflict:*` | 409 | Conflict | Duplicate key, version conflict |
+| `failed:validation`, `failed:invalid` | 422 | Unprocessable Entity | Invalid input data |
+| `failed:*` (other) | 500 | Internal Server Error | Generic server error |
+
+**Note**: The Rust layer performs case-insensitive matching on status prefixes.
 
 ### Frontend Handling Example
 
@@ -454,7 +471,7 @@ SELECT cascade_merge(cascade1, cascade2);
 
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
-RETURNS mutation_result_v2 AS $$
+RETURNS mutation_response AS $$
 DECLARE
     user_data jsonb;
     user_id uuid;
@@ -496,4 +513,4 @@ $$ LANGUAGE plpgsql;
 **Related Documentation**:
 - [SQL Function Return Format](sql-function-return-format.md) - Existing return format guide
 - [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
-- [Migration: Add mutation_result_v2](../../migrations/trinity/005_add_mutation_result_v2.sql) - SQL type definition and helpers
+- [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) - SQL type definition and helpers

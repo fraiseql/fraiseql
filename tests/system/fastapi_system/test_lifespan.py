@@ -188,6 +188,22 @@ async def test_lifespan_error_handling() -> None:
     # Verify startup was attempted
     assert "failing_startup" in lifecycle_events
 
+    # Explicit cleanup for CI/Tox environments to prevent async teardown hangs
+    # Close any database pool that may have been created before the lifespan failure
+    import asyncio
+
+    from fraiseql.fastapi.dependencies import get_db_pool
+
+    try:
+        pool = get_db_pool()
+        if pool:
+            await pool.close()
+            # Give time for pool cleanup to complete
+            await asyncio.sleep(0.1)
+    except RuntimeError:
+        # No pool was set, which is fine
+        pass
+
 
 def test_lifespan_with_existing_app() -> None:
     """Test that custom lifespan works when extending existing app."""

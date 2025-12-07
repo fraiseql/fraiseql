@@ -1,5 +1,6 @@
 """PostgreSQL function-based mutation decorator."""
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any, TypeVar, get_type_hints
@@ -7,11 +8,12 @@ from typing import Any, TypeVar, get_type_hints
 from graphql import GraphQLResolveInfo
 
 from fraiseql.mutations.error_config import MutationErrorConfig
-from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.definitions import UNSET
 from fraiseql.utils.casing import to_snake_case
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class MutationDefinition:
@@ -32,9 +34,10 @@ class MutationDefinition:
         # Store the provided schema for lazy resolution
         self._provided_schema = schema
         self._resolved_schema = None  # Will be resolved lazily
+        self._provided_error_config = error_config  # <-- NEW: Store provided value
+        self._resolved_error_config = None  # <-- NEW: Lazy resolution
 
         self.context_params = context_params or {}
-        self.error_config = error_config
         self.enable_cascade = enable_cascade
 
         # Get type hints
@@ -135,6 +138,158 @@ class MutationDefinition:
         # Fall back to "public" as per feature requirements
         return "public"
 
+    @property
+    def error_config(self) -> MutationErrorConfig | None:
+        """Get the error config, resolving it lazily if needed."""
+        if self._resolved_error_config is None:
+            self._resolved_error_config = self._resolve_error_config(self._provided_error_config)
+        return self._resolved_error_config
+
+    def _resolve_error_config(
+        self, provided_error_config: MutationErrorConfig | None
+    ) -> MutationErrorConfig | None:
+        """Resolve the error config to use, considering defaults from config.
+
+        Resolution order:
+        1. Explicit error_config parameter on decorator (highest priority)
+        2. default_error_config from FraiseQLConfig
+        3. None (no error configuration)
+        """
+        # If error_config was explicitly provided, use it (even if None)
+        if provided_error_config is not None:
+            return provided_error_config
+
+        # Try to get default from registry config
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            registry = SchemaRegistry.get_instance()
+
+            if registry.config and hasattr(registry.config, "default_error_config"):
+                return registry.config.default_error_config
+        except ImportError:
+            pass
+
+        # Fall back to None (no error configuration)
+        return None
+
+    def _get_cascade_selections(self, info: GraphQLResolveInfo) -> str | None:
+        """Extract CASCADE selections from GraphQL query if enabled."""
+        if not self.enable_cascade:
+            return None
+
+        from fraiseql.mutations.cascade_selections import extract_cascade_selections
+
+        return extract_cascade_selections(info)
+
+    def validate_types(self) -> None:
+        """Validate Success and Error types conform to v1.8.0 requirements."""
+        # Validate Success type
+        if not self.success_type:
+            raise ValueError(f"Mutation {self.name} must have a success type")
+
+        success_type_name = getattr(self.success_type, "__name__", "Success")
+        if not hasattr(self.success_type, "__annotations__"):
+            raise ValueError(f"Success type {success_type_name} must have annotations")
+
+        success_annotations = self.success_type.__annotations__
+
+        # Success must have entity field
+        entity_field = self._get_entity_field_name()
+        if entity_field not in success_annotations:
+            raise ValueError(
+                f"Success type {success_type_name} must have '{entity_field}' field. "
+                f"v1.8.0 requires Success types to always have non-null entity."
+            )
+
+        # Entity field must NOT be Optional
+        entity_type = success_annotations[entity_field]
+        if self._is_optional(entity_type):
+            raise ValueError(
+                f"Success type {success_type_name} has nullable entity field. "
+                f"v1.8.0 requires entity to be non-null. "
+                f"Change '{entity_field}: {entity_type}' to non-nullable type."
+            )
+
+        # Validate Error type
+        if not self.error_type:
+            raise ValueError(f"Mutation {self.name} must have an error type")
+
+        error_type_name = getattr(self.error_type, "__name__", "Error")
+        if not hasattr(self.error_type, "__annotations__"):
+            raise ValueError(f"Error type {error_type_name} must have annotations")
+
+        error_annotations = self.error_type.__annotations__
+
+        # Error must have code field (v1.8.0)
+        if "code" not in error_annotations:
+            raise ValueError(
+                f"Error type {error_type_name} must have 'code: int' field. "
+                f"v1.8.0 requires Error types to include REST-like error codes."
+            )
+
+        # Code must be int
+        code_type = error_annotations["code"]
+        if code_type != int:  # noqa: E721
+            raise ValueError(
+                f"Error type {error_type_name} has wrong 'code' type: {code_type}. Expected 'int'."
+            )
+
+        # Error must have status field
+        if "status" not in error_annotations:
+            raise ValueError(f"Error type {error_type_name} must have 'status: str' field.")
+
+        # Error must have message field
+        if "message" not in error_annotations:
+            raise ValueError(f"Error type {error_type_name} must have 'message: str' field.")
+
+    def _get_entity_field_name(self) -> str:
+        """Get entity field name from Success type.
+
+        Looks for common patterns: entity, <lowercase_type>, etc.
+        """
+        if not self.success_type:
+            raise ValueError("Success type not set")
+
+        annotations = self.success_type.__annotations__
+
+        # Common patterns
+        if "entity" in annotations:
+            return "entity"
+
+        # Try lowercase type name (e.g., CreateMachineSuccess → machine)
+        mutation_name = getattr(self.success_type, "__name__", "").replace("Success", "")
+        entity_name_candidate = mutation_name.lower()
+        if entity_name_candidate in annotations:
+            return entity_name_candidate
+
+        # Fallback: first non-standard field
+        standard_fields = {"cascade", "message", "updated_fields", "code", "status"}
+        for field in annotations:
+            if field not in standard_fields:
+                return field
+
+        raise ValueError(
+            f"Could not determine entity field name for {getattr(self.success_type, '__name__', 'Success')}. "  # noqa: E501
+            f"Expected 'entity' or lowercase mutation name."
+        )
+
+    def _is_optional(self, type_hint: Any) -> bool:
+        """Check if type hint is Optional (includes None)."""
+        import typing
+
+        # Check for X | None (Python 3.10+)
+        if hasattr(typing, "get_args") and hasattr(typing, "get_origin"):
+            origin = typing.get_origin(type_hint)
+            if origin is typing.Union:
+                args = typing.get_args(type_hint)
+                return type(None) in args
+
+        # Check for Optional[X] (older syntax)
+        return getattr(type_hint, "__origin__", None) is typing.Union and type(None) in getattr(
+            type_hint, "__args__", []
+        )
+
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
@@ -159,7 +314,7 @@ class MutationDefinition:
             full_function_name = f"{self.schema}.{self.function_name}"
             # GraphQL field name: CreatePost -> createPost (lowercase first letter)
             field_name = self.name[0].lower() + self.name[1:] if self.name else self.name
-            success_type_name = getattr(self.success_type, "__name__", "Success")
+            success_type_name = getattr(self.success_type, "__name__", "Success")  # type: ignore[attr-defined]
             error_type_name = getattr(self.error_type, "__name__", "Error")
 
             # Extract context arguments
@@ -186,17 +341,49 @@ class MutationDefinition:
 
             # Call Rust executor with a connection from the pool
             async with pool.connection() as conn:
-                rust_response = await execute_mutation_rust(
-                    conn=conn,
-                    function_name=full_function_name,
-                    input_data=input_data,
-                    field_name=field_name,
-                    success_type=success_type_name,
-                    error_type=error_type_name,
-                    entity_field_name=self.entity_field_name,
-                    entity_type=self.entity_type,
-                    context_args=context_args if context_args else None,
-                )
+                logger.debug(f"Executing mutation {self.name} with function {full_function_name}")
+                logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
+                logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
+
+                # Extract success type fields for schema validation
+                success_type_fields = None
+                if self.success_type:
+                    success_type_fields = list(self.success_type.__annotations__.keys())
+                    logger.debug(f"Success type fields for validation: {success_type_fields}")
+
+                # Extract CASCADE selections from GraphQL query
+                cascade_selections_json = self._get_cascade_selections(info)
+
+                try:
+                    rust_response = await execute_mutation_rust(
+                        conn=conn,
+                        function_name=full_function_name,
+                        input_data=input_data,
+                        field_name=field_name,
+                        success_type=success_type_name,
+                        error_type=error_type_name,
+                        entity_field_name=self.entity_field_name,
+                        entity_type=self.entity_type,
+                        context_args=context_args if context_args else None,
+                        cascade_selections=cascade_selections_json,
+                        success_type_class=self.success_type,
+                        success_type_fields=success_type_fields,
+                    )
+                    logger.debug(f"Mutation {self.name} executed successfully")
+                except Exception as e:
+                    logger.error(
+                        f"Mutation {self.name} failed during execution",
+                        extra={
+                            "function": full_function_name,
+                            "success_type": success_type_name,
+                            "error_type": error_type_name,
+                            "entity_field_name": self.entity_field_name,
+                            "entity_type": self.entity_type,
+                            "input_keys": list(input_data.keys()) if input_data else None,
+                            "error": str(e),
+                        },
+                    )
+                    raise
 
             # Check if we're in HTTP mode (set by FastAPI routers)
             # HTTP mode: return RustResponseBytes directly for performance
@@ -209,24 +396,27 @@ class MutationDefinition:
                 # PostgreSQL → Rust → HTTP bytes (zero Python string operations)
                 return rust_response
 
-            # NON-HTTP PATH: Parse Rust response into Python objects
-            # This is needed for direct GraphQL execute() calls (tests, GraphiQL, etc.)
-            graphql_response = rust_response.to_json()
-            mutation_result = graphql_response["data"][field_name]
+            # NON-HTTP PATH: Convert to dict for GraphQL execute()
+            # Used in tests and direct GraphQL execute() calls
+            try:
+                graphql_response = rust_response.to_json()
+                mutation_result = graphql_response["data"][field_name]
+                logger.debug(f"Parsed GraphQL response for field '{field_name}'")
+            except Exception as e:
+                logger.error(
+                    f"Failed to parse GraphQL response for mutation {self.name}",
+                    extra={
+                        "field_name": field_name,
+                        "error": str(e),
+                        "response_type": type(rust_response).__name__,
+                    },
+                )
+                raise
 
-            # Parse result into Success or Error type
-            parsed_result = parse_mutation_result(
-                mutation_result,
-                self.success_type,
-                self.error_type,
-                self.error_config,
-            )
-
-            # Attach cascade data if present (when enable_cascade=True)
-            if self.enable_cascade and "_cascade" in mutation_result:
-                parsed_result.__cascade__ = mutation_result["_cascade"]
-
-            return parsed_result
+            # Return dict directly (no parsing into Python objects)
+            # CASCADE is already at correct level from Rust
+            # Tests will work with dict access: result["user"]["id"]
+            return mutation_result
 
         # Set metadata for GraphQL introspection
         # Create unique resolver name to prevent collisions between similar mutation names

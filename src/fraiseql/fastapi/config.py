@@ -7,6 +7,8 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, PostgresDsn, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from fraiseql.mutations.error_config import MutationErrorConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -287,6 +289,17 @@ class FraiseQLConfig(BaseSettings):
     # Default schema settings
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified
     default_query_schema: str = "public"  # Default schema for queries when not specified
+
+    # NEW FIELD - Add after default_query_schema
+    default_error_config: MutationErrorConfig | None = Field(
+        default=None,
+        description=(
+            "Default error configuration for all mutations when not explicitly specified "
+            "in the @mutation decorator. Individual mutations can override this by setting "
+            "error_config=custom_config. If not set, mutations without explicit error_config "
+            "will use None (no error configuration)."
+        ),
+    )
 
     # Coordinate distance calculation method
     coordinate_distance_method: Literal["postgis", "haversine", "earthdistance"] = "haversine"

@@ -823,7 +823,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "1.7.0"
+version = "1.8.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -978,8 +978,8 @@ requires-dist = [
     { name = "cryptography", marker = "extra == 'all'", specifier = ">=42.0.0" },
     { name = "cryptography", marker = "extra == 'kms'", specifier = ">=42.0.0" },
     { name = "cryptography", marker = "extra == 'kms-all'", specifier = ">=42.0.0" },
-    { name = "cyclonedx-python-lib", marker = "extra == 'all'", specifier = ">=7.0.0,<8.0" },
-    { name = "cyclonedx-python-lib", marker = "extra == 'sbom'", specifier = ">=7.0.0,<8.0" },
+    { name = "cyclonedx-python-lib", marker = "extra == 'all'", specifier = ">=7.0.0,<12.0" },
+    { name = "cyclonedx-python-lib", marker = "extra == 'sbom'", specifier = ">=7.0.0,<12.0" },
     { name = "docker", marker = "extra == 'dev'", specifier = ">=7.1.0" },
     { name = "email-validator", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "faker", marker = "extra == 'dev'", specifier = ">=37.5.3" },

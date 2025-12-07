@@ -7,6 +7,355 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-beta.1] - 2025-12-07
+
+### 🚨 BREAKING CHANGES
+
+This release combines TWO major features with breaking changes:
+
+#### 1. CASCADE Selection Filtering
+- **BREAKING**: CASCADE data is now only included in mutation responses when explicitly requested in the GraphQL selection set
+  - **Migration Required**: Add `cascade { ... }` to your mutation queries if you need CASCADE data
+  - Performance improvement: Responses are 20-50% smaller when CASCADE is not requested (measured: 2.8x payload reduction)
+  - Follows GraphQL specification: only return fields that are selected
+
+#### 2. Validation as Error Type (NEW)
+- **BREAKING**: Validation failures (`noop:*` statuses) now return Error type (not Success with null entity)
+- **BREAKING**: Success type entity is ALWAYS non-null (no more `machine: Machine | None`)
+- **BREAKING**: Error type includes REST-like `code` field (422, 404, 409, 500)
+- **BREAKING**: All mutations return union types (`CreateMachineResult = CreateMachineSuccess | CreateMachineError`)
+  - **Migration Required**:
+    1. Update Success types: Remove `| None` from entity fields
+    2. Update Error types: Add `code: int` and `status: str` fields
+    3. Update GraphQL queries: Handle union types with fragments
+    4. Update test assertions: Expect Error type for validation failures
+
+### Added
+
+#### CASCADE Features
+- Partial CASCADE selection support: Request only specific CASCADE fields (e.g., `cascade { metadata { affectedCount } }`)
+- CASCADE selection filtering: Clients can now choose which CASCADE data to receive
+- Performance optimization: Smaller payloads when CASCADE not needed
+
+#### Validation as Error Features
+- Error type now includes REST-like `code` field for better DX:
+  - `422` - Validation/business rule failures (`noop:*`, `blocked:*`, `skipped:*`)
+  - `404` - Not found (`not_found:*`)
+  - `409` - Conflict (`conflict:*`)
+  - `500` - System failures (`failed:*`)
+- Error type includes `status` field preserving domain semantics (e.g., `noop:invalid_contract_id`)
+- Success type enforces non-null entity at both Rust and Python layers
+- New schema generation module (`src/fraiseql/schema/`) with:
+  - Comprehensive Python type → GraphQL type conversion
+  - 4-pattern entity field detection
+  - Schema validation for Success/Error types
+- 23 new schema generation tests (all passing)
+
+### Fixed
+
+#### CASCADE Fixes
+- CASCADE selection filtering: CASCADE is no longer returned when not requested (GraphQL spec compliance)
+- Payload size reduction: Mutations without CASCADE selection now have significantly smaller responses
+- CASCADE nesting bug: CASCADE data appears at success wrapper level (from v1.8.0-alpha.5)
+
+#### Validation as Error Fixes
+- Type safety: Success types can no longer have null entities
+- GraphQL spec compliance: Proper use of union types for mutations
+- Error handling: Clear distinction between validation failures and system errors
+
+### Changed
+
+#### Core Changes
+- Rust mutation pipeline: Removed `|| result.status.is_noop()` check
+- Python error config: Moved `noop:`, `blocked:`, `skipped:`, `ignored:` to `error_prefixes`
+- Removed `error_as_data_prefixes` concept (all errors are now Error type)
+
+### Testing
+
+- 23 new schema generation tests (TestTypeConversion, TestEntityFieldDetection, TestSchemaValidator)
+- New v1.8.0 error handling tests (noop→422, not_found→404, conflict→409)
+- 36 CASCADE tests passing (100% success rate)
+- GraphQL spec compliance validated
+- No regressions: All existing tests updated and passing
+
+### Migration Guide
+
+See `.phases/validation-as-error-v1.8.0/PRINTOPTIM_MIGRATION.md` for detailed internal migration steps.
+
+**Note**: This is a **beta release** for testing. Internal use only (PrintOptim backend).
+
+## [1.8.0-alpha.5] - 2025-12-06
+
+### Fixed
+- **CASCADE nesting bug**: CASCADE data now appears at success wrapper level instead of nested inside entity objects
+  - Added support for PrintOptim's 8-field `mutation_response` composite type
+  - CASCADE field extracted from Position 7 (explicit field in composite type)
+  - Maintains backward compatibility with simple format responses
+  - Zero breaking changes
+
+### Added
+- New `postgres_composite` module for parsing 8-field mutation_response composite types
+  - File: `fraiseql_rs/src/mutation/postgres_composite.rs` (172 lines)
+  - Supports PrintOptim's migration to FraiseQL v1.8.0+ standard
+  - Comprehensive unit tests for composite type parsing
+
+### Changed
+- Updated mutation parser to try 8-field composite format first, then fallback to simple format
+- Enhanced test coverage for mutation response handling
+
+### Technical Details
+- **Files Modified:** 29 files (885 insertions, 446 deletions)
+- **Breaking Changes:** None (backward compatible)
+- **Migration Required:** None (automatic)
+- **PrintOptim Compatibility:** Requires fraiseql>=1.8.0a5 for CASCADE fix
+
+### Migration Guide
+No migration needed. The fix is automatic:
+- PrintOptim users: Upgrade to fraiseql>=1.8.0a5 to get CASCADE at correct location
+- Other users: Simple format continues working unchanged
+
+### References
+- Bug Report: CASCADE appeared in entity object instead of success wrapper
+- Design Document: `docs/architecture/mutation_pipeline.md`
+- Phase Documentation: `.phases/phase_cascade_fix_v1.8.0a5/`
+
+---
+
+## [1.8.0-alpha.4] - 2025-12-06
+
+### 🐛 Bug Fixes
+
+#### CASCADE Field Incorrectly Nested in Entity Object
+
+**Fixed**: CASCADE data was being incorrectly copied from entity wrapper into the entity object, violating the GraphQL schema.
+
+**Root Cause**: In `fraiseql_rs/src/mutation/response_builder.rs:119`, when PostgreSQL returned a wrapper entity structure like:
+```json
+{
+  "entity": {
+    "allocation": {...},
+    "cascade": {...},
+    "message": "..."
+  }
+}
+```
+
+The wrapper field copying logic excluded only `entity_field_name` and `"entity"` fields, but CASCADE also needed to be excluded.
+
+**Result**: CASCADE appeared at `allocation.cascade` (wrong) instead of only at `CreateAllocationSuccess.cascade` (correct).
+
+**Fix**: Added `&& key != "cascade"` check at line 119 to prevent CASCADE from being copied from wrapper fields. CASCADE now only appears at the success type level, never in the entity object.
+
+**Test**: Added regression test `test_cascade_never_copied_from_entity_wrapper()` that specifically tests the entity wrapper scenario with CASCADE data.
+
+**Impact**: Fixes PrintOptim backend CASCADE bug where GraphQL queries requesting `success.cascade` returned empty, but `allocation.cascade` contained the data (schema violation).
+
+**File**: `fraiseql_rs/src/mutation/response_builder.rs:119`
+
+## [1.8.0-alpha.3] - 2025-12-05
+
+### 🚀 Major: Unified Rust Mutation Pipeline
+
+**BREAKING CHANGE (Internal)**: Complete rewrite of mutation processing pipeline from fragile 5-layer Python/Rust hybrid to clean 2-layer Rust-first architecture.
+
+**For Users**: No breaking changes - all changes are internal. Existing code continues to work.
+
+**For Tests**: Non-HTTP mode now returns dicts instead of typed objects. Update: `result.user.id` → `result["user"]["id"]`
+
+#### Architecture Changes
+
+**Before (5 layers, ~2300 LOC)**:
+```
+PostgreSQL → Python Normalize → Python Flatten → Rust Transform → Python Parse → JSON
+```
+
+**After (2 layers, ~1000 LOC Rust)**:
+```
+PostgreSQL → Rust Pipeline → JSON/Dict
+```
+
+**Net impact**: -3,569 LOC (30% reduction), single source of truth, type-safe throughout
+
+#### What Changed
+
+**New Rust Modules** (Phases 1-3):
+- `fraiseql_rs/src/mutation/types.rs` - Core type system
+- `fraiseql_rs/src/mutation/parser.rs` - Format detection & parsing
+- `fraiseql_rs/src/mutation/entity_processor.rs` - Entity processing & __typename
+- `fraiseql_rs/src/mutation/response_builder.rs` - GraphQL response building
+- Two formats: Simple (entity-only) and Full (mutation_response)
+- Auto-detection based on status field presence
+- CASCADE as optional field (not separate format)
+
+**Deleted Python Code** (Phase 4):
+- `src/fraiseql/mutations/entity_flattener.py` (-199 LOC)
+- `src/fraiseql/mutations/parser.py` (-822 LOC)
+- Simplified `rust_executor.py` (removed flattening logic)
+- Updated `mutation_decorator.py` (dict responses, not typed objects)
+
+**Tests** (Phase 5):
+- Comprehensive Rust unit tests (>95% coverage)
+- Integration tests with PostgreSQL
+- Property-based tests for invariants
+- Edge case coverage (CASCADE placement, __typename, format detection)
+
+**Documentation** (Phase 6):
+- `docs/architecture/mutation_pipeline.md` - Architecture overview
+- `docs/advanced/rust-mutation-pipeline.md` - Implementation details
+- `docs/advanced/migration-guide.md` - Migration from old patterns
+- `docs/advanced/examples.md` - Usage examples
+
+**Cleanup** (Phase 7-8):
+- Removed "v2" terminology → standardized "Simple" and "Full" format naming
+- Deleted 20 obsolete test files (5,313 LOC) testing deleted internals
+- Archived old planning docs to `docs/planning/archived-pre-v1.9/`
+- Updated architecture docs to reflect new pipeline
+
+#### Key Features
+
+✅ **Single source of truth**: All transformation in Rust
+✅ **Type-safe**: Rust type system throughout pipeline
+✅ **Auto-detection**: Simple vs Full format based on status field
+✅ **CASCADE correct**: Always at success level, never nested in entity
+✅ **__typename consistency**: Always present in responses and entities
+✅ **Introspection compatible**: No changes needed to mutation generation
+✅ **Performance**: <1ms overhead for typical mutations, <2ms with CASCADE
+
+#### Behavior Changes
+
+1. **Dict responses in non-HTTP mode**: Tests now receive dicts instead of typed objects
+   - Update: `result.user.id` → `result["user"]["id"]`
+   - CASCADE access: `result["cascade"]` (not `result.user.cascade`)
+   - HTTP mode unchanged (already returns bytes)
+
+2. **CASCADE placement**: Always at success level (sibling to entity, not nested)
+   - Before: Sometimes nested in entity (bug)
+   - After: Always at success level (correct)
+
+3. **Format detection**: Auto-detects Simple vs Full based on valid status field
+   - Simple: No status field OR invalid status value
+   - Full: Valid mutation status (success, failed:*, etc.)
+
+#### Migration Notes
+
+**For most users**: No changes needed - existing code works as-is
+
+**For tests using non-HTTP mode**:
+```python
+# Before
+result = await execute_mutation(...)
+user_id = result.user.id  # Typed object
+
+# After
+result = await execute_mutation(...)
+user_id = result["user"]["id"]  # Dict
+```
+
+**For CASCADE access**:
+```python
+# Before
+cascade = result.__cascade__  # Attribute
+
+# After
+cascade = result.get("cascade")  # Dict key
+```
+
+See `docs/advanced/migration-guide.md` for full details.
+
+### Added
+- `default_error_config` field in `FraiseQLConfig` for global mutation error handling (#159)
+  - Set a global default error configuration for all mutations
+  - Individual mutations can override with explicit `error_config` parameter
+  - Reduces boilerplate by eliminating repetitive `error_config` on every mutation
+  - Resolution order: explicit decorator param > global default > None
+  - Follows existing `default_mutation_schema` pattern
+  - Comprehensive tests with 100% coverage of resolution scenarios
+  - Full documentation in `docs/reference/config.md` and `docs/reference/decorators.md`
+- Pre-push git hook to prevent pushing broken code
+  - Runs tests automatically before `git push`
+  - Blocks push if tests fail
+  - Documentation in `docs/development/pre-push-hooks.md`
+
+### Fixed
+- CASCADE placement bug: Now always at success level, never nested in entity
+- __typename consistency: Always present in success responses and entities
+- Cascade entity field resolution when `enable_cascade=True`
+  - Fixed incorrect `__typename` capitalization in nested entity fields
+  - Entity fields now properly resolved at all nesting levels
+  - Corrected field name handling in entity flattener for cascaded entities
+
+## [1.8.0-alpha.1] - 2025-12-05
+
+### Changed
+- **BREAKING (Pre-release only)**: Renamed `mutation_result_v2` to `mutation_response`
+  - PostgreSQL composite type renamed from `mutation_result_v2` to `mutation_response`
+  - All helper functions updated (`row_to_mutation_response`, etc.)
+  - Migration file: `005_add_mutation_result_v2.sql` → `005_add_mutation_response.sql`
+  - Rust type: `MutationResultV2` → `MutationResponse`
+  - **Impact**: None (no external users yet)
+  - **Rationale**: Cleaner naming before v1.0 - removes confusing "v2" suffix
+  - **Migration**: Update PostgreSQL functions to return `mutation_response` type
+
+### Fixed
+- Entity flattening issues with input type nullability in mutations
+- Input fields now correctly marked as non-null when required
+- GraphQL type conversion for non-null input fields
+
+### Internal
+- Improved entity flattener field removal and cascade priority handling
+- Updated tests to expect non-null enums in input types
+- Enhanced mutation object data mapping for production and development modes
+
+## [1.7.2] - 2025-12-04
+
+### Fixed
+- **CRITICAL**: Fixed bug where custom `error_config` was ignored in HTTP mode (production)
+  - Error detection now happens in Rust layer using status string prefixes
+  - All mutations via FastAPI now correctly map status strings to Success/Error types
+  - Fixes issue where `validation:`, `conflict:`, and other custom prefixes returned as Success
+- Critical Loki log aggregation configuration fixes
+  - Updated deprecated boltdb-shipper schema to TSDB v13
+  - Removed high-cardinality labels (trace_id, span_id, fingerprint) from Promtail
+  - Fixed LogQL syntax errors in documentation
+  - Fixed security issues (default passwords, Docker socket access)
+
+### Added
+- Comprehensive status taxonomy in Rust mutation layer
+  - Error prefixes: `failed:`, `unauthorized:`, `forbidden:`, `not_found:`, `conflict:`, `timeout:`
+  - Noop prefix: `noop:` (returns Success type with no changes)
+  - Success keywords: `success`, `created`, `updated`, `deleted`
+  - Case-insensitive status matching
+- Documentation: `docs/mutations/status-strings.md` - Complete guide to status string conventions
+- Loki log aggregation with Grafana observability stack
+- Automated dependency updates via Dependabot
+
+### Changed
+- `error_config` parameter is now deprecated for HTTP mode (still works in non-HTTP mode)
+- Status detection moved from Python `parse_mutation_result()` to Rust `MutationStatus::from_str()`
+
+### Migration Guide
+If you have mutations using custom `error_config`:
+
+**Before:**
+```python
+CUSTOM_ERROR_CONFIG = MutationErrorConfig(
+    error_prefixes={"validation:", "error:", "failed:"}
+)
+
+@mutation(function="create_user", error_config=CUSTOM_ERROR_CONFIG)
+class CreateUser: ...
+```
+
+**After (update PostgreSQL functions):**
+```sql
+-- Use standardized prefixes in PostgreSQL
+RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_response;
+RETURN ('conflict:duplicate_email', 'Email exists', ...)::mutation_response;
+RETURN ('noop:duplicate', 'Already exists', ...)::mutation_response;
+```
+
+No Python changes needed - `error_config` can be removed.
+
 ## [1.7.0] - 2025-11-XX
 
 ### 🦀 Rust-First Architecture

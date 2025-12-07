@@ -4,7 +4,7 @@
 //! GraphQL field selections. It operates on raw JSONB from PostgreSQL and
 //! applies filtering before Python serialization.
 
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 #[cfg(test)]
@@ -61,7 +61,8 @@ impl CascadeSelections {
             .map_err(|e| format!("Invalid cascade selections JSON: {}", e))?;
 
         // Parse root fields
-        let fields = v.get("fields")
+        let fields = v
+            .get("fields")
             .and_then(|f| f.as_array())
             .map(|arr| {
                 arr.iter()
@@ -158,8 +159,8 @@ pub fn filter_cascade_data(
     };
 
     // Parse cascade data
-    let mut cascade: Value = serde_json::from_str(cascade_json)
-        .map_err(|e| format!("Invalid cascade JSON: {}", e))?;
+    let mut cascade: Value =
+        serde_json::from_str(cascade_json).map_err(|e| format!("Invalid cascade JSON: {}", e))?;
 
     // Parse selections
     let selections = CascadeSelections::from_json(sel_json)?;
@@ -206,10 +207,7 @@ fn filter_cascade_object(
 }
 
 /// Filter the 'updated' array based on type filters and field selections
-fn filter_updated_array(
-    updated: &mut Value,
-    selections: &CascadeSelections,
-) -> Result<(), String> {
+fn filter_updated_array(updated: &mut Value, selections: &CascadeSelections) -> Result<(), String> {
     let Some(arr) = updated.as_array_mut() else {
         return Ok(());
     };
@@ -252,7 +250,8 @@ fn filter_updated_item(
     }
 
     // Get typename for entity field selection (owned String to avoid borrow conflicts)
-    let typename: String = item.get("__typename")
+    let typename: String = item
+        .get("__typename")
         .and_then(|t| t.as_str())
         .map(String::from)
         .unwrap_or_default();

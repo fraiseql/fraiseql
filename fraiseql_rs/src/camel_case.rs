@@ -167,7 +167,10 @@ mod tests {
     #[test]
     fn test_multiple_underscores() {
         assert_eq!(to_camel_case("user_full_name"), "userFullName");
-        assert_eq!(to_camel_case("billing_address_line_1"), "billingAddressLine1");
+        assert_eq!(
+            to_camel_case("billing_address_line_1"),
+            "billingAddressLine1"
+        );
     }
 
     #[test]

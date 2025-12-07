@@ -18,15 +18,15 @@ PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → C
 
 **Why not mutations too?**
 
-Current mutation path:
+**Previous mutation path (deprecated):**
 ```
 PostgreSQL JSONB → Python dict → parse_mutation_result() →
 Success/Error dataclass → GraphQL serializer → JSON → Client
 ```
 
-**Ultra-direct mutation path:**
+**Current ultra-direct mutation path (implemented):**
 ```
-PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → Client
+PostgreSQL JSONB → Rust Pipeline → GraphQL JSON Response → Client
 ```
 
 ---
@@ -36,18 +36,19 @@ PostgreSQL JSONB::text → Rust (camelCase + __typename) → RawJSONResult → C
 ### **Current Flow (Slow)**
 
 ```python
-# mutation_decorator.py (line ~145)
-result = await db.execute_function(full_function_name, input_data)
-# Returns: dict {'success': True, 'customer': {...}, ...}
-
-parsed_result = parse_mutation_result(
-    result,  # Parse dict into dataclass
-    self.success_type,
-    self.error_type,
+# mutation_decorator.py (current implementation)
+result = await execute_mutation_rust(
+    conn=conn,
+    function_name=full_function_name,
+    input_data=input_data,
+    # ... other params
 )
-# Returns: DeleteCustomerSuccess(customer=Customer(...), ...)
+# Returns: RustResponseBytes (direct JSON from Rust pipeline)
 
-return parsed_result  # GraphQL serializes back to JSON!
+# For GraphQL execution (non-HTTP mode):
+graphql_response = result.to_json()
+mutation_result = graphql_response["data"][field_name]
+return mutation_result  # Dict with GraphQL structure
 ```
 
 **Problems:**

@@ -4,7 +4,7 @@ import asyncio
 from enum import Enum
 
 import pytest
-from graphql import GraphQLEnumType, graphql
+from graphql import GraphQLEnumType, GraphQLNonNull, graphql
 
 import fraiseql
 from fraiseql.gql.schema_builder import build_fraiseql_schema
@@ -117,7 +117,9 @@ class TestFraiseEnum:
         assert input_type is not None
         status_field = input_type.fields.get("status")
         assert status_field is not None
-        assert isinstance(status_field.type, GraphQLEnumType)
+        # Field should be non-null enum (required field with no default)
+        assert isinstance(status_field.type, GraphQLNonNull)
+        assert isinstance(status_field.type.of_type, GraphQLEnumType)
 
     def test_enum_in_graphql_query(self, clear_registry) -> None:
         """Test executing GraphQL queries with enum values."""

@@ -212,6 +212,96 @@ field_multipliers = {
 
 ---
 
+## CASCADE Selection Optimization
+
+### Overview
+
+CASCADE data can add significant payload size to mutation responses. Use selective requesting to optimize performance.
+
+### Payload Size Comparison
+
+| Selection | Typical Size | Use Case |
+|-----------|-------------|----------|
+| No CASCADE | 200-500 bytes | Display-only mutations |
+| Metadata only | 300-600 bytes | Need count info only |
+| Invalidations only | 400-800 bytes | Cache clearing only |
+| Full CASCADE | 1,500-5,000 bytes | Complete cache sync |
+
+### Best Practices
+
+**1. Request Only What You Need**
+```graphql
+# ❌ Bad: Request everything when you only need count
+cascade {
+  updated { __typename id operation entity }
+  deleted { __typename id }
+  invalidations { queryName strategy scope }
+  metadata { timestamp affectedCount }
+}
+
+# ✅ Good: Request only metadata
+cascade {
+  metadata { affectedCount }
+}
+```
+
+**2. Use Conditional CASCADE with Directives**
+```graphql
+mutation CreatePost($input: CreatePostInput!, $needCascade: Boolean!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      post { id title }
+      cascade @include(if: $needCascade) {
+        updated { __typename id entity }
+      }
+    }
+  }
+}
+```
+
+**3. Profile Your Queries**
+
+Use GraphQL query complexity analysis to understand CASCADE impact:
+
+```javascript
+// Measure response size
+const response = await client.mutate({ mutation: CREATE_POST });
+console.log('Response size:', JSON.stringify(response).length);
+
+// Compare with and without CASCADE
+```
+
+**4. Mobile-Specific Optimizations**
+
+For mobile clients, avoid CASCADE on:
+- Background sync operations
+- Bulk operations
+- Low-priority mutations
+
+Request CASCADE only on user-initiated, UI-critical mutations.
+
+### Performance Monitoring
+
+Track CASCADE payload sizes in production:
+
+```python
+from prometheus_client import Histogram
+
+cascade_payload_size = Histogram(
+    'graphql_cascade_payload_bytes',
+    'CASCADE payload size in bytes',
+    buckets=[100, 500, 1000, 5000, 10000, 50000]
+)
+
+Alert on large payloads:
+```yaml
+- alert: LargeCascadePayloads
+  expr: histogram_quantile(0.95, cascade_payload_bytes) > 10000
+  for: 5m
+```
+
+---
+
 ## When Performance Matters
 
 ### 🚀 Performance-Critical Scenarios

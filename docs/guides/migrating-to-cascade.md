@@ -17,6 +17,145 @@ This guide walks through adopting GraphQL Cascade in existing FraiseQL applicati
 - **Administrative Bulk Operations**: Large-scale data imports
 - **Complex Business Logic**: Heavy server-side processing
 
+## Selection Filtering (v1.8.1+)
+
+### Breaking Change: CASCADE Selection Awareness
+
+Starting in v1.8.1, CASCADE data is only returned when explicitly requested in the GraphQL selection set.
+
+### Before (v1.8.0 and earlier)
+
+CASCADE was always included in responses if `enable_cascade=True` on the mutation, regardless of query selection:
+
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      id
+      message
+      # cascade NOT requested
+    }
+  }
+}
+```
+
+**Old Behavior**: Response included CASCADE anyway
+```json
+{
+  "data": {
+    "createPost": {
+      "id": "123",
+      "message": "Success",
+      "cascade": { ... }  // Present even though not requested
+    }
+  }
+}
+```
+
+### After (v1.8.1+)
+
+CASCADE is only included when requested:
+
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostSuccess {
+      id
+      message
+      # cascade NOT requested
+    }
+  }
+}
+```
+
+**New Behavior**: No CASCADE in response
+```json
+{
+  "data": {
+    "createPost": {
+      "id": "123",
+      "message": "Success"
+      // No cascade field
+    }
+  }
+}
+```
+
+### Migration Steps
+
+**Step 1**: Audit Your Queries
+
+Find mutations that use CASCADE but don't request it:
+
+```bash
+# Search for mutations without cascade in selection
+grep -r "createPost\|updatePost\|deletePost" src/graphql/mutations/
+```
+
+**Step 2**: Update Queries
+
+Add `cascade` to selections where needed:
+
+```diff
+  mutation CreatePost($input: CreatePostInput!) {
+    createPost(input: $input) {
+      ... on CreatePostSuccess {
+        id
+        message
++       cascade {
++         updated { __typename id entity }
++         invalidations { queryName }
++       }
+      }
+    }
+  }
+```
+
+**Step 3**: Test
+
+Verify your application still works:
+- Cache updates function correctly
+- UI synchronization works
+- No TypeScript errors from missing CASCADE
+
+**Step 4**: Optimize
+
+Remove CASCADE from queries that don't need it for performance:
+
+```diff
+  mutation UpdatePreference($input: PreferenceInput!) {
+    updatePreference(input: $input) {
+      ... on UpdatePreferenceSuccess {
+        message
+-       cascade {
+-         updated { __typename id entity }
+-       }
+      }
+    }
+  }
+```
+
+### Backward Compatibility
+
+If you need the old behavior temporarily:
+
+```python
+# Not recommended - for migration only
+@fraiseql.mutation(
+    enable_cascade=True,
+    force_include_cascade=True,  # Always include (not implemented - use selection)
+)
+```
+
+Instead, update your queries to explicitly request CASCADE.
+
+### Performance Impact
+
+After migration, you should see:
+- 20-50% smaller response payloads (for mutations not using CASCADE)
+- Faster mutation response times
+- Reduced network bandwidth usage
+
 ## Migration Steps
 
 ### Phase 1: Preparation (1-2 days)
