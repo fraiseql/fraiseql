@@ -823,7 +823,11 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
+<<<<<<< Updated upstream
 version = "1.8.0b1"
+=======
+version = "1.8.0b3"
+>>>>>>> Stashed changes
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
