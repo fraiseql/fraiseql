@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- User table (write side) - Trinity Pattern
 CREATE TABLE IF NOT EXISTS tb_user (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_user INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,         -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                           -- Human-readable (email/username)
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS tb_user (
 
 -- Post table (write side) - Trinity Pattern with INT foreign keys
 CREATE TABLE IF NOT EXISTS tb_post (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,         -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                           -- Human-readable (slug)
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS tb_post (
 
 -- Comment table (write side) - Trinity Pattern with INT foreign keys
 CREATE TABLE IF NOT EXISTS tb_comment (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_comment INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,            -- Public API (secure UUID)
     identifier TEXT UNIQUE,                                       -- Optional for comments

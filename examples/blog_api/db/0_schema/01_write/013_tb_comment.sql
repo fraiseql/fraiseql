@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS tb_comment (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_comment INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,            -- Public API (secure UUID)
     identifier TEXT UNIQUE,                                       -- Optional for comments

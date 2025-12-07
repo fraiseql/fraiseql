@@ -18,7 +18,7 @@ DROP TABLE IF EXISTS tb_user;
 
 -- Users table - Trinity Pattern
 CREATE TABLE tb_user (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (username/slug)
@@ -39,7 +39,7 @@ CREATE TABLE tb_user (
 
 -- Tags table - Trinity Pattern
 CREATE TABLE tb_tag (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_tag INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,   -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
@@ -55,7 +55,7 @@ CREATE TABLE tb_tag (
 
 -- Posts table - Trinity Pattern with INT foreign keys
 CREATE TABLE tb_post (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_post INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
@@ -75,7 +75,7 @@ CREATE TABLE tb_post (
 
 -- Comments table - Trinity Pattern with INT foreign keys
 CREATE TABLE tb_comment (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_comment INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,        -- Public API (secure UUID)
     identifier TEXT UNIQUE,                                   -- Optional for comments
