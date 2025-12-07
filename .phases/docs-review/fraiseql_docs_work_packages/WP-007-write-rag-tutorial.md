@@ -8,6 +8,33 @@
 
 ---
 
+## ⚠️ Execution Requirement
+
+**❌ DO NOT USE LOCAL 8B MODELS FOR THIS WORK PACKAGE**
+
+**This work package REQUIRES Claude (Sonnet 4.5 or better)**
+
+**Why this cannot be delegated to local models:**
+- **Tutorial creation** (15-20 page step-by-step guide)
+- **RAG expertise** (retrieval-augmented generation patterns, embeddings, vector search)
+- **Coherent narrative** (tutorial must build progressively from simple to complex)
+- **Real-world examples** (practical use cases, not toy examples)
+- **Troubleshooting expertise** (common RAG pitfalls, performance tuning)
+
+**What happens if you try local models:**
+- ❌ Generic RAG tutorial (not FraiseQL-specific)
+- ❌ Hallucinated pgvector features (wrong operators, wrong syntax)
+- ❌ Poor example quality (inconsistent, doesn't run)
+- ❌ Missing performance guidance (critical for RAG apps)
+
+**Estimated cost with Claude:** ~$3-4 (input/output tokens for 15-20 page tutorial)
+**Time with Claude:** 8 hours (as estimated)
+**Quality with Claude:** 4.5/5 or higher
+
+**Alternative:** None. RAG tutorials require domain expertise.
+
+---
+
 ## Objective
 
 Create copy-paste ready RAG (Retrieval-Augmented Generation) tutorial using FraiseQL + LangChain + pgvector.

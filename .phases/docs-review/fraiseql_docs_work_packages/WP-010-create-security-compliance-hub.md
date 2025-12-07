@@ -8,6 +8,33 @@
 
 ---
 
+## ⚠️ Execution Requirement
+
+**❌ DO NOT USE LOCAL 8B MODELS FOR THIS WORK PACKAGE**
+
+**This work package REQUIRES Claude (Sonnet 4.5 or better)**
+
+**Why this cannot be delegated to local models:**
+- **Security expertise** (OWASP Top 10, SQL injection, RLS patterns)
+- **Compliance knowledge** (SOC 2, GDPR, HIPAA requirements)
+- **Hub structure** (organizing 10+ security topics coherently)
+- **Link accuracy** (must reference correct docs, not hallucinate)
+- **Risk assessment** (understanding severity levels)
+
+**What happens if you try local models:**
+- ❌ Generic security advice (not PostgreSQL/GraphQL-specific)
+- ❌ Hallucinated compliance requirements (dangerous misinformation)
+- ❌ Poor organization (topics scattered, no clear flow)
+- ❌ Missing critical topics (e.g., RLS setup, field-level permissions)
+
+**Estimated cost with Claude:** ~$1-2 (input/output tokens for hub page + organization)
+**Time with Claude:** 4 hours (as estimated)
+**Quality with Claude:** 4.5/5 or higher
+
+**Alternative:** None. Security documentation requires domain expertise and accuracy.
+
+---
+
 ## Objective
 
 Create new `docs/security-compliance/` directory with non-technical README for compliance officers.

@@ -8,6 +8,33 @@
 
 ---
 
+## ⚠️ Execution Requirement
+
+**❌ DO NOT USE LOCAL 8B MODELS FOR THIS WORK PACKAGE**
+
+**This work package REQUIRES Claude (Sonnet 4.5 or better)**
+
+**Why this cannot be delegated to local models:**
+- **Content creation** (8-12 pages of coherent documentation)
+- **Architectural reasoning** (migration patterns, edge cases, trade-offs)
+- **Troubleshooting expertise** (rollback plans, common mistakes)
+- **Coherent examples** (examples must work together across multiple sections)
+- **Edge case analysis** (foreign keys, triggers, materialized views, RLS)
+
+**What happens if you try local models:**
+- ❌ Hallucinated migration steps (dangerous for database operations)
+- ❌ Inconsistent examples (section 1 uses different pattern than section 5)
+- ❌ Missing critical edge cases (FKs break, data loss)
+- ❌ Poor troubleshooting advice (generic, not specific to trinity pattern)
+
+**Estimated cost with Claude:** ~$2-3 (input/output tokens for 8-12 page doc)
+**Time with Claude:** 6 hours (as estimated)
+**Quality with Claude:** 4.5/5 or higher
+
+**Alternative:** None. This requires deep reasoning and architectural expertise.
+
+---
+
 ## Objective
 
 Create a comprehensive migration guide that helps users transition from simple table naming (`users`, `posts`) to the trinity pattern (`tb_user`, `v_user`, `tv_user_with_posts`).

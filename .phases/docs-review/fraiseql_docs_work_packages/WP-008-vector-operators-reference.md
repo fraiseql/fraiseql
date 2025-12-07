@@ -8,6 +8,36 @@
 
 ---
 
+## ⚠️ Execution Requirement
+
+**⚠️ PARTIAL LOCAL MODEL USAGE POSSIBLE** (with careful oversight)
+
+**This work package can use local models for PATTERN APPLICATION only**
+
+**Strategy:**
+1. **Claude writes:** First 3-4 operator examples with complete documentation (2 hours)
+2. **Local model applies pattern:** Remaining operators following exact template (1 hour)
+3. **Claude reviews:** Verify accuracy, fix hallucinations (1 hour)
+
+**Why local models struggle alone:**
+- **Technical accuracy critical** (wrong operator syntax breaks code)
+- **Performance characteristics** (requires understanding of vector indexes)
+- **Example quality** (must be practical, not toy examples)
+
+**What local models CAN do:**
+- ✅ Apply documentation pattern to similar operators
+- ✅ Fill in operator signature templates
+- ✅ Generate simple usage examples (if given template)
+
+**What local models CANNOT do:**
+- ❌ Understand performance implications
+- ❌ Create nuanced examples
+- ❌ Explain when to use which operator
+
+**Recommended:** Claude writes this (4 hours), or use hybrid approach (4 hours total, 25% savings)
+
+---
+
 ## Objective
 
 Document all 6 pgvector distance operators with clear use cases.
