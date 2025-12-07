@@ -182,7 +182,7 @@ Organize PostgreSQL schemas to match bounded contexts:
 -- Orders Context
 CREATE SCHEMA IF NOT EXISTS orders;
 
-CREATE TABLE orders.orders (
+CREATE TABLE orders.tb_order (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL,
     total DECIMAL(10, 2) NOT NULL,
@@ -191,9 +191,9 @@ CREATE TABLE orders.orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE orders.order_items (
+CREATE TABLE orders.tb_order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID NOT NULL REFERENCES orders.orders(id),
+    order_id UUID NOT NULL REFERENCES orders.tb_order(id),
     product_id UUID NOT NULL,
     quantity INT NOT NULL,
     price DECIMAL(10, 2) NOT NULL,

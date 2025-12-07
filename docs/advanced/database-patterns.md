@@ -1223,7 +1223,7 @@ SELECT cron.schedule(
 **Pattern**:
 ```sql
 -- Write-optimized table (normalized)
-CREATE TABLE orders (
+CREATE TABLE tb_order (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   user_id UUID NOT NULL,
@@ -1461,9 +1461,9 @@ ORDER BY user_id, created_at DESC;
 
 ```sql
 -- Category hierarchy
-CREATE TABLE categories (
+CREATE TABLE tb_category (
   id UUID PRIMARY KEY,
-  parent_id UUID REFERENCES categories(id),
+  parent_id UUID REFERENCES tb_category(id),
   name VARCHAR(100) NOT NULL,
   slug VARCHAR(100) NOT NULL
 );
@@ -1530,7 +1530,7 @@ Using ltree extension for efficient tree queries:
 -- Using ltree extension
 CREATE EXTENSION IF NOT EXISTS ltree;
 
-CREATE TABLE categories_ltree (
+CREATE TABLE tv_category_tree (
   id UUID PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   path ltree NOT NULL,
