@@ -7,37 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.0-beta.1] - 2025-12-06
+## [1.8.0-beta.1] - 2025-12-07
 
-### Changed
+### 🚨 BREAKING CHANGES
 
+This release combines TWO major features with breaking changes:
+
+#### 1. CASCADE Selection Filtering
 - **BREAKING**: CASCADE data is now only included in mutation responses when explicitly requested in the GraphQL selection set
   - **Migration Required**: Add `cascade { ... }` to your mutation queries if you need CASCADE data
   - Performance improvement: Responses are 20-50% smaller when CASCADE is not requested (measured: 2.8x payload reduction)
   - Follows GraphQL specification: only return fields that are selected
-  - See migration guide: `docs/guides/migrating-to-cascade.md` (coming in stable release)
+
+#### 2. Validation as Error Type (NEW)
+- **BREAKING**: Validation failures (`noop:*` statuses) now return Error type (not Success with null entity)
+- **BREAKING**: Success type entity is ALWAYS non-null (no more `machine: Machine | None`)
+- **BREAKING**: Error type includes REST-like `code` field (422, 404, 409, 500)
+- **BREAKING**: All mutations return union types (`CreateMachineResult = CreateMachineSuccess | CreateMachineError`)
+  - **Migration Required**:
+    1. Update Success types: Remove `| None` from entity fields
+    2. Update Error types: Add `code: int` and `status: str` fields
+    3. Update GraphQL queries: Handle union types with fragments
+    4. Update test assertions: Expect Error type for validation failures
 
 ### Added
 
+#### CASCADE Features
 - Partial CASCADE selection support: Request only specific CASCADE fields (e.g., `cascade { metadata { affectedCount } }`)
 - CASCADE selection filtering: Clients can now choose which CASCADE data to receive
 - Performance optimization: Smaller payloads when CASCADE not needed
-- Comprehensive test suite: 17 new tests for selection filtering (test_cascade_selection_filtering.py, test_cascade_edge_cases.py, etc.)
+
+#### Validation as Error Features
+- Error type now includes REST-like `code` field for better DX:
+  - `422` - Validation/business rule failures (`noop:*`, `blocked:*`, `skipped:*`)
+  - `404` - Not found (`not_found:*`)
+  - `409` - Conflict (`conflict:*`)
+  - `500` - System failures (`failed:*`)
+- Error type includes `status` field preserving domain semantics (e.g., `noop:invalid_contract_id`)
+- Success type enforces non-null entity at both Rust and Python layers
+- New schema generation module (`src/fraiseql/schema/`) with:
+  - Comprehensive Python type → GraphQL type conversion
+  - 4-pattern entity field detection
+  - Schema validation for Success/Error types
+- 23 new schema generation tests (all passing)
 
 ### Fixed
 
+#### CASCADE Fixes
 - CASCADE selection filtering: CASCADE is no longer returned when not requested (GraphQL spec compliance)
 - Payload size reduction: Mutations without CASCADE selection now have significantly smaller responses
-- Updated 6+ existing tests to properly request CASCADE in their queries
+- CASCADE nesting bug: CASCADE data appears at success wrapper level (from v1.8.0-alpha.5)
+
+#### Validation as Error Fixes
+- Type safety: Success types can no longer have null entities
+- GraphQL spec compliance: Proper use of union types for mutations
+- Error handling: Clear distinction between validation failures and system errors
+
+### Changed
+
+#### Core Changes
+- Rust mutation pipeline: Removed `|| result.status.is_noop()` check
+- Python error config: Moved `noop:`, `blocked:`, `skipped:`, `ignored:` to `error_prefixes`
+- Removed `error_as_data_prefixes` concept (all errors are now Error type)
 
 ### Testing
 
+- 23 new schema generation tests (TestTypeConversion, TestEntityFieldDetection, TestSchemaValidator)
+- New v1.8.0 error handling tests (noop→422, not_found→404, conflict→409)
 - 36 CASCADE tests passing (100% success rate)
 - GraphQL spec compliance validated
-- Edge cases covered (aliases, variables, directives, concurrent mutations)
-- Performance validation: 2.8x smaller responses confirmed
+- No regressions: All existing tests updated and passing
 
-**Note**: This is a **beta release** for testing. Please report any issues before upgrading to production.
+### Migration Guide
+
+See `.phases/validation-as-error-v1.8.0/PRINTOPTIM_MIGRATION.md` for detailed internal migration steps.
+
+**Note**: This is a **beta release** for testing. Internal use only (PrintOptim backend).
 
 ## [1.8.0-alpha.5] - 2025-12-06
 
