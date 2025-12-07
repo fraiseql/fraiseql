@@ -258,15 +258,16 @@ confiture migration apply --zero-downtime
 
 ### Zero-Downtime Strategy
 
-Confiture uses a multi-phase approach:
+Confiture uses **Foreign Data Wrapper (FDW)** technology to achieve near-zero downtime migrations:
 
-1. **Shadow tables**: Creates new `tb_*` tables alongside old tables
-2. **Dual-write**: Application writes to both old and new tables
-3. **Background copy**: Copies existing data from old → new tables
-4. **Cutover**: Switches reads from old → new tables (instant)
-5. **Cleanup**: Drops old tables after verification
+```bash
+# Schema-to-schema migration with FDW
+confiture migrate schema-to-schema --strategy fdw
+```
 
-**Downtime: <1 second** (just the cutover)
+**Downtime: 0-5 seconds**
+
+For detailed implementation steps, see [Confiture's Zero-Downtime Guide](https://github.com/fraiseql/confiture/blob/main/docs/guides/medium-4-schema-to-schema.md)
 
 ### Learn More
 
