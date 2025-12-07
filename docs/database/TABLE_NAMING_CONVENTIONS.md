@@ -6,9 +6,20 @@ Understanding and optimizing the table/view naming pattern for Rust-first archit
 
 ## 🎯 The Naming Convention
 
-FraiseQL uses a **prefix-based naming pattern** to indicate the type and purpose of database objects:
+FraiseQL uses a **prefix-based naming pattern** to indicate type and purpose of database objects:
 
 ```
+tb_*  → Base Tables (normalized, write-optimized) - RECOMMENDED
+v_*   → Views (standard SQL views, read-optimized)
+tv_*  → Table Views (denormalized tables matching GraphQL types) - RECOMMENDED
+mv_*  → Materialized Views (pre-computed aggregations)
+```
+
+**✅ RECOMMENDED PATTERN**: Use `tb_*`, `v_*`, and `tv_*` prefixes for production applications. This provides:
+- Clear separation of concerns
+- Automatic multi-tenancy support
+- Optimal performance for GraphQL APIs
+- Consistent naming across the codebase
 tb_*  → Base Tables (normalized, write-optimized)
 v_*   → Views (standard SQL views, read-optimized)
 tv_*  → Table Views (denormalized tables matching GraphQL types)
@@ -510,8 +521,8 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 
 ```
 ┌─────────────────────────────────────┐
-│ users, posts, comments              │
-│ (Standard tables, no prefixes)      │
+│ tb_user, tb_post, tb_comment       │
+│ (Base tables with prefixes)         │
 │ - JSONB column with generated data  │
 └─────────────┬───────────────────────┘
               │
@@ -523,26 +534,27 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 
 **Schema**:
 ```sql
--- Simple: no tb_/tv_ split
-CREATE TABLE users (
+-- Simple: no tv_ split, but with tb_ prefix
+CREATE TABLE tb_user (
     id SERIAL PRIMARY KEY,
     first_name TEXT,
     last_name TEXT,
-
+    
     -- Generated JSONB column (embedded relations)
     data JSONB GENERATED ALWAYS AS (
         jsonb_build_object(
             'id', id,
             'first_name', first_name,
-            'user_posts', (SELECT jsonb_agg(...) FROM posts WHERE user_id = users.id LIMIT 10)
+            'user_posts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tb_user.id LIMIT 10)
         )
     ) STORED
 );
 ```
 
 **Benefits**:
-- ✅ Simplest setup (no prefixes, no sync triggers)
+- ✅ Simplest setup (no sync triggers)
 - ✅ Still fast (0.5-1ms queries)
+- ✅ Consistent tb_ naming
 - ✅ Good for small apps
 
 **When to Use**:
@@ -584,19 +596,9 @@ Query type?
 
 ## 🎯 Recommended Naming Convention
 
-### For New Projects (Simplified)
+### For Production Applications (Recommended)
 
-**Don't use prefixes for small projects**:
-```sql
--- Simple naming (no prefixes)
-CREATE TABLE users (...);
-CREATE TABLE posts (...);
-
--- Generated column for GraphQL
-ALTER TABLE users ADD COLUMN data JSONB GENERATED ALWAYS AS (...) STORED;
-```
-
-**Use prefixes for large projects** (clarity at scale):
+**Always use prefixes for production applications**:
 ```sql
 -- Base tables (write operations)
 CREATE TABLE tb_user (...);
@@ -611,6 +613,24 @@ CREATE FUNCTION fn_sync_tv_post(p_id UUID) RETURNS VOID AS ...;
 -- Materialized views (analytics)
 CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 ```
+
+### For Development/Prototypes Only
+
+**Simple naming without prefixes** (NOT recommended for production):
+```sql
+-- Simple naming (no prefixes) - FOR PROTOTYPES ONLY
+CREATE TABLE users (...);
+CREATE TABLE posts (...);
+
+-- Generated column for GraphQL
+ALTER TABLE users ADD COLUMN data JSONB GENERATED ALWAYS AS (...) STORED;
+```
+
+**⚠️ WARNING**: Simple naming without prefixes is only suitable for:
+- MVPs and prototypes
+- Small applications (<10k users)
+- Development/testing
+- NOT for production APIs
 
 ---
 
@@ -731,10 +751,10 @@ CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 - Analytics dashboards
 - Acceptable staleness
 
-### 5. Naming Convention is Optional
+### 5. Naming Convention Recommendation
 
-**Small projects**: Skip prefixes (users, posts)
-**Large projects**: Use prefixes for clarity (tb_user, tv_user, mv_dashboard)
+**Production Applications**: Always use prefixes (tb_user, tv_user, mv_dashboard)
+**Development/Prototypes**: Can use simplified approach, but tb_ prefix still recommended
 
 ---
 
@@ -785,7 +805,7 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 
 | Use Case | Pattern | Tables |
 |----------|---------|--------|
-| **MVP/Small app** | Simple or `v_*` | `users` (with JSONB) or `tb_user` + `v_user` |
+| **MVP/Small app** | `tb_*` + generated JSONB | `tb_user` (with JSONB column) |
 | **Production API** | `tb_*` + `tv_*` table views | `tb_user` (writes) + `tv_user` (reads) |
 | **With analytics** | `tb_*` + `tv_*` + `mv_*` | Add `mv_dashboard` for aggregations |
 

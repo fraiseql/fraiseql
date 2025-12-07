@@ -54,24 +54,24 @@ class Product:
 ### Database Schema
 
 ```sql
-CREATE TABLE products (
+CREATE TABLE tb_product (
     -- Internal ID (UUID)
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
+    
     -- Public ID (human-readable)
     public_id VARCHAR(255) UNIQUE NOT NULL,
-
+    
     -- External ID (for integrations)
     external_id VARCHAR(255) UNIQUE,
-
+    
     -- Other columns
     name VARCHAR(255) NOT NULL,
     price DECIMAL(10, 2) NOT NULL
 );
 
 -- Indexes
-CREATE INDEX idx_products_public_id ON products(public_id);
-CREATE INDEX idx_products_external_id ON products(external_id)
+CREATE INDEX idx_tb_product_public_id ON tb_product(public_id);
+CREATE INDEX idx_tb_product_external_id ON tb_product(external_id)
     WHERE external_id IS NOT NULL;
 ```
 
@@ -87,7 +87,7 @@ def get_product_by_public_id(
 ) -> Product | None:
     """Get product by public ID (SKU)."""
     return info.context.repo.find_one(
-        "products_view",
+        "v_product",
         public_id=public_id
     )
 
@@ -98,7 +98,7 @@ def get_product_by_external_id(
 ) -> Product | None:
     """Get product by external system ID."""
     return info.context.repo.find_one(
-        "products_view",
+        "v_product",
         external_id=external_id
     )
 ```
@@ -125,12 +125,12 @@ async def create_product(
     }
 
     result = await info.context.repo.insert(
-        "products",
+        "tb_product",
         product_data
     )
 
     return info.context.repo.find_one(
-        "products_view",
+        "v_product",
         id=result["id"]
     )
 ```
@@ -158,14 +158,14 @@ async def create_product(
 
 ```
 ❌ Bad:  /products/550e8400-e29b-41d4-a716-446655440000
-✅ Good: /products/WIDGET-001
+✅ Good:  /products/WIDGET-001
 ```
 
 ### 2. Index All Identifier Types
 
 ```sql
-CREATE INDEX idx_entity_public_id ON entity(public_id);
-CREATE INDEX idx_entity_external_id ON entity(external_id)
+CREATE INDEX idx_entity_public_id ON tb_entity(public_id);
+CREATE INDEX idx_entity_external_id ON tb_entity(external_id)
     WHERE external_id IS NOT NULL;  -- Partial index
 ```
 
@@ -199,13 +199,13 @@ def get_product(
     """Support both ID types during migration."""
     if public_id:
         return info.context.repo.find_one(
-            "products_view",
+            "v_product",
             public_id=public_id
         )
     elif id:
         # Legacy support
         return info.context.repo.find_one(
-            "products_view",
+            "v_product",
             public_id=id  # Assume old ID was public_id
         )
     raise ValueError("Must provide either id or public_id")
