@@ -114,23 +114,30 @@ CREATE TABLE tb_post (
     fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,  -- Fast INT FK!
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
     published_at TIMESTAMPTZ,
-    
+    metadata JSONB DEFAULT '{}'::jsonb,
+
     -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-    metadata JSONB DEFAULT '{}'::jsonb
-);
 
--- Comments system
-CREATE TABLE comments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES users(id),
-    parent_id UUID REFERENCES comments(id),
-    content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'published',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Comments system (Trinity Pattern)
+CREATE TABLE tb_comment (
+    -- Trinity Identifiers
+    pk_comment INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,        -- Public API (secure UUID)
+    identifier TEXT UNIQUE,                                   -- Optional for comments
+
+    -- Comment data
+    fk_post INT NOT NULL REFERENCES tb_post(pk_post) ON DELETE CASCADE,       -- Fast INT FK!
+    fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,     -- Fast INT FK!
+    fk_parent INT REFERENCES tb_comment(pk_comment) ON DELETE CASCADE,        -- Fast INT FK!
+    content TEXT NOT NULL CHECK (length(content) >= 1),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+
+    -- Metadata
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tagging system (Trinity Pattern)
@@ -149,11 +156,11 @@ CREATE TABLE tb_tag (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Post-tag relationships (Trinity Pattern)
+-- Post-tag relationships (many-to-many using INT FKs)
 CREATE TABLE post_tags (
-    pk_post INT NOT NULL REFERENCES tb_post(pk_post) ON DELETE CASCADE,
-    pk_tag INT NOT NULL REFERENCES tb_tag(pk_tag) ON DELETE CASCADE,
-    PRIMARY KEY (pk_post, pk_tag)
+    fk_post INT NOT NULL REFERENCES tb_post(pk_post) ON DELETE CASCADE,
+    fk_tag INT NOT NULL REFERENCES tb_tag(pk_tag) ON DELETE CASCADE,
+    PRIMARY KEY (fk_post, fk_tag)
 );
 ```
 
@@ -200,44 +207,67 @@ fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE
 
 ### Query Views
 
+Views expose UUID relationships to the GraphQL API while maintaining fast INT joins internally:
+
 ```sql
--- Optimized post view with author and tag information
+-- User view
+CREATE VIEW v_users AS
+SELECT
+    id,
+    identifier,
+    identifier AS username,  -- identifier serves as username
+    email,
+    role,
+    profile_data,
+    created_at,
+    updated_at
+FROM tb_user;
+
+-- Posts view (with UUID author relationship from JOIN)
 CREATE VIEW v_posts AS
 SELECT
     p.id,
+    p.identifier,
+    p.identifier AS slug,  -- identifier serves as slug
     p.title,
-    p.slug,
     p.content,
     p.excerpt,
     p.status,
     p.published_at,
     p.created_at,
-    p.metadata,
-    -- Author information
-    jsonb_build_object(
-        'id', u.id,
-        'username', u.username,
-        'profile', u.profile_data
-    ) as author,
-    -- Tag array
-    COALESCE(
-        array_agg(
-            jsonb_build_object(
-                'id', t.id,
-                'name', t.name,
-                'slug', t.slug,
-                'color', t.color
-            )
-        ) FILTER (WHERE t.id IS NOT NULL),
-        '{}'
-    ) as tags,
-    -- Comment count
-    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'published') as comment_count
-FROM posts p
-JOIN users u ON p.author_id = u.id
-LEFT JOIN post_tags pt ON p.id = pt.post_id
-LEFT JOIN tags t ON pt.tag_id = t.id
-GROUP BY p.id, u.id, u.username, u.profile_data;
+    p.updated_at,
+    u.id AS author_id  -- ✅ UUID relationship from JOIN
+FROM tb_post p
+JOIN tb_user u ON p.fk_author = u.pk_user;
+
+-- Comments view (with UUID relationships from JOINs)
+CREATE VIEW v_comments AS
+SELECT
+    c.id,
+    c.identifier,
+    c.content,
+    c.status,
+    c.created_at,
+    c.updated_at,
+    p.id AS post_id,       -- ✅ UUID relationship from JOIN
+    u.id AS author_id,     -- ✅ UUID relationship from JOIN
+    pc.id AS parent_id     -- ✅ UUID relationship from JOIN
+FROM tb_comment c
+JOIN tb_post p ON c.fk_post = p.pk_post
+JOIN tb_user u ON c.fk_author = u.pk_user
+LEFT JOIN tb_comment pc ON c.fk_parent = pc.pk_comment;
+
+-- Tags view
+CREATE VIEW v_tags AS
+SELECT
+    id,
+    identifier,
+    name,
+    identifier AS slug,  -- identifier serves as slug
+    color,
+    description,
+    created_at
+FROM tb_tag;
 ```
 
 ## 📝 GraphQL Schema
@@ -245,7 +275,7 @@ GROUP BY p.id, u.id, u.username, u.profile_data;
 ### Types
 
 ```python
-@fraiseql.type(sql_source="users")
+@fraiseql.type(sql_source="v_users")
 class User:
     id: str
     username: str
@@ -273,7 +303,7 @@ class Post:
     tags: list[Tag]
     comment_count: int
 
-@fraiseql.type(sql_source="comments")
+@fraiseql.type(sql_source="v_comments")
 class Comment:
     id: str
     content: str
@@ -281,7 +311,7 @@ class Comment:
     author: User
     parent_id: str | None
 
-@fraiseql.type(sql_source="tags")
+@fraiseql.type(sql_source="v_tags")
 class Tag:
     id: str
     name: str
