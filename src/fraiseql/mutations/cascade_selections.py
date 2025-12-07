@@ -45,9 +45,9 @@ def extract_cascade_selections(info: GraphQLResolveInfo) -> Optional[str]:
             elif (
                 hasattr(selection, "name")
                 and getattr(selection, "name", None)
-                and selection.name.value == "cascade"  # type: ignore
-            ):  # type: ignore
-                return _parse_cascade_to_json(selection)  # type: ignore
+                and selection.name.value == "cascade"  # type: ignore[attr-defined]
+            ):  # type: ignore[attr-defined]
+                return _parse_cascade_to_json(selection)  # type: ignore[attr-defined]
 
     return None
 
@@ -61,9 +61,9 @@ def _find_cascade_in_fragment(fragment: InlineFragmentNode) -> Optional[FieldNod
         if (
             hasattr(selection, "name")
             and getattr(selection, "name", None)
-            and selection.name.value == "cascade"  # type: ignore
-        ):  # type: ignore
-            return selection  # type: ignore
+            and selection.name.value == "cascade"  # type: ignore[attr-defined]
+        ):  # type: ignore[attr-defined]
+            return selection  # type: ignore[attr-defined]
 
     return None
 
@@ -80,14 +80,14 @@ def _parse_cascade_to_json(cascade_field: FieldNode) -> str:
         if not hasattr(selection, "name"):
             continue
 
-        field_name = selection.name.value  # type: ignore
+        field_name = selection.name.value  # type: ignore[attr-defined]
         selections["fields"].append(field_name)
 
         # Parse field-specific selections
         if field_name == "updated":
-            selections["updated"] = _parse_updated_field(selection)  # type: ignore
+            selections["updated"] = _parse_updated_field(selection)  # type: ignore[attr-defined]
         elif field_name in ("deleted", "invalidations", "metadata"):
-            selections[field_name] = _parse_simple_field(selection)  # type: ignore
+            selections[field_name] = _parse_simple_field(selection)  # type: ignore[attr-defined]
 
     return json.dumps(selections, separators=(",", ":"))
 
@@ -100,7 +100,7 @@ def _parse_updated_field(field_node: FieldNode) -> dict[str, Any]:
     if hasattr(field_node, "arguments") and field_node.arguments:
         for arg in field_node.arguments:
             if arg.name.value in ("include", "exclude") and hasattr(arg.value, "values"):
-                result[arg.name.value] = [v.value for v in arg.value.values]  # type: ignore
+                result[arg.name.value] = [v.value for v in arg.value.values]  # type: ignore[attr-defined]
 
     # Parse field selections
     if hasattr(field_node, "selection_set") and field_node.selection_set:
@@ -108,12 +108,12 @@ def _parse_updated_field(field_node: FieldNode) -> dict[str, Any]:
 
         for sel in field_node.selection_set.selections:
             if hasattr(sel, "name"):
-                field_name = sel.name.value  # type: ignore
+                field_name = sel.name.value  # type: ignore[attr-defined]
                 result["fields"].append(field_name)
 
                 # Parse entity field with inline fragments
-                if field_name == "entity" and hasattr(sel, "selection_set") and sel.selection_set:  # type: ignore
-                    entity_selections = _parse_entity_selections(sel)  # type: ignore
+                if field_name == "entity" and hasattr(sel, "selection_set") and sel.selection_set:  # type: ignore[attr-defined]
+                    entity_selections = _parse_entity_selections(sel)  # type: ignore[attr-defined]
 
         if entity_selections:
             result["entity_selections"] = entity_selections
@@ -129,14 +129,14 @@ def _parse_entity_selections(entity_field: FieldNode) -> dict[str, list[str]]:
     if not hasattr(entity_field, "selection_set") or not entity_field.selection_set:
         return selections
 
-    for sel in entity_field.selection_set.selections:  # type: ignore
+    for sel in entity_field.selection_set.selections:  # type: ignore[attr-defined]
         # Regular field (not in inline fragment)
         if hasattr(sel, "name"):
-            common_fields.append(sel.name.value)  # type: ignore
+            common_fields.append(sel.name.value)  # type: ignore[attr-defined]
         # Inline fragment: ... on Post { id title }
         elif isinstance(sel, InlineFragmentNode) and hasattr(sel, "type_condition"):
-            typename = sel.type_condition.name.value  # type: ignore
-            fields = _get_field_names(sel) + common_fields  # type: ignore
+            typename = sel.type_condition.name.value  # type: ignore[attr-defined]
+            fields = _get_field_names(sel) + common_fields  # type: ignore[attr-defined]
             selections[typename] = fields
 
     return selections
@@ -152,4 +152,4 @@ def _get_field_names(field_node: FieldNode) -> list[str]:
     if not hasattr(field_node, "selection_set") or not field_node.selection_set:
         return []
 
-    return [sel.name.value for sel in field_node.selection_set.selections if hasattr(sel, "name")]  # type: ignore
+    return [sel.name.value for sel in field_node.selection_set.selections if hasattr(sel, "name")]  # type: ignore[attr-defined]
