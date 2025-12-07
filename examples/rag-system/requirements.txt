@@ -1,0 +1,17 @@
+fraiseql
+fastapi
+uvicorn
+pydantic
+pgvector
+
+# LangChain for RAG functionality
+langchain
+openai
+langchain-openai
+
+# Optional: For local embeddings
+# sentence-transformers
+
+# Optional: For document processing
+# pypdf
+# python-docx
