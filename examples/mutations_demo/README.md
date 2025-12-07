@@ -69,7 +69,7 @@ Errors can include:
 The demo uses a simple users table with JSONB storage:
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE,
