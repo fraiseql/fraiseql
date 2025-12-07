@@ -599,7 +599,7 @@ def test_cascade_data_validation():
 
 
 
-class TestCascadeV190:
+class TestCascadeV180:
     """Test CASCADE with v1.8.0 error handling."""
 
     def test_cascade_validation_error_returns_error_type(self, graphql_schema):

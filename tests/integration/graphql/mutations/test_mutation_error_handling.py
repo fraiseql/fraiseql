@@ -100,7 +100,7 @@ async def test_config_no_get_method() -> None:
     assert not hasattr(config, "get"), "Config should not have dictionary-style .get() method"
 
 
-class TestMutationErrorHandlingV190:
+class TestMutationErrorHandlingV180:
     """Test mutation error handling in v1.8.0."""
 
     def test_noop_returns_error_type_with_422(self):

@@ -17,7 +17,7 @@ class Cascade:
     status: str
 
 
-class TestSchemaGenerationV190:
+class TestSchemaGenerationV180:
     """Test schema generation for v1.8.0."""
 
     def test_generate_union_type(self):
