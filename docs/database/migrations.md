@@ -22,20 +22,23 @@ For production environments, use [**Confiture**](https://github.com/fraiseql/con
 
 ```bash
 # Install Confiture
-pip install confiture
+pip install fraiseql-confiture
 
-# Create migration with trinity pattern
-confiture migration create trinity-migration
+# Initialize project
+confiture init
+
+# Generate migration
+confiture migrate generate --name "trinity-migration"
 
 # Apply migration
-confiture migration apply
+confiture migrate up
 ```
 
-**Benefits:**
-- Zero-downtime migrations (Foreign Data Wrapper)
-- PII anonymization for data sync
-- Rollback support
-- 10-50x faster than traditional tools
+**Key features:**
+- 4 migration strategies (including zero-downtime)
+- Build databases from DDL in <1 second
+- Production data sync with PII anonymization
+- Rust-powered performance
 
 **Option 2: Manual Migration (Quick Start)**
 
@@ -213,26 +216,28 @@ EXPLAIN ANALYZE SELECT * FROM tv_user_with_stats WHERE id = $1;
 
 ## Production Migration with Confiture
 
-**For production environments, use [Confiture](https://github.com/fraiseql/confiture) for zero-downtime migrations.**
+**For production environments, use [Confiture](https://github.com/fraiseql/confiture) - FraiseQL's official migration tool.**
 
-### Why Use Confiture for Production?
+### Migration Strategies
 
-- **Zero-downtime**: Uses Foreign Data Wrapper (FDW) to keep app running during migration
-- **Safe rollback**: Built-in rollback support with data preservation
-- **PII anonymization**: Safely copy production data to staging with automatic PII masking
-- **10-50x faster**: Rust-powered performance for large databases
+Confiture offers 4 migration strategies:
+
+1. **Build from DDL** - Create fresh databases in <1 second
+2. **Incremental Migrations** - Standard `confiture migrate up`
+3. **Production Data Sync** - `confiture sync --from production --anonymize users.email`
+4. **Zero-Downtime** - `confiture migrate schema-to-schema --strategy fdw`
 
 ### Basic Workflow
 
 ```bash
-# 1. Install Confiture
-pip install confiture
+# 1. Install
+pip install fraiseql-confiture
 
 # 2. Initialize project
 confiture init
 
-# 3. Create DDL source files with trinity pattern
-cat > schema/tables/users.sql <<EOF
+# 3. Edit DDL files in db/schema/
+cat > db/schema/users.sql <<EOF
 CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
@@ -247,33 +252,26 @@ WHERE deleted_at IS NULL;
 EOF
 
 # 4. Generate migration
-confiture migration create trinity-migration --auto
+confiture migrate generate --name "add_trinity_pattern"
 
-# 5. Preview changes
-confiture migration preview
-
-# 6. Apply to production (zero-downtime)
-confiture migration apply --zero-downtime
+# 5. Apply migration
+confiture migrate up
 ```
 
-### Zero-Downtime Strategy
+### Zero-Downtime Migrations
 
-Confiture uses **Foreign Data Wrapper (FDW)** technology to achieve near-zero downtime migrations:
+For production migrations with minimal downtime (0-5 seconds):
 
 ```bash
-# Schema-to-schema migration with FDW
 confiture migrate schema-to-schema --strategy fdw
 ```
 
-**Downtime: 0-5 seconds**
-
-For detailed implementation steps, see [Confiture's Zero-Downtime Guide](https://github.com/fraiseql/confiture/blob/main/docs/guides/medium-4-schema-to-schema.md)
+This uses **Foreign Data Wrapper (FDW)** technology. For detailed steps, see [Confiture's Zero-Downtime Guide](https://github.com/fraiseql/confiture/blob/main/docs/guides/medium-4-schema-to-schema.md).
 
 ### Learn More
 
 - [Confiture Documentation](https://github.com/fraiseql/confiture#readme)
-- [Zero-Downtime Migration Guide](https://github.com/fraiseql/confiture/blob/main/docs/zero-downtime.md)
-- [Production Migration Examples](https://github.com/fraiseql/confiture/tree/main/examples)
+- [Migration Strategies Guide](https://github.com/fraiseql/confiture/tree/main/docs/guides)
 
 ---
 
