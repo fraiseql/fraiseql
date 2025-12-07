@@ -39,10 +39,10 @@ class TestMutationErrorConfig:
         assert config.is_error_status("invalid")
         assert config.is_error_status("validation_error")
 
-        # Noop statuses (treated as errors by default)
-        assert not config.is_error_status("noop:unchanged")
-        assert not config.is_error_status("noop:invalid_contract_id")
-        assert not config.is_error_status("blocked:children")
+        # Noop statuses (v1.8.0: now treated as errors, return Error type with code 422)
+        assert config.is_error_status("noop:unchanged")
+        assert config.is_error_status("noop:invalid_contract_id")
+        assert config.is_error_status("blocked:children")
 
     def test_strict_status_config(self) -> None:
         """Test strict status-based configuration."""
