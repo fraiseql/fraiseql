@@ -61,32 +61,42 @@ class TestMutationErrorConfig:
         assert config.is_error_status("failed:not_found")
         assert config.is_error_status("failed:database_error")
 
-        # Other statuses are NOT errors (returned as data)
-        assert not config.is_error_status("noop:unchanged")
-        assert not config.is_error_status("noop:invalid_contract_id")
-        assert not config.is_error_status("noop:existing")
-        assert not config.is_error_status("blocked:children")
-        assert not config.is_error_status("error")  # Generic 'error' is not an error
-        assert not config.is_error_status("invalid")  # Generic 'invalid' is not an error
+        # v1.8.0: STRICT_STATUS_CONFIG is deprecated, now same as DEFAULT_ERROR_CONFIG
+        # Noop statuses are now errors (return Error type with code 422)
+        assert config.is_error_status("noop:unchanged")
+        assert config.is_error_status("noop:invalid_contract_id")
+        assert config.is_error_status("noop:existing")
+        assert config.is_error_status("blocked:children")
+        # Generic error keywords are also detected (error_keywords)
+        assert config.is_error_status("error")  # Contains 'error' keyword
+        assert config.is_error_status("invalid")  # Contains 'invalid' keyword
 
     def test_always_data_config(self) -> None:
-        """Test configuration that always returns data."""
-        config = ALWAYS_DATA_CONFIG
+        """Test deprecated ALWAYS_DATA_CONFIG (v1.8.0: now raises deprecation warning)."""
+        import warnings
 
-        # Nothing is ever an error
-        assert not config.is_error_status("failed:validation")
-        assert not config.is_error_status("error:critical")
-        assert not config.is_error_status("invalid")
-        assert not config.is_error_status("timeout")
-        assert not config.is_error_status("")
-        assert not config.is_error_status("any_status_at_all")
+        # ALWAYS_DATA_CONFIG is now a function that raises deprecation warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = ALWAYS_DATA_CONFIG()
+
+            # Should have raised a deprecation warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "deprecated in v1.8.0" in str(w[0].message)
+
+            # Returns config with always_return_as_data=True (nothing is an error)
+            assert not config.is_error_status("failed:validation")
+            assert not config.is_error_status("noop:unchanged")
+            assert not config.is_error_status("error:critical")
+            assert not config.is_error_status("any_status_at_all")
 
     def test_custom_config(self) -> None:
-        """Test custom error configuration."""
+        """Test custom error configuration (v1.8.0: error_as_data_prefixes removed)."""
         config = MutationErrorConfig(
             success_keywords={"ok", "good"},
             error_prefixes={"bad:", "terrible:"},
-            error_as_data_prefixes={"maybe:", "warn:"},
+            # v1.8.0: error_as_data_prefixes removed - all errors return Error type
             error_keywords={"broken", "busted"},
         )
 
@@ -98,14 +108,14 @@ class TestMutationErrorConfig:
         assert config.is_error_status("bad:input")
         assert config.is_error_status("terrible:failure")
 
-        # Error as data prefixes (NOT errors)
-        assert not config.is_error_status("maybe:invalid")
-        assert not config.is_error_status("warn:deprecated")
-
         # Error keywords
         assert config.is_error_status("broken")
         assert config.is_error_status("something_busted")
         assert config.is_error_status("totally broken")
+
+        # Non-matching statuses are not errors
+        assert not config.is_error_status("maybe:invalid")
+        assert not config.is_error_status("warn:deprecated")
 
     def test_regex_pattern_config(self) -> None:
         """Test configuration with regex pattern."""
