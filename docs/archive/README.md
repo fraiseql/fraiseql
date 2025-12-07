@@ -56,7 +56,7 @@ These documents served important purposes during FraiseQL's development but are 
 - **Quickstart**: See [docs/quickstart.md](../quickstart.md)
 - **First Hour Tutorial**: See [docs/FIRST_HOUR.md](../FIRST_HOUR.md)
 - **Core Concepts**: See [docs/core/concepts-glossary.md](../core/concepts-glossary.md)
-- **Trinity Identifiers**: See [docs/patterns/trinity_identifiers.md](../patterns/trinity_identifiers.md)
+- **Trinity Identifiers**: See [docs/patterns/trinity_identifiers.md](../database/trinity_identifiers.md)
 - **Enterprise Features**: See [docs/enterprise/](../enterprise/)
 
 ---

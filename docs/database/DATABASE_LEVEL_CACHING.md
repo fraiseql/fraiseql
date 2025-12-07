@@ -536,7 +536,7 @@ effective_cache_size = 12GB
 work_mem = 64MB
 
 -- 2. Generated JSONB columns (already using)
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id INT PRIMARY KEY,
     first_name TEXT,
     data JSONB GENERATED ALWAYS AS (...) STORED
@@ -641,7 +641,7 @@ CREATE UNLOGGED TABLE query_cache (
 
 ```sql
 -- users table with optimizations
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id SERIAL PRIMARY KEY,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,

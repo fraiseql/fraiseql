@@ -33,7 +33,7 @@ Complete overview of all FraiseQL capabilities.
 | **PostgreSQL Functions** | ✅ Stable | [Database API](../core/database-api.md#calling-functions) | [blog_api](../../examples/blog_api/) |
 | **Connection Pooling** | ✅ Stable | [Database API](../core/database-api.md#connection-pool) | All examples |
 | **Transaction Support** | ✅ Stable | [Database API](../core/database-api.md#transactions) | [enterprise_patterns](../../examples/enterprise_patterns/) |
-| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../patterns/trinity_identifiers.md) | [saas-starter](../../examples/saas-starter/) |
+| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../database/trinity_identifiers.md) | [saas-starter](../../examples/saas-starter/) |
 | **CQRS Pattern** | ✅ Stable | [Patterns Guide](../patterns/README.md#cqrs) | [blog_enterprise](../../examples/blog_enterprise/) |
 
 ---
