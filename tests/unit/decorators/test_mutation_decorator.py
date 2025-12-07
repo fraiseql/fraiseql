@@ -180,8 +180,8 @@ class TestMutationResolver:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
-        # Mock input
         input_obj = Mock()
         input_obj.name = "John Doe"
         input_obj.email = "john@example.com"
@@ -251,6 +251,7 @@ class TestMutationResolver:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John", "email": "existing@example.com"}
@@ -303,6 +304,7 @@ class TestMutationResolver:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
@@ -360,6 +362,7 @@ class TestMutationResolver:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
@@ -528,6 +531,7 @@ class TestPrepareInputHook:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         # Create input with IP and subnet mask
         input_obj = Mock()
@@ -587,6 +591,7 @@ class TestPrepareInputHook:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         input_obj = Mock()
         input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
@@ -654,6 +659,7 @@ class TestPrepareInputHook:
 
         info = Mock()
         info.context = {"db": mock_db}
+        info.field_nodes = []  # Mock field_nodes as empty list
 
         # Input with empty string
         input_obj = Mock()

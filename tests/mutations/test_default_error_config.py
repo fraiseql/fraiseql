@@ -62,7 +62,11 @@ class TestDefaultErrorConfig:
         registry.config = config
 
         # Define mutation WITH explicit error_config (different from default)
-        @mutation(function="test_override", error_config=STRICT_STATUS_CONFIG)
+        custom_config = MutationErrorConfig(
+            error_prefixes={"custom:"},  # Different from default
+        )
+
+        @mutation(function="test_override", error_config=custom_config)
         class TestMutation:
             input: dict
             success: dict
@@ -71,7 +75,7 @@ class TestDefaultErrorConfig:
         # Verify: Should use explicit config, not global default
         mutation_def = TestMutation.__fraiseql_mutation__
         assert mutation_def is not None
-        assert mutation_def.error_config == STRICT_STATUS_CONFIG
+        assert mutation_def.error_config == custom_config
         assert mutation_def.error_config != DEFAULT_ERROR_CONFIG
 
     def test_no_default_error_config_returns_none(self):
@@ -127,7 +131,9 @@ class TestDefaultErrorConfig:
             # Setup
             config = FraiseQLConfig(
                 database_url="postgresql://test",
-                default_error_config=expected_config,
+                default_error_config=expected_config()
+                if expected_config == ALWAYS_DATA_CONFIG
+                else expected_config,
             )
             registry = SchemaRegistry.get_instance()
             registry.config = config
@@ -144,4 +150,6 @@ class TestDefaultErrorConfig:
             # Verify
             mutation_def = TestMutation.__fraiseql_mutation__
             assert mutation_def is not None
-            assert mutation_def.error_config == expected_config
+            assert mutation_def.error_config == (
+                expected_config() if expected_config == ALWAYS_DATA_CONFIG else expected_config
+            )

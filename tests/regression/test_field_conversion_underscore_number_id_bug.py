@@ -93,9 +93,10 @@ class MockCursor:
 
         mock_result = {
             "status": "success",
-            "object_data": {
+            "entity": {
                 "id": "mock-id",
                 "name": "Mock Result",
+                "dns_1_id": "test-value",  # Test field name conversion
             },
             "message": "Mock success",
             "extra_metadata": {"entity": "mock"},

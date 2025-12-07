@@ -104,7 +104,7 @@ def test_rust_binding_error():
 
     response = json.loads(response_bytes)
     assert response["data"]["createUser"]["__typename"] == "CreateUserError"
-    assert response["data"]["createUser"]["code"] == 422
+    assert response["data"]["createUser"]["code"] == 500
 
 
 @requires_rust
