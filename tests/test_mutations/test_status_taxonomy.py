@@ -225,8 +225,10 @@ async def test_noop_returns_success_type(db_connection, clear_registry):
     )
 
     response = result.to_json()
-    # Noop should be SUCCESS type (no change is not an error)
-    assert response["data"]["testMutation"]["__typename"] == "TestSuccess"
+    # v1.8.0: noop returns ERROR type with code 422
+    assert response["data"]["testMutation"]["__typename"] == "TestError"
+    assert response["data"]["testMutation"]["code"] == 422
+    assert response["data"]["testMutation"]["status"].startswith("noop:")
 
 
 @pytest.mark.asyncio
