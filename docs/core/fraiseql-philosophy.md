@@ -136,7 +136,7 @@ FraiseQL embraces **PostgreSQL's JSONB** as a first-class storage mechanism, not
 **Traditional ORM Approach**:
 ```sql
 -- Rigid schema, many columns
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
