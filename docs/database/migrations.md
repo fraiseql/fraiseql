@@ -16,10 +16,36 @@ This guide helps you migrate from simple table naming (`users`, `posts`, `commen
 
 ## Quick Start (5 minutes)
 
-**For immediate migration, use the example script:**
+**Option 1: Production-Grade Tool (Recommended)**
+
+For production environments, use [**Confiture**](https://github.com/fraiseql/confiture) - FraiseQL's official migration tool:
 
 ```bash
-# Download and run the migration script
+# Install Confiture
+pip install confiture
+
+# Create migration with trinity pattern
+confiture migration create trinity-migration
+
+# Apply migration
+confiture migration apply
+```
+
+**Benefits:**
+- Zero-downtime migrations (Foreign Data Wrapper)
+- PII anonymization for data sync
+- Rollback support
+- 10-50x faster than traditional tools
+
+**Option 2: Manual Migration (Quick Start)**
+
+For development or simple cases, use the example script:
+
+```bash
+# Backup first!
+pg_dump your_database > backup.sql
+
+# Run migration script
 psql -d your_database -f docs/database/example-migration.sql
 ```
 
@@ -185,6 +211,71 @@ EXPLAIN ANALYZE SELECT * FROM tv_user_with_stats WHERE id = $1;
 
 ---
 
+## Production Migration with Confiture
+
+**For production environments, use [Confiture](https://github.com/fraiseql/confiture) for zero-downtime migrations.**
+
+### Why Use Confiture for Production?
+
+- **Zero-downtime**: Uses Foreign Data Wrapper (FDW) to keep app running during migration
+- **Safe rollback**: Built-in rollback support with data preservation
+- **PII anonymization**: Safely copy production data to staging with automatic PII masking
+- **10-50x faster**: Rust-powered performance for large databases
+
+### Basic Workflow
+
+```bash
+# 1. Install Confiture
+pip install confiture
+
+# 2. Initialize project
+confiture init
+
+# 3. Create DDL source files with trinity pattern
+cat > schema/tables/users.sql <<EOF
+CREATE TABLE tb_user (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE VIEW v_user AS
+SELECT id, name, email, created_at
+FROM tb_user
+WHERE deleted_at IS NULL;
+EOF
+
+# 4. Generate migration
+confiture migration create trinity-migration --auto
+
+# 5. Preview changes
+confiture migration preview
+
+# 6. Apply to production (zero-downtime)
+confiture migration apply --zero-downtime
+```
+
+### Zero-Downtime Strategy
+
+Confiture uses a multi-phase approach:
+
+1. **Shadow tables**: Creates new `tb_*` tables alongside old tables
+2. **Dual-write**: Application writes to both old and new tables
+3. **Background copy**: Copies existing data from old → new tables
+4. **Cutover**: Switches reads from old → new tables (instant)
+5. **Cleanup**: Drops old tables after verification
+
+**Downtime: <1 second** (just the cutover)
+
+### Learn More
+
+- [Confiture Documentation](https://github.com/fraiseql/confiture#readme)
+- [Zero-Downtime Migration Guide](https://github.com/fraiseql/confiture/blob/main/docs/zero-downtime.md)
+- [Production Migration Examples](https://github.com/fraiseql/confiture/tree/main/examples)
+
+---
+
 ## Common Issues and Solutions
 
 ### Foreign Key Constraints
@@ -225,6 +316,59 @@ SELECT COUNT(*) FROM tb_user;
 ```python
 # This breaks after migration
 cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+```
+
+**Solution:** Use FraiseQL repository pattern
+```python
+# Use FraiseQL abstraction
+user = await db.find_one("v_user", id=user_id)
+```
+
+### Edge Case 4: Materialized Views
+
+**Problem:** Materialized views depend on renamed tables
+```sql
+-- Materialized view breaks
+CREATE MATERIALIZED VIEW mv_user_stats AS
+SELECT COUNT(*) FROM users;
+```
+
+**Solution:** Refresh materialized views after migration
+```sql
+-- Update and refresh
+CREATE OR REPLACE MATERIALIZED VIEW mv_user_stats AS
+SELECT COUNT(*) FROM tb_user;
+
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_stats;
+```
+
+### Edge Case 5: Triggers on Tables
+
+**Problem:** Existing triggers reference old table names
+```sql
+-- Trigger breaks after rename
+CREATE TRIGGER trg_user_audit
+AFTER INSERT OR UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION log_user_change();
+```
+
+**Solution:** Update triggers to use new table names
+```sql
+-- Update trigger for new table name
+CREATE OR REPLACE TRIGGER trg_user_audit
+AFTER INSERT OR UPDATE ON tb_user
+FOR EACH ROW EXECUTE FUNCTION log_user_change();
+
+-- Also update trigger function if it references table names
+CREATE OR REPLACE FUNCTION log_user_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update any hard-coded table references in function
+    INSERT INTO audit_log (table_name, action, data)
+    VALUES ('tb_user', TG_OP, row_to_json(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
 **Solution:** Use FraiseQL repository pattern
@@ -316,6 +460,7 @@ After successful migration:
 
 ## Related Documentation
 
+- [**Confiture**](https://github.com/fraiseql/confiture) - Official FraiseQL migration tool (production-ready)
 - [Table Naming Conventions](./TABLE_NAMING_CONVENTIONS.md) - Complete naming reference
 - [View Strategies](./VIEW_STRATEGIES.md) - When to use v_* vs tv_* vs mv_*
 - [Trinity Identifiers](./trinity_identifiers.md) - Three-tier ID system

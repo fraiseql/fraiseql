@@ -52,6 +52,22 @@ JOIN tb_user u ON u.id = p.user_id
 LEFT JOIN tb_comment c ON c.post_id = p.id
 GROUP BY p.id, p.title, p.user_id, u.name;
 
+-- Step 4: Update existing triggers (if any)
+-- Example: Update audit triggers to use new table names
+CREATE OR REPLACE FUNCTION log_user_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO audit_log (table_name, action, data, created_at)
+    VALUES ('tb_user', TG_OP, row_to_json(NEW), NOW());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_user_audit ON users;
+CREATE TRIGGER trg_user_audit
+AFTER INSERT OR UPDATE ON tb_user
+FOR EACH ROW EXECUTE FUNCTION log_user_change();
+
 COMMIT;
 
 -- Verification
