@@ -34,3 +34,35 @@ def transform_keys_to_camel_case(data: Any) -> Any:
     if isinstance(data, list):
         return [transform_keys_to_camel_case(item) for item in data]
     return data
+
+
+def dict_keys_to_snake_case(data: dict | list | Any) -> dict | list | Any:
+    """Recursively convert dictionary keys from camelCase to snake_case.
+
+    This function is used to convert GraphQL input (camelCase) to PostgreSQL-compatible
+    format (snake_case) before serializing to JSONB.
+
+    Args:
+        data: Input data structure (dict, list, or primitive)
+
+    Returns:
+        Data structure with all dict keys converted to snake_case
+
+    Examples:
+        >>> dict_keys_to_snake_case({"firstName": "John", "lastName": "Doe"})
+        {'first_name': 'John', 'last_name': 'Doe'}
+
+        >>> dict_keys_to_snake_case({"user": {"emailAddress": "john@example.com"}})
+        {'user': {'email_address': 'john@example.com'}}
+
+        >>> dict_keys_to_snake_case({"items": [{"itemName": "A"}, {"itemName": "B"}]})
+        {'items': [{'item_name': 'A'}, {'item_name': 'B'}]}
+    """
+    if isinstance(data, dict):
+        # Recursively convert all keys in the dict
+        return {to_snake_case(key): dict_keys_to_snake_case(value) for key, value in data.items()}
+    if isinstance(data, list):
+        # Recursively convert all items in the list
+        return [dict_keys_to_snake_case(item) for item in data]
+    # Primitive value - return as-is
+    return data

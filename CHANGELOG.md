@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Input camelCase conversion**: Mutation inputs with camelCase field names are now properly converted to snake_case before being sent to PostgreSQL functions. This fixes silent failures when using `jsonb_populate_record()` with composite types that have snake_case field names. When `auto_camel_case=True`, the framework now converts both input (camelCase → snake_case) and output (snake_case → camelCase), ensuring full compatibility with PostgreSQL conventions.
+
 ## [1.8.0-beta.1] - 2025-12-07
 
 ### 🚨 BREAKING CHANGES

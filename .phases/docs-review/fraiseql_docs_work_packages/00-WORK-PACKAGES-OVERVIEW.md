@@ -1,8 +1,8 @@
 # FraiseQL Documentation Work Packages - Complete Overview
 
-**Total Packages:** 25
-**Total Estimated Hours:** 162 hours
-**Timeline:** 4 weeks
+**Total Packages:** 29 (4 new from journey docs verification)
+**Total Estimated Hours:** 192 hours (was 162)
+**Timeline:** 4-5 weeks
 **Team Size:** 7 people
 
 ---
@@ -12,7 +12,7 @@
 | Priority | Count | Total Hours | Description |
 |----------|-------|-------------|-------------|
 | **P0 - Critical** | 18 | 112 hours | Must complete for 10x improvement |
-| **P1 - Important** | 7 | 50 hours | Should complete, can defer if needed |
+| **P1 - Important** | 11 | 80 hours | Should complete, can defer if needed (4 NEW from hallucinations) |
 
 ---
 
@@ -45,6 +45,10 @@
 | WP-023 | Validate All Links | ENG-QA | P0 | 4 | 4 | All writing WPs |
 | WP-024 | Run Persona Reviews | ENG-QA | P0 | 12 | 4 | All WPs |
 | WP-025 | Final Quality Gate | ENG-QA | P0 | 4 | 4 | WP-024 |
+| **WP-026** | **Create Benchmark Comparison Script** | **ENG-EXAMPLES** | **P1** | **6** | **3** | **None** |
+| **WP-027** | **Add Connection Pooling Config** | **ENG-CORE** | **P1** | **8** | **2** | **None** |
+| **WP-028** | **Create Framework Migration Guides** | **TW-CORE** | **P1** | **12** | **3** | **WP-003** |
+| **WP-029** | **Implement /ready Endpoint** | **ENG-CORE** | **P1** | **4** | **2** | **None** |
 
 ---
 
@@ -862,6 +866,128 @@ All WPs → WP-021, WP-022, WP-023 (Validation) → WP-024 (Personas) → WP-025
 - **7/7 personas pass review** → Multi-audience success
 - **Quality score ≥ 4/5** → High-quality deliverables
 - **Timeline met** → 4 weeks or less
+
+---
+
+## NEW WORK PACKAGES (From Journey Docs Verification - Dec 8, 2025)
+
+### WP-026: Create Performance Benchmark Comparison Script
+**Assignee:** ENG-EXAMPLES | **Hours:** 6 | **Week:** 3 | **Priority:** P1
+
+**Objective:** Create reproducible performance benchmark script that validates "7-10x JSON performance" claims by comparing FraiseQL (Rust pipeline) against Strawberry and Graphene.
+
+**Why Created:** Journey doc `backend-engineer.md:42-44` references `run_performance_comparison.py` that doesn't exist, breaking evaluation workflow for backend engineers.
+
+**Deliverables:**
+- `benchmarks/run_performance_comparison.py` script
+- Comparison table output (FraiseQL vs Strawberry vs Graphene)
+- Documentation on how to run benchmark
+- Expected results documented
+
+**Impact:** HIGH - Validates core marketing claim with reproducible evidence
+
+---
+
+### WP-027: Add Connection Pooling Configuration to create_fraiseql_app
+**Assignee:** ENG-CORE | **Hours:** 8 | **Week:** 2 | **Priority:** P1
+
+**Objective:** Add `connection_pool_size`, `connection_pool_max_overflow`, `connection_pool_timeout`, and `connection_pool_recycle` parameters to `create_fraiseql_app()` for production database tuning.
+
+**Why Created:** Journey doc `backend-engineer.md:103-109` shows connection pool configuration that doesn't exist. Backend engineers expect to configure connection pooling (standard production practice).
+
+**Deliverables:**
+- 4 new parameters in `create_fraiseql_app()` function
+- Integration with asyncpg connection pool
+- Documentation with tuning guidelines
+- Unit and integration tests
+
+**Impact:** HIGH - Critical production feature, expected by backend engineers
+
+---
+
+### WP-028: Create Framework-Specific Migration Guides
+**Assignee:** TW-CORE | **Hours:** 12 | **Week:** 3 | **Priority:** P1
+
+**Objective:** Create comprehensive migration guides for teams switching from Strawberry, Graphene, and PostGraphile to FraiseQL, with step-by-step instructions and time estimates.
+
+**Why Created:** Journey doc `backend-engineer.md:60-64` references migration guides that don't exist. Missing migration guides are a **major adoption blocker** - backend engineers won't recommend framework without clear migration path.
+
+**Deliverables:**
+- `/docs/migration/` directory created
+- `from-strawberry.md` - Strawberry → FraiseQL migration guide
+- `from-graphene.md` - Graphene → FraiseQL migration guide
+- `from-postgraphile.md` - PostGraphile → FraiseQL migration guide
+- `migration-checklist.md` - Generic migration checklist
+- Code examples, time estimates, common pitfalls documented
+
+**Impact:** CRITICAL - Biggest adoption blocker, needed for enterprise evaluation
+
+---
+
+### WP-029: Implement /ready Endpoint for Kubernetes
+**Assignee:** ENG-CORE | **Hours:** 4 | **Week:** 2 | **Priority:** P1
+
+**Objective:** Implement `/ready` readiness probe endpoint in FraiseQL to complement existing `/health` liveness probe, following Kubernetes best practices.
+
+**Why Created:** Journey doc `backend-engineer.md:133` shows `curl http://localhost:8000/ready` command that doesn't work. Kubernetes deployments need separate readiness probes (database connectivity) from liveness probes (process health).
+
+**Deliverables:**
+- `/ready` endpoint implemented in `apq_metrics_router.py`
+- Database connectivity checks
+- 200 OK when ready, 503 when not ready
+- Kubernetes readiness probe configuration in Helm chart
+- Documentation explaining health vs readiness
+
+**Impact:** MEDIUM - Kubernetes best practice, production deployment requirement
+
+---
+
+## Updated Work Package Dependencies Graph
+
+```
+Week 1 (Critical Path):
+WP-001 (Fix Core Docs) → WP-002 (Fix DB Docs) → WP-003 (Migration Guide) → WP-028 (Framework Migrations)
+                      ↓
+                      WP-005 (Fix Advanced Patterns)
+                      WP-006 (Fix Example READMEs)
+
+WP-010 (Security Hub) → WP-011, WP-012, WP-013 (Security Guides)
+
+Week 2 (Content Creation + New Features):
+WP-017 (RAG Example) → WP-007 (RAG Tutorial)
+WP-008 (Vector Ops Reference)
+WP-014 (Production Checklist)
+WP-027 (Connection Pooling) ← NEW
+WP-029 (/ready Endpoint) ← NEW
+
+Week 3 (Personas & Examples + Benchmarks):
+WP-004, WP-009, WP-015 (Journey Pages)
+WP-018, WP-019 (Additional Examples)
+WP-020 (Test Examples)
+WP-026 (Benchmark Script) ← NEW
+WP-028 (Migration Guides) ← NEW
+
+Week 4 (QA):
+All WPs → WP-021, WP-022, WP-023 (Validation) → WP-024 (Personas) → WP-025 (Final Gate)
+```
+
+---
+
+## Updated Success Metrics
+
+### Quantitative
+- **18 P0 + 11 P1 work packages complete** → 10x documentation improvement
+- **Zero SQL naming errors** → Consistency achieved
+- **Zero broken links** → Navigation works
+- **Zero contradictions** → Single source of truth
+- **100% code examples run** → Technical accuracy
+- **All journey doc hallucinations fixed** → Trustworthy documentation
+
+### Qualitative
+- **7/7 personas pass review** → Multi-audience success
+- **Quality score ≥ 4/5** → High-quality deliverables
+- **Timeline met** → 4-5 weeks
+- **Backend engineers can evaluate migration** → Adoption unblocked
 
 ---
 
