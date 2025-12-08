@@ -57,34 +57,35 @@ python rust_vs_python_benchmark.py  # Rust vs Python JSON performance
 
 **Goal:** Estimate migration effort from your current framework
 
-**Read:** [Database Migration Guide](../database/migrations.md)
+**Read:**
+- [Migration Guides Overview](../migration/README.md)
+- Framework-specific guides:
+  - [From Strawberry](../migration/from-strawberry.md) - 2-3 weeks
+  - [From Graphene](../migration/from-graphene.md) - 1-2 weeks
+  - [From PostGraphile](../migration/from-postgraphile.md) - 3-4 days
+- [Migration Checklist](../migration/migration-checklist.md) - Generic 10-phase process
 
 **Migration Assessment:**
 
-> **Note:** Detailed framework-specific migration guides are in development (WP-028).
-> Contact the team on Discord for migration assistance.
+Choose your framework-specific guide for detailed migration steps, code examples, and common pitfalls:
 
-**General Migration Effort:**
-- **Strawberry migration:** 2-3 weeks for 2 engineers
-- **Graphene migration:** 1-2 weeks for 2 engineers
-- **PostGraphile migration:** 3-4 days for 1 engineer
+| Current Framework | Difficulty | Time Estimate | Key Challenge |
+|------------------|-----------|---------------|---------------|
+| **PostGraphile** | ⭐ Low | 3-4 days (1 engineer) | Language switch (TS → Python) |
+| **Graphene** | ⭐⭐ Medium | 1-2 weeks (2 engineers) | ORM → Database-first |
+| **Strawberry** | ⭐⭐ Medium | 2-3 weeks (2 engineers) | Database restructuring |
 
-**Key Migration Steps:**
+**Key Migration Steps (All Frameworks):**
 1. Audit your current schema (types, resolvers, mutations)
 2. Create PostgreSQL views using trinity pattern (tb_/v_/tv_)
 3. Convert resolvers to FraiseQL decorators
 4. Test thoroughly with side-by-side comparison
 5. Deploy using blue-green strategy
 
-**Migration Effort Calculator:**
+**Migration Effort Breakdown:**
 - Schema mapping: 20% of effort
 - Resolver conversion: 50% of effort
 - Testing: 30% of effort
-
-**For a typical 50-resolver API:**
-- **Strawberry migration:** 2-3 weeks for 2 engineers
-- **Graphene migration:** 1-2 weeks for 2 engineers
-- **PostGraphile migration:** 3-4 days for 1 engineer
 
 **Success Check:** You have a concrete time estimate for your team's migration
 
