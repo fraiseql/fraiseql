@@ -139,13 +139,13 @@ spec:
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 10
 ```
 
-> **Note:** Dedicated `/ready` endpoint is in development (WP-029). For now, use `/health` for both liveness and readiness probes.
+> **Note:** The `/ready` endpoint checks database connectivity and application readiness. Use `/health` for liveness probes (process running) and `/ready` for readiness probes (ready to serve traffic).
 
 **Success Check:** All checklist items are completed
 
@@ -402,15 +402,24 @@ curl http://localhost:8000/health
 
 **Purpose:** Process is alive and can serve traffic
 
-**2. Readiness Probe (use `/health` for now):**
+**2. Readiness Probe (`/ready`):**
 
-> **Note:** Dedicated `/ready` endpoint with database connectivity checks is in development (WP-029).
-
-**Current Workaround:**
 ```bash
-# Use /health for both liveness and readiness
-# FraiseQL will return 503 if database is unavailable
+# Test readiness endpoint
+curl http://localhost:8000/ready
+
+# Example response (ready):
+{
+  "status": "ready",
+  "checks": {
+    "database": "ok",
+    "schema": "ok"
+  },
+  "timestamp": 1670500000.0
+}
 ```
+
+**Purpose:** Application is ready to serve traffic (database connected, schema loaded)
 
 **3. Alerting Rules:**
 
