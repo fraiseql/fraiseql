@@ -326,7 +326,7 @@ cat > /home/lionel/code/fraiseql/.phases/docs-review/PROGRESS.md << 'EOF'
 - [ ] WP-003: Trinity Migration Guide (0/6 hrs)
 - [ ] WP-017: RAG Example App (0/12 hrs)
 - [ ] WP-007: RAG Tutorial (0/8 hrs)
-- [ ] WP-008: Vector Operators Reference (0/4 hrs)
+- [x] WP-008: Vector Operators Reference (4/4 hrs) ✅ COMPLETED
 - [ ] WP-011: SLSA Provenance Guide (0/6 hrs)
 - [ ] WP-012: Compliance Matrix (0/8 hrs)
 - [ ] WP-013: Security Profiles Guide (0/6 hrs)
