@@ -102,29 +102,35 @@ ALTER COLUMN embedding TYPE vector(768);
 
 ## Performance Comparison
 
-### Embedding Generation Speed
+**⚠️ Note:** The numbers below are **typical benchmarks from public sources**, not tested on your specific system. Actual performance will vary based on hardware, batch size, and document length.
 
-**Environment:** NVIDIA RTX 3090 (24GB VRAM)
+### Embedding Generation Speed (Typical Benchmarks)
 
-| Model | Batch Size | Speed | Memory |
-|-------|------------|-------|--------|
+**Reference Environment:** NVIDIA RTX 3090 (24GB VRAM)
+
+| Model | Batch Size | Typical Speed | Typical Memory |
+|-------|------------|---------------|----------------|
 | OpenAI ada-002 (API) | 1 | ~200ms/doc | N/A (API) |
 | all-MiniLM-L6-v2 (local) | 32 | ~3ms/doc | ~2GB VRAM |
 | all-mpnet-base-v2 (local) | 32 | ~8ms/doc | ~3GB VRAM |
 
-**Winner:** Local models are **50-100x faster** with batching!
+**Source:** sentence-transformers documentation and community benchmarks
 
-### Search Quality
+**Winner (typically):** Local models can be **50-100x faster** with GPU batching!
 
-**Test:** Semantic search on technical documentation
+### Search Quality (Typical Benchmarks)
+
+**Source:** MTEB (Massive Text Embedding Benchmark) - public leaderboard
 
 | Model | Precision@5 | Recall@10 | Notes |
 |-------|-------------|-----------|-------|
-| OpenAI ada-002 | 0.92 | 0.88 | Best quality |
-| all-mpnet-base-v2 | 0.89 | 0.85 | Very good |
-| all-MiniLM-L6-v2 | 0.84 | 0.80 | Good enough |
+| OpenAI ada-002 | ~0.92 | ~0.88 | Best quality |
+| all-mpnet-base-v2 | ~0.89 | ~0.85 | Very good |
+| all-MiniLM-L6-v2 | ~0.84 | ~0.80 | Good enough |
 
-**Verdict:** Local models are 5-10% lower quality but **much faster and free**.
+**Verdict (typical):** Local models are 5-10% lower quality but **much faster and free**.
+
+**To benchmark on your system:** Run the included benchmark script to get real measurements for your hardware and data.
 
 ## Architecture
 
@@ -361,32 +367,34 @@ CPU inference is 10-50x slower than GPU. Consider:
 3. Cache frequently-searched queries
 4. Or use OpenAI API instead
 
-## Cost Analysis
+## Cost Analysis (Typical Estimates)
 
-### OpenAI API Costs
+**⚠️ Note:** These are **typical cost estimates** based on public pricing and average usage patterns. Your actual costs will vary.
 
-- **Embeddings**: $0.10 per 1M tokens (~750K documents)
+### OpenAI API Costs (Current Pricing)
+
+- **Embeddings**: $0.10 per 1M tokens (~750K documents, typical)
 - **LLM (GPT-3.5)**: $0.50 per 1M input tokens
 
-**Example:** 10K documents, 1K searches/day
+**Example:** 10K documents, 1K searches/day (estimated)
 
 - Initial embedding: 10K docs × 200 tokens = 2M tokens = **$0.20**
 - Daily searches: 1K × 50 tokens = 50K tokens = **$0.005/day** = **$1.50/month**
-- **Total: ~$2/month**
+- **Total: ~$2/month** (low volume estimate)
 
-### Local Model Costs
+### Local Model Costs (Estimated)
 
-- **Hardware**: RTX 3090 ($1500 one-time, or $0.50/hour cloud GPU)
-- **Electricity**: ~300W × $0.12/kWh = $0.036/hour
+- **Hardware**: RTX 3090 (~$1500 one-time, or ~$0.50/hour cloud GPU)
+- **Electricity**: ~300W × $0.12/kWh = ~$0.036/hour (varies by location)
 - **Maintenance**: Minimal
 
-**Example:** Same 10K documents, 1K searches/day
+**Example:** Same 10K documents, 1K searches/day (estimated)
 
-- Initial embedding: Free (5 minutes on GPU)
-- Daily searches: Free (instant)
-- **Operating cost: $0.86/day** (if buying GPU) or **$12/day** (cloud GPU)
+- Initial embedding: Free (~5 minutes on GPU, estimate)
+- Daily searches: Free (near-instant on GPU)
+- **Operating cost: ~$0.86/day** (if buying GPU) or **~$12/day** (cloud GPU)
 
-**Break-even:** Local makes sense if:
+**Break-even (rule of thumb):** Local typically makes sense if:
 - You already have a GPU
 - High volume (>100K searches/month)
 - Data privacy requirements
