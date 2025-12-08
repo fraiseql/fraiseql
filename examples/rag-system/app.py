@@ -174,32 +174,77 @@ class MutationRoot:
         return bool(result)
 
 
-# RAG Service class - FIXED
+# RAG Service class - FIXED with local model support
 class RAGService:
-    """Service for RAG operations using LangChain."""
+    """Service for RAG operations with support for OpenAI or local models."""
 
-    def __init__(self, database_url: str, openai_api_key: str):
+    def __init__(
+        self,
+        database_url: str,
+        openai_api_key: Optional[str] = None,
+        use_local_embeddings: bool = False,
+        local_model_url: str = "http://localhost:8000/v1",
+    ):
         self.database_url = database_url
         self.openai_api_key = openai_api_key
+        self.use_local_embeddings = use_local_embeddings
 
-        # Use new langchain_openai package
-        try:
-            from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+        # Initialize embeddings and LLM
+        if use_local_embeddings or not openai_api_key:
+            print("ℹ️  Using local embedding model...")
+            try:
+                from local_embeddings import get_embedding_provider
 
-            self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-            self.llm = ChatOpenAI(openai_api_key=openai_api_key)
-        except ImportError:
-            print("⚠️  langchain-openai not installed. Install with: pip install langchain-openai")
-            self.embeddings = None
-            self.llm = None
+                self.embeddings = get_embedding_provider(
+                    provider="local" if use_local_embeddings else "auto",
+                    openai_api_key=openai_api_key,
+                )
+                print(f"✓ Embeddings: Local (dimensions: {self.embeddings.dimensions})")
+
+                # For LLM, use local vLLM server if available
+                try:
+                    from openai import AsyncOpenAI
+
+                    self.llm = AsyncOpenAI(
+                        base_url=local_model_url, api_key="not-needed-for-local"
+                    )
+                    print(f"✓ LLM: Local vLLM ({local_model_url})")
+                except ImportError:
+                    print("⚠️  openai package not installed for local LLM")
+                    self.llm = None
+
+            except Exception as e:
+                print(f"⚠️  Failed to initialize local models: {e}")
+                self.embeddings = None
+                self.llm = None
+        else:
+            print("ℹ️  Using OpenAI models...")
+            try:
+                from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+
+                self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+                self.llm = ChatOpenAI(openai_api_key=openai_api_key)
+                print("✓ Embeddings: OpenAI (text-embedding-ada-002)")
+                print("✓ LLM: OpenAI (gpt-3.5-turbo)")
+            except ImportError:
+                print(
+                    "⚠️  langchain-openai not installed. Install with: pip install langchain-openai"
+                )
+                self.embeddings = None
+                self.llm = None
 
     async def semantic_search(self, query: str, limit: int = 5) -> List[dict]:
         """Perform semantic search using raw SQL."""
         if not self.embeddings:
             raise HTTPException(status_code=500, detail="Embeddings not available")
 
-        # Generate query embedding
-        query_embedding = await asyncio.to_thread(self.embeddings.embed_query, query)
+        # Generate query embedding (works with both OpenAI and local)
+        if hasattr(self.embeddings, "aembed_query"):
+            # Local embeddings with async support
+            query_embedding = await self.embeddings.aembed_query(query)
+        else:
+            # OpenAI embeddings (sync, run in thread)
+            query_embedding = await asyncio.to_thread(self.embeddings.embed_query, query)
 
         # Use psycopg directly for vector search
         import psycopg
@@ -250,8 +295,13 @@ class RAGService:
         if not self.embeddings:
             raise HTTPException(status_code=500, detail="Embeddings not available")
 
-        # Generate embedding
-        embedding = await asyncio.to_thread(self.embeddings.embed_query, content)
+        # Generate embedding (works with both OpenAI and local)
+        if hasattr(self.embeddings, "aembed_query"):
+            # Local embeddings with async support
+            embedding = await self.embeddings.aembed_query(content)
+        else:
+            # OpenAI embeddings (sync, run in thread)
+            embedding = await asyncio.to_thread(self.embeddings.embed_query, content)
 
         # Use psycopg to call the function
         import psycopg
@@ -331,11 +381,28 @@ async def startup_event():
     global rag_service
     database_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/ragdb")
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    use_local = os.getenv("USE_LOCAL_EMBEDDINGS", "false").lower() in ("true", "1", "yes")
+    local_model_url = os.getenv("LOCAL_MODEL_URL", "http://localhost:8000/v1")
 
-    if openai_api_key:
-        rag_service = RAGService(database_url, openai_api_key)
-    else:
-        print("⚠️  OPENAI_API_KEY not set. RAG features will be limited.")
+    print("\n" + "=" * 50)
+    print("Initializing RAG Service")
+    print("=" * 50)
+
+    try:
+        rag_service = RAGService(
+            database_url=database_url,
+            openai_api_key=openai_api_key,
+            use_local_embeddings=use_local,
+            local_model_url=local_model_url,
+        )
+        print("=" * 50 + "\n")
+    except Exception as e:
+        print(f"⚠️  Failed to initialize RAG service: {e}")
+        print(
+            "Note: You can still use GraphQL operations, but embedding features won't work."
+        )
+        print("=" * 50 + "\n")
+        rag_service = None
 
 
 # Additional REST endpoints for RAG operations
@@ -387,20 +454,25 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+
     print("🚀 RAG System Example")
     print("📚 Features:")
     print("   • Document storage with trinity pattern")
     print("   • Vector embeddings with pgvector")
     print("   • Semantic search via GraphQL")
     print("   • RAG question answering")
-    print("   • LangChain integration")
-    print("\n📝 GraphQL endpoint: http://localhost:8000/graphql")
+    print("   • Support for OpenAI or local embeddings")
+    print(f"\n📝 GraphQL endpoint: http://localhost:{port}/graphql")
     print("🔍 REST endpoints:")
     print("   • POST /api/documents/search - Semantic search")
     print("   • POST /api/rag/ask - RAG question answering")
     print("   • POST /api/documents/embed - Create with embedding")
-    print("\n⚙️  Set environment variables:")
+    print(f"   • GET /health - Health check")
+    print("\n⚙️  Environment variables:")
     print("   • DATABASE_URL - PostgreSQL connection")
-    print("   • OPENAI_API_KEY - For embeddings and LLM")
+    print("   • OPENAI_API_KEY - For OpenAI embeddings (optional)")
+    print("   • USE_LOCAL_EMBEDDINGS - Set to 'true' for local models")
+    print("   • LOCAL_MODEL_URL - vLLM server URL (default: http://localhost:8000/v1)")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)

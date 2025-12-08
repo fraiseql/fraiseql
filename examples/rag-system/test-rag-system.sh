@@ -22,14 +22,18 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}RAG System End-to-End Test${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
-# Check if OPENAI_API_KEY is set
-if [ -z "$OPENAI_API_KEY" ]; then
-    echo -e "${RED}ERROR: OPENAI_API_KEY environment variable is not set${NC}"
-    echo -e "${YELLOW}Please set it with: export OPENAI_API_KEY='your-key'${NC}"
-    exit 1
+# Check embedding configuration
+if [ -z "$OPENAI_API_KEY" ] && [ "${USE_LOCAL_EMBEDDINGS}" != "true" ]; then
+    echo -e "${YELLOW}⚠ Neither OPENAI_API_KEY nor USE_LOCAL_EMBEDDINGS is set${NC}"
+    echo -e "${BLUE}ℹ Using local embeddings by default...${NC}"
+    export USE_LOCAL_EMBEDDINGS="true"
 fi
 
-echo -e "${GREEN}✓ OPENAI_API_KEY is set${NC}\n"
+if [ -n "$OPENAI_API_KEY" ]; then
+    echo -e "${GREEN}✓ OPENAI_API_KEY is set (using OpenAI embeddings)${NC}\n"
+elif [ "${USE_LOCAL_EMBEDDINGS}" = "true" ]; then
+    echo -e "${GREEN}✓ USE_LOCAL_EMBEDDINGS is set (using local sentence-transformers)${NC}\n"
+fi
 
 # Build and start services
 echo -e "${BLUE}Step 1: Building Docker images...${NC}"
@@ -62,7 +66,7 @@ done
 # Wait for app to be ready
 echo -n "  Checking RAG app... "
 for i in {1..60}; do
-    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
+    if curl -s http://localhost:8001/health >/dev/null 2>&1; then
         echo -e "${GREEN}✓${NC}"
         break
     fi
@@ -78,7 +82,7 @@ echo ""
 
 # Test 1: GraphQL Schema
 echo -e "${BLUE}Test 1: GraphQL Schema Introspection${NC}"
-SCHEMA_RESPONSE=$(curl -s http://localhost:8000/graphql \
+SCHEMA_RESPONSE=$(curl -s http://localhost:8001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ __schema { queryType { name } mutationType { name } } }"}')
 
@@ -93,7 +97,7 @@ echo ""
 
 # Test 2: Query existing documents (from schema.sql seed data)
 echo -e "${BLUE}Test 2: Query Existing Documents${NC}"
-DOCS_RESPONSE=$(curl -s http://localhost:8000/graphql \
+DOCS_RESPONSE=$(curl -s http://localhost:8001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ documents(limit: 5) { id title source } }"}')
 
@@ -110,7 +114,7 @@ echo ""
 
 # Test 3: Create document via GraphQL mutation
 echo -e "${BLUE}Test 3: Create Document (GraphQL)${NC}"
-CREATE_RESPONSE=$(curl -s http://localhost:8000/graphql \
+CREATE_RESPONSE=$(curl -s http://localhost:8001/graphql \
   -H "Content-Type: application/json" \
   -d '{
     "query": "mutation { createDocument(title: \"Test Document\", content: \"This is a test document for E2E testing.\", source: \"test\") { id title } }"
@@ -129,7 +133,7 @@ echo ""
 
 # Test 4: Create document with embedding via REST API
 echo -e "${BLUE}Test 4: Create Document with Embedding (REST)${NC}"
-EMBED_RESPONSE=$(curl -s -X POST "http://localhost:8000/api/documents/embed" \
+EMBED_RESPONSE=$(curl -s -X POST "http://localhost:8001/api/documents/embed" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Docker Test Document",
@@ -151,7 +155,7 @@ echo ""
 
 # Test 5: Semantic search via REST API
 echo -e "${BLUE}Test 5: Semantic Search${NC}"
-SEARCH_RESPONSE=$(curl -s -X POST "http://localhost:8000/api/documents/search" \
+SEARCH_RESPONSE=$(curl -s -X POST "http://localhost:8001/api/documents/search" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is FraiseQL and how does it work?",
@@ -176,7 +180,7 @@ echo ""
 
 # Test 6: RAG question answering
 echo -e "${BLUE}Test 6: RAG Question Answering${NC}"
-RAG_RESPONSE=$(curl -s -X POST "http://localhost:8000/api/rag/ask" \
+RAG_RESPONSE=$(curl -s -X POST "http://localhost:8001/api/rag/ask" \
   -H "Content-Type: application/json" \
   -d '{
     "question": "How does FraiseQL achieve better performance?",
@@ -219,7 +223,7 @@ echo -e "${GREEN}All Tests Passed! ✓${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
 echo -e "${YELLOW}Services are still running. You can:${NC}"
-echo -e "  • Visit GraphQL playground: ${BLUE}http://localhost:8000/graphql${NC}"
+echo -e "  • Visit GraphQL playground: ${BLUE}http://localhost:8001/graphql${NC}"
 echo -e "  • View logs: ${BLUE}${DC} logs -f${NC}"
 echo -e "  • Stop services: ${BLUE}${DC} down${NC}"
 echo -e "  • Stop and remove data: ${BLUE}${DC} down -v${NC}\n"
