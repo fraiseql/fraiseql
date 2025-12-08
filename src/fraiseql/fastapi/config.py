@@ -177,6 +177,7 @@ class FraiseQLConfig(BaseSettings):
     database_pool_size: int = 20
     database_max_overflow: int = 10
     database_pool_timeout: int = 30
+    database_pool_recycle: int = 3600  # Recycle connections after 1 hour
     database_echo: bool = False
 
     # Application settings

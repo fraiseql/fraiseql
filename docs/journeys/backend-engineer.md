@@ -115,9 +115,19 @@ Choose your framework-specific guide for detailed migration steps, code examples
    ```
 
 3. **Connection Pooling:**
-   > **Note:** Explicit connection pooling configuration is planned (WP-027).
-   > FraiseQL currently uses default asyncpg connection pooling.
-   > For production tuning, see [Database Configuration](../core/configuration.md).
+   ```python
+   # Production-ready connection pool configuration
+   app = create_fraiseql_app(
+       database_url="postgresql://user:pass@localhost/mydb",
+       connection_pool_size=30,  # Base pool size
+       connection_pool_max_overflow=20,  # Additional connections for spikes
+       connection_pool_timeout=60.0,  # Connection wait timeout
+       connection_pool_recycle=3600,  # Recycle connections after 1 hour
+       production=True
+   )
+   ```
+   **Defaults:** 10 connections (dev), 20 connections (production)
+   **For detailed tuning:** See [Database Configuration](../core/configuration.md)
 
 **Success Check:** You understand how RLS and computed views reduce application complexity
 
