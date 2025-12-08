@@ -46,10 +46,10 @@ By the end, you'll have:
 # Review available benchmarks in the repository
 cd benchmarks/
 ls -la  # See available benchmark scripts
-python rust_vs_python_benchmark.py  # Example benchmark
+python rust_vs_python_benchmark.py  # Rust vs Python JSON performance
 ```
 
-> **Note:** Comprehensive framework comparison benchmark (FraiseQL vs Strawberry vs Graphene) is in development (WP-026). Current benchmarks focus on Rust vs Python JSON performance.
+> **Note:** Internal benchmarks validate Rust pipeline performance. Framework comparison benchmarks (FraiseQL vs Strawberry vs Graphene) are maintained in a separate benchmarking project.
 
 **Success Check:** You understand why Rust improves performance and have reviewed benchmark methodology
 

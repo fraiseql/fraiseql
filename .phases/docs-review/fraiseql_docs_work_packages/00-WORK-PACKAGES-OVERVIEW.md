@@ -74,7 +74,7 @@
 | WP-023 | Validate All Links | ENG-QA | P0 | 4 | 4 | All writing WPs | ✅ DONE |
 | WP-024 | Run Persona Reviews | ENG-QA | P0 | 12 | 4 | All WPs | |
 | WP-025 | Final Quality Gate | ENG-QA | P0 | 4 | 4 | WP-024 | |
-| **WP-026** | **Create Benchmark Comparison Script** | **ENG-EXAMPLES** | **P1** | **6** | **3** | **None** | |
+| **WP-026** | **Create Benchmark Comparison Script** | **ENG-EXAMPLES** | **P1** | **6** | **3** | **None** | 🔄 DEFERRED |
 | **WP-027** | **Add Connection Pooling Config** | **ENG-CORE** | **P1** | **8** | **2** | **None** | |
 | **WP-028** | **Create Framework Migration Guides** | **TW-CORE** | **P1** | **12** | **3** | **WP-003** | |
 | **WP-029** | **Implement /ready Endpoint** | **ENG-CORE** | **P1** | **4** | **2** | **None** | |
@@ -903,18 +903,21 @@ All WPs → WP-021, WP-022, WP-023 (Validation) → WP-024 (Personas) → WP-025
 
 ### WP-026: Create Performance Benchmark Comparison Script
 **Assignee:** ENG-EXAMPLES | **Hours:** 6 | **Week:** 3 | **Priority:** P1
+**Status:** 🔄 **DEFERRED - External Project**
 
 **Objective:** Create reproducible performance benchmark script that validates "7-10x JSON performance" claims by comparing FraiseQL (Rust pipeline) against Strawberry and Graphene.
 
 **Why Created:** Journey doc `backend-engineer.md:42-44` references `run_performance_comparison.py` that doesn't exist, breaking evaluation workflow for backend engineers.
 
-**Deliverables:**
-- `benchmarks/run_performance_comparison.py` script
-- Comparison table output (FraiseQL vs Strawberry vs Graphene)
-- Documentation on how to run benchmark
-- Expected results documented
+**Why Deferred:** Framework comparison benchmarking will be handled by a separate benchmarking project. This work package is out of scope for the documentation review phase.
 
-**Impact:** HIGH - Validates core marketing claim with reproducible evidence
+**Resolution:** Updated `backend-engineer.md` to note that comprehensive framework comparison is handled by external benchmarking project. Existing `rust_vs_python_benchmark.py` provides internal performance validation.
+
+**Deliverables:**
+- ✅ Documentation updated to reflect external benchmarking project
+- 🔄 Framework comparison script - External project (not in this WP)
+
+**Impact:** MEDIUM - Core claim is validated by internal benchmarks; framework comparison provides additional marketing evidence
 
 ---
 
