@@ -8,6 +8,16 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Detect docker-compose command (support both old and new syntax)
+if command -v docker-compose &> /dev/null; then
+    DC="docker-compose"
+elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    DC="docker compose"
+else
+    echo -e "${RED}ERROR: Neither 'docker-compose' nor 'docker compose' is available${NC}"
+    exit 1
+fi
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}RAG System End-to-End Test${NC}"
 echo -e "${BLUE}========================================${NC}\n"
@@ -23,11 +33,11 @@ echo -e "${GREEN}✓ OPENAI_API_KEY is set${NC}\n"
 
 # Build and start services
 echo -e "${BLUE}Step 1: Building Docker images...${NC}"
-docker-compose build
+$DC build
 echo -e "${GREEN}✓ Docker images built${NC}\n"
 
 echo -e "${BLUE}Step 2: Starting services...${NC}"
-docker-compose up -d
+$DC up -d
 echo -e "${GREEN}✓ Services started${NC}\n"
 
 # Wait for services to be healthy
@@ -37,13 +47,13 @@ sleep 5
 # Check PostgreSQL
 echo -n "  Checking PostgreSQL... "
 for i in {1..30}; do
-    if docker-compose exec -T postgres pg_isready -U raguser -d ragdb >/dev/null 2>&1; then
+    if $DC exec -T postgres pg_isready -U raguser -d ragdb >/dev/null 2>&1; then
         echo -e "${GREEN}✓${NC}"
         break
     fi
     if [ $i -eq 30 ]; then
         echo -e "${RED}✗ PostgreSQL failed to start${NC}"
-        docker-compose logs postgres
+        $DC logs postgres
         exit 1
     fi
     sleep 1
@@ -52,13 +62,13 @@ done
 # Wait for app to be ready
 echo -n "  Checking RAG app... "
 for i in {1..60}; do
-    if curl -s http://localhost:8000/ >/dev/null 2>&1; then
+    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
         echo -e "${GREEN}✓${NC}"
         break
     fi
     if [ $i -eq 60 ]; then
         echo -e "${RED}✗ RAG app failed to start${NC}"
-        docker-compose logs rag-app
+        $DC logs rag-app
         exit 1
     fi
     sleep 1
@@ -189,11 +199,11 @@ echo ""
 # Test 7: Database verification
 echo -e "${BLUE}Test 7: Database Verification${NC}"
 echo -n "  Checking document count... "
-DOC_COUNT=$(docker-compose exec -T postgres psql -U raguser -d ragdb -t -c "SELECT COUNT(*) FROM tb_document;" | tr -d '[:space:]')
+DOC_COUNT=$($DC exec -T postgres psql -U raguser -d ragdb -t -c "SELECT COUNT(*) FROM tb_document;" | tr -d '[:space:]')
 echo -e "${GREEN}${DOC_COUNT} documents${NC}"
 
 echo -n "  Checking embedding count... "
-EMB_COUNT=$(docker-compose exec -T postgres psql -U raguser -d ragdb -t -c "SELECT COUNT(*) FROM tv_document_embedding;" | tr -d '[:space:]')
+EMB_COUNT=$($DC exec -T postgres psql -U raguser -d ragdb -t -c "SELECT COUNT(*) FROM tv_document_embedding;" | tr -d '[:space:]')
 echo -e "${GREEN}${EMB_COUNT} embeddings${NC}"
 
 if [ "$EMB_COUNT" -gt 0 ]; then
@@ -210,18 +220,18 @@ echo -e "${BLUE}========================================${NC}\n"
 
 echo -e "${YELLOW}Services are still running. You can:${NC}"
 echo -e "  • Visit GraphQL playground: ${BLUE}http://localhost:8000/graphql${NC}"
-echo -e "  • View logs: ${BLUE}docker-compose logs -f${NC}"
-echo -e "  • Stop services: ${BLUE}docker-compose down${NC}"
-echo -e "  • Stop and remove data: ${BLUE}docker-compose down -v${NC}\n"
+echo -e "  • View logs: ${BLUE}${DC} logs -f${NC}"
+echo -e "  • Stop services: ${BLUE}${DC} down${NC}"
+echo -e "  • Stop and remove data: ${BLUE}${DC} down -v${NC}\n"
 
 # Optional: Keep container running for manual inspection
 read -p "Do you want to stop the containers now? (y/N) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo -e "\n${BLUE}Stopping services...${NC}"
-    docker-compose down
+    $DC down
     echo -e "${GREEN}✓ Services stopped${NC}"
 else
     echo -e "\n${GREEN}Services are still running.${NC}"
-    echo -e "Run ${BLUE}docker-compose down${NC} when you're done.\n"
+    echo -e "Run ${BLUE}${DC} down${NC} when you're done.\n"
 fi
