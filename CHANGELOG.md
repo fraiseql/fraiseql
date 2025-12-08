@@ -7,8 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-beta.4] - 2025-12-08
+
 ### Fixed
-- **Input camelCase conversion**: Mutation inputs with camelCase field names are now properly converted to snake_case before being sent to PostgreSQL functions. This fixes silent failures when using `jsonb_populate_record()` with composite types that have snake_case field names. When `auto_camel_case=True`, the framework now converts both input (camelCase → snake_case) and output (snake_case → camelCase), ensuring full compatibility with PostgreSQL conventions.
+- **Input parameter camelCase to snake_case conversion**: Mutation input parameters with camelCase field names are now properly converted to snake_case before being sent to PostgreSQL functions. This fixes silent failures when using `jsonb_populate_record()` with composite types that have snake_case field names. When `auto_camel_case=True`, the framework now bidirectionally converts input parameters (camelCase → snake_case) and output fields (snake_case → camelCase), ensuring full compatibility with PostgreSQL naming conventions.
+
+### Added
+- **Connection pooling configuration**: Added `pool_min_size`, `pool_max_size`, and `pool_timeout` parameters to `create_fraiseql_app()` for fine-grained control over PostgreSQL connection pooling (WP-027)
+- **Kubernetes readiness probe**: Implemented `/ready` endpoint for Kubernetes readiness checks, ensuring the application only receives traffic when database connections are healthy (WP-029)
+- **RAG system example**: New AI/ML example with local model support (no OpenAI API key required) demonstrating semantic search with vector operations (WP-007, WP-017)
+- **Multi-tenant SaaS example**: Comprehensive example showing tenant isolation, RLS policies, and trinity pattern usage (WP-018)
+- **Compliance demo example**: Production-ready example with SLSA provenance, audit trails, and security best practices (WP-019)
+
+### Documentation
+- **Trinity pattern migration guide**: Complete guide for migrating from simple table names to the trinity pattern (tb_/v_/tv_) with step-by-step instructions (WP-003)
+- **Framework migration guides**: Comprehensive guides for migrating from Django, FastAPI, SQLAlchemy, and Hasura to FraiseQL (WP-028)
+- **RAG tutorial**: Step-by-step tutorial for building semantic search with vector operations and embeddings (WP-007)
+- **Vector operators reference**: Complete reference for PostgreSQL vector operations and pgvector integration (WP-008)
+- **Security & compliance hub**: Central hub for SLSA, FedRAMP, SOC 2, and international compliance guidance (WP-010)
+- **SLSA provenance guide**: Detailed guide for verifying software supply chain security (WP-011)
+- **Compliance matrix**: International compliance mapping (GDPR, FedRAMP, SOC 2, ISO 27001, PCI DSS, HIPAA) (WP-012)
+- **Security profiles guide**: Risk-based security configuration patterns (Development, Staging, Production, High-Security) (WP-013)
+- **Production deployment checklist**: Complete pre-flight checklist for production deployments (WP-014)
+- **Persona journey guides**: Seven persona-specific documentation journeys (Junior Dev, Backend Engineer, AI/ML Engineer, DevOps, Security Officer, CTO, Procurement) (WP-004, WP-009, WP-015)
+- **Audit pattern documentation**: Explicit guidance on FraiseQL's audit trail approach and why to avoid database triggers for business logic (WP-030)
+- **Documentation quality improvements**: Fixed SQL naming consistency (WP-001, WP-002, WP-005, WP-006), validated all code examples (WP-020, WP-021), eliminated contradictions (WP-022), validated links (WP-023), and completed persona reviews (WP-024, WP-025)
+
+### Notes
+- This release combines a critical bug fix (camelCase conversion) with comprehensive documentation improvements and new production-ready examples
+- All 18 P0 documentation work packages completed with quality gate approval
+- Beta release for testing - suitable for production evaluation
 
 ## [1.8.0-beta.1] - 2025-12-07
 
