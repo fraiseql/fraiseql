@@ -4,24 +4,131 @@ Composable health check patterns for monitoring application dependencies and sys
 
 ## Overview
 
-FraiseQL provides a **composable health check utility** that allows applications to register custom checks for databases, caches, external services, and other dependencies. Unlike opinionated frameworks that dictate what to monitor, FraiseQL provides the pattern and lets you control what checks to include.
+FraiseQL provides **built-in health and readiness endpoints** for production deployments, plus a **composable health check utility** for custom monitoring needs.
 
 **Key Features:**
 
-- **Composable**: Register only the checks your application needs
+- **Built-in endpoints**: `/health` (liveness) and `/ready` (readiness) included automatically
+- **Kubernetes-ready**: Works out-of-the-box with Kubernetes probes
+- **Composable custom checks**: Extend with application-specific monitoring
 - **Pre-built checks**: Ready-to-use functions for common dependencies
-- **Custom checks**: Easy pattern for application-specific monitoring
 - **Async-first**: Built for modern Python async applications
-- **FastAPI integration**: Natural integration with FastAPI health endpoints
 
 ## Table of Contents
 
+- [Built-in Health Endpoints](#built-in-health-endpoints)
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
 - [Pre-built Checks](#pre-built-checks)
 - [Custom Checks](#custom-checks)
 - [FastAPI Integration](#fastapi-integration)
 - [Production Patterns](#production-patterns)
+
+## Built-in Health Endpoints
+
+FraiseQL automatically provides two health check endpoints for production deployments:
+
+### `/health` - Liveness Probe
+
+**Purpose**: Check if the application process is alive (for Kubernetes liveness probes).
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "service": "fraiseql"
+}
+```
+
+**Status Codes**:
+- `200 OK`: Process is running
+
+**Use Case**: Kubernetes liveness probe - restart pod if this endpoint fails (process crashed).
+
+**Kubernetes Configuration**:
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+```
+
+---
+
+### `/ready` - Readiness Probe
+
+**Purpose**: Check if the application is ready to serve traffic (for Kubernetes readiness probes).
+
+**What it checks**:
+- Database connection pool is available
+- Database is reachable (simple SELECT 1 query)
+- GraphQL schema is loaded
+
+**Response (Ready)**:
+```json
+{
+  "status": "ready",
+  "checks": {
+    "database": "ok",
+    "schema": "ok"
+  },
+  "timestamp": 1670500000.0
+}
+```
+
+**Response (Not Ready)**:
+```json
+{
+  "status": "not_ready",
+  "checks": {
+    "database": "failed: connection timeout",
+    "schema": "ok"
+  },
+  "timestamp": 1670500000.0
+}
+```
+
+**Status Codes**:
+- `200 OK`: Application ready to serve traffic
+- `503 Service Unavailable`: Application not ready (database down, schema not loaded)
+
+**Use Case**: Kubernetes readiness probe - remove pod from load balancer if dependencies are not ready.
+
+**Kubernetes Configuration**:
+```yaml
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 2
+```
+
+---
+
+### Why Both Probes?
+
+| Probe | Endpoint | Purpose | Failure Action |
+|-------|----------|---------|----------------|
+| **Liveness** | `/health` | Is the process alive? | **Restart pod** (process crashed) |
+| **Readiness** | `/ready` | Can it serve traffic? | **Remove from load balancer** (database down) |
+
+**Example Scenario**:
+- Database connection fails
+- `/health` returns `200` (process is still alive)
+- `/ready` returns `503` (database not ready)
+- Kubernetes removes pod from service but **doesn't restart it**
+- Pod reconnects to database
+- `/ready` returns `200` again
+- Kubernetes adds pod back to service
+
+This prevents unnecessary pod restarts during temporary database outages.
 
 ## Quick Start
 

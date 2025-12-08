@@ -500,8 +500,106 @@ def create_fraiseql_app(
     # Add health check endpoint
     @app.get("/health")
     async def health_check() -> dict[str, str]:
-        """Health check endpoint."""
+        """Health check endpoint (liveness probe).
+
+        Simple process-level health check. Returns 200 if the application
+        process is running.
+
+        Use for Kubernetes liveness probes to restart crashed pods.
+        """
         return {"status": "healthy", "service": "fraiseql"}
+
+    # Add readiness check endpoint
+    @app.get("/ready")
+    async def readiness_check(request: Request) -> dict[str, Any]:
+        """Readiness check endpoint (readiness probe).
+
+        Checks if the application is ready to serve traffic by validating:
+        - Database connection pool is available
+        - Database is reachable (simple query test)
+        - GraphQL schema is loaded
+
+        Returns:
+            200 OK: Application ready to serve traffic
+            503 Service Unavailable: Application not ready
+
+        Use for Kubernetes readiness probes to route traffic only to ready pods.
+
+        Example Response (Ready):
+            ```json
+            {
+              "status": "ready",
+              "checks": {
+                "database": "ok",
+                "schema": "ok"
+              },
+              "timestamp": 1670500000.0
+            }
+            ```
+
+        Example Response (Not Ready):
+            ```json
+            {
+              "status": "not_ready",
+              "checks": {
+                "database": "failed: connection timeout",
+                "schema": "ok"
+              },
+              "timestamp": 1670500000.0
+            }
+            ```
+        """
+        import time
+
+        from fastapi import status
+        from fastapi.responses import JSONResponse
+
+        checks: dict[str, str] = {}
+        all_ready = True
+
+        # Check 1: Database connection pool
+        try:
+            db_pool = get_db_pool()
+            if db_pool is None:
+                checks["database"] = "failed: pool not initialized"
+                all_ready = False
+            else:
+                # Check 2: Database reachability (simple query)
+                try:
+                    async with db_pool.connection() as conn:
+                        await conn.execute("SELECT 1")
+                    checks["database"] = "ok"
+                except Exception as e:
+                    checks["database"] = f"failed: {str(e)[:100]}"
+                    all_ready = False
+        except Exception as e:
+            checks["database"] = f"failed: {str(e)[:100]}"
+            all_ready = False
+
+        # Check 3: GraphQL schema loaded
+        try:
+            schema = getattr(app.state, "graphql_schema", None)
+            if schema is None:
+                checks["schema"] = "failed: not loaded"
+                all_ready = False
+            else:
+                checks["schema"] = "ok"
+        except Exception as e:
+            checks["schema"] = f"failed: {str(e)[:100]}"
+            all_ready = False
+
+        # Build response
+        response_status = "ready" if all_ready else "not_ready"
+        http_status = status.HTTP_200_OK if all_ready else status.HTTP_503_SERVICE_UNAVAILABLE
+
+        return JSONResponse(
+            content={
+                "status": response_status,
+                "checks": checks,
+                "timestamp": time.time(),
+            },
+            status_code=http_status,
+        )
 
     return app
 
