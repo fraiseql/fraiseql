@@ -219,7 +219,7 @@ Embeddings are numerical representations of text that capture semantic meaning.
 ### Manual Embedding Generation
 
 ```python
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 # Initialize embeddings
 embeddings = OpenAIEmbeddings(openai_api_key="your-api-key")
@@ -246,32 +246,72 @@ Now for the magic! Search documents by meaning, not just keywords.
 
 First, you need a query embedding. You can generate one using Python:
 
-```python
-from langchain.embeddings.openai import OpenAIEmbeddings
+### Using the REST API (Recommended)
 
-embeddings = OpenAIEmbeddings(openai_api_key="your-api-key")
-query = "What are the performance benefits of FraiseQL?"
-query_embedding = embeddings.embed_query(query)
+The REST API handles embedding generation automatically:
 
-print(f"Query embedding (first 10): {query_embedding[:10]}")
+```bash
+curl -X POST "http://localhost:8000/api/documents/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How does FraiseQL improve GraphQL performance?",
+    "limit": 5
+  }'
 ```
 
-Now use this embedding in GraphQL:
+Expected response:
+
+```json
+{
+  "query": "How does FraiseQL improve GraphQL performance?",
+  "results": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "title": "FraiseQL Performance Benefits",
+      "content": "FraiseQL delivers 10-100x performance improvements...",
+      "similarity": 0.92,
+      "source": "documentation"
+    }
+  ]
+}
+```
+
+### Understanding Similarity Scores
+
+- **0.9 - 1.0**: Very similar (exact meaning match)
+- **0.7 - 0.9**: Similar (related concepts)
+- **0.5 - 0.7**: Somewhat related (loose connection)
+- **0.0 - 0.5**: Not similar (different topics)
+
+### Advanced: Using GraphQL (Optional)
+
+If you need GraphQL for semantic search, you'll need to generate embeddings separately:
+
+```python
+# Generate embedding first
+from langchain_openai import OpenAIEmbeddings
+
+embeddings = OpenAIEmbeddings(openai_api_key="your-key")
+query_embedding = embeddings.embed_query("your search query")
+print(query_embedding)  # Copy this
+```
+
+Then use in GraphQL (note: this is cumbersome, prefer REST API):
 
 ```graphql
 query SemanticSearch {
   searchDocuments(
-    queryEmbedding: [0.01, -0.02, 0.03, ...]  # Your 1536-dimensional embedding
+    queryEmbedding: [0.01, -0.02, ...]  # Paste your 1536-dim embedding
     limit: 5
-    similarityThreshold: 0.7
   ) {
     id
     title
-    content
     similarity
   }
 }
 ```
+
+**For most use cases, stick with the REST API** - it's simpler and more practical.
 
 ### Using REST API for Semantic Search
 

@@ -1,16 +1,21 @@
-fraiseql
-fastapi
-uvicorn
-pydantic
-pgvector
+fraiseql>=1.8.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+psycopg>=3.1.0
 
 # LangChain for RAG functionality
-langchain
-openai
-langchain-openai
+langchain>=0.1.0
+langchain-openai>=0.0.5  # NEW: Separate package for OpenAI
+openai>=1.0.0
+
+# pgvector (PostgreSQL extension, installed separately)
+# Just for type hints if needed:
+pgvector>=0.2.0
 
 # Optional: For local embeddings
 # sentence-transformers
+# transformers
 
 # Optional: For document processing
 # pypdf
