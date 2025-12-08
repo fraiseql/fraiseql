@@ -376,6 +376,16 @@ async def embed_document(doc: DocumentCreate):
     return {"id": doc_id, "message": "Document created with embedding"}
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker."""
+    return {
+        "status": "healthy",
+        "rag_service": "available" if rag_service else "unavailable",
+        "openai_configured": rag_service.embeddings is not None if rag_service else False,
+    }
+
+
 if __name__ == "__main__":
     print("🚀 RAG System Example")
     print("📚 Features:")
