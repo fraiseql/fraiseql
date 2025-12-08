@@ -1,7 +1,7 @@
 # Building a RAG System with FraiseQL
 
-**Time to Complete:** 60-90 minutes  
-**Difficulty:** Intermediate  
+**Time to Complete:** 60-90 minutes
+**Difficulty:** Intermediate
 **Prerequisites:** FraiseQL v1.8.0+, PostgreSQL 14+, OpenAI API key
 
 ---
@@ -75,7 +75,7 @@ psql ragdb < schema.sql
 ### Understanding the Trinity Pattern
 
 1. **`tb_document`** - Command table for storing documents
-2. **`v_document`** - Read view for accessing documents  
+2. **`v_document`** - Read view for accessing documents
 3. **`tv_document_embedding`** - Table view with vector embeddings
 
 This pattern gives you:
@@ -106,7 +106,7 @@ CREATE TABLE tv_document_embedding (
 );
 
 -- Performance indexes
-CREATE INDEX ON tv_document_embedding 
+CREATE INDEX ON tv_document_embedding
 USING hnsw (embedding vector_cosine_ops);
 ```
 
@@ -402,16 +402,16 @@ async def rag_demo():
         database_url="postgresql://localhost:5432/ragdb",
         openai_api_key="your-api-key"
     )
-    
+
     # Ask a question
     response = await rag.answer_question(
         "What makes FraiseQL different from other GraphQL frameworks?"
     )
-    
+
     print(f"Question: {response['question']}")
     print(f"Answer: {response['answer']}")
     print(f"Sources used: {len(response['sources'])}")
-    
+
     for source in response['sources']:
         print(f"  - {source['title']} (similarity: {source['similarity']:.3f})")
 
@@ -450,17 +450,17 @@ query FilteredSearch {
 async def hybrid_search(query: str, category: str = None):
     """Combine semantic and keyword search"""
     rag = RAGService(database_url, api_key)
-    
+
     # Semantic search
     semantic_results = await rag.semantic_search(query)
-    
+
     # Filter by category if specified
     if category:
         semantic_results = [
-            r for r in semantic_results 
+            r for r in semantic_results
             if r.get('metadata', {}).get('category') == category
         ]
-    
+
     return semantic_results
 ```
 
@@ -470,12 +470,12 @@ async def hybrid_search(query: str, category: str = None):
 async def batch_import_documents(file_path: str):
     """Import multiple documents from a file"""
     import json
-    
+
     rag = RAGService(database_url, api_key)
-    
+
     with open(file_path, 'r') as f:
         documents = json.load(f)
-    
+
     for doc in documents:
         await rag.add_document_with_embedding(
             title=doc['title'],
@@ -483,7 +483,7 @@ async def batch_import_documents(file_path: str):
             source=doc.get('source', 'import'),
             metadata=doc.get('metadata', {})
         )
-    
+
     print(f"Imported {len(documents)} documents")
 ```
 
@@ -497,15 +497,15 @@ Ensure you have the right indexes for performance:
 
 ```sql
 -- Check existing indexes
-SELECT indexname, indexdef 
-FROM pg_indexes 
+SELECT indexname, indexdef
+FROM pg_indexes
 WHERE tablename IN ('tb_document', 'tv_document_embedding');
 
 -- Essential indexes for performance
-CREATE INDEX IF NOT EXISTS idx_tb_document_created_at 
+CREATE INDEX IF NOT EXISTS idx_tb_document_created_at
 ON tb_document (created_at);
 
-CREATE INDEX IF NOT EXISTS idx_tv_document_embedding_hnsw 
+CREATE INDEX IF NOT EXISTS idx_tv_document_embedding_hnsw
 ON tv_document_embedding USING hnsw (embedding vector_cosine_ops);
 ```
 
@@ -513,7 +513,7 @@ ON tv_document_embedding USING hnsw (embedding vector_cosine_ops);
 
 ```sql
 -- Analyze query performance
-EXPLAIN (ANALYZE, BUFFERS) 
+EXPLAIN (ANALYZE, BUFFERS)
 SELECT d.title, (1 - (e.embedding <=> query_embedding)) as similarity
 FROM tb_document d
 JOIN tv_document_embedding e ON d.id = e.document_id
@@ -540,10 +540,10 @@ redis_client = redis.Redis(host='localhost', port=6379, db=0)
 async def cached_search(query: str):
     cache_key = f"search:{hash(query)}"
     cached = redis_client.get(cache_key)
-    
+
     if cached:
         return json.loads(cached)
-    
+
     results = await rag.semantic_search(query)
     redis_client.setex(cache_key, 3600, json.dumps(results))
     return results
@@ -562,21 +562,21 @@ from app import RAGService
 @pytest.mark.asyncio
 async def test_document_creation():
     rag = RAGService(test_db_url, test_api_key)
-    
+
     doc_id = await rag.add_document_with_embedding(
         title="Test Document",
         content="This is a test document for unit testing."
     )
-    
+
     assert doc_id is not None
     assert isinstance(doc_id, str)
 
 @pytest.mark.asyncio
 async def test_semantic_search():
     rag = RAGService(test_db_url, test_api_key)
-    
+
     results = await rag.semantic_search("test document", limit=5)
-    
+
     assert isinstance(results, list)
     assert len(results) >= 0
     if results:
@@ -586,9 +586,9 @@ async def test_semantic_search():
 @pytest.mark.asyncio
 async def test_rag_question_answering():
     rag = RAGService(test_db_url, test_api_key)
-    
+
     response = await rag.answer_question("What is this test about?")
-    
+
     assert 'question' in response
     assert 'answer' in response
     assert 'sources' in response
@@ -705,13 +705,13 @@ qa_counter = Counter('rag_questions_total', 'Total RAG questions')
 @app.post("/api/documents/search")
 async def search_endpoint(search_query: SearchQuery):
     search_counter.inc()
-    
+
     with search_duration.time():
         results = await rag_service.semantic_search(
             search_query.query,
             limit=search_query.limit
         )
-    
+
     return {"query": search_query.query, "results": results}
 
 @app.get("/metrics")
@@ -747,11 +747,11 @@ echo $OPENAI_API_KEY
 
 ```sql
 -- Check your embedding dimensions
-SELECT 
+SELECT
   embedding_model,
   COUNT(*) as count,
   ARRAY_LENGTH(embedding, 1) as dimensions
-FROM tv_document_embedding 
+FROM tv_document_embedding
 GROUP BY embedding_model;
 ```
 
@@ -759,8 +759,8 @@ GROUP BY embedding_model;
 
 ```sql
 -- Check if HNSW index is being used
-EXPLAIN (ANALYZE) 
-SELECT * FROM tv_document_embedding 
+EXPLAIN (ANALYZE)
+SELECT * FROM tv_document_embedding
 WHERE embedding <=> query_embedding < 0.3
 ORDER BY embedding <=> query_embedding
 LIMIT 10;
@@ -779,9 +779,9 @@ logger = logging.getLogger(__name__)
 # Add logging to your functions
 async def semantic_search(query: str, limit: int = 5):
     logger.debug(f"Semantic search query: {query}")
-    
+
     # ... your code
-    
+
     logger.debug(f"Found {len(results)} results")
     return results
 ```
@@ -825,13 +825,13 @@ Congratulations! You've built a complete RAG system with FraiseQL. Here's what t
 
 You've successfully:
 
-✅ **Set up** a PostgreSQL database with pgvector  
-✅ **Created** a Trinity Pattern schema for documents and embeddings  
-✅ **Built** a GraphQL API with FraiseQL  
-✅ **Implemented** semantic search with vector similarity  
-✅ **Developed** RAG question answering with LangChain  
-✅ **Optimized** performance with proper indexing  
-✅ **Deployed** a production-ready RAG system  
+✅ **Set up** a PostgreSQL database with pgvector
+✅ **Created** a Trinity Pattern schema for documents and embeddings
+✅ **Built** a GraphQL API with FraiseQL
+✅ **Implemented** semantic search with vector similarity
+✅ **Developed** RAG question answering with LangChain
+✅ **Optimized** performance with proper indexing
+✅ **Deployed** a production-ready RAG system
 
 Your RAG system is now ready for production use! You can:
 

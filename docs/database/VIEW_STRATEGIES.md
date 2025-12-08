@@ -1,6 +1,6 @@
 # View Strategies for FraiseQL
 
-**Time to Complete:** 15 minutes  
+**Time to Complete:** 15 minutes
 **Prerequisites:** Understanding of [Table Naming Conventions](./TABLE_NAMING_CONVENTIONS.md)
 
 ## Overview
@@ -268,7 +268,7 @@ CREATE TABLE tv_user (
 
 -- Step 2: Populate from existing view
 INSERT INTO tv_user (id, data)
-SELECT 
+SELECT
     id,
     jsonb_build_object(
         'id', id,
@@ -334,7 +334,7 @@ CREATE INDEX idx_mv_stats_count ON mv_user_stats(post_count);
 EXPLAIN ANALYZE SELECT * FROM v_user WHERE id = $1;
 
 -- Check materialized view freshness
-SELECT 
+SELECT
     pg_size.pretty_size(pg_relation_size('mv_user_stats')),
     pg_stat_get_last_vacuum_time('mv_user_stats'::regclass);
 ```

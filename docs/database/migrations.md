@@ -1,7 +1,7 @@
 # Migrating from Simple Tables to Trinity Pattern
 
-**Time to Complete:** 15-30 minutes  
-**Prerequisites:** Basic PostgreSQL knowledge, existing database with simple table names  
+**Time to Complete:** 15-30 minutes
+**Prerequisites:** Basic PostgreSQL knowledge, existing database with simple table names
 **Target Audience:** Developers with existing FraiseQL applications using simple naming
 
 ## Overview
@@ -194,7 +194,7 @@ async def user_with_stats(info, id: UUID) -> UserWithStats:
 **Verify data integrity:**
 ```sql
 -- Check all data migrated correctly
-SELECT 
+SELECT
     'tb_user rows' as check, COUNT(*) as count FROM tb_user
 UNION ALL
 SELECT 'v_user rows', COUNT(*) FROM v_user
@@ -282,14 +282,14 @@ This uses **Foreign Data Wrapper (FDW)** technology. For detailed steps, see [Co
 **Problem:** Foreign keys reference old table names
 ```sql
 -- Before migration
-ALTER TABLE posts ADD CONSTRAINT fk_user 
+ALTER TABLE posts ADD CONSTRAINT fk_user
 FOREIGN KEY (user_id) REFERENCES users(id);
 ```
 
 **Solution:** Update foreign keys
 ```sql
 -- After migration
-ALTER TABLE tb_post ADD CONSTRAINT fk_user 
+ALTER TABLE tb_post ADD CONSTRAINT fk_user
 FOREIGN KEY (user_id) REFERENCES tb_user(id);
 ```
 

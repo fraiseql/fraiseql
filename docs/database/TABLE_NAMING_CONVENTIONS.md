@@ -539,7 +539,7 @@ CREATE TABLE tb_user (
     id SERIAL PRIMARY KEY,
     first_name TEXT,
     last_name TEXT,
-    
+
     -- Generated JSONB column (embedded relations)
     data JSONB GENERATED ALWAYS AS (
         jsonb_build_object(

@@ -1,6 +1,6 @@
 # Trinity Pattern - FraiseQL's Database Architecture
 
-**Time to Complete:** 10-15 minutes  
+**Time to Complete:** 10-15 minutes
 **Prerequisites:** Basic PostgreSQL knowledge, understanding of GraphQL concepts
 
 ## Overview
@@ -164,7 +164,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 **Add New Fields**:
 ```sql
 -- No ALTER TABLE needed!
-UPDATE tb_user 
+UPDATE tb_user
 SET data = jsonb_set(data, '{new_field}', '"new_value"')
 WHERE id = $1;
 ```
@@ -417,9 +417,9 @@ WITH RECURSIVE category_tree AS (
     SELECT c.*, 0 as depth
     FROM v_category c
     WHERE c.data->>'parent_id' IS NULL
-    
+
     UNION ALL
-    
+
     SELECT c.*, ct.depth + 1
     FROM v_category c
     JOIN category_tree ct ON c.data->>'parent_id' = ct.id::text
@@ -470,7 +470,7 @@ EXPLAIN ANALYZE SELECT * FROM tv_user_with_posts WHERE id = $1;
 
 ```sql
 -- Ensure views return expected data
-SELECT 
+SELECT
     (SELECT COUNT(*) FROM tb_user) as base_count,
     (SELECT COUNT(*) FROM v_user) as view_count,
     (SELECT COUNT(*) FROM tv_user_with_posts) as computed_count;

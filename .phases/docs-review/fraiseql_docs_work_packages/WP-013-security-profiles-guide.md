@@ -36,7 +36,7 @@ Document STANDARD/REGULATED/RESTRICTED security profiles.
 **Use when:** Internal apps, non-sensitive data
 **Features:** Basic audit logging, HTTPS, SQL injection protection
 
-## REGULATED Profile  
+## REGULATED Profile
 **Use when:** FedRAMP Moderate, HIPAA, PCI DSS Level 2
 **Features:** Cryptographic audit trails, KMS, RLS, SLSA provenance
 

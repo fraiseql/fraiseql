@@ -85,17 +85,17 @@ CREATE TABLE tb_user (
     pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (username)
-    
+
     -- User data
     email TEXT NOT NULL UNIQUE CHECK (email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'author', 'user')),
     profile_data JSONB DEFAULT '{}'::jsonb,
-    
+
     -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     -- Constraints
     CONSTRAINT chk_username_length CHECK (length(identifier) >= 3)
 );
@@ -106,7 +106,7 @@ CREATE TABLE tb_post (
     pk_post INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
-    
+
     -- Post data
     title TEXT NOT NULL CHECK (length(title) >= 1),
     content TEXT NOT NULL CHECK (length(content) >= 1),
@@ -146,12 +146,12 @@ CREATE TABLE tb_tag (
     pk_tag INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,   -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
-    
+
     -- Tag data
     name TEXT NOT NULL UNIQUE CHECK (length(name) >= 1),
     color TEXT DEFAULT '#6366f1' CHECK (color ~ '^#[0-9A-Fa-f]{6}$'),
     description TEXT,
-    
+
     -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

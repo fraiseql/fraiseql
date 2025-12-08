@@ -18,7 +18,7 @@ Fix SQL naming in advanced patterns documentation to use `tb_*`, `v_*`, `tv_*` t
 
 1. **`docs/advanced/database-patterns.md`** (lines 1226, 1464, 1533)
    - Replace `orders` → `tb_order`
-   - Replace `categories` → `tb_category`  
+   - Replace `categories` → `tb_category`
    - Replace `categories_ltree` → `tv_category_tree`
 
 2. **`docs/advanced/multi-tenancy.md`** (lines 153, 162)

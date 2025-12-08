@@ -7,7 +7,7 @@ A complete Retrieval-Augmented Generation (RAG) system built with FraiseQL, Lang
 This example follows the **Trinity Pattern** for database design:
 
 - **`tb_document`** - Command table for document storage
-- **`v_document`** - Read view for document access  
+- **`v_document`** - Read view for document access
 - **`tv_document_embedding`** - Table view with vector embeddings for semantic search
 
 ## 🚀 Features
@@ -174,7 +174,7 @@ async def main():
         database_url="postgresql://localhost:5432/ragdb",
         openai_api_key="your-api-key"
     )
-    
+
     # Add document with embedding
     doc_id = await rag.add_document_with_embedding(
         title="FraiseQL Guide",
@@ -182,12 +182,12 @@ async def main():
         source="docs"
     )
     print(f"Created document: {doc_id}")
-    
+
     # Semantic search
     results = await rag.semantic_search("GraphQL generation", limit=3)
     for doc in results:
         print(f"{doc['title']}: {doc['similarity']:.3f}")
-    
+
     # RAG question answering
     answer = await rag.answer_question("How does FraiseQL work?")
     print(f"Answer: {answer['answer']}")
@@ -203,7 +203,7 @@ asyncio.run(main())
 The database schema follows the Trinity Pattern:
 
 1. **`tb_document`** - Transaction table for writes (commands)
-2. **`v_document`** - View for reads (queries)  
+2. **`v_document`** - View for reads (queries)
 3. **`tv_document_embedding`** - Table view with computed columns (vectors)
 
 This pattern provides:
@@ -220,7 +220,7 @@ The system uses cosine similarity for semantic search:
 similarity = 1 - (embedding <=> query_embedding)
 
 -- HNSW index for fast approximate search
-CREATE INDEX ON tv_document_embedding 
+CREATE INDEX ON tv_document_embedding
 USING hnsw (embedding vector_cosine_ops);
 ```
 
@@ -256,7 +256,7 @@ CREATE INDEX ON tv_document_embedding USING hnsw (embedding vector_cosine_ops);
 
 ```sql
 -- Check index usage
-EXPLAIN (ANALYZE, BUFFERS) 
+EXPLAIN (ANALYZE, BUFFERS)
 SELECT d.title, (1 - (e.embedding <=> query_embedding)) as similarity
 FROM tb_document d
 JOIN tv_document_embedding e ON d.id = e.document_id
@@ -268,7 +268,7 @@ LIMIT 10;
 
 ```sql
 -- Embedding statistics
-SELECT 
+SELECT
   COUNT(*) as total_documents,
   COUNT(DISTINCT embedding_model) as models_used,
   AVG(ARRAY_LENGTH(embedding, 1)) as avg_dimensions

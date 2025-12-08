@@ -57,13 +57,13 @@ class Product:
 CREATE TABLE tb_product (
     -- Internal ID (UUID)
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+
     -- Public ID (human-readable)
     public_id VARCHAR(255) UNIQUE NOT NULL,
-    
+
     -- External ID (for integrations)
     external_id VARCHAR(255) UNIQUE,
-    
+
     -- Other columns
     name VARCHAR(255) NOT NULL,
     price DECIMAL(10, 2) NOT NULL

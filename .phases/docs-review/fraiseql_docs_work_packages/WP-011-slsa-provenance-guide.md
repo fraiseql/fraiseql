@@ -2,7 +2,7 @@
 
 **Package ID:** WP-011
 **Assignee Role:** Technical Writer - Security/Compliance (TW-SEC)
-**Priority:** P0 - Critical  
+**Priority:** P0 - Critical
 **Estimated Hours:** 6 hours
 **Dependencies:** WP-010
 

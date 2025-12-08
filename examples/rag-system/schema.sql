@@ -17,7 +17,7 @@ CREATE TABLE tb_document (
 
 -- Trinity Pattern: View for document access (Query side)
 CREATE VIEW v_document AS
-SELECT 
+SELECT
     id,
     title,
     content,
@@ -58,13 +58,13 @@ BEGIN
     INSERT INTO tb_document (title, content, source, metadata)
     VALUES (p_title, p_content, p_source, p_metadata)
     RETURNING id INTO doc_id;
-    
+
     -- Insert embedding if provided
     IF p_embedding IS NOT NULL THEN
         INSERT INTO tv_document_embedding (document_id, embedding, embedding_model)
         VALUES (doc_id, p_embedding, p_embedding_model);
     END IF;
-    
+
     RETURN doc_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -78,11 +78,11 @@ CREATE OR REPLACE FUNCTION update_document_embedding(
 BEGIN
     -- Delete existing embedding
     DELETE FROM tv_document_embedding WHERE document_id = p_document_id;
-    
+
     -- Insert new embedding
     INSERT INTO tv_document_embedding (document_id, embedding, embedding_model)
     VALUES (p_document_id, p_embedding, p_embedding_model);
-    
+
     RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION search_documents_by_embedding(
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         d.id,
         d.title,
         d.content,
