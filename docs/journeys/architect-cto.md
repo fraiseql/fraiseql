@@ -78,14 +78,14 @@ PostgreSQL Views → Schema Generation → Type-Safe Resolvers → Client
 ### 4. Operational Readiness Review (2 minutes)
 
 **Production Features:**
-- **Health Checks:** Built-in `/health`, `/ready` endpoints
-- **Metrics:** Prometheus-compatible monitoring
+- **Health Checks:** Built-in `/health` and `/metrics` endpoints
+- **Monitoring:** Prometheus-compatible metrics
 - **Logging:** Structured logs with correlation IDs
-- **Connection Pooling:** Built-in PostgreSQL connection management
+- **Database Pooling:** Automatic connection management via asyncpg
 - **Graceful Shutdown:** Proper cleanup on termination
 
 **Deployment Options:**
-- **Docker:** Official images with Rust binaries
+- **Docker:** Production-ready Dockerfiles provided (see `deploy/docker/`)
 - **Kubernetes:** Helm charts with auto-scaling
 - **Serverless:** AWS Lambda, Google Cloud Functions support
 
@@ -227,9 +227,9 @@ PostgreSQL Views → Schema Generation → Type-Safe Resolvers → Client
 
 **Resources:**
 - [Performance Benchmarks](../../benchmarks/)
-- [Compliance Matrix](../security-compliance/compliance-matrix.md)
+- [Compliance Matrix](../security/controls-matrix.md)
 - [Migration Guide](../database/migrations.md)
-- [Production Checklist](../production/deployment-checklist.md)
+- [Production Deployment](../production/deployment.md)
 
 ---
 

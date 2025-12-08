@@ -36,20 +36,22 @@ By the end, you'll have:
 
 **Read:** [Rust Pipeline Integration](../core/rust-pipeline-integration.md)
 
-**Hands-on Benchmark:**
+**Key Concepts:**
+- Zero-copy JSONB processing
+- Rust JSON serialization (7-10x faster than Python)
+- How the Rust pipeline integrates with Python GraphQL layer
+
+**Explore Existing Benchmarks:**
 ```bash
-# Clone and run the performance comparison
-git clone https://github.com/fraiseql/fraiseql
-cd fraiseql/benchmarks
-python run_performance_comparison.py
+# Review available benchmarks in the repository
+cd benchmarks/
+ls -la  # See available benchmark scripts
+python rust_vs_python_benchmark.py  # Example benchmark
 ```
 
-**Expected Results:**
-- FraiseQL: ~1000 req/sec with Rust pipeline
-- Strawberry: ~100 req/sec (standard Python JSON)
-- **Result:** 10x performance improvement verified
+> **Note:** Comprehensive framework comparison benchmark (FraiseQL vs Strawberry vs Graphene) is in development (WP-026). Current benchmarks focus on Rust vs Python JSON performance.
 
-**Success Check:** You can reproduce the benchmark and explain why Rust helps
+**Success Check:** You understand why Rust improves performance and have reviewed benchmark methodology
 
 ### Step 3: Migration Assessment (25 minutes)
 
@@ -57,10 +59,22 @@ python run_performance_comparison.py
 
 **Read:** [Database Migration Guide](../database/migrations.md)
 
-**Framework-Specific Guides:**
-- **From Strawberry:** [Migration Guide](../migration/from-strawberry.md)
-- **From Graphene:** [Migration Guide](../migration/from-graphene.md)
-- **From PostGraphile:** [Migration Guide](../migration/from-postgraphile.md)
+**Migration Assessment:**
+
+> **Note:** Detailed framework-specific migration guides are in development (WP-028).
+> Contact the team on Discord for migration assistance.
+
+**General Migration Effort:**
+- **Strawberry migration:** 2-3 weeks for 2 engineers
+- **Graphene migration:** 1-2 weeks for 2 engineers
+- **PostGraphile migration:** 3-4 days for 1 engineer
+
+**Key Migration Steps:**
+1. Audit your current schema (types, resolvers, mutations)
+2. Create PostgreSQL views using trinity pattern (tb_/v_/tv_)
+3. Convert resolvers to FraiseQL decorators
+4. Test thoroughly with side-by-side comparison
+5. Deploy using blue-green strategy
 
 **Migration Effort Calculator:**
 - Schema mapping: 20% of effort
@@ -100,13 +114,9 @@ python run_performance_comparison.py
    ```
 
 3. **Connection Pooling:**
-   ```python
-   # Built-in connection pooling
-   app = create_fraiseql_app(
-       database_url="postgresql://...",
-       connection_pool_size=20
-   )
-   ```
+   > **Note:** Explicit connection pooling configuration is planned (WP-027).
+   > FraiseQL currently uses default asyncpg connection pooling.
+   > For production tuning, see [Database Configuration](../core/configuration.md).
 
 **Success Check:** You understand how RLS and computed views reduce application complexity
 
@@ -114,7 +124,7 @@ python run_performance_comparison.py
 
 **Goal:** Assess operational complexity and monitoring
 
-**Read:** [Production Deployment Checklist](../production/deployment-checklist.md)
+**Read:** [Production Deployment](../production/deployment.md)
 
 **Key Operational Aspects:**
 - **Monitoring:** Prometheus metrics, Grafana dashboards
@@ -124,14 +134,14 @@ python run_performance_comparison.py
 
 **Deployment Commands:**
 ```bash
-# Health check
+# Health check (liveness probe)
 curl http://localhost:8000/health
 
 # Metrics endpoint
 curl http://localhost:8000/metrics
 
-# Readiness probe
-curl http://localhost:8000/ready
+# Readiness probe (in development - WP-029)
+# For now, use /health for both liveness and readiness
 ```
 
 **Success Check:** You know how to monitor and troubleshoot production deployments
@@ -140,7 +150,7 @@ curl http://localhost:8000/ready
 
 **Goal:** Evaluate security features for regulated environments
 
-**Read:** [Security Architecture](../architecture/security-architecture.md)
+**Read:** [Security Configuration](../security/configuration.md)
 
 **Security Features:**
 - **Cryptographic Audit Trails:** SHA-256 + HMAC chains
@@ -202,7 +212,6 @@ curl http://localhost:8000/ready
 
 **Resources:**
 - [Performance Benchmarks](../../benchmarks/)
-- [Migration Tools](../../scripts/migration/)
 - [Production Runbooks](../production/)
 
 ## Questions for the Team

@@ -210,7 +210,7 @@ query {
 
 1. **[Backend Engineer Journey](backend-engineer.md)** - Learn advanced patterns
 2. **[Add Authentication](../../examples/native-auth-app/)** - Secure your API
-3. **[Deploy to Production](../production/deployment-checklist.md)** - Go live
+3. **[Deploy to Production](../production/deployment.md)** - Go live
 
 **Need help?**
 - Check the [examples](../../examples/) directory
