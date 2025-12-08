@@ -1,7 +1,7 @@
 # FraiseQL Documentation Work Packages - Complete Overview
 
-**Total Packages:** 29 (4 new from journey docs verification)
-**Total Estimated Hours:** 192 hours (was 162)
+**Total Packages:** 30 (5 new from verification + architecture decisions)
+**Total Estimated Hours:** 202 hours (was 162)
 **Timeline:** 4-5 weeks
 **Team Size:** 7 people
 
@@ -12,7 +12,7 @@
 | Priority | Count | Total Hours | Description |
 |----------|-------|-------------|-------------|
 | **P0 - Critical** | 18 | 112 hours | Must complete for 10x improvement |
-| **P1 - Important** | 11 | 80 hours | Should complete, can defer if needed (4 NEW from hallucinations) |
+| **P1 - Important** | 12 | 90 hours | Should complete, can defer if needed (5 NEW) |
 
 ---
 
@@ -49,6 +49,7 @@
 | **WP-027** | **Add Connection Pooling Config** | **ENG-CORE** | **P1** | **8** | **2** | **None** |
 | **WP-028** | **Create Framework Migration Guides** | **TW-CORE** | **P1** | **12** | **3** | **WP-003** |
 | **WP-029** | **Implement /ready Endpoint** | **ENG-CORE** | **P1** | **4** | **2** | **None** |
+| **WP-030** | **Audit & Remove Triggers for AI Dev** | **ENG-CORE + TW-CORE** | **P1** | **10** | **3** | **None** |
 
 ---
 
@@ -988,6 +989,41 @@ All WPs → WP-021, WP-022, WP-023 (Validation) → WP-024 (Personas) → WP-025
 - **Quality score ≥ 4/5** → High-quality deliverables
 - **Timeline met** → 4-5 weeks
 - **Backend engineers can evaluate migration** → Adoption unblocked
+
+---
+
+## NEW WORK PACKAGE (Architecture Decision - Dec 8, 2025)
+
+### WP-030: Audit and Remove Database Triggers for AI-Assisted Development
+**Assignee:** ENG-CORE + TW-CORE | **Hours:** 10 | **Week:** 3 | **Priority:** P1
+
+**Objective:** Audit all examples and documentation for database trigger usage and replace with explicit, AI-friendly patterns.
+
+**Why Created:** Triggers found in blog_enterprise example. Triggers are implicit and create hidden side effects that are problematic for AI-assisted development, debugging, and code generation.
+
+**Philosophy:** FraiseQL favors **explicit over implicit**. AI models and developers thrive on clear, traceable code paths.
+
+**Deliverables:**
+- Audit report: All trigger usage in examples/docs
+- Updated blog_enterprise: Remove audit trigger, use explicit pattern
+- New guide: `docs/database/avoid-triggers.md`
+- Linting script: `scripts/lint_no_triggers.py` (fails CI if triggers found)
+- Migration guide: How to replace triggers with explicit patterns
+
+**Trigger Types to Replace:**
+1. **Audit triggers** → Application-level audit logging or explicit functions
+2. **Timestamp triggers** → DEFAULT values + explicit updates in code
+3. **Cascade triggers** → ON DELETE CASCADE or explicit application logic
+4. **Validation triggers** → CHECK constraints or Pydantic validation
+
+**Acceptable Alternatives:**
+- ✅ DEFAULT values (explicit in schema)
+- ✅ CHECK constraints (explicit in schema)
+- ✅ ON DELETE CASCADE (explicit in schema)
+- ✅ GENERATED ALWAYS AS (explicit computed columns)
+- ✅ Explicit stored functions (called from application)
+
+**Impact:** HIGH - Improves AI-assisted development, makes codebase more maintainable, explicit patterns easier to test and debug
 
 ---
 
