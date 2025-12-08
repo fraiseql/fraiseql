@@ -1,0 +1,102 @@
+Contradiction Detection Report
+================================================================================
+
+Files Scanned: 181
+Topics Checked: 3
+Critical Issues: 1
+High Priority: 1
+Medium Priority: 0
+Total Issues: 2
+
+Contradictions Found:
+--------------------------------------------------------------------------------
+
+
+[HIGH] trinity_pattern
+Description: Files using simple table names (users, posts, etc.) without trinity pattern context
+Locations (10):
+
+  File: autofraiseql/README.md:53
+  Line: CREATE TABLE users (
+  Context:
+    ### 1. Define Your Database Schema
+
+    ```sql
+
+  File: autofraiseql/postgresql-comments.md:91
+  Line: CREATE TABLE users (
+  Context:
+    ### Complete Example
+
+    ```sql
+
+  File: development/FRAMEWORK_SUBMISSION_GUIDE.md:283
+  Line: CREATE TABLE users (
+  Context:
+
+    **Database Schema** (required for all submissions):
+
+
+  File: development/FRAMEWORK_SUBMISSION_GUIDE.md:292
+  Line: CREATE TABLE posts (
+  Context:
+        city VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+    );
+
+  File: development/FRAMEWORK_SUBMISSION_GUIDE.md:301
+  Line: CREATE TABLE comments (
+  Context:
+        author_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+    );
+
+  File: database/TABLE_NAMING_CONVENTIONS.md:622
+  Line: CREATE TABLE users (...);
+  Context:
+
+    **Simple naming without prefixes** (NOT recommended for production):
+    ```sql
+
+  File: database/TABLE_NAMING_CONVENTIONS.md:623
+  Line: CREATE TABLE posts (...);
+  Context:
+    **Simple naming without prefixes** (NOT recommended for production):
+    ```sql
+    -- Simple naming (no prefixes) - FOR PROTOTYPES ONLY
+
+  File: advanced/bounded-contexts.md:185
+  Line: CREATE TABLE orders.tb_order (
+  Context:
+    ```sql
+    -- Orders Context
+    CREATE SCHEMA IF NOT EXISTS orders;
+
+  File: advanced/bounded-contexts.md:194
+  Line: CREATE TABLE orders.tb_order_items (
+  Context:
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+  File: runbooks/ci-troubleshooting.md:162
+  Line: await conn.execute("CREATE TABLE users (...)")
+  Context:
+    await conn.execute("CREATE TABLE public.users (...)")
+
+    # ✅ CORRECT
+
+
+[CRITICAL] table_naming
+Description: Inconsistent table naming recommendations across authoritative docs
+Locations (2):
+
+  File: database/TABLE_NAMING_CONVENTIONS.md:818
+  Line: **Simplification**: Prefer `tv_*` table views for production GraphQL APIs, but `v_*` views work well for smaller applications where JOIN overhead is acceptable.
+  Context:
+    **Simplification**: Prefer `tv_*` table views for production GraphQL APIs, but `v_*` views work well for smaller applications where JOIN overhead is acceptable.
+
+  File: core/trinity-pattern.md:458
+  Line: SELECT COUNT(*) FROM v_user;  -- Should only show tenant-b users
+  Context:
+    SELECT COUNT(*) FROM v_user;  -- Should only show tenant-b users
