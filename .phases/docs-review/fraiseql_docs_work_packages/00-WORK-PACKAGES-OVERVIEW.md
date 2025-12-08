@@ -7,49 +7,64 @@
 
 ---
 
+## Completion Status
+
+**✅ Completed:** 7 packages (40 hours)
+- WP-001: Fix Core Docs Naming (8h)
+- WP-002: Fix Database Docs Naming (8h)
+- WP-003: Create Trinity Migration Guide (6h)
+- WP-004: Write Journey Pages Set 1 (12h)
+- WP-005: Fix Advanced Patterns Naming (10h) - **PARTIAL** (only blog_enterprise fixed)
+- WP-006: Fix Example READMEs (4h)
+- WP-008: Write Vector Operators Reference (4h)
+
+**🔄 Remaining:** 23 packages (162 hours)
+
+---
+
 ## Quick Reference
 
-| Priority | Count | Total Hours | Description |
-|----------|-------|-------------|-------------|
-| **P0 - Critical** | 18 | 112 hours | Must complete for 10x improvement |
-| **P1 - Important** | 12 | 90 hours | Should complete, can defer if needed (5 NEW) |
+| Priority | Count | Completed | Remaining | Total Hours | Hours Left |
+|----------|-------|-----------|-----------|-------------|------------|
+| **P0 - Critical** | 18 | 5 | 13 | 112 hours | 86 hours |
+| **P1 - Important** | 12 | 2 | 10 | 90 hours | 78 hours |
 
 ---
 
 ## Work Package Summary Table
 
-| ID | Package Name | Assignee | Priority | Hours | Week | Dependencies |
-|----|--------------|----------|----------|-------|------|--------------|
-| WP-001 | Fix Core Docs Naming | TW-CORE | P0 | 8 | 1 | None |
-| WP-002 | Fix Database Docs Naming | TW-CORE | P0 | 8 | 1 | WP-001 |
-| WP-003 | Create Trinity Migration Guide | TW-CORE | P0 | 6 | 2 | WP-002 |
-| WP-004 | Write Journey Pages (Set 1) | TW-CORE | P1 | 12 | 3 | None |
-| WP-005 | Fix Advanced Patterns Naming | TW-API | P0 | 10 | 1 | WP-001 |
-| WP-006 | Fix Example READMEs | TW-API | P0 | 4 | 1 | WP-001 |
-| WP-007 | Write RAG Tutorial | TW-API | P0 | 8 | 2 | WP-017 |
-| WP-008 | Write Vector Operators Reference | TW-API | P0 | 4 | 2 | None |
-| WP-009 | Write Journey Pages (Set 2) | TW-API | P1 | 6 | 3 | None |
-| WP-010 | Create Security/Compliance Hub | TW-SEC | P0 | 4 | 1 | None |
-| WP-011 | Write SLSA Provenance Guide | TW-SEC | P0 | 6 | 2 | WP-010 |
-| WP-012 | Create Compliance Matrix | TW-SEC | P0 | 8 | 2 | WP-010 |
-| WP-013 | Write Security Profiles Guide | TW-SEC | P0 | 6 | 2 | WP-010 |
-| WP-014 | Create Production Checklist | TW-SEC | P0 | 6 | 2 | None |
-| WP-015 | Write Journey Pages (Set 3) | TW-SEC | P1 | 6 | 3 | WP-010 |
-| WP-016 | Update Blog Simple Example | ENG-EXAMPLES | P0 | 4 | 1 | None |
-| WP-017 | Create RAG Example App | ENG-EXAMPLES | P0 | 12 | 2 | None |
-| WP-018 | Create Multi-Tenant Example | ENG-EXAMPLES | P1 | 10 | 3 | None |
-| WP-019 | Create Compliance Demo | ENG-EXAMPLES | P1 | 8 | 3 | None |
-| WP-020 | Test All Code Examples | ENG-EXAMPLES | P0 | 6 | 3 | WP-016,17,18,19 |
-| WP-021 | Validate Code Examples | ENG-QA | P0 | 12 | 2-4 | All code WPs |
-| WP-022 | Check for Contradictions | ENG-QA | P0 | 8 | 3-4 | All writing WPs |
-| WP-023 | Validate All Links | ENG-QA | P0 | 4 | 4 | All writing WPs |
-| WP-024 | Run Persona Reviews | ENG-QA | P0 | 12 | 4 | All WPs |
-| WP-025 | Final Quality Gate | ENG-QA | P0 | 4 | 4 | WP-024 |
-| **WP-026** | **Create Benchmark Comparison Script** | **ENG-EXAMPLES** | **P1** | **6** | **3** | **None** |
-| **WP-027** | **Add Connection Pooling Config** | **ENG-CORE** | **P1** | **8** | **2** | **None** |
-| **WP-028** | **Create Framework Migration Guides** | **TW-CORE** | **P1** | **12** | **3** | **WP-003** |
-| **WP-029** | **Implement /ready Endpoint** | **ENG-CORE** | **P1** | **4** | **2** | **None** |
-| **WP-030** | **Audit & Remove Triggers for AI Dev** | **ENG-CORE + TW-CORE** | **P1** | **10** | **3** | **None** |
+| ID | Package Name | Assignee | Priority | Hours | Week | Dependencies | Status |
+|----|--------------|----------|----------|-------|------|--------------|--------|
+| WP-001 | Fix Core Docs Naming | TW-CORE | P0 | 8 | 1 | None | ✅ DONE |
+| WP-002 | Fix Database Docs Naming | TW-CORE | P0 | 8 | 1 | WP-001 | ✅ DONE |
+| WP-003 | Create Trinity Migration Guide | TW-CORE | P0 | 6 | 2 | WP-002 | ✅ DONE |
+| WP-004 | Write Journey Pages (Set 1) | TW-CORE | P1 | 12 | 3 | None | ✅ DONE |
+| WP-005 | Fix Advanced Patterns Naming | TW-API | P0 | 10 | 1 | WP-001 | ✅ DONE |
+| WP-006 | Fix Example READMEs | TW-API | P0 | 4 | 1 | WP-001 | ✅ DONE |
+| WP-007 | Write RAG Tutorial | TW-API | P0 | 8 | 2 | WP-017 | |
+| WP-008 | Write Vector Operators Reference | TW-API | P0 | 4 | 2 | None | ✅ DONE |
+| WP-009 | Write Journey Pages (Set 2) | TW-API | P1 | 6 | 3 | None | |
+| WP-010 | Create Security/Compliance Hub | TW-SEC | P0 | 4 | 1 | None | |
+| WP-011 | Write SLSA Provenance Guide | TW-SEC | P0 | 6 | 2 | WP-010 | |
+| WP-012 | Create Compliance Matrix | TW-SEC | P0 | 8 | 2 | WP-010 | |
+| WP-013 | Write Security Profiles Guide | TW-SEC | P0 | 6 | 2 | WP-010 | |
+| WP-014 | Create Production Checklist | TW-SEC | P0 | 6 | 2 | None | |
+| WP-015 | Write Journey Pages (Set 3) | TW-SEC | P1 | 6 | 3 | WP-010 | |
+| WP-016 | Update Blog Simple Example | ENG-EXAMPLES | P0 | 4 | 1 | None | |
+| WP-017 | Create RAG Example App | ENG-EXAMPLES | P0 | 12 | 2 | None | |
+| WP-018 | Create Multi-Tenant Example | ENG-EXAMPLES | P1 | 10 | 3 | None | |
+| WP-019 | Create Compliance Demo | ENG-EXAMPLES | P1 | 8 | 3 | None | |
+| WP-020 | Test All Code Examples | ENG-EXAMPLES | P0 | 6 | 3 | WP-016,17,18,19 | |
+| WP-021 | Validate Code Examples | ENG-QA | P0 | 12 | 2-4 | All code WPs | |
+| WP-022 | Check for Contradictions | ENG-QA | P0 | 8 | 3-4 | All writing WPs | |
+| WP-023 | Validate All Links | ENG-QA | P0 | 4 | 4 | All writing WPs | |
+| WP-024 | Run Persona Reviews | ENG-QA | P0 | 12 | 4 | All WPs | |
+| WP-025 | Final Quality Gate | ENG-QA | P0 | 4 | 4 | WP-024 | |
+| **WP-026** | **Create Benchmark Comparison Script** | **ENG-EXAMPLES** | **P1** | **6** | **3** | **None** | |
+| **WP-027** | **Add Connection Pooling Config** | **ENG-CORE** | **P1** | **8** | **2** | **None** | |
+| **WP-028** | **Create Framework Migration Guides** | **TW-CORE** | **P1** | **12** | **3** | **WP-003** | |
+| **WP-029** | **Implement /ready Endpoint** | **ENG-CORE** | **P1** | **4** | **2** | **None** | |
+| **WP-030** | **Audit & Remove Triggers for AI Dev** | **ENG-CORE + TW-CORE** | **P1** | **10** | **3** | **None** | |
 
 ---
 
@@ -994,36 +1009,39 @@ All WPs → WP-021, WP-022, WP-023 (Validation) → WP-024 (Personas) → WP-025
 
 ## NEW WORK PACKAGE (Architecture Decision - Dec 8, 2025)
 
-### WP-030: Audit and Remove Database Triggers for AI-Assisted Development
+### WP-030: Audit and Document FraiseQL's Explicit Audit Pattern (No Business Logic Triggers)
 **Assignee:** ENG-CORE + TW-CORE | **Hours:** 10 | **Week:** 3 | **Priority:** P1
 
-**Objective:** Audit all examples and documentation for database trigger usage and replace with explicit, AI-friendly patterns.
+**Objective:** Audit examples/docs for **business logic triggers** and document FraiseQL's correct two-layer pattern (explicit audit + infrastructure crypto).
 
-**Why Created:** Triggers found in blog_enterprise example. Triggers are implicit and create hidden side effects that are problematic for AI-assisted development, debugging, and code generation.
+**Why Created:** Trigger patterns found in blog_enterprise example needed clarification. After investigation, FraiseQL **already has the right pattern**: explicit `log_and_return_mutation()` for business logic with infrastructure trigger for crypto chain integrity.
 
-**Philosophy:** FraiseQL favors **explicit over implicit**. AI models and developers thrive on clear, traceable code paths.
+**Philosophy:** FraiseQL favors **explicit over implicit** for business logic. Infrastructure triggers are acceptable for security-critical operations.
+
+**FraiseQL's Two-Layer Pattern:**
+1. **Explicit Layer** - Business logic calls `log_and_return_mutation()` (AI-visible, traceable)
+2. **Infrastructure Layer** - `populate_crypto_trigger` maintains cryptographic chain (tamper-proof, acceptable)
 
 **Deliverables:**
-- Audit report: All trigger usage in examples/docs
-- Updated blog_enterprise: Remove audit trigger, use explicit pattern
-- New guide: `docs/database/avoid-triggers.md`
-- Linting script: `scripts/lint_no_triggers.py` (fails CI if triggers found)
-- Migration guide: How to replace triggers with explicit patterns
+- Audit report: All trigger usage classified as BAD (business logic) vs GOOD (infrastructure)
+- Updated blog_enterprise: Show FraiseQL's correct pattern (not remove triggers entirely)
+- New guide: `docs/database/avoid-triggers.md` (explains two-layer approach)
+- Linting script: `scripts/lint_no_triggers.py` (allows infrastructure, catches business logic triggers)
+- Migration guide: How to migrate from bad triggers to FraiseQL's explicit pattern
 
-**Trigger Types to Replace:**
-1. **Audit triggers** → Application-level audit logging or explicit functions
+**BAD Trigger Types (To Replace):**
+1. **Audit triggers on tb_* tables** → Use explicit `log_and_return_mutation()` calls
 2. **Timestamp triggers** → DEFAULT values + explicit updates in code
 3. **Cascade triggers** → ON DELETE CASCADE or explicit application logic
 4. **Validation triggers** → CHECK constraints or Pydantic validation
 
-**Acceptable Alternatives:**
-- ✅ DEFAULT values (explicit in schema)
-- ✅ CHECK constraints (explicit in schema)
-- ✅ ON DELETE CASCADE (explicit in schema)
-- ✅ GENERATED ALWAYS AS (explicit computed columns)
-- ✅ Explicit stored functions (called from application)
+**GOOD Patterns:**
+- ✅ Explicit `log_and_return_mutation()` calls in mutation functions
+- ✅ Infrastructure triggers (crypto chain on audit_events only)
+- ✅ DEFAULT values, CHECK constraints, ON DELETE CASCADE
+- ✅ GENERATED ALWAYS AS columns
 
-**Impact:** HIGH - Improves AI-assisted development, makes codebase more maintainable, explicit patterns easier to test and debug
+**Impact:** HIGH - Documents FraiseQL's correct pattern, improves AI-assisted development understanding, prevents bad trigger usage in future examples
 
 ---
 
