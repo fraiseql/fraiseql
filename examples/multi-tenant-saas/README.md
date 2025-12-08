@@ -475,7 +475,7 @@ All tables follow the trinity pattern:
 |--------|---------|---------|
 | `tb_*` | Base tables (source of truth) | `tb_project` |
 | `v_*` | Views for GraphQL (filtered, safe) | `v_project` |
-| `tv_*` | Computed views (denormalized) | `tv_project_with_owner` |
+| `tv_*` | Computed views (denormalized) | `tv_project` |
 
 ### Tables
 
@@ -509,9 +509,9 @@ All tables follow the trinity pattern:
 
 ### Computed Views
 
-**`tv_project_with_owner`** - Projects with owner details (denormalized):
+**`tv_project`** - Projects with owner details (denormalized):
 ```sql
-CREATE VIEW tv_project_with_owner AS
+CREATE VIEW tv_project AS
 SELECT
     p.*,
     jsonb_build_object(
@@ -523,11 +523,23 @@ FROM tb_project p
 JOIN tb_user u ON p.owner_id = u.id;
 ```
 
-**`tv_organization_stats`** - Real-time organization statistics:
+**`tv_task`** - Tasks with project and assigned user details (denormalized):
 ```sql
-CREATE VIEW tv_organization_stats AS
+CREATE VIEW tv_task AS
 SELECT
-    o.id,
+    t.*,
+    jsonb_build_object('id', p.id, 'name', p.name) as project,
+    jsonb_build_object('id', u.id, 'name', u.name) as assigned_user
+FROM tb_task t
+JOIN tb_project p ON t.project_id = p.id
+LEFT JOIN tb_user u ON t.assigned_to = u.id;
+```
+
+**`tv_organization`** - Organizations with real-time statistics:
+```sql
+CREATE VIEW tv_organization AS
+SELECT
+    o.*,
     (SELECT COUNT(*) FROM tb_user WHERE organization_id = o.id) as active_users,
     (SELECT COUNT(*) FROM tb_project WHERE organization_id = o.id) as active_projects,
     (SELECT COUNT(*) FROM tb_task WHERE organization_id = o.id) as total_tasks,
@@ -657,14 +669,14 @@ CREATE INDEX idx_task_org_status
     ON tb_task(organization_id, status);
 ```
 
-**2. Use computed views for expensive joins:**
+**2. Use materialized views for expensive aggregations:**
 ```sql
 -- Pre-compute expensive aggregations
-CREATE MATERIALIZED VIEW tv_organization_stats_cached AS
-SELECT ... FROM tv_organization_stats;
+CREATE MATERIALIZED VIEW mv_organization_stats AS
+SELECT * FROM tv_organization;
 
 -- Refresh periodically
-REFRESH MATERIALIZED VIEW CONCURRENTLY tv_organization_stats_cached;
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_organization_stats;
 ```
 
 **3. Enable connection pooling:**

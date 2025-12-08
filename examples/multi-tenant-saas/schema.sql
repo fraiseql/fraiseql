@@ -243,8 +243,8 @@ FROM tb_audit_log;
 -- COMPUTED VIEWS (tv_*) - Denormalized for performance
 -- ============================================================================
 
--- Project with owner details
-CREATE VIEW tv_project_with_owner AS
+-- Computed project view with owner details
+CREATE VIEW tv_project AS
 SELECT
     p.id,
     p.organization_id,
@@ -263,8 +263,8 @@ SELECT
 FROM tb_project p
 JOIN tb_user u ON p.owner_id = u.id;
 
--- Task with assigned user and project details
-CREATE VIEW tv_task_with_details AS
+-- Computed task view with assigned user and project details
+CREATE VIEW tv_task AS
 SELECT
     t.id,
     t.organization_id,
@@ -293,8 +293,8 @@ FROM tb_task t
 JOIN tb_project p ON t.project_id = p.id
 LEFT JOIN tb_user u ON t.assigned_to = u.id;
 
--- Organization statistics
-CREATE VIEW tv_organization_stats AS
+-- Computed organization view with statistics
+CREATE VIEW tv_organization AS
 SELECT
     o.id,
     o.name,

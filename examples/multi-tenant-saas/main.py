@@ -154,9 +154,9 @@ class AuditLog:
     created_at: datetime
 
 
-@fraiseql.type(sql_source="tv_organization_stats")
+@fraiseql.type(sql_source="tv_organization")
 class OrganizationStats:
-    """Organization statistics (computed view)."""
+    """Organization statistics (computed view tv_organization)."""
 
     id: UUID
     name: str
@@ -208,7 +208,7 @@ class Query:
             return None
 
         db = fraiseql.get_db(info.context)
-        return await db.find_one("tv_organization_stats", where={"id": org_id})
+        return await db.find_one("tv_organization", where={"id": org_id})
 
     @fraiseql.field
     async def users(
