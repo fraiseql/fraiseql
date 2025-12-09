@@ -1,7 +1,30 @@
-//! JSON parsing and transformation
+//! JSON parsing and transformation (Value-based API)
 //!
 //! This module provides direct JSON string → transformed JSON string conversion,
 //! bypassing Python dict intermediate steps for maximum performance.
+//!
+//! ## Architecture
+//!
+//! FraiseQL has **two JSON transformation strategies**:
+//! - **This module (json_transform.rs)**: Value-based API for PyO3, schema-aware
+//! - **core::transform**: Zero-copy streaming API for query pipeline (3-5x faster)
+//!
+//! ## When to Use This Module
+//!
+//! ✅ **Use `json_transform.rs` when**:
+//! - Called from Python via PyO3
+//! - Need schema-aware transformation (nested types)
+//! - Working with JSON strings (`String` → `String`)
+//! - Need `serde_json::Value` compatibility
+//! - Moderate volume (< 1000 req/sec)
+//!
+//! ❌ **Use `core::transform` instead when**:
+//! - GraphQL query pipeline (hot path)
+//! - Need streaming/zero-copy (3-5x faster, 80% less memory)
+//! - High volume (> 1000 req/sec)
+//! - Field projection required
+//!
+//! For detailed architecture rationale, see: `docs/json-transformation-guide.md`
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

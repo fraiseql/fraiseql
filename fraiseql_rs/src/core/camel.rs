@@ -1,4 +1,4 @@
-//! snake_case to camelCase conversion with multi-architecture SIMD support
+//! snake_case to camelCase conversion with multi-architecture SIMD support (Zero-copy API)
 //!
 //! This module provides optimized snake_case to camelCase conversion with:
 //! - x86_64: AVX2 SIMD (256-bit, 32 bytes at a time)
@@ -7,6 +7,27 @@
 //!
 //! The public API automatically selects the best implementation for the current
 //! architecture at compile time.
+//!
+//! ## Architecture
+//!
+//! FraiseQL has **two camelCase implementations** serving different needs:
+//! - **crate::camel_case**: String-based API for PyO3 and serde_json
+//! - **This module (core::camel)**: SIMD-optimized zero-copy API with arena allocation
+//!
+//! ## When to Use This Module
+//!
+//! ✅ **Use `core::camel` when**:
+//! - Hot path streaming transformation (4-16x faster with AVX2)
+//! - Zero-copy performance required (arena allocation available)
+//! - Processing byte slices (`&[u8]`)
+//! - High volume (> 1000 transformations/sec)
+//!
+//! ❌ **Use `crate::camel_case` instead when**:
+//! - Called from Python via PyO3
+//! - Working with `String` or `&str` types
+//! - Need recursive dictionary transformation
+//!
+//! For detailed architecture rationale, see: `docs/camel-case-apis.md`
 
 // Import architecture-specific intrinsics conditionally
 #[cfg(target_arch = "x86_64")]

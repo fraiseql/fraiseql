@@ -1,12 +1,34 @@
-//! Zero-copy JSON transformer
+//! Zero-copy JSON transformer (Streaming API)
 //!
 //! This module provides streaming JSON transformation without intermediate
 //! Value allocations. It reads JSON bytes directly and writes transformed
 //! output in a single pass.
+//!
+//! ## Architecture
+//!
+//! FraiseQL has **two JSON transformation strategies**:
+//! - **crate::json_transform**: Value-based API for PyO3, schema-aware
+//! - **This module (core::transform)**: Zero-copy streaming API for query pipeline
+//!
+//! ## When to Use This Module
+//!
+//! ✅ **Use `core::transform` when**:
+//! - GraphQL query pipeline (hot path, 3-5x faster than Value-based)
+//! - Need streaming/zero-copy (80% less memory)
+//! - High volume (> 1000 req/sec)
+//! - Field projection required
+//! - Arena allocator available
+//!
+//! ❌ **Use `crate::json_transform` instead when**:
+//! - Called from Python via PyO3
+//! - Need schema-aware transformation (nested types)
+//! - Working with JSON strings (`String` → `String`)
+//! - Need `serde_json::Value` compatibility
+//!
+//! For detailed architecture rationale, see: `docs/json-transformation-guide.md`
 
 use crate::core::arena::Arena;
 use crate::core::camel::snake_to_camel;
-use crate::json::escape;
 use crate::pipeline::projection::FieldSet;
 use pyo3::PyErr;
 
@@ -606,8 +628,30 @@ impl<'a> JsonWriter<'a> {
     /// Properly escapes JSON special characters
     #[inline]
     fn write_escaped(&mut self, bytes: &[u8]) -> Result<(), TransformError> {
-        escape::escape_json_string_scalar(bytes, self.output.as_mut_vec());
+        escape_json_string_scalar(bytes, self.output.as_mut_vec());
         Ok(())
+    }
+}
+
+/// JSON string escaping with proper character handling
+#[inline]
+fn escape_json_string_scalar(input: &[u8], output: &mut Vec<u8>) {
+    for &byte in input {
+        match byte {
+            b'"' => output.extend_from_slice(b"\\\""),
+            b'\\' => output.extend_from_slice(b"\\\\"),
+            b'\n' => output.extend_from_slice(b"\\n"),
+            b'\r' => output.extend_from_slice(b"\\r"),
+            b'\t' => output.extend_from_slice(b"\\t"),
+            0..=0x1F => {
+                output.extend_from_slice(b"\\u00");
+                let hex = byte / 16;
+                output.push(b"0123456789abcdef"[hex as usize]);
+                let hex = byte % 16;
+                output.push(b"0123456789abcdef"[hex as usize]);
+            }
+            _ => output.push(byte),
+        }
     }
 }
 

@@ -1,7 +1,28 @@
-//! Snake case to camel case conversion
+//! Snake case to camel case conversion (String-based API)
 //!
 //! This module provides ultra-fast snake_case → camelCase conversion
 //! for GraphQL field names.
+//!
+//! ## Architecture
+//!
+//! FraiseQL has **two camelCase implementations** serving different needs:
+//! - **This module (camel_case.rs)**: String-based API for PyO3 and serde_json
+//! - **core::camel**: SIMD-optimized zero-copy API for streaming transformation
+//!
+//! ## When to Use This Module
+//!
+//! ✅ **Use `camel_case.rs` when**:
+//! - Called from Python via PyO3
+//! - Transforming `serde_json::Value` objects
+//! - Working with `String` or `&str` types
+//! - Need recursive dictionary transformation
+//!
+//! ❌ **Use `core::camel` instead when**:
+//! - Hot path streaming transformation (3-5x faster)
+//! - Zero-copy performance required (arena allocation)
+//! - Processing byte slices (`&[u8]`)
+//!
+//! For detailed architecture rationale, see: `docs/camel-case-apis.md`
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
