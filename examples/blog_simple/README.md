@@ -1,6 +1,23 @@
 # FraiseQL Blog Simple - Complete Example Application
 
+🟢 BEGINNER | ⏱️ 45 min | 🎯 Content Management | 🏷️ Trinity Pattern
+
 A complete blog application demonstrating FraiseQL's fundamental patterns and best practices.
+
+**What you'll learn:**
+- Trinity Pattern for secure identifier management
+- CQRS architecture with PostgreSQL functions
+- Complete CRUD operations with enterprise patterns
+- Authentication and role-based access control
+- Database-first GraphQL API design
+
+**Prerequisites:**
+- None (great starting point!)
+
+**Next steps:**
+- `../blog_api/` - Add enterprise mutation patterns
+- `../ecommerce/` - Complex business logic
+- `../enterprise_patterns/` - Advanced enterprise features
 
 ## 🌟 Overview
 
@@ -20,7 +37,7 @@ This example demonstrates FraiseQL's opinionated approach with **Trinity Pattern
 - **GraphQL API** exposes only `id` (UUID) and `identifier` (slug) fields
 - **Internal operations** use fast `pk_*` INT joins for performance
 - **Security** through separate public/internal identifiers
-- **See**: [Trinity Pattern Guide](../../docs/database/trinity-pattern.md) for complete explanation
+- **See**: [Trinity Pattern Guide](../../docs/core/trinity-pattern.md) for complete explanation
 - **Python code** uses UUIDs exclusively for relationships
 - **Database layer** uses views with JOINs to expose UUID relationships
 - **Mutations** delegate to PostgreSQL functions for business logic
@@ -199,8 +216,8 @@ fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE
 - **Flexibility**: All three types available for different use cases
 
 ### Learn More
-- [Trinity Identifiers Guide](../../docs/database/trinity_identifiers.md)
-- [Table Naming Conventions](../../docs/database/TABLE_NAMING_CONVENTIONS.md)
+- [Trinity Identifiers Guide](../../docs/database/trinity-identifiers.md)
+- [Table Naming Conventions](../../docs/database/table-naming-conventions.md)
 - [Migration Guide](../../docs/database/migrations.md)
 
 ---
@@ -577,3 +594,10 @@ After mastering this simple example:
 ---
 
 **This simple blog demonstrates FraiseQL's power for building clean, testable GraphQL APIs with PostgreSQL.**
+
+## Support
+
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
+- **Discord**: [FraiseQL Community](https://discord.gg/fraiseql)
+- **Documentation**: [FraiseQL Docs](../../docs)

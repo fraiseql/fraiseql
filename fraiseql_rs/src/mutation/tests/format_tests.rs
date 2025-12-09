@@ -151,7 +151,7 @@ fn test_parse_invalid_json_fails() {
 #[test]
 fn test_build_simple_format_response() {
     let result = MutationResult {
-        status: MutationStatus::New,
+        status: MutationStatus::Success("created".to_string()),
         message: "User created".to_string(),
         entity_id: None,
         entity_type: Some("User".to_string()),
@@ -184,7 +184,7 @@ fn test_build_simple_format_response() {
 fn test_build_simple_format_with_status_data_field() {
     // When simple format has "status" in entity, it should be renamed to "statusData"
     let result = MutationResult {
-        status: MutationStatus::New,
+        status: MutationStatus::Success("created".to_string()),
         message: "Task created".to_string(),
         entity_id: None,
         entity_type: Some("Task".to_string()),
@@ -218,7 +218,7 @@ fn test_build_simple_format_with_status_data_field() {
 #[test]
 fn test_build_full_success_response() {
     let result = MutationResult {
-        status: MutationStatus::New,
+        status: MutationStatus::Success("created".to_string()),
         message: "User created".to_string(),
         entity_id: Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
         entity_type: Some("User".to_string()),
@@ -251,7 +251,7 @@ fn test_build_full_success_response() {
 #[test]
 fn test_build_full_error_response() {
     let result = MutationResult {
-        status: MutationStatus::Failed("failed:validation".to_string()),
+        status: MutationStatus::Error("failed:validation".to_string()),
         message: "Email already exists".to_string(),
         entity_id: None,
         entity_type: None,
@@ -287,7 +287,7 @@ fn test_build_full_error_response() {
 #[test]
 fn test_build_simple_format_array_response() {
     let result = MutationResult {
-        status: MutationStatus::New,
+        status: MutationStatus::Success("created".to_string()),
         message: "Users created".to_string(),
         entity_id: None,
         entity_type: Some("User".to_string()),
@@ -343,7 +343,7 @@ fn test_parse_simple_format_with_cascade() {
 #[test]
 fn test_build_simple_format_response_with_cascade() {
     let result = MutationResult {
-        status: MutationStatus::Updated,
+        status: MutationStatus::Success("updated".to_string()),
         message: "Post updated".to_string(),
         entity_id: None,
         entity_type: Some("Post".to_string()),
@@ -373,8 +373,8 @@ fn test_build_simple_format_response_with_cascade() {
         Some("post"),
         Some("Post"),
         true,
-        Some(r#"{"cascade": true}"#),
-        None,
+        None,  // success_type_fields
+        Some(r#"{"cascade": true}"#),  // cascade_selections
     ).unwrap();
 
     let data = &response["data"]["updatePost"];

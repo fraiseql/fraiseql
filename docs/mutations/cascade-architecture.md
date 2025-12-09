@@ -530,7 +530,7 @@ SELECT _cascade FROM graphql.function_call();
 
 ## Migration Guide
 
-See `docs/mutations/migration_guide.md` for detailed migration instructions.
+See `docs/mutations/migration-guide.md` for detailed migration instructions.
 
 ## Testing
 
@@ -633,6 +633,6 @@ See `docs/guides/troubleshooting.md` for detailed troubleshooting guides.
 ## Related Documentation
 
 - `docs/guides/cascade-best-practices.md` - Usage best practices
-- `docs/mutations/migration_guide.md` - Migration instructions
+- `docs/mutations/migration-guide.md` - Migration instructions
 - `examples/graphql-cascade/` - Working examples
 - `docs/guides/troubleshooting.md` - Troubleshooting guide

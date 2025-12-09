@@ -9,7 +9,7 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 **Prerequisites**: Before implementing multi-tenancy, ensure you understand:
 - [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
 - [Security Basics](../production/security.md) - RLS and access control fundamentals
-- [Context Propagation](../advanced/where_input_types.md) - Dynamic filtering patterns
+- [Context Propagation](../advanced/where-input-types.md) - Dynamic filtering patterns
 
 **Key Strategies:**
 - Row-level security (RLS) with tenant_id filtering

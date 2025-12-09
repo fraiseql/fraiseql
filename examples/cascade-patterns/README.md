@@ -151,8 +151,8 @@ Common issues and solutions demonstrated:
 
 ## Related Documentation
 
-- `docs/mutations/cascade_architecture.md` - Complete architecture overview
-- `docs/mutations/migration_guide.md` - Step-by-step migration instructions
+- `docs/mutations/cascade-architecture.md` - Complete architecture overview
+- `docs/mutations/migration-guide.md` - Step-by-step migration instructions
 - `docs/guides/cascade-best-practices.md` - Usage best practices
 - `docs/guides/troubleshooting.md` - Troubleshooting guide</content>
 </xai:function_call<parameter name="filePath">examples/cascade-patterns/create_post/main.py

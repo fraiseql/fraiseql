@@ -1,5 +1,13 @@
 # SQL Function Return Format for FraiseQL Mutations
 
+**⚠️ This document has been consolidated into the new comprehensive guide.**
+
+**📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)**
+
+---
+
+**Legacy Content Below** (for reference during migration)
+
 **Navigation**: [← Queries & Mutations](../core/queries-and-mutations.md) • [Mutation Result Reference →](mutation-result-reference.md) • [GraphQL Cascade →](graphql-cascade.md)
 
 ## Overview
@@ -143,7 +151,7 @@ See [Mutation Result Reference](mutation-result-reference.md) for complete v2 fo
 
 ## Ultra-Direct Path Compatibility
 
-FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002_ultra_direct_mutation_path.md)) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.
+FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002-ultra-direct-mutation-path.md)) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.
 
 ### Requirements for Ultra-Direct Path
 
@@ -838,7 +846,7 @@ END LOOP;
 - [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications (v1.7+)
 - [Queries and Mutations](../core/queries-and-mutations.md) - FraiseQL mutation decorator
 - [GraphQL Cascade](graphql-cascade.md) - Full cascade specification
-- [ADR-002: Ultra-Direct Mutation Path](../architecture/decisions/002_ultra_direct_mutation_path.md) - Performance optimization
+- [ADR-002: Ultra-Direct Mutation Path](../architecture/decisions/002-ultra-direct-mutation-path.md) - Performance optimization
 - [PostgreSQL Extensions](../core/postgresql-extensions.md) - Database setup
 
 ---

@@ -481,7 +481,7 @@ Ensure your AWS IAM user/role has these permissions:
 
 ## Related Documentation
 
-- [Skipped Tests Overview](SKIPPED_TESTS.md) - Complete list of all skipped tests
+- [Skipped Tests Overview](skipped-tests.md) - Complete list of all skipped tests
 - [Security Configuration](../security/configuration.md) - Production KMS setup
 
 - [KMS Architecture ADR](../architecture/decisions/0003-kms-architecture.md) - KMS design decisions

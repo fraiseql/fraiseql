@@ -788,7 +788,7 @@ Follow the 8-week timeline above.
 **Primary Sources** (synthesized into this vision):
 - `FRAISEQL_V1_BLUEPRINT.md` - Original vision
 - `V1_COMPONENT_PRDS.md` - Component specifications
-- `V1_ADVANCED_PATTERNS.md` - Trinity + Functions patterns
+- `v1-advanced-patterns.md` - Trinity + Functions patterns
 - `V1_NEXT_STEPS.md` - Action planning
 
 **Archived** (production-focused, for v2):

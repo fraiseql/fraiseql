@@ -1,7 +1,7 @@
 # View Strategies for FraiseQL
 
 **Time to Complete:** 15 minutes
-**Prerequisites:** Understanding of [Table Naming Conventions](./TABLE_NAMING_CONVENTIONS.md)
+**Prerequisites:** Understanding of [Table Naming Conventions](./table-naming-conventions.md)
 
 ## Overview
 
@@ -357,8 +357,8 @@ SELECT
 
 ## Next Steps
 
-- [Table Naming Conventions](./TABLE_NAMING_CONVENTIONS.md) - Complete naming reference
-- [Database Level Caching](./DATABASE_LEVEL_CACHING.md) - Caching strategies
+- [Table Naming Conventions](./table-naming-conventions.md) - Complete naming reference
+- [Database Level Caching](./database-level-caching.md) - Caching strategies
 - [Migration Guide](./migrations.md) - Migrate between patterns
 
 ---

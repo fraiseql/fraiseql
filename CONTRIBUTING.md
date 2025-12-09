@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to FraiseQL!
 
-> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft. See [docs/development/PHILOSOPHY.md](docs/development/PHILOSOPHY.md) to understand the project's design principles and collaborative approach.
+> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft. See [docs/development/philosophy.md](docs/development/philosophy.md) to understand the project's design principles and collaborative approach.
 
 ## Getting Started
 

@@ -460,9 +460,9 @@ After successful migration:
 ## Related Documentation
 
 - [**Confiture**](https://github.com/fraiseql/confiture) - Official FraiseQL migration tool (production-ready)
-- [Table Naming Conventions](./TABLE_NAMING_CONVENTIONS.md) - Complete naming reference
-- [View Strategies](./VIEW_STRATEGIES.md) - When to use v_* vs tv_* vs mv_*
-- [Trinity Identifiers](./trinity_identifiers.md) - Three-tier ID system
+- [Table Naming Conventions](./table-naming-conventions.md) - Complete naming reference
+- [View Strategies](./view-strategies.md) - When to use v_* vs tv_* vs mv_*
+- [Trinity Identifiers](./trinity-identifiers.md) - Three-tier ID system
 - [Example Migration Script](./example-migration.sql) - Ready-to-use SQL script
 
 ---

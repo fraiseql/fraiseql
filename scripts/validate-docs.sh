@@ -140,6 +140,7 @@ validate_links() {
     done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
         -not -path "*/archive/*" \
         -not -path "*/dev/audits/*" \
+        -not -path "*/.phases/*" \
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \
@@ -474,6 +475,7 @@ validate_code_syntax() {
     done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
         -not -path "*/archive/*" \
         -not -path "*/dev/audits/*" \
+        -not -path "*/.phases/*" \
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \

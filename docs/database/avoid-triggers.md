@@ -733,9 +733,9 @@ async def create_post(
 ---
 
 **Related Documentation:**
-- [Trinity Pattern](trinity-pattern.md) - FraiseQL's tb_/v_/tv_ naming
+- [Trinity Pattern](../core/trinity-pattern.md) - FraiseQL's tb_/v_/tv_ naming
 - [Database Patterns](../advanced/database-patterns.md) - Advanced patterns
-- [Audit Trails](../../src/fraiseql/enterprise/README.md) - Enterprise audit system
+- [Audit Trails](../security-compliance/README.md) - Enterprise audit system
 
 ---
 

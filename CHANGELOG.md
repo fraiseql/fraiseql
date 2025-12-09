@@ -7,7 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.8.0-beta.4] - 2025-12-08
+## [1.8.0-beta.4] - 2025-12-09
+
+### Performance
+- **JSON transformation optimization**: Eliminated unnecessary scalar field clones in `transform_with_schema()` by cloning the map once and using `.remove()` for ownership transfer. Expected speedup of 15-40% for mutation responses with 5+ fields (WP-035 Phase 3)
+
+### Added (Features)
+- **Native error arrays**: ALL mutation error responses now automatically include `errors: list[Error]` array, populated from status strings by Rust pipeline. `MutationResultBase` is now optional for backward compatibility (WP-034 engineering)
+
+### Developer Experience (WP-036)
+- **Quick Reference Cheat Sheet**: Single-page reference covering 90% of mutation use cases with copy-paste ready examples (`docs/quick-reference/mutations-cheat-sheet.md`)
+- **Comprehensive Troubleshooting Guide**: 633-line guide covering top 10 mutation issues with symptom-diagnosis-solution format, including performance troubleshooting and 8-step debug checklist (`docs/guides/troubleshooting-mutations.md`)
+- **SQL Validation Helpers**: 6 production-ready helper functions for validating mutation responses during development (`sql/helpers/mutation_validation.sql`):
+  - `validate_status_format()` - Check status string convention
+  - `validate_errors_array()` - Validate metadata.errors structure
+  - `validate_mutation_response()` - Comprehensive validation
+  - `build_error_object()` - Build properly formatted error objects
+  - `get_expected_code()` - Get HTTP code for status string
+  - `extract_identifier()` - Extract identifier from status
+  - `mutation_assert()` - Conditional assertion (throws in debug, warns in production)
+- **VS Code Extension**: Productivity extension with 10 snippets for FraiseQL mutations (packaged as `.vscode-extension/fraiseql/fraiseql-tools-1.0.0.vsix`):
+  - `fraiseql-mutation` - Complete mutation function template
+  - `fraiseql-error-simple` - Simple error (Pattern 1)
+  - `fraiseql-error-explicit` - Explicit errors (Pattern 2)
+  - `fraiseql-not-found` - Not found check pattern
+  - `fraiseql-duplicate` - Duplicate check pattern
+  - `fraiseql-assert` - Validation assertion
+  - `fraiseql-extract` - Extract from input_payload
+  - `fraiseql-success` - Success response
+  - `fraiseql-collect-errors` - Multiple errors collection
+  - `fraiseql-build-error` - Build error object
+- **18 Real-World Mutation Examples**: Production-ready patterns covering all common use cases (`examples/mutation-patterns/`):
+  - **Basic CRUD**: create-user, update-user, delete-user
+  - **Validation**: simple-validation, multiple-field-validation, custom-validation-rules
+  - **Business Logic**: conditional-update, state-machine, calculated-fields
+  - **Relationships**: create-with-children, update-with-cascade, delete-with-cascade
+  - **Error Handling**: not-found, conflict-duplicate, permission-denied
+  - **Advanced**: bulk-operations, transaction-rollback, async-processing
+  - Each example includes comprehensive comments, usage examples, and expected responses
+  - Total: ~3,500 lines of copy-paste ready SQL code
 
 ### Fixed
 - **Input parameter camelCase to snake_case conversion**: Mutation input parameters with camelCase field names are now properly converted to snake_case before being sent to PostgreSQL functions. This fixes silent failures when using `jsonb_populate_record()` with composite types that have snake_case field names. When `auto_camel_case=True`, the framework now bidirectionally converts input parameters (camelCase → snake_case) and output fields (snake_case → camelCase), ensuring full compatibility with PostgreSQL naming conventions.
@@ -19,7 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-tenant SaaS example**: Comprehensive example showing tenant isolation, RLS policies, and trinity pattern usage (WP-018)
 - **Compliance demo example**: Production-ready example with SLSA provenance, audit trails, and security best practices (WP-019)
 
+### Internal
+- **Rust test organization**: Reorganized 63 mutation tests from single 1,725-line file into 7 focused modules (< 600 lines each) for better maintainability. Added property-based tests and comprehensive test documentation (WP-035 Phase 2)
+- **Rust API documentation**: Added comprehensive documentation for dual camelCase/snake_case API architecture and JSON transformation internals (WP-035 Phase 1)
+
 ### Documentation
+- **Code documentation**: Enhanced Python docstrings in `field_counter.py`, `exceptions.py`, `generic.py`, `__version__.py`, and `rust_pipeline.py` with detailed explanations and examples
+- **Documentation audit**: Created comprehensive documentation inventory identifying 3 missing example READMEs and establishing quality metrics
+- **Example documentation**: Added detailed READMEs for `query_patterns`, `migrations`, and `observability` examples with standardized format
+- **File naming standardization**: Converted all documentation files to lowercase kebab-case for consistency (e.g., `README_template.md` → `readme-template.md`)
+- **Opinionated patterns documentation**: Created central `docs/database/README.md` (904 lines) as authoritative index for FraiseQL's PostgreSQL patterns, plus consolidated mutation SQL requirements guide (WP-034 documentation portion)
+- **Documentation improvements from WP-001 through WP-025**: Fixed SQL naming consistency, validated all code examples, eliminated contradictions, validated links, and completed persona reviews
 - **Trinity pattern migration guide**: Complete guide for migrating from simple table names to the trinity pattern (tb_/v_/tv_) with step-by-step instructions (WP-003)
 - **Framework migration guides**: Comprehensive guides for migrating from Django, FastAPI, SQLAlchemy, and Hasura to FraiseQL (WP-028)
 - **RAG tutorial**: Step-by-step tutorial for building semantic search with vector operations and embeddings (WP-007)
@@ -34,8 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation quality improvements**: Fixed SQL naming consistency (WP-001, WP-002, WP-005, WP-006), validated all code examples (WP-020, WP-021), eliminated contradictions (WP-022), validated links (WP-023), and completed persona reviews (WP-024, WP-025)
 
 ### Notes
-- This release combines a critical bug fix (camelCase conversion) with comprehensive documentation improvements and new production-ready examples
-- All 18 P0 documentation work packages completed with quality gate approval
+- This release combines a critical bug fix (camelCase conversion), performance optimization (JSON transformation), native error arrays (WP-034), comprehensive documentation improvements, and new production-ready examples
+- All 18 P0 documentation work packages completed with quality gate approval (WP-001 through WP-025)
+- WP-034 complete: Native error arrays + opinionated patterns documentation
+- WP-035 improvements: Performance optimization (Phase 3), test organization (Phase 2), and enhanced code documentation (Phase 1)
+- **WP-036 complete**: Developer experience enhancements with quick reference, troubleshooting guide, SQL validation helpers, VS Code extension, and 18 mutation pattern examples
 - Beta release for testing - suitable for production evaluation
 
 ## [1.8.0-beta.1] - 2025-12-07
@@ -1884,7 +1935,7 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 🚀 Next Steps
 
-See [docs/strategic/VERSION_STATUS.md](docs/strategic/VERSION_STATUS.md) for the v1.1+ roadmap.
+See [docs/strategic/version-status.md](docs/strategic/version-status.md) for the v1.1+ roadmap.
 
 ---
 

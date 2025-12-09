@@ -153,7 +153,7 @@ spec:
 
 **Goal:** Configure PostgreSQL for production workloads
 
-**Read:** [Database Configuration](../database/README.md)
+**Read:** [Database Configuration](../database/table-naming-conventions.md)
 
 **PostgreSQL Production Configuration:**
 
@@ -318,7 +318,7 @@ kubectl create configmap grafana-dashboards \
 
 **3. Loki Log Aggregation:**
 
-**Read:** [Loki Integration](../production/loki_integration.md)
+**Read:** [Loki Integration](../production/loki-integration.md)
 
 **Loki Configuration:**
 ```yaml

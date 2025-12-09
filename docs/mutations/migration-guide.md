@@ -856,7 +856,7 @@ FROM graphql.create_post('{"title": "Test"}');
 
 ## Support Resources
 
-- **Architecture Documentation**: `docs/mutations/cascade_architecture.md`
+- **Architecture Documentation**: `docs/mutations/cascade-architecture.md`
 - **Best Practices**: `docs/guides/cascade-best-practices.md`
 - **Examples**: `examples/graphql-cascade/`
 - **Troubleshooting**: `docs/guides/troubleshooting.md`

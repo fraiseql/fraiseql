@@ -4,35 +4,47 @@
 //! GraphQL field selections. It operates on raw JSONB from PostgreSQL and
 //! applies filtering before Python serialization.
 
+use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
+
+fn deserialize_fields_as_hashset<'de, D>(deserializer: D) -> Result<HashSet<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let vec: Vec<String> = Deserialize::deserialize(deserializer)?;
+    Ok(vec.into_iter().collect())
+}
 
 #[cfg(test)]
 mod tests;
 
 /// Cascade field selection metadata from GraphQL query
-#[derive(Debug, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct CascadeSelections {
-    /// Selected fields at cascade root level
-    /// e.g., ["updated", "deleted", "invalidations"]
+    #[serde(deserialize_with = "deserialize_fields_as_hashset")]
     pub fields: HashSet<String>,
+    #[serde(default)]
+    pub updated: Option<FieldSelections>,
+    #[serde(default)]
+    pub deleted: Option<FieldSelections>,
+    #[serde(default)]
+    pub invalidations: Option<FieldSelections>,
+    #[serde(default)]
+    pub metadata: Option<FieldSelections>,
+}
 
-    /// Type filters for 'updated' field
-    /// e.g., ["Post", "User"] for include: ["Post", "User"]
-    pub updated_include: Option<Vec<String>>,
-    pub updated_exclude: Option<Vec<String>>,
+#[derive(Debug, Deserialize)]
+pub struct FieldSelections {
+    pub fields: Vec<String>,
+    #[serde(default)]
+    pub entity_selections: Option<EntitySelections>,
+}
 
-    /// Field selections for 'updated' array items
-    pub updated_fields: Option<HashSet<String>>,
-
-    /// Field selections for 'updated.entity' objects
-    /// Keyed by __typename, contains field names
-    pub entity_selections: Map<String, Value>,
-
-    /// Field selections for other cascade fields
-    pub deleted_fields: Option<HashSet<String>>,
-    pub invalidations_fields: Option<HashSet<String>>,
-    pub metadata_fields: Option<HashSet<String>>,
+#[derive(Debug, Deserialize)]
+pub struct EntitySelections {
+    #[serde(flatten)]
+    pub type_selections: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl CascadeSelections {
@@ -43,8 +55,6 @@ impl CascadeSelections {
     /// {
     ///   "fields": ["updated", "deleted", "invalidations"],
     ///   "updated": {
-    ///     "include": ["Post", "User"],
-    ///     "exclude": null,
     ///     "fields": ["__typename", "id", "operation", "entity"],
     ///     "entity_selections": {
     ///       "Post": ["id", "title", "content"],
@@ -57,81 +67,74 @@ impl CascadeSelections {
     /// }
     /// ```
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        let v: Value = serde_json::from_str(json_str)
-            .map_err(|e| format!("Invalid cascade selections JSON: {}", e))?;
-
-        // Parse root fields
-        let fields = v
-            .get("fields")
-            .and_then(|f| f.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        // Parse updated filters
-        let updated_obj = v.get("updated");
-        let updated_include = updated_obj
-            .and_then(|u| u.get("include"))
-            .and_then(|i| i.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            });
-
-        let updated_exclude = updated_obj
-            .and_then(|u| u.get("exclude"))
-            .and_then(|e| e.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            });
-
-        let updated_fields = updated_obj
-            .and_then(|u| u.get("fields"))
-            .and_then(Self::parse_field_set_from_value);
-
-        // Parse entity selections
-        let entity_selections = updated_obj
-            .and_then(|u| u.get("entity_selections"))
-            .and_then(|e| e.as_object())
-            .cloned()
-            .unwrap_or_default();
-
-        // Parse deleted, invalidations, metadata fields
-        let deleted_fields = Self::parse_field_set(&v, "deleted");
-        let invalidations_fields = Self::parse_field_set(&v, "invalidations");
-        let metadata_fields = Self::parse_field_set(&v, "metadata");
-
-        Ok(CascadeSelections {
-            fields,
-            updated_include,
-            updated_exclude,
-            updated_fields,
-            entity_selections,
-            deleted_fields,
-            invalidations_fields,
-            metadata_fields,
-        })
+        serde_json::from_str(json_str)
+            .map_err(|e| format!("Invalid cascade selections JSON: {}", e))
     }
 
-    fn parse_field_set(v: &Value, field_name: &str) -> Option<HashSet<String>> {
-        v.get(field_name)
-            .and_then(|f| f.get("fields"))
-            .and_then(Self::parse_field_set_from_value)
+
+}
+
+/// Filter cascade value based on GraphQL field selections
+///
+/// This function operates on serde_json::Value for cases where
+/// you already have parsed JSON and want to avoid serialize/deserialize overhead.
+pub fn filter_cascade_by_selections(
+    cascade: &Value,
+    selections: &CascadeSelections,
+    auto_camel_case: bool,
+) -> Result<Value, String> {
+    if selections.fields.is_empty() {
+        return Ok(Value::Object(Map::new()));
     }
 
-    fn parse_field_set_from_value(v: &Value) -> Option<HashSet<String>> {
-        v.as_array().map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
+    let cascade_obj = match cascade {
+        Value::Object(obj) => obj,
+        _ => return Err("CASCADE must be an object".to_string()),
+    };
+
+    let mut filtered = Map::with_capacity(selections.fields.len());
+
+    for field_name in &selections.fields {
+        let key = convert_field_name(field_name, auto_camel_case);
+
+        if let Some(value) = cascade_obj.get(&key) {
+            let filtered_value = match field_name.as_str() {
+                "updated" => filter_updated_field(value, selections.updated.as_ref())?,
+                "deleted" => filter_simple_field(value, selections.deleted.as_ref())?,
+                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref())?,
+                "metadata" => filter_simple_field(value, selections.metadata.as_ref())?,
+                _ => value.clone(),
+            };
+
+            filtered.insert(key, filtered_value);
+        }
     }
+
+    Ok(Value::Object(filtered))
+}
+
+fn convert_field_name(field_name: &str, auto_camel_case: bool) -> String {
+    if !auto_camel_case {
+        return field_name.to_string();
+    }
+
+    let mut result = String::new();
+    let mut capitalize_next = false;
+
+    for (i, ch) in field_name.chars().enumerate() {
+        if ch == '_' {
+            capitalize_next = true;
+        } else if capitalize_next {
+            result.push(ch.to_ascii_uppercase());
+            capitalize_next = false;
+        } else if i == 0 {
+            result.push(ch.to_ascii_lowercase());
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 /// Filter cascade data based on GraphQL field selections
@@ -183,133 +186,101 @@ fn filter_cascade_object(
     // Remove fields not in selections
     obj.retain(|key, _| selections.fields.contains(key));
 
-    // Filter 'updated' array
-    if let Some(updated) = obj.get_mut("updated") {
-        filter_updated_array(updated, selections)?;
-    }
-
-    // Filter 'deleted' array
-    if let Some(deleted) = obj.get_mut("deleted") {
-        filter_simple_array(deleted, &selections.deleted_fields)?;
-    }
-
-    // Filter 'invalidations' array
-    if let Some(invalidations) = obj.get_mut("invalidations") {
-        filter_simple_array(invalidations, &selections.invalidations_fields)?;
-    }
-
-    // Filter 'metadata' object
-    if let Some(metadata) = obj.get_mut("metadata") {
-        filter_metadata_object(metadata, &selections.metadata_fields)?;
-    }
-
-    Ok(())
-}
-
-/// Filter the 'updated' array based on type filters and field selections
-fn filter_updated_array(updated: &mut Value, selections: &CascadeSelections) -> Result<(), String> {
-    let Some(arr) = updated.as_array_mut() else {
-        return Ok(());
-    };
-
-    // Apply type filtering (include/exclude)
-    if let Some(ref include_types) = selections.updated_include {
-        arr.retain(|item| {
-            item.get("__typename")
-                .and_then(|t| t.as_str())
-                .map(|typename| include_types.iter().any(|t| t == typename))
-                .unwrap_or(false)
-        });
-    } else if let Some(ref exclude_types) = selections.updated_exclude {
-        arr.retain(|item| {
-            item.get("__typename")
-                .and_then(|t| t.as_str())
-                .map(|typename| !exclude_types.iter().any(|t| t == typename))
-                .unwrap_or(true)
-        });
-    }
-
-    // Apply field selections to each item
-    for item in arr.iter_mut() {
-        if let Some(obj) = item.as_object_mut() {
-            filter_updated_item(obj, selections)?;
+    // Filter each selected field
+    for field_name in &selections.fields {
+        if let Some(value) = obj.get_mut(field_name) {
+            let filtered_value = match field_name.as_str() {
+                "updated" => filter_updated_field(value, selections.updated.as_ref())?,
+                "deleted" => filter_simple_field(value, selections.deleted.as_ref())?,
+                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref())?,
+                "metadata" => filter_simple_field(value, selections.metadata.as_ref())?,
+                _ => continue, // No filtering needed for unknown fields
+            };
+            *value = filtered_value;
         }
     }
 
     Ok(())
 }
 
-/// Filter a single updated item
-fn filter_updated_item(
-    item: &mut Map<String, Value>,
-    selections: &CascadeSelections,
-) -> Result<(), String> {
-    // Filter item fields if specified
-    if let Some(ref fields) = selections.updated_fields {
-        item.retain(|key, _| fields.contains(key));
+fn filter_updated_field(
+    value: &Value,
+    field_selections: Option<&FieldSelections>,
+) -> Result<Value, String> {
+    let Some(selections) = field_selections else {
+        return Ok(value.clone());
+    };
+
+    if let Value::Array(entities) = value {
+        let filtered_entities: Vec<Value> = entities
+            .iter()
+            .map(|entity| filter_entity_fields(entity, &selections.fields))
+            .collect::<Result<_, _>>()?;
+
+        Ok(Value::Array(filtered_entities))
+    } else {
+        Ok(value.clone())
     }
+}
 
-    // Get typename for entity field selection (owned String to avoid borrow conflicts)
-    let typename: String = item
-        .get("__typename")
-        .and_then(|t| t.as_str())
-        .map(String::from)
-        .unwrap_or_default();
+fn filter_simple_field(
+    value: &Value,
+    field_selections: Option<&FieldSelections>,
+) -> Result<Value, String> {
+    let Some(selections) = field_selections else {
+        return Ok(value.clone());
+    };
 
-    // Filter entity object
-    if let Some(entity) = item.get_mut("entity") {
-        if let Some(entity_obj) = entity.as_object_mut() {
-            // Get field selection for this typename
-            if let Some(field_selection) = selections.entity_selections.get(&typename) {
-                if let Some(fields_arr) = field_selection.as_array() {
-                    let fields: HashSet<String> = fields_arr
-                        .iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect();
-                    entity_obj.retain(|key, _| fields.contains(key));
-                }
-            }
+    if let Value::Array(items) = value {
+        let filtered_items: Vec<Value> = items
+            .iter()
+            .map(|item| filter_object_fields(item, &selections.fields))
+            .collect::<Result<_, _>>()?;
+
+        Ok(Value::Array(filtered_items))
+    } else if let Value::Object(_) = value {
+        filter_object_fields(value, &selections.fields)
+    } else {
+        Ok(value.clone())
+    }
+}
+
+fn filter_entity_fields(entity: &Value, fields: &[String]) -> Result<Value, String> {
+    let entity_obj = match entity {
+        Value::Object(obj) => obj,
+        _ => return Ok(entity.clone()),
+    };
+
+    let mut filtered = Map::new();
+
+    for field in fields {
+        if let Some(value) = entity_obj.get(field) {
+            filtered.insert(field.clone(), value.clone());
         }
     }
 
-    Ok(())
-}
-
-/// Filter a simple array (deleted, invalidations)
-fn filter_simple_array(
-    arr: &mut Value,
-    field_selection: &Option<HashSet<String>>,
-) -> Result<(), String> {
-    let Some(arr_val) = arr.as_array_mut() else {
-        return Ok(());
-    };
-
-    let Some(fields) = field_selection else {
-        return Ok(());
-    };
-
-    for item in arr_val.iter_mut() {
-        if let Some(obj) = item.as_object_mut() {
-            obj.retain(|key, _| fields.contains(key));
+    if !filtered.contains_key("__typename") {
+        if let Some(typename) = entity_obj.get("__typename") {
+            filtered.insert("__typename".to_string(), typename.clone());
         }
     }
 
-    Ok(())
+    Ok(Value::Object(filtered))
 }
 
-/// Filter metadata object
-fn filter_metadata_object(
-    metadata: &mut Value,
-    field_selection: &Option<HashSet<String>>,
-) -> Result<(), String> {
-    let Some(obj) = metadata.as_object_mut() else {
-        return Ok(());
+fn filter_object_fields(obj: &Value, fields: &[String]) -> Result<Value, String> {
+    let obj_map = match obj {
+        Value::Object(map) => map,
+        _ => return Ok(obj.clone()),
     };
 
-    let Some(fields) = field_selection else {
-        return Ok(());
-    };
+    let mut filtered = Map::new();
 
-    obj.retain(|key, _| fields.contains(key));
-    Ok(())
+    for field in fields {
+        if let Some(value) = obj_map.get(field) {
+            filtered.insert(field.clone(), value.clone());
+        }
+    }
+
+    Ok(Value::Object(filtered))
 }

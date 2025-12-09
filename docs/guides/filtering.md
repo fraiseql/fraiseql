@@ -8,7 +8,7 @@ FraiseQL provides powerful, flexible filtering capabilities for both GraphQL que
 
 | Use Case | Syntax | Link |
 |----------|--------|------|
-| Static queries with IDE autocomplete | WhereType | [WhereType Guide](../advanced/where_input_types.md) |
+| Static queries with IDE autocomplete | WhereType | [WhereType Guide](../advanced/where-input-types.md) |
 | Dynamic/runtime-built filters | Dict-based | [Dict-Based Syntax](#dict-based-filtering) |
 | Need operator reference | Both | [Filter Operators](../advanced/filter-operators.md) |
 | Side-by-side comparison | Both | [Syntax Comparison](../reference/where-clause-syntax-comparison.md) |
@@ -40,7 +40,7 @@ async def active_users(info) -> list[User]:
 - Compile-time error detection
 - Self-documenting code
 
-For complete documentation: **[Where Input Types Guide](../advanced/where_input_types.md)**
+For complete documentation: **[Where Input Types Guide](../advanced/where-input-types.md)**
 
 ---
 
@@ -265,6 +265,6 @@ Dict-based filters support 2-level nesting only:
 ## Next Steps
 
 - **[Filter Operators Reference](../advanced/filter-operators.md)** - Complete operator documentation
-- **[WhereType Deep Dive](../advanced/where_input_types.md)** - Type-safe filtering patterns
+- **[WhereType Deep Dive](../advanced/where-input-types.md)** - Type-safe filtering patterns
 - **[Syntax Comparison](../reference/where-clause-syntax-comparison.md)** - WhereType vs Dict side-by-side
 - **[Advanced Examples](../examples/advanced-filtering.md)** - Real-world filtering patterns

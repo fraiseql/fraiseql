@@ -481,10 +481,10 @@ SELECT
 
 ## Next Steps
 
-- [Database Naming Conventions](./naming-conventions.md) - Complete naming reference
+- [Database Naming Conventions](../database/table-naming-conventions.md) - Complete naming reference
 - [Migration Guide](./migrations.md) - Migrate from simple tables
-- [View Strategies](./view-strategies.md) - Advanced view patterns
-- [Performance Tuning](./performance-tuning.md) - Optimize your trinity pattern
+- [View Strategies](../database/view-strategies.md) - Advanced view patterns
+- [Performance Tuning](../performance/performance-guide.md) - Optimize your trinity pattern
 
 ---
 

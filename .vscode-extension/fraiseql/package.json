@@ -1,0 +1,34 @@
+{
+  "name": "fraiseql-tools",
+  "displayName": "FraiseQL Tools",
+  "description": "Snippets, autocomplete, and validation for FraiseQL mutations",
+  "version": "1.0.0",
+  "publisher": "fraiseql",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Snippets",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "fraiseql",
+    "graphql",
+    "postgresql",
+    "plpgsql"
+  ],
+  "contributes": {
+    "snippets": [
+      {
+        "language": "sql",
+        "path": "./snippets/mutations.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "sql",
+        "extensions": [".sql"]
+      }
+    ]
+  }
+}

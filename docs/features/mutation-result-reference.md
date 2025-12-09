@@ -1,9 +1,19 @@
 # Mutation Result Reference
 
-**Version**: v1.7+
-**Audience**: Developers implementing PostgreSQL functions for GraphQL mutations
+**⚠️ This document has been consolidated into the new comprehensive guide.**
 
-This document provides the complete reference for mutation return formats in FraiseQL. The system supports two formats: a simple format for quick implementations and a comprehensive v2 format for full-featured mutations.
+**📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)**
+
+This new guide provides:
+- Complete PostgreSQL function requirements
+- Error handling patterns (including native error arrays)
+- Working examples for all mutation types
+- Migration guides from legacy formats
+- Troubleshooting and best practices
+
+---
+
+**Legacy Content Below** (for reference during migration)
 
 ## Format Overview
 

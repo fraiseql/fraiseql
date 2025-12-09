@@ -336,7 +336,7 @@ CMD ["python", "app.py"]
 - [FraiseQL Documentation](https://fraiseql.com/docs)
 - [pgvector Documentation](https://github.com/pgvector/pgvector)
 - [LangChain RAG Guide](https://python.langchain.com/docs/use_cases/question_answering)
-- [Trinity Pattern Guide](../docs/database/trinity-pattern.md)
+- [Trinity Pattern Guide](../../docs/core/trinity-pattern.md)
 
 ## 🤝 Contributing
 

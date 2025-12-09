@@ -1,0 +1,158 @@
+{
+  "FraiseQL Mutation Function": {
+    "prefix": "fraiseql-mutation",
+    "body": [
+      "CREATE OR REPLACE FUNCTION ${1:function_name}(input_payload jsonb)",
+      "RETURNS mutation_response AS $$",
+      "DECLARE",
+      "    result mutation_response;",
+      "    ${2:-- Declare variables}",
+      "BEGIN",
+      "    ${3:-- Extract input}",
+      "    ",
+      "    ${4:-- Validation}",
+      "    ",
+      "    ${5:-- Business logic}",
+      "    ",
+      "    -- Success",
+      "    result.status := '${6|created,updated,deleted,success|}';",
+      "    result.message := '${7:Operation successful}';",
+      "    result.entity := row_to_json(${8:NEW});",
+      "    result.entity_type := '${9:EntityType}';",
+      "    RETURN result;",
+      "    ",
+      "EXCEPTION",
+      "    WHEN OTHERS THEN",
+      "        result.status := 'failed:error';",
+      "        result.message := SQLERRM;",
+      "        RETURN result;",
+      "END;",
+      "$$ LANGUAGE plpgsql;"
+    ],
+    "description": "FraiseQL mutation function template"
+  },
+
+  "FraiseQL Validation Error (Pattern 1)": {
+    "prefix": "fraiseql-error-simple",
+    "body": [
+      "result.status := '${1|failed:validation,failed:permission,not_found:user,conflict:duplicate,noop:exists|}';",
+      "result.message := '${2:Error message}';",
+      "RETURN result;"
+    ],
+    "description": "Simple error with auto-generated errors array"
+  },
+
+  "FraiseQL Explicit Errors (Pattern 2)": {
+    "prefix": "fraiseql-error-explicit",
+    "body": [
+      "result.status := 'failed:validation';",
+      "result.message := '${1:Multiple validation errors}';",
+      "result.metadata := jsonb_build_object(",
+      "    'errors', jsonb_build_array(",
+      "        jsonb_build_object(",
+      "            'code', ${2:422},",
+      "            'identifier', '${3:error_identifier}',",
+      "            'message', '${4:Error message}',",
+      "            'details', jsonb_build_object('field', '${5:field_name}')",
+      "        )",
+      "    )",
+      ");",
+      "RETURN result;"
+    ],
+    "description": "Error with explicit errors array"
+  },
+
+  "FraiseQL Build Error Object": {
+    "prefix": "fraiseql-build-error",
+    "body": [
+      "build_error_object(",
+      "    ${1:422},",
+      "    '${2:identifier}',",
+      "    '${3:Message}',",
+      "    jsonb_build_object('field', '${4:field_name}')",
+      ")"
+    ],
+    "description": "Build single error object helper"
+  },
+
+  "FraiseQL Not Found Check": {
+    "prefix": "fraiseql-not-found",
+    "body": [
+      "SELECT * INTO ${1:record_var} FROM ${2:table_name} WHERE ${3:id} = ${4:value};",
+      "IF NOT FOUND THEN",
+      "    result.status := 'not_found:${5:resource}';",
+      "    result.message := '${6:Resource not found}';",
+      "    RETURN result;",
+      "END IF;"
+    ],
+    "description": "Not found check pattern"
+  },
+
+  "FraiseQL Duplicate Check": {
+    "prefix": "fraiseql-duplicate",
+    "body": [
+      "IF EXISTS (SELECT 1 FROM ${1:table_name} WHERE ${2:column} = ${3:value}) THEN",
+      "    result.status := 'conflict:duplicate_${4:field}';",
+      "    result.message := '${5:Resource already exists}';",
+      "    RETURN result;",
+      "END IF;"
+    ],
+    "description": "Duplicate check pattern"
+  },
+
+  "FraiseQL Validation Assert": {
+    "prefix": "fraiseql-assert",
+    "body": [
+      "PERFORM mutation_assert(",
+      "    ${1:validate_mutation_response(result)},",
+      "    '${2:Validation failed}'",
+      ");"
+    ],
+    "description": "Validation assertion"
+  },
+
+  "FraiseQL Input Extraction": {
+    "prefix": "fraiseql-extract",
+    "body": [
+      "${1:variable_name} := input_payload->>'${2:field_name}';"
+    ],
+    "description": "Extract field from input_payload"
+  },
+
+  "FraiseQL Success Response": {
+    "prefix": "fraiseql-success",
+    "body": [
+      "result.status := '${1|created,updated,deleted,success|}';",
+      "result.message := '${2:Operation successful}';",
+      "result.entity := row_to_json(${3:NEW});",
+      "result.entity_id := ${4:NEW.id}::text;",
+      "result.entity_type := '${5:EntityType}';",
+      "RETURN result;"
+    ],
+    "description": "Success response"
+  },
+
+  "FraiseQL Validation Errors Collection": {
+    "prefix": "fraiseql-collect-errors",
+    "body": [
+      "DECLARE",
+      "    validation_errors jsonb := '[]'::jsonb;",
+      "BEGIN",
+      "    -- Collect errors",
+      "    IF ${1:condition} THEN",
+      "        validation_errors := validation_errors || ",
+      "            build_error_object(422, '${2:identifier}', '${3:message}', ",
+      "                jsonb_build_object('field', '${4:field}'));",
+      "    END IF;",
+      "    ",
+      "    -- Return if errors",
+      "    IF jsonb_array_length(validation_errors) > 0 THEN",
+      "        result.status := 'failed:validation';",
+      "        result.message := format('%s validation errors', jsonb_array_length(validation_errors));",
+      "        result.metadata := jsonb_build_object('errors', validation_errors);",
+      "        RETURN result;",
+      "    END IF;"
+    ],
+    "description": "Collect multiple validation errors"
+  }
+}

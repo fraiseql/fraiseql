@@ -23,7 +23,7 @@ This directory contains the evolution of architectural decisions for FraiseQL, d
 ---
 
 ### ADR-002: Ultra-Direct Mutation Path
-**File**: `002_ultra_direct_mutation_path.md`
+**File**: `002-ultra-direct-mutation-path.md`
 **Date**: 2025-10-16
 **Status**: Superseded by ADR-003
 
@@ -95,7 +95,7 @@ RETURN v_response;
 ---
 
 ### ADR-005: Simplified Single-Source CDC ✅ CURRENT
-**File**: `005_simplified_single_source_cdc.md`
+**File**: `005-simplified-single-source-cdc.md`
 **Date**: 2025-10-16
 **Status**: ✅ **ACTIVE - IMPLEMENT THIS**
 

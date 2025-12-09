@@ -14,3 +14,4 @@ mod integration_tests;
 mod edge_case_tests;
 mod composite_tests;
 mod property_tests;
+mod error_array_generation;

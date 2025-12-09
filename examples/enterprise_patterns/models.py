@@ -408,7 +408,8 @@ class CreateOrganizationError:
 
     message: str
     error_code: str
-    field_errors: dict[str, str | None] = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
     # Enterprise error context
     validation_failures: list[dict[str, str]]
@@ -423,7 +424,8 @@ class CreateUserError:
 
     message: str
     error_code: str
-    field_errors: dict[str, str | None] = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
     # User-specific error context
     email_validation_failed: bool = False
@@ -442,7 +444,8 @@ class CreateProjectError:
 
     message: str
     error_code: str
-    field_errors: dict[str, str | None] = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
     # Project-specific errors
     budget_validation_failed: bool = False
@@ -461,7 +464,8 @@ class CreateTaskError:
 
     message: str
     error_code: str
-    field_errors: dict[str, str | None] = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
     # Task-specific errors
     project_validation_failed: bool = False
@@ -549,7 +553,8 @@ class UpdateProjectError:
 
     message: str
     error_code: str
-    field_errors: dict[str, str | None] = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
     # Update-specific errors
     version_conflict: bool = False

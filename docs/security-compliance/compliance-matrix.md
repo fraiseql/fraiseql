@@ -467,7 +467,7 @@ A: Use this matrix as checklist, provide evidence links (test results, documenta
 - **[Security & Compliance Hub](./README.md)** - Overview and quick start
 - **[SLSA Provenance Verification](./slsa-provenance.md)** - Supply chain security
 - **[Security Profiles Guide](./security-profiles.md)** - Configuration for compliance
-- **[Global Regulations Guide](../compliance/GLOBAL_REGULATIONS.md)** - Detailed regulatory analysis
+- **[Global Regulations Guide](../compliance/global-regulations.md)** - Detailed regulatory analysis
 - **[Production Security](../production/security.md)** - Implementation best practices
 - **[Security Controls Matrix](../security/controls-matrix.md)** - Technical control details
 

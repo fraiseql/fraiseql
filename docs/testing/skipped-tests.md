@@ -315,13 +315,13 @@ Legacy code path that has been superseded by newer implementation.
 
 **Location:** `tests/unit/core/test_rust_pipeline.py:117`
 
-**Skip Reason:** "Legacy field_paths projection not supported in schema-aware pipeline. Use field_selections with aliases instead. See docs/rust/RUST_FIELD_PROJECTION.md"
+**Skip Reason:** "Legacy field_paths projection not supported in schema-aware pipeline. Use field_selections with aliases instead. See docs/rust/rust-field-projection.md"
 
 **Test:** `test_legacy_field_paths_projection`
 
 **Status:** ✅ Intentionally Skipped
 
-**Replacement:** Use `field_selections` with aliases (see `docs/rust/RUST_FIELD_PROJECTION.md`)
+**Replacement:** Use `field_selections` with aliases (see `docs/rust/rust-field-projection.md`)
 
 **Old API:**
 ```python
@@ -462,7 +462,7 @@ pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
 ## Related Documentation
 
 - [Testing Checklist](../reference/testing-checklist.md) - Testing documentation
-- [Rust Field Projection](../rust/RUST_FIELD_PROJECTION.md) - Field selection API
+- [Rust Field Projection](../rust/rust-field-projection.md) - Field selection API
 - [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) - KMS provider architecture
 
 ---

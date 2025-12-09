@@ -1,6 +1,23 @@
 # Analytics Dashboard API Example
 
+🟠 ADVANCED | ⏱️ 40 min | 🎯 Analytics | 🏷️ Business Intelligence
+
 A comprehensive analytics and business intelligence API built with FraiseQL, demonstrating time-series data handling, complex aggregations, and real-time analytics capabilities.
+
+**What you'll learn:**
+- Time-series data handling with PostgreSQL
+- Complex analytical queries and aggregations
+- Real-time analytics and dashboard APIs
+- Business intelligence patterns with GraphQL
+- Performance optimization for analytical workloads
+
+**Prerequisites:**
+- `../ecommerce/` - Complex business logic patterns
+- Understanding of analytical data patterns
+
+**Next steps:**
+- `../real_time_chat/` - Add real-time features
+- `../enterprise_patterns/` - Add compliance and audit trails
 
 ## Features
 
@@ -165,3 +182,10 @@ query GetConversionFunnel($appId: UUID!) {
 5. Implement data privacy controls
 
 This example showcases FraiseQL's power for building sophisticated analytics platforms with PostgreSQL's advanced analytical capabilities.
+
+## Support
+
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
+- **Discord**: [FraiseQL Community](https://discord.gg/fraiseql)
+- **Documentation**: [FraiseQL Docs](../../docs)

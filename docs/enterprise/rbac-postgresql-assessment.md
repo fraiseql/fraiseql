@@ -433,7 +433,7 @@ async def assign_role(user_id, role_id):
 
 ## Next Steps
 
-1. ✅ Review refactored RBAC plan (see `RBAC_POSTGRESQL_REFACTORED.md`)
-2. Update TIER_1_IMPLEMENTATION_PLANS.md with PostgreSQL approach
+1. ✅ Review refactored RBAC plan (see `rbac-postgresql-refactored.md`)
+2. Update tier-1-implementation-plans.md with PostgreSQL approach
 3. Ensure all documentation reflects PostgreSQL-only caching
 4. Add RBAC to marketing materials as example of "In PostgreSQL Everything"
