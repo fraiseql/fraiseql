@@ -76,7 +76,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 - [ ] **Incident Response** - Automated responses to security events
 
 **Guides:**
-- [Audit Trails Deep Dive](../advanced/audit-trails.md)
+- [Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)
 - [Production Monitoring](../production/monitoring.md)
 
 ---
@@ -129,7 +129,7 @@ FraiseQL supports GDPR requirements:
 - **Consent Management:** Tracking consent status and changes
 - **Privacy by Design:** Encryption, anonymization, minimal data collection
 
-**Implementation:** [GDPR Compliance Features](../compliance/GLOBAL_REGULATIONS.md#gdpr)
+**Implementation:** [GDPR Compliance Features](../compliance/global-regulations.md#gdpr)
 
 #### NIS2 Directive (Network and Information Security)
 **Status:** ✅ Supports essential entities requirements
@@ -334,14 +334,14 @@ FraiseQL provides three security profiles for different regulatory environments:
    - Technical Skill: Advanced
 
 2. **Test Access Controls** - Verify RBAC and RLS policies
-   - Guide: [RBAC Testing Guide](../enterprise/RBAC_POSTGRESQL_ASSESSMENT.md)
+   - Guide: [RBAC Testing Guide](../enterprise/rbac-postgresql-assessment.md)
    - Time: 1-2 hours
    - Technical Skill: Advanced (SQL)
 
 3. **Validate Audit Trails** - Ensure audit logging completeness
-   - Guide: [Audit Trails Deep Dive](../advanced/audit-trails.md)
-   - Time: 30-60 minutes
-   - Technical Skill: Intermediate
+    - Guide: [Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)
+    - Time: 30-60 minutes
+    - Technical Skill: Intermediate
 
 ### For Compliance Officers
 
@@ -369,8 +369,8 @@ FraiseQL provides three security profiles for different regulatory environments:
 FraiseQL's security architecture is documented in Architecture Decision Records (ADRs):
 
 - **[ADR-003: KMS Architecture](../architecture/decisions/0003-kms-architecture.md)** - Multi-provider key management
-- **[ADR-005: Unified Audit Table](../architecture/decisions/003_unified_audit.md)** - Immutable audit logging design
-- **[ADR-006: Simplified CDC](../architecture/decisions/005_simplified_single_source_cdc.md)** - Change Data Capture approach
+- **[ADR-005: Unified Audit Table](../architecture/decisions/003-unified-audit-table.md)** - Immutable audit logging design
+- **[ADR-006: Simplified CDC](../architecture/decisions/005-simplified-single-source-cdc.md)** - Change Data Capture approach
 
 ---
 
@@ -379,8 +379,8 @@ FraiseQL's security architecture is documented in Architecture Decision Records 
 ### Detailed Technical Guides
 
 - **[Production Security Guide](../production/security.md)** - SQL injection prevention, rate limiting, CORS, authentication
-- **[Audit Trails Deep Dive](../advanced/audit-trails.md)** - Comprehensive audit logging implementation
-- **[RBAC Implementation](../enterprise/RBAC_POSTGRESQL_REFACTORED.md)** - Role-based access control with PostgreSQL
+- **[Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)** - Comprehensive audit logging implementation
+- **[RBAC Implementation](../enterprise/rbac-postgresql-refactored.md)** - Role-based access control with PostgreSQL
 - **[KMS Integration](../architecture/decisions/0003-kms-architecture.md)** - Key management for data encryption
 
 ### Deployment & Operations
@@ -391,7 +391,7 @@ FraiseQL's security architecture is documented in Architecture Decision Records 
 
 ### Compliance
 
-- **[Global Regulations Guide](../compliance/GLOBAL_REGULATIONS.md)** - Detailed regulatory requirements by jurisdiction
+- **[Global Regulations Guide](../compliance/global-regulations.md)** - Detailed regulatory requirements by jurisdiction
 - **[Compliance Matrix](./compliance-matrix.md)** - Control mapping (coming in WP-012)
 - **[Security Profiles](./security-profiles.md)** - Configuration for regulated industries (coming in WP-013)
 

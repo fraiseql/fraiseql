@@ -5,7 +5,7 @@ Common design patterns and architectural approaches for FraiseQL applications.
 ## Core Patterns
 
 ### Trinity Identifiers
-**[Trinity Identifiers Pattern](trinity_identifiers.md)** - Three-tier ID system for optimal performance and UX
+**[Trinity Identifiers Pattern](../database/trinity-identifiers.md)** - Three-tier ID system for optimal performance and UX
 
 The trinity pattern uses three types of identifiers per entity:
 - **`pk_*`** - Internal integer IDs for fast database joins
