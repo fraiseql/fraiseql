@@ -1,6 +1,6 @@
 # FraiseQL Deployment Security Guide
 
-**Version**: 1.8.0-beta.4
+**Version**: 1.8.0-beta.5
 **Last Updated**: 2025-12-09
 **Security Posture**: ✅ Government Grade (0 CRITICAL/HIGH vulnerabilities)
 
