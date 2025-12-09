@@ -22,8 +22,8 @@ Standardize ALL documentation file naming to use **kebab-case** (lowercase with 
 
 | Pattern | Count | Examples |
 |---------|-------|----------|
-| **UPPERCASE** | 48 files | `TABLE_NAMING_CONVENTIONS.md`, `RBAC_POSTGRESQL_REFACTORED.md` |
-| **snake_case** | 36 files | `loki_integration.md`, `mutation_pipeline.md`, `trinity_identifiers.md` |
+| **UPPERCASE** | 48 files | `table-naming-conventions.md`, `rbac-postgresql-refactored.md` |
+| **snake_case** | 36 files | `loki-integration.md`, `mutation-pipeline.md`, `trinity-identifiers.md` |
 | **kebab-case** ✅ | 103 files | `getting-started.md`, `connection-pooling.md` |
 | **lowercase-simple** | 24 files | `README.md` (keep as-is) |
 
@@ -58,101 +58,101 @@ According to GitHub documentation and community standards:
 
 #### Database Documentation
 ```bash
-docs/database/DATABASE_LEVEL_CACHING.md       → database-level-caching.md
-docs/database/TABLE_NAMING_CONVENTIONS.md     → table-naming-conventions.md
-docs/database/VIEW_STRATEGIES.md              → view-strategies.md
+docs/database/database-level-caching.md       → database-level-caching.md
+docs/database/table-naming-conventions.md     → table-naming-conventions.md
+docs/database/view-strategies.md              → view-strategies.md
 ```
 
 #### Enterprise Documentation
 ```bash
-docs/enterprise/RBAC_POSTGRESQL_REFACTORED.md → rbac-postgresql-refactored.md
-docs/enterprise/RBAC_POSTGRESQL_ASSESSMENT.md → rbac-postgresql-assessment.md
-docs/enterprise/ENTERPRISE.md                  → enterprise.md
+docs/enterprise/rbac-postgresql-refactored.md → rbac-postgresql-refactored.md
+docs/enterprise/rbac-postgresql-assessment.md → rbac-postgresql-assessment.md
+docs/enterprise/enterprise.md                  → enterprise.md
 ```
 
 #### Performance Documentation
 ```bash
-docs/performance/APQ_ASSESSMENT.md            → apq-assessment.md
-docs/performance/PERFORMANCE_GUIDE.md         → performance-guide.md
+docs/performance/apq-assessment.md            → apq-assessment.md
+docs/performance/performance-guide.md         → performance-guide.md
 ```
 
 #### Architecture Documentation
 ```bash
-docs/architecture/DIRECT_PATH_IMPLEMENTATION.md → direct-path-implementation.md
+docs/architecture/direct-path-implementation.md → direct-path-implementation.md
 ```
 
 #### Testing Documentation
 ```bash
-docs/testing/ENABLING_EXTERNAL_TESTS.md       → enabling-external-tests.md
-docs/testing/SKIPPED_TESTS.md                 → skipped-tests.md
+docs/testing/enabling-external-tests.md       → enabling-external-tests.md
+docs/testing/skipped-tests.md                 → skipped-tests.md
 ```
 
 #### Development Documentation
 ```bash
-docs/development/PHILOSOPHY.md                     → philosophy.md
-docs/development/FRAMEWORK_SUBMISSION_GUIDE.md     → framework-submission-guide.md
-docs/development/NEW_USER_CONFUSIONS.md            → new-user-confusions.md
+docs/development/philosophy.md                     → philosophy.md
+docs/development/framework-submission-guide.md     → framework-submission-guide.md
+docs/development/new-user-confusions.md            → new-user-confusions.md
 ```
 
 #### Strategic Documentation
 ```bash
-docs/strategic/TIER_1_IMPLEMENTATION_PLANS.md                        → tier-1-implementation-plans.md
-docs/strategic/IMPROVEMENT_ANALYSIS_PROMPT.md                        → improvement-analysis-prompt.md
-docs/strategic/V1_ADVANCED_PATTERNS.md                               → v1-advanced-patterns.md
-docs/strategic/VERSION_STATUS.md                                     → version-status.md
-docs/strategic/V1_VISION.md                                          → v1-vision.md
-docs/strategic/AUDIENCES.md                                          → audiences.md
-docs/strategic/PROJECT_STRUCTURE.md                                 → project-structure.md
-docs/strategic/ENTERPRISE_ROADMAP.md                                 → enterprise-roadmap.md
-docs/strategic/FRAISEQL_INDUSTRIAL_READINESS_ASSESSMENT_2025-10-20.md → fraiseql-industrial-readiness-assessment-2025-10-20.md
+docs/strategic/tier-1-implementation-plans.md                        → tier-1-implementation-plans.md
+docs/strategic/improvement-analysis-prompt.md                        → improvement-analysis-prompt.md
+docs/strategic/v1-advanced-patterns.md                               → v1-advanced-patterns.md
+docs/strategic/version-status.md                                     → version-status.md
+docs/strategic/v1-vision.md                                          → v1-vision.md
+docs/strategic/audiences.md                                          → audiences.md
+docs/strategic/project-structure.md                                 → project-structure.md
+docs/strategic/enterprise-roadmap.md                                 → enterprise-roadmap.md
+docs/strategic/fraiseql-industrial-readiness-assessment-2025-10-20.md → fraiseql-industrial-readiness-assessment-2025-10-20.md
 ```
 
 #### Rust Documentation
 ```bash
-docs/rust/RUST_PIPELINE_IMPLEMENTATION_GUIDE.md → rust-pipeline-implementation-guide.md
-docs/rust/RUST_FIELD_PROJECTION.md              → rust-field-projection.md
-docs/rust/RUST_FIRST_PIPELINE.md                → rust-first-pipeline.md
+docs/rust/rust-pipeline-implementation-guide.md → rust-pipeline-implementation-guide.md
+docs/rust/rust-field-projection.md              → rust-field-projection.md
+docs/rust/rust-first-pipeline.md                → rust-first-pipeline.md
 ```
 
 #### Compliance Documentation
 ```bash
-docs/compliance/GLOBAL_REGULATIONS.md         → global-regulations.md
+docs/compliance/global-regulations.md         → global-regulations.md
 ```
 
 #### Tutorials Documentation
 ```bash
-docs/tutorials/INTERACTIVE_EXAMPLES.md        → interactive-examples.md
+docs/tutorials/interactive-examples.md        → interactive-examples.md
 ```
 
 ### Priority 2: snake_case Files (36 files)
 
 #### Production Documentation
 ```bash
-docs/production/loki_integration.md           → loki-integration.md
+docs/production/loki-integration.md           → loki-integration.md
 ```
 
 #### Architecture Documentation
 ```bash
-docs/architecture/mutation_pipeline.md                       → mutation-pipeline.md
-docs/architecture/decisions/002_ultra_direct_mutation_path.md → 002-ultra-direct-mutation-path.md
-docs/architecture/decisions/003_unified_audit_table.md        → 003-unified-audit-table.md
-docs/architecture/decisions/005_simplified_single_source_cdc.md → 005-simplified-single-source-cdc.md
+docs/architecture/mutation-pipeline.md                       → mutation-pipeline.md
+docs/architecture/decisions/002-ultra-direct-mutation-path.md → 002-ultra-direct-mutation-path.md
+docs/architecture/decisions/003-unified-audit-table.md        → 003-unified-audit-table.md
+docs/architecture/decisions/005-simplified-single-source-cdc.md → 005-simplified-single-source-cdc.md
 ```
 
 #### Mutations Documentation
 ```bash
-docs/mutations/migration_guide.md            → migration-guide.md
-docs/mutations/cascade_architecture.md       → cascade-architecture.md
+docs/mutations/migration-guide.md            → migration-guide.md
+docs/mutations/cascade-architecture.md       → cascade-architecture.md
 ```
 
 #### Performance Documentation
 ```bash
-docs/performance/coordinate_performance_guide.md → coordinate-performance-guide.md
+docs/performance/coordinate-performance-guide.md → coordinate-performance-guide.md
 ```
 
 #### Database Documentation
 ```bash
-docs/database/trinity_identifiers.md         → trinity-identifiers.md
+docs/database/trinity-identifiers.md         → trinity-identifiers.md
 ```
 
 **Note:** Full list of 36 snake_case files to be generated by automated script during implementation.
@@ -212,7 +212,7 @@ def find_references(file_path: Path, old_name: str, new_name: str) -> List[str]:
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Match markdown links: [text](path/to/OLD_NAME.md)
+    # Match markdown links: [text](path/to/old-name.md)
     # Match relative paths: ./OLD_NAME.md, ../OLD_NAME.md
     patterns = [
         rf'\]\([^)]*{re.escape(old_name)}\)',
@@ -398,7 +398,7 @@ grep -r "TABLE_NAMING_CONVENTIONS\|trinity_identifiers\|loki_integration" .phase
 # 5. Verify git history preserved
 git log --follow docs/database/table-naming-conventions.md
 
-# Expected: Shows full history from TABLE_NAMING_CONVENTIONS.md
+# Expected: Shows full history from table-naming-conventions.md
 ```
 
 ---

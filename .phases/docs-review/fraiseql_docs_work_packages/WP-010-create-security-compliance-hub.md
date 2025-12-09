@@ -72,17 +72,17 @@ Create new `docs/security-compliance/` directory with non-technical README for c
 ## FraiseQL Security Features
 
 1. **Supply Chain Security (SLSA Level 3)**
-   - [Verification Guide](slsa-provenance.md)
+    - [Verification Guide](slsa-provenance.md) *(planned - WP-011)*
 
 2. **Audit Trails**
-   - [Deep Dive](audit-trails-deep-dive.md)
+    - [Deep Dive](audit-trails-deep-dive.md) *(planned - WP-010)*
 
 3. **Compliance**
-   - [Compliance Matrix](compliance-matrix.md)
-   - [Security Profiles](security-profiles.md)
+    - [Compliance Matrix](compliance-matrix.md) *(planned - WP-012)*
+    - [Security Profiles](security-profiles.md) *(planned - WP-013)*
 
 4. **Access Control**
-   - [RBAC & RLS](rbac-row-level-security.md)
+    - [RBAC & RLS](rbac-row-level-security.md) *(planned - future WP)*
 
 ## Next Steps
 [Links to detailed guides]

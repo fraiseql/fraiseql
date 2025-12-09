@@ -73,7 +73,7 @@ Tables:
 ```markdown
 ## Schema
 
-This example uses FraiseQL's [Trinity Pattern](../../docs/core/trinity-pattern.md) for database design.
+This example uses FraiseQL's [Trinity Pattern](../../../docs/core/trinity-pattern.md) for database design.
 
 **Base Tables** (data storage):
 - `tb_user` - User accounts
@@ -106,7 +106,7 @@ This example uses FraiseQL's recommended trinity pattern:
 - **Views** (`v_*`) - Expose filtered data to GraphQL
 - **Computed views** (`tv_*`) - Pre-join expensive queries
 
-Learn more: [Trinity Pattern Guide](../../docs/core/trinity-pattern.md)
+Learn more: [Trinity Pattern Guide](../../../docs/core/trinity-pattern.md)
 ```
 
 ---
@@ -171,7 +171,7 @@ Tables:
 Replace entire section with:
 ## Schema
 
-This example uses FraiseQL's [Trinity Pattern](../../docs/core/trinity-pattern.md) for database design.
+This example uses FraiseQL's [Trinity Pattern](../../../docs/core/trinity-pattern.md) for database design.
 
 **Base Tables** (data storage):
 - `tb_user` - User accounts (id, name, email, created_at)
@@ -197,7 +197,7 @@ This example uses FraiseQL's recommended trinity pattern:
 - **Views** (`v_*`) - Expose filtered data to GraphQL
 - **Computed views** (`tv_*`) - Pre-join expensive queries (optional)
 
-Learn more: [Trinity Pattern Guide](../../docs/core/trinity-pattern.md)
+Learn more: [Trinity Pattern Guide](../../../docs/core/trinity-pattern.md)
 ```
 
 **Pattern 2: Fix mutations_demo/README.md**
