@@ -1,0 +1,365 @@
+# Falco Custom Rules for FraiseQL Runtime Security
+# Deploy with Falco for container runtime threat detection
+# Documentation: https://falco.org/docs/
+
+# =============================================================================
+# Macros - Reusable conditions
+# =============================================================================
+
+- macro: fraiseql_container
+  condition: (container.image.repository contains "fraiseql")
+
+- macro: fraiseql_user
+  condition: (user.uid = 65532 or user.name = "fraiseql")
+
+- macro: allowed_processes
+  condition: >
+    (proc.name in (python3, gunicorn, uvicorn, python))
+
+- macro: allowed_write_paths
+  condition: >
+    (fd.name startswith /tmp or
+     fd.name startswith /var/cache or
+     fd.name startswith /home/fraiseql/.cache)
+
+# =============================================================================
+# Rules - Security Monitoring
+# =============================================================================
+
+# Rule 1: Detect unexpected processes in FraiseQL container
+- rule: Unexpected Process in FraiseQL Container
+  desc: >
+    Detect processes that should not be running in FraiseQL container.
+    Only Python, Gunicorn, and Uvicorn are expected.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    not allowed_processes
+  output: >
+    Unexpected process started in FraiseQL container
+    (user=%user.name uid=%user.uid command=%proc.cmdline
+     container=%container.name image=%container.image.repository
+     parent=%proc.pname gparent=%proc.aname[2])
+  priority: WARNING
+  tags: [container, process, fraiseql]
+  source: syscall
+
+# Rule 2: Detect shell spawned in FraiseQL container
+- rule: Shell Spawned in FraiseQL Container
+  desc: >
+    Detect shell execution in FraiseQL container.
+    Hardened containers should not have shell access.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    proc.name in (sh, bash, zsh, dash, ksh, ash)
+  output: >
+    Shell spawned in FraiseQL container - SECURITY BREACH
+    (user=%user.name uid=%user.uid shell=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository parent=%proc.pname)
+  priority: CRITICAL
+  tags: [container, shell, fraiseql, security-breach]
+  source: syscall
+
+# Rule 3: Detect writes to unauthorized locations
+- rule: Write to Unauthorized Path in FraiseQL
+  desc: >
+    Detect file writes to paths outside /tmp, /var/cache, and user cache.
+    Read-only root filesystem should prevent this.
+  condition: >
+    open_write and
+    fraiseql_container and
+    not allowed_write_paths and
+    not fd.name startswith /proc and
+    not fd.name startswith /dev
+  output: >
+    Unauthorized write in FraiseQL container
+    (user=%user.name uid=%user.uid file=%fd.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: ERROR
+  tags: [container, filesystem, fraiseql]
+  source: syscall
+
+# Rule 4: Detect privilege escalation attempts
+- rule: Privilege Escalation in FraiseQL
+  desc: >
+    Detect attempts to escalate privileges (setuid, sudo, su).
+    Should never happen in non-root container.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    (proc.name in (sudo, su, setuid) or
+     proc.cmdline contains "sudo" or
+     proc.cmdline contains "su -")
+  output: >
+    Privilege escalation attempt in FraiseQL container
+    (user=%user.name uid=%user.uid command=%proc.cmdline
+     container=%container.name image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, privilege-escalation, fraiseql, security-breach]
+  source: syscall
+
+# Rule 5: Detect network connections to unexpected hosts
+- rule: FraiseQL Unexpected Outbound Connection
+  desc: >
+    Detect network connections to unexpected destinations.
+    FraiseQL should only connect to PostgreSQL and internal services.
+  condition: >
+    outbound and
+    fraiseql_container and
+    not fd.sip.name in (postgres, postgresql) and
+    not fd.sport in (5432) and
+    not fd.sip.name contains "internal" and
+    not fd.sip.name contains ".cluster.local" and
+    not fd.sport in (53, 443)  # Allow DNS and HTTPS
+  output: >
+    Unexpected outbound connection from FraiseQL
+    (user=%user.name process=%proc.name
+     destination=%fd.sip.name:%fd.sport
+     container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, network, fraiseql]
+  source: syscall
+
+# Rule 6: Detect package manager execution
+- rule: Package Manager in FraiseQL Container
+  desc: >
+    Detect execution of package managers (apt, yum, pip).
+    Production containers should not install packages at runtime.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    proc.name in (apt, apt-get, yum, dnf, pip, pip3, poetry, uv)
+  output: >
+    Package manager executed in FraiseQL container
+    (user=%user.name package_manager=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: ERROR
+  tags: [container, package-manager, fraiseql]
+  source: syscall
+
+# Rule 7: Detect sensitive file access
+- rule: Sensitive File Access in FraiseQL
+  desc: >
+    Detect access to sensitive files (/etc/passwd, /etc/shadow, SSH keys).
+    Application should not access these files.
+  condition: >
+    open_read and
+    fraiseql_container and
+    (fd.name in (/etc/passwd, /etc/shadow, /etc/gshadow) or
+     fd.name startswith /root or
+     fd.name glob "/home/*/.ssh/*" or
+     fd.name glob "*/id_rsa*" or
+     fd.name glob "*/id_ed25519*")
+  output: >
+    Sensitive file accessed in FraiseQL container
+    (user=%user.name file=%fd.name process=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: WARNING
+  tags: [container, filesystem, fraiseql, sensitive-data]
+  source: syscall
+
+# Rule 8: Detect container configuration changes
+- rule: Container Configuration Change in FraiseQL
+  desc: >
+    Detect attempts to modify container configuration.
+    Should never happen in immutable infrastructure.
+  condition: >
+    (open_write or modify) and
+    fraiseql_container and
+    (fd.name startswith /etc or
+     fd.name startswith /usr or
+     fd.name startswith /lib or
+     fd.name startswith /bin or
+     fd.name startswith /sbin)
+  output: >
+    Container configuration change attempted in FraiseQL
+    (user=%user.name file=%fd.name operation=%evt.type
+     process=%proc.name container=%container.name
+     image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, configuration, fraiseql, immutable-violation]
+  source: syscall
+
+# Rule 9: Detect crypto mining activity
+- rule: Crypto Mining in FraiseQL Container
+  desc: >
+    Detect processes commonly used for cryptocurrency mining.
+    This indicates container compromise.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    (proc.name in (xmrig, minerd, cgminer, bfgminer, ccminer, ethminer) or
+     proc.cmdline contains "stratum" or
+     proc.cmdline contains "cryptonight" or
+     proc.cmdline contains "pool.minemonero.pro")
+  output: >
+    CRYPTO MINING DETECTED in FraiseQL container - SECURITY BREACH
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     container=%container.name image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, crypto-mining, fraiseql, security-breach]
+  source: syscall
+
+# Rule 10: Detect unauthorized user
+- rule: Process Run by Unauthorized User in FraiseQL
+  desc: >
+    Detect processes running as unexpected user.
+    All processes should run as UID 65532 (fraiseql).
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    not fraiseql_user and
+    not proc.name in (runc, containerd, dockerd)
+  output: >
+    Process running as unauthorized user in FraiseQL container
+    (user=%user.name uid=%user.uid process=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: ERROR
+  tags: [container, user, fraiseql]
+  source: syscall
+
+# Rule 11: Detect terminal allocation (TTY)
+- rule: Terminal Allocated in FraiseQL Container
+  desc: >
+    Detect TTY allocation (interactive session).
+    Production containers should not have interactive terminals.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    proc.tty != 0
+  output: >
+    Interactive terminal allocated in FraiseQL container
+    (user=%user.name tty=%proc.tty process=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: WARNING
+  tags: [container, terminal, fraiseql]
+  source: syscall
+
+# Rule 12: Detect Python debugger usage
+- rule: Python Debugger in FraiseQL Container
+  desc: >
+    Detect Python debugger (pdb, ipdb) usage in production.
+    Debuggers should not be present in production images.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    (proc.cmdline contains "pdb" or
+     proc.cmdline contains "ipdb" or
+     proc.cmdline contains "breakpoint()")
+  output: >
+    Python debugger detected in FraiseQL container
+    (user=%user.name command=%proc.cmdline
+     container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, debugger, fraiseql]
+  source: syscall
+
+# Rule 13: CVE-2025-14104 Exploitation Attempt
+- rule: CVE-2025-14104 User Management Attempt
+  desc: >
+    Detect attempts to create/modify users in FraiseQL container.
+    This could be exploitation of CVE-2025-14104 (util-linux heap buffer overread).
+    FraiseQL uses static users only - any user management is suspicious.
+  condition: >
+    spawned_process and
+    fraiseql_container and
+    (proc.name in (useradd, adduser, usermod, userdel, groupadd, groupmod) or
+     proc.cmdline contains "setpwnam" or
+     proc.cmdline contains "adduser" or
+     proc.cmdline contains "useradd")
+  output: >
+    CRITICAL: CVE-2025-14104 exploitation attempt - User management in FraiseQL
+    (user=%user.name uid=%user.uid command=%proc.cmdline
+     container=%container.name image=%container.image.repository
+     parent=%proc.pname)
+  priority: CRITICAL
+  tags: [container, cve-2025-14104, exploit-attempt, user-management, fraiseql]
+  source: syscall
+
+# Rule 14: CVE-2025-7709 SQLite Database Access
+- rule: CVE-2025-7709 SQLite Database Access
+  desc: >
+    Detect SQLite database file access in FraiseQL container.
+    FraiseQL uses PostgreSQL exclusively - SQLite access is suspicious.
+    This mitigates CVE-2025-7709 (SQLite FTS5 integer overflow).
+  condition: >
+    (open_read or open_write) and
+    fraiseql_container and
+    (fd.name glob "*.db" or
+     fd.name glob "*.sqlite" or
+     fd.name glob "*.sqlite3" or
+     fd.name contains "sqlite")
+  output: >
+    UNEXPECTED: SQLite database access in FraiseQL (PostgreSQL only)
+    (user=%user.name file=%fd.name process=%proc.name
+     command=%proc.cmdline container=%container.name
+     image=%container.image.repository)
+  priority: ERROR
+  tags: [container, cve-2025-7709, database, sqlite, fraiseql]
+  source: syscall
+
+# =============================================================================
+# List - Allowed Egress Destinations
+# =============================================================================
+
+- list: fraiseql_allowed_destinations
+  items:
+    - postgres
+    - postgresql
+    - database.internal
+    - kube-dns
+    - cluster.local
+
+# =============================================================================
+# Deployment Instructions
+# =============================================================================
+#
+# 1. Install Falco in your Kubernetes cluster:
+#    helm repo add falcosecurity https://falcosecurity.github.io/charts
+#    helm install falco falcosecurity/falco \
+#      --namespace falco --create-namespace \
+#      --set falco.rules_file[0]=/etc/falco/falco_rules.yaml \
+#      --set-file customRules.fraiseql-rules.yaml=./falco-rules.yaml
+#
+# 2. Configure alerting (Slack, PagerDuty, email):
+#    helm upgrade falco falcosecurity/falco \
+#      --set falcosidekick.enabled=true \
+#      --set falcosidekick.config.slack.webhookurl="YOUR_WEBHOOK"
+#
+# 3. View Falco alerts:
+#    kubectl logs -n falco -l app.kubernetes.io/name=falco -f
+#
+# 4. Export metrics to Prometheus:
+#    helm upgrade falco falcosecurity/falco \
+#      --set falcosidekick.enabled=true \
+#      --set falcosidekick.config.prometheus.extralabels="cluster:production"
+#
+# =============================================================================
+# Compliance Mapping
+# =============================================================================
+#
+# NIST 800-53:
+#   - SI-4 (System Monitoring): Real-time threat detection
+#   - AU-2 (Audit Events): Comprehensive event logging
+#   - IR-4 (Incident Handling): Automated alerting
+#
+# NIS2 Article 21:
+#   - Real-time security monitoring
+#   - Incident detection and response capability
+#
+# ISO 27001:2022:
+#   - A.8.16 (Monitoring activities): Runtime security monitoring
+#   - A.8.15 (Logging): Security event logging
+#
+# CIS Kubernetes Benchmark:
+#   - 5.4.1 (Restrict Container Runtime)
+#   - 5.7.1 (Runtime Security Monitoring)
+#
+# =============================================================================

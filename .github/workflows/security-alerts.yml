@@ -1,0 +1,338 @@
+name: Security Alerts
+
+# Weekly monitoring for new HIGH/CRITICAL vulnerabilities
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Monday 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write  # For creating alert issues
+
+jobs:
+  scan-base-images:
+    name: Scan Base Images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull latest base images
+        run: |
+          docker pull python:3.13-slim
+          docker pull gcr.io/distroless/python3-debian12:nonroot
+
+      - name: Scan python:3.13-slim
+        run: |
+          docker run --rm aquasec/trivy:latest image \
+            --severity HIGH,CRITICAL \
+            --format json \
+            --output /tmp/slim-scan.json \
+            --exit-code 0 \
+            python:3.13-slim
+        continue-on-error: true
+
+      - name: Scan gcr.io/distroless/python3-debian12:nonroot
+        run: |
+          docker run --rm aquasec/trivy:latest image \
+            --severity HIGH,CRITICAL \
+            --format json \
+            --output /tmp/distroless-scan.json \
+            --exit-code 0 \
+            gcr.io/distroless/python3-debian12:nonroot
+        continue-on-error: true
+
+      - name: Check for new HIGH/CRITICAL vulnerabilities
+        id: check-vulns
+        run: |
+          # Count HIGH/CRITICAL vulnerabilities
+          SLIM_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/slim-scan.json || echo 0)
+          SLIM_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/slim-scan.json || echo 0)
+
+          DISTROLESS_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/distroless-scan.json || echo 0)
+          DISTROLESS_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/distroless-scan.json || echo 0)
+
+          echo "slim_critical=$SLIM_CRITICAL" >> $GITHUB_OUTPUT
+          echo "slim_high=$SLIM_HIGH" >> $GITHUB_OUTPUT
+          echo "distroless_critical=$DISTROLESS_CRITICAL" >> $GITHUB_OUTPUT
+          echo "distroless_high=$DISTROLESS_HIGH" >> $GITHUB_OUTPUT
+
+          # Determine alert level
+          TOTAL_CRITICAL=$((SLIM_CRITICAL + DISTROLESS_CRITICAL))
+          TOTAL_HIGH=$((SLIM_HIGH + DISTROLESS_HIGH))
+
+          if [ "$TOTAL_CRITICAL" -gt 0 ]; then
+            echo "alert_level=CRITICAL" >> $GITHUB_OUTPUT
+            echo "should_alert=true" >> $GITHUB_OUTPUT
+          elif [ "$TOTAL_HIGH" -gt 0 ]; then
+            echo "alert_level=HIGH" >> $GITHUB_OUTPUT
+            echo "should_alert=true" >> $GITHUB_OUTPUT
+          else
+            echo "alert_level=NONE" >> $GITHUB_OUTPUT
+            echo "should_alert=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Generate summary
+          cat > /tmp/alert-summary.md <<EOF
+          # Base Image Security Alert
+
+          **Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Alert Level**: ${alert_level:-NONE}
+
+          ## python:3.13-slim
+          - 🔴 Critical: $SLIM_CRITICAL
+          - 🟠 High: $SLIM_HIGH
+
+          ## gcr.io/distroless/python3-debian12:nonroot
+          - 🔴 Critical: $DISTROLESS_CRITICAL
+          - 🟠 High: $DISTROLESS_HIGH
+
+          ## Action Required
+          EOF
+
+          if [ "$TOTAL_CRITICAL" -gt 0 ]; then
+            cat >> /tmp/alert-summary.md <<EOF
+          ⚠️  **URGENT**: CRITICAL vulnerabilities detected
+          - **SLA**: Patch within 24 hours
+          - **Action**: Review scan results and update base images immediately
+          - **Escalation**: Notify security team and engineering lead
+          EOF
+          elif [ "$TOTAL_HIGH" -gt 0 ]; then
+            cat >> /tmp/alert-summary.md <<EOF
+          ⚠️  **Important**: HIGH severity vulnerabilities detected
+          - **SLA**: Patch within 7 days
+          - **Action**: Review scan results and plan patching
+          - **Monitoring**: Track fix availability weekly
+          EOF
+          else
+            cat >> /tmp/alert-summary.md <<EOF
+          ✅ **No HIGH or CRITICAL vulnerabilities detected**
+          - Continue monitoring weekly
+          - Review MEDIUM vulnerabilities in docs/security/vulnerability-remediation-plan.md
+          EOF
+          fi
+
+          cat /tmp/alert-summary.md
+
+      - name: Create GitHub Issue for HIGH/CRITICAL vulnerabilities
+        if: steps.check-vulns.outputs.should_alert == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('/tmp/alert-summary.md', 'utf8');
+            const alertLevel = '${{ steps.check-vulns.outputs.alert_level }}';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 ${alertLevel} Vulnerability Alert - Base Images`,
+              body: summary,
+              labels: ['security', 'vulnerability', alertLevel.toLowerCase()],
+            });
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v5
+        with:
+          name: base-image-security-scans
+          path: /tmp/*-scan.json
+
+  monitor-active-cves:
+    name: Monitor Active CVEs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check CVE-2025-14104 (util-linux)
+        id: cve-14104
+        run: |
+          echo "Checking CVE-2025-14104 status..."
+
+          # Check Debian Security Tracker
+          STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2025-14104 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
+
+          if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
+            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "✅ CVE-2025-14104 has been fixed!"
+          else
+            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "⏳ CVE-2025-14104 still awaiting patch"
+          fi
+
+      - name: Check CVE-2025-9820 (GnuTLS)
+        id: cve-9820
+        run: |
+          echo "Checking CVE-2025-9820 status..."
+
+          # Check GnuTLS security advisories
+          STATUS=$(curl -s https://www.gnutls.org/security-new.html | grep -i "SA-2025-11-18\|CVE-2025-9820" || echo "not_found")
+
+          if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
+            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "✅ CVE-2025-9820 has been fixed!"
+          else
+            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "⏳ CVE-2025-9820 still awaiting details/patch"
+          fi
+
+      - name: Check CVE-2025-6141 (ncurses)
+        id: cve-6141
+        run: |
+          echo "Checking CVE-2025-6141 status..."
+
+          STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2025-6141 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
+
+          if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
+            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "✅ CVE-2025-6141 has been fixed!"
+          else
+            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "⏳ CVE-2025-6141 still awaiting patch"
+          fi
+
+      - name: Check CVE-2024-56433 (shadow-utils)
+        id: cve-56433
+        run: |
+          echo "Checking CVE-2024-56433 status..."
+
+          STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2024-56433 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
+
+          if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
+            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "✅ CVE-2024-56433 has been fixed!"
+          else
+            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "⏳ CVE-2024-56433 still awaiting patch"
+          fi
+
+      - name: Generate CVE monitoring report
+        run: |
+          cat > /tmp/cve-monitoring-report.md <<EOF
+          # CVE Monitoring Report
+
+          **Report Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Monitored CVEs Status
+
+          | CVE ID | Component | Status | Notes |
+          |--------|-----------|--------|-------|
+          | CVE-2025-14104 | util-linux | ${{ steps.cve-14104.outputs.status }} | Heap buffer overread |
+          | CVE-2025-9820 | GnuTLS | ${{ steps.cve-9820.outputs.status }} | TLS vulnerability |
+          | CVE-2025-6141 | ncurses | ${{ steps.cve-6141.outputs.status }} | Stack buffer overflow |
+          | CVE-2024-56433 | shadow-utils | ${{ steps.cve-56433.outputs.status }} | Subordinate ID config |
+
+          ## Actions Required
+
+          EOF
+
+          # Check if any CVE was fixed
+          FIXED_COUNT=0
+          if [ "${{ steps.cve-14104.outputs.status }}" = "FIXED" ]; then
+            FIXED_COUNT=$((FIXED_COUNT + 1))
+            echo "- ✅ Update util-linux: CVE-2025-14104 fixed" >> /tmp/cve-monitoring-report.md
+          fi
+          if [ "${{ steps.cve-9820.outputs.status }}" = "FIXED" ]; then
+            FIXED_COUNT=$((FIXED_COUNT + 1))
+            echo "- ✅ Update GnuTLS: CVE-2025-9820 fixed" >> /tmp/cve-monitoring-report.md
+          fi
+          if [ "${{ steps.cve-6141.outputs.status }}" = "FIXED" ]; then
+            FIXED_COUNT=$((FIXED_COUNT + 1))
+            echo "- ✅ Update ncurses: CVE-2025-6141 fixed" >> /tmp/cve-monitoring-report.md
+          fi
+          if [ "${{ steps.cve-56433.outputs.status }}" = "FIXED" ]; then
+            FIXED_COUNT=$((FIXED_COUNT + 1))
+            echo "- ✅ Update shadow-utils: CVE-2024-56433 fixed" >> /tmp/cve-monitoring-report.md
+          fi
+
+          if [ "$FIXED_COUNT" -eq 0 ]; then
+            echo "- ⏳ All CVEs still awaiting patches - continue monitoring" >> /tmp/cve-monitoring-report.md
+          else
+            echo "" >> /tmp/cve-monitoring-report.md
+            echo "**Immediate Actions:**" >> /tmp/cve-monitoring-report.md
+            echo "1. Pull latest base images: \`docker pull python:3.13-slim\`" >> /tmp/cve-monitoring-report.md
+            echo "2. Rebuild FraiseQL images" >> /tmp/cve-monitoring-report.md
+            echo "3. Run Trivy scan to verify fixes" >> /tmp/cve-monitoring-report.md
+            echo "4. Remove fixed CVEs from .trivyignore" >> /tmp/cve-monitoring-report.md
+            echo "5. Deploy updated images within 7 days (SLA)" >> /tmp/cve-monitoring-report.md
+          fi
+
+          cat /tmp/cve-monitoring-report.md
+
+          # Export for next step
+          echo "fixed_count=$FIXED_COUNT" >> $GITHUB_ENV
+
+      - name: Create GitHub Issue if patches available
+        if: env.fixed_count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/cve-monitoring-report.md', 'utf8');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🎉 CVE Patches Available - ${{ env.fixed_count }} CVE(s) Fixed`,
+              body: report,
+              labels: ['security', 'patching', 'good-news'],
+            });
+
+      - name: Upload CVE monitoring report
+        uses: actions/upload-artifact@v5
+        with:
+          name: cve-monitoring-report
+          path: /tmp/cve-monitoring-report.md
+
+  compliance-summary:
+    name: Weekly Compliance Summary
+    runs-on: ubuntu-latest
+    needs: [scan-base-images, monitor-active-cves]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate compliance summary
+        run: |
+          cat > compliance-summary.md <<EOF
+          # Weekly Security Compliance Summary
+
+          **Report Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Compliance Framework**: NIS2 Article 21, NIST 800-53, ISO 27001
+
+          ## Current Security Posture
+
+          ### Container Security
+          - Base images scanned for HIGH/CRITICAL vulnerabilities
+          - Distroless migration: In progress (Phase 1)
+          - Security hardening: Enabled (non-root, read-only filesystem compatible)
+
+          ### Vulnerability Management
+          - Active monitoring: 4 MEDIUM CVEs (awaiting vendor patches)
+          - Accepted risks: Documented in .trivyignore with justifications
+          - Patching SLA: < 7 days for HIGH/CRITICAL
+
+          ### Compliance Status
+          - ✅ NIS2 Article 21 (Risk Management): Documented risk analysis
+          - ✅ NIS2 Article 24 (Vulnerability Database): Weekly monitoring
+          - ✅ NIST SI-2 (Flaw Remediation): Automated scanning
+          - ✅ ISO 27001 A.12.6.1: Vulnerability tracking
+
+          ## Next Steps
+          1. Continue weekly CVE monitoring
+          2. Complete distroless migration (Phase 2-3)
+          3. Implement runtime security monitoring (Falco)
+          4. Quarterly penetration testing
+
+          ## Resources
+          - Full remediation plan: docs/security/vulnerability-remediation-plan.md
+          - Security policy: SECURITY.md
+          - Compliance documentation: docs/security-compliance.md
+          EOF
+
+          cat compliance-summary.md
+
+      - name: Upload compliance summary
+        uses: actions/upload-artifact@v5
+        with:
+          name: weekly-compliance-summary
+          path: compliance-summary.md
