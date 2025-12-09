@@ -1150,9 +1150,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.8.0-alpha.3** | Root level | Alpha | Testing mutation_response + cascade fixes | ⚠️ Testing Only |
+| **v1.8.0-beta.5** | Root level | Beta | Security hardening + documentation improvements | ✅ Production Ready |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.7.2** | Superseded | Legacy | Use v1.8.0-alpha.3 or wait for v1.8.0 stable | ⚠️ Upgrade |
+| **v1.7.2** | Superseded | Legacy | Use v1.8.0-beta.5 or wait for v1.8.0 stable | ⚠️ Upgrade |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
