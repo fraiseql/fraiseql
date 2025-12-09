@@ -179,11 +179,11 @@ CVE-2022-0563
 # =============================================================================
 # CATEGORY 6: LOW SEVERITY CVEs (All Documented & Accepted)
 # Risk Level: MINIMAL
-# Mitigation: See docs/security/LOW-CVE-RISK-ASSESSMENT.md
+# Mitigation: See docs/security/cve-assessment-low.md
 # =============================================================================
 #
 # All 25 LOW severity CVEs have been comprehensively assessed and accepted.
-# Complete analysis available in docs/security/LOW-CVE-RISK-ASSESSMENT.md
+# Complete analysis available in docs/security/cve-assessment-low.md
 #
 # Summary:
 # - Legacy CVEs (>10 years old): 9 CVEs
