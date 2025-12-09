@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.0-alpha.5) - Alpha Release**
+**📍 You are here: Main FraiseQL Framework (v1.8.0-beta.4) - Beta Release**
 
-**Current Version**: v1.8.0a5 | **Status**: Alpha | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.0b4 | **Status**: Beta | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
