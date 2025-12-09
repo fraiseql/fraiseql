@@ -156,7 +156,6 @@ fn test_error_response_includes_cascade() {
     assert_eq!(data["cascade"]["status"], "noop:validation_failed");
     assert_eq!(data["cascade"]["reason"], "invalid_input");
 }
-}
 
 // ============================================================================
 // Tests for STATUS TAXONOMY (Phase 2: GREEN)

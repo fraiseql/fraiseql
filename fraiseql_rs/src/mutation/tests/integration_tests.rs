@@ -436,7 +436,6 @@ fn test_error_response_with_explicit_errors() {
     assert_eq!(errors[0]["identifier"], "email_invalid");
     assert_eq!(errors[1]["identifier"], "name_required");
 }
-}
 
 // ============================================================================
 // COMPREHENSIVE EDGE CASE TESTS (Phase 5)

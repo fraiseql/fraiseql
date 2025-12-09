@@ -127,7 +127,6 @@ fn test_empty_status() {
     let status = MutationStatus::from_str("");
     assert!(status.is_success());
 }
-}
 
 // ============================================================================
 // Tests for STATUS TAXONOMY INTEGRATION (Phase 3: REFACTOR)

@@ -86,7 +86,6 @@ proptest! {
         prop_assert_eq!(result_first_parse.is_ok(), result_reparsed.is_ok());
     }
 }
-}
 
 // ============================================================================
 // CASCADE FIX TESTS (Phase 1: RED) - 8-field composite type parsing

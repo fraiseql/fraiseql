@@ -205,14 +205,21 @@ pub fn transform_with_schema(
                 Value::String(current_type.to_string()),
             );
 
+            // OPTIMIZATION: Clone map once, then use .remove() to take ownership of values
+            // This trades 1 map clone for N field clones (where N = number of fields)
+            // For objects with >1 field, this is a net win
+            let mut owned_map = map.clone();
+
             // Transform each field
-            for (key, val) in map {
+            for key in map.keys() {
                 let camel_key = to_camel_case(key);
 
                 // Look up field type in schema (O(1) HashMap lookup)
                 let transformed_val = match registry.get_field_type(current_type, key) {
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - use schema to resolve correct type
+                        // Still need to borrow here for nested transformation
+                        let val = owned_map.get(key).unwrap();
                         transform_nested_object(
                             val,
                             field_info.type_name(),
@@ -221,13 +228,12 @@ pub fn transform_with_schema(
                         )
                     }
                     Some(_) => {
-                        // Scalar field - no transformation needed, just clone
-                        val.clone()
+                        // Scalar field - take ownership, no clone needed!
+                        owned_map.remove(key).unwrap()
                     }
                     None => {
-                        // Field not in schema - graceful degradation
-                        // Apply simple camelCase transformation recursively
-                        transform_value(val.clone())
+                        // Field not in schema - take ownership and transform recursively
+                        transform_value(owned_map.remove(key).unwrap())
                     }
                 };
 
@@ -379,8 +385,13 @@ fn transform_with_aliases(
                 Value::String(current_type.to_string()),
             );
 
+            // OPTIMIZATION: Clone map once, then use .remove() to take ownership of values
+            // This trades 1 map clone for N field clones (where N = number of fields)
+            // For objects with >1 field, this is a net win
+            let mut owned_map = map.clone();
+
             // Transform each field with alias support and field projection
-            for (key, val) in map {
+            for key in map.keys() {
                 // Build materialized path for this field
                 // Example: "" + "user_name" → "user_name"
                 //          "user.posts" + "author_name" → "user.posts.author_name"
@@ -409,6 +420,8 @@ fn transform_with_aliases(
                 let transformed_val = match registry.get_field_type(current_type, key) {
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - recursively transform with updated path
+                        // Still need to borrow here for nested transformation
+                        let val = owned_map.get(key).unwrap();
                         transform_nested_field_with_aliases(
                             val,
                             field_info.type_name(),
@@ -420,13 +433,12 @@ fn transform_with_aliases(
                         )
                     }
                     Some(_) => {
-                        // Scalar field - clone value as-is (no transformation needed)
-                        val.clone()
+                        // Scalar field - take ownership, no clone needed!
+                        owned_map.remove(key).unwrap()
                     }
                     None => {
-                        // Field not in schema - graceful degradation
-                        // Apply simple camelCase transformation without type info
-                        transform_value(val.clone())
+                        // Field not in schema - take ownership and transform recursively
+                        transform_value(owned_map.remove(key).unwrap())
                     }
                 };
 

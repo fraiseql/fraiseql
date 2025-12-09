@@ -353,7 +353,6 @@ fn test_special_characters_in_fields() {
         "Hello 世界"
     );
 }
-}
 
 // ============================================================================
 // PROPERTY-BASED TESTS (Phase 5)
