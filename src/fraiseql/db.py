@@ -1755,17 +1755,61 @@ class FraiseQLRepository:
         # Convert field name to database format for FK column checking
         db_field_name = self._convert_field_name_to_database(field_name)
 
+        # PHASE 2 IMPROVEMENT: Try to retrieve table_columns from type registry
+        # Even without explicit table_columns, check if view metadata hints at FK relationships
+        if table_columns is None and view_name and view_name in _table_metadata:
+            # Try to get metadata from type registry
+            metadata = _table_metadata[view_name]
+            if metadata.get("columns"):
+                table_columns = set(metadata["columns"])
+                logger.debug(
+                    f"Dict WHERE: Retrieved table_columns from registry for "
+                    f"{view_name}: {table_columns}"
+                )
+
+        # PHASE 2 IMPROVEMENT: Enhanced heuristic detection
+        # Check if the filter structure matches nested object pattern:
+        # - Has "id" key with operator dict value
+        # - Field name suggests relationship (not a scalar field)
+        # - No direct operator keys at top level
+
+        # Check for operator-like keys at top level
+        operator_keys = {
+            "eq",
+            "neq",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "contains",
+            "icontains",
+            "in",
+            "nin",
+        }
+        has_top_level_operators = any(k in operator_keys for k in field_filter)
+
+        # If top-level has operators, it's NOT a nested object filter
+        if has_top_level_operators:
+            logger.debug(
+                f"Dict WHERE: Treating {field_name} as regular field filter "
+                f"(has top-level operators: {list(field_filter.keys() & operator_keys)})"
+            )
+            return False, False
+
         # SCENARIO 1: FK-based nested filter (existing behavior)
         if "id" in field_filter and isinstance(field_filter["id"], dict):
             # This looks like a nested object filter
             # Check if we have a corresponding SQL column for this relationship
             potential_fk_column = f"{db_field_name}_id"
 
-            # Validate that this is likely a nested object, not a field literally named "id"
+            # PHASE 2 IMPROVEMENT: Enhanced heuristic validation
             # True nested objects have:
             # 1. A single "id" key (or very few keys like "id" + metadata)
             # 2. The "id" value is a dict with operator keys
             # 3. The field name suggests a relationship (not a scalar field)
+            # 4. No top-level operator keys (already checked above)
+
+            # Enhanced heuristic: check for nested object pattern
             looks_like_nested = len(field_filter) == 1 or (  # Only contains "id" key
                 len(field_filter) <= 2 and all(k in ("id", "__typename") for k in field_filter)
             )

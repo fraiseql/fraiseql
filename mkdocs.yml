@@ -83,25 +83,21 @@ markdown_extensions:
 
 nav:
   - Home: README.md
-
   - Getting Started:
     - getting-started/README.md
     - 5-Minute Quickstart: getting-started/quickstart.md
     - First Hour Guide: getting-started/first-hour.md
     - Installation: getting-started/installation.md
-
   - Tutorials:
     - tutorials/beginner-path.md
     - Blog API Tutorial: tutorials/blog-api.md
     - Production Deployment: tutorials/production-deployment.md
-
-  - Features:                          # NEW: Prominent v1.5.0 features
+  - Features:
     - Feature Matrix: features/index.md
     - pgvector (Vector Search): features/pgvector.md
     - GraphQL Cascade: features/graphql-cascade.md
     - LangChain Integration: guides/langchain-integration.md
     - LLM Integration: advanced/llm-integration.md
-
   - Core Concepts:
     - Philosophy: core/fraiseql-philosophy.md
     - Types & Schema: core/types-and-schema.md
@@ -109,15 +105,14 @@ nav:
     - Database API: core/database-api.md
     - Configuration: core/configuration.md
     - Concepts Glossary: core/concepts-glossary.md
-
   - Guides:
     - Filtering (Complete Guide): guides/filtering.md
+    - Nested Filters: filtering/nested-filters.md
     - Understanding FraiseQL: guides/understanding-fraiseql.md
-    - Cascade Best Practices: guides/cascade-best-practices.md  # ADD: existing file
+    - Cascade Best Practices: guides/cascade-best-practices.md
     - Performance Guide: guides/performance-guide.md
     - Troubleshooting: guides/troubleshooting.md
     - Troubleshooting Decision Tree: guides/troubleshooting-decision-tree.md
-
   - Advanced:
     - Authentication: advanced/authentication.md
     - Multi-Tenancy: advanced/multi-tenancy.md
@@ -125,21 +120,18 @@ nav:
     - Event Sourcing: advanced/event-sourcing.md
     - Database Patterns: advanced/database-patterns.md
     - Advanced Patterns: advanced/advanced-patterns.md
-
   - Performance:
     - Overview: performance/index.md
     - Rust Pipeline: performance/rust-pipeline-optimization.md
     - APQ Optimization: performance/apq-optimization-guide.md
     - Caching: performance/caching.md
     - CASCADE Best Practices: guides/cascade-best-practices.md
-
   - Production:
     - Deployment: production/deployment.md
     - Monitoring: production/monitoring.md
     - Observability: production/observability.md
     - Health Checks: production/health-checks.md
     - Security: production/security.md
-
   - Reference:
     - API Reference:
       - Database API: reference/database.md
@@ -147,12 +139,10 @@ nav:
       - CLI: reference/cli.md
       - Configuration: reference/config.md
     - Quick Reference: reference/quick-reference.md
-
   - Migration:
     - v0 to v1: migration/v0-to-v1.md
     - Cascade Adoption: migration/cascade-adoption.md
-    - Migrating to Cascade: guides/migrating-to-cascade.md  # ADD: existing file
-
+    - Migrating to Cascade: guides/migrating-to-cascade.md
   - Architecture:
     - Overview: architecture/README.md
     - Architecture Decisions: architecture/decisions/README.md
