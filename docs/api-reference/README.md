@@ -35,7 +35,7 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
 - **[fetch_one() / fetch_all()](database.md#fetching-data)** - Retrieve query results
 
 ### Where Input Types
-- **[create_graphql_where_input()](../advanced/where_input_types.md)** - Generate filtering types
+- **[create_graphql_where_input()](../advanced/where-input-types.md)** - Generate filtering types
   - Standard operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `isnull`
   - Specialized operators: Network types, ltree hierarchy, date ranges
   - Nested array filtering: `AND`, `OR`, `NOT` logical operators
@@ -71,7 +71,7 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
 ## Utilities
 
 ### Trinity Identifiers
-- **[Trinity Pattern](../patterns/trinity_identifiers.md)** - Three-tier ID system
+- **[Trinity Pattern](../database/trinity-identifiers.md)** - Three-tier ID system
   - `pk_*` - Internal integer IDs for fast joins
   - `id` - Public UUID for API stability
   - `identifier` - Human-readable slugs for SEO

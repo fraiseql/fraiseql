@@ -17,7 +17,19 @@ from psycopg.sql import SQL, Composed
 
 # Lazy-load the Rust extension to avoid circular import issues
 def _get_fraiseql_rs():
-    """Lazy-load the Rust extension module."""
+    """Lazy-load the Rust extension module.
+
+    This function imports the Rust extension on-demand to avoid:
+    - Circular import issues during module loading
+    - Import errors when Rust extension is not available
+    - Performance overhead of importing unused modules
+
+    Returns:
+        The fraiseql._fraiseql_rs module if available
+
+    Raises:
+        ImportError: If the Rust extension cannot be imported
+    """
     try:
         import importlib
 
@@ -31,10 +43,29 @@ def _get_fraiseql_rs():
 
 # Create a namespace object that lazy-loads functions
 class _FraiseQLRs:
+    """Namespace object for lazy-loading Rust extension functions.
+
+    This class provides a clean interface to Rust functions while deferring
+    the actual import until the functions are first called. This pattern
+    avoids import-time dependencies and circular import issues.
+    """
+
     _module = None
 
     @staticmethod
     def build_graphql_response(*args: Any, **kwargs: Any) -> Any:
+        """Lazy-load and call the Rust build_graphql_response function.
+
+        This method loads the Rust extension on first call and then delegates
+        to the actual Rust implementation for optimal performance.
+
+        Args:
+            *args: Arguments to pass to the Rust function
+            **kwargs: Keyword arguments to pass to the Rust function
+
+        Returns:
+            The result from the Rust build_graphql_response function
+        """
         if _FraiseQLRs._module is None:
             _FraiseQLRs._module = _get_fraiseql_rs()
         return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)

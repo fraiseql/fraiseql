@@ -6,9 +6,9 @@ Guides for developing with FraiseQL.
 
 - [Style Guide](/docs/development/style-guide.md) - Code and documentation standards
 - [Link Best Practices](/docs/development/link-best-practices.md) - Documentation linking guidelines
-- [Framework Submission Guide](/docs/development/FRAMEWORK_SUBMISSION_GUIDE.md) - Submit to framework lists
-- [New User Confusions](/docs/development/NEW_USER_CONFUSIONS.md) - Common pain points
-- [Philosophy](/docs/development/PHILOSOPHY.md) - Design principles
+- [Framework Submission Guide](/docs/development/framework-submission-guide.md) - Submit to framework lists
+- [New User Confusions](/docs/development/new-user-confusions.md) - Common pain points
+- [Philosophy](/docs/development/philosophy.md) - Design principles
 
 ## Topics
 

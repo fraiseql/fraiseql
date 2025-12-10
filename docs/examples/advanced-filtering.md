@@ -918,7 +918,7 @@ AND price >= 100;
 ## Next Steps
 
 - **[Filter Operators Reference](../advanced/filter-operators.md)** - Complete operator documentation
-- **[Where Input Types](../advanced/where_input_types.md)** - Basic filtering guide
+- **[Where Input Types](../advanced/where-input-types.md)** - Basic filtering guide
 - **[PostgreSQL Extensions](../core/postgresql-extensions.md)** - Required PostgreSQL setup
 
 ---

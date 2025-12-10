@@ -123,34 +123,47 @@ def create_concrete_type(generic_type: type, concrete_arg: type) -> type:
 
 
 def _substitute_typevar(type_annotation: Any, concrete_type: type) -> Any:
-    """Substitute TypeVar instances with concrete types in a type annotation."""
+    """Substitute TypeVar instances with concrete types in a type annotation.
+
+    This function recursively walks through complex type annotations to replace
+    TypeVar instances (like 'T' in Generic[T]) with concrete types (like 'Post').
+
+    Examples:
+        _substitute_typevar(list[T], Post) -> list[Post]
+        _substitute_typevar(Union[T, None], Post) -> Union[Post, None]
+        _substitute_typevar(dict[str, T], Post) -> dict[str, Post]
+    """
     from types import UnionType
     from typing import Union
 
-    # Handle TypeVar directly
+    # Direct TypeVar replacement - most common case
     if isinstance(type_annotation, TypeVar):
         return concrete_type
 
-    # Handle generic types like list[T]
-    origin = get_origin(type_annotation)
-    args = get_args(type_annotation)
+    # Handle generic types like list[T], dict[str, T], etc.
+    origin = get_origin(type_annotation)  # e.g., list for list[T]
+    args = get_args(type_annotation)  # e.g., (T,) for list[T]
 
     if origin is not None and args:
-        # Recursively substitute in args
+        # Recursively substitute TypeVars in all type arguments
+        # This handles nested generics like dict[str, list[T]]
         new_args = tuple(_substitute_typevar(arg, concrete_type) for arg in args)
 
-        # Handle Union and UnionType specially
+        # Special handling for Union types (including Optional = Union[T, None])
         if origin in (Union, UnionType):
-            # Use Union for consistency
+            # Normalize to Union[T, None] format for Optional types
             if len(new_args) == 2 and type(None) in new_args:
-                # Handle Optional[T] (T | None)
+                # Extract the non-None type for cleaner Optional[T] representation
                 non_none_arg = new_args[0] if new_args[1] is type(None) else new_args[1]
                 return Union[non_none_arg, type(None)]
+            # General Union case
             return Union[new_args]
-        # Reconstruct the type with new args
+
+        # Reconstruct the generic type with substituted arguments
+        # e.g., list[T] + Post -> list[Post]
         return origin[new_args]
 
-    # Return as-is if no substitution needed
+    # No TypeVar found - return unchanged
     return type_annotation
 
 

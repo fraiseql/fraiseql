@@ -826,6 +826,8 @@ async def on_task_updates(
 
 ## See Also
 
+- **[Mutation SQL Requirements](../guides/mutation-sql-requirements.md)** - Complete guide to writing PostgreSQL functions for mutations
+- **[Error Handling Patterns](../guides/error-handling-patterns.md)** - Error handling philosophy and advanced patterns
 - [Types and Schema](./types-and-schema.md) - Define types for use in queries and mutations
 - [Decorators Reference](../reference/decorators.md) - Complete decorator API
 - [Database API](../reference/database.md) - Database operations for queries and mutations

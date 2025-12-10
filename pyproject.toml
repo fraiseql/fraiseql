@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fraiseql"
-version = "1.8.0b3"
+version = "1.8.0b5"
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -60,6 +60,7 @@ dependencies = [
   "sqlparse>=0.5.0",
   "fraiseql-confiture>=0.1.0",
   "jinja2>=3.1.0",
+  "urllib3>=2.6.0",
 ]
 
 [project.urls]
@@ -220,7 +221,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev"]
+exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py"]
 fix = true
 
 [tool.ruff.lint]

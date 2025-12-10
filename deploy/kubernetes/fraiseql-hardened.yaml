@@ -1,0 +1,466 @@
+---
+# FraiseQL Hardened Kubernetes Deployment
+# Government-grade security configuration
+# Compliant with: NIST 800-53, NIS2, ISO 27001, FedRAMP
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fraiseql-production
+  labels:
+    name: fraiseql-production
+    security: restricted
+    # Enforce Pod Security Standards
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+automountServiceAccountToken: false  # Security: Don't mount tokens by default
+
+---
+# Network Policy: Default Deny All
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: fraiseql-production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Network Policy: Allow FraiseQL to PostgreSQL
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fraiseql-to-postgres
+  namespace: fraiseql-production
+spec:
+  podSelector:
+    matchLabels:
+      app: fraiseql
+  policyTypes:
+  - Egress
+  egress:
+  # Allow PostgreSQL access
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS for external APIs (if needed)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Network Policy: Allow Ingress to FraiseQL
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-fraiseql
+  namespace: fraiseql-production
+spec:
+  podSelector:
+    matchLabels:
+      app: fraiseql
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx  # Adjust for your ingress controller
+    ports:
+    - protocol: TCP
+      port: 8000
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraiseql-config
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+data:
+  # Non-sensitive configuration
+  FRAISEQL_PRODUCTION: "true"
+  PYTHONUNBUFFERED: "1"
+  LOG_LEVEL: "INFO"
+  WORKERS: "4"
+
+---
+# Secret (create manually or via sealed-secrets/external-secrets)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fraiseql-secrets
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+type: Opaque
+stringData:
+  # IMPORTANT: DO NOT commit real secrets to Git
+  # Use external secrets management (Vault, AWS Secrets Manager, etc.)
+  DATABASE_URL: "postgresql://user:password@postgres:5432/dbname"  # REPLACE WITH REAL SECRET
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+    version: v1.8.0-beta.5
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: fraiseql
+  template:
+    metadata:
+      labels:
+        app: fraiseql
+        version: v1.8.0-beta.5
+      annotations:
+        # Prometheus scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        # Security scanning annotations
+        trivy.scan.enabled: "true"
+        # Force pod recreation on secret change
+        checksum/secrets: "{{ include (print $.Template.BasePath '/secret.yaml') . | sha256sum }}"
+    spec:
+      serviceAccountName: fraiseql
+      automountServiceAccountToken: false
+
+      # Security Context (Pod-level)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: "OnRootMismatch"
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Container
+      containers:
+      - name: fraiseql
+        image: fraiseql:1.8.0-hardened  # Replace with your registry
+        imagePullPolicy: Always
+
+        # Security Context (Container-level)
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+
+        # Resource limits (adjust based on workload)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+
+        # Ports
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+
+        # Environment variables
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: fraiseql-secrets
+              key: DATABASE_URL
+        envFrom:
+        - configMapRef:
+            name: fraiseql-config
+
+        # Volume mounts (for read-only root filesystem)
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /var/cache
+        - name: python-cache
+          mountPath: /home/fraiseql/.cache
+
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Startup probe (for slow-starting applications)
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 12  # 60 seconds max startup time
+
+      # Volumes (for read-only root filesystem)
+      volumes:
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+      - name: cache
+        emptyDir:
+          medium: Memory
+          sizeLimit: 50Mi
+      - name: python-cache
+        emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+
+      # Pod anti-affinity (spread across nodes)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: fraiseql
+              topologyKey: kubernetes.io/hostname
+
+      # Tolerations (if using dedicated nodes)
+      # tolerations:
+      # - key: "workload"
+      #   operator: "Equal"
+      #   value: "fraiseql"
+      #   effect: "NoSchedule"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+spec:
+  type: ClusterIP
+  selector:
+    app: fraiseql
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
+    protocol: TCP
+  sessionAffinity: None
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fraiseql
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+
+---
+# Pod Disruption Budget (maintain availability during disruptions)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: fraiseql
+
+---
+# Ingress (adjust for your ingress controller)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fraiseql
+  namespace: fraiseql-production
+  labels:
+    app: fraiseql
+  annotations:
+    # Nginx ingress annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+
+    # Rate limiting (adjust as needed)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+
+    # TLS configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # If using cert-manager
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.example.com  # REPLACE WITH YOUR DOMAIN
+    secretName: fraiseql-tls
+  rules:
+  - host: api.example.com  # REPLACE WITH YOUR DOMAIN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: http
+
+---
+# Security Notes:
+#
+# 1. Secrets Management:
+#    - DO NOT commit secrets to Git
+#    - Use external secrets management:
+#      * HashiCorp Vault
+#      * AWS Secrets Manager
+#      * Azure Key Vault
+#      * Google Secret Manager
+#      * Sealed Secrets
+#      * External Secrets Operator
+#
+# 2. Image Security:
+#    - Use private container registry
+#    - Scan images with Trivy before deployment
+#    - Sign images with Cosign
+#    - Verify signatures in admission controller
+#
+# 3. Network Security:
+#    - Network policies enforce zero-trust
+#    - mTLS with service mesh (Istio/Linkerd) recommended
+#    - Egress filtering for internet access
+#
+# 4. Compliance:
+#    - Pod Security Standards: restricted
+#    - Read-only root filesystem
+#    - Non-root user (UID 65532)
+#    - No privilege escalation
+#    - Drop all capabilities
+#    - Seccomp profile: RuntimeDefault
+#
+# 5. Monitoring:
+#    - Prometheus metrics exposed on /metrics
+#    - Structured logging to stdout/stderr
+#    - Distributed tracing with OpenTelemetry
+#    - Falco for runtime security monitoring
+#
+# 6. Deployment:
+#    - Use GitOps (ArgoCD/Flux)
+#    - Automated canary deployments
+#    - Rollback capability
+#    - Blue-green deployment for zero downtime

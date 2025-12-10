@@ -119,39 +119,127 @@ jobs:
         path: python-licenses.md
 
   container-security:
-     name: Container Security Scan
+     name: Container Security Scan (Government Grade)
      runs-on: ubuntu-latest
+     strategy:
+       matrix:
+         dockerfile:
+           - { path: 'deploy/docker/Dockerfile', tag: 'fraiseql:standard', label: 'Standard' }
+           # Distroless removed due to CRITICAL/HIGH vulnerabilities in Python 3.11
+           # See security-assessment-2025-12-09-distroless.md for details
+           # Will re-enable when gcr.io/distroless/python3.13 becomes available
      steps:
      - uses: actions/checkout@v4
 
-     - name: Build test container
+     - name: Build ${{ matrix.dockerfile.label }} container
        run: |
          # Build container for security scanning
          docker build \
-           --file deploy/docker/Dockerfile \
-           --tag fraiseql:test \
+           --file ${{ matrix.dockerfile.path }} \
+           --tag ${{ matrix.dockerfile.tag }} \
+           --target production \
            .
 
-     - name: Scan container with Trivy
+     - name: Scan container with Trivy (SARIF for GitHub)
        uses: aquasecurity/trivy-action@master
        with:
          scan-type: 'image'
-         scan-ref: 'fraiseql:test'
+         scan-ref: ${{ matrix.dockerfile.tag }}
          format: 'sarif'
-         output: 'trivy-container-results.sarif'
-         severity: 'CRITICAL,HIGH'
-         exit-code: 0  # Don't fail on vulnerabilities, just report them
+         output: 'trivy-${{ matrix.dockerfile.label }}-results.sarif'
+         severity: 'CRITICAL,HIGH,MEDIUM'  # Government standard: include MEDIUM
+         exit-code: 0  # Report only, don't fail
+         trivyignores: '.trivyignore'
 
-     - name: Upload Trivy container scan results
+     - name: Upload Trivy SARIF results to GitHub Security
        uses: github/codeql-action/upload-sarif@v4
        if: always()
        with:
-         sarif_file: 'trivy-container-results.sarif'
+         sarif_file: 'trivy-${{ matrix.dockerfile.label }}-results.sarif'
+         category: 'container-${{ matrix.dockerfile.label }}'
 
-     - name: Container Security Scan
+     - name: Scan container with Trivy (JSON for detailed analysis)
+       uses: aquasecurity/trivy-action@master
+       with:
+         scan-type: 'image'
+         scan-ref: ${{ matrix.dockerfile.tag }}
+         format: 'json'
+         output: 'trivy-${{ matrix.dockerfile.label }}-detailed.json'
+         severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+         trivyignores: '.trivyignore'
+
+     - name: Generate compliance report
        run: |
-         echo "✅ Container security scanning completed with Trivy above"
-         echo "Dockle scan removed - Trivy provides comprehensive container scanning"
+         echo "# Container Security Report - ${{ matrix.dockerfile.label }}" > security-report.md
+         echo "" >> security-report.md
+         echo "**Image**: ${{ matrix.dockerfile.tag }}" >> security-report.md
+         echo "**Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> security-report.md
+         echo "**Compliance Level**: Government Agency Ready" >> security-report.md
+         echo "" >> security-report.md
+
+         # Count vulnerabilities by severity
+         CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
+         HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
+         MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
+         LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
+
+         echo "## Vulnerability Summary" >> security-report.md
+         echo "- 🔴 Critical: $CRITICAL" >> security-report.md
+         echo "- 🟠 High: $HIGH" >> security-report.md
+         echo "- 🟡 Medium: $MEDIUM" >> security-report.md
+         echo "- 🔵 Low: $LOW" >> security-report.md
+         echo "" >> security-report.md
+
+         # Check for unpatched vulnerabilities
+         UNPATCHED=$(jq '[.Results[]?.Vulnerabilities[]? | select(.FixedVersion=="")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
+         echo "## Patch Availability" >> security-report.md
+         echo "- Unpatched vulnerabilities: $UNPATCHED" >> security-report.md
+         echo "" >> security-report.md
+
+         # Government compliance gate
+         if [ "$CRITICAL" -gt 0 ]; then
+           echo "❌ CRITICAL vulnerabilities found - Government compliance FAILED"
+           echo "**Status**: ❌ Non-compliant (Critical vulnerabilities present)" >> security-report.md
+           exit 1
+         elif [ "$HIGH" -gt 0 ]; then
+           echo "⚠️  HIGH severity vulnerabilities found - Review required"
+           echo "**Status**: ⚠️  Review Required (High severity vulnerabilities)" >> security-report.md
+           # Don't fail for HIGH in base OS packages if documented in .trivyignore
+           if [ "${{ matrix.dockerfile.label }}" == "Distroless (Production)" ]; then
+             echo "Distroless image - HIGH vulnerabilities acceptable if in .trivyignore"
+             exit 0
+           fi
+         else
+           echo "✅ Container meets government security standards"
+           echo "**Status**: ✅ Compliant" >> security-report.md
+         fi
+
+         cat security-report.md
+
+     - name: Upload detailed scan results
+       uses: actions/upload-artifact@v5
+       if: always()
+       with:
+         name: trivy-${{ matrix.dockerfile.label }}-detailed
+         path: |
+           trivy-${{ matrix.dockerfile.label }}-detailed.json
+           security-report.md
+
+     - name: Generate SBOM (Software Bill of Materials)
+       run: |
+         # Generate SBOM in CycloneDX format for government compliance
+         docker run --rm \
+           -v /var/run/docker.sock:/var/run/docker.sock \
+           aquasec/trivy image \
+           --format cyclonedx \
+           --output sbom-${{ matrix.dockerfile.label }}.json \
+           ${{ matrix.dockerfile.tag }}
+
+     - name: Upload SBOM
+       uses: actions/upload-artifact@v5
+       with:
+         name: sbom-${{ matrix.dockerfile.label }}
+         path: sbom-${{ matrix.dockerfile.label }}.json
 
   dependency-audit:
     name: Dependency Audit

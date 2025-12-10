@@ -134,12 +134,12 @@ CREATE INDEX idx_tv_order_status
 
 **Trigger-Based Synchronization** (not generated columns):
 
-tv_ tables are maintained via PostgreSQL triggers that rebuild the JSONB data whenever base tables change. This provides real-time consistency without manual refresh calls. Note: PostgreSQL does not support cross-table references in GENERATED columns, so triggers are required for maintaining tv_ table data.
+tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See [Explicit Sync Documentation](../core/explicit-sync.md) for details.
 
 **Step 1: Create tv_ Table**
 
 ```sql
--- tv_ table with JSONB data column (maintained via triggers)
+-- tv_ table with JSONB data column (maintained via explicit sync)
 CREATE TABLE tv_order (
     -- GraphQL identifier (matches tb_order.id)
     id UUID PRIMARY KEY,
@@ -151,7 +151,7 @@ CREATE TABLE tv_order (
     total DECIMAL(10,2),
     created_at TIMESTAMPTZ,
 
-    -- Complete denormalized payload (maintained via triggers)
+    -- Complete denormalized payload (maintained via explicit sync)
     data JSONB NOT NULL,
 
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -322,20 +322,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_sync_tv_order_on_user_change
-AFTER UPDATE ON tb_user
-FOR EACH ROW EXECUTE FUNCTION sync_tv_order_on_related_changes();
+-- Explicit sync: Call after user/order updates
+SELECT refresh_tv_order(p_order_id => v_order_id);
 
-CREATE TRIGGER trg_sync_tv_order_on_item_change
-AFTER INSERT OR UPDATE OR DELETE ON tb_order_item
-FOR EACH ROW EXECUTE FUNCTION sync_tv_order_on_related_changes();
+-- Or sync multiple orders at once
+SELECT refresh_tv_order_batch(p_order_ids => ARRAY[v_order_id1, v_order_id2]);
 ```
 
-**Benefits of Trigger-Based Synchronization:**
-- ✅ **Real-time consistency**: Data always up-to-date
-- ✅ **No manual refresh**: Automatic via triggers
-- ✅ **Performance**: Efficient trigger execution
-- ✅ **Reliability**: Handles complex cross-table relationships
+**Benefits of Explicit Synchronization:**
+- ✅ **Predictable performance**: No unexpected trigger overhead
+- ✅ **Transactional control**: Sync happens when you want it
+- ✅ **Debugging friendly**: Easy to trace sync operations
+- ✅ **Resource management**: Control when expensive operations run
 
 ### GraphQL Query Pattern
 
@@ -1095,7 +1093,7 @@ WHERE p.deleted_at IS NULL;
 Multi-level nested data in single view:
 
 ```sql
-CREATE VIEW v_order_complete AS
+CREATE VIEW tv_order_complete AS
 SELECT
   o.id,
   o.customer_id,
@@ -1111,7 +1109,7 @@ SELECT
         'name', c.name,
         'email', c.email
       )
-      FROM customers c
+      FROM tb_customer c
       WHERE c.id = o.customer_id
     ),
     'items', (
@@ -1121,7 +1119,7 @@ SELECT
         'quantity', i.quantity,
         'price', i.price
       ) ORDER BY i.created_at)
-      FROM order_items i
+      FROM tb_order_item i
       WHERE i.order_id = o.id
     ),
     'shipping', (
@@ -1131,12 +1129,12 @@ SELECT
         'status', s.status,
         'trackingNumber', s.tracking_number
       )
-      FROM shipments s
+      FROM tb_shipment s
       WHERE s.order_id = o.id
       LIMIT 1
     )
   ) as data
-FROM orders o;
+FROM tb_order o;
 ```
 
 ### Conditional Aggregations
@@ -1223,7 +1221,7 @@ SELECT cron.schedule(
 **Pattern**:
 ```sql
 -- Write-optimized table (normalized)
-CREATE TABLE orders (
+CREATE TABLE tb_order (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   user_id UUID NOT NULL,
@@ -1233,7 +1231,7 @@ CREATE TABLE orders (
 );
 
 -- Read-optimized view (denormalized)
-CREATE VIEW v_orders AS
+CREATE VIEW tv_order AS
 SELECT
   o.id,
   o.tenant_id,
@@ -1255,12 +1253,12 @@ SELECT
         'quantity', i.quantity,
         'price', i.price
       ))
-      FROM order_items i
+      FROM tb_order_item i
       WHERE i.order_id = o.id
     )
   ) as data
-FROM orders o
-JOIN users u ON u.id = o.user_id;
+FROM tb_order o
+JOIN tb_user u ON u.id = o.user_id;
 ```
 
 **Benefits**:
@@ -1316,7 +1314,7 @@ SELECT set_config('app.current_tenant_id', '123e4567-...', true);
 Filter tenants in view definition:
 
 ```sql
-CREATE VIEW v_tenant_orders AS
+CREATE VIEW tv_tenant_orders AS
 SELECT
   o.id,
   jsonb_build_object(
@@ -1325,7 +1323,7 @@ SELECT
     'status', o.status,
     'total', o.total
   ) as data
-FROM orders o
+FROM tb_order o
 WHERE o.tenant_id = current_setting('app.tenant_id')::UUID;
 ```
 
@@ -1438,12 +1436,12 @@ SELECT
       '[]'::jsonb  -- Default to empty array
     )
   ) as data
-FROM orders;
+FROM tb_order;
 ```
 
 **Use DISTINCT ON for latest records**:
 ```sql
-CREATE VIEW v_latest_order_per_user AS
+CREATE VIEW tv_latest_order_per_user AS
 SELECT DISTINCT ON (user_id)
   user_id,
   jsonb_build_object(
@@ -1451,7 +1449,7 @@ SELECT DISTINCT ON (user_id)
     'total', total,
     'createdAt', created_at
   ) as data
-FROM orders
+FROM tb_order
 ORDER BY user_id, created_at DESC;
 ```
 
@@ -1461,9 +1459,9 @@ ORDER BY user_id, created_at DESC;
 
 ```sql
 -- Category hierarchy
-CREATE TABLE categories (
+CREATE TABLE tb_category (
   id UUID PRIMARY KEY,
-  parent_id UUID REFERENCES categories(id),
+  parent_id UUID REFERENCES tb_category(id),
   name VARCHAR(100) NOT NULL,
   slug VARCHAR(100) NOT NULL
 );
@@ -1480,7 +1478,7 @@ WITH RECURSIVE category_tree AS (
     0 AS depth,
     ARRAY[id] AS path,
     ARRAY[name] AS breadcrumb
-  FROM categories
+  FROM tb_category
   WHERE parent_id IS NULL
 
   UNION ALL
@@ -1494,7 +1492,7 @@ WITH RECURSIVE category_tree AS (
     ct.depth + 1,
     ct.path || c.id,
     ct.breadcrumb || c.name
-  FROM categories c
+  FROM tb_category c
   JOIN category_tree ct ON c.parent_id = ct.id
   WHERE ct.depth < 10  -- Prevent infinite recursion
 )
@@ -1514,7 +1512,7 @@ SELECT
         'name', c.name,
         'slug', c.slug
       ) ORDER BY c.name)
-      FROM categories c
+      FROM tb_category c
       WHERE c.parent_id = category_tree.id
     )
   ) as data
@@ -1530,7 +1528,7 @@ Using ltree extension for efficient tree queries:
 -- Using ltree extension
 CREATE EXTENSION IF NOT EXISTS ltree;
 
-CREATE TABLE categories_ltree (
+CREATE TABLE tv_category_tree (
   id UUID PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   path ltree NOT NULL,
@@ -1538,10 +1536,10 @@ CREATE TABLE categories_ltree (
 );
 
 -- Index for path operations
-CREATE INDEX idx_category_path ON categories_ltree USING gist(path);
+CREATE INDEX idx_category_path ON tv_category_tree USING gist(path);
 
 -- Insert with path
-INSERT INTO categories_ltree (name, path) VALUES
+INSERT INTO tv_category_tree (name, path) VALUES
   ('Electronics', 'electronics'),
   ('Computers', 'electronics.computers'),
   ('Laptops', 'electronics.computers.laptops'),
@@ -1558,7 +1556,7 @@ SELECT
     'path', c.path::text,
     'depth', nlevel(c.path)
   ) as data
-FROM categories_ltree c
+FROM tv_category_tree c
 WHERE c.path <@ 'electronics.computers'::ltree;  -- All under computers
 ```
 
@@ -1807,213 +1805,23 @@ async def update_order(info, id: UUID, name: str) -> MutationResult:
 - Rollback support (reconstruct previous state)
 - Analytics on mutation patterns
 
-### Lazy Cache with Version-Based Invalidation
+### tv_ Tables as Performance Layer
 
-**Purpose**: High-performance GraphQL query caching with automatic invalidation.
+**Purpose**: tv_ tables serve as the primary high-performance data access layer.
 
-**Infrastructure**:
-```sql
--- Schema for caching
-CREATE SCHEMA IF NOT EXISTS turbo;
+Since Rust provides excellent JSON concatenation performance, tv_ tables eliminate the need for additional caching layers. The denormalized JSONB data in tv_ tables is optimized for direct GraphQL query serving.
 
--- Unified cache table for all GraphQL queries
-CREATE TABLE turbo.tb_graphql_cache (
-    tenant_id UUID NOT NULL,
-    query_type TEXT NOT NULL,  -- 'orders', 'order_details', etc.
-    query_key TEXT NOT NULL,   -- Composite key for the specific query
-    response JSONB NOT NULL,
-    record_count INT DEFAULT 0,
-    cache_version BIGINT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (tenant_id, query_type, query_key)
-);
+**Performance Characteristics**:
+- **Direct Access**: GraphQL resolvers read directly from tv_ tables
+- **Pre-computed**: Complex joins and aggregations are materialized
+- **Fast Serialization**: Rust handles JSONB to GraphQL conversion efficiently
+- **Explicit Updates**: tv_ tables updated via explicit sync functions
 
--- Version tracking per tenant and domain
-CREATE TABLE turbo.tb_domain_version (
-    tenant_id UUID NOT NULL,
-    domain TEXT NOT NULL,  -- 'order', 'machine', 'contract'
-    version BIGINT NOT NULL DEFAULT 0,
-    last_modified TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (tenant_id, domain)
-);
-
--- Indexes
-CREATE INDEX idx_graphql_cache_lookup
-    ON turbo.tb_graphql_cache(tenant_id, query_type, query_key, cache_version);
-CREATE INDEX idx_domain_version_lookup
-    ON turbo.tb_domain_version(tenant_id, domain, version);
-```
-
-**Version Increment Trigger Function**:
-```sql
-CREATE OR REPLACE FUNCTION turbo.fn_increment_version()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_domain TEXT;
-    v_tenant_id UUID;
-BEGIN
-    -- Extract domain from trigger arguments
-    v_domain := TG_ARGV[0];
-
-    -- Get tenant_id from row data
-    IF TG_OP = 'DELETE' THEN
-        v_tenant_id := OLD.tenant_id;
-    ELSIF TG_OP = 'UPDATE' THEN
-        v_tenant_id := COALESCE(NEW.tenant_id, OLD.tenant_id);
-    ELSE -- INSERT
-        v_tenant_id := NEW.tenant_id;
-    END IF;
-
-    -- Increment version for the affected tenant and domain
-    INSERT INTO turbo.tb_domain_version (tenant_id, domain, version, last_modified)
-    VALUES (v_tenant_id, v_domain, 1, NOW())
-    ON CONFLICT (tenant_id, domain) DO UPDATE
-    SET version = turbo.tb_domain_version.version + 1,
-        last_modified = NOW();
-
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Cache Retrieval with Auto-Refresh**:
-```sql
-CREATE OR REPLACE FUNCTION turbo.fn_get_cached_response(
-    p_query_type TEXT,
-    p_query_key TEXT,
-    p_domain TEXT,
-    p_builder_function TEXT,
-    p_params JSONB,
-    p_tenant_id UUID
-)
-RETURNS json AS $$
-DECLARE
-    v_current_version BIGINT;
-    v_cached_data RECORD;
-    v_fresh_data JSONB;
-BEGIN
-    -- Get current domain version
-    SELECT version INTO v_current_version
-    FROM turbo.tb_domain_version
-    WHERE tenant_id = p_tenant_id AND domain = p_domain;
-
-    -- Auto-initialize if not found
-    IF v_current_version IS NULL THEN
-        INSERT INTO turbo.tb_domain_version (tenant_id, domain, version)
-        VALUES (p_tenant_id, p_domain, 0)
-        ON CONFLICT DO NOTHING;
-        v_current_version := 0;
-    END IF;
-
-    -- Try cache
-    SELECT response, cache_version INTO v_cached_data
-    FROM turbo.tb_graphql_cache
-    WHERE tenant_id = p_tenant_id
-      AND query_type = p_query_type
-      AND query_key = p_query_key;
-
-    -- Return if fresh
-    IF v_cached_data.response IS NOT NULL
-       AND v_cached_data.cache_version >= v_current_version THEN
-        RETURN v_cached_data.response::json;
-    END IF;
-
-    -- Build fresh data
-    EXECUTE format('SELECT %s(%L::jsonb)', p_builder_function, p_params)
-    INTO v_fresh_data;
-
-    -- Update cache
-    INSERT INTO turbo.tb_graphql_cache
-        (tenant_id, query_type, query_key, response, cache_version, updated_at)
-    VALUES
-        (p_tenant_id, p_query_type, p_query_key, v_fresh_data, v_current_version, NOW())
-    ON CONFLICT (tenant_id, query_type, query_key) DO UPDATE SET
-        response = EXCLUDED.response,
-        cache_version = EXCLUDED.cache_version,
-        updated_at = NOW();
-
-    RETURN v_fresh_data::json;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Trigger Setup on Materialized Views**:
-```sql
--- Attach to any materialized view (tv_*)
-CREATE TRIGGER trg_tv_orders_cache_invalidation
-AFTER INSERT OR UPDATE OR DELETE ON tv_orders
-FOR EACH ROW
-EXECUTE FUNCTION turbo.fn_increment_version('order');
-```
-
-**Benefits**:
-- Sub-millisecond cached response times
-- Automatic invalidation (no manual cache clearing)
-- Multi-tenant isolation
-- Version-based consistency (no stale data)
-
-### Subdomain-Specific Cache Invalidation
-
-**Purpose**: Cascade cache invalidation across related domains.
-
-**Pattern**:
-```sql
--- Enhanced trigger with cascade invalidation
-CREATE OR REPLACE FUNCTION turbo.fn_tv_table_cache_invalidation()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_tenant_id UUID;
-    v_domain TEXT;
-BEGIN
-    -- Extract domain from table name (e.g., tv_contract -> contract)
-    v_domain := regexp_replace(TG_TABLE_NAME, '^tv_', '');
-
-    -- Get tenant_id
-    IF TG_OP = 'DELETE' THEN
-        v_tenant_id := OLD.tenant_id;
-    ELSE
-        v_tenant_id := NEW.tenant_id;
-    END IF;
-
-    -- Increment primary domain version
-    INSERT INTO turbo.tb_domain_version (tenant_id, domain, version)
-    VALUES (v_tenant_id, v_domain, 1)
-    ON CONFLICT (tenant_id, domain) DO UPDATE
-    SET version = turbo.tb_domain_version.version + 1,
-        last_modified = NOW();
-
-    -- Handle cascade invalidations for related domains
-    IF v_domain = 'contract' THEN
-        -- Contract changes affect items and prices
-        PERFORM turbo.fn_invalidate_domain(v_tenant_id, 'item');
-        PERFORM turbo.fn_invalidate_domain(v_tenant_id, 'price');
-    ELSIF v_domain = 'order' THEN
-        -- Order changes affect allocation
-        PERFORM turbo.fn_invalidate_domain(v_tenant_id, 'allocation');
-    END IF;
-
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Helper Function for Domain Invalidation**:
-```sql
-CREATE OR REPLACE FUNCTION turbo.fn_invalidate_domain(
-    p_tenant_id UUID,
-    p_domain TEXT
-)
-RETURNS void AS $$
-BEGIN
-    INSERT INTO turbo.tb_domain_version (tenant_id, domain, version)
-    VALUES (p_tenant_id, p_domain, 1)
-    ON CONFLICT (tenant_id, domain) DO UPDATE
-    SET version = turbo.tb_domain_version.version + 1,
-        last_modified = NOW();
-END;
-$$ LANGUAGE plpgsql;
-```
+**No Additional Caching Needed**:
+- tv_ tables provide sub-millisecond query performance
+- Rust's speed eliminates need for query result caching
+- Explicit sync ensures data consistency
+- Multi-tenant isolation built into table structure
 
 ### Standardized Mutation Response Shape
 
@@ -2081,49 +1889,34 @@ async def update_product(
 
 ### Monitoring & Metrics
 
-**Cache Performance Metrics**:
-```sql
--- Metrics table
-CREATE TABLE turbo.tb_cache_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    query_type TEXT NOT NULL,
-    cache_hit BOOLEAN NOT NULL,
-    execution_time_ms FLOAT NOT NULL,
-    recorded_at TIMESTAMP DEFAULT NOW()
-);
+**Purpose**: Track tv_ table performance and sync effectiveness.
 
-CREATE INDEX idx_cache_metrics_analysis
-    ON turbo.tb_cache_metrics(query_type, cache_hit, recorded_at);
+**Sync Performance Monitoring**:
+```sql
+-- Monitor sync function performance
+SELECT
+    schemaname,
+    funcname,
+    calls,
+    ROUND(total_time::numeric, 2) as total_ms,
+    ROUND(mean_time::numeric, 2) as avg_ms,
+    ROUND((total_time / calls)::numeric, 2) as ms_per_call
+FROM pg_stat_user_functions
+WHERE funcname LIKE 'refresh_tv_%'
+ORDER BY total_time DESC;
 ```
 
-**Cache Hit Rate Query**:
+**tv_ Table Freshness Check**:
 ```sql
+-- Check how fresh tv_ data is
 SELECT
-    query_type,
-    COUNT(*) FILTER (WHERE cache_hit) AS hits,
-    COUNT(*) FILTER (WHERE NOT cache_hit) AS misses,
-    ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_hit) / COUNT(*),
-        2
-    ) AS hit_rate_pct,
-    ROUND(AVG(execution_time_ms)::numeric, 2) AS avg_ms
-FROM turbo.tb_cache_metrics
-WHERE recorded_at > NOW() - INTERVAL '1 hour'
-GROUP BY query_type
-ORDER BY COUNT(*) DESC;
-```
-
-**Domain Version Status**:
-```sql
-SELECT
-    domain,
-    COUNT(DISTINCT tenant_id) as tenant_count,
-    MAX(version) as max_version,
-    MAX(last_modified) as last_change
-FROM turbo.tb_domain_version
-GROUP BY domain
-ORDER BY max_version DESC;
+    schemaname || '.' || tablename as table_name,
+    n_tup_ins + n_tup_upd + n_tup_del as total_changes,
+    last_autoanalyze,
+    last_analyze
+FROM pg_stat_user_tables
+WHERE tablename LIKE 'tv_%'
+ORDER BY n_tup_ins + n_tup_upd + n_tup_del DESC;
 ```
 
 ## Best Practices
@@ -2145,11 +1938,12 @@ ORDER BY max_version DESC;
 - Use Row-Level Security for automatic isolation
 - Include tenant_id in all composite indexes
 
-**Caching**:
-- Use version-based invalidation (not TTL)
-- Invalidate at domain granularity
-- Monitor cache hit rates (target >80%)
-- Clean up stale cache periodically
+**tv_ Table Maintenance**:
+- Use explicit sync functions for data consistency
+- Monitor sync performance regularly
+- Keep tv_ tables fresh for optimal query performance
+- Monitor tv_ table sync performance
+- Ensure explicit sync calls are timely
 
 **Audit Trail**:
 - Log all mutations to entity_change_log
@@ -2168,6 +1962,6 @@ ORDER BY max_version DESC;
 - Separate write tables from read views
 - Apply tenant filtering at view or application level
 - Index JSONB fields accessed in WHERE clauses
-- Implement lazy caching with version-based invalidation
+- Use explicit sync for tv_ table updates
 - Log all mutations for audit trail
-- Monitor query plans and cache hit rates regularly
+- Monitor query plans and sync performance regularly

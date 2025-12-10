@@ -25,7 +25,7 @@ FraiseQL might seem different if you're used to traditional web frameworks. Here
 **Key Concepts to Know**:
 - **[CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Separate reading data from writing data
 - **[JSONB Views](../core/concepts-glossary.md#view)**: Pre-packaged data ready for GraphQL
-- **[Trinity Identifiers](../patterns/trinity_identifiers.md)**: Three types of IDs per entity
+- **[Trinity Identifiers](../database/trinity-identifiers.md)**: Three types of IDs per entity
 - **[Database-First](../core/concepts-glossary.md)**: Business logic lives in PostgreSQL
 
 **Why This Matters**: Traditional frameworks often fight against the database. FraiseQL works *with* PostgreSQL, using its strengths (JSONB, functions, views) to build faster, more maintainable APIs.
@@ -136,7 +136,7 @@ FraiseQL embraces **PostgreSQL's JSONB** as a first-class storage mechanism, not
 **Traditional ORM Approach**:
 ```sql
 -- Rigid schema, many columns
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),

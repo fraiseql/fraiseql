@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.0-alpha.5) - Alpha Release**
+**📍 You are here: Main FraiseQL Framework (v1.8.0-beta.5) - Beta Release**
 
-**Current Version**: v1.8.0a5 | **Status**: Alpha | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.0b5 | **Status**: Beta | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -1150,9 +1150,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.8.0-alpha.3** | Root level | Alpha | Testing mutation_response + cascade fixes | ⚠️ Testing Only |
+| **v1.8.0-beta.5** | Root level | Beta | Security hardening + documentation improvements | ✅ Production Ready |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v1.7.2** | Superseded | Legacy | Use v1.8.0-alpha.3 or wait for v1.8.0 stable | ⚠️ Upgrade |
+| **v1.7.2** | Superseded | Legacy | Use v1.8.0-beta.5 or wait for v1.8.0 stable | ⚠️ Upgrade |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

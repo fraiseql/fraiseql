@@ -5,7 +5,7 @@ This directory contains architectural documentation for FraiseQL.
 ## Key Documents
 
 ### Direct Path Implementation
-**[DIRECT_PATH_IMPLEMENTATION.md](./DIRECT_PATH_IMPLEMENTATION.md)** - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.
+**[direct-path-implementation.md](./direct-path-implementation.md)** - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.
 
 **Status**: ✅ Implemented and working
 - GraphQL → SQL → Rust → HTTP pipeline

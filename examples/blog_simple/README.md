@@ -1,6 +1,23 @@
 # FraiseQL Blog Simple - Complete Example Application
 
+🟢 BEGINNER | ⏱️ 45 min | 🎯 Content Management | 🏷️ Trinity Pattern
+
 A complete blog application demonstrating FraiseQL's fundamental patterns and best practices.
+
+**What you'll learn:**
+- Trinity Pattern for secure identifier management
+- CQRS architecture with PostgreSQL functions
+- Complete CRUD operations with enterprise patterns
+- Authentication and role-based access control
+- Database-first GraphQL API design
+
+**Prerequisites:**
+- None (great starting point!)
+
+**Next steps:**
+- `../blog_api/` - Add enterprise mutation patterns
+- `../ecommerce/` - Complex business logic
+- `../enterprise_patterns/` - Advanced enterprise features
 
 ## 🌟 Overview
 
@@ -15,9 +32,12 @@ This is a **production-ready blog application** that showcases:
 
 ## 🎯 Key Features
 
-This example demonstrates FraiseQL's opinionated approach:
+This example demonstrates FraiseQL's opinionated approach with **Trinity Pattern**:
 
 - **GraphQL API** exposes only `id` (UUID) and `identifier` (slug) fields
+- **Internal operations** use fast `pk_*` INT joins for performance
+- **Security** through separate public/internal identifiers
+- **See**: [Trinity Pattern Guide](../../docs/core/trinity-pattern.md) for complete explanation
 - **Python code** uses UUIDs exclusively for relationships
 - **Database layer** uses views with JOINs to expose UUID relationships
 - **Mutations** delegate to PostgreSQL functions for business logic
@@ -76,99 +96,195 @@ blog_simple/
 ### Core Tables
 
 ```sql
--- Users and authentication
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL UNIQUE,
+-- Users and authentication (Trinity Pattern)
+CREATE TABLE tb_user (
+    -- Trinity Identifiers
+    pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
+    identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (username)
+
+    -- User data
+    email TEXT NOT NULL UNIQUE CHECK (email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'author', 'user')),
+    profile_data JSONB DEFAULT '{}'::jsonb,
+
+    -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    profile_data JSONB DEFAULT '{}'::jsonb
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    -- Constraints
+    CONSTRAINT chk_username_length CHECK (length(identifier) >= 3)
 );
 
--- Blog posts
-CREATE TABLE posts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
-    content TEXT NOT NULL,
+-- Blog posts (Trinity Pattern)
+CREATE TABLE tb_post (
+    -- Trinity Identifiers
+    pk_post INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
+    identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
+
+    -- Post data
+    title TEXT NOT NULL CHECK (length(title) >= 1),
+    content TEXT NOT NULL CHECK (length(content) >= 1),
     excerpt TEXT,
-    author_id UUID NOT NULL REFERENCES users(id),
-    status TEXT NOT NULL DEFAULT 'draft',
+    fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,  -- Fast INT FK!
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
     published_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}'::jsonb,
+
+    -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}'::jsonb
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Comments system
-CREATE TABLE comments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES users(id),
-    parent_id UUID REFERENCES comments(id),
-    content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'published',
+-- Comments system (Trinity Pattern)
+CREATE TABLE tb_comment (
+    -- Trinity Identifiers
+    pk_comment INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,        -- Public API (secure UUID)
+    identifier TEXT UNIQUE,                                   -- Optional for comments
+
+    -- Comment data
+    fk_post INT NOT NULL REFERENCES tb_post(pk_post) ON DELETE CASCADE,       -- Fast INT FK!
+    fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,     -- Fast INT FK!
+    fk_parent INT REFERENCES tb_comment(pk_comment) ON DELETE CASCADE,        -- Fast INT FK!
+    content TEXT NOT NULL CHECK (length(content) >= 1),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+
+    -- Metadata
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tagging system (Trinity Pattern)
+CREATE TABLE tb_tag (
+    -- Trinity Identifiers
+    pk_tag INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,   -- Internal (fast INT joins)
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
+    identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
+
+    -- Tag data
+    name TEXT NOT NULL UNIQUE CHECK (length(name) >= 1),
+    color TEXT DEFAULT '#6366f1' CHECK (color ~ '^#[0-9A-Fa-f]{6}$'),
+    description TEXT,
+
+    -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tagging system
-CREATE TABLE tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL UNIQUE,
-    slug TEXT NOT NULL UNIQUE,
-    color TEXT DEFAULT '#6366f1',
-    description TEXT
-);
-
--- Post-tag relationships
+-- Post-tag relationships (many-to-many using INT FKs)
 CREATE TABLE post_tags (
-    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (post_id, tag_id)
+    fk_post INT NOT NULL REFERENCES tb_post(pk_post) ON DELETE CASCADE,
+    fk_tag INT NOT NULL REFERENCES tb_tag(pk_tag) ON DELETE CASCADE,
+    PRIMARY KEY (fk_post, fk_tag)
 );
 ```
 
+## 🏗️ Trinity Pattern Explained
+
+This example uses FraiseQL's **Trinity Pattern** with three types of identifiers per entity:
+
+### 1. **Internal IDs** (`pk_*`)
+- **Purpose**: Fast database joins and internal operations
+- **Type**: `INT GENERATED ALWAYS AS IDENTITY`
+- **Example**: `pk_user`, `pk_post`, `pk_tag`
+- **Benefits**: 10-100x faster JOINs than UUID joins
+
+### 2. **Public IDs** (`id`)
+- **Purpose**: External API exposure (secure, non-guessable)
+- **Type**: `UUID DEFAULT gen_random_uuid()`
+- **Example**: User UUIDs in URLs, API responses
+- **Benefits**: Security through obscurity, no enumeration attacks
+
+### 3. **Human IDs** (`identifier`)
+- **Purpose**: User-friendly identifiers (usernames, slugs)
+- **Type**: `TEXT UNIQUE NOT NULL`
+- **Example**: `@john_doe`, `my-blog-post-title`
+- **Benefits**: Readable URLs, SEO-friendly, user experience
+
+### Foreign Key Strategy
+```sql
+-- Fast INT foreign keys (not UUID)
+fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE
+```
+
+**Why This Matters**:
+- **Performance**: INT joins are 10-100x faster than UUID joins
+- **Security**: Public UUIDs prevent ID enumeration
+- **UX**: Human identifiers are memorable and shareable
+- **Flexibility**: All three types available for different use cases
+
+### Learn More
+- [Trinity Identifiers Guide](../../docs/database/trinity-identifiers.md)
+- [Table Naming Conventions](../../docs/database/table-naming-conventions.md)
+- [Migration Guide](../../docs/database/migrations.md)
+
+---
+
 ### Query Views
 
+Views expose UUID relationships to the GraphQL API while maintaining fast INT joins internally:
+
 ```sql
--- Optimized post view with author and tag information
+-- User view
+CREATE VIEW v_users AS
+SELECT
+    id,
+    identifier,
+    identifier AS username,  -- identifier serves as username
+    email,
+    role,
+    profile_data,
+    created_at,
+    updated_at
+FROM tb_user;
+
+-- Posts view (with UUID author relationship from JOIN)
 CREATE VIEW v_posts AS
 SELECT
     p.id,
+    p.identifier,
+    p.identifier AS slug,  -- identifier serves as slug
     p.title,
-    p.slug,
     p.content,
     p.excerpt,
     p.status,
     p.published_at,
     p.created_at,
-    p.metadata,
-    -- Author information
-    jsonb_build_object(
-        'id', u.id,
-        'username', u.username,
-        'profile', u.profile_data
-    ) as author,
-    -- Tag array
-    COALESCE(
-        array_agg(
-            jsonb_build_object(
-                'id', t.id,
-                'name', t.name,
-                'slug', t.slug,
-                'color', t.color
-            )
-        ) FILTER (WHERE t.id IS NOT NULL),
-        '{}'
-    ) as tags,
-    -- Comment count
-    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'published') as comment_count
-FROM posts p
-JOIN users u ON p.author_id = u.id
-LEFT JOIN post_tags pt ON p.id = pt.post_id
-LEFT JOIN tags t ON pt.tag_id = t.id
-GROUP BY p.id, u.id, u.username, u.profile_data;
+    p.updated_at,
+    u.id AS author_id  -- ✅ UUID relationship from JOIN
+FROM tb_post p
+JOIN tb_user u ON p.fk_author = u.pk_user;
+
+-- Comments view (with UUID relationships from JOINs)
+CREATE VIEW v_comments AS
+SELECT
+    c.id,
+    c.identifier,
+    c.content,
+    c.status,
+    c.created_at,
+    c.updated_at,
+    p.id AS post_id,       -- ✅ UUID relationship from JOIN
+    u.id AS author_id,     -- ✅ UUID relationship from JOIN
+    pc.id AS parent_id     -- ✅ UUID relationship from JOIN
+FROM tb_comment c
+JOIN tb_post p ON c.fk_post = p.pk_post
+JOIN tb_user u ON c.fk_author = u.pk_user
+LEFT JOIN tb_comment pc ON c.fk_parent = pc.pk_comment;
+
+-- Tags view
+CREATE VIEW v_tags AS
+SELECT
+    id,
+    identifier,
+    name,
+    identifier AS slug,  -- identifier serves as slug
+    color,
+    description,
+    created_at
+FROM tb_tag;
 ```
 
 ## 📝 GraphQL Schema
@@ -176,7 +292,7 @@ GROUP BY p.id, u.id, u.username, u.profile_data;
 ### Types
 
 ```python
-@fraiseql.type(sql_source="users")
+@fraiseql.type(sql_source="v_users")
 class User:
     id: str
     username: str
@@ -204,7 +320,7 @@ class Post:
     tags: list[Tag]
     comment_count: int
 
-@fraiseql.type(sql_source="comments")
+@fraiseql.type(sql_source="v_comments")
 class Comment:
     id: str
     content: str
@@ -212,7 +328,7 @@ class Comment:
     author: User
     parent_id: str | None
 
-@fraiseql.type(sql_source="tags")
+@fraiseql.type(sql_source="v_tags")
 class Tag:
     id: str
     name: str
@@ -478,3 +594,10 @@ After mastering this simple example:
 ---
 
 **This simple blog demonstrates FraiseQL's power for building clean, testable GraphQL APIs with PostgreSQL.**
+
+## Support
+
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
+- **Discord**: [FraiseQL Community](https://discord.gg/fraiseql)
+- **Documentation**: [FraiseQL Docs](../../docs)

@@ -176,6 +176,11 @@ def create_fraiseql_app(
     # Development auth configuration
     dev_auth_username: str | None = None,
     dev_auth_password: str | None = None,
+    # Connection pool configuration
+    connection_pool_size: int | None = None,
+    connection_pool_max_overflow: int | None = None,
+    connection_pool_timeout: float | None = None,
+    connection_pool_recycle: int | None = None,
     # Schema registry configuration
     enable_schema_registry: bool = True,
     # FastAPI app to extend (optional)
@@ -199,6 +204,10 @@ def create_fraiseql_app(
         production: Whether to use production optimizations
         dev_auth_username: Override username for development auth (defaults to env var or "admin")
         dev_auth_password: Override password for development auth (defaults to env var)
+        connection_pool_size: Number of connections in the pool (default: 10 for dev, 20 for prod)
+        connection_pool_max_overflow: Additional connections beyond pool_size (default: 10)
+        connection_pool_timeout: Seconds to wait for available connection (default: 30.0)
+        connection_pool_recycle: Seconds before recycling idle connections (default: 3600)
         enable_schema_registry: Whether to initialize Rust schema registry (default: True)
         app: Existing FastAPI app to extend (creates new if None)
 
@@ -212,6 +221,7 @@ def create_fraiseql_app(
         import my_models
         import my_mutations
 
+        # Basic usage with default pool settings
         app = create_fraiseql_app(
             database_url="postgresql://localhost/mydb",
             types=[my_models.User, my_models.Post],
@@ -220,6 +230,16 @@ def create_fraiseql_app(
                 domain="myapp.auth0.com",
                 api_identifier="https://api.myapp.com"
             ),
+            production=True
+        )
+
+        # Production with custom connection pool
+        app = create_fraiseql_app(
+            database_url="postgresql://db.prod.example.com/mydb",
+            connection_pool_size=30,
+            connection_pool_max_overflow=20,
+            connection_pool_timeout=60.0,
+            types=[my_models.User, my_models.Post],
             production=True
         )
         ```
@@ -254,7 +274,34 @@ def create_fraiseql_app(
         if dev_auth_password is not None:
             config_kwargs["dev_auth_password"] = dev_auth_password
 
+        # Connection pool configuration
+        # Default pool size: 10 for development, 20 for production
+        if connection_pool_size is not None:
+            config_kwargs["database_pool_size"] = connection_pool_size
+        elif "database_pool_size" not in config_kwargs:
+            # Apply environment-based defaults if not explicitly set
+            config_kwargs["database_pool_size"] = 20 if production else 10
+
+        if connection_pool_max_overflow is not None:
+            config_kwargs["database_max_overflow"] = connection_pool_max_overflow
+
+        if connection_pool_timeout is not None:
+            config_kwargs["database_pool_timeout"] = int(connection_pool_timeout)
+
+        if connection_pool_recycle is not None:
+            config_kwargs["database_pool_recycle"] = connection_pool_recycle
+
         config = FraiseQLConfig(**config_kwargs)
+    else:
+        # If config is provided, override with explicit parameters
+        if connection_pool_size is not None:
+            config.database_pool_size = connection_pool_size
+        if connection_pool_max_overflow is not None:
+            config.database_max_overflow = connection_pool_max_overflow
+        if connection_pool_timeout is not None:
+            config.database_pool_timeout = int(connection_pool_timeout)
+        if connection_pool_recycle is not None:
+            config.database_pool_recycle = connection_pool_recycle
 
     # Setup authentication first so it's available for lifespan
     auth_provider: AuthProvider | None = None
@@ -303,8 +350,9 @@ def create_fraiseql_app(
                 pool = await create_db_pool(
                     str(config.database_url),
                     min_size=2,  # Keep 2 connections warm for better performance
-                    max_size=config.database_pool_size,
+                    max_size=config.database_pool_size + config.database_max_overflow,
                     timeout=config.database_pool_timeout,
+                    max_lifetime=config.database_pool_recycle,
                 )
                 set_db_pool(pool)
                 pool_created_here = True
@@ -330,8 +378,9 @@ def create_fraiseql_app(
             pool = await create_db_pool(
                 str(config.database_url),
                 min_size=2,  # Keep 2 connections warm for better performance
-                max_size=config.database_pool_size,
+                max_size=config.database_pool_size + config.database_max_overflow,
                 timeout=config.database_pool_timeout,
+                max_lifetime=config.database_pool_recycle,
             )
             set_db_pool(pool)
 
@@ -500,8 +549,106 @@ def create_fraiseql_app(
     # Add health check endpoint
     @app.get("/health")
     async def health_check() -> dict[str, str]:
-        """Health check endpoint."""
+        """Health check endpoint (liveness probe).
+
+        Simple process-level health check. Returns 200 if the application
+        process is running.
+
+        Use for Kubernetes liveness probes to restart crashed pods.
+        """
         return {"status": "healthy", "service": "fraiseql"}
+
+    # Add readiness check endpoint
+    @app.get("/ready")
+    async def readiness_check(request: Request) -> dict[str, Any]:
+        """Readiness check endpoint (readiness probe).
+
+        Checks if the application is ready to serve traffic by validating:
+        - Database connection pool is available
+        - Database is reachable (simple query test)
+        - GraphQL schema is loaded
+
+        Returns:
+            200 OK: Application ready to serve traffic
+            503 Service Unavailable: Application not ready
+
+        Use for Kubernetes readiness probes to route traffic only to ready pods.
+
+        Example Response (Ready):
+            ```json
+            {
+              "status": "ready",
+              "checks": {
+                "database": "ok",
+                "schema": "ok"
+              },
+              "timestamp": 1670500000.0
+            }
+            ```
+
+        Example Response (Not Ready):
+            ```json
+            {
+              "status": "not_ready",
+              "checks": {
+                "database": "failed: connection timeout",
+                "schema": "ok"
+              },
+              "timestamp": 1670500000.0
+            }
+            ```
+        """
+        import time
+
+        from fastapi import status
+        from fastapi.responses import JSONResponse
+
+        checks: dict[str, str] = {}
+        all_ready = True
+
+        # Check 1: Database connection pool
+        try:
+            db_pool = get_db_pool()
+            if db_pool is None:
+                checks["database"] = "failed: pool not initialized"
+                all_ready = False
+            else:
+                # Check 2: Database reachability (simple query)
+                try:
+                    async with db_pool.connection() as conn:
+                        await conn.execute("SELECT 1")
+                    checks["database"] = "ok"
+                except Exception as e:
+                    checks["database"] = f"failed: {str(e)[:100]}"
+                    all_ready = False
+        except Exception as e:
+            checks["database"] = f"failed: {str(e)[:100]}"
+            all_ready = False
+
+        # Check 3: GraphQL schema loaded
+        try:
+            schema = getattr(app.state, "graphql_schema", None)
+            if schema is None:
+                checks["schema"] = "failed: not loaded"
+                all_ready = False
+            else:
+                checks["schema"] = "ok"
+        except Exception as e:
+            checks["schema"] = f"failed: {str(e)[:100]}"
+            all_ready = False
+
+        # Build response
+        response_status = "ready" if all_ready else "not_ready"
+        http_status = status.HTTP_200_OK if all_ready else status.HTTP_503_SERVICE_UNAVAILABLE
+
+        return JSONResponse(
+            content={
+                "status": response_status,
+                "checks": checks,
+                "timestamp": time.time(),
+            },
+            status_code=http_status,
+        )
 
     return app
 

@@ -276,10 +276,69 @@ pub fn build_error_response_with_code(
     // Add message
     obj.insert("message".to_string(), json!(result.message));
 
+    // Add errors array (auto-generated or explicit)
+    let errors = generate_errors_array(result, code)?;
+    obj.insert("errors".to_string(), errors);
+
     // Add cascade if present AND requested in selection
     add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 
     Ok(Value::Object(obj))
+}
+
+/// Generate errors array for error responses
+///
+/// Priority order:
+/// 1. Use explicit errors from metadata.errors if present
+/// 2. Auto-generate single error from status string
+pub fn generate_errors_array(result: &MutationResult, code: i32) -> Result<Value, String> {
+    // Check if explicit errors provided in metadata.errors
+    if let Some(metadata) = &result.metadata {
+        if let Some(explicit_errors) = metadata.get("errors") {
+            // Use explicit errors from database
+            return Ok(explicit_errors.clone());
+        }
+    }
+
+    // Auto-generate single error from status string
+    let identifier = extract_identifier_from_status(&result.status);
+    Ok(json!([{
+        "code": code,
+        "identifier": identifier,
+        "message": result.message,
+        "details": null
+    }]))
+}
+
+/// Extract error identifier from mutation status
+///
+/// Examples:
+/// - "noop:not_found" -> "not_found"
+/// - "failed:validation" -> "validation"
+/// - "failed" -> "general_error"
+pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
+    match status {
+        MutationStatus::Noop(reason) => {
+            // Extract part after colon: "noop:not_found" -> "not_found"
+            if let Some((_prefix, identifier)) = reason.split_once(':') {
+                identifier.to_string()
+            } else {
+                "general_error".to_string()
+            }
+        }
+        MutationStatus::Error(reason) => {
+            // Extract part after colon: "failed:validation" -> "validation"
+            if let Some((_prefix, identifier)) = reason.split_once(':') {
+                identifier.to_string()
+            } else {
+                "general_error".to_string()
+            }
+        }
+        MutationStatus::Success(_) => {
+            // Should never reach here (only errors call this function)
+            "unexpected_success".to_string()
+        }
+    }
 }
 
 /// Map mutation status to REST-like code (application-level only)

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ragpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag-app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://raguser:ragpass@postgres:5432/ragdb
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_LOCAL_EMBEDDINGS: ${USE_LOCAL_EMBEDDINGS:-true}
+      LOCAL_MODEL_URL: ${LOCAL_MODEL_URL:-http://host.docker.internal:8000/v1}
+    ports:
+      - "8001:8000"  # Expose on 8001 to avoid conflict with vLLM on 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Access host's vLLM server
+
+volumes:
+  postgres_data:

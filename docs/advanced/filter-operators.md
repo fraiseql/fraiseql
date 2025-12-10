@@ -1064,7 +1064,7 @@ FROM tb_product;
 
 ## Further Reading
 
-- [Where Input Types](./where_input_types.md) - Basic filtering documentation
+- [Where Input Types](./where-input-types.md) - Basic filtering documentation
 - [Nested Array Filtering](./nested-array-filtering.md) - Complex array queries
 - [PostgreSQL Array Documentation](https://www.postgresql.org/docs/current/arrays.html)
 - [PostgreSQL Full-Text Search](https://www.postgresql.org/docs/current/textsearch.html)

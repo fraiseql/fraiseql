@@ -20,7 +20,7 @@ Complete overview of all FraiseQL capabilities.
 | **Success/Failure Responses** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md#success-failure-pattern) | [mutations_demo](../../examples/mutations_demo/) |
 | **Nested Relations** | ✅ Stable | [Database API](../core/database-api.md#nested-relations) | [blog_api](../../examples/blog_api/) |
 | **Pagination** | ✅ Stable | [Database API](../core/database-api.md) | [ecommerce](../../examples/ecommerce/) |
-| **Filtering (Where Input)** | ✅ Stable | [Where Input Guide](../advanced/where_input_types.md) | [filtering](../../examples/filtering/) |
+| **Filtering (Where Input)** | ✅ Stable | [Where Input Guide](../advanced/where-input-types.md) | [filtering](../../examples/filtering/) |
 
 ---
 
@@ -33,7 +33,7 @@ Complete overview of all FraiseQL capabilities.
 | **PostgreSQL Functions** | ✅ Stable | [Database API](../core/database-api.md#calling-functions) | [blog_api](../../examples/blog_api/) |
 | **Connection Pooling** | ✅ Stable | [Database API](../core/database-api.md#connection-pool) | All examples |
 | **Transaction Support** | ✅ Stable | [Database API](../core/database-api.md#transactions) | [enterprise_patterns](../../examples/enterprise_patterns/) |
-| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../patterns/trinity_identifiers.md) | [saas-starter](../../examples/saas-starter/) |
+| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../database/trinity-identifiers.md) | [saas-starter](../../examples/saas-starter/) |
 | **CQRS Pattern** | ✅ Stable | [Patterns Guide](../patterns/README.md#cqrs) | [blog_enterprise](../../examples/blog_enterprise/) |
 
 ---
@@ -43,10 +43,10 @@ Complete overview of all FraiseQL capabilities.
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
 | **Nested Array Filtering** | ✅ Stable | [Nested Arrays](../guides/nested-array-filtering.md) | [specialized_types](../../examples/specialized_types/) |
-| **Logical Operators (AND/OR/NOT)** | ✅ Stable | [Where Input Types](../advanced/where_input_types.md#logical-operators) | [filtering](../../examples/filtering/) |
-| **Network Types (IPv4/IPv6/CIDR)** | ✅ Stable | [Specialized Types](../advanced/where_input_types.md#network-types) | [specialized_types](../../examples/specialized_types/) |
+| **Logical Operators (AND/OR/NOT)** | ✅ Stable | [Where Input Types](../advanced/where-input-types.md#logical-operators) | [filtering](../../examples/filtering/) |
+| **Network Types (IPv4/IPv6/CIDR)** | ✅ Stable | [Specialized Types](../advanced/where-input-types.md#network-types) | [specialized_types](../../examples/specialized_types/) |
 | **Hierarchical Data (ltree)** | ✅ Stable | [Hierarchical Guide](../advanced/database-patterns.md#ltree) | [ltree-hierarchical-data](../../examples/ltree-hierarchical-data/) |
-| **Date/Time Ranges** | ✅ Stable | [Range Types](../advanced/where_input_types.md#range-types) | [specialized_types](../../examples/specialized_types/) |
+| **Date/Time Ranges** | ✅ Stable | [Range Types](../advanced/where-input-types.md#range-types) | [specialized_types](../../examples/specialized_types/) |
 | **Full-Text Search** | ✅ Stable | [Search Guide](../advanced/database-patterns.md#full-text-search) | [ecommerce](../../examples/ecommerce/) |
 | **Geospatial Queries (PostGIS)** | 🚧 Beta | Coming soon | - |
 
@@ -91,7 +91,7 @@ Complete overview of all FraiseQL capabilities.
 | **Event Sourcing** | ✅ Stable | [Event Sourcing](../advanced/event-sourcing.md) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
 | **Domain Events** | ✅ Stable | [Event Sourcing](../advanced/event-sourcing.md#domain-events) | [blog_enterprise](../../examples/blog_enterprise/) |
 | **CQRS Architecture** | ✅ Stable | [Patterns Guide](../patterns/README.md#cqrs) | [blog_enterprise](../../examples/blog_enterprise/) |
-| **Compliance (GDPR/SOC2/HIPAA)** | ✅ Stable | [Enterprise Guide](../enterprise/ENTERPRISE.md) | [saas-starter](../../examples/saas-starter/) |
+| **Compliance (GDPR/SOC2/HIPAA)** | ✅ Stable | [Enterprise Guide](../enterprise/enterprise.md) | [saas-starter](../../examples/saas-starter/) |
 
 ---
 

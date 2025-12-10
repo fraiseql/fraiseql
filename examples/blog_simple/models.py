@@ -328,7 +328,8 @@ class ValidationError:
 
     message: str
     code: str = "VALIDATION_ERROR"
-    field_errors: list[dict[str, str]] | None = None
+    # Note: errors array is now auto-populated by FraiseQL from status strings
+    # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
 
 @fraiseql.failure

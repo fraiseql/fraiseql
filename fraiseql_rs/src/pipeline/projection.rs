@@ -4,28 +4,24 @@
 //! For up to 128 fields, we use bitmaps for ultra-fast lookup.
 //! For more fields, we fall back to HashSet.
 
-use std::collections::HashSet;
+
 
 /// Field set for projection (bitmap-based)
 ///
 /// Instead of HashMap<String, bool>, use a bitmap:
 /// - Hash field name → get bit position
 /// - Check bit: O(1) with zero allocation
-/// - 64 fields fit in a single u64!
+/// - 128 fields fit in two u64 bitmaps!
 ///
 /// Performance:
 /// - Lookup: 1 instruction (bit test)
-/// - Memory: 8 bytes for 64 fields (vs 1KB+ for HashMap)
+/// - Memory: 16 bytes for 128 fields (vs 1KB+ for HashMap)
 pub struct FieldSet {
     // For up to 64 fields (covers 95% of cases)
     bitmap: u64,
 
     // For 65-128 fields
     bitmap_ext: u64,
-
-    // For > 128 fields (rare), fall back to HashSet
-    #[allow(dead_code)]
-    overflow: Option<HashSet<u32>>,
 }
 
 impl FieldSet {
@@ -38,7 +34,6 @@ impl FieldSet {
         let mut field_set = FieldSet {
             bitmap: 0,
             bitmap_ext: 0,
-            overflow: None,
         };
 
         for path in paths {

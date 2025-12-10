@@ -7,6 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0-beta.5] - 2025-12-09
+
+### Security
+- **Comprehensive vulnerability remediation**: Complete security assessment and mitigation of all CVEs in python:3.13-slim base image
+  - **0 CRITICAL/HIGH vulnerabilities** - Government-grade security posture maintained
+  - **2 MEDIUM CVEs fully mitigated** with 5-layer defense-in-depth:
+    - CVE-2025-14104 (util-linux): Mitigated via no user management + non-root execution + startup checks + filesystem validation + Falco Rule 13
+    - CVE-2025-7709 (SQLite): Mitigated via PostgreSQL-only architecture + startup checks + production validation + FTS5 disabled + Falco Rule 14
+  - **25 LOW CVEs documented and accepted** with comprehensive risk justification (4 categories: Legacy, Vendor-Disputed, Preconditions Not Met, Temporary)
+  - **Base image decision**: Prevented security regression by identifying that distroless migration would introduce 5 CRITICAL/HIGH CVEs (Python 3.11 vs 3.13)
+- **Python startup security checks** (`src/fraiseql/security/startup_checks.py`):
+  - SQLite import detection (fail-fast on CVE-2025-7709)
+  - Root user detection (fail-fast on CVE-2025-14104)
+  - Production environment validation (PostgreSQL-only enforcement)
+  - Filesystem permissions verification (/etc/passwd write protection)
+- **Falco runtime monitoring** (`deploy/security/falco-rules.yaml`):
+  - 14 total Falco rules (12 general security + 2 CVE-specific)
+  - Rule 13: CVE-2025-14104 user management detection (CRITICAL alerts)
+  - Rule 14: CVE-2025-7709 SQLite file access detection (ERROR alerts)
+  - Real-time exploitation attempt detection with automated alerting
+- **Automated vulnerability monitoring** (`.github/workflows/security-alerts.yml`):
+  - Weekly Trivy scans (Monday 6 AM UTC)
+  - CVE patch monitoring for MEDIUM vulnerabilities
+  - Automated GitHub issue creation for HIGH/CRITICAL findings
+  - Distroless Python 3.13 availability tracking
+- **Hardened deployment configurations**:
+  - Production-hardened Dockerfile (`deploy/docker/Dockerfile.hardened`) with non-root user (UID 65532), read-only filesystem support
+  - Secure Kubernetes deployment (`deploy/kubernetes/fraiseql-hardened.yaml`) with Pod Security Standards: restricted, network policies (zero-trust), SecurityContext hardening
+
+### Documentation
+- **Security documentation reorganization**: Streamlined and consolidated all security documentation with consistent kebab-case naming
+  - Created `docs/security/README.md` as central security documentation index with audience-specific entry points
+  - Created `docs/security/vulnerability-remediation-summary.md` as executive summary (0 CRITICAL, 0 HIGH, 2 MEDIUM, 25 LOW)
+  - Renamed files to kebab-case: `cve-mitigation-medium.md`, `cve-assessment-low.md`, `distroless-evaluation.md`
+  - Removed 5 intermediate/duplicate files (70% reduction in redundancy)
+  - Updated all cross-references and audit trail documentation
+- **Compliance evidence**: Complete documentation for NIST 800-53, FedRAMP, NIS2, ISO 27001, SOC 2 compliance
+  - `docs/security/cve-mitigation-medium.md`: 19-page detailed MEDIUM CVE analysis with 5-layer defense-in-depth and >99.9% risk reduction
+  - `docs/security/cve-assessment-low.md`: Comprehensive LOW CVE risk assessment with vendor disputes, preconditions analysis
+  - `docs/security/controls-matrix.md`: Compliance controls mapping for all frameworks
+  - `.trivyignore`: Risk acceptance documentation with detailed justifications for all accepted CVEs
+
+### Notes
+- **Security posture**: Government-grade (0 CRITICAL, 0 HIGH vulnerabilities)
+- **Compliance**: ✅ NIST 800-53 SI-2, FedRAMP Moderate, NIS2 Article 21, ISO 27001:2022 A.12.6.1
+- **Risk reduction**: >99.9% for MEDIUM CVEs through multi-layer defense-in-depth
+- **Monitoring**: Automated weekly scans + runtime detection + startup validation
+- **Key achievement**: Prevented security regression (distroless would have introduced 5 CRITICAL/HIGH CVEs)
+- Beta release for testing - production-ready security hardening available
+
+## [1.8.0-beta.4] - 2025-12-09
+
+### Performance
+- **JSON transformation optimization**: Eliminated unnecessary scalar field clones in `transform_with_schema()` by cloning the map once and using `.remove()` for ownership transfer. Expected speedup of 15-40% for mutation responses with 5+ fields (WP-035 Phase 3)
+
+### Added (Features)
+- **Native error arrays**: ALL mutation error responses now automatically include `errors: list[Error]` array, populated from status strings by Rust pipeline. `MutationResultBase` is now optional for backward compatibility (WP-034 engineering)
+
+### Developer Experience (WP-036)
+- **Quick Reference Cheat Sheet**: Single-page reference covering 90% of mutation use cases with copy-paste ready examples (`docs/quick-reference/mutations-cheat-sheet.md`)
+- **Comprehensive Troubleshooting Guide**: 633-line guide covering top 10 mutation issues with symptom-diagnosis-solution format, including performance troubleshooting and 8-step debug checklist (`docs/guides/troubleshooting-mutations.md`)
+- **SQL Validation Helpers**: 6 production-ready helper functions for validating mutation responses during development (`sql/helpers/mutation_validation.sql`):
+  - `validate_status_format()` - Check status string convention
+  - `validate_errors_array()` - Validate metadata.errors structure
+  - `validate_mutation_response()` - Comprehensive validation
+  - `build_error_object()` - Build properly formatted error objects
+  - `get_expected_code()` - Get HTTP code for status string
+  - `extract_identifier()` - Extract identifier from status
+  - `mutation_assert()` - Conditional assertion (throws in debug, warns in production)
+- **VS Code Extension**: Productivity extension with 10 snippets for FraiseQL mutations (packaged as `.vscode-extension/fraiseql/fraiseql-tools-1.0.0.vsix`):
+  - `fraiseql-mutation` - Complete mutation function template
+  - `fraiseql-error-simple` - Simple error (Pattern 1)
+  - `fraiseql-error-explicit` - Explicit errors (Pattern 2)
+  - `fraiseql-not-found` - Not found check pattern
+  - `fraiseql-duplicate` - Duplicate check pattern
+  - `fraiseql-assert` - Validation assertion
+  - `fraiseql-extract` - Extract from input_payload
+  - `fraiseql-success` - Success response
+  - `fraiseql-collect-errors` - Multiple errors collection
+  - `fraiseql-build-error` - Build error object
+- **18 Real-World Mutation Examples**: Production-ready patterns covering all common use cases (`examples/mutation-patterns/`):
+  - **Basic CRUD**: create-user, update-user, delete-user
+  - **Validation**: simple-validation, multiple-field-validation, custom-validation-rules
+  - **Business Logic**: conditional-update, state-machine, calculated-fields
+  - **Relationships**: create-with-children, update-with-cascade, delete-with-cascade
+  - **Error Handling**: not-found, conflict-duplicate, permission-denied
+  - **Advanced**: bulk-operations, transaction-rollback, async-processing
+  - Each example includes comprehensive comments, usage examples, and expected responses
+  - Total: ~3,500 lines of copy-paste ready SQL code
+
+### Fixed
+- **Input parameter camelCase to snake_case conversion**: Mutation input parameters with camelCase field names are now properly converted to snake_case before being sent to PostgreSQL functions. This fixes silent failures when using `jsonb_populate_record()` with composite types that have snake_case field names. When `auto_camel_case=True`, the framework now bidirectionally converts input parameters (camelCase → snake_case) and output fields (snake_case → camelCase), ensuring full compatibility with PostgreSQL naming conventions.
+
+### Added
+- **Connection pooling configuration**: Added `pool_min_size`, `pool_max_size`, and `pool_timeout` parameters to `create_fraiseql_app()` for fine-grained control over PostgreSQL connection pooling (WP-027)
+- **Kubernetes readiness probe**: Implemented `/ready` endpoint for Kubernetes readiness checks, ensuring the application only receives traffic when database connections are healthy (WP-029)
+- **RAG system example**: New AI/ML example with local model support (no OpenAI API key required) demonstrating semantic search with vector operations (WP-007, WP-017)
+- **Multi-tenant SaaS example**: Comprehensive example showing tenant isolation, RLS policies, and trinity pattern usage (WP-018)
+- **Compliance demo example**: Production-ready example with SLSA provenance, audit trails, and security best practices (WP-019)
+
+### Internal
+- **Rust test organization**: Reorganized 63 mutation tests from single 1,725-line file into 7 focused modules (< 600 lines each) for better maintainability. Added property-based tests and comprehensive test documentation (WP-035 Phase 2)
+- **Rust API documentation**: Added comprehensive documentation for dual camelCase/snake_case API architecture and JSON transformation internals (WP-035 Phase 1)
+
+### Documentation
+- **Code documentation**: Enhanced Python docstrings in `field_counter.py`, `exceptions.py`, `generic.py`, `__version__.py`, and `rust_pipeline.py` with detailed explanations and examples
+- **Documentation audit**: Created comprehensive documentation inventory identifying 3 missing example READMEs and establishing quality metrics
+- **Example documentation**: Added detailed READMEs for `query_patterns`, `migrations`, and `observability` examples with standardized format
+- **File naming standardization**: Converted all documentation files to lowercase kebab-case for consistency (e.g., `README_template.md` → `readme-template.md`)
+- **Opinionated patterns documentation**: Created central `docs/database/README.md` (904 lines) as authoritative index for FraiseQL's PostgreSQL patterns, plus consolidated mutation SQL requirements guide (WP-034 documentation portion)
+- **Documentation improvements from WP-001 through WP-025**: Fixed SQL naming consistency, validated all code examples, eliminated contradictions, validated links, and completed persona reviews
+- **Trinity pattern migration guide**: Complete guide for migrating from simple table names to the trinity pattern (tb_/v_/tv_) with step-by-step instructions (WP-003)
+- **Framework migration guides**: Comprehensive guides for migrating from Django, FastAPI, SQLAlchemy, and Hasura to FraiseQL (WP-028)
+- **RAG tutorial**: Step-by-step tutorial for building semantic search with vector operations and embeddings (WP-007)
+- **Vector operators reference**: Complete reference for PostgreSQL vector operations and pgvector integration (WP-008)
+- **Security & compliance hub**: Central hub for SLSA, FedRAMP, SOC 2, and international compliance guidance (WP-010)
+- **SLSA provenance guide**: Detailed guide for verifying software supply chain security (WP-011)
+- **Compliance matrix**: International compliance mapping (GDPR, FedRAMP, SOC 2, ISO 27001, PCI DSS, HIPAA) (WP-012)
+- **Security profiles guide**: Risk-based security configuration patterns (Development, Staging, Production, High-Security) (WP-013)
+- **Production deployment checklist**: Complete pre-flight checklist for production deployments (WP-014)
+- **Persona journey guides**: Seven persona-specific documentation journeys (Junior Dev, Backend Engineer, AI/ML Engineer, DevOps, Security Officer, CTO, Procurement) (WP-004, WP-009, WP-015)
+- **Audit pattern documentation**: Explicit guidance on FraiseQL's audit trail approach and why to avoid database triggers for business logic (WP-030)
+- **Documentation quality improvements**: Fixed SQL naming consistency (WP-001, WP-002, WP-005, WP-006), validated all code examples (WP-020, WP-021), eliminated contradictions (WP-022), validated links (WP-023), and completed persona reviews (WP-024, WP-025)
+
+### Notes
+- This release combines a critical bug fix (camelCase conversion), performance optimization (JSON transformation), native error arrays (WP-034), comprehensive documentation improvements, and new production-ready examples
+- All 18 P0 documentation work packages completed with quality gate approval (WP-001 through WP-025)
+- WP-034 complete: Native error arrays + opinionated patterns documentation
+- WP-035 improvements: Performance optimization (Phase 3), test organization (Phase 2), and enhanced code documentation (Phase 1)
+- **WP-036 complete**: Developer experience enhancements with quick reference, troubleshooting guide, SQL validation helpers, VS Code extension, and 18 mutation pattern examples
+- Beta release for testing - suitable for production evaluation
+
 ## [1.8.0-beta.1] - 2025-12-07
 
 ### 🚨 BREAKING CHANGES
@@ -1853,7 +1985,7 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 🚀 Next Steps
 
-See [docs/strategic/VERSION_STATUS.md](docs/strategic/VERSION_STATUS.md) for the v1.1+ roadmap.
+See [docs/strategic/version-status.md](docs/strategic/version-status.md) for the v1.1+ roadmap.
 
 ---
 

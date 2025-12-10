@@ -9,7 +9,7 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 **Prerequisites**: Before implementing multi-tenancy, ensure you understand:
 - [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
 - [Security Basics](../production/security.md) - RLS and access control fundamentals
-- [Context Propagation](../advanced/where_input_types.md) - Dynamic filtering patterns
+- [Context Propagation](../advanced/where-input-types.md) - Dynamic filtering patterns
 
 **Key Strategies:**
 - Row-level security (RLS) with tenant_id filtering
@@ -150,7 +150,7 @@ CREATE TABLE organizations (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES organizations(id),
     email TEXT NOT NULL,
@@ -159,10 +159,10 @@ CREATE TABLE users (
     UNIQUE(tenant_id, email)
 );
 
-CREATE TABLE orders (
+CREATE TABLE tb_order (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES organizations(id),
-    user_id UUID NOT NULL REFERENCES users(id),
+    user_id UUID NOT NULL REFERENCES tb_user(id),
     total DECIMAL(10, 2) NOT NULL,
     status TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()

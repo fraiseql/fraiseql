@@ -25,12 +25,17 @@ app = create_fraiseql_app(types=[User, Post], config=config)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | database_url | PostgresUrl | Required | PostgreSQL connection URL (supports Unix sockets) |
-| database_pool_size | int | 20 | Maximum number of connections in pool |
+| database_pool_size | int | 20 (prod), 10 (dev) | Maximum number of connections in pool |
 | database_max_overflow | int | 10 | Extra connections allowed beyond pool_size |
 | database_pool_timeout | int | 30 | Connection timeout in seconds |
+| database_pool_recycle | int | 3600 | Recycle connections after N seconds (default: 1 hour) |
 | database_echo | bool | False | Enable SQL query logging (development only) |
 
-**Examples**:
+**Connection Pool Configuration**:
+
+FraiseQL uses psycopg3's `AsyncConnectionPool` for efficient connection management. You can configure the pool using either `FraiseQLConfig` or directly via `create_fraiseql_app()` parameters.
+
+**Method 1: Using FraiseQLConfig**
 ```python
 # Standard PostgreSQL URL
 config = FraiseQLConfig(
@@ -47,9 +52,35 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
     database_pool_size=50,
     database_max_overflow=20,
-    database_pool_timeout=60
+    database_pool_timeout=60,
+    database_pool_recycle=7200  # Recycle every 2 hours
 )
 ```
+
+**Method 2: Using create_fraiseql_app() parameters**
+```python
+# Quick configuration without creating FraiseQLConfig
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/mydb",
+    types=[User, Post],
+    connection_pool_size=30,  # Base pool size
+    connection_pool_max_overflow=20,  # Additional connections for spikes
+    connection_pool_timeout=60.0,  # Connection wait timeout
+    connection_pool_recycle=3600,  # Recycle connections after 1 hour
+    production=True
+)
+```
+
+**Pool Size Guidelines**:
+
+| Use Case | Pool Size | Max Overflow | Notes |
+|----------|-----------|--------------|-------|
+| Development | 5-10 | 5 | Minimal resources |
+| Small API (<100 req/s) | 10-20 | 10 | Default settings |
+| Medium API (100-500 req/s) | 20-40 | 20 | Most production apps |
+| Large API (>500 req/s) | 40-100 | 30 | Monitor connection saturation |
+
+**⚠️ Warning:** Too many connections can exhaust PostgreSQL `max_connections` (default: 100). Coordinate pool sizes across all application instances with your database administrator.
 
 ### Application
 

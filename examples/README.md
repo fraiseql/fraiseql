@@ -52,7 +52,7 @@ See **[INDEX.md](INDEX.md)** for the complete organized catalog.
 
 Complete showcase of all FraiseQL enterprise patterns including mutation results, audit trails, multi-layer validation, and compliance features.
 
-**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Enterprise**
+**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Enterprise** | **🏷️ Tags: audit, validation, compliance, production**
 
 See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
@@ -60,7 +60,7 @@ See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
 Complete e-commerce platform with product catalog, shopping cart, orders, reviews, and search.
 
-**⏱️ Time: 30 min** | **🏷️ Difficulty: Intermediate** | **🎯 Use Case: E-commerce**
+**⏱️ Time: 30 min** | **🏷️ Difficulty: Intermediate** | **🎯 Use Case: E-commerce** | **🏷️ Tags: business, transactions, catalog, search**
 
 See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
@@ -68,19 +68,19 @@ See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
 WebSocket-based messaging with presence tracking, typing indicators, and real-time features.
 
-**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Real-time**
+**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Real-time** | **🏷️ Tags: websocket, realtime, messaging, subscriptions**
 
 ## 📊 Analytics Dashboard (`analytics_dashboard/`)
 
 Business intelligence platform with time-series analytics and performance monitoring.
 
-**⏱️ Time: 40 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Analytics**
+**⏱️ Time: 40 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Analytics** | **🏷️ Tags: timeseries, metrics, dashboard, business-intelligence**
 
 ## 📝 Blog API (`blog_api/`)
 
 Content management with enterprise patterns, authentication, and audit trails.
 
-**⏱️ Time: 15 min** | **🏷️ Difficulty: Beginner** | **🎯 Use Case: Content Management**
+**⏱️ Time: 15 min** | **🏷️ Difficulty: Beginner** | **🎯 Use Case: Content Management** | **🏷️ Tags: cms, authentication, crud, enterprise**
 
 See **[INDEX.md](INDEX.md)** for complete details and setup instructions.
 

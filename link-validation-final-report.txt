@@ -1,0 +1,11 @@
+[0;34m[INFO][0m Starting FraiseQL documentation validation (mode: links)
+[0;34m[INFO][0m Validating internal links...
+[0;31m[ERROR][0m Broken link in /home/lionel/code/fraiseql/docs/security-compliance/README.md: ../advanced/audit-trails.md (resolved to: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md)
+[0;31m[ERROR][0m Broken link in /home/lionel/code/fraiseql/docs/security-compliance/README.md: ../advanced/audit-trails.md (resolved to: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md)
+[0;31m[ERROR][0m Broken link in /home/lionel/code/fraiseql/docs/security-compliance/README.md: ../architecture/decisions/003_unified_audit.md (resolved to: /home/lionel/code/fraiseql/docs/architecture/decisions/003_unified_audit.md)
+[0;31m[ERROR][0m Broken link in /home/lionel/code/fraiseql/docs/security-compliance/README.md: ../advanced/audit-trails.md (resolved to: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md)
+[1;33m[WARNING][0m /home/lionel/code/fraiseql/docs/security-compliance/README.md: 4 broken links
+[0;31m[ERROR][0m Broken link in /home/lionel/code/fraiseql/docs/patterns/README.md: trinity-identifiers.md (resolved to: /home/lionel/code/fraiseql/docs/patterns/trinity-identifiers.md)
+[1;33m[WARNING][0m /home/lionel/code/fraiseql/docs/patterns/README.md: 1 broken links
+[0;31m[ERROR][0m Found 5 broken internal links across 303 files
+[0;31m[ERROR][0m Documentation validation found issues

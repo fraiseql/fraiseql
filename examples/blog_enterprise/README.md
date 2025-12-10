@@ -121,7 +121,7 @@ python app.py
 
 ```sql
 -- Organizations (tenant isolation)
-CREATE TABLE organizations (
+CREATE TABLE tb_organization (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
@@ -137,16 +137,16 @@ CREATE TABLE organizations (
 );
 
 -- Row Level Security for multi-tenancy
-ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tb_organization ENABLE ROW LEVEL SECURITY;
 ```
 
 ### Advanced User Management
 
 ```sql
 -- Users with enterprise features
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
+    organization_id UUID NOT NULL REFERENCES tb_organization(id),
     username TEXT NOT NULL,
     email TEXT NOT NULL,
     password_hash TEXT,
@@ -187,9 +187,9 @@ CREATE TABLE users (
 
 ```sql
 -- Posts with enterprise features
-CREATE TABLE posts (
+CREATE TABLE tb_post (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
+    organization_id UUID NOT NULL REFERENCES tb_organization(id),
 
     -- Content
     title TEXT NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE posts (
     excerpt TEXT,
 
     -- Authoring
-    author_id UUID NOT NULL REFERENCES users(id),
+    author_id UUID NOT NULL REFERENCES tb_user(id),
     editor_ids UUID[] DEFAULT '{}',
 
     -- Publishing workflow
@@ -221,7 +221,7 @@ CREATE TABLE posts (
 
     -- Workflow and approval
     approval_status TEXT DEFAULT 'pending',
-    approved_by UUID REFERENCES users(id),
+    approved_by UUID REFERENCES tb_user(id),
     approved_at TIMESTAMPTZ,
     rejection_reason TEXT,
 
@@ -240,9 +240,9 @@ CREATE TABLE posts (
 
 ```sql
 -- Domain events for audit trail
-CREATE TABLE domain_events (
+CREATE TABLE tb_domain_event (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
+    organization_id UUID NOT NULL REFERENCES tb_organization(id),
 
     -- Event identification
     aggregate_type TEXT NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE domain_events (
     metadata JSONB DEFAULT '{}'::jsonb,
 
     -- Context
-    user_id UUID REFERENCES users(id),
+    user_id UUID REFERENCES tb_user(id),
     correlation_id UUID,
     causation_id UUID,
 
@@ -458,12 +458,65 @@ async def create_jwt_token(user: User) -> str:
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Encrypted sensitive fields
-ALTER TABLE users ADD COLUMN encrypted_pii BYTEA;
+ALTER TABLE tb_user ADD COLUMN encrypted_pii BYTEA;
 
--- Audit logging trigger
-CREATE TRIGGER audit_changes
-    AFTER INSERT OR UPDATE OR DELETE ON posts
-    FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+-- ❌ AVOID: Business Logic Triggers (Implicit, AI-hostile)
+-- CREATE TRIGGER audit_changes
+--     AFTER INSERT OR UPDATE OR DELETE ON tb_post
+--     FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+
+-- ✅ FRAISEQL'S TWO-LAYER PATTERN (Explicit + Infrastructure)
+
+-- Layer 1: Explicit Application Code (AI-Visible)
+-- Mutation functions call log_and_return_mutation() explicitly
+CREATE FUNCTION create_post_with_audit(
+    p_tenant_id UUID,
+    p_user_id UUID,
+    p_title TEXT,
+    p_content TEXT
+) RETURNS TABLE(
+    entity_id UUID,
+    entity_type TEXT,
+    operation_type TEXT,
+    success BOOLEAN
+) AS $$
+DECLARE
+    v_post_id UUID;
+BEGIN
+    -- Business logic
+    INSERT INTO tb_post (title, content, author_id, tenant_id)
+    VALUES (p_title, p_content, p_user_id, p_tenant_id)
+    RETURNING id INTO v_post_id;
+
+    -- Explicit audit logging (AI can see this!)
+    RETURN QUERY SELECT * FROM log_and_return_mutation(
+        p_tenant_id := p_tenant_id,
+        p_user_id := p_user_id,
+        p_entity_type := 'post',
+        p_entity_id := v_post_id,
+        p_operation_type := 'INSERT',
+        p_operation_subtype := 'new',
+        p_changed_fields := ARRAY['title', 'content'],
+        p_message := 'Post created',
+        p_old_data := NULL,
+        p_new_data := (SELECT row_to_json(p) FROM tb_post p WHERE id = v_post_id),
+        p_metadata := jsonb_build_object('client', 'web')
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Layer 2: Infrastructure Trigger (Tamper-Proof Crypto Chain)
+-- ONLY on audit_events table, ONLY for cryptographic integrity
+CREATE TRIGGER populate_crypto_trigger
+    BEFORE INSERT ON audit_events
+    FOR EACH ROW EXECUTE FUNCTION populate_crypto_fields();
+
+-- Why this pattern works:
+-- ✅ Audit logging is explicit and visible to AI
+-- ✅ CDC data (changed_fields, old/new data) is explicit
+-- ✅ Crypto integrity is infrastructure-level (tamper-proof)
+-- ✅ Testable and traceable code paths
+-- ✅ See docs/database/avoid-triggers.md for details
 ```
 
 ## 📈 Monitoring and Observability

@@ -27,8 +27,8 @@ Automatic cache invalidation that propagates when related data changes.
 - Auto-detection from GraphQL schema
 - Apollo Client and Relay integration
 - Zero manual cache management
-- **[Architecture Overview →](mutations/cascade_architecture.md)**
-- **[Migration Guide →](mutations/migration_guide.md)**
+- **[Architecture Overview →](mutations/cascade-architecture.md)**
+- **[Migration Guide →](mutations/migration-guide.md)**
 - **[Best Practices & Examples →](guides/cascade-best-practices.md)**
 
 ### LangChain Integration
@@ -67,7 +67,7 @@ Build RAG applications with LangChain and FraiseQL.
 FraiseQL provides flexible filtering with two syntaxes:
 
 - **[Filtering Guide](guides/filtering.md)** - Unified entry point for all filtering documentation
-- **[Where Input Types](advanced/where_input_types.md)** - Type-safe WhereType deep dive
+- **[Where Input Types](advanced/where-input-types.md)** - Type-safe WhereType deep dive
 - **[Filter Operators Reference](advanced/filter-operators.md)** - Complete operator documentation
 - **[Syntax Comparison](reference/where-clause-syntax-comparison.md)** - Side-by-side cheat sheet
 - **[Advanced Examples](examples/advanced-filtering.md)** - Real-world use cases
@@ -86,7 +86,7 @@ FraiseQL provides flexible filtering with two syntaxes:
 - [APQ Optimization](performance/apq-optimization-guide.md)
 - [Rust Pipeline](performance/rust-pipeline-optimization.md)
 - [CASCADE Best Practices](guides/cascade-best-practices.md)
-- [CASCADE Architecture](mutations/cascade_architecture.md)
+- [CASCADE Architecture](mutations/cascade-architecture.md)
 
 ## Reference
 
@@ -103,8 +103,10 @@ FraiseQL provides flexible filtering with two syntaxes:
 
 ## Mutations
 
-- [CASCADE Architecture](mutations/cascade_architecture.md) - Complete technical overview
-- [CASCADE Migration Guide](mutations/migration_guide.md) - Step-by-step migration instructions
+- **[Mutation SQL Requirements](guides/mutation-sql-requirements.md)** - Complete guide to writing PostgreSQL functions
+- **[Error Handling Patterns](guides/error-handling-patterns.md)** - Error handling philosophy and patterns
+- [CASCADE Architecture](mutations/cascade-architecture.md) - Complete technical overview
+- [CASCADE Migration Guide](mutations/migration-guide.md) - Step-by-step migration instructions
 
 ## Development
 

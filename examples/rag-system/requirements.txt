@@ -1,0 +1,27 @@
+fraiseql>=1.8.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+psycopg>=3.1.0
+httpx>=0.25.0
+
+# LangChain for RAG functionality
+langchain>=0.1.0
+langchain-openai>=0.0.5  # For OpenAI embeddings (optional)
+openai>=1.0.0  # For OpenAI and OpenAI-compatible APIs
+
+# pgvector (PostgreSQL extension, installed separately)
+# Just for type hints if needed:
+pgvector>=0.2.0
+
+# Local embeddings (recommended for self-hosted)
+sentence-transformers>=2.2.0  # Local GPU embedding generation
+torch>=2.0.0  # PyTorch for sentence-transformers
+
+# Optional: Additional local model support
+# transformers>=4.30.0  # For custom models
+
+# Optional: For document processing
+# pypdf2>=3.0.0
+# python-docx>=0.8.11
+# python-magic>=0.4.27

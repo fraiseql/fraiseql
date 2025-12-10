@@ -2,14 +2,14 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
-mod cascade_filter;
+
 mod entity_processor;
 mod parser;
 mod postgres_composite;
 mod response_builder;
 mod types;
 
-pub use cascade_filter::{filter_cascade_by_selections, CascadeSelections};
+pub use crate::cascade::{filter_cascade_by_selections, CascadeSelections};
 pub use entity_processor::{
     add_typename_to_entity, process_cascade, process_entity, process_entity_with_typename,
     ProcessedEntity,

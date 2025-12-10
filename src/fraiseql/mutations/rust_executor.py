@@ -8,6 +8,7 @@ import logging
 from typing import Any, Type
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
+from fraiseql.utils.casing import dict_keys_to_snake_case
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,12 @@ async def execute_mutation_rust(
 
     # Extract auto_camel_case from config (default True for backward compatibility)
     auto_camel_case = getattr(config, "auto_camel_case", True) if config else True
+
+    # Convert input keys to snake_case before serializing to JSON for PostgreSQL
+    # This ensures jsonb_populate_record() works correctly with composite types
+    # that use snake_case field names (PostgreSQL convention)
+    if auto_camel_case:
+        input_data = dict_keys_to_snake_case(input_data)
 
     # Convert input to JSON
     input_json = json.dumps(input_data, separators=(",", ":"))

@@ -292,8 +292,10 @@ cascade_payload_size = Histogram(
     'CASCADE payload size in bytes',
     buckets=[100, 500, 1000, 5000, 10000, 50000]
 )
+```
 
 Alert on large payloads:
+
 ```yaml
 - alert: LargeCascadePayloads
   expr: histogram_quantile(0.95, cascade_payload_bytes) > 10000

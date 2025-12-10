@@ -9,7 +9,7 @@
 
 -- Users table (command side) - Trinity Pattern
 CREATE TABLE tb_user (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (username)
@@ -32,7 +32,7 @@ CREATE INDEX idx_tb_user_identifier ON tb_user(identifier);
 
 -- Posts table (command side) - Trinity Pattern with INT foreign keys
 CREATE TABLE tb_post (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_post INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,     -- Public API (secure UUID)
     identifier TEXT UNIQUE NOT NULL,                       -- Human-readable (slug)
@@ -56,7 +56,7 @@ CREATE INDEX idx_tb_post_created ON tb_post(created_at DESC);
 
 -- Comments table (command side) - Trinity Pattern with INT foreign keys
 CREATE TABLE tb_comment (
-    -- Sacred Trinity Identifiers
+    -- Trinity Identifiers
     pk_comment INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast INT joins)
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,        -- Public API (secure UUID)
     identifier TEXT UNIQUE,                                   -- Optional for comments

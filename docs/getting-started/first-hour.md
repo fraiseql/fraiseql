@@ -317,19 +317,20 @@ UPDATE tb_note SET created_at = NOW(), updated_at = NOW();
 
 ```sql
 -- Function to update updated_at
-CREATE OR REPLACE FUNCTION fn_update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ℹ️ FraiseQL Best Practice: Use DEFAULT instead of triggers
+-- Triggers hide logic from AI and make code harder to understand.
+-- For timestamp updates, use explicit application code:
 
--- Create trigger
-CREATE TRIGGER tr_note_updated_at
-    BEFORE UPDATE ON tb_note
-    FOR EACH ROW
-    EXECUTE FUNCTION fn_update_updated_at();
+-- Python mutation example:
+-- @mutation
+-- async def update_note(id: str, title: str, context: Context) -> Note:
+--     return await context.db.update("tb_note", id, {
+--         "title": title,
+--         "updated_at": datetime.utcnow()  # Explicit!
+--     })
+
+-- Or use DEFAULT for automatic creation timestamps:
+-- created_at TIMESTAMPTZ DEFAULT NOW()  -- Set once on INSERT
 ```
 
 ### Step 3: Update View
