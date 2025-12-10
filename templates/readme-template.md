@@ -11,12 +11,12 @@
 - [Key learning objective 4]
 
 **Prerequisites:**
-- `[../other_example/](Other Example)` - [Why this prerequisite is needed]
+- `[Other Example](https://github.com/fraiseql/fraiseql/tree/main/examples/other_example)` - [Why this prerequisite is needed]
 - [Any additional knowledge or tools required]
 
 **Next steps:**
-- `[../next_example/](Next Example)` - [What this builds toward]
-- `[../another_example/](Another Example)` - [Alternative progression path]
+- `[Next Example](https://github.com/fraiseql/fraiseql/tree/main/examples/next_example)` - [What this builds toward]
+- `[Another Example](https://github.com/fraiseql/fraiseql/tree/main/examples/another_example)` - [Alternative progression path]
 
 ## Features
 
@@ -165,4 +165,4 @@ After mastering this example:
 - **Issues**: [GitHub Issues](../../issues)
 - **Discussions**: [GitHub Discussions](../../discussions)
 - **Discord**: [FraiseQL Community](https://discord.gg/fraiseql)
-- **Documentation**: [FraiseQL Docs](../../docs)
+- **Documentation**: [FraiseQL Docs](https://fraiseql.dev/docs)

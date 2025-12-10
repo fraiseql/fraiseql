@@ -7,10 +7,14 @@ CVE Mitigations:
 - CVE-2025-7709 (SQLite FTS5): Ensure SQLite is not used (PostgreSQL only)
 """
 
+import logging
 import os
 import sys
 import warnings
+from pathlib import Path
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityCheckError(Exception):
@@ -58,7 +62,7 @@ def disable_sqlite_fts5() -> None:
         # Disable extension loading
         # Note: This is a global setting and will affect all SQLite connections
         try:
-            sqlite3.enable_load_extension(False)
+            sqlite3.enable_load_extension(False)  # type: ignore[attr-defined]
         except AttributeError:
             # enable_load_extension may not be available on all platforms
             pass
@@ -150,7 +154,7 @@ def check_filesystem_permissions() -> None:
     ]
 
     for path, should_be_writable, description in checks:
-        if not os.path.exists(path):
+        if not Path(path).exists():
             continue  # Path doesn't exist, skip check
 
         if should_be_writable:
@@ -172,7 +176,7 @@ def check_filesystem_permissions() -> None:
             )
 
     # Check /etc/passwd is not writable (CVE-2025-14104 mitigation)
-    if os.path.exists("/etc/passwd") and os.access("/etc/passwd", os.W_OK):
+    if Path("/etc/passwd").exists() and os.access("/etc/passwd", os.W_OK):
         raise SecurityCheckError(
             "SECURITY VIOLATION: /etc/passwd is writable. "
             "This enables exploitation of CVE-2025-14104. "
