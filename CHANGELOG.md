@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2025-12-10
+
+**🎉 Stable Release**: FraiseQL v1.8.0 transitions from beta to stable with critical bug fixes and enhanced filtering capabilities.
+
+**Key Highlights**:
+- ✅ Nested filter ID field support (Issue #124)
+- ✅ Error field population restored (v1.7.1 compatibility)
+- ✅ Comprehensive documentation improvements
+- ✅ 118 regression tests passing
+- ✅ Production-ready stability
+
 ### 🐛 Fixed: Nested Filter ID Field Support
 
 **Issue #124**: Nested `where` filters on related entity `id` fields failed silently, returning empty results instead of matching records.
