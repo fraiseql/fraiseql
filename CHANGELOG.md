@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixed: Nested Filter ID Field Support
+
+**Issue #124**: Nested `where` filters on related entity `id` fields failed silently, returning empty results instead of matching records.
+
+**Root Cause**: Operator strategy confusion where `id` was incorrectly treated as an operator instead of a field name in FK-based nested filters.
+
+**Fix**: Enhanced nested object detection with improved robustness:
+- FK-based nested filters now correctly resolve to SQL FK columns (`machine_id = value`)
+- JSONB-based nested filters continue to work for non-id fields
+- Mixed filtering combines both approaches seamlessly
+- WhereInput and dict-based filters produce identical results
+- Added comprehensive test coverage for all scenarios
+
+**Examples**:
+```python
+# FK-based filtering (now works correctly)
+where = {"machine": {"id": {"eq": machine_uuid}}}
+# SQL: WHERE machine_id = 'uuid'
+
+# JSONB-based filtering (already worked)
+where = {"machine": {"name": {"contains": "Printer"}}}
+# SQL: WHERE data->'machine'->>'name' LIKE '%Printer%'
+
+# Mixed filtering (both FK and JSONB)
+where = {"machine": {"id": {"eq": machine_uuid}, "name": {"contains": "Printer"}}}
+# SQL: WHERE machine_id = 'uuid' AND data->'machine'->>'name' LIKE '%Printer%'
+```
+
+**Documentation**: Added comprehensive nested filter guide at `docs/filtering/nested-filters.md`
+
 ## [1.8.0-beta.5] - 2025-12-09
+
+### 🐛 Fixed: Error Field Population Restored
 
 ### Security
 - **Comprehensive vulnerability remediation**: Complete security assessment and mitigation of all CVEs in python:3.13-slim base image
