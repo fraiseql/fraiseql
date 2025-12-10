@@ -1852,6 +1852,8 @@
       
         
       
+        
+      
     
     
     
@@ -1914,6 +1916,34 @@
     
   
     Filtering (Complete Guide)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested Filters
   
 
     
@@ -3778,7 +3808,7 @@
 <p><strong>Key Concepts to Know</strong>:
 - <strong><a href="../concepts-glossary/#cqrs-command-query-responsibility-segregation">CQRS</a></strong>: Separate reading data from writing data
 - <strong><a href="../concepts-glossary/#view">JSONB Views</a></strong>: Pre-packaged data ready for GraphQL
-- <strong><a href="../../patterns/trinity_identifiers/">Trinity Identifiers</a></strong>: Three types of IDs per entity
+- <strong><a href="../../database/trinity-identifiers/">Trinity Identifiers</a></strong>: Three types of IDs per entity
 - <strong><a href="../concepts-glossary/">Database-First</a></strong>: Business logic lives in PostgreSQL</p>
 <p><strong>Why This Matters</strong>: Traditional frameworks often fight against the database. FraiseQL works <em>with</em> PostgreSQL, using its strengths (JSONB, functions, views) to build faster, more maintainable APIs.</p>
 <h3 id="quick-philosophy-check">Quick Philosophy Check<a class="headerlink" href="#quick-philosophy-check" title="Permanent link">&para;</a></h3>
@@ -3867,7 +3897,7 @@ import fraiseql</p>
 <h3 id="traditional-vs-jsonb-first">Traditional vs JSONB-First<a class="headerlink" href="#traditional-vs-jsonb-first" title="Permanent link">&para;</a></h3>
 <p><strong>Traditional ORM Approach</strong>:
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Rigid schema, many columns</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tb_user</span><span class="w"> </span><span class="p">(</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">first_name</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="n">last_name</span><span class="w"> </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>

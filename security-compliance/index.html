@@ -1,0 +1,3944 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="PostgreSQL-Native GraphQL Framework for Python">
+      
+      
+        <meta name="author" content="Lionel Hamayon">
+      
+      
+        <link rel="canonical" href="https://fraiseql.dev/security-compliance/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Security & Compliance Hub - FraiseQL Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="pink" data-md-color-accent="pink">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#security-compliance-hub" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FraiseQL Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Security &amp; Compliance Hub
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="pink" data-md-color-accent="pink"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="pink" data-md-color-accent="pink"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../getting-started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../tutorials/beginner-path/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../features/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Features
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../core/fraiseql-philosophy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/filtering/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../advanced/authentication/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Advanced
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../performance/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../production/deployment/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Production
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/database/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../migration/v0-to-v1.md" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Migration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="FraiseQL Documentation" class="md-nav__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    FraiseQL Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    5-Minute Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/first-hour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Hour Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/beginner-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beginner Learning Path
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/blog-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog API Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/production-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../features/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/pgvector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pgvector (Vector Search)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/graphql-cascade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GraphQL Cascade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/langchain-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LangChain Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/llm-integration.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types & Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queries & Mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/database-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core/concepts-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filtering (Complete Guide)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../filtering/nested-filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested Filters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/understanding-fraiseql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding FraiseQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/cascade-best-practices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cascade Best Practices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/performance-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/troubleshooting-decision-tree/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting Decision Tree
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Tenancy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bounded Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Sourcing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/advanced-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Performance
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/rust-pipeline-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rust Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/apq-optimization-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    APQ Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/cascade-best-practices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cascade Best Practices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/health-checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_10_1" id="__nav_10_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/quick-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Migration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration/v0-to-v1.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0 to v1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration/cascade-adoption.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cascade Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/migrating-to-cascade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating to Cascade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../architecture/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-security-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Security Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-compliance-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Compliance Checklist
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Compliance Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supply-chain-security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply Chain Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-privacy-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Privacy &amp; Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#access-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access Control
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit &amp; Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#regulatory-compliance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regulatory Compliance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Regulatory Compliance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#united-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        United States
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#european-union" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        European Union
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canada" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canada
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#united-kingdom" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        United Kingdom
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#industry-standards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Industry Standards
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Industry Standards">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#healthcare-hipaa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Healthcare (HIPAA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#financial-services-pci-dss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Financial Services (PCI-DSS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soc-2-service-organization-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SOC 2 (Service Organization Control)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Profiles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Profiles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standard-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🟢 STANDARD (Default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#regulated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🟡 REGULATED
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restricted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🔴 RESTRICTED
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification-guides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification Guides
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verification Guides">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#for-procurement-officers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For Procurement Officers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#for-security-auditors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For Security Auditors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#for-compliance-officers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For Compliance Officers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Documentation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Documentation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detailed-technical-guides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detailed Technical Guides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment &amp; Operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compliance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compliance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting Started
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Getting Started">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#for-new-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For New Projects
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#for-existing-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For Existing Projects
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support &amp; Resources
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Support &amp; Resources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#community" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Community
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#professional-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Professional Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frequently-asked-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frequently Asked Questions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Frequently Asked Questions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#general" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        General
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supply-chain-security_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply Chain Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compliance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compliance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/security-compliance/README.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="security-compliance-hub">Security &amp; Compliance Hub<a class="headerlink" href="#security-compliance-hub" title="Permanent link">&para;</a></h1>
+<p><strong>Audience:</strong> Compliance officers, security auditors, procurement officers, CTOs
+<strong>Technical Level:</strong> Non-technical overview with links to detailed guides
+<strong>Time to Review:</strong> 10-15 minutes</p>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>FraiseQL is designed for <strong>production-grade security and regulatory compliance</strong> out of the box. This hub provides a comprehensive overview of security features, compliance capabilities, and verification guides for regulated industries.</p>
+<h3 id="key-security-features">Key Security Features<a class="headerlink" href="#key-security-features" title="Permanent link">&para;</a></h3>
+<p>✅ <strong>Supply Chain Security</strong>
+- SLSA Level 3 provenance with cryptographic signing
+- Automated SBOM generation (CycloneDX, SPDX)
+- Reproducible builds with integrity verification</p>
+<p>✅ <strong>Data Protection</strong>
+- Multi-provider KMS integration (AWS, Azure, GCP, HashiCorp Vault)
+- Row-level security (RLS) with PostgreSQL policies
+- Encrypted audit trails with tamper-proof cryptographic chain
+- PII anonymization for development environments</p>
+<p>✅ <strong>Access Control</strong>
+- Role-based access control (RBAC)
+- Multi-tenant data isolation
+- Fine-grained authorization policies
+- JWT-based authentication</p>
+<p>✅ <strong>Audit &amp; Compliance</strong>
+- Comprehensive audit logging with Change Data Capture (CDC)
+- Immutable audit trails with event hashing
+- Compliance profiles (GDPR, HIPAA, SOC 2, FedRAMP)
+- Real-time security monitoring</p>
+<hr />
+<h2 id="quick-compliance-checklist">Quick Compliance Checklist<a class="headerlink" href="#quick-compliance-checklist" title="Permanent link">&para;</a></h2>
+<p>Use this checklist to assess FraiseQL's compliance with your organization's requirements:</p>
+<h3 id="supply-chain-security">Supply Chain Security<a class="headerlink" href="#supply-chain-security" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <strong>SBOM Available</strong> - Software Bill of Materials in CycloneDX/SPDX format</li>
+<li>[ ] <strong>Provenance Verified</strong> - SLSA provenance with cryptographic signatures</li>
+<li>[ ] <strong>Dependencies Tracked</strong> - Complete dependency tree with vulnerability status</li>
+<li>[ ] <strong>Build Reproducibility</strong> - Verifiable builds with integrity checks</li>
+</ul>
+<p><strong>Guide:</strong> <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></p>
+<h3 id="data-privacy-protection">Data Privacy &amp; Protection<a class="headerlink" href="#data-privacy-protection" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <strong>GDPR Compliance</strong> - Right to erasure, data portability, consent tracking</li>
+<li>[ ] <strong>HIPAA Compliance</strong> - PHI encryption, access logging, BAA support</li>
+<li>[ ] <strong>Data Encryption</strong> - At-rest and in-transit encryption</li>
+<li>[ ] <strong>Key Management</strong> - KMS integration for cryptographic key lifecycle</li>
+</ul>
+<p><strong>Guide:</strong> <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></p>
+<h3 id="access-control">Access Control<a class="headerlink" href="#access-control" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <strong>RBAC Implemented</strong> - Role-based permissions at database level</li>
+<li>[ ] <strong>Multi-tenancy</strong> - Tenant isolation with Row-Level Security</li>
+<li>[ ] <strong>Authentication</strong> - JWT/OAuth2 integration</li>
+<li>[ ] <strong>Authorization Policies</strong> - Fine-grained field and operation permissions</li>
+</ul>
+<p><strong>Guide:</strong> <a href="security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
+<h3 id="audit-monitoring">Audit &amp; Monitoring<a class="headerlink" href="#audit-monitoring" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <strong>Audit Logging</strong> - Immutable audit trails for all mutations</li>
+<li>[ ] <strong>Change Tracking</strong> - Before/after snapshots with field-level changes</li>
+<li>[ ] <strong>Security Monitoring</strong> - Real-time alerts for suspicious activity</li>
+<li>[ ] <strong>Incident Response</strong> - Automated responses to security events</li>
+</ul>
+<p><strong>Guides:</strong>
+- <a href="../advanced/event-sourcing/#audit-trails">Audit Trails Deep Dive</a>
+- <a href="../production/monitoring/">Production Monitoring</a></p>
+<hr />
+<h2 id="regulatory-compliance">Regulatory Compliance<a class="headerlink" href="#regulatory-compliance" title="Permanent link">&para;</a></h2>
+<h3 id="united-states">United States<a class="headerlink" href="#united-states" title="Permanent link">&para;</a></h3>
+<h4 id="executive-order-14028-cybersecurity">Executive Order 14028 (Cybersecurity)<a class="headerlink" href="#executive-order-14028-cybersecurity" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Fully Compliant</p>
+<p>FraiseQL meets federal software procurement requirements:
+- SBOM generation for dependency visibility
+- Cryptographic signing with Cosign
+- Secure software development practices
+- Supply chain risk management</p>
+<p><strong>Reference:</strong> <a href="https://www.whitehouse.gov/briefing-room/presidential-actions/2021/05/12/executive-order-on-improving-the-nations-cybersecurity/">White House EO 14028</a></p>
+<h4 id="nist-sp-800-218-secure-software-development-framework">NIST SP 800-218 (Secure Software Development Framework)<a class="headerlink" href="#nist-sp-800-218-secure-software-development-framework" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Compliant</p>
+<p>FraiseQL implements SSDF practices:
+- <strong>Prepare the Organization:</strong> Security profiles and KMS architecture
+- <strong>Protect the Software:</strong> SBOM, provenance, signing
+- <strong>Produce Well-Secured Software:</strong> Parameterized queries, input validation
+- <strong>Respond to Vulnerabilities:</strong> Automated alerts, patch tracking</p>
+<p><strong>Reference:</strong> <a href="https://csrc.nist.gov/publications/detail/sp/800-218/final">NIST SP 800-218</a></p>
+<h4 id="fedramp-federal-risk-and-authorization-management-program">FedRAMP (Federal Risk and Authorization Management Program)<a class="headerlink" href="#fedramp-federal-risk-and-authorization-management-program" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> 🔄 Architecture supports FedRAMP requirements</p>
+<p>FraiseQL provides FedRAMP-compatible controls:
+- Moderate and High baseline controls
+- Continuous monitoring capabilities
+- Audit logging and incident response
+- Configuration management</p>
+<p><strong>Note:</strong> FedRAMP certification requires agency-specific assessment.</p>
+<h3 id="european-union">European Union<a class="headerlink" href="#european-union" title="Permanent link">&para;</a></h3>
+<h4 id="gdpr-general-data-protection-regulation">GDPR (General Data Protection Regulation)<a class="headerlink" href="#gdpr-general-data-protection-regulation" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Compliant</p>
+<p>FraiseQL supports GDPR requirements:
+- <strong>Right to Erasure:</strong> Soft deletes with audit retention
+- <strong>Data Portability:</strong> JSON export of user data
+- <strong>Consent Management:</strong> Tracking consent status and changes
+- <strong>Privacy by Design:</strong> Encryption, anonymization, minimal data collection</p>
+<p><strong>Implementation:</strong> <a href="../compliance/global-regulations/#gdpr">GDPR Compliance Features</a></p>
+<h4 id="nis2-directive-network-and-information-security">NIS2 Directive (Network and Information Security)<a class="headerlink" href="#nis2-directive-network-and-information-security" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Supports essential entities requirements</p>
+<p>FraiseQL provides NIS2 compliance support:
+- Incident reporting capabilities
+- Supply chain security (SBOM, provenance)
+- Security risk management
+- Business continuity features</p>
+<p><strong>Reference:</strong> <a href="https://digital-strategy.ec.europa.eu/en/policies/nis2-directive">EU NIS2 Directive</a></p>
+<h3 id="canada">Canada<a class="headerlink" href="#canada" title="Permanent link">&para;</a></h3>
+<h4 id="cccs-sbom-guidance">CCCS SBOM Guidance<a class="headerlink" href="#cccs-sbom-guidance" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Compliant</p>
+<p>FraiseQL follows joint US-Canada SBOM guidance:
+- CycloneDX/SPDX format support
+- Vulnerability tracking integration
+- Critical infrastructure transparency</p>
+<p><strong>Reference:</strong> <a href="https://www.cyber.gc.ca/">CCCS SBOM Guidance</a></p>
+<h3 id="united-kingdom">United Kingdom<a class="headerlink" href="#united-kingdom" title="Permanent link">&para;</a></h3>
+<h4 id="uk-cyber-essentials">UK Cyber Essentials<a class="headerlink" href="#uk-cyber-essentials" title="Permanent link">&para;</a></h4>
+<p><strong>Status:</strong> ✅ Technical controls implemented</p>
+<p>FraiseQL provides Cyber Essentials technical controls:
+- Secure configuration management
+- Access control and authentication
+- Malware protection (dependency scanning)
+- Patch management visibility</p>
+<p><strong>Reference:</strong> <a href="https://www.ncsc.gov.uk/cyberessentials/overview">UK Cyber Essentials</a></p>
+<hr />
+<h2 id="industry-standards">Industry Standards<a class="headerlink" href="#industry-standards" title="Permanent link">&para;</a></h2>
+<h3 id="healthcare-hipaa">Healthcare (HIPAA)<a class="headerlink" href="#healthcare-hipaa" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ HIPAA-Ready</p>
+<p>FraiseQL supports HIPAA compliance for Protected Health Information (PHI):</p>
+<p><strong>Technical Safeguards:</strong>
+- Encryption at rest and in transit
+- Access control with audit logging
+- Unique user identification
+- Automatic logoff (session management)</p>
+<p><strong>Administrative Safeguards:</strong>
+- Role-based access control
+- Audit logging and monitoring
+- Security incident procedures</p>
+<p><strong>Physical Safeguards:</strong>
+- Workstation security (application-level)
+- Device and media controls (KMS integration)</p>
+<p><strong>Requirements:</strong>
+- Business Associate Agreement (BAA) with hosting provider
+- Security risk assessment
+- Policies and procedures documentation</p>
+<p><strong>Implementation Guide:</strong> <a href="security-profiles/#hipaa">HIPAA Security Profile</a> <em>(coming in WP-013)</em></p>
+<h3 id="financial-services-pci-dss">Financial Services (PCI-DSS)<a class="headerlink" href="#financial-services-pci-dss" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔄 Architecture supports PCI-DSS requirements</p>
+<p>FraiseQL provides PCI-DSS compatible controls:
+- Strong access control measures (Requirement 7, 8)
+- Encryption of cardholder data (Requirement 3)
+- Audit logging and monitoring (Requirement 10)
+- Secure development practices (Requirement 6)</p>
+<p><strong>Note:</strong> PCI-DSS compliance requires full environment assessment.</p>
+<h3 id="soc-2-service-organization-control">SOC 2 (Service Organization Control)<a class="headerlink" href="#soc-2-service-organization-control" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Architecture supports Trust Service Criteria</p>
+<p>FraiseQL implements controls for SOC 2 Type II:</p>
+<p><strong>Security:</strong>
+- Access control and authentication
+- Logical and physical access controls
+- Encryption and key management</p>
+<p><strong>Availability:</strong>
+- System monitoring and alerting
+- Incident response procedures
+- Backup and recovery</p>
+<p><strong>Confidentiality:</strong>
+- Data encryption
+- Secure transmission protocols
+- Data classification</p>
+<p><strong>Processing Integrity:</strong>
+- Input validation
+- Error handling and logging
+- Data integrity checks</p>
+<p><strong>Privacy:</strong>
+- Data minimization
+- Consent management
+- Data retention policies</p>
+<p><strong>Implementation:</strong> <a href="compliance-matrix/#soc2">SOC 2 Controls Mapping</a> <em>(coming in WP-012)</em></p>
+<hr />
+<h2 id="security-profiles">Security Profiles<a class="headerlink" href="#security-profiles" title="Permanent link">&para;</a></h2>
+<p>FraiseQL provides three security profiles for different regulatory environments:</p>
+<h3 id="standard-default">🟢 STANDARD (Default)<a class="headerlink" href="#standard-default" title="Permanent link">&para;</a></h3>
+<p><strong>Use Cases:</strong> General applications, internal tools, non-regulated industries</p>
+<p><strong>Features:</strong>
+- Basic audit logging
+- Standard encryption
+- RBAC with PostgreSQL roles
+- Session management</p>
+<p><strong>Setup Time:</strong> &lt; 5 minutes
+<strong>Overhead:</strong> Minimal (~5% performance impact)</p>
+<h3 id="regulated">🟡 REGULATED<a class="headerlink" href="#regulated" title="Permanent link">&para;</a></h3>
+<p><strong>Use Cases:</strong> Healthcare (HIPAA), finance (PCI-DSS), government contractors</p>
+<p><strong>Features:</strong>
+- Comprehensive audit trails with CDC
+- KMS integration (AWS KMS, Azure Key Vault, GCP KMS)
+- Field-level encryption for sensitive data
+- Enhanced access control with RLS
+- Automated compliance reporting</p>
+<p><strong>Setup Time:</strong> 15-30 minutes
+<strong>Overhead:</strong> Moderate (~10-15% performance impact)</p>
+<p><strong>Requirements:</strong>
+- KMS provider account
+- Audit log storage (PostgreSQL or external)
+- Monitoring infrastructure</p>
+<h3 id="restricted">🔴 RESTRICTED<a class="headerlink" href="#restricted" title="Permanent link">&para;</a></h3>
+<p><strong>Use Cases:</strong> Defense contractors, critical infrastructure, classified systems</p>
+<p><strong>Features:</strong>
+- All REGULATED features plus:
+- Air-gapped deployment support
+- Hardware security module (HSM) integration
+- Zero-trust architecture
+- Immutable audit trails with cryptographic chain
+- Real-time anomaly detection</p>
+<p><strong>Setup Time:</strong> 1-2 hours
+<strong>Overhead:</strong> Higher (~20-25% performance impact)</p>
+<p><strong>Requirements:</strong>
+- HSM or FIPS 140-2 Level 3 KMS
+- Dedicated audit infrastructure
+- Security Operations Center (SOC) integration</p>
+<p><strong>Configuration Guide:</strong> <a href="security-profiles/">Security Profiles Setup</a> <em>(coming in WP-013)</em></p>
+<hr />
+<h2 id="verification-guides">Verification Guides<a class="headerlink" href="#verification-guides" title="Permanent link">&para;</a></h2>
+<h3 id="for-procurement-officers">For Procurement Officers<a class="headerlink" href="#for-procurement-officers" title="Permanent link">&para;</a></h3>
+<p><strong>Verify FraiseQL's Security Claims:</strong></p>
+<ol>
+<li><strong>Check SLSA Provenance</strong> - Verify build integrity and supply chain security</li>
+<li>Guide: <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></li>
+<li>Time: 10-15 minutes</li>
+<li>
+<p>Technical Skill: None (uses web tools)</p>
+</li>
+<li>
+<p><strong>Review SBOM</strong> - Inspect software dependencies and known vulnerabilities</p>
+</li>
+<li>Guide: <a href="slsa-provenance/#sbom-verification">SBOM Generation and Analysis</a> <em>(coming in WP-011)</em></li>
+<li>Time: 5-10 minutes</li>
+<li>
+<p>Technical Skill: Basic (command line)</p>
+</li>
+<li>
+<p><strong>Assess Compliance Posture</strong> - Check regulatory compliance status</p>
+</li>
+<li>Guide: <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
+<li>Time: 15-20 minutes</li>
+<li>Technical Skill: None (checklist-based)</li>
+</ol>
+<h3 id="for-security-auditors">For Security Auditors<a class="headerlink" href="#for-security-auditors" title="Permanent link">&para;</a></h3>
+<p><strong>Audit FraiseQL Deployments:</strong></p>
+<ol>
+<li><strong>Review Security Architecture</strong> - Assess defense-in-depth implementation</li>
+<li>Guide: <a href="../production/security/">Security Architecture Overview</a></li>
+<li>Time: 30-45 minutes</li>
+<li>
+<p>Technical Skill: Advanced</p>
+</li>
+<li>
+<p><strong>Test Access Controls</strong> - Verify RBAC and RLS policies</p>
+</li>
+<li>Guide: <a href="../enterprise/rbac-postgresql-assessment/">RBAC Testing Guide</a></li>
+<li>Time: 1-2 hours</li>
+<li>
+<p>Technical Skill: Advanced (SQL)</p>
+</li>
+<li>
+<p><strong>Validate Audit Trails</strong> - Ensure audit logging completeness</p>
+<ul>
+<li>Guide: <a href="../advanced/event-sourcing/#audit-trails">Audit Trails Deep Dive</a></li>
+<li>Time: 30-60 minutes</li>
+<li>Technical Skill: Intermediate</li>
+</ul>
+</li>
+</ol>
+<h3 id="for-compliance-officers">For Compliance Officers<a class="headerlink" href="#for-compliance-officers" title="Permanent link">&para;</a></h3>
+<p><strong>Demonstrate Compliance:</strong></p>
+<ol>
+<li><strong>Generate Compliance Report</strong> - Automated compliance status report</li>
+<li>Tool: <code>fraiseql compliance report</code></li>
+<li>Time: &lt; 5 minutes</li>
+<li>
+<p>Output: PDF/JSON report</p>
+</li>
+<li>
+<p><strong>Map Controls to Regulations</strong> - Cross-reference FraiseQL controls with requirements</p>
+</li>
+<li>Guide: <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
+<li>Time: 20-30 minutes</li>
+<li>
+<p>Technical Skill: None</p>
+</li>
+<li>
+<p><strong>Prepare for Audit</strong> - Gather evidence for external audits</p>
+</li>
+<li>Checklist: <a href="../production/#security-audit-preparation">Audit Preparation Checklist</a></li>
+<li>Time: 2-4 hours</li>
+<li>Technical Skill: Basic</li>
+</ol>
+<hr />
+<h2 id="architecture-decisions">Architecture Decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h2>
+<p>FraiseQL's security architecture is documented in Architecture Decision Records (ADRs):</p>
+<ul>
+<li><strong><a href="../architecture/decisions/0003-kms-architecture/">ADR-003: KMS Architecture</a></strong> - Multi-provider key management</li>
+<li><strong><a href="../architecture/decisions/003-unified-audit-table/">ADR-005: Unified Audit Table</a></strong> - Immutable audit logging design</li>
+<li><strong><a href="../architecture/decisions/005-simplified-single-source-cdc/">ADR-006: Simplified CDC</a></strong> - Change Data Capture approach</li>
+</ul>
+<hr />
+<h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
+<h3 id="detailed-technical-guides">Detailed Technical Guides<a class="headerlink" href="#detailed-technical-guides" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../production/security/">Production Security Guide</a></strong> - SQL injection prevention, rate limiting, CORS, authentication</li>
+<li><strong><a href="../advanced/event-sourcing/#audit-trails">Audit Trails Deep Dive</a></strong> - Comprehensive audit logging implementation</li>
+<li><strong><a href="../enterprise/rbac-postgresql-refactored/">RBAC Implementation</a></strong> - Role-based access control with PostgreSQL</li>
+<li><strong><a href="../architecture/decisions/0003-kms-architecture/">KMS Integration</a></strong> - Key management for data encryption</li>
+</ul>
+<h3 id="deployment-operations">Deployment &amp; Operations<a class="headerlink" href="#deployment-operations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../production/deployment/">Production Deployment</a></strong> - Secure deployment configurations</li>
+<li><strong><a href="../production/observability/">Monitoring &amp; Observability</a></strong> - Security monitoring setup</li>
+<li><strong><a href="../production/">Production Checklist</a></strong> - Pre-deployment security review</li>
+</ul>
+<h3 id="compliance">Compliance<a class="headerlink" href="#compliance" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../compliance/global-regulations/">Global Regulations Guide</a></strong> - Detailed regulatory requirements by jurisdiction</li>
+<li><strong><a href="compliance-matrix/">Compliance Matrix</a></strong> - Control mapping (coming in WP-012)</li>
+<li><strong><a href="security-profiles/">Security Profiles</a></strong> - Configuration for regulated industries (coming in WP-013)</li>
+</ul>
+<hr />
+<h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
+<h3 id="for-new-projects">For New Projects<a class="headerlink" href="#for-new-projects" title="Permanent link">&para;</a></h3>
+<p><strong>1. Choose Security Profile</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Standard profile (default)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>fraiseql<span class="w"> </span>init<span class="w"> </span>--profile<span class="w"> </span>standard
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># HIPAA-compliant healthcare application</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>fraiseql<span class="w"> </span>init<span class="w"> </span>--profile<span class="w"> </span>regulated<span class="w"> </span>--compliance<span class="w"> </span>hipaa
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Defense contractor (NIST 800-171)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>fraiseql<span class="w"> </span>init<span class="w"> </span>--profile<span class="w"> </span>restricted<span class="w"> </span>--compliance<span class="w"> </span>nist-800-171
+</span></code></pre></div>
+<p><strong>2. Configure KMS (REGULATED/RESTRICTED profiles)</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># AWS KMS</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fraiseql<span class="w"> </span>kms<span class="w"> </span>configure<span class="w"> </span>--provider<span class="w"> </span>aws<span class="w"> </span>--region<span class="w"> </span>us-east-1
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Azure Key Vault</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>fraiseql<span class="w"> </span>kms<span class="w"> </span>configure<span class="w"> </span>--provider<span class="w"> </span>azure<span class="w"> </span>--vault<span class="w"> </span>your-keyvault
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># HashiCorp Vault</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>fraiseql<span class="w"> </span>kms<span class="w"> </span>configure<span class="w"> </span>--provider<span class="w"> </span>vault<span class="w"> </span>--address<span class="w"> </span>https://vault.example.com
+</span></code></pre></div>
+<p><strong>3. Enable Audit Logging</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Generate audit table migration</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>fraiseql<span class="w"> </span>audit<span class="w"> </span>init
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Apply migration</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>fraiseql<span class="w"> </span>migrate<span class="w"> </span>up
+</span></code></pre></div>
+<p><strong>4. Verify Security Configuration</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Run security checks</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>fraiseql<span class="w"> </span>security<span class="w"> </span>check
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Generate compliance report</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>fraiseql<span class="w"> </span>compliance<span class="w"> </span>report<span class="w"> </span>--format<span class="w"> </span>pdf
+</span></code></pre></div>
+<h3 id="for-existing-projects">For Existing Projects<a class="headerlink" href="#for-existing-projects" title="Permanent link">&para;</a></h3>
+<p><strong>Upgrade to Compliance-Ready:</strong></p>
+<ol>
+<li>
+<p><strong>Assess Current Security Posture</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>fraiseql<span class="w"> </span>security<span class="w"> </span>audit
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Add Audit Logging</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>fraiseql<span class="w"> </span>audit<span class="w"> </span>init<span class="w"> </span>--retroactive
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Configure Encryption</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>fraiseql<span class="w"> </span>kms<span class="w"> </span>configure<span class="w"> </span>--provider<span class="w"> </span><span class="o">[</span>aws<span class="p">|</span>azure<span class="p">|</span>gcp<span class="p">|</span>vault<span class="o">]</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>fraiseql<span class="w"> </span>encrypt<span class="w"> </span>sensitive-fields
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Enable RLS Policies</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>fraiseql<span class="w"> </span>rbac<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--multi-tenant
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Test Compliance</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>fraiseql<span class="w"> </span>compliance<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--standard<span class="w"> </span><span class="o">[</span>gdpr<span class="p">|</span>hipaa<span class="p">|</span>soc2<span class="o">]</span>
+</span></code></pre></div></p>
+</li>
+</ol>
+<hr />
+<h2 id="support-resources">Support &amp; Resources<a class="headerlink" href="#support-resources" title="Permanent link">&para;</a></h2>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../production/security/">Security Best Practices</a></strong></li>
+<li><strong><a href="../architecture/decisions/">Architecture Decisions</a></strong></li>
+<li><strong><a href="../production/deployment/">Production Deployment</a></strong></li>
+</ul>
+<h3 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>SBOM Generator:</strong> <code>fraiseql sbom generate</code></li>
+<li><strong>Security Scanner:</strong> <code>fraiseql security check</code></li>
+<li><strong>Compliance Reporter:</strong> <code>fraiseql compliance report</code></li>
+</ul>
+<h3 id="community">Community<a class="headerlink" href="#community" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>GitHub Discussions:</strong> Security questions and best practices</li>
+<li><strong>Security Advisories:</strong> Subscribe for vulnerability notifications</li>
+<li><strong>Bug Bounty Program:</strong> Report security issues responsibly</li>
+</ul>
+<h3 id="professional-services">Professional Services<a class="headerlink" href="#professional-services" title="Permanent link">&para;</a></h3>
+<p>For compliance consulting, security audits, or custom implementations:
+- Email: security@fraiseql.com
+- Enterprise Support: Available for REGULATED/RESTRICTED deployments</p>
+<hr />
+<h2 id="frequently-asked-questions">Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Permanent link">&para;</a></h2>
+<h3 id="general">General<a class="headerlink" href="#general" title="Permanent link">&para;</a></h3>
+<p><strong>Q: Is FraiseQL certified for [GDPR/HIPAA/SOC 2]?</strong></p>
+<p>A: FraiseQL provides the technical controls and features required for compliance, but certification is organization-specific. Our security profiles (STANDARD/REGULATED/RESTRICTED) implement industry best practices, and our compliance matrix maps features to specific regulatory requirements.</p>
+<p><strong>Q: Does FraiseQL require external security tools?</strong></p>
+<p>A: No. Core security features (RBAC, audit logging, input validation) are built-in. However, for REGULATED/RESTRICTED profiles, you'll need a KMS provider (AWS KMS, Azure Key Vault, GCP KMS, or HashiCorp Vault) for encryption key management.</p>
+<p><strong>Q: What's the performance impact of security features?</strong></p>
+<p>A:
+- STANDARD profile: ~5% overhead (minimal)
+- REGULATED profile: ~10-15% overhead (moderate)
+- RESTRICTED profile: ~20-25% overhead (comprehensive protection)</p>
+<h3 id="supply-chain-security_1">Supply Chain Security<a class="headerlink" href="#supply-chain-security_1" title="Permanent link">&para;</a></h3>
+<p><strong>Q: How do I verify FraiseQL's SLSA provenance?</strong></p>
+<p>A: See <a href="slsa-provenance/">SLSA Provenance Verification Guide</a> <em>(coming in WP-011)</em>. Verification takes 10-15 minutes using web-based tools and requires no specialized knowledge.</p>
+<p><strong>Q: Can I generate SBOMs for my application?</strong></p>
+<p>A: Yes. FraiseQL includes SBOM generation for your entire application stack:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>fraiseql<span class="w"> </span>sbom<span class="w"> </span>generate<span class="w"> </span>--format<span class="w"> </span>cyclonedx<span class="w"> </span>--output<span class="w"> </span>sbom.json
+</span></code></pre></div></p>
+<p><strong>Q: Is FraiseQL vulnerable to supply chain attacks?</strong></p>
+<p>A: FraiseQL implements multiple protections:
+- Cryptographically signed releases
+- SLSA Level 3 provenance
+- Reproducible builds
+- Dependency pinning with integrity checks</p>
+<h3 id="data-protection">Data Protection<a class="headerlink" href="#data-protection" title="Permanent link">&para;</a></h3>
+<p><strong>Q: Does FraiseQL encrypt data at rest?</strong></p>
+<p>A: Yes, when using REGULATED or RESTRICTED profiles with KMS integration. FraiseQL supports:
+- Database-level encryption (PostgreSQL)
+- Field-level encryption (sensitive data)
+- Key rotation and lifecycle management</p>
+<p><strong>Q: How are audit logs protected from tampering?</strong></p>
+<p>A: Audit logs use cryptographic chaining - each event includes a hash of the previous event, making tampering detectable. RESTRICTED profile adds real-time integrity monitoring.</p>
+<p><strong>Q: Can I anonymize PII for development environments?</strong></p>
+<p>A: Yes. FraiseQL includes PII anonymization tools:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>fraiseql<span class="w"> </span>data<span class="w"> </span>anonymize<span class="w"> </span>--env<span class="w"> </span>development
+</span></code></pre></div></p>
+<h3 id="compliance_1">Compliance<a class="headerlink" href="#compliance_1" title="Permanent link">&para;</a></h3>
+<p><strong>Q: Does FraiseQL support air-gapped deployments?</strong></p>
+<p>A: Yes. RESTRICTED profile supports fully air-gapped deployments for classified systems. Contact enterprise support for implementation guidance.</p>
+<p><strong>Q: How long are audit logs retained?</strong></p>
+<p>A: Configurable per regulatory requirements:
+- GDPR: Typically 6-12 months
+- HIPAA: Minimum 6 years
+- SOC 2: Varies by control</p>
+<p><strong>Q: Can I export audit logs for external SIEM?</strong></p>
+<p>A: Yes. FraiseQL supports audit log export to:
+- Splunk, Datadog, New Relic (via OpenTelemetry)
+- AWS CloudWatch, Azure Monitor, GCP Cloud Logging
+- Custom SIEM via webhook or API</p>
+<hr />
+<p><strong>Last Updated:</strong> 2025-12-08
+<strong>Version:</strong> 1.0
+<strong>Maintainer:</strong> FraiseQL Security Team</p>
+<hr />
+<p><strong>Next Steps:</strong>
+- Review <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em>
+- Check <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em>
+- Configure <a href="security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fraiseql/fraiseql" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/fraiseql/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "search.share", "content.tabs.link", "content.code.annotation", "content.code.copy", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

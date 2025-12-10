@@ -1360,6 +1360,8 @@
       
         
       
+        
+      
     
     
     
@@ -1423,6 +1425,34 @@
     
   
     Filtering (Complete Guide)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../filtering/nested-filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested Filters
   
 
     
@@ -1708,6 +1738,67 @@
     <span class="md-ellipsis">
       
         Optimization Strategies by Complexity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cascade-selection-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CASCADE Selection Optimization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CASCADE Selection Optimization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#payload-size-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Payload Size Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Monitoring
       
     </span>
   </a>
@@ -3358,6 +3449,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#cascade-selection-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CASCADE Selection Optimization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CASCADE Selection Optimization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#payload-size-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Payload Size Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-performance-matters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3764,6 +3916,98 @@
 - Result caching with short TTL
 - Minimize JSONB size in table views</p>
 <hr />
+<h2 id="cascade-selection-optimization">CASCADE Selection Optimization<a class="headerlink" href="#cascade-selection-optimization" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>CASCADE data can add significant payload size to mutation responses. Use selective requesting to optimize performance.</p>
+<h3 id="payload-size-comparison">Payload Size Comparison<a class="headerlink" href="#payload-size-comparison" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Selection</th>
+<th>Typical Size</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No CASCADE</td>
+<td>200-500 bytes</td>
+<td>Display-only mutations</td>
+</tr>
+<tr>
+<td>Metadata only</td>
+<td>300-600 bytes</td>
+<td>Need count info only</td>
+</tr>
+<tr>
+<td>Invalidations only</td>
+<td>400-800 bytes</td>
+<td>Cache clearing only</td>
+</tr>
+<tr>
+<td>Full CASCADE</td>
+<td>1,500-5,000 bytes</td>
+<td>Complete cache sync</td>
+</tr>
+</tbody>
+</table>
+<h3 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h3>
+<p><strong>1. Request Only What You Need</strong>
+<div class="language-graphql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># ❌ Bad: Request everything when you only need count</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="err">cascade</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="n">updated</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">__typename</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="n">operation</span><span class="w"> </span><span class="n">entity</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="n">deleted</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">__typename</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="n">invalidations</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">queryName</span><span class="w"> </span><span class="n">strategy</span><span class="w"> </span><span class="n">scope</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="n">metadata</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">timestamp</span><span class="w"> </span><span class="n">affectedCount</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># ✅ Good: Request only metadata</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="err">cascade</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="n">metadata</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">affectedCount</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<p><strong>2. Use Conditional CASCADE with Directives</strong>
+<div class="language-graphql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">mutation</span><span class="w"> </span><span class="nf">CreatePost</span><span class="p">(</span><span class="nv">$input</span><span class="p">:</span><span class="w"> </span><span class="nc">CreatePostInput</span><span class="p">!,</span><span class="w"> </span><span class="nv">$needCascade</span><span class="p">:</span><span class="w"> </span><span class="nb">Boolean</span><span class="p">!)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="n">createPost</span><span class="p">(</span><span class="n">input</span><span class="p">:</span><span class="w"> </span><span class="nv">$input</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p">...</span><span class="w"> </span><span class="k">on</span><span class="w"> </span><span class="nc">CreatePostSuccess</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="n">post</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="n">title</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span><span class="n">cascade</span><span class="w"> </span><span class="nd">@include</span><span class="p">(</span><span class="n">if</span><span class="p">:</span><span class="w"> </span><span class="nv">$needCascade</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">        </span><span class="n">updated</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">__typename</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="n">entity</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<p><strong>3. Profile Your Queries</strong></p>
+<p>Use GraphQL query complexity analysis to understand CASCADE impact:</p>
+<div class="language-javascript highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">// Measure response size</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">client</span><span class="p">.</span><span class="nx">mutate</span><span class="p">({</span><span class="w"> </span><span class="nx">mutation</span><span class="o">:</span><span class="w"> </span><span class="nx">CREATE_POST</span><span class="w"> </span><span class="p">});</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;Response size:&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">response</span><span class="p">).</span><span class="nx">length</span><span class="p">);</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1">// Compare with and without CASCADE</span>
+</span></code></pre></div>
+<p><strong>4. Mobile-Specific Optimizations</strong></p>
+<p>For mobile clients, avoid CASCADE on:
+- Background sync operations
+- Bulk operations
+- Low-priority mutations</p>
+<p>Request CASCADE only on user-initiated, UI-critical mutations.</p>
+<h3 id="performance-monitoring">Performance Monitoring<a class="headerlink" href="#performance-monitoring" title="Permanent link">&para;</a></h3>
+<p>Track CASCADE payload sizes in production:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">prometheus_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">Histogram</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">cascade_payload_size</span> <span class="o">=</span> <span class="n">Histogram</span><span class="p">(</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="s1">&#39;graphql_cascade_payload_bytes&#39;</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="s1">&#39;CASCADE payload size in bytes&#39;</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">buckets</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">5000</span><span class="p">,</span> <span class="mi">10000</span><span class="p">,</span> <span class="mi">50000</span><span class="p">]</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Alert on large payloads:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">alert</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LargeCascadePayloads</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">histogram_quantile(0.95, cascade_payload_bytes) &gt; 10000</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
+</span></code></pre></div>
+<hr />
 <h2 id="when-performance-matters">When Performance Matters<a class="headerlink" href="#when-performance-matters" title="Permanent link">&para;</a></h2>
 <h3 id="performance-critical-scenarios">🚀 Performance-Critical Scenarios<a class="headerlink" href="#performance-critical-scenarios" title="Permanent link">&para;</a></h3>
 <p><strong>Choose FraiseQL when you need</strong>:</p>
@@ -3941,20 +4185,20 @@
 - Fast SSD storage
 - 10-100GB storage for APQ cache</p>
 <h3 id="postgresql-configuration">PostgreSQL Configuration<a class="headerlink" href="#postgresql-configuration" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- Recommended for FraiseQL</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">shared_buffers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">256</span><span class="n">MB</span><span class="w">          </span><span class="c1">-- 25% of RAM</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">effective_cache_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="n">GB</span><span class="w">       </span><span class="c1">-- 75% of RAM</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">work_mem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span><span class="n">MB</span><span class="w">                  </span><span class="c1">-- Per-connection sort memory</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">max_connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="w">            </span><span class="c1">-- Connection pool size</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">statement_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5000</span><span class="w">         </span><span class="c1">-- Prevent long queries</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">-- Recommended for FraiseQL</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">shared_buffers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">256</span><span class="n">MB</span><span class="w">          </span><span class="c1">-- 25% of RAM</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">effective_cache_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="n">GB</span><span class="w">       </span><span class="c1">-- 75% of RAM</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">work_mem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span><span class="n">MB</span><span class="w">                  </span><span class="c1">-- Per-connection sort memory</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">max_connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="w">            </span><span class="c1">-- Connection pool size</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">statement_timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5000</span><span class="w">         </span><span class="c1">-- Prevent long queries</span>
 </span></code></pre></div>
 <h3 id="connection-pooling">Connection Pooling<a class="headerlink" href="#connection-pooling" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Recommended settings</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">database_pool_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>        <span class="c1"># 20% of max_connections</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">database_max_overflow</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Burst capacity</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">database_pool_timeout</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>    <span class="c1"># Fail fast</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Recommended settings</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">database_pool_size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>        <span class="c1"># 20% of max_connections</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">database_max_overflow</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Burst capacity</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">database_pool_timeout</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>    <span class="c1"># Fail fast</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <hr />
 <h2 id="monitoring-troubleshooting">Monitoring &amp; Troubleshooting<a class="headerlink" href="#monitoring-troubleshooting" title="Permanent link">&para;</a></h2>
@@ -3968,10 +4212,10 @@
 </ol>
 <h3 id="common-performance-issues">Common Performance Issues<a class="headerlink" href="#common-performance-issues" title="Permanent link">&para;</a></h3>
 <p><strong>Slow Queries (50-200ms)</strong>:
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Check for missing indexes</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">tablename</span><span class="p">,</span><span class="w"> </span><span class="n">attname</span><span class="p">,</span><span class="w"> </span><span class="n">n_distinct</span><span class="p">,</span><span class="w"> </span><span class="n">correlation</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stats</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">schemaname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;public&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">tablename</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;v_%&#39;</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">-- Check for missing indexes</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">schemaname</span><span class="p">,</span><span class="w"> </span><span class="n">tablename</span><span class="p">,</span><span class="w"> </span><span class="n">attname</span><span class="p">,</span><span class="w"> </span><span class="n">n_distinct</span><span class="p">,</span><span class="w"> </span><span class="n">correlation</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stats</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">schemaname</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;public&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">tablename</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;v_%&#39;</span><span class="p">;</span>
 </span></code></pre></div></p>
 <p><strong>Low Cache Hit Rate (&lt;80%)</strong>:
 - Review query patterns for stability
