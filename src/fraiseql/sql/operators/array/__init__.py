@@ -1,0 +1,1 @@
+"""Array operator strategies."""
