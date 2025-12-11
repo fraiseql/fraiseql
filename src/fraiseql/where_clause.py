@@ -488,14 +488,8 @@ class FieldCondition:
         if self.operator in ("endswith", "iendswith"):
             return f"%{self.value}"
         if self.operator in ("like", "ilike"):
-            # For backward compatibility: if no wildcards in value, treat as substring match
-            # This preserves old FraiseQL behavior where ilike did substring matching
-            value_str = str(self.value)
-            if "%" not in value_str and "_" not in value_str:
-                # No wildcards provided - treat as substring match for backward compatibility
-                return f"%{value_str}%"
-            # User provided wildcards - use as-is
-            return value_str
+            # Explicit LIKE/ILIKE - user provides pattern with wildcards
+            return str(self.value)
         return str(self.value)
 
     def __repr__(self) -> str:
