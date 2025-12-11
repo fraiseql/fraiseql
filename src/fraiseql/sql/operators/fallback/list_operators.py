@@ -67,7 +67,9 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             parts.append(lit)
 
         parts.append(SQL(")"))
-        return Composable(parts)
+        from psycopg.sql import Composed
+
+        return Composed(parts)
 
     def _apply_type_cast(self, path_sql: SQL, value: Any) -> Composable:
         """Apply appropriate type casting to the JSONB path based on value type."""

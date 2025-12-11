@@ -25,6 +25,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "neq",
         "in",
         "nin",
+        "notin",  # Alias for nin
         "ancestor_of",
         "descendant_of",
         "matches_lquery",
@@ -34,6 +35,16 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "array_contains",  # Array contains path
         "concat",  # Path concatenation
         "lca",  # Lowest common ancestor
+        "nlevel",  # Path depth
+        "nlevel_eq",  # Depth equals
+        "nlevel_gt",  # Depth greater than
+        "nlevel_gte",  # Depth greater than or equal
+        "nlevel_lt",  # Depth less than
+        "nlevel_lte",  # Depth less than or equal
+        "subpath",  # Extract subpath
+        "index",  # Find label index
+        "index_eq",  # Index equals position
+        "index_gte",  # Index >= position
         "isnull",
     }
 
@@ -53,7 +64,10 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             "array_contains",
             "concat",
             "lca",
-        }:
+            "nlevel",
+            "subpath",
+            "index",
+        } or operator.startswith(("nlevel_", "index_")):
             return True
 
         # With type hint, check if it's an LTree type
@@ -98,7 +112,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             return SQL("{} ~ {}::lquery").format(casted_path, Literal(str(value)))
 
         if operator == "matches_ltxtquery":
-            return SQL("{} @ {}::ltxtquery").format(casted_path, Literal(str(value)))
+            return SQL("{} ? {}::ltxtquery").format(casted_path, Literal(str(value)))
 
         # List operators (path needs casting, values cast by _build_in_operator)
         if operator == "in":
@@ -108,7 +122,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 cast_values="ltree",
             )
 
-        if operator == "nin":
+        if operator in ("nin", "notin"):
             return self._build_in_operator(
                 casted_path,
                 [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
@@ -184,6 +198,8 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         # Path manipulation operators
         if operator == "concat":
             # path1 || path2 - concatenate two ltree paths
+            if value is None:
+                return SQL("{} || NULL::ltree").format(casted_path)
             return SQL("{} || {}::ltree").format(casted_path, Literal(str(value)))
 
         if operator == "lca":
@@ -203,6 +219,117 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 parts.extend([Literal(str(path)), SQL("::ltree")])
             parts.append(SQL("])"))
             return Composed(parts)
+
+        # Path analysis operators
+        if operator == "nlevel":
+            # nlevel(ltree) - returns number of labels in path
+            from psycopg.sql import Composed
+
+            return Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+        if operator.startswith("nlevel_"):
+            # nlevel_eq, nlevel_gt, nlevel_gte, nlevel_lt, nlevel_lte
+            comparison = operator.replace("nlevel_", "")
+            from psycopg.sql import Composed
+
+            nlevel_expr = Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+            comparison_ops = {"eq": "=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+            if comparison not in comparison_ops:
+                return None
+            sql_op = comparison_ops[comparison]
+
+            return Composed([nlevel_expr, SQL(f" {sql_op} "), Literal(int(value))])
+
+        if operator == "subpath":
+            # subpath(path, offset, length) - extract subpath
+            if not isinstance(value, tuple):
+                raise TypeError(
+                    f"subpath operator requires tuple (offset, length), got {type(value)}"
+                )
+
+            # Accept both (offset, length) and (offset, path_sql, length) formats
+            if len(value) == 2:
+                offset, length = value
+                path_for_subpath = casted_path
+            elif len(value) == 3:
+                offset, middle_path_sql, length = value
+                # Use the path_sql from the tuple (middle element)
+                path_for_subpath = SQL("({})::ltree").format(middle_path_sql)
+            else:
+                raise TypeError(
+                    f"subpath operator requires tuple of length 2 or 3, got {len(value)}"
+                )
+
+            from psycopg.sql import Composed
+
+            return Composed(
+                [
+                    SQL("subpath("),
+                    path_for_subpath,
+                    SQL(", "),
+                    Literal(int(offset)),
+                    SQL(", "),
+                    Literal(int(length)),
+                    SQL(")"),
+                ]
+            )
+
+        if operator == "index":
+            # index(path, sublabel) - returns position of sublabel
+            from psycopg.sql import Composed
+
+            return Composed(
+                [SQL("index("), casted_path, SQL(", "), Literal(str(value)), SQL("::ltree)")]
+            )
+
+        if operator == "index_eq":
+            # index(path, sublabel) = position
+            if not isinstance(value, tuple):
+                raise TypeError(f"index_eq requires tuple (sublabel, position), got {type(value)}")
+
+            # Accept both (sublabel, position) and (sublabel, path_sql, position) formats
+            if len(value) == 2:
+                sublabel, position = value
+                path_for_index = casted_path
+            elif len(value) == 3:
+                sublabel, middle_path_sql, position = value
+                # Use the path_sql from the tuple (middle element)
+                path_for_index = SQL("({})::ltree").format(middle_path_sql)
+            else:
+                raise TypeError(f"index_eq requires tuple of length 2 or 3, got {len(value)}")
+
+            from psycopg.sql import Composed
+
+            index_expr = Composed(
+                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" = "), Literal(int(position))])
+
+        if operator == "index_gte":
+            # index(path, sublabel) >= min_position
+            if not isinstance(value, tuple):
+                raise TypeError(
+                    f"index_gte requires tuple (sublabel, min_position), got {type(value)}"
+                )
+
+            # Accept both (sublabel, min_position) and (sublabel, path_sql, min_position) formats
+            if len(value) == 2:
+                sublabel, min_position = value
+                path_for_index = casted_path
+            elif len(value) == 3:
+                sublabel, middle_path_sql, min_position = value
+                # Use the path_sql from the tuple (middle element)
+                path_for_index = SQL("({})::ltree").format(middle_path_sql)
+            else:
+                raise TypeError(f"index_gte requires tuple of length 2 or 3, got {len(value)}")
+
+            from psycopg.sql import Composed
+
+            index_expr = Composed(
+                [SQL("index("), path_for_index, SQL(", "), Literal(str(sublabel)), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" >= "), Literal(int(min_position))])
 
         # NULL checking
         if operator == "isnull":
