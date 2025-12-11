@@ -1,7 +1,7 @@
 """Base operator strategy abstract class."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -85,6 +85,95 @@ class BaseOperatorStrategy(ABC):
             return SQL("CAST({} AS {})").format(path_sql, SQL(target_type))
         # Regular column - no cast needed unless explicitly requested
         return path_sql
+
+    def _cast_both_sides(
+        self,
+        path_sql: Composable,
+        value: Any,
+        target_type: str,
+        use_postgres_cast: bool = True,
+    ) -> tuple[Composable, Composable]:
+        """Cast both field path and value to PostgreSQL type.
+
+        This method ensures consistent type handling by casting both sides
+        of a comparison to the specified PostgreSQL type. Works correctly
+        for both JSONB-extracted fields and regular typed columns.
+
+        Args:
+            path_sql: SQL fragment for accessing the field
+                      Examples: data->>'mac_address', mac_address
+            value: Value to cast (will be wrapped in Literal())
+            target_type: PostgreSQL type name
+                         Examples: macaddr, inet, ltree, daterange, point
+            use_postgres_cast: If True, use ::type syntax (faster)
+                               If False, use CAST(x AS type) syntax
+
+        Returns:
+            Tuple of (casted_path, casted_value)
+
+        Examples:
+            >>> path = SQL("data->>'mac'")
+            >>> casted_path, casted_value = self._cast_both_sides(path, "00:11:22:33:44:55", "macaddr")
+            >>> # casted_path: (data->>'mac')::macaddr
+            >>> # casted_value: '00:11:22:33:44:55'::macaddr
+
+            >>> path = SQL("ip_address")
+            >>> casted_path, casted_value = self._cast_both_sides(path, "192.168.1.1", "inet")
+            >>> # casted_path: (ip_address)::inet  (redundant but harmless)
+            >>> # casted_value: '192.168.1.1'::inet
+
+        Note:
+            Casting a value to its own type (e.g., macaddr::macaddr) is
+            a no-op in PostgreSQL with negligible performance cost.
+            This approach simplifies logic and prevents bugs.
+        """
+        from psycopg.sql import SQL, Literal
+
+        if use_postgres_cast:
+            # Use PostgreSQL :: syntax (slightly faster)
+            casted_path = SQL("({})::{}").format(path_sql, SQL(target_type))
+            casted_value = SQL("{}::{}").format(Literal(value), SQL(target_type))
+        else:
+            # Use standard SQL CAST() syntax
+            casted_path = SQL("CAST({} AS {})").format(path_sql, SQL(target_type))
+            casted_value = SQL("CAST({} AS {})").format(Literal(value), SQL(target_type))
+
+        return casted_path, casted_value
+
+    def _cast_list_values(
+        self,
+        values: list[Any],
+        target_type: str,
+        use_postgres_cast: bool = True,
+    ) -> list[Composable]:
+        """Cast a list of values to PostgreSQL type.
+
+        Helper for IN/NOT IN operators that need to cast multiple values.
+
+        Args:
+            values: List of values to cast
+            target_type: PostgreSQL type name
+            use_postgres_cast: If True, use ::type syntax
+
+        Returns:
+            List of casted SQL fragments
+
+        Example:
+            >>> values = ["00:11:22:33:44:55", "aa:bb:cc:dd:ee:ff"]
+            >>> casted = self._cast_list_values(values, "macaddr")
+            >>> # ['00:11:22:33:44:55'::macaddr, 'aa:bb:cc:dd:ee:ff'::macaddr]
+        """
+        from psycopg.sql import SQL, Literal
+
+        casted_values = []
+        for value in values:
+            if use_postgres_cast:
+                casted = SQL("{}::{}").format(Literal(value), SQL(target_type))
+            else:
+                casted = SQL("CAST({} AS {})").format(Literal(value), SQL(target_type))
+            casted_values.append(casted)
+
+        return casted_values
 
     def _build_comparison(
         self, operator: str, casted_path: Composable, value: Any
