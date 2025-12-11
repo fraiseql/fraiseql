@@ -27,31 +27,32 @@ from .postgresql import (
 )
 from .strategy_registry import OperatorRegistry, get_default_registry, register_operator
 
-# Auto-register core strategies (Phase 2)
-register_operator(StringOperatorStrategy())
-register_operator(NumericOperatorStrategy())
-register_operator(BooleanOperatorStrategy())
-
-# Auto-register PostgreSQL-specific strategies (Phase 3)
-register_operator(NetworkOperatorStrategy())
-register_operator(LTreeOperatorStrategy())
-register_operator(DateRangeOperatorStrategy())
-register_operator(MacAddressOperatorStrategy())
+# Register fallback strategies FIRST (Phase 4)
+# These catch any operators not handled by more specific strategies
+# IMPORTANT: Fallback strategies are checked LAST because registry uses reverse order
+register_operator(PathOperatorStrategy())
+register_operator(ListOperatorStrategy())
+register_operator(PatternOperatorStrategy())
+register_operator(ComparisonOperatorStrategy())
 
 # Auto-register advanced strategies (Phase 4)
-# CRITICAL: ArrayOperatorStrategy must come BEFORE ComparisonOperatorStrategy
-# to handle array-specific operations properly
-register_operator(NullOperatorStrategy())  # Always handle isnull first
-register_operator(ArrayOperatorStrategy())  # Handle array ops before generic comparison
-register_operator(CoordinateOperatorStrategy())  # Handle coordinate ops before generic comparison
 register_operator(JsonbOperatorStrategy())  # JSONB-specific operators
+register_operator(CoordinateOperatorStrategy())  # Handle coordinate ops before generic comparison
+register_operator(ArrayOperatorStrategy())  # Handle array ops before generic comparison
+register_operator(NullOperatorStrategy())  # Always handle isnull first
 
-# Register fallback strategies LAST (Phase 4)
-# These catch any operators not handled by more specific strategies
-register_operator(ComparisonOperatorStrategy())
-register_operator(PatternOperatorStrategy())
-register_operator(ListOperatorStrategy())
-register_operator(PathOperatorStrategy())
+# Auto-register PostgreSQL-specific strategies (Phase 3)
+# These should be checked before fallback strategies
+register_operator(MacAddressOperatorStrategy())
+register_operator(DateRangeOperatorStrategy())
+register_operator(LTreeOperatorStrategy())
+register_operator(NetworkOperatorStrategy())
+
+# Auto-register core strategies (Phase 2)
+# These are most specific and should be checked first
+register_operator(BooleanOperatorStrategy())
+register_operator(NumericOperatorStrategy())
+register_operator(StringOperatorStrategy())
 
 # Re-export for backward compatibility
 __all__ = [

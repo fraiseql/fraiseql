@@ -207,7 +207,7 @@ class TestNetworkFieldTypeIntegration:
         strategy = registry.get_strategy("eq", field_type=field_type)
 
         field_path = SQL("data->>'ipAddress'")
-        sql = strategy.build_sql(field_path, "eq", "8.8.8.8", field_type)
+        sql = strategy.build_sql("eq", "8.8.8.8", field_path, field_type)
         sql_str = str(sql)
 
         # Should use proper network casting

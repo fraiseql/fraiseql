@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from psycopg.sql import SQL, Composable, Literal
+from psycopg.sql import SQL, Composable
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -35,7 +35,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         "isnull",
     }
 
-    NETWORK_TYPES = {"IPv4Address", "IPv6Address", "IPv4Network", "IPv6Network"}
+    NETWORK_TYPES = {"IPv4Address", "IPv6Address", "IPv4Network", "IPv6Network", "IpAddress"}
 
     def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
         """Check if this is a network operator."""
@@ -70,10 +70,13 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for network operators."""
-        # Comparison operators
+        # Comparison operators (need both path and value cast to ::inet)
         if operator in ("eq", "neq"):
+            from psycopg.sql import Composed, Literal
+
             casted_path = self._cast_path(path_sql, "inet", jsonb_column, use_postgres_cast=True)
-            return self._build_comparison(operator, casted_path, str(value))
+            op_sql = " = " if operator == "eq" else " != "
+            return Composed([casted_path, SQL(op_sql), Literal(str(value)), SQL("::inet")])
 
         # List operators
         if operator == "in":
