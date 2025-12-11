@@ -10,6 +10,8 @@ from psycopg.sql import SQL, Composed, Literal
 
 from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
+from .field_detection import FieldType, detect_field_type
+
 
 def is_operator_dict(d: dict) -> bool:
     """Check if dict contains operators vs nested objects."""
@@ -147,13 +149,22 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] | None = None
                     if op_value is None:
                         continue  # Skip None values
 
+                    # Detect field type from field name and value
+                    detected_field_type = detect_field_type(
+                        db_field_name, op_value, field_type=None
+                    )
+
+                    # Convert FieldType enum to Python type for operator strategies
+                    python_field_type = _field_type_to_python_type(detected_field_type)
+
                     # Build operator condition using operator registry
                     registry = get_operator_registry()
                     condition = registry.build_sql(
                         operator,
                         op_value,
                         jsonb_path,
-                        field_type=None,  # Will auto-detect from value
+                        field_type=python_field_type,
+                        jsonb_column="data",  # Indicate this is JSONB-extracted data
                     )
                     conditions.append(condition)
 
@@ -240,3 +251,33 @@ def _camel_to_snake(name: str) -> str:
     s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     # Insert underscore before uppercase letters that follow lowercase letters or digits
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+def _field_type_to_python_type(field_type: FieldType) -> type | None:
+    """Convert FieldType enum to Python type for operator strategies.
+
+    Args:
+        field_type: FieldType enum value
+
+    Returns:
+        Python type that operator strategies can recognize, or None for generic types
+    """
+    # Import FraiseQL types
+    try:
+        from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
+    except ImportError:
+        return None
+
+    # Map FieldType enum to Python types that operator strategies recognize
+    type_mapping = {
+        FieldType.IP_ADDRESS: IpAddress,
+        FieldType.MAC_ADDRESS: MacAddress,
+        FieldType.LTREE: LTree,
+        FieldType.DATE_RANGE: DateRange,
+        FieldType.STRING: str,
+        FieldType.INTEGER: int,
+        FieldType.FLOAT: float,
+        FieldType.BOOLEAN: bool,
+    }
+
+    return type_mapping.get(field_type)

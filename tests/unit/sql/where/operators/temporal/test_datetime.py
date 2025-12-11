@@ -1,13 +1,11 @@
-"""Tests for DateTime operators SQL building functions.
+"""Comprehensive tests for datetime operator SQL building.
 
-These tests verify that DateTime operators generate correct PostgreSQL SQL
-with proper timestamp casting for temporal operations.
+Consolidated from test_datetime_operators_sql_building.py and datetime parts of test_date_datetime_port_complete.py.
 """
 
 import pytest
 from psycopg.sql import SQL
 
-# Import DateTime operator functions
 from fraiseql.sql.where.operators.datetime import (
     build_datetime_eq_sql,
     build_datetime_gt_sql,
@@ -22,6 +20,40 @@ from fraiseql.sql.where.operators.datetime import (
 
 class TestDateTimeBasicOperators:
     """Test basic DateTime operators (eq, neq, in, notin)."""
+
+    def test_datetime_eq(self):
+        """Test datetime equality operator."""
+        path_sql = SQL("data->>'created_at'")
+        result = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00Z")
+        sql_str = result.as_string(None)
+        assert "(data->>'created_at')::timestamptz = '2023-07-15T14:30:00Z'::timestamptz" == sql_str
+
+    def test_datetime_neq(self):
+        """Test datetime inequality operator."""
+        path_sql = SQL("data->>'modified_at'")
+        result = build_datetime_neq_sql(path_sql, "2023-07-15T14:30:00Z")
+        sql_str = result.as_string(None)
+        assert (
+            "(data->>'modified_at')::timestamptz != '2023-07-15T14:30:00Z'::timestamptz" == sql_str
+        )
+
+    def test_datetime_in(self):
+        """Test datetime IN operator."""
+        path_sql = SQL("data->>'event_time'")
+        result = build_datetime_in_sql(path_sql, ["2023-01-01T00:00:00Z", "2023-12-31T23:59:59Z"])
+        sql_str = result.as_string(None)
+        expected = "(data->>'event_time')::timestamptz IN ('2023-01-01T00:00:00Z'::timestamptz, '2023-12-31T23:59:59Z'::timestamptz)"
+        assert expected == sql_str
+
+    def test_datetime_notin(self):
+        """Test datetime NOT IN operator."""
+        path_sql = SQL("data->>'excluded_time'")
+        result = build_datetime_notin_sql(
+            path_sql, ["2023-01-01T00:00:00Z", "2023-12-25T12:00:00Z"]
+        )
+        sql_str = result.as_string(None)
+        expected = "(data->>'excluded_time')::timestamptz NOT IN ('2023-01-01T00:00:00Z'::timestamptz, '2023-12-25T12:00:00Z'::timestamptz)"
+        assert expected == sql_str
 
     def test_build_datetime_equality_sql(self) -> None:
         """Test DateTime equality operator with proper timestamp casting."""
@@ -113,6 +145,36 @@ class TestDateTimeBasicOperators:
 class TestDateTimeComparisonOperators:
     """Test DateTime comparison operators (gt, gte, lt, lte)."""
 
+    def test_datetime_gt(self):
+        """Test datetime greater than operator."""
+        path_sql = SQL("data->>'created_at'")
+        result = build_datetime_gt_sql(path_sql, "2023-01-01T00:00:00Z")
+        sql_str = result.as_string(None)
+        assert "(data->>'created_at')::timestamptz > '2023-01-01T00:00:00Z'::timestamptz" == sql_str
+
+    def test_datetime_gte(self):
+        """Test datetime greater than or equal operator."""
+        path_sql = SQL("data->>'start_time'")
+        result = build_datetime_gte_sql(path_sql, "2023-06-01T12:00:00Z")
+        sql_str = result.as_string(None)
+        assert (
+            "(data->>'start_time')::timestamptz >= '2023-06-01T12:00:00Z'::timestamptz" == sql_str
+        )
+
+    def test_datetime_lt(self):
+        """Test datetime less than operator."""
+        path_sql = SQL("data->>'expires_at'")
+        result = build_datetime_lt_sql(path_sql, "2024-12-31T23:59:59Z")
+        sql_str = result.as_string(None)
+        assert "(data->>'expires_at')::timestamptz < '2024-12-31T23:59:59Z'::timestamptz" == sql_str
+
+    def test_datetime_lte(self):
+        """Test datetime less than or equal operator."""
+        path_sql = SQL("data->>'deadline'")
+        result = build_datetime_lte_sql(path_sql, "2023-12-31T23:59:59Z")
+        sql_str = result.as_string(None)
+        assert "(data->>'deadline')::timestamptz <= '2023-12-31T23:59:59Z'::timestamptz" == sql_str
+
     def test_build_datetime_greater_than_sql(self) -> None:
         """Test DateTime greater than operator."""
         path_sql = SQL("data->>'created_at'")
@@ -190,14 +252,14 @@ class TestDateTimeValidation:
         path_sql = SQL("data->>'timestamp'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
-            build_datetime_in_sql(path_sql, "2023-07-15T14:30:00Z")
+            build_datetime_in_sql(path_sql, "2023-07-15T14:30:00Z")  # type: ignore[arg-type]
 
     def test_datetime_notin_requires_list(self) -> None:
         """Test that DateTime 'notin' operator requires a list."""
         path_sql = SQL("data->>'timestamp'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
-            build_datetime_notin_sql(path_sql, "2023-07-15T14:30:00Z")
+            build_datetime_notin_sql(path_sql, "2023-07-15T14:30:00Z")  # type: ignore[arg-type]
 
     def test_datetime_iso_formats_supported(self) -> None:
         """Test that various ISO 8601 datetime formats are supported."""

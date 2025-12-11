@@ -94,6 +94,17 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for ltree operators."""
+        # Validate that pattern operators are not used with LTree fields
+        pattern_operators = {"contains", "startswith", "endswith"}
+        if operator in pattern_operators and field_type is not None:
+            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
+            if "LTree" in type_name or "ltree" in type_name.lower():
+                raise ValueError(
+                    f"Pattern operator '{operator}' is not supported for LTree fields. "
+                    "Use LTree-specific operators like 'matches_lquery' or "
+                    "'matches_ltxtquery' instead."
+                )
+
         # Comparison operators (need ltree casting on both sides)
         if operator == "eq":
             # Always cast to ltree (handles both JSONB and regular columns)

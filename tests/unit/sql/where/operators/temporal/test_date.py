@@ -1,13 +1,11 @@
-"""Tests for Date operators SQL building functions.
+"""Comprehensive tests for date operator SQL building.
 
-These tests verify that Date operators generate correct PostgreSQL SQL
-with proper date casting for temporal operations.
+Consolidated from test_date_operators_sql_building.py and date parts of test_date_datetime_port_complete.py.
 """
 
 import pytest
 from psycopg.sql import SQL
 
-# Import Date operator functions
 from fraiseql.sql.where.operators.date import (
     build_date_eq_sql,
     build_date_gt_sql,
@@ -22,6 +20,36 @@ from fraiseql.sql.where.operators.date import (
 
 class TestDateBasicOperators:
     """Test basic Date operators (eq, neq, in, notin)."""
+
+    def test_date_eq(self):
+        """Test date equality operator."""
+        path_sql = SQL("data->>'birth_date'")
+        result = build_date_eq_sql(path_sql, "2023-07-15")
+        sql_str = result.as_string(None)
+        assert "(data->>'birth_date')::date = '2023-07-15'::date" == sql_str
+
+    def test_date_neq(self):
+        """Test date inequality operator."""
+        path_sql = SQL("data->>'birth_date'")
+        result = build_date_neq_sql(path_sql, "2023-07-15")
+        sql_str = result.as_string(None)
+        assert "(data->>'birth_date')::date != '2023-07-15'::date" == sql_str
+
+    def test_date_in(self):
+        """Test date IN operator."""
+        path_sql = SQL("data->>'event_date'")
+        result = build_date_in_sql(path_sql, ["2023-01-01", "2023-12-31"])
+        sql_str = result.as_string(None)
+        expected = "(data->>'event_date')::date IN ('2023-01-01'::date, '2023-12-31'::date)"
+        assert expected == sql_str
+
+    def test_date_notin(self):
+        """Test date NOT IN operator."""
+        path_sql = SQL("data->>'excluded_date'")
+        result = build_date_notin_sql(path_sql, ["2023-01-01", "2023-12-25"])
+        sql_str = result.as_string(None)
+        expected = "(data->>'excluded_date')::date NOT IN ('2023-01-01'::date, '2023-12-25'::date)"
+        assert expected == sql_str
 
     def test_build_date_equality_sql(self) -> None:
         """Test Date equality operator with proper date casting."""
@@ -109,6 +137,34 @@ class TestDateBasicOperators:
 class TestDateComparisonOperators:
     """Test Date comparison operators (gt, gte, lt, lte)."""
 
+    def test_date_gt(self):
+        """Test date greater than operator."""
+        path_sql = SQL("data->>'created_date'")
+        result = build_date_gt_sql(path_sql, "2023-01-01")
+        sql_str = result.as_string(None)
+        assert "(data->>'created_date')::date > '2023-01-01'::date" == sql_str
+
+    def test_date_gte(self):
+        """Test date greater than or equal operator."""
+        path_sql = SQL("data->>'start_date'")
+        result = build_date_gte_sql(path_sql, "2023-06-01")
+        sql_str = result.as_string(None)
+        assert "(data->>'start_date')::date >= '2023-06-01'::date" == sql_str
+
+    def test_date_lt(self):
+        """Test date less than operator."""
+        path_sql = SQL("data->>'expiry_date'")
+        result = build_date_lt_sql(path_sql, "2024-12-31")
+        sql_str = result.as_string(None)
+        assert "(data->>'expiry_date')::date < '2024-12-31'::date" == sql_str
+
+    def test_date_lte(self):
+        """Test date less than or equal operator."""
+        path_sql = SQL("data->>'deadline'")
+        result = build_date_lte_sql(path_sql, "2023-12-31")
+        sql_str = result.as_string(None)
+        assert "(data->>'deadline')::date <= '2023-12-31'::date" == sql_str
+
     def test_build_date_greater_than_sql(self) -> None:
         """Test Date greater than operator."""
         path_sql = SQL("data->>'start_date'")
@@ -182,14 +238,14 @@ class TestDateValidation:
         path_sql = SQL("data->>'date'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
-            build_date_in_sql(path_sql, "2023-07-15")
+            build_date_in_sql(path_sql, "2023-07-15")  # type: ignore[arg-type]
 
     def test_date_notin_requires_list(self) -> None:
         """Test that Date 'notin' operator requires a list."""
         path_sql = SQL("data->>'date'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
-            build_date_notin_sql(path_sql, "2023-07-15")
+            build_date_notin_sql(path_sql, "2023-07-15")  # type: ignore[arg-type]
 
     def test_date_iso_formats_supported(self) -> None:
         """Test that various ISO 8601 date formats are supported."""
