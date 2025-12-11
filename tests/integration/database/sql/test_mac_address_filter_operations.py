@@ -7,7 +7,7 @@ to ensure proper PostgreSQL macaddr type handling.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.types import MacAddress
 
 pytestmark = pytest.mark.database

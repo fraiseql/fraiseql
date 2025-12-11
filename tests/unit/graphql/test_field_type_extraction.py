@@ -172,7 +172,7 @@ class TestNetworkFieldTypeIntegration:
 
     def test_field_extraction_supports_network_operator_selection(self) -> None:
         """Test that extracted field types can be used for operator selection."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         # Mock GraphQL info
         mock_info = Mock()
@@ -196,7 +196,7 @@ class TestNetworkFieldTypeIntegration:
         """Test that field type extraction enables proper SQL casting."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         # Mock GraphQL info and extract field type
         mock_info = Mock()

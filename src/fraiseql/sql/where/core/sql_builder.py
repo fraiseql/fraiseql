@@ -8,7 +8,7 @@ from typing import Any
 
 from psycopg.sql import SQL, Composed, Literal
 
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
 
 def is_operator_dict(d: dict) -> bool:

@@ -146,7 +146,7 @@ class TestJSONBNetworkFilteringBug:
     @pytest.mark.asyncio
     async def test_network_operator_sql_generation_with_jsonb(self, db_connection) -> None:
         """Test that network operators generate correct SQL for JSONB fields."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")  # JSONB text extraction
@@ -408,7 +408,7 @@ class TestFraiseQLNetworkOperatorStrategy:
 
     def test_network_operator_strategy_can_handle_ip_types(self) -> None:
         """Test that NetworkOperatorStrategy recognizes IP address types."""
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
 
         strategy = NetworkOperatorStrategy()
 
@@ -425,7 +425,7 @@ class TestFraiseQLNetworkOperatorStrategy:
         self,
     ) -> None:
         """Test operator registry assigns NetworkOperatorStrategy to IP equality operations."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         registry = get_operator_registry()
 

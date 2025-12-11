@@ -7,7 +7,7 @@ LTreeOperatorStrategy for comprehensive hierarchical path operations.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import LTreeOperatorStrategy
+from fraiseql.sql.operators import LTreeOperatorStrategy
 from fraiseql.types import LTree
 
 

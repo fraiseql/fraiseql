@@ -137,7 +137,7 @@ class TestRepositoryFindWhereProcessing:
         """Show that the operator strategy system (when used) works correctly."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         # This is what the repository SHOULD be using
         registry = get_operator_registry()

@@ -9,7 +9,7 @@ import logging
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ class TestIPDetectionLogic:
 
     def test_looks_like_ip_address_ipv4(self) -> None:
         """Test IPv4 detection logic."""
-        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
+        from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy
 
         strategy = ComparisonOperatorStrategy()
 
@@ -215,7 +215,7 @@ class TestIPDetectionLogic:
 
     def test_looks_like_ip_address_ipv6(self) -> None:
         """Test IPv6 detection logic."""
-        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
+        from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy
 
         strategy = ComparisonOperatorStrategy()
 
@@ -226,7 +226,7 @@ class TestIPDetectionLogic:
 
     def test_looks_like_ip_address_negative(self) -> None:
         """Test that non-IPs are not detected as IPs."""
-        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
+        from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy
 
         strategy = ComparisonOperatorStrategy()
 

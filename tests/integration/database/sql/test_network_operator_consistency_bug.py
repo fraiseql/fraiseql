@@ -7,7 +7,7 @@ SQL for the same IP address field type.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy, NetworkOperatorStrategy
+from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy, NetworkOperatorStrategy
 from fraiseql.types import IpAddress
 
 pytestmark = pytest.mark.database
@@ -97,7 +97,7 @@ class TestSQLBehaviorWithPostgreSQL:
 
     def test_field_type_detection_issue(self) -> None:
         """Test if the issue is in field type detection for network operators."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         registry = get_operator_registry()
 

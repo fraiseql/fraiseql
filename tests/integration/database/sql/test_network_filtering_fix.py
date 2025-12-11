@@ -4,7 +4,7 @@ import pytest
 from psycopg.sql import SQL
 
 import fraiseql
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import IpAddress
 
@@ -108,7 +108,7 @@ class TestNetworkFilteringFix:
         get_operator_registry()
 
         # Test that NetworkOperatorStrategy rejects non-IP types
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
 
         network_strategy = NetworkOperatorStrategy()
 

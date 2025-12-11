@@ -140,7 +140,7 @@ class TestFieldTypePropagation:
 
     def test_operator_registry_without_field_type(self) -> None:
         """Test operator registry behavior when field_type is not provided."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         registry = get_operator_registry()
 
@@ -178,7 +178,7 @@ class TestFieldTypePropagation:
         """Test how ComparisonOperatorStrategy handles IpAddress types."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         registry = get_operator_registry()
 

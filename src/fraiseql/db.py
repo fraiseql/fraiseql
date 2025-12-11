@@ -1799,7 +1799,7 @@ class FraiseQLRepository:
         """
         from psycopg.sql import SQL, Composed, Identifier, Literal
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         try:
             # Get the operator strategy registry (contains the v0.7.1 IP filtering fixes)

@@ -9,7 +9,7 @@ from psycopg.sql import SQL
 
 import fraiseql
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.types import IpAddress
 
 pytestmark = pytest.mark.database
@@ -130,7 +130,7 @@ class TestIssueResolutionDemonstration:
 
         Enhancement: NetworkOperatorStrategy.can_handle() now validates field types
         """
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
 
         network_strategy = NetworkOperatorStrategy()
 

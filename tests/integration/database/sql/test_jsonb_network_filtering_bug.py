@@ -61,7 +61,7 @@ class TestRootCauseInvestigation:
         """Test SQL generation for network filtering on JSONB fields."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = NetworkOperatorStrategy()
@@ -82,7 +82,7 @@ class TestRootCauseInvestigation:
         """Test SQL generation for eq operator on JSONB network field."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
+        from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = ComparisonOperatorStrategy()

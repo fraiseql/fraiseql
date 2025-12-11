@@ -8,7 +8,7 @@ import pytest
 from psycopg.sql import SQL
 
 import fraiseql
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.types import IpAddress
 
 pytestmark = pytest.mark.database

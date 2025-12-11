@@ -11,7 +11,7 @@ GitHub Issue: Network filtering partially broken in FraiseQL v0.5.5
 import pytest
 from psycopg.sql import SQL, Composed, Literal
 
-from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+from fraiseql.sql.operators import NetworkOperatorStrategy
 from fraiseql.types import IpAddress
 
 

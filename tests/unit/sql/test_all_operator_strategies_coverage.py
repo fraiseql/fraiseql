@@ -9,7 +9,7 @@ NetworkOperatorStrategy was.
 
 import pytest
 
-from fraiseql.sql.operator_strategies import (
+from fraiseql.sql.operators import (
     DateRangeOperatorStrategy,
     LTreeOperatorStrategy,
     MacAddressOperatorStrategy,

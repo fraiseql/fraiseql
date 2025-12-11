@@ -28,7 +28,7 @@ from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types import Hostname
 

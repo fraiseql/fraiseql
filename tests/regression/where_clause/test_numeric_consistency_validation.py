@@ -7,7 +7,7 @@ but to numeric for comparisons? This test validates the corrected behavior.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
 pytestmark = pytest.mark.integration
 

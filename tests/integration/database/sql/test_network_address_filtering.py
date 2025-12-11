@@ -360,7 +360,7 @@ class TestNetworkOperatorIntegration:
         """Test that inSubnet generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
 
         strategy = NetworkOperatorStrategy()
 
@@ -381,7 +381,7 @@ class TestNetworkOperatorIntegration:
         """Test that inRange generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = NetworkOperatorStrategy()
@@ -399,7 +399,7 @@ class TestNetworkOperatorIntegration:
         """Test that isPrivate generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
+        from fraiseql.sql.operators import NetworkOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = NetworkOperatorStrategy()
