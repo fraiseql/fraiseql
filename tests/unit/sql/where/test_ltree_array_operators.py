@@ -23,7 +23,7 @@ class TestLTreeArrayOperators:
         """Test ? operator with ltree array - matches any path."""
         # 'top.science.physics' ? ARRAY['top.science.*', 'top.tech.*'] = true
         patterns = ["top.science.*", "top.technology.*"]
-        result = self.strategy.build_sql(self.path_sql, "matches_any_lquery", patterns, LTree)
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
         expected = "(data->>'path')::ltree ? ARRAY['top.science.*', 'top.technology.*']"
         assert result.as_string(None) == expected
 
@@ -32,8 +32,7 @@ class TestLTreeArrayOperators:
         # ARRAY['top.science', 'top.technology'] @> 'top.science' = true
         paths_array = ["top.science", "top.technology", "top.arts"]
         target_path = "top.science"
-        result = self.strategy.build_sql(
-            self.path_sql, "array_contains", (paths_array, target_path), LTree
+        result = self.strategy.build_sql("array_contains", (paths_array, self.path_sql, target_path), LTree
         )
         expected = "ARRAY['top.science'::ltree, 'top.technology'::ltree, 'top.arts'::ltree] @> 'top.science'::ltree"
         assert result.as_string(None) == expected
@@ -42,21 +41,21 @@ class TestLTreeArrayOperators:
         """Test <@ operator - path is contained in array."""
         # 'top.science' <@ ARRAY['top.science', 'top.technology'] = true
         valid_paths = ["top.science", "top.technology", "top.arts"]
-        result = self.strategy.build_sql(self.path_sql, "in_array", valid_paths, LTree)
+        result = self.strategy.build_sql("in_array", valid_paths, self.path_sql, LTree)
         expected = "(data->>'path')::ltree <@ ARRAY['top.science'::ltree, 'top.technology'::ltree, 'top.arts'::ltree]"
         assert result.as_string(None) == expected
 
     def test_matches_any_lquery_single_pattern(self) -> None:
         """Test matches_any_lquery with single pattern."""
         patterns = ["*.science.*"]
-        result = self.strategy.build_sql(self.path_sql, "matches_any_lquery", patterns, LTree)
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
         expected = "(data->>'path')::ltree ? ARRAY['*.science.*']"
         assert result.as_string(None) == expected
 
     def test_in_array_single_path(self) -> None:
         """Test in_array with single valid path."""
         valid_paths = ["top.science"]
-        result = self.strategy.build_sql(self.path_sql, "in_array", valid_paths, LTree)
+        result = self.strategy.build_sql("in_array", valid_paths, self.path_sql, LTree)
         expected = "(data->>'path')::ltree <@ ARRAY['top.science'::ltree]"
         assert result.as_string(None) == expected
 
@@ -64,8 +63,7 @@ class TestLTreeArrayOperators:
         """Test array_contains with single path in array."""
         paths_array = ["top.science"]
         target_path = "top.science"
-        result = self.strategy.build_sql(
-            self.path_sql, "array_contains", (paths_array, target_path), LTree
+        result = self.strategy.build_sql("array_contains", (paths_array, self.path_sql, target_path), LTree
         )
         expected = "ARRAY['top.science'::ltree] @> 'top.science'::ltree"
         assert result.as_string(None) == expected
@@ -82,29 +80,27 @@ class TestLTreeArrayValidation:
     def test_matches_any_lquery_requires_list(self) -> None:
         """Test that matches_any_lquery operator requires a list."""
         with pytest.raises(TypeError):
-            self.strategy.build_sql(self.path_sql, "matches_any_lquery", "not-a-list", LTree)
+            self.strategy.build_sql("matches_any_lquery", "not-a-list", self.path_sql, LTree)
 
     def test_in_array_requires_list(self) -> None:
         """Test that in_array operator requires a list."""
         with pytest.raises(TypeError):
-            self.strategy.build_sql(self.path_sql, "in_array", "not-a-list", LTree)
+            self.strategy.build_sql("in_array", "not-a-list", self.path_sql, LTree)
 
     def test_array_contains_requires_tuple(self) -> None:
         """Test that array_contains operator requires a tuple (array, target)."""
         with pytest.raises((TypeError, ValueError)):
-            self.strategy.build_sql(
-                self.path_sql, "array_contains", ["top.science"], LTree
-            )  # Not a tuple
+            self.strategy.build_sql("array_contains", ["top.science"], self.path_sql, LTree)  # Not a tuple
 
     def test_matches_any_lquery_empty_list(self) -> None:
         """Test matches_any_lquery with empty list."""
         with pytest.raises((TypeError, ValueError)):
-            self.strategy.build_sql(self.path_sql, "matches_any_lquery", [], LTree)
+            self.strategy.build_sql("matches_any_lquery", [], self.path_sql, LTree)
 
     def test_in_array_empty_list(self) -> None:
         """Test in_array with empty list."""
         # Empty array should generate valid SQL
-        result = self.strategy.build_sql(self.path_sql, "in_array", [], LTree)
+        result = self.strategy.build_sql("in_array", [], self.path_sql, LTree)
         expected = "(data->>'path')::ltree <@ ARRAY[]"
         assert result.as_string(None) == expected
 
@@ -120,7 +116,7 @@ class TestLTreeArrayEdgeCases:
     def test_matches_any_lquery_with_complex_patterns(self) -> None:
         """Test matches_any_lquery with complex lquery patterns."""
         patterns = ["top.*.physics", "*.science.*", "top.arts.music.*"]
-        result = self.strategy.build_sql(self.path_sql, "matches_any_lquery", patterns, LTree)
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
         expected = (
             "(data->>'path')::ltree ? ARRAY['top.*.physics', '*.science.*', 'top.arts.music.*']"
         )
@@ -133,7 +129,7 @@ class TestLTreeArrayEdgeCases:
             "top.academics.university.department.staff.admin",
             "top.business.company.division.team",
         ]
-        result = self.strategy.build_sql(self.path_sql, "in_array", valid_paths, LTree)
+        result = self.strategy.build_sql("in_array", valid_paths, self.path_sql, LTree)
         expected = "(data->>'path')::ltree <@ ARRAY['top.academics.university.department.faculty.professor'::ltree, 'top.academics.university.department.staff.admin'::ltree, 'top.business.company.division.team'::ltree]"
         assert result.as_string(None) == expected
 
@@ -141,8 +137,7 @@ class TestLTreeArrayEdgeCases:
         """Test array_contains for checking if array contains ancestor."""
         paths_array = ["top.science", "top.science.physics", "top.science.chemistry"]
         target_path = "top.science"
-        result = self.strategy.build_sql(
-            self.path_sql, "array_contains", (paths_array, target_path), LTree
+        result = self.strategy.build_sql("array_contains", (paths_array, self.path_sql, target_path), LTree
         )
         expected = "ARRAY['top.science'::ltree, 'top.science.physics'::ltree, 'top.science.chemistry'::ltree] @> 'top.science'::ltree"
         assert result.as_string(None) == expected
@@ -150,6 +145,6 @@ class TestLTreeArrayEdgeCases:
     def test_matches_any_lquery_with_wildcards(self) -> None:
         """Test matches_any_lquery with various wildcard patterns."""
         patterns = ["*", "*.science", "top.*", "*.*.physics"]
-        result = self.strategy.build_sql(self.path_sql, "matches_any_lquery", patterns, LTree)
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
         expected = "(data->>'path')::ltree ? ARRAY['*', '*.science', 'top.*', '*.*.physics']"
         assert result.as_string(None) == expected

@@ -21,57 +21,55 @@ class TestExistingLTreeOperators:
 
     def test_ltree_eq_operator(self) -> None:
         """Test exact path equality."""
-        result = self.strategy.build_sql(self.path_sql, "eq", "top.science.physics", LTree)
+        result = self.strategy.build_sql("eq", "top.science.physics", self.path_sql, LTree)
         expected = "(data->>'path')::ltree = 'top.science.physics'::ltree"
         assert result.as_string(None) == expected
 
     def test_ltree_neq_operator(self) -> None:
         """Test exact path inequality."""
-        result = self.strategy.build_sql(self.path_sql, "neq", "top.technology", LTree)
+        result = self.strategy.build_sql("neq", "top.technology", self.path_sql, LTree)
         expected = "(data->>'path')::ltree != 'top.technology'::ltree"
         assert result.as_string(None) == expected
 
     def test_ltree_in_operator(self) -> None:
         """Test path in list."""
         paths = ["top.science", "top.technology", "top.arts"]
-        result = self.strategy.build_sql(self.path_sql, "in", paths, LTree)
+        result = self.strategy.build_sql("in", paths, self.path_sql, LTree)
         expected = "(data->>'path')::ltree IN ('top.science'::ltree, 'top.technology'::ltree, 'top.arts'::ltree)"
         assert result.as_string(None) == expected
 
     def test_ltree_notin_operator(self) -> None:
         """Test path not in list."""
         paths = ["top.science.physics", "top.science.chemistry"]
-        result = self.strategy.build_sql(self.path_sql, "notin", paths, LTree)
+        result = self.strategy.build_sql("notin", paths, self.path_sql, LTree)
         expected = "(data->>'path')::ltree NOT IN ('top.science.physics'::ltree, 'top.science.chemistry'::ltree)"
         assert result.as_string(None) == expected
 
     def test_ltree_ancestor_of_operator(self) -> None:
         """Test @> operator (path1 is ancestor of path2)."""
         # "top.science" @> "top.science.physics" = true
-        result = self.strategy.build_sql(self.path_sql, "ancestor_of", "top.science.physics", LTree)
+        result = self.strategy.build_sql("ancestor_of", "top.science.physics", self.path_sql, LTree)
         expected = "(data->>'path')::ltree @> 'top.science.physics'::ltree"
         assert result.as_string(None) == expected
 
     def test_ltree_descendant_of_operator(self) -> None:
         """Test <@ operator (path1 is descendant of path2)."""
         # "top.science.physics" <@ "top.science" = true
-        result = self.strategy.build_sql(self.path_sql, "descendant_of", "top.science", LTree)
+        result = self.strategy.build_sql("descendant_of", "top.science", self.path_sql, LTree)
         expected = "(data->>'path')::ltree <@ 'top.science'::ltree"
         assert result.as_string(None) == expected
 
     def test_ltree_matches_lquery(self) -> None:
         """Test ~ operator (path matches lquery pattern)."""
         # "top.science.physics" ~ "*.science.*" = true
-        result = self.strategy.build_sql(self.path_sql, "matches_lquery", "*.science.*", LTree)
+        result = self.strategy.build_sql("matches_lquery", "*.science.*", self.path_sql, LTree)
         expected = "(data->>'path')::ltree ~ '*.science.*'::lquery"
         assert result.as_string(None) == expected
 
     def test_ltree_matches_ltxtquery(self) -> None:
         """Test ? operator (path matches ltxtquery text search)."""
         # "top.science.physics" ? "science & physics" = true
-        result = self.strategy.build_sql(
-            self.path_sql, "matches_ltxtquery", "science & physics", LTree
-        )
+        result = self.strategy.build_sql("matches_ltxtquery", "science & physics", self.path_sql, LTree)
         expected = "(data->>'path')::ltree ? 'science & physics'::ltxtquery"
         assert result.as_string(None) == expected
 
@@ -114,34 +112,34 @@ class TestLTreeOperatorStrategyValidation:
         with pytest.raises(
             ValueError, match="Pattern operator 'contains' is not supported for LTree fields"
         ):
-            self.strategy.build_sql(self.path_sql, "contains", "pattern", LTree)
+            self.strategy.build_sql("contains", "pattern", self.path_sql, LTree)
 
         with pytest.raises(
             ValueError, match="Pattern operator 'startswith' is not supported for LTree fields"
         ):
-            self.strategy.build_sql(self.path_sql, "startswith", "prefix", LTree)
+            self.strategy.build_sql("startswith", "prefix", self.path_sql, LTree)
 
         with pytest.raises(
             ValueError, match="Pattern operator 'endswith' is not supported for LTree fields"
         ):
-            self.strategy.build_sql(self.path_sql, "endswith", "suffix", LTree)
+            self.strategy.build_sql("endswith", "suffix", self.path_sql, LTree)
 
     def test_rejects_invalid_field_types(self) -> None:
         """Test that non-LTree field types are rejected."""
         with pytest.raises(
             ValueError, match="LTree operator 'eq' can only be used with LTree fields"
         ):
-            self.strategy.build_sql(self.path_sql, "eq", "value", str)
+            self.strategy.build_sql("eq", "value", self.path_sql, str)
 
     def test_in_operator_requires_list(self) -> None:
         """Test that 'in' operator requires a list."""
         with pytest.raises(TypeError, match="'in' operator requires a list"):
-            self.strategy.build_sql(self.path_sql, "in", "not-a-list", LTree)
+            self.strategy.build_sql("in", "not-a-list", self.path_sql, LTree)
 
     def test_notin_operator_requires_list(self) -> None:
         """Test that 'notin' operator requires a list."""
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
-            self.strategy.build_sql(self.path_sql, "notin", "not-a-list", LTree)
+            self.strategy.build_sql("notin", "not-a-list", self.path_sql, LTree)
 
 
 class TestLTreeOperatorEdgeCases:
@@ -155,48 +153,48 @@ class TestLTreeOperatorEdgeCases:
     def test_empty_lists_for_in_notin(self) -> None:
         """Test empty lists for in/notin operators."""
         # Empty IN list
-        result_in = self.strategy.build_sql(self.path_sql, "in", [], LTree)
+        result_in = self.strategy.build_sql("in", [], self.path_sql, LTree)
         expected_in = "(data->>'path')::ltree IN ()"
         assert result_in.as_string(None) == expected_in
 
         # Empty NOT IN list
-        result_notin = self.strategy.build_sql(self.path_sql, "notin", [], LTree)
+        result_notin = self.strategy.build_sql("notin", [], self.path_sql, LTree)
         expected_notin = "(data->>'path')::ltree NOT IN ()"
         assert result_notin.as_string(None) == expected_notin
 
     def test_single_item_lists(self) -> None:
         """Test single item lists for in/notin operators."""
         # Single item IN
-        result_in = self.strategy.build_sql(self.path_sql, "in", ["top.science"], LTree)
+        result_in = self.strategy.build_sql("in", ["top.science"], self.path_sql, LTree)
         expected_in = "(data->>'path')::ltree IN ('top.science'::ltree)"
         assert result_in.as_string(None) == expected_in
 
         # Single item NOT IN
-        result_notin = self.strategy.build_sql(self.path_sql, "notin", ["top.arts"], LTree)
+        result_notin = self.strategy.build_sql("notin", ["top.arts"], self.path_sql, LTree)
         expected_notin = "(data->>'path')::ltree NOT IN ('top.arts'::ltree)"
         assert result_notin.as_string(None) == expected_notin
 
     def test_special_characters_in_paths(self) -> None:
         """Test paths with underscores and numbers."""
         # Path with underscores
-        result = self.strategy.build_sql(self.path_sql, "eq", "top.tech_category.web_dev", LTree)
+        result = self.strategy.build_sql("eq", "top.tech_category.web_dev", self.path_sql, LTree)
         expected = "(data->>'path')::ltree = 'top.tech_category.web_dev'::ltree"
         assert result.as_string(None) == expected
 
         # Path with numbers
-        result = self.strategy.build_sql(self.path_sql, "eq", "top.version_2.release_1", LTree)
+        result = self.strategy.build_sql("eq", "top.version_2.release_1", self.path_sql, LTree)
         expected = "(data->>'path')::ltree = 'top.version_2.release_1'::ltree"
         assert result.as_string(None) == expected
 
     def test_single_level_paths(self) -> None:
         """Test operators with single-level paths."""
         # Single level equality
-        result = self.strategy.build_sql(self.path_sql, "eq", "root", LTree)
+        result = self.strategy.build_sql("eq", "root", self.path_sql, LTree)
         expected = "(data->>'path')::ltree = 'root'::ltree"
         assert result.as_string(None) == expected
 
         # Single level ancestor_of
-        result = self.strategy.build_sql(self.path_sql, "ancestor_of", "root.child", LTree)
+        result = self.strategy.build_sql("ancestor_of", "root.child", self.path_sql, LTree)
         expected = "(data->>'path')::ltree @> 'root.child'::ltree"
         assert result.as_string(None) == expected
 
@@ -205,11 +203,11 @@ class TestLTreeOperatorEdgeCases:
         deep_path = "top.academics.university.department.faculty.professor.research.papers"
 
         # Deep equality
-        result = self.strategy.build_sql(self.path_sql, "eq", deep_path, LTree)
+        result = self.strategy.build_sql("eq", deep_path, self.path_sql, LTree)
         expected = f"(data->>'path')::ltree = '{deep_path}'::ltree"
         assert result.as_string(None) == expected
 
         # Deep hierarchical relationship
-        result = self.strategy.build_sql(self.path_sql, "ancestor_of", deep_path, LTree)
+        result = self.strategy.build_sql("ancestor_of", deep_path, self.path_sql, LTree)
         expected = f"(data->>'path')::ltree @> '{deep_path}'::ltree"
         assert result.as_string(None) == expected

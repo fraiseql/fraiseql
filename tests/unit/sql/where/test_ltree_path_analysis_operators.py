@@ -22,42 +22,42 @@ class TestLTreePathAnalysisOperators:
     def test_ltree_nlevel_operator(self) -> None:
         """Test nlevel(ltree) - returns number of labels in path."""
         # nlevel('top.science.physics') = 3
-        result = self.strategy.build_sql(self.path_sql, "nlevel", None, LTree)
+        result = self.strategy.build_sql("nlevel", None, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree)"
         assert result.as_string(None) == expected
 
     def test_ltree_nlevel_eq_operator(self) -> None:
         """Test filtering paths by exact depth using nlevel_eq."""
         # Find all paths with exactly 3 levels
-        result = self.strategy.build_sql(self.path_sql, "nlevel_eq", 3, LTree)
+        result = self.strategy.build_sql("nlevel_eq", 3, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) = 3"
         assert result.as_string(None) == expected
 
     def test_ltree_nlevel_gt_operator(self) -> None:
         """Test filtering paths deeper than specified level."""
         # Find all paths with more than 2 levels
-        result = self.strategy.build_sql(self.path_sql, "nlevel_gt", 2, LTree)
+        result = self.strategy.build_sql("nlevel_gt", 2, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) > 2"
         assert result.as_string(None) == expected
 
     def test_ltree_nlevel_gte_operator(self) -> None:
         """Test filtering paths at least as deep as specified level."""
         # Find all paths with 4 or more levels
-        result = self.strategy.build_sql(self.path_sql, "nlevel_gte", 4, LTree)
+        result = self.strategy.build_sql("nlevel_gte", 4, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) >= 4"
         assert result.as_string(None) == expected
 
     def test_ltree_nlevel_lt_operator(self) -> None:
         """Test filtering paths shallower than specified level."""
         # Find all paths with fewer than 3 levels
-        result = self.strategy.build_sql(self.path_sql, "nlevel_lt", 3, LTree)
+        result = self.strategy.build_sql("nlevel_lt", 3, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) < 3"
         assert result.as_string(None) == expected
 
     def test_ltree_nlevel_lte_operator(self) -> None:
         """Test filtering paths at most as deep as specified level."""
         # Find all paths with 2 or fewer levels
-        result = self.strategy.build_sql(self.path_sql, "nlevel_lte", 2, LTree)
+        result = self.strategy.build_sql("nlevel_lte", 2, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) <= 2"
         assert result.as_string(None) == expected
 
@@ -65,7 +65,7 @@ class TestLTreePathAnalysisOperators:
         """Test subpath(ltree, offset, len) - extract subpath."""
         # subpath('top.science.physics.quantum', 1, 2) = 'science.physics'
         offset, length = 1, 2
-        result = self.strategy.build_sql(self.path_sql, "subpath", (offset, length), LTree)
+        result = self.strategy.build_sql("subpath", (offset, self.path_sql, length), LTree)
         expected = "subpath((data->>'path')::ltree, 1, 2)"
         assert result.as_string(None) == expected
 
@@ -73,7 +73,7 @@ class TestLTreePathAnalysisOperators:
         """Test subpath from start (offset=0)."""
         # subpath('top.science.physics', 0, 2) = 'top.science'
         offset, length = 0, 2
-        result = self.strategy.build_sql(self.path_sql, "subpath", (offset, length), LTree)
+        result = self.strategy.build_sql("subpath", (offset, self.path_sql, length), LTree)
         expected = "subpath((data->>'path')::ltree, 0, 2)"
         assert result.as_string(None) == expected
 
@@ -81,7 +81,7 @@ class TestLTreePathAnalysisOperators:
         """Test subpath extracting single element."""
         # subpath('top.science.physics', 2, 1) = 'physics'
         offset, length = 2, 1
-        result = self.strategy.build_sql(self.path_sql, "subpath", (offset, length), LTree)
+        result = self.strategy.build_sql("subpath", (offset, self.path_sql, length), LTree)
         expected = "subpath((data->>'path')::ltree, 2, 1)"
         assert result.as_string(None) == expected
 
@@ -89,7 +89,7 @@ class TestLTreePathAnalysisOperators:
         """Test index(ltree, ltree) - position of sublabel."""
         # index('top.science.physics', 'science') = 1
         sublabel = "science"
-        result = self.strategy.build_sql(self.path_sql, "index", sublabel, LTree)
+        result = self.strategy.build_sql("index", sublabel, self.path_sql, LTree)
         expected = "index((data->>'path')::ltree, 'science'::ltree)"
         assert result.as_string(None) == expected
 
@@ -97,7 +97,7 @@ class TestLTreePathAnalysisOperators:
         """Test filtering by exact position of sublabel."""
         # Filter paths where 'science' appears at position 1
         sublabel, position = "science", 1
-        result = self.strategy.build_sql(self.path_sql, "index_eq", (sublabel, position), LTree)
+        result = self.strategy.build_sql("index_eq", (sublabel, self.path_sql, position), LTree)
         expected = "index((data->>'path')::ltree, 'science'::ltree) = 1"
         assert result.as_string(None) == expected
 
@@ -105,8 +105,7 @@ class TestLTreePathAnalysisOperators:
         """Test filtering by minimum position of sublabel."""
         # Filter paths where 'physics' appears at position 2 or later
         sublabel, min_position = "physics", 2
-        result = self.strategy.build_sql(
-            self.path_sql, "index_gte", (sublabel, min_position), LTree
+        result = self.strategy.build_sql("index_gte", (sublabel, self.path_sql, min_position), LTree
         )
         expected = "index((data->>'path')::ltree, 'physics'::ltree) >= 2"
         assert result.as_string(None) == expected
@@ -123,13 +122,13 @@ class TestLTreePathAnalysisValidation:
     def test_subpath_requires_tuple(self) -> None:
         """Test that subpath operator requires a tuple (offset, length)."""
         with pytest.raises((TypeError, ValueError)):
-            self.strategy.build_sql(self.path_sql, "subpath", 1, LTree)  # Not a tuple
+            self.strategy.build_sql("subpath", 1, self.path_sql, LTree)  # Not a tuple
 
     def test_subpath_tuple_validation(self) -> None:
         """Test subpath tuple validation."""
         # Valid tuple should work (will fail because operator not implemented yet)
         try:
-            self.strategy.build_sql(self.path_sql, "subpath", (1, 2), LTree)
+            self.strategy.build_sql("subpath", (1, self.path_sql, 2), LTree)
         except ValueError as e:
             # Expected to fail in RED phase - operator not implemented
             assert "Unsupported LTree operator" in str(e)
@@ -137,12 +136,12 @@ class TestLTreePathAnalysisValidation:
     def test_index_eq_requires_tuple(self) -> None:
         """Test that index_eq operator requires a tuple (sublabel, position)."""
         with pytest.raises((TypeError, ValueError)):
-            self.strategy.build_sql(self.path_sql, "index_eq", "science", LTree)  # Not a tuple
+            self.strategy.build_sql("index_eq", "science", self.path_sql, LTree)  # Not a tuple
 
     def test_index_gte_requires_tuple(self) -> None:
         """Test that index_gte operator requires a tuple (sublabel, min_position)."""
         with pytest.raises((TypeError, ValueError)):
-            self.strategy.build_sql(self.path_sql, "index_gte", "physics", LTree)  # Not a tuple
+            self.strategy.build_sql("index_gte", "physics", self.path_sql, LTree)  # Not a tuple
 
 
 class TestLTreePathAnalysisEdgeCases:
@@ -156,7 +155,7 @@ class TestLTreePathAnalysisEdgeCases:
     def test_nlevel_with_zero(self) -> None:
         """Test nlevel filtering with zero depth."""
         # Find root level paths (depth = 1)
-        result = self.strategy.build_sql(self.path_sql, "nlevel_eq", 1, LTree)
+        result = self.strategy.build_sql("nlevel_eq", 1, self.path_sql, LTree)
         expected = "nlevel((data->>'path')::ltree) = 1"
         assert result.as_string(None) == expected
 
@@ -164,21 +163,21 @@ class TestLTreePathAnalysisEdgeCases:
         """Test subpath with zero offset and length."""
         # subpath(path, 0, 0) = empty path
         offset, length = 0, 0
-        result = self.strategy.build_sql(self.path_sql, "subpath", (offset, length), LTree)
+        result = self.strategy.build_sql("subpath", (offset, self.path_sql, length), LTree)
         expected = "subpath((data->>'path')::ltree, 0, 0)"
         assert result.as_string(None) == expected
 
     def test_index_with_root_label(self) -> None:
         """Test index with root-level label."""
         # index('top.science.physics', 'top') = 0
-        result = self.strategy.build_sql(self.path_sql, "index", "top", LTree)
+        result = self.strategy.build_sql("index", "top", self.path_sql, LTree)
         expected = "index((data->>'path')::ltree, 'top'::ltree)"
         assert result.as_string(None) == expected
 
     def test_index_with_nonexistent_sublabel(self) -> None:
         """Test index with sublabel that may not exist."""
         # index('top.science.physics', 'technology') = -1
-        result = self.strategy.build_sql(self.path_sql, "index", "technology", LTree)
+        result = self.strategy.build_sql("index", "technology", self.path_sql, LTree)
         expected = "index((data->>'path')::ltree, 'technology'::ltree)"
         assert result.as_string(None) == expected
 
@@ -187,8 +186,7 @@ class TestLTreePathAnalysisEdgeCases:
         # Find paths that contain 'science' anywhere (index >= 0)
         # This would be: index_gte('science', 0)
         sublabel, min_position = "science", 0
-        result = self.strategy.build_sql(
-            self.path_sql, "index_gte", (sublabel, min_position), LTree
+        result = self.strategy.build_sql("index_gte", (sublabel, self.path_sql, min_position), LTree
         )
         expected = "index((data->>'path')::ltree, 'science'::ltree) >= 0"
         assert result.as_string(None) == expected

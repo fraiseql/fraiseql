@@ -63,10 +63,16 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for ltree operators."""
-        # Comparison operators
-        if operator in ("eq", "neq"):
-            casted_path = self._cast_path(path_sql, "ltree", jsonb_column, use_postgres_cast=True)
-            return self._build_comparison(operator, casted_path, str(value))
+        # Comparison operators (need ltree casting on both sides)
+        if operator == "eq":
+            # Always cast to ltree (handles both JSONB and regular columns)
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} = {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "neq":
+            # Always cast to ltree (handles both JSONB and regular columns)
+            casted_path = SQL("({})::ltree").format(path_sql)
+            return SQL("{} != {}::ltree").format(casted_path, Literal(str(value)))
 
         # Cast to ltree for hierarchical operators
         casted_path = self._cast_path(path_sql, "ltree", jsonb_column, use_postgres_cast=True)
