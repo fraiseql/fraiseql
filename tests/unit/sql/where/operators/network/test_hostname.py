@@ -1,13 +1,11 @@
-"""Tests for Hostname operators SQL building functions.
+"""Comprehensive tests for hostname operator SQL building.
 
-These tests verify that Hostname operators generate correct PostgreSQL SQL
-with proper validation for DNS hostname operations.
+Consolidated from test_hostname_operators_sql_building.py and hostname parts of test_email_hostname_mac_complete.py.
 """
 
 import pytest
 from psycopg.sql import SQL
 
-# Import Hostname operator functions
 from fraiseql.sql.where.operators.hostname import (
     build_hostname_eq_sql,
     build_hostname_in_sql,
@@ -18,6 +16,39 @@ from fraiseql.sql.where.operators.hostname import (
 
 class TestHostnameBasicOperators:
     """Test basic Hostname operators (eq, neq, in, notin)."""
+
+    def test_hostname_eq(self):
+        """Test hostname equality operator."""
+        path_sql = SQL("data->>'hostname'")
+        result = build_hostname_eq_sql(path_sql, "api.example.com")
+        sql_str = result.as_string(None)
+        assert "data->>'hostname' = 'api.example.com'" == sql_str
+
+    def test_hostname_neq(self):
+        """Test hostname inequality operator."""
+        path_sql = SQL("data->>'hostname'")
+        result = build_hostname_neq_sql(path_sql, "old-server.example.com")
+        sql_str = result.as_string(None)
+        assert "data->>'hostname' != 'old-server.example.com'" == sql_str
+
+    def test_hostname_in(self):
+        """Test hostname IN operator."""
+        path_sql = SQL("data->>'server'")
+        result = build_hostname_in_sql(
+            path_sql, ["web1.example.com", "web2.example.com", "web3.example.com"]
+        )
+        sql_str = result.as_string(None)
+        assert (
+            "data->>'server' IN ('web1.example.com', 'web2.example.com', 'web3.example.com')"
+            == sql_str
+        )
+
+    def test_hostname_notin(self):
+        """Test hostname NOT IN operator."""
+        path_sql = SQL("data->>'server'")
+        result = build_hostname_notin_sql(path_sql, ["blacklist1.com", "blacklist2.com"])
+        sql_str = result.as_string(None)
+        assert "data->>'server' NOT IN ('blacklist1.com', 'blacklist2.com')" == sql_str
 
     def test_build_hostname_equality_sql(self) -> None:
         """Test Hostname equality operator with proper text handling."""
@@ -117,6 +148,31 @@ class TestHostnameBasicOperators:
         assert result_mixed.as_string(None) == expected_mixed
 
 
+class TestHostnameSpecialCases:
+    """Test hostname operators with special cases."""
+
+    def test_hostname_with_subdomain(self):
+        """Test hostname with multiple subdomains."""
+        path_sql = SQL("data->>'hostname'")
+        result = build_hostname_eq_sql(path_sql, "deep.sub.domain.example.com")
+        sql_str = result.as_string(None)
+        assert "deep.sub.domain.example.com" in sql_str
+
+    def test_hostname_localhost(self):
+        """Test localhost hostname."""
+        path_sql = SQL("data->>'hostname'")
+        result = build_hostname_eq_sql(path_sql, "localhost")
+        sql_str = result.as_string(None)
+        assert "localhost" in sql_str
+
+    def test_hostname_with_hyphen(self):
+        """Test hostname with hyphens."""
+        path_sql = SQL("data->>'hostname'")
+        result = build_hostname_eq_sql(path_sql, "my-api-server.example.com")
+        sql_str = result.as_string(None)
+        assert "my-api-server.example.com" in sql_str
+
+
 class TestHostnameValidation:
     """Test Hostname operator validation and error handling."""
 
@@ -125,14 +181,14 @@ class TestHostnameValidation:
         path_sql = SQL("data->>'hostname'")
 
         with pytest.raises(TypeError, match="'in' operator requires a list"):
-            build_hostname_in_sql(path_sql, "api.example.com")
+            build_hostname_in_sql(path_sql, "api.example.com")  # type: ignore[arg-type]
 
     def test_hostname_notin_requires_list(self) -> None:
         """Test that Hostname 'notin' operator requires a list."""
         path_sql = SQL("data->>'hostname'")
 
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
-            build_hostname_notin_sql(path_sql, "api.example.com")
+            build_hostname_notin_sql(path_sql, "api.example.com")  # type: ignore[arg-type]
 
     def test_hostname_formats_supported(self) -> None:
         """Test that various valid hostname formats are supported."""

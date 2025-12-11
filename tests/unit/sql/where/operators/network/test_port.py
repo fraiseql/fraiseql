@@ -1,13 +1,11 @@
-"""Tests for Port operators SQL building functions.
+"""Comprehensive tests for port operator SQL building.
 
-These tests verify that Port operators generate correct PostgreSQL SQL
-with proper validation for network port operations.
+Consolidated from test_port_operators_sql_building.py and port parts of test_date_datetime_port_complete.py.
 """
 
 import pytest
 from psycopg.sql import SQL
 
-# Import Port operator functions
 from fraiseql.sql.where.operators.port import (
     build_port_eq_sql,
     build_port_gt_sql,
@@ -22,6 +20,62 @@ from fraiseql.sql.where.operators.port import (
 
 class TestPortBasicOperators:
     """Test basic Port operators (eq, neq, in, notin)."""
+
+    def test_port_eq(self):
+        """Test port equality operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_eq_sql(path_sql, 8080)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer = 8080" == sql_str
+
+    def test_port_neq(self):
+        """Test port inequality operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_neq_sql(path_sql, 80)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer != 80" == sql_str
+
+    def test_port_in(self):
+        """Test port IN operator."""
+        path_sql = SQL("data->>'service_port'")
+        result = build_port_in_sql(path_sql, [80, 443, 8080])
+        sql_str = result.as_string(None)
+        assert "(data->>'service_port')::integer IN (80, 443, 8080)" == sql_str
+
+    def test_port_notin(self):
+        """Test port NOT IN operator."""
+        path_sql = SQL("data->>'excluded_port'")
+        result = build_port_notin_sql(path_sql, [22, 23, 3389])
+        sql_str = result.as_string(None)
+        assert "(data->>'excluded_port')::integer NOT IN (22, 23, 3389)" == sql_str
+
+    def test_port_gt(self):
+        """Test port greater than operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_gt_sql(path_sql, 1024)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer > 1024" == sql_str
+
+    def test_port_gte(self):
+        """Test port greater than or equal operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_gte_sql(path_sql, 1024)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer >= 1024" == sql_str
+
+    def test_port_lt(self):
+        """Test port less than operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_lt_sql(path_sql, 65535)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer < 65535" == sql_str
+
+    def test_port_lte(self):
+        """Test port less than or equal operator."""
+        path_sql = SQL("data->>'port'")
+        result = build_port_lte_sql(path_sql, 65535)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer <= 65535" == sql_str
 
     def test_build_port_equality_sql(self) -> None:
         """Test Port equality operator with proper integer handling."""
@@ -173,24 +227,29 @@ class TestPortComparisonOperators:
         assert result_dynamic.as_string(None) == expected_dynamic
 
 
-class TestPortValidation:
-    """Test Port operator validation and error handling."""
+class TestPortBoundaryValues:
+    """Test port operators with boundary values."""
 
-    def test_port_in_requires_list(self) -> None:
-        """Test that Port 'in' operator requires a list."""
+    def test_port_boundary_values(self):
+        """Test port operators with boundary values."""
         path_sql = SQL("data->>'port'")
 
-        with pytest.raises(TypeError, match="'in' operator requires a list"):
-            build_port_in_sql(path_sql, 8080)
+        # Min port (1)
+        result = build_port_gte_sql(path_sql, 1)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer >= 1" == sql_str
 
-    def test_port_notin_requires_list(self) -> None:
-        """Test that Port 'notin' operator requires a list."""
-        path_sql = SQL("data->>'port'")
+        # Max port (65535)
+        result = build_port_lte_sql(path_sql, 65535)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer <= 65535" == sql_str
 
-        with pytest.raises(TypeError, match="'notin' operator requires a list"):
-            build_port_notin_sql(path_sql, 8080)
+        # Common privileged port
+        result = build_port_eq_sql(path_sql, 443)
+        sql_str = result.as_string(None)
+        assert "(data->>'port')::integer = 443" == sql_str
 
-    def test_port_boundary_values(self) -> None:
+    def test_port_boundary_values_min_max(self) -> None:
         """Test Port operators with boundary values."""
         path_sql = SQL("data->>'port'")
 
@@ -203,6 +262,24 @@ class TestPortValidation:
         result_max = build_port_eq_sql(path_sql, 65535)
         expected_max = "(data->>'port')::integer = 65535"
         assert result_max.as_string(None) == expected_max
+
+
+class TestPortValidation:
+    """Test Port operator validation and error handling."""
+
+    def test_port_in_requires_list(self) -> None:
+        """Test that Port 'in' operator requires a list."""
+        path_sql = SQL("data->>'port'")
+
+        with pytest.raises(TypeError, match="'in' operator requires a list"):
+            build_port_in_sql(path_sql, 8080)  # type: ignore[arg-type]
+
+    def test_port_notin_requires_list(self) -> None:
+        """Test that Port 'notin' operator requires a list."""
+        path_sql = SQL("data->>'port'")
+
+        with pytest.raises(TypeError, match="'notin' operator requires a list"):
+            build_port_notin_sql(path_sql, 8080)  # type: ignore[arg-type]
 
     def test_port_common_service_ports(self) -> None:
         """Test Port operators with common service ports."""
