@@ -74,8 +74,8 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             casted_path = SQL("({})::ltree").format(path_sql)
             return SQL("{} != {}::ltree").format(casted_path, Literal(str(value)))
 
-        # Cast to ltree for hierarchical operators
-        casted_path = self._cast_path(path_sql, "ltree", jsonb_column, use_postgres_cast=True)
+        # Always cast to ltree for all ltree-specific operators
+        casted_path = SQL("({})::ltree").format(path_sql)
 
         # Hierarchical operators
         if operator == "ancestor_of":
@@ -90,7 +90,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         if operator == "matches_ltxtquery":
             return SQL("{} @ {}::ltxtquery").format(casted_path, Literal(str(value)))
 
-        # List operators
+        # List operators (path needs casting, values cast by _build_in_operator)
         if operator == "in":
             return self._build_in_operator(
                 casted_path,
