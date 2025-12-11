@@ -231,3 +231,68 @@ By contributing, you agree that your contributions will be licensed under the sa
 ---
 
 Thank you for contributing to FraiseQL!
+
+## Adding Integration Tests
+
+### WHERE Clause Tests
+When adding new WHERE clause integration tests, place them in the appropriate category:
+
+#### Network Operators
+```bash
+# Location: tests/integration/database/sql/where/network/
+# For: IP, MAC, hostname, email, port operators
+tests/integration/database/sql/where/network/test_new_network_feature.py
+```
+
+#### Specialized PostgreSQL Types
+```bash
+# Location: tests/integration/database/sql/where/specialized/
+# For: ltree, fulltext, and other PostgreSQL-specific operators
+tests/integration/database/sql/where/specialized/test_new_pg_type.py
+```
+
+#### Temporal Operators
+```bash
+# Location: tests/integration/database/sql/where/temporal/
+# For: date, datetime, daterange operators
+tests/integration/database/sql/where/temporal/test_new_time_feature.py
+```
+
+#### Spatial Operators
+```bash
+# Location: tests/integration/database/sql/where/spatial/
+# For: coordinate, distance, geometry operators
+tests/integration/database/sql/where/spatial/test_new_spatial_feature.py
+```
+
+#### Cross-Cutting Tests
+```bash
+# Location: tests/integration/database/sql/where/ (root)
+# For: tests involving multiple operator types
+tests/integration/database/sql/where/test_mixed_operators.py
+```
+
+### Test Naming Conventions
+
+- **End-to-end tests:** `test_<type>_filtering.py` (e.g., `test_ip_filtering.py`)
+- **Operator tests:** `test_<type>_operations.py` (e.g., `test_mac_operations.py`)
+- **Bug regressions:** `test_<type>_bugs.py` or `test_production_bugs.py`
+- **Consistency tests:** `test_<type>_consistency.py`
+
+### Running Tests
+
+```bash
+# Run all WHERE integration tests
+uv run pytest tests/integration/database/sql/where/
+
+# Run specific category
+uv run pytest tests/integration/database/sql/where/network/
+
+# Run single test file
+uv run pytest tests/integration/database/sql/where/network/test_ip_filtering.py
+
+# Run with pattern
+uv run pytest tests/integration/database/sql/where/ -k "ltree"
+```
+
+See `tests/integration/database/sql/where/README.md` for detailed documentation.

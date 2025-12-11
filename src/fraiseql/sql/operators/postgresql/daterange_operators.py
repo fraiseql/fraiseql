@@ -28,6 +28,7 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         "neq",
         "in",
         "nin",
+        "notin",
         "contains_date",
         "overlaps",
         "adjacent",
@@ -40,11 +41,14 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
 
     def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
         """Check if this is a daterange operator."""
-        if operator not in self.SUPPORTED_OPERATORS:
-            return False
+        # For DateRange fields, we support all operators (to reject unsupported ones)
+        if field_type is not None:
+            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
+            if "DateRange" in type_name or "daterange" in type_name.lower():
+                return True
 
-        # DateRange-specific operators
-        if operator in {
+        # For non-DateRange fields, only support our specialized operators
+        specialized_operators = {
             "contains_date",
             "overlaps",
             "adjacent",
@@ -52,16 +56,8 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
             "strictly_right",
             "not_left",
             "not_right",
-        }:
-            return True
-
-        # With type hint
-        if field_type is not None:
-            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
-            if "DateRange" in type_name or "daterange" in type_name.lower():
-                return True
-
-        return False
+        }
+        return operator in specialized_operators
 
     def build_sql(
         self,
@@ -72,55 +68,81 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for daterange operators."""
-        # Comparison operators
-        if operator in ("eq", "neq"):
-            casted_path = self._cast_path(
-                path_sql, "daterange", jsonb_column, use_postgres_cast=True
-            )
-            return self._build_comparison(operator, casted_path, str(value))
+        # Validate that pattern operators are not used with DateRange
+        pattern_operators = {"contains", "startswith", "endswith"}
+        if operator in pattern_operators and field_type and hasattr(field_type, "__name__"):
+            type_name = field_type.__name__.lower()
+            if "daterange" in type_name:
+                raise ValueError(
+                    f"Pattern operator '{operator}' is not supported for DateRange fields. "
+                    "DateRange only supports range-specific operators."
+                )
 
-        # Cast to daterange for range operators
-        casted_path = self._cast_path(path_sql, "daterange", jsonb_column, use_postgres_cast=True)
+        # Comparison operators
+        if operator == "eq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} = {}").format(casted_path, casted_value)
+
+        if operator == "neq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} != {}").format(casted_path, casted_value)
 
         # Range operators
         if operator == "contains_date":
-            return SQL("{} @> {}::date").format(casted_path, Literal(str(value)))
+            casted_path = SQL("({})::daterange").format(path_sql)
+            casted_value = SQL("{}::date").format(Literal(str(value)))
+            return SQL("{} @> {}").format(casted_path, casted_value)
 
         if operator == "overlaps":
-            return SQL("{} && {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} && {}").format(casted_path, casted_value)
 
         if operator == "adjacent":
-            return SQL("{} -|- {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} -|- {}").format(casted_path, casted_value)
 
         if operator == "strictly_left":
-            return SQL("{} << {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} << {}").format(casted_path, casted_value)
 
         if operator == "strictly_right":
-            return SQL("{} >> {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} >> {}").format(casted_path, casted_value)
 
         if operator == "not_left":
-            return SQL("{} &> {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} &> {}").format(casted_path, casted_value)
 
         if operator == "not_right":
-            return SQL("{} &< {}::daterange").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "daterange")
+            return SQL("{} &< {}").format(casted_path, casted_value)
 
         # List operators (check if range is in list)
         if operator == "in":
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                cast_values="daterange",
-            )
+            # Cast field path
+            casted_path = SQL("({})::daterange").format(path_sql)
 
-        if operator == "nin":
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                negate=True,
-                cast_values="daterange",
-            )
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "daterange")
 
-        # NULL checking
+            # Build IN clause: field IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} IN ({})").format(casted_path, values_sql)
+
+        if operator in ("nin", "notin"):
+            # Cast field path
+            casted_path = SQL("({})::daterange").format(path_sql)
+
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "daterange")
+
+            # Build NOT IN clause: field NOT IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} NOT IN ({})").format(casted_path, values_sql)
+
+        # NULL checking (don't cast for NULL checks)
         if operator == "isnull":
             return self._build_null_check(path_sql, value)
 

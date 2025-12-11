@@ -23,8 +23,9 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql("contains_date", "2023-06-15", path_sql, field_type=DateRangeField)
+        assert sql is not None
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "@>" in sql_str, "Missing contains operator"
         assert "2023-06-15" in sql_str
@@ -36,12 +37,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="overlaps",
-            val="[2023-06-01,2023-06-30]",
+            operator="overlaps",
+            value="[2023-06-01,2023-06-30]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "&&" in sql_str, "Missing overlaps operator"
         assert "[2023-06-01,2023-06-30]" in sql_str
@@ -53,12 +54,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="adjacent",
-            val="[2023-07-01,2023-07-31]",
+            operator="adjacent",
+            value="[2023-07-01,2023-07-31]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "-|-" in sql_str, "Missing adjacent operator"
         assert "[2023-07-01,2023-07-31]" in sql_str
@@ -70,12 +71,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="strictly_left",
-            val="[2023-07-01,2023-12-31]",
+            operator="strictly_left",
+            value="[2023-07-01,2023-12-31]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "<<" in sql_str, "Missing strictly left operator"
         assert "[2023-07-01,2023-12-31]" in sql_str
@@ -87,12 +88,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="strictly_right",
-            val="[2023-01-01,2023-06-30]",
+            operator="strictly_right",
+            value="[2023-01-01,2023-06-30]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert ">>" in sql_str, "Missing strictly right operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
@@ -104,12 +105,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="not_left",
-            val="[2023-01-01,2023-06-30]",
+            operator="not_left",
+            value="[2023-01-01,2023-06-30]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "&>" in sql_str, "Missing not left operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
@@ -121,12 +122,12 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql(
             path_sql=path_sql,
-            op="not_right",
-            val="[2023-07-01,2023-12-31]",
+            operator="not_right",
+            value="[2023-07-01,2023-12-31]",
             field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "&<" in sql_str, "Missing not right operator"
         assert "[2023-07-01,2023-12-31]" in sql_str
@@ -137,10 +138,13 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=DateRangeField
+            path_sql=path_sql,
+            operator="eq",
+            value="[2023-01-01,2023-12-31]",
+            field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "=" in sql_str, "Missing equality operator"
         assert "[2023-01-01,2023-12-31]" in sql_str
@@ -151,10 +155,13 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql(
-            path_sql=path_sql, op="neq", val="[2023-01-01,2023-06-30]", field_type=DateRangeField
+            path_sql=path_sql,
+            operator="neq",
+            value="[2023-01-01,2023-06-30]",
+            field_type=DateRangeField,
         )
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "!=" in sql_str, "Missing inequality operator"
         assert "[2023-01-01,2023-06-30]" in sql_str
@@ -185,7 +192,7 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql("in", ranges, path_sql, field_type=DateRangeField)
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "IN" in sql_str, "Missing IN operator"
         for range_val in ranges:
@@ -203,7 +210,7 @@ class TestDateRangeFilterOperations:
 
         sql = registry.build_sql("notin", excluded_ranges, path_sql, field_type=DateRangeField)
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)  # type: ignore
         assert "::daterange" in sql_str, "Missing daterange cast"
         assert "NOT IN" in sql_str, "Missing NOT IN operator"
         for range_val in excluded_ranges:
@@ -230,14 +237,17 @@ class TestDateRangeFilterOperations:
 
         # For DateRange fields, should use daterange casting
         daterange_sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=DateRangeField
+            path_sql=path_sql,
+            operator="eq",
+            value="[2023-01-01,2023-12-31]",
+            field_type=DateRangeField,
         )
-        daterange_sql_str = str(daterange_sql)
+        daterange_sql_str = daterange_sql.as_string(None)  # type: ignore
         assert "::daterange" in daterange_sql_str
 
         # For regular string fields, should NOT use daterange casting
         string_sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=str
+            path_sql=path_sql, operator="eq", value="[2023-01-01,2023-12-31]", field_type=str
         )
         string_sql_str = str(string_sql)
         assert "::daterange" not in string_sql_str
@@ -278,7 +288,7 @@ class TestDateRangeFilterOperations:
         for case in test_cases:
             sql = registry.build_sql(case["op"], case["val"], path_sql, field_type=DateRangeField)
 
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)  # type: ignore
             assert "::daterange" in sql_str, f"Missing daterange cast for {case['description']}"
             assert case["expected_op"] in sql_str, (
                 f"Missing {case['expected_op']} for {case['description']}"
@@ -314,9 +324,11 @@ class TestDateRangeFilterOperations:
         ]
 
         for scenario in complex_scenarios:
-            sql = registry.build_sql(scenario["op"], scenario["val"], path_sql, field_type=DateRangeField)
+            sql = registry.build_sql(
+                scenario["op"], scenario["val"], path_sql, field_type=DateRangeField
+            )
 
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)  # type: ignore
             assert "::daterange" in sql_str
             assert scenario["val"] in sql_str
 
@@ -340,6 +352,6 @@ class TestDateRangeFilterOperations:
         for boundary in boundary_types:
             sql = registry.build_sql("eq", boundary, path_sql, field_type=DateRangeField)
 
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)  # type: ignore
             assert "::daterange" in sql_str
             assert boundary in sql_str

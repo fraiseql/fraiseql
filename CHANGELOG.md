@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🚀 Enhancement: Consistent SQL Type Casting Across All Operators
+
+**Major improvement to SQL operator strategies**: Implemented consistent type casting using centralized `_cast_both_sides()` and `_cast_list_values()` methods across all PostgreSQL operator strategies.
+
+#### Implementation Details
+
+**Core Infrastructure**:
+- ✅ **New base methods**: Added `_cast_both_sides()` and `_cast_list_values()` to `BaseOperatorStrategy`
+- ✅ **Consistent casting**: All operators now use unified casting logic for type safety
+- ✅ **JSONB compatibility**: Proper handling of JSONB-extracted values vs regular columns
+
+**Operator Strategy Updates**:
+- ✅ **MAC Address**: Updated to use `_cast_both_sides()` for `::macaddr` casting
+- ✅ **DateRange**: Updated to use `_cast_both_sides()` for `::daterange` casting
+- ✅ **Network**: Updated to use `_cast_both_sides()` for `::inet` casting
+- ✅ **Coordinate**: Verified existing implementation (special case for POINT transformations)
+
+**Test Suite Improvements**:
+- ✅ **SQL verification**: All tests now use `sql.as_string(None)` instead of `str(sql)` for accurate SQL output checking
+- ✅ **Type safety**: Added proper type assertions and ignore comments
+- ✅ **Comprehensive coverage**: All 66+ operator tests passing across all strategies
+
+#### Technical Benefits
+
+- **Type Safety**: Consistent PostgreSQL type casting prevents runtime errors
+- **Maintainability**: Centralized casting logic reduces code duplication
+- **Performance**: Optimized casting with proper `::type` syntax vs `CAST()` functions
+- **Reliability**: Proper handling of JSONB vs regular column contexts
+
 ### 🔧 Maintenance: WHERE Test Suite Reorganization
 
 **Major test infrastructure improvement**: Complete reorganization of WHERE clause test files (both unit and integration) for better maintainability and developer experience.

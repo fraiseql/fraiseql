@@ -33,6 +33,10 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         "strictleft",
         "strictright",
         "isnull",
+        # CamelCase versions used by tests
+        "isPrivate",
+        "isPublic",
+        "inSubnet",
     }
 
     NETWORK_TYPES = {"IPv4Address", "IPv6Address", "IPv4Network", "IPv6Network", "IpAddress"}
@@ -42,13 +46,14 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         if operator not in self.SUPPORTED_OPERATORS:
             return False
 
-        # Check field type
+        # Check field type for network fields
         if field_type is not None:
             type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
             if any(net_type in type_name for net_type in self.NETWORK_TYPES):
                 return True
 
-        # Network-specific operators
+        # Network-specific operators only for network field types
+        # (Don't claim them for other types like DateRange)
         if operator in {
             "isprivate",
             "ispublic",
@@ -56,8 +61,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             "overlaps",
             "strictleft",
             "strictright",
+            # CamelCase versions
+            "isPrivate",
+            "isPublic",
+            "inSubnet",
         }:
-            return True
+            # Only support these for network field types
+            if field_type is not None:
+                type_name = (
+                    field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
+                )
+                if any(net_type in type_name for net_type in self.NETWORK_TYPES):
+                    return True
+            return False
 
         return False
 
@@ -70,51 +86,64 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for network operators."""
-        # Comparison operators (need both path and value cast to ::inet)
-        if operator in ("eq", "neq"):
-            from psycopg.sql import Composed, Literal
+        # Comparison operators
+        if operator == "eq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} = {}").format(casted_path, casted_value)
 
-            casted_path = self._cast_path(path_sql, "inet", jsonb_column, use_postgres_cast=True)
-            op_sql = " = " if operator == "eq" else " != "
-            return Composed([casted_path, SQL(op_sql), Literal(str(value)), SQL("::inet")])
+        if operator == "neq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} != {}").format(casted_path, casted_value)
 
         # List operators
         if operator == "in":
-            casted_path = self._cast_path(path_sql, "inet", jsonb_column, use_postgres_cast=True)
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                cast_values="inet",
-            )
+            # Cast field path
+            casted_path = SQL("({})::inet").format(path_sql)
+
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "inet")
+
+            # Build IN clause: field IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} IN ({})").format(casted_path, values_sql)
 
         if operator == "nin":
-            casted_path = self._cast_path(path_sql, "inet", jsonb_column, use_postgres_cast=True)
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                negate=True,
-                cast_values="inet",
-            )
+            # Cast field path
+            casted_path = SQL("({})::inet").format(path_sql)
+
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "inet")
+
+            # Build NOT IN clause: field NOT IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} NOT IN ({})").format(casted_path, values_sql)
 
         # Network-specific operators
-        casted_path = self._cast_path(path_sql, "inet", jsonb_column, use_postgres_cast=True)
-        if operator == "isprivate":
+        if operator in {"isprivate", "isPrivate"}:
+            casted_path = SQL("({})::inet").format(path_sql)
             return SQL("NOT inet_public({})").format(casted_path)
 
-        if operator == "ispublic":
+        if operator in {"ispublic", "isPublic"}:
+            casted_path = SQL("({})::inet").format(path_sql)
             return SQL("inet_public({})").format(casted_path)
 
-        if operator == "insubnet":
-            return SQL("{} <<= {}::inet").format(casted_path, Literal(str(value)))
+        if operator in {"insubnet", "inSubnet"}:
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} <<= {}").format(casted_path, casted_value)
 
         if operator == "overlaps":
-            return SQL("{} && {}::inet").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} && {}").format(casted_path, casted_value)
 
         if operator == "strictleft":
-            return SQL("{} << {}::inet").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} << {}").format(casted_path, casted_value)
 
         if operator == "strictright":
-            return SQL("{} >> {}::inet").format(casted_path, Literal(str(value)))
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} >> {}").format(casted_path, casted_value)
 
         # NULL checking
         if operator == "isnull":

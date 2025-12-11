@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from psycopg.sql import Composable
+from psycopg.sql import SQL, Composable
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -16,16 +16,18 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         - isnull: NULL checking
     """
 
-    SUPPORTED_OPERATORS = {"eq", "neq", "in", "nin", "isnull"}
+    SUPPORTED_OPERATORS = {"eq", "neq", "in", "nin", "notin", "isnull"}
 
     def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
         """Check if this is a MAC address operator."""
-        if operator not in self.SUPPORTED_OPERATORS:
-            return False
-
+        # Only support operators for MAC address fields
         if field_type is not None:
             type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
-            if "MacAddr" in type_name or "macaddr" in type_name.lower():
+            if (
+                "MacAddr" in type_name
+                or "macaddr" in type_name.lower()
+                or "MacAddress" in type_name
+            ):
                 return True
 
         return False
@@ -38,31 +40,60 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         field_type: Optional[type] = None,
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
-        """Build SQL for MAC address operators."""
-        # Comparison operators
-        if operator in ("eq", "neq"):
-            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
-            return self._build_comparison(operator, casted_path, str(value))
+        """Build SQL for MAC address operators with proper casting.
 
-        # List operators
+        Always casts both field and value to ::macaddr for type-safe comparisons.
+
+        Supported operators:
+            - eq, neq: Equality/inequality with ::macaddr casting
+            - in, nin: List membership with ::macaddr casting
+            - isnull: NULL checking (no casting needed)
+        """
+        # Validate that pattern operators are not used with MAC addresses
+        pattern_operators = {"contains", "startswith", "endswith"}
+        if operator in pattern_operators and field_type and hasattr(field_type, "__name__"):
+            type_name = field_type.__name__.lower()
+            if "mac" in type_name or "macaddr" in type_name:
+                raise ValueError(
+                    f"Pattern operator '{operator}' is not supported for MAC address fields. "
+                    "MAC addresses only support equality, list, and null operators."
+                )
+
+        # Comparison operators (eq, neq)
+        if operator == "eq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "macaddr")
+            return SQL("{} = {}").format(casted_path, casted_value)
+
+        if operator == "neq":
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "macaddr")
+            return SQL("{} != {}").format(casted_path, casted_value)
+
+        # List operators (in, nin)
         if operator == "in":
-            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                cast_values="macaddr",
-            )
+            # Cast field path
+            casted_path = SQL("({})::{}").format(path_sql, SQL("macaddr"))
 
-        if operator == "nin":
-            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
-            return self._build_in_operator(
-                casted_path,
-                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
-                negate=True,
-                cast_values="macaddr",
-            )
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "macaddr")
 
-        # NULL checking
+            # Build IN clause: field IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} IN ({})").format(casted_path, values_sql)
+
+        if operator in ("nin", "notin"):
+            # Cast field path
+            casted_path = SQL("({})::{}").format(path_sql, SQL("macaddr"))
+
+            # Cast each value in list
+            value_list = value if isinstance(value, (list, tuple)) else [value]
+            casted_values = self._cast_list_values([str(v) for v in value_list], "macaddr")
+
+            # Build NOT IN clause: field NOT IN (val1, val2, ...)
+            values_sql = SQL(", ").join(casted_values)
+            return SQL("{} NOT IN ({})").format(casted_path, values_sql)
+
+        # NULL checking (no casting needed)
         if operator == "isnull":
             return self._build_null_check(path_sql, value)
 

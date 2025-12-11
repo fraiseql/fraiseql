@@ -3,7 +3,7 @@
 import os
 from typing import Any, Optional
 
-from psycopg.sql import SQL, Composable, Literal
+from psycopg.sql import SQL, Composable, Composed, Literal
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -214,44 +214,11 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
     def _build_distance_earthdistance(
         self, path_sql: Composable, center: tuple[float, float], distance_meters: float
     ) -> Composable:
-        """Build SQL for distance using Haversine formula."""
-        center_lat, center_lng = center
-
-        # Haversine formula: great-circle distance on spherical Earth
-        # d = 2 * R * arcsin(sqrt(sin²((lat2-lat1)/2) + cos(lat1)*cos(lat2)*sin²((lng2-lng1)/2)))
-        return Composable(
-            [
-                SQL("("),
-                SQL("6371000 * 2 * ASIN(SQRT("),  # Earth radius in meters * 2 * arcsin(sqrt(...))
-                SQL("POWER(SIN(RADIANS("),
-                Literal(center_lat),
-                SQL(") - RADIANS(ST_Y(("),
-                path_sql,
-                SQL(")::point))), 2) / 2 + "),
-                SQL("COS(RADIANS("),
-                Literal(center_lat),
-                SQL(")) * COS(RADIANS(ST_Y(("),
-                path_sql,
-                SQL(")::point))) * "),
-                SQL("POWER(SIN(RADIANS("),
-                Literal(center_lng),
-                SQL(") - RADIANS(ST_X(("),
-                path_sql,
-                SQL(")::point))), 2) / 2"),
-                SQL(")) <= "),
-                Literal(distance_meters),
-                SQL(")"),
-            ]
-        )
-
-    def _build_distance_earthdistance(
-        self, path_sql: SQL, center: tuple[float, float], distance_meters: float
-    ) -> Composable:
         """Build SQL for distance using earthdistance extension."""
         lat, lng = center
         casted_path = SQL("({})::point").format(path_sql)
 
-        return Composable(
+        return Composed(
             [
                 SQL("earth_distance(ll_to_earth("),
                 Literal(lat),

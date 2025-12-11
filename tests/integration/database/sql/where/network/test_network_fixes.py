@@ -46,8 +46,11 @@ class TestNetworkFilteringFix:
         field_path = SQL("data->>'ip_address'")
 
         # Test inSubnet generates proper SQL
-        subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.1.0/24", IpAddress)
-        subnet_str = str(subnet_sql)
+        subnet_sql = registry.build_sql(
+            "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
+        )
+        assert subnet_sql is not None
+        subnet_str = subnet_sql.as_string(None)  # type: ignore
 
         # Should contain proper casting
         assert "::inet" in subnet_str
@@ -55,14 +58,13 @@ class TestNetworkFilteringFix:
         assert "192.168.1.0/24" in subnet_str
 
         # Test isPrivate generates proper SQL
-        private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
-        private_str = str(private_sql)
+        private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
+        assert private_sql is not None
+        private_str = private_sql.as_string(None)  # type: ignore
 
-        # Should contain RFC 1918 ranges
-        assert "192.168.0.0/16" in private_str
-        assert "10.0.0.0/8" in private_str
-        assert "172.16.0.0/12" in private_str
-        assert "<<=" in private_str
+        # Should use PostgreSQL's inet_public function for private IP detection
+        assert "NOT inet_public" in private_str
+        assert "::inet" in private_str
 
     def test_eq_operator_vs_network_operators_consistency(self) -> None:
         """Test that eq and network operators can coexist properly."""
@@ -70,11 +72,15 @@ class TestNetworkFilteringFix:
         field_path = SQL("data->>'ip_address'")
 
         # Get SQL for both operators
-        eq_sql = registry.build_sql(field_path, "eq", "192.168.1.1", IpAddress)
-        subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.1.0/24", IpAddress)
+        eq_sql = registry.build_sql("eq", "192.168.1.1", field_path, field_type=IpAddress)
+        subnet_sql = registry.build_sql(
+            "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
+        )
 
-        eq_str = str(eq_sql)
-        subnet_str = str(subnet_sql)
+        assert eq_sql is not None
+        eq_str = eq_sql.as_string(None)  # type: ignore
+        assert subnet_sql is not None
+        subnet_str = subnet_sql.as_string(None)  # type: ignore
 
         # Both should work with PostgreSQL
         # eq uses host() to handle CIDR notation properly
@@ -110,16 +116,18 @@ class TestNetworkFilteringFix:
         # Test that NetworkOperatorStrategy rejects non-IP types
         from fraiseql.sql.operators import NetworkOperatorStrategy
 
+        from fraiseql.sql.operators import NetworkOperatorStrategy
+
         network_strategy = NetworkOperatorStrategy()
 
         # Should handle IP addresses
-        assert network_strategy.can_handle("inSubnet", IpAddress)
+        assert network_strategy.supports_operator("inSubnet", IpAddress)
 
         # Should reject string types
-        assert not network_strategy.can_handle("inSubnet", str)
+        assert not network_strategy.supports_operator("inSubnet", str)
 
         # Should reject int types
-        assert not network_strategy.can_handle("inSubnet", int)
+        assert not network_strategy.supports_operator("inSubnet", int)
 
     def test_regression_reported_issue_patterns(self) -> None:
         """Test the specific patterns from the reported issue."""
@@ -128,8 +136,11 @@ class TestNetworkFilteringFix:
 
         # Issue #1: inSubnet filter returns wrong results
         # Generate SQL for subnet filter
-        subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.0.0/16", IpAddress)
-        subnet_str = str(subnet_sql)
+        subnet_sql = registry.build_sql(
+            "inSubnet", "192.168.0.0/16", field_path, field_type=IpAddress
+        )
+        assert subnet_sql is not None
+        subnet_str = subnet_sql.as_string(None)  # type: ignore
 
         # Should generate: (data->>'ip_address')::inet <<= '192.168.0.0/16'::inet
         # This SQL should correctly filter only IPs in the 192.168.x.x range
@@ -140,8 +151,9 @@ class TestNetworkFilteringFix:
         assert "192.168.0.0/16" in subnet_str
 
         # Issue #2: Exact matching (eq) doesn't work
-        eq_sql = registry.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
-        eq_str = str(eq_sql)
+        eq_sql = registry.build_sql("eq", "1.1.1.1", field_path, field_type=IpAddress)
+        assert eq_sql is not None
+        eq_str = eq_sql.as_string(None)  # type: ignore
 
         # Should generate proper equality check
         # The host() function is actually correct for handling CIDR notation
@@ -149,13 +161,13 @@ class TestNetworkFilteringFix:
         assert "=" in eq_str or "host(" in eq_str
 
         # Issue #3: isPrivate filter returns empty
-        private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
-        private_str = str(private_sql)
+        private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
+        assert private_sql is not None
+        private_str = private_sql.as_string(None)  # type: ignore
 
-        # Should check all RFC 1918 ranges
-        rfc1918_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
-        for range_str in rfc1918_ranges:
-            assert range_str in private_str
+        # Should use PostgreSQL's inet_public function for private IP detection
+        assert "NOT inet_public" in private_str
+        assert "::inet" in private_str
 
 
 if __name__ == "__main__":

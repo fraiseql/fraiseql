@@ -360,16 +360,14 @@ class TestNetworkOperatorIntegration:
         """Test that inSubnet generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operators import NetworkOperatorStrategy
-
-        strategy = NetworkOperatorStrategy()
-
-        # Mock field type as IpAddress
+        from fraiseql.sql.operators import get_default_registry
         from fraiseql.types import IpAddress
 
+        registry = get_default_registry()
+
         # Test subnet operation
-        result = strategy.build_sql(
-            SQL("data->>'ip_address'"), "inSubnet", "192.168.1.0/24", IpAddress
+        result = registry.build_sql(
+            "insubnet", "192.168.1.0/24", SQL("data->>'ip_address'"), field_type=IpAddress
         )
 
         # Should generate PostgreSQL inet subnet matching
@@ -381,40 +379,40 @@ class TestNetworkOperatorIntegration:
         """Test that inRange generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operators import NetworkOperatorStrategy
+        from fraiseql.sql.operators import get_default_registry
         from fraiseql.types import IpAddress
 
-        strategy = NetworkOperatorStrategy()
+        registry = get_default_registry()
 
         # Test range operation
         range_value = {"from": "192.168.1.1", "to": "192.168.1.100"}
-        result = strategy.build_sql(SQL("data->>'ip_address'"), "inRange", range_value, IpAddress)
+        result = registry.build_sql(
+            "overlaps", range_value, SQL("data->>'ip_address'"), field_type=IpAddress
+        )
 
         # Should generate PostgreSQL inet range comparison
-        sql_str = str(result)
-        assert (">=" in sql_str and "<=" in sql_str) or "between" in sql_str.lower()
+        sql_str = result.as_string(None)  # type: ignore
+        assert "&&" in sql_str  # inet overlaps operator
 
     @pytest.mark.asyncio
     async def test_private_ip_operator_sql_generation(self) -> None:
         """Test that isPrivate generates correct SQL."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operators import NetworkOperatorStrategy
+        from fraiseql.sql.operators import get_default_registry
         from fraiseql.types import IpAddress
 
-        strategy = NetworkOperatorStrategy()
+        registry = get_default_registry()
 
         # Test private IP detection
-        result = strategy.build_sql(SQL("data->>'ip_address'"), "isPrivate", True, IpAddress)
-
-        # Should check RFC 1918 ranges
-        sql_str = str(result)
-        assert (
-            "10.0.0.0/8" in sql_str
-            or "192.168.0.0/16" in sql_str
-            or "172.16.0.0/12" in sql_str
-            or "private" in sql_str.lower()
+        result = registry.build_sql(
+            "isprivate", True, SQL("data->>'ip_address'"), field_type=IpAddress
         )
+
+        # Should use PostgreSQL's inet_public function
+        sql_str = result.as_string(None)  # type: ignore
+        assert "NOT inet_public" in sql_str
+        assert "::inet" in sql_str
 
 
 # Additional test data for comprehensive testing

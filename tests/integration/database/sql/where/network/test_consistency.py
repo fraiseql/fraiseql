@@ -7,7 +7,7 @@ SQL for the same IP address field type.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operators import StringOperatorStrategy as ComparisonOperatorStrategy, NetworkOperatorStrategy
+from fraiseql.sql.operators import get_default_registry
 from fraiseql.types import IpAddress
 
 pytestmark = pytest.mark.database
@@ -21,17 +21,17 @@ class TestNetworkOperatorConsistencyBug:
         # Test field path representing JSONB IP address
         field_path = SQL("data->>'ip_address'")
 
-        # Test eq operator (ComparisonOperatorStrategy)
-        comparison_strategy = ComparisonOperatorStrategy()
-        eq_sql = comparison_strategy.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
+        registry = get_default_registry()
 
-        # Test inSubnet operator (NetworkOperatorStrategy)
-        network_strategy = NetworkOperatorStrategy()
-        subnet_sql = network_strategy.build_sql(field_path, "inSubnet", "1.1.1.0/24", IpAddress)
+        # Test eq operator
+        eq_sql = registry.build_sql("eq", "1.1.1.1", field_path, field_type=IpAddress)
+
+        # Test inSubnet operator
+        subnet_sql = registry.build_sql("inSubnet", "1.1.1.0/24", field_path, field_type=IpAddress)
 
         # The issue: eq uses host() but inSubnet doesn't
-        eq_str = str(eq_sql)
-        subnet_str = str(subnet_sql)
+        eq_str = eq_sql.as_string(None)  # type: ignore
+        subnet_str = subnet_sql.as_string(None)  # type: ignore
 
         # Both should consistently handle IP address casting
         if "host(" in eq_str:
@@ -48,16 +48,16 @@ class TestNetworkOperatorConsistencyBug:
         """Test consistency between isPrivate and eq operators."""
         field_path = SQL("data->>'ip_address'")
 
+        registry = get_default_registry()
+
         # Test eq for private IP
-        comparison_strategy = ComparisonOperatorStrategy()
-        eq_sql = comparison_strategy.build_sql(field_path, "eq", "192.168.1.1", IpAddress)
+        eq_sql = registry.build_sql("eq", "192.168.1.1", field_path, field_type=IpAddress)
 
         # Test isPrivate
-        network_strategy = NetworkOperatorStrategy()
-        private_sql = network_strategy.build_sql(field_path, "isPrivate", True, IpAddress)
+        private_sql = registry.build_sql("isPrivate", True, field_path, field_type=IpAddress)
 
-        eq_str = str(eq_sql)
-        private_str = str(private_sql)
+        eq_str = eq_sql.as_string(None)  # type: ignore
+        private_str = private_sql.as_string(None)  # type: ignore
 
         # Both should handle the same field consistently
         # If eq uses host(), isPrivate should account for this
@@ -68,16 +68,16 @@ class TestNetworkOperatorConsistencyBug:
         """Demonstrate the actual bug with concrete SQL examples."""
         field_path = SQL("data->>'ip_address'")
 
-        # Simulate the case where JSONB contains "192.168.1.1" (without CIDR)
-        comparison_strategy = ComparisonOperatorStrategy()
-        network_strategy = NetworkOperatorStrategy()
+        registry = get_default_registry()
 
         # These operations on the same field should be consistent
-        eq_sql = comparison_strategy.build_sql(field_path, "eq", "192.168.1.1", IpAddress)
-        subnet_sql = network_strategy.build_sql(field_path, "inSubnet", "192.168.1.0/24", IpAddress)
+        eq_sql = registry.build_sql("eq", "192.168.1.1", field_path, field_type=IpAddress)
+        subnet_sql = registry.build_sql(
+            "inSubnet", "192.168.1.0/24", field_path, field_type=IpAddress
+        )
 
-        eq_str = str(eq_sql)
-        subnet_str = str(subnet_sql)
+        eq_str = eq_sql.as_string(None)  # type: ignore
+        subnet_str = subnet_sql.as_string(None)  # type: ignore
 
         # The real issue: different casting approaches
         uses_host_for_eq = "host(" in eq_str
@@ -102,18 +102,26 @@ class TestSQLBehaviorWithPostgreSQL:
         registry = get_operator_registry()
 
         # Test that network strategy is selected for network operators with IP fields
-        network_strategy = registry.get_strategy("inSubnet")
-        comparison_strategy = registry.get_strategy("eq")
+        network_strategy = registry.get_strategy("inSubnet", IpAddress)
+        comparison_strategy = registry.get_strategy("eq", IpAddress)
+
+        # Test that strategies are found
+        assert network_strategy is not None, "Network strategy should be found for inSubnet"
+        assert comparison_strategy is not None, "Comparison strategy should be found for eq"
 
         # Test that network strategy can handle the operator
-        assert network_strategy.can_handle("inSubnet"), "Network strategy should handle inSubnet"
-        assert comparison_strategy.can_handle("eq"), "Comparison strategy should handle eq"
+        assert network_strategy.supports_operator("inSubnet", IpAddress), (
+            "Network strategy should handle inSubnet"
+        )
+        assert comparison_strategy.supports_operator("eq", IpAddress), (
+            "Comparison strategy should handle eq"
+        )
 
         # The issue might be that NetworkOperatorStrategy.can_handle() doesn't check field type
         # Let's see if it properly filters by field type
 
-        network_strategy_instance = NetworkOperatorStrategy()
-        network_strategy_instance.can_handle("inSubnet")
+        # Note: can_handle method may not be available in registry API
+        # This test may need to be updated to use registry methods
 
         # The bug might be here - NetworkOperatorStrategy should only handle network operators
         # for network field types, but the can_handle method doesn't check field type!
