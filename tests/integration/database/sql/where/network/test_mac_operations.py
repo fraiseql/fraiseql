@@ -34,7 +34,7 @@ class TestMacAddressFilterOperations:
             sql = registry.build_sql("eq", mac_format, path_sql, field_type=MacAddress)
 
             # Should cast both sides to macaddr for proper comparison
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)
             assert "::macaddr" in sql_str, f"Missing macaddr cast for format {mac_format}"
             assert mac_format in sql_str
 
@@ -53,7 +53,7 @@ class TestMacAddressFilterOperations:
         for mac_case in test_cases:
             sql = registry.build_sql("eq", mac_case, path_sql, field_type=MacAddress)
 
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)
             # Should use macaddr casting for case-insensitive comparison
             assert "::macaddr" in sql_str, f"Missing macaddr cast for case {mac_case}"
 
@@ -72,7 +72,7 @@ class TestMacAddressFilterOperations:
 
         sql = registry.build_sql("in", mixed_macs, path_sql, field_type=MacAddress)
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)
         # Should cast the field to macaddr
         assert "::macaddr" in sql_str
         # Should include all MAC addresses
@@ -86,7 +86,7 @@ class TestMacAddressFilterOperations:
 
         sql = registry.build_sql("neq", "00:11:22:33:44:55", path_sql, field_type=MacAddress)
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)
         assert "::macaddr" in sql_str
         assert "!=" in sql_str
         assert "00:11:22:33:44:55" in sql_str
@@ -100,7 +100,7 @@ class TestMacAddressFilterOperations:
 
         sql = registry.build_sql("notin", excluded_macs, path_sql, field_type=MacAddress)
 
-        sql_str = str(sql)
+        sql_str = sql.as_string(None)
         assert "::macaddr" in sql_str
         assert "NOT IN" in sql_str
         for mac in excluded_macs:
@@ -140,12 +140,12 @@ class TestMacAddressFilterOperations:
 
         # For MAC address fields, should use macaddr casting
         mac_sql = registry.build_sql("eq", "00:11:22:33:44:55", path_sql, field_type=MacAddress)
-        mac_sql_str = str(mac_sql)
+        mac_sql_str = mac_sql.as_string(None)
         assert "::macaddr" in mac_sql_str
 
         # For regular string fields, should NOT use macaddr casting
         string_sql = registry.build_sql("eq", "00:11:22:33:44:55", path_sql, field_type=str)
-        string_sql_str = str(string_sql)
+        string_sql_str = string_sql.as_string(None)
         assert "::macaddr" not in string_sql_str
 
     def test_mac_address_normalization_in_sql_generation(self) -> None:
@@ -168,7 +168,7 @@ class TestMacAddressFilterOperations:
         for fmt in formats:
             sql = registry.build_sql("eq", fmt, path_sql, field_type=MacAddress)
 
-            sql_str = str(sql)
+            sql_str = sql.as_string(None)
 
             # All should use proper macaddr casting that enables normalization
             assert "::macaddr" in sql_str
