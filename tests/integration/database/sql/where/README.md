@@ -67,8 +67,8 @@ Cross-cutting integration tests:
 - Issue resolution demonstrations
 
 **Files:**
-- `test_mixed_phase4.py` - Phase 4 mixed-type validation
-- `test_mixed_phase5.py` - Phase 5 mixed-type validation
+- `test_mixed_hostname.py` - Hostname operator validation
+- `test_mixed_datetime.py` - DateTime/Date operator validation
 - `test_restricted_types.py` - Restricted filter types
 
 ## Running Tests

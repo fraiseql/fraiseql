@@ -1,4 +1,4 @@
-"""End-to-end tests for Phase 5: DateTime/Date filtering functionality.
+"""End-to-end tests for DateTime/Date filtering functionality.
 
 These tests verify that DateTime and Date operators work correctly in the full context
 of the WHERE clause building system, from field detection through SQL generation.
