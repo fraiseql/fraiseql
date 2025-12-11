@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from psycopg.sql import SQL, Composable, Literal
+from psycopg.sql import Composable
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -45,52 +45,28 @@ class NumericOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for numeric operators."""
-        # Cast to appropriate numeric type for JSONB
+        # Determine numeric cast type
         if jsonb_column:
-            # JSONB numeric values stored as text, need casting
-            if field_type is int or isinstance(value, int):
-                casted_path = SQL("({})::integer").format(path_sql)
-            else:
-                casted_path = SQL("({})::numeric").format(path_sql)
+            # JSONB numeric values need casting
+            cast_type = "integer" if (field_type is int or isinstance(value, int)) else "numeric"
+            casted_path = self._cast_path(path_sql, cast_type, jsonb_column, use_postgres_cast=True)
         else:
             casted_path = path_sql
 
         # Comparison operators
-        if operator == "eq":
-            return SQL("{} = {}").format(casted_path, Literal(value))
-
-        if operator == "neq":
-            return SQL("{} != {}").format(casted_path, Literal(value))
-
-        if operator == "gt":
-            return SQL("{} > {}").format(casted_path, Literal(value))
-
-        if operator == "gte":
-            return SQL("{} >= {}").format(casted_path, Literal(value))
-
-        if operator == "lt":
-            return SQL("{} < {}").format(casted_path, Literal(value))
-
-        if operator == "lte":
-            return SQL("{} <= {}").format(casted_path, Literal(value))
+        comparison_sql = self._build_comparison(operator, casted_path, value)
+        if comparison_sql is not None:
+            return comparison_sql
 
         # List operators
         if operator == "in":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(Literal(v) for v in value)
-            return SQL("{} IN ({})").format(casted_path, placeholders)
+            return self._build_in_operator(casted_path, value)
 
         if operator == "nin":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(Literal(v) for v in value)
-            return SQL("{} NOT IN ({})").format(casted_path, placeholders)
+            return self._build_in_operator(casted_path, value, negate=True)
 
         # NULL checking
         if operator == "isnull":
-            if value:
-                return SQL("{} IS NULL").format(path_sql)
-            return SQL("{} IS NOT NULL").format(path_sql)
+            return self._build_null_check(path_sql, value)
 
         return None

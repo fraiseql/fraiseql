@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from psycopg.sql import SQL, Composable, Literal
+from psycopg.sql import Composable
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -39,36 +39,31 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for MAC address operators."""
-        # Cast to macaddr for JSONB columns
-        if jsonb_column:
-            casted_path = SQL("({})::macaddr").format(path_sql)
-        else:
-            casted_path = SQL("CAST({} AS macaddr)").format(path_sql)
-
-        # Equality operators
-        if operator == "eq":
-            return SQL("{} = {}::macaddr").format(casted_path, Literal(str(value)))
-
-        if operator == "neq":
-            return SQL("{} != {}::macaddr").format(casted_path, Literal(str(value)))
+        # Comparison operators
+        if operator in ("eq", "neq"):
+            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
+            return self._build_comparison(operator, casted_path, str(value))
 
         # List operators
         if operator == "in":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(SQL("{}::macaddr").format(Literal(str(v))) for v in value)
-            return SQL("{} IN ({})").format(casted_path, placeholders)
+            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                cast_values="macaddr",
+            )
 
         if operator == "nin":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(SQL("{}::macaddr").format(Literal(str(v))) for v in value)
-            return SQL("{} NOT IN ({})").format(casted_path, placeholders)
+            casted_path = self._cast_path(path_sql, "macaddr", jsonb_column, use_postgres_cast=True)
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                negate=True,
+                cast_values="macaddr",
+            )
 
         # NULL checking
         if operator == "isnull":
-            if value:
-                return SQL("{} IS NULL").format(path_sql)
-            return SQL("{} IS NOT NULL").format(path_sql)
+            return self._build_null_check(path_sql, value)
 
         return None

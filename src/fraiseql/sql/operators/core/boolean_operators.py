@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from psycopg.sql import SQL, Composable, Literal
+from psycopg.sql import Composable
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
 
@@ -36,21 +36,13 @@ class BooleanOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for boolean operators."""
-        # Cast to boolean for JSONB
-        if jsonb_column:
-            casted_path = SQL("({})::boolean").format(path_sql)
-        else:
-            casted_path = path_sql
+        # Comparison operators
+        if operator in ("eq", "neq"):
+            casted_path = self._cast_path(path_sql, "boolean", jsonb_column, use_postgres_cast=True)
+            return self._build_comparison(operator, casted_path, bool(value))
 
-        if operator == "eq":
-            return SQL("{} = {}").format(casted_path, Literal(bool(value)))
-
-        if operator == "neq":
-            return SQL("{} != {}").format(casted_path, Literal(bool(value)))
-
+        # NULL checking
         if operator == "isnull":
-            if value:
-                return SQL("{} IS NULL").format(path_sql)
-            return SQL("{} IS NOT NULL").format(path_sql)
+            return self._build_null_check(path_sql, value)
 
         return None

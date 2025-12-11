@@ -63,18 +63,13 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for ltree operators."""
-        # Cast to ltree for JSONB columns
-        if jsonb_column:
-            casted_path = SQL("({})::ltree").format(path_sql)
-        else:
-            casted_path = SQL("CAST({} AS ltree)").format(path_sql)
+        # Comparison operators
+        if operator in ("eq", "neq"):
+            casted_path = self._cast_path(path_sql, "ltree", jsonb_column, use_postgres_cast=True)
+            return self._build_comparison(operator, casted_path, str(value))
 
-        # Equality operators
-        if operator == "eq":
-            return SQL("{} = {}::ltree").format(casted_path, Literal(str(value)))
-
-        if operator == "neq":
-            return SQL("{} != {}::ltree").format(casted_path, Literal(str(value)))
+        # Cast to ltree for hierarchical operators
+        casted_path = self._cast_path(path_sql, "ltree", jsonb_column, use_postgres_cast=True)
 
         # Hierarchical operators
         if operator == "ancestor_of":
@@ -91,21 +86,22 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
 
         # List operators
         if operator == "in":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(SQL("{}::ltree").format(Literal(str(v))) for v in value)
-            return SQL("{} IN ({})").format(casted_path, placeholders)
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                cast_values="ltree",
+            )
 
         if operator == "nin":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(SQL("{}::ltree").format(Literal(str(v))) for v in value)
-            return SQL("{} NOT IN ({})").format(casted_path, placeholders)
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                negate=True,
+                cast_values="ltree",
+            )
 
         # NULL checking
         if operator == "isnull":
-            if value:
-                return SQL("{} IS NULL").format(path_sql)
-            return SQL("{} IS NOT NULL").format(path_sql)
+            return self._build_null_check(path_sql, value)
 
         return None

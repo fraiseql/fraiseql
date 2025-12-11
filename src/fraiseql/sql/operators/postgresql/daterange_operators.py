@@ -72,18 +72,15 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for daterange operators."""
-        # Cast to daterange for JSONB columns
-        if jsonb_column:
-            casted_path = SQL("({})::daterange").format(path_sql)
-        else:
-            casted_path = SQL("CAST({} AS daterange)").format(path_sql)
+        # Comparison operators
+        if operator in ("eq", "neq"):
+            casted_path = self._cast_path(
+                path_sql, "daterange", jsonb_column, use_postgres_cast=True
+            )
+            return self._build_comparison(operator, casted_path, str(value))
 
-        # Equality operators
-        if operator == "eq":
-            return SQL("{} = {}::daterange").format(casted_path, Literal(str(value)))
-
-        if operator == "neq":
-            return SQL("{} != {}::daterange").format(casted_path, Literal(str(value)))
+        # Cast to daterange for range operators
+        casted_path = self._cast_path(path_sql, "daterange", jsonb_column, use_postgres_cast=True)
 
         # Range operators
         if operator == "contains_date":
@@ -109,25 +106,22 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
 
         # List operators (check if range is in list)
         if operator == "in":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(
-                SQL("{}::daterange").format(Literal(str(v))) for v in value
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                cast_values="daterange",
             )
-            return SQL("{} IN ({})").format(casted_path, placeholders)
 
         if operator == "nin":
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            placeholders = SQL(", ").join(
-                SQL("{}::daterange").format(Literal(str(v))) for v in value
+            return self._build_in_operator(
+                casted_path,
+                [str(v) for v in (value if isinstance(value, (list, tuple)) else [value])],
+                negate=True,
+                cast_values="daterange",
             )
-            return SQL("{} NOT IN ({})").format(casted_path, placeholders)
 
         # NULL checking
         if operator == "isnull":
-            if value:
-                return SQL("{} IS NULL").format(path_sql)
-            return SQL("{} IS NOT NULL").format(path_sql)
+            return self._build_null_check(path_sql, value)
 
         return None
