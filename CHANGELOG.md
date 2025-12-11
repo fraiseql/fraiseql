@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Maintenance: WHERE Test Suite Reorganization
+
+**Major test infrastructure improvement**: Complete reorganization of WHERE clause test files (both unit and integration) for better maintainability and developer experience.
+
+#### Unit Tests Reorganization
+
+**Key Improvements**:
+- ✅ **33 → 26 files**: Reduced file count through intelligent consolidation
+- ✅ **550 tests passing**: Zero functionality loss, all tests preserved
+- ✅ **Logical organization**: Tests grouped by functionality and complexity
+- ✅ **Enhanced discoverability**: Clear directory structure for easy navigation
+
+**New Directory Structure**:
+```
+tests/unit/sql/where/
+├── core/                    # Core WHERE functionality
+├── operators/               # All operator tests
+│   ├── network/            # IP, email, hostname, MAC, port
+│   ├── spatial/            # Coordinates and vectors
+│   ├── temporal/           # Date, datetime, daterange
+│   └── specialized/        # Fulltext and LTree
+```
+
+**Consolidation Details**:
+- **Core**: Field detection, WHERE builders, error handling
+- **Operators**: Basic, pattern, array, list, JSONB, logical, vectors
+- **Network**: IP, email, hostname, MAC, port operators
+- **Spatial**: Coordinate and vector operations
+- **Temporal**: Date, datetime, daterange operations
+- **Specialized**: Full-text search and LTree hierarchical operators
+
+#### Integration Tests Reorganization
+
+**Key Improvements**:
+- ✅ **15 files reorganized**: All integration tests moved to hierarchical structure
+- ✅ **159 tests passing**: Zero functionality loss, all tests preserved
+- ✅ **Matching structure**: Integration tests now mirror unit test organization
+- ✅ **Git history preserved**: Used `git mv` to maintain file history
+
+**New Directory Structure**:
+```
+tests/integration/database/sql/where/
+├── network/           # Network operator integration tests (8 files)
+├── specialized/       # PostgreSQL-specific tests (2 files)
+├── temporal/          # Time-related tests (2 files)
+├── spatial/           # Spatial/coordinate tests (1 file)
+└── <root>            # Mixed-type tests (2 files)
+```
+
+**Reorganization Details**:
+- **Network**: IP filtering, MAC operations, production bugs, JSONB integration
+- **Specialized**: LTree hierarchical filtering and operations
+- **Temporal**: DateRange filtering and operations
+- **Spatial**: Coordinate distance operations
+- **Mixed**: Cross-type integration scenarios
+
+**Benefits**:
+- Improved developer experience with intuitive file locations
+- Easier maintenance and addition of new operator tests
+- Better test organization without functional changes
+- Scalable structure for future operator categories
+- Consistent organization between unit and integration tests
+
 ## [1.8.0] - 2025-12-10
 
 **🎉 Stable Release**: FraiseQL v1.8.0 transitions from beta to stable with critical bug fixes and enhanced filtering capabilities.
