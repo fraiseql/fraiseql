@@ -69,7 +69,7 @@ where = {
 ```sql
 WHERE data->>'status' = 'active'
   AND data->'device'->>'is_active' = 'true'
-  AND data->'device'->>'name' ILIKE '%server%'
+  AND data->'device'->>'name' ILIKE '%server%'  -- icontains operator (case-insensitive)
 ```
 
 ---

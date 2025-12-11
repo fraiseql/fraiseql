@@ -201,10 +201,10 @@ class Query:
         return await db.find("v_user", where=where, limit=limit)
 ```
 
-**GraphQL Query (same as before):**
+**GraphQL Query:**
 ```graphql
 query {
-  users(where: {email: {_like: "%@example.com"}}) {
+  users(where: {email: {endswith: "@example.com"}}) {
     id
     email
     name
