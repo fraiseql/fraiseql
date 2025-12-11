@@ -193,6 +193,16 @@ Available fixtures: `test_config`, `development_config`, `production_config`, `c
 
 See [docs/testing/config-fixtures.md](docs/testing/config-fixtures.md) for details.
 
+#### Integration Test Structure
+
+Integration tests for WHERE clause functionality are organized by operator type:
+- `tests/integration/database/sql/where/network/` - Network operators (IP, MAC addresses)
+- `tests/integration/database/sql/where/specialized/` - PostgreSQL types (LTree, JSONB)
+- `tests/integration/database/sql/where/temporal/` - Time-related operators (DateRange, DateTime)
+- `tests/integration/database/sql/where/spatial/` - Spatial operators (coordinates, distance)
+
+See `tests/integration/database/sql/where/README.md` for details.
+
 ## Documentation
 
 - Update README.md if adding major features

@@ -568,7 +568,7 @@ def test_ltree_ancestor_of_operation(self):
 
 ### 6.2 Integration Tests
 
-Located in: `/home/lionel/code/fraiseql/tests/integration/database/sql/test_*_filter_operations.py`
+Located in: `/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/test_*_operations.py`
 
 Test actual database execution with:
 - End-to-end IP filtering
@@ -741,7 +741,7 @@ def from_python_type(cls, python_type: type) -> "FieldType":
 ### Step 7: Add Tests
 ```python
 # tests/unit/sql/where/test_my_type_operators_sql_building.py
-# tests/integration/database/sql/test_my_type_filter_operations.py
+# tests/integration/database/sql/where/{category}/test_my_type_operations.py
 ```
 
 ---
@@ -764,7 +764,7 @@ def from_python_type(cls, python_type: type) -> "FieldType":
 
 ### Tests
 - `/home/lionel/code/fraiseql/tests/unit/sql/where/test_*_operators_sql_building.py` - Operator unit tests
-- `/home/lionel/code/fraiseql/tests/integration/database/sql/test_*_filter_operations.py` - Integration tests
+- `/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/` - Integration tests (organized by operator category)
 - `/home/lionel/code/fraiseql/tests/unit/sql/test_all_operator_strategies_coverage.py` - Strategy coverage tests
 
 ---
