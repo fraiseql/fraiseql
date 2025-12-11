@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### Auto-populated mutation fields now properly registered in GraphQL schema and filtered by selection
+- **CRITICAL**: Fixed auto-populated fields (`status`, `message`, `errors`, `updatedFields`, `id`) not appearing in GraphQL schema
+- **CRITICAL**: Fixed GraphQL spec violation where unrequested fields were returned in mutation responses
+- Added field extraction from GraphQL query to pass selected fields to Rust response builder
+- Python: `@success` and `@failure` decorators now register auto-injected fields in `__gql_fields__`
+- Rust: Response builder now filters fields based on GraphQL query selection
+- Resolves "Cannot query field X on type Y" schema validation errors
+- Ensures only requested fields appear in mutation responses (GraphQL spec compliant)
+
+**Files Modified**:
+- `src/fraiseql/mutations/decorators.py` - Add fields to `__gql_fields__` after `define_fraiseql_type()`
+- `src/fraiseql/mutations/mutation_decorator.py` - Extract selected fields from GraphQL query info
+- `fraiseql_rs/src/mutation/response_builder.rs` - Implement field selection filtering
+
 ### ✨ Added: Auto-Population of Mutation Response Fields
 
 **Framework automatically populates `status`, `message`, and `errors` fields** in mutation success responses, eliminating boilerplate code in resolvers.

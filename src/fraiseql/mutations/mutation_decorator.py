@@ -16,6 +16,56 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
+def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) -> list[str] | None:
+    """Extract fields selected on a mutation response type from GraphQL query.
+
+    For mutations with union types, looks for fragments on the specific type.
+    Returns None if no specific selection found (= return all fields for backward compat).
+
+    Example query:
+        mutation {
+            createMachine(input: $input) {
+                ... on CreateMachineSuccess {
+                    status
+                    machine { id }
+                }
+            }
+        }
+
+    Extracts: ["status", "machine"] for type_name="CreateMachineSuccess"
+    """
+    if not info or not info.field_nodes:
+        return None
+
+    selected_fields = set()
+
+    # Mutations typically have one field_node (the mutation field)
+    for field_node in info.field_nodes:
+        if not field_node.selection_set:
+            continue
+
+        # Look through selections for fragments matching our type
+        for selection in field_node.selection_set.selections:
+            # InlineFragment with type condition (e.g., "... on CreateMachineSuccess")
+            if hasattr(selection, "type_condition") and selection.type_condition:
+                fragment_type = selection.type_condition.name.value
+
+                if fragment_type == type_name and selection.selection_set:
+                    # Extract fields from this fragment
+                    for field_selection in selection.selection_set.selections:
+                        if hasattr(field_selection, "name"):
+                            field_name = field_selection.name.value
+                            # Skip __typename (always included by GraphQL)
+                            if field_name != "__typename":
+                                selected_fields.add(field_name)
+
+    # If no fields found, return None (backward compat: return all fields)
+    if not selected_fields:
+        return None
+
+    return list(selected_fields)
+
+
 class MutationDefinition:
     """Definition of a PostgreSQL-backed mutation."""
 
@@ -345,11 +395,10 @@ class MutationDefinition:
                 logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
                 logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
 
-                # Extract success type fields for schema validation
-                success_type_fields = None
-                if self.success_type:
-                    success_type_fields = list(self.success_type.__annotations__.keys())
-                    logger.debug(f"Success type fields for validation: {success_type_fields}")
+                # Extract selected fields from GraphQL query for field filtering
+                # Returns None if no specific selection found (backward compat: return all fields)
+                success_type_fields = _extract_mutation_selected_fields(info, success_type_name)
+                logger.debug(f"Selected fields from query: {success_type_fields}")
 
                 # Extract CASCADE selections from GraphQL query
                 cascade_selections_json = self._get_cascade_selections(info)
