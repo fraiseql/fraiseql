@@ -73,9 +73,12 @@ def normalize_dict_where(
     not_clause = None
     logical_op = "AND"
 
-    for field_name, field_value in where_dict.items():
-        # Handle logical operators
-        if field_name == "OR":
+    # Import field name converter
+    from fraiseql.utils.casing import to_snake_case
+
+    for original_field_name, field_value in where_dict.items():
+        # Handle logical operators first (before conversion)
+        if original_field_name == "OR":
             # OR is a list of WHERE clauses
             if isinstance(field_value, list):
                 or_conditions = []
@@ -90,7 +93,7 @@ def normalize_dict_where(
                     nested_clauses.append(WhereClause(conditions=or_conditions, logical_op="OR"))
             continue
 
-        if field_name == "AND":
+        if original_field_name == "AND":
             # AND is a list of WHERE clauses
             if isinstance(field_value, list):
                 for and_dict in field_value:
@@ -100,13 +103,19 @@ def normalize_dict_where(
                     conditions.extend(and_clause.conditions)
             continue
 
-        if field_name == "NOT":
+        if original_field_name == "NOT":
             # NOT is a single WHERE clause
             if isinstance(field_value, dict):
                 not_clause = normalize_dict_where(
                     field_value, view_name, table_columns, jsonb_column
                 )
             continue
+
+        # Convert camelCase field names to snake_case for database lookups
+        # This allows GraphQL camelCase convention while using snake_case in DB
+        field_name = original_field_name
+        if "_" not in field_name:
+            field_name = to_snake_case(field_name)
 
         # Regular field filter
         if not isinstance(field_value, dict):
@@ -123,7 +132,12 @@ def normalize_dict_where(
             fk_column = f"{field_name}_id"
 
             # Extract nested filters
-            for nested_field, nested_value in field_value.items():
+            for original_nested_field, nested_value in field_value.items():
+                # Convert nested field names too
+                nested_field = original_nested_field
+                if "_" not in nested_field:
+                    nested_field = to_snake_case(nested_field)
+
                 if nested_field == "id" and isinstance(nested_value, dict):
                     # This is the FK lookup
                     for op, val in nested_value.items():
@@ -161,7 +175,12 @@ def normalize_dict_where(
 
         elif is_nested and not use_fk:
             # JSONB-based nested filter: device.name → data->'device'->>'name'
-            for nested_field, nested_value in field_value.items():
+            for original_nested_field, nested_value in field_value.items():
+                # Convert nested field names too
+                nested_field = original_nested_field
+                if "_" not in nested_field:
+                    nested_field = to_snake_case(nested_field)
+
                 if isinstance(nested_value, dict):
                     for op, val in nested_value.items():
                         if val is None:
