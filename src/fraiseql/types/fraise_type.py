@@ -157,15 +157,32 @@ def fraise_type(  # type: ignore[misc]
             # Store JSONB column information for production mode extraction
             # Set JSONB column: ... means not specified (default to "data"),
             # None means no JSONB column (regular table)
+            actual_jsonb_column: str | None
             if jsonb_column is ...:
-                cls.__fraiseql_definition__.jsonb_column = "data"  # Default for CQRS/JSONB tables
+                actual_jsonb_column = "data"  # Default for CQRS/JSONB tables
+                cls.__fraiseql_definition__.jsonb_column = "data"
             else:
-                cls.__fraiseql_definition__.jsonb_column = (
-                    jsonb_column  # None for regular tables, or custom column name
-                )
+                actual_jsonb_column = jsonb_column  # None for regular tables, or custom column name
+                cls.__fraiseql_definition__.jsonb_column = jsonb_column
             # Store whether nested instances should be resolved separately
             cls.__fraiseql_definition__.resolve_nested = resolve_nested
             cls.__gql_where_type__ = safe_create_where_type(cls)
+
+            # Register type with metadata for WHERE clause JSONB path detection
+            # This is CRITICAL for WHERE clause generation to know which fields are in JSONB
+            from fraiseql.db import register_type_for_view
+
+            # Determine if this table uses JSONB for data storage
+            has_jsonb_data = actual_jsonb_column is not None
+
+            # Register the type with metadata (table_columns will be introspected later if needed)
+            register_type_for_view(
+                view_name=sql_source,
+                type_class=cls,
+                has_jsonb_data=has_jsonb_data,
+                jsonb_column=actual_jsonb_column,
+                validate_fk_strict=False,  # Allow for flexible development
+            )
 
             # Add lazy properties for auto-generation of WhereInput and OrderBy
             from fraiseql.types.lazy_properties import (

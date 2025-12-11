@@ -203,14 +203,28 @@ def normalize_dict_where(
 
         else:
             # Direct column filter: status = 'active'
-            # Check if this column exists in table_columns
+            # Determine lookup strategy based on table structure
             lookup_strategy = "sql_column"
             target_column = field_name
 
-            if table_columns and field_name not in table_columns:
-                # Column doesn't exist, might be in JSONB
-                lookup_strategy = "jsonb_path"
-                target_column = jsonb_column
+            # Check if we know table columns
+            if table_columns is not None:
+                # We have table column information - use it to decide
+                if field_name not in table_columns:
+                    # Column doesn't exist in table, must be in JSONB
+                    lookup_strategy = "jsonb_path"
+                    target_column = jsonb_column
+            else:
+                # We don't know table columns - check if table uses JSONB for data
+                from fraiseql.db import _table_metadata
+
+                if view_name in _table_metadata:
+                    metadata = _table_metadata[view_name]
+                    # Table uses JSONB data column - default to JSONB paths
+                    # (unless field is 'id' which is often a top-level column)
+                    if metadata.get("has_jsonb_data", False) and field_name != "id":
+                        lookup_strategy = "jsonb_path"
+                        target_column = jsonb_column
 
             for op, val in field_value.items():
                 if val is None:
