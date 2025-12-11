@@ -1495,6 +1495,30 @@ class FraiseQLRepository:
                 raise ValueError(f"normalize_whereinput returned None for {where!r}")
             return result
 
+        # Try to convert dataclass WhereInput objects to dict
+        # (for dynamically created WhereInput types without _to_whereinput_dict method)
+        from dataclasses import asdict, is_dataclass
+
+        if is_dataclass(where):
+            # Convert dataclass to dict, filtering out None values
+            where_dict = {
+                field_name: field_value
+                for field_name, field_value in asdict(where).items()
+                if field_value is not None and field_value != {}
+            }
+
+            if where_dict:  # Only process if there are non-empty values
+                jsonb_column = "data"
+                if view_name in _table_metadata:
+                    metadata = _table_metadata[view_name]
+                    if metadata.get("has_jsonb_data", False):
+                        jsonb_column = metadata.get("jsonb_column") or "data"
+
+                result = normalize_dict_where(where_dict, view_name, table_columns, jsonb_column)
+                if result is None:
+                    raise ValueError(f"normalize_dict_where returned None for {where_dict!r}")
+                return result
+
         # FIX: Always raise error for unsupported types, never return None
         raise TypeError(
             f"WHERE clause must be dict, WhereClause, or WhereInput object. "

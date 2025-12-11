@@ -56,12 +56,52 @@ VECTOR_OPERATORS = {
     "jaccard_distance": "<%>",
 }
 
+FULLTEXT_OPERATORS = {
+    "matches": "@@",
+    "plain_query": "@@",
+    "phrase_query": "@@",
+    "websearch_query": "@@",
+    "rank_gt": ">",
+    "rank_lt": "<",
+    "rank_cd_gt": ">",
+    "rank_cd_lt": "<",
+}
+
+ARRAY_OPERATORS = {
+    "array_eq": "=",
+    "array_neq": "!=",
+    "array_contains": "@>",
+    "contains": "@>",  # Alias for array_contains (for arrays, not strings)
+    "array_contained_by": "<@",
+    "contained_by": "<@",  # Alias for array_contained_by
+    "array_overlaps": "&&",
+    "overlaps": "&&",  # Alias for array_overlaps
+    "array_length_eq": "=",
+    "len_eq": "=",  # Alias for array_length_eq
+    "array_length_gt": ">",
+    "len_gt": ">",  # Alias for array_length_gt
+    "array_length_lt": "<",
+    "len_lt": "<",  # Alias for array_length_lt
+    "array_length_gte": ">=",
+    "len_gte": ">=",  # Alias for array_length_gte
+    "array_any_eq": "= ANY",
+    "any_eq": "= ANY",  # Alias for array_any_eq
+    "array_all_eq": "= ALL",
+    "all_eq": "= ALL",  # Alias for array_all_eq
+}
+
+# Exclude 'contains' from ALL_OPERATORS since it's ambiguous (string LIKE vs array @>)
+# It's handled specially based on value type
+_ARRAY_OPERATORS_FOR_ALL = {k: v for k, v in ARRAY_OPERATORS.items() if k != "contains"}
+
 ALL_OPERATORS = {
     **COMPARISON_OPERATORS,
     **CONTAINMENT_OPERATORS,
-    **STRING_OPERATORS,
+    **STRING_OPERATORS,  # contains -> LIKE
     **NULL_OPERATORS,
     **VECTOR_OPERATORS,
+    **FULLTEXT_OPERATORS,
+    **_ARRAY_OPERATORS_FOR_ALL,  # All array operators except 'contains'
 }
 
 
@@ -228,13 +268,21 @@ class FieldCondition:
             # Direct SQL column: status = %s
             sql_op = ALL_OPERATORS[self.operator]
 
-            if self.operator in CONTAINMENT_OPERATORS:
+            # Special case: 'contains' can be both string LIKE or array @>
+            # Disambiguate based on value type
+            if self.operator == "contains" and isinstance(self.value, list):
+                # Array contains operator
+                op = ARRAY_OPERATORS["contains"]
+                sql = Composed([Identifier(self.target_column), SQL(f" {op} "), SQL("%s")])
+                params.append(self.value)
+            elif self.operator in CONTAINMENT_OPERATORS:
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
                 params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
             elif self.operator == "isnull":
                 null_op = "IS NULL" if self.value else "IS NOT NULL"
                 sql = Composed([Identifier(self.target_column), SQL(f" {null_op}")])
             elif self.operator in STRING_OPERATORS:
+                # String operators (LIKE/ILIKE)
                 pattern = self._build_like_pattern()
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
                 params.append(pattern)
@@ -268,6 +316,160 @@ class FieldCondition:
                     ]
                 )
                 params.extend([vector, threshold])
+            elif self.operator in FULLTEXT_OPERATORS:
+                # Fulltext search operators
+                if self.operator == "matches":
+                    # Basic fulltext: column @@ to_tsquery(%s)
+                    sql = Composed(
+                        [
+                            Identifier(self.target_column),
+                            SQL(" @@ to_tsquery("),
+                            SQL("%s"),
+                            SQL(")"),
+                        ]
+                    )
+                    params.append(self.value)
+                elif self.operator == "plain_query":
+                    # Plain query: column @@ plainto_tsquery(%s)
+                    sql = Composed(
+                        [
+                            Identifier(self.target_column),
+                            SQL(" @@ plainto_tsquery("),
+                            SQL("%s"),
+                            SQL(")"),
+                        ]
+                    )
+                    params.append(self.value)
+                elif self.operator == "phrase_query":
+                    # Phrase query: column @@ phraseto_tsquery(%s)
+                    sql = Composed(
+                        [
+                            Identifier(self.target_column),
+                            SQL(" @@ phraseto_tsquery("),
+                            SQL("%s"),
+                            SQL(")"),
+                        ]
+                    )
+                    params.append(self.value)
+                elif self.operator == "websearch_query":
+                    # Websearch query: column @@ websearch_to_tsquery(%s)
+                    sql = Composed(
+                        [
+                            Identifier(self.target_column),
+                            SQL(" @@ websearch_to_tsquery("),
+                            SQL("%s"),
+                            SQL(")"),
+                        ]
+                    )
+                    params.append(self.value)
+                elif self.operator in ("rank_gt", "rank_lt"):
+                    # Rank comparison: ts_rank(column, to_tsquery(%s)) > %s
+                    # Value format: "query:threshold" or {"query": "search", "threshold": 0.5}
+                    if isinstance(self.value, dict):
+                        query = self.value.get("query")
+                        threshold = self.value.get("threshold")
+                    elif isinstance(self.value, str) and ":" in self.value:
+                        query, threshold_str = self.value.split(":", 1)
+                        threshold = float(threshold_str)
+                    else:
+                        raise ValueError(
+                            f"rank_* operators require 'query:threshold' string or "
+                            f"dict with query and threshold, got {self.value!r}"
+                        )
+
+                    comp = ">" if self.operator == "rank_gt" else "<"
+                    sql = Composed(
+                        [
+                            SQL("ts_rank("),
+                            Identifier(self.target_column),
+                            SQL(", to_tsquery("),
+                            SQL("%s"),
+                            SQL(f")) {comp} "),
+                            SQL("%s"),
+                        ]
+                    )
+                    params.extend([query, threshold])
+                elif self.operator in ("rank_cd_gt", "rank_cd_lt"):
+                    # Cover density rank: ts_rank_cd(...)
+                    # Value format: "query:threshold" or {"query": "search", "threshold": 0.5}
+                    if isinstance(self.value, dict):
+                        query = self.value.get("query")
+                        threshold = self.value.get("threshold")
+                    elif isinstance(self.value, str) and ":" in self.value:
+                        query, threshold_str = self.value.split(":", 1)
+                        threshold = float(threshold_str)
+                    else:
+                        raise ValueError(
+                            f"rank_cd_* operators require 'query:threshold' string or "
+                            f"dict with query and threshold, got {self.value!r}"
+                        )
+
+                    comp = ">" if self.operator == "rank_cd_gt" else "<"
+                    sql = Composed(
+                        [
+                            SQL("ts_rank_cd("),
+                            Identifier(self.target_column),
+                            SQL(", to_tsquery("),
+                            SQL("%s"),
+                            SQL(f")) {comp} "),
+                            SQL("%s"),
+                        ]
+                    )
+                    params.extend([query, threshold])
+            elif self.operator in ARRAY_OPERATORS:
+                # Array operators
+                if self.operator in ("array_eq", "array_neq"):
+                    # Array equality: column = ARRAY[...]
+                    op = "=" if self.operator == "array_eq" else "!="
+                    sql = Composed([Identifier(self.target_column), SQL(f" {op} "), SQL("%s")])
+                    params.append(self.value)
+                elif self.operator in (
+                    "array_contains",
+                    "array_contained_by",
+                    "contained_by",
+                    "array_overlaps",
+                    "overlaps",
+                ):
+                    # Array containment: column @> ARRAY[...]
+                    # Note: 'contains' with list value is handled at the top of this function
+                    # This should never be reached with 'contains', but check anyway
+                    if self.operator == "contains":
+                        raise ValueError(
+                            f"Operator 'contains' reached ARRAY_OPERATORS section unexpectedly. "
+                            f"Value type: {type(self.value).__name__}, value: {self.value!r}"
+                        )
+                    op = ARRAY_OPERATORS[self.operator]
+                    sql = Composed([Identifier(self.target_column), SQL(f" {op} "), SQL("%s")])
+                    params.append(self.value)
+                elif self.operator in (
+                    "array_length_eq",
+                    "len_eq",
+                    "array_length_gt",
+                    "len_gt",
+                    "array_length_lt",
+                    "len_lt",
+                    "array_length_gte",
+                    "len_gte",
+                ):
+                    # Array length: array_length(column, 1) > %s
+                    op = ARRAY_OPERATORS[self.operator]
+                    sql = Composed(
+                        [
+                            SQL("array_length("),
+                            Identifier(self.target_column),
+                            SQL(", 1) "),
+                            SQL(f"{op} "),
+                            SQL("%s"),
+                        ]
+                    )
+                    params.append(self.value)
+                elif self.operator in ("array_any_eq", "any_eq", "array_all_eq", "all_eq"):
+                    # ANY/ALL: %s = ANY(column)
+                    op = "ANY" if self.operator in ("array_any_eq", "any_eq") else "ALL"
+                    sql = Composed(
+                        [SQL("%s = "), SQL(f"{op}("), Identifier(self.target_column), SQL(")")]
+                    )
+                    params.append(self.value)
             else:
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
                 params.append(self.value)
@@ -286,8 +488,14 @@ class FieldCondition:
         if self.operator in ("endswith", "iendswith"):
             return f"%{self.value}"
         if self.operator in ("like", "ilike"):
-            # Explicit LIKE/ILIKE - user provides pattern as-is
-            return str(self.value)
+            # For backward compatibility: if no wildcards in value, treat as substring match
+            # This preserves old FraiseQL behavior where ilike did substring matching
+            value_str = str(self.value)
+            if "%" not in value_str and "_" not in value_str:
+                # No wildcards provided - treat as substring match for backward compatibility
+                return f"%{value_str}%"
+            # User provided wildcards - use as-is
+            return value_str
         return str(self.value)
 
     def __repr__(self) -> str:
