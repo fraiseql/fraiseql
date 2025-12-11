@@ -22,12 +22,7 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql(
-            path_sql=path_sql,
-            op="ancestor_of",
-            val="departments.engineering.backend",
-            field_type=LTree,
-        )
+        sql = registry.build_sql("ancestor_of", "departments.engineering.backend", path_sql, field_type=LTree,)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -39,9 +34,7 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql(
-            path_sql=path_sql, op="descendant_of", val="departments.engineering", field_type=LTree
-        )
+        sql = registry.build_sql("descendant_of", "departments.engineering", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -54,9 +47,7 @@ class TestLTreeFilterOperations:
         path_sql = SQL("data->>'path'")
 
         # Test with wildcard pattern
-        sql = registry.build_sql(
-            path_sql=path_sql, op="matches_lquery", val="*.engineering.*", field_type=LTree
-        )
+        sql = registry.build_sql("matches_lquery", "*.engineering.*", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -69,9 +60,7 @@ class TestLTreeFilterOperations:
         path_sql = SQL("data->>'path'")
 
         # Test with text query
-        sql = registry.build_sql(
-            path_sql=path_sql, op="matches_ltxtquery", val="engineering & backend", field_type=LTree
-        )
+        sql = registry.build_sql("matches_ltxtquery", "engineering & backend", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -83,9 +72,7 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="departments.engineering.backend", field_type=LTree
-        )
+        sql = registry.build_sql("eq", "departments.engineering.backend", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -97,9 +84,7 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql(
-            path_sql=path_sql, op="neq", val="departments.marketing", field_type=LTree
-        )
+        sql = registry.build_sql("neq", "departments.marketing", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -112,13 +97,11 @@ class TestLTreeFilterOperations:
         path_sql = SQL("data->>'path'")
 
         # Test IS NULL
-        sql_null = registry.build_sql(path_sql=path_sql, op="isnull", val=True, field_type=LTree)
+        sql_null = registry.build_sql("isnull", True, path_sql, field_type=LTree)
         assert "IS NULL" in str(sql_null)
 
         # Test IS NOT NULL
-        sql_not_null = registry.build_sql(
-            path_sql=path_sql, op="isnull", val=False, field_type=LTree
-        )
+        sql_not_null = registry.build_sql("isnull", False, path_sql, field_type=LTree)
         assert "IS NOT NULL" in str(sql_not_null)
 
     def test_ltree_in_list_with_casting(self) -> None:
@@ -128,7 +111,7 @@ class TestLTreeFilterOperations:
 
         paths = ["departments.engineering", "departments.marketing", "departments.sales"]
 
-        sql = registry.build_sql(path_sql=path_sql, op="in", val=paths, field_type=LTree)
+        sql = registry.build_sql("in", paths, path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -143,9 +126,7 @@ class TestLTreeFilterOperations:
 
         excluded_paths = ["departments.hr", "departments.legal"]
 
-        sql = registry.build_sql(
-            path_sql=path_sql, op="notin", val=excluded_paths, field_type=LTree
-        )
+        sql = registry.build_sql("notin", excluded_paths, path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -165,7 +146,7 @@ class TestLTreeFilterOperations:
             with pytest.raises(
                 ValueError, match=f"Pattern operator '{op}' is not supported for LTree fields"
             ):
-                registry.build_sql(path_sql=path_sql, op=op, val="engineering", field_type=LTree)
+                registry.build_sql(op, "engineering", path_sql, field_type=LTree)
 
     def test_ltree_vs_string_field_behavior(self) -> None:
         """Test that LTree fields get different treatment than string fields."""
@@ -173,16 +154,12 @@ class TestLTreeFilterOperations:
         path_sql = SQL("data->>'some_field'")
 
         # For LTree fields, should use ltree casting
-        ltree_sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="departments.engineering", field_type=LTree
-        )
+        ltree_sql = registry.build_sql("eq", "departments.engineering", path_sql, field_type=LTree)
         ltree_sql_str = str(ltree_sql)
         assert "::ltree" in ltree_sql_str
 
         # For regular string fields, should NOT use ltree casting
-        string_sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val="departments.engineering", field_type=str
-        )
+        string_sql = registry.build_sql("eq", "departments.engineering", path_sql, field_type=str)
         string_sql_str = str(string_sql)
         assert "::ltree" not in string_sql_str
 
@@ -214,9 +191,7 @@ class TestLTreeFilterOperations:
         ]
 
         for case in test_cases:
-            sql = registry.build_sql(
-                path_sql=path_sql, op=case["op"], val=case["val"], field_type=LTree
-            )
+            sql = registry.build_sql(case["op"], case["val"], path_sql, field_type=LTree)
 
             sql_str = str(sql)
             assert "::ltree" in sql_str, f"Missing ltree cast for {case['description']}"
@@ -242,9 +217,7 @@ class TestLTreeFilterOperations:
         ]
 
         for pattern in advanced_patterns:
-            sql = registry.build_sql(
-                path_sql=path_sql, op="matches_lquery", val=pattern, field_type=LTree
-            )
+            sql = registry.build_sql("matches_lquery", pattern, path_sql, field_type=LTree)
 
             sql_str = str(sql)
             assert "::ltree" in sql_str
@@ -268,9 +241,7 @@ class TestLTreeFilterOperations:
         ]
 
         for query in boolean_queries:
-            sql = registry.build_sql(
-                path_sql=path_sql, op="matches_ltxtquery", val=query, field_type=LTree
-            )
+            sql = registry.build_sql("matches_ltxtquery", query, path_sql, field_type=LTree)
 
             sql_str = str(sql)
             assert "::ltree" in sql_str

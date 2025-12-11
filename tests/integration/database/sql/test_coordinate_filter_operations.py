@@ -24,7 +24,7 @@ class TestCoordinateFilterOperations:
 
         # Test coordinate equality
         coord = (45.5, -122.6)  # Seattle coordinates
-        sql = registry.build_sql(path_sql=path_sql, op="eq", val=coord, field_type=Coordinate)
+        sql = registry.build_sql("eq", coord, path_sql, field_type=Coordinate)
 
         sql_str = sql.as_string(None)
         assert "::point" in sql_str, "Missing point cast"
@@ -38,7 +38,7 @@ class TestCoordinateFilterOperations:
         path_sql = SQL("data->>'coordinates'")
 
         coord = (47.6097, -122.3425)  # Pike Place Market
-        sql = registry.build_sql(path_sql=path_sql, op="neq", val=coord, field_type=Coordinate)
+        sql = registry.build_sql("neq", coord, path_sql, field_type=Coordinate)
 
         sql_str = sql.as_string(None)
         assert "::point" in sql_str
@@ -56,7 +56,7 @@ class TestCoordinateFilterOperations:
             (40.7128, -74.0060),  # NYC
         ]
 
-        sql = registry.build_sql(path_sql=path_sql, op="in", val=coords, field_type=Coordinate)
+        sql = registry.build_sql("in", coords, path_sql, field_type=Coordinate)
 
         sql_str = sql.as_string(None)
         assert "::point" in sql_str
@@ -73,7 +73,7 @@ class TestCoordinateFilterOperations:
 
         coords = [(0, 0), (90, 180)]  # Origin and extreme coordinates
 
-        sql = registry.build_sql(path_sql=path_sql, op="notin", val=coords, field_type=Coordinate)
+        sql = registry.build_sql("notin", coords, path_sql, field_type=Coordinate)
 
         sql_str = sql.as_string(None)
         assert "::point" in sql_str
@@ -110,17 +110,17 @@ class TestCoordinateFilterOperations:
 
         # North pole
         north_pole = (90, 45)
-        sql = registry.build_sql(path_sql=path_sql, op="eq", val=north_pole, field_type=Coordinate)
+        sql = registry.build_sql("eq", north_pole, path_sql, field_type=Coordinate)
         assert "POINT(45,90)" in sql.as_string(None)
 
         # South pole
         south_pole = (-90, 135)
-        sql = registry.build_sql(path_sql=path_sql, op="eq", val=south_pole, field_type=Coordinate)
+        sql = registry.build_sql("eq", south_pole, path_sql, field_type=Coordinate)
         assert "POINT(135, -90)" in sql.as_string(None)
 
         # International date line
         date_line = (0, 180)
-        sql = registry.build_sql(path_sql=path_sql, op="eq", val=date_line, field_type=Coordinate)
+        sql = registry.build_sql("eq", date_line, path_sql, field_type=Coordinate)
         assert "POINT(180,0)" in sql.as_string(None)
 
     def test_coordinate_type_validation(self) -> None:
@@ -221,18 +221,13 @@ class TestCoordinateFilterOperations:
         coord_value = (45.5, -122.6)
 
         # With Coordinate type - should use POINT casting
-        coord_sql = registry.build_sql(
-            path_sql=path_sql, op="eq", val=coord_value, field_type=Coordinate
-        )
+        coord_sql = registry.build_sql("eq", coord_value, path_sql, field_type=Coordinate)
         coord_sql_str = str(coord_sql)
         assert "::point" in coord_sql_str
         assert "POINT(" in coord_sql_str
 
         # With string type - should NOT use POINT casting
-        string_sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val=str(coord_value),  # Convert to string
+        string_sql = registry.build_sql("eq", str(coord_value, path_sql),  # Convert to string
             field_type=str,
         )
         string_sql_str = str(string_sql)
@@ -298,7 +293,7 @@ class TestCoordinateFilterOperations:
             else:
                 val = (45.5, -122.6)
 
-            sql = registry.build_sql(path_sql=path_sql, op=op, val=val, field_type=Coordinate)
+            sql = registry.build_sql(op, val, path_sql, field_type=Coordinate)
             assert sql is not None
 
         # Unavailable operators should NOT use point casting

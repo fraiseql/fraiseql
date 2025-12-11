@@ -73,7 +73,7 @@ class TestRepositoryFindWhereProcessing:
         db = FraiseQLRepository(class_db_pool)
 
         # Mock the operator strategy system to show it should be called
-        with patch("fraiseql.sql.operator_strategies.get_operator_registry") as mock_registry:
+        with patch("fraiseql.sql.operators.get_default_registry") as mock_registry:
             mock_strategy = Mock()
             mock_strategy.build_sql.return_value = Mock()  # Mock SQL result
 

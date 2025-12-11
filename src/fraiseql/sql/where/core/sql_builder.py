@@ -150,9 +150,9 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] | None = None
                     # Build operator condition using operator registry
                     registry = get_operator_registry()
                     condition = registry.build_sql(
-                        path_sql=jsonb_path,
-                        op=operator,
-                        val=op_value,
+                        operator,
+                        op_value,
+                        jsonb_path,
                         field_type=None,  # Will auto-detect from value
                     )
                     conditions.append(condition)
