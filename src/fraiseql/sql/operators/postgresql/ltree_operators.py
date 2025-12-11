@@ -53,6 +53,10 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "index_eq",  # Index equals position
         "index_gte",  # Index >= position
         "isnull",
+        # Pattern operators (supported only to raise helpful errors)
+        "contains",
+        "startswith",
+        "endswith",
     }
 
     def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
@@ -76,6 +80,12 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             "index",
         } or operator.startswith(("nlevel_", "depth_", "index_")):
             return True
+
+        # Pattern operators: only handle them if field_type is LTree (to raise helpful error)
+        if operator in {"contains", "startswith", "endswith"} and field_type is not None:
+            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
+            if "LTree" in type_name or "ltree" in type_name.lower():
+                return True
 
         # With type hint, check if it's an LTree type
         if field_type is not None:
