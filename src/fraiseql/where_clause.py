@@ -1,0 +1,440 @@
+"""Canonical representation for WHERE clauses.
+
+This module defines the internal representation used by FraiseQL for all WHERE
+clause processing, regardless of input format (dict or WhereInput).
+
+Architecture:
+    User Input (dict/WhereInput)
+        → Normalize to WhereClause
+        → Generate SQL
+        → PostgreSQL
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+from psycopg.sql import SQL, Composed, Identifier
+from psycopg.sql import Literal as SQLLiteral
+
+# Supported operators
+COMPARISON_OPERATORS = {
+    "eq": "=",
+    "neq": "!=",
+    "gt": ">",
+    "gte": ">=",
+    "lt": "<",
+    "lte": "<=",
+}
+
+CONTAINMENT_OPERATORS = {
+    "in": "IN",
+    "nin": "NOT IN",
+}
+
+STRING_OPERATORS = {
+    "contains": "LIKE",
+    "icontains": "ILIKE",
+    "startswith": "LIKE",
+    "istartswith": "ILIKE",
+    "endswith": "LIKE",
+    "iendswith": "ILIKE",
+    "like": "LIKE",  # NEW: explicit LIKE
+    "ilike": "ILIKE",  # NEW: explicit ILIKE
+}
+
+NULL_OPERATORS = {
+    "isnull": "IS NULL",
+}
+
+VECTOR_OPERATORS = {
+    "cosine_distance": "<=>",
+    "l2_distance": "<->",
+    "l1_distance": "<+>",
+    "hamming_distance": "<~>",
+    "jaccard_distance": "<%>",
+}
+
+ALL_OPERATORS = {
+    **COMPARISON_OPERATORS,
+    **CONTAINMENT_OPERATORS,
+    **STRING_OPERATORS,
+    **NULL_OPERATORS,
+    **VECTOR_OPERATORS,
+}
+
+
+@dataclass
+class FieldCondition:
+    """Single filter condition on a field.
+
+    Represents a single comparison like: machine_id = '123' or data->'device'->>'name' = 'Printer'
+
+    Attributes:
+        field_path: Path to the field, e.g., ["machine", "id"] for nested filter
+        operator: Filter operator like "eq", "neq", "in", "contains"
+        value: The value to compare against
+        lookup_strategy: How to access this field in SQL
+            - "fk_column": Use FK column (e.g., machine_id)
+            - "jsonb_path": Use JSONB path (e.g., data->'machine'->>'id')
+            - "sql_column": Use direct column (e.g., status)
+        target_column: The actual SQL column name
+            - For FK: "machine_id"
+            - For JSONB: "data" (with jsonb_path set)
+            - For SQL: "status"
+        jsonb_path: For JSONB lookups, the path within the data column
+            - e.g., ["machine", "id"] → data->'machine'->>'id'
+
+    Examples:
+        # FK lookup: machine.id = '123'
+        FieldCondition(
+            field_path=["machine", "id"],
+            operator="eq",
+            value=UUID("123"),
+            lookup_strategy="fk_column",
+            target_column="machine_id",
+            jsonb_path=None
+        )
+
+        # JSONB lookup: device.name = 'Printer'
+        FieldCondition(
+            field_path=["device", "name"],
+            operator="eq",
+            value="Printer",
+            lookup_strategy="jsonb_path",
+            target_column="data",
+            jsonb_path=["device", "name"]
+        )
+
+        # Direct column: status = 'active'
+        FieldCondition(
+            field_path=["status"],
+            operator="eq",
+            value="active",
+            lookup_strategy="sql_column",
+            target_column="status",
+            jsonb_path=None
+        )
+    """
+
+    field_path: list[str]
+    operator: str
+    value: Any
+    lookup_strategy: Literal["fk_column", "jsonb_path", "sql_column"]
+    target_column: str
+    jsonb_path: list[str] | None = None
+
+    def __post_init__(self):
+        """Validate the condition after initialization."""
+        # Validate operator
+        if self.operator not in ALL_OPERATORS:
+            raise ValueError(
+                f"Invalid operator '{self.operator}'. "
+                f"Supported operators: {', '.join(sorted(ALL_OPERATORS.keys()))}"
+            )
+
+        # Validate lookup_strategy
+        valid_strategies = {"fk_column", "jsonb_path", "sql_column"}
+        if self.lookup_strategy not in valid_strategies:
+            raise ValueError(
+                f"Invalid lookup_strategy '{self.lookup_strategy}'. "
+                f"Must be one of: {', '.join(sorted(valid_strategies))}"
+            )
+
+        # Validate JSONB path consistency
+        if self.lookup_strategy == "jsonb_path" and not self.jsonb_path:
+            raise ValueError("lookup_strategy='jsonb_path' requires jsonb_path to be set")
+
+        # Validate field_path
+        if not self.field_path:
+            raise ValueError("field_path cannot be empty")
+
+    def to_sql(self) -> tuple[Composed, list[Any]]:
+        """Generate SQL for this condition.
+
+        Returns:
+            Tuple of (SQL Composed object, list of parameters)
+
+        Examples:
+            # FK column: machine_id = %s
+            SQL: Identifier("machine_id") + SQL(" = ") + SQL("%s")
+            Params: [UUID("123")]
+
+            # JSONB path: data->'device'->>'name' = %s
+            SQL: SQL("data->'device'->>'name' = %s")
+            Params: ["Printer"]
+        """
+        params = []
+
+        if self.lookup_strategy == "fk_column":
+            # FK column lookup: machine_id = %s
+            sql_op = ALL_OPERATORS[self.operator]
+
+            if self.operator in CONTAINMENT_OPERATORS:
+                # IN/NOT IN: machine_id IN %s
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
+                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+            elif self.operator == "isnull":
+                # IS NULL / IS NOT NULL
+                null_op = "IS NULL" if self.value else "IS NOT NULL"
+                sql = Composed([Identifier(self.target_column), SQL(f" {null_op}")])
+            else:
+                # Standard comparison: machine_id = %s
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
+                params.append(self.value)
+
+        elif self.lookup_strategy == "jsonb_path":
+            # JSONB path lookup: data->'device'->>'name' = %s
+            sql_op = ALL_OPERATORS[self.operator]
+
+            # Build JSONB path: data->'device'->>'name'
+            if not self.jsonb_path:
+                raise ValueError("jsonb_path required for jsonb_path lookup")
+
+            # Build the JSONB path as a Composed expression with proper escaping
+            path_parts = [Identifier(self.target_column)]
+
+            # Add intermediate keys with ->
+            for key in self.jsonb_path[:-1]:
+                path_parts.extend([SQL(" -> "), SQLLiteral(str(key))])
+
+            # Add final key with ->> (text extraction)
+            path_parts.extend([SQL(" ->> "), SQLLiteral(str(self.jsonb_path[-1]))])
+
+            jsonb_expr = Composed(path_parts)
+
+            if self.operator in CONTAINMENT_OPERATORS:
+                sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
+                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+            elif self.operator == "isnull":
+                null_op = "IS NULL" if self.value else "IS NOT NULL"
+                sql = Composed([jsonb_expr, SQL(f" {null_op}")])
+            elif self.operator in STRING_OPERATORS:
+                # LIKE/ILIKE with pattern
+                pattern = self._build_like_pattern()
+                sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
+                params.append(pattern)
+            else:
+                # JSONB text comparison - need to handle boolean conversion
+                sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
+                # Convert Python boolean to lowercase string for JSONB comparison
+                if isinstance(self.value, bool):
+                    params.append(str(self.value).lower())  # True -> "true", False -> "false"
+                else:
+                    params.append(str(self.value))
+
+        elif self.lookup_strategy == "sql_column":
+            # Direct SQL column: status = %s
+            sql_op = ALL_OPERATORS[self.operator]
+
+            if self.operator in CONTAINMENT_OPERATORS:
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
+                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+            elif self.operator == "isnull":
+                null_op = "IS NULL" if self.value else "IS NOT NULL"
+                sql = Composed([Identifier(self.target_column), SQL(f" {null_op}")])
+            elif self.operator in STRING_OPERATORS:
+                pattern = self._build_like_pattern()
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
+                params.append(pattern)
+            elif self.operator in VECTOR_OPERATORS:
+                # Vector distance comparison
+                # Value format: {"vector": [...], "threshold": 0.5, "comparison": "lt"}
+                if isinstance(self.value, dict):
+                    vector = self.value.get("vector")
+                    threshold = self.value.get("threshold", 0.5)
+                    comparison = self.value.get("comparison", "lt")
+                elif isinstance(self.value, (list, tuple)) and len(self.value) == 2:
+                    vector, threshold = self.value
+                    comparison = "lt"
+                else:
+                    raise ValueError(
+                        f"Vector operator requires dict or (vector, threshold) "
+                        f"tuple, got {self.value!r}"
+                    )
+
+                comp_op = "<" if comparison == "lt" else "<=" if comparison == "lte" else ">"
+                vector_op = VECTOR_OPERATORS[self.operator]
+
+                sql = Composed(
+                    [
+                        SQL("("),
+                        Identifier(self.target_column),
+                        SQL(f" {vector_op} "),
+                        SQL("%s"),
+                        SQL(f") {comp_op} "),
+                        SQL("%s"),
+                    ]
+                )
+                params.extend([vector, threshold])
+            else:
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
+                params.append(self.value)
+
+        else:
+            raise ValueError(f"Unknown lookup_strategy: {self.lookup_strategy}")
+
+        return sql, params
+
+    def _build_like_pattern(self) -> str:
+        """Build LIKE pattern from operator and value."""
+        if self.operator in ("contains", "icontains"):
+            return f"%{self.value}%"
+        if self.operator in ("startswith", "istartswith"):
+            return f"{self.value}%"
+        if self.operator in ("endswith", "iendswith"):
+            return f"%{self.value}"
+        if self.operator in ("like", "ilike"):
+            # Explicit LIKE/ILIKE - user provides pattern as-is
+            return str(self.value)
+        return str(self.value)
+
+    def __repr__(self) -> str:
+        """Human-readable representation for debugging."""
+        path_str = ".".join(self.field_path)
+
+        if self.lookup_strategy == "fk_column":
+            target = f"FK:{self.target_column}"
+        elif self.lookup_strategy == "jsonb_path":
+            jsonb_path_str = ".".join(self.jsonb_path or [])
+            target = f"JSONB:{self.target_column}[{jsonb_path_str}]"
+        else:
+            target = f"COL:{self.target_column}"
+
+        return f"FieldCondition({path_str} {self.operator} {self.value!r} → {target})"
+
+
+@dataclass
+class WhereClause:
+    """Canonical representation of a WHERE clause.
+
+    Represents the complete WHERE clause including multiple conditions,
+    logical operators (AND/OR/NOT), and nested sub-clauses.
+
+    Attributes:
+        conditions: List of field conditions (combined with logical_op)
+        logical_op: How to combine conditions ("AND" or "OR")
+        nested_clauses: Sub-clauses for complex queries
+        not_clause: Optional NOT clause
+
+    Examples:
+        # Simple: status = 'active'
+        WhereClause(
+            conditions=[
+                FieldCondition(field_path=["status"], operator="eq", value="active", ...)
+            ]
+        )
+
+        # Multiple conditions: status = 'active' AND machine_id = '123'
+        WhereClause(
+            conditions=[
+                FieldCondition(field_path=["status"], ...),
+                FieldCondition(field_path=["machine", "id"], ...)
+            ],
+            logical_op="AND"
+        )
+
+        # Nested: (status = 'active' OR status = 'pending') AND machine_id = '123'
+        WhereClause(
+            conditions=[
+                FieldCondition(field_path=["machine", "id"], ...)
+            ],
+            nested_clauses=[
+                WhereClause(
+                    conditions=[
+                        FieldCondition(field_path=["status"], operator="eq", value="active", ...),
+                        FieldCondition(field_path=["status"], operator="eq", value="pending", ...)
+                    ],
+                    logical_op="OR"
+                )
+            ]
+        )
+    """
+
+    conditions: list[FieldCondition] = field(default_factory=list)
+    logical_op: Literal["AND", "OR"] = "AND"
+    nested_clauses: list[WhereClause] = field(default_factory=list)
+    not_clause: WhereClause | None = None
+
+    def __post_init__(self):
+        """Validate the WHERE clause."""
+        if self.logical_op not in ("AND", "OR"):
+            raise ValueError(f"Invalid logical_op '{self.logical_op}'. Must be 'AND' or 'OR'")
+
+        # Must have at least one condition or nested clause
+        if not self.conditions and not self.nested_clauses and not self.not_clause:
+            raise ValueError(
+                "WhereClause must have at least one condition, nested clause, or NOT clause"
+            )
+
+    def to_sql(self) -> tuple[Composed | None, list[Any]]:
+        """Generate SQL for this WHERE clause.
+
+        Returns:
+            Tuple of (SQL Composed object or None, list of parameters)
+
+        Examples:
+            # Simple: status = %s
+            SQL: Identifier("status") + SQL(" = ") + SQL("%s")
+            Params: ["active"]
+
+            # Multiple: status = %s AND machine_id = %s
+            SQL: Identifier("status") + ... + SQL(" AND ") + Identifier("machine_id") + ...
+            Params: ["active", UUID("123")]
+        """
+        all_parts = []
+        all_params = []
+
+        # Generate SQL for each condition
+        for condition in self.conditions:
+            sql, params = condition.to_sql()
+            all_parts.append(sql)
+            all_params.extend(params)
+
+        # Generate SQL for nested clauses
+        for nested in self.nested_clauses:
+            nested_sql, nested_params = nested.to_sql()
+            if nested_sql:
+                # Wrap in parentheses
+                wrapped = Composed([SQL("("), nested_sql, SQL(")")])
+                all_parts.append(wrapped)
+                all_params.extend(nested_params)
+
+        # Generate SQL for NOT clause
+        if self.not_clause:
+            not_sql, not_params = self.not_clause.to_sql()
+            if not_sql:
+                wrapped = Composed([SQL("NOT ("), not_sql, SQL(")")])
+                all_parts.append(wrapped)
+                all_params.extend(not_params)
+
+        # Combine with logical operator
+        if not all_parts:
+            return None, []
+
+        if len(all_parts) == 1:
+            return all_parts[0], all_params
+
+        # Join with AND/OR
+        separator = SQL(f" {self.logical_op} ")
+        combined_sql = separator.join(all_parts)
+
+        return combined_sql, all_params
+
+    def __repr__(self) -> str:
+        """Human-readable representation for debugging."""
+        parts = []
+
+        if self.conditions:
+            cond_strs = [str(c) for c in self.conditions]
+            parts.append(f" {self.logical_op} ".join(cond_strs))
+
+        if self.nested_clauses:
+            for nested in self.nested_clauses:
+                parts.append(f"({nested!r})")
+
+        if self.not_clause:
+            parts.append(f"NOT ({self.not_clause!r})")
+
+        return f"WhereClause({' AND '.join(parts)})"

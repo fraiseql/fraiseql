@@ -5,6 +5,7 @@ that support operator-based filtering. These types can be used directly in
 GraphQL resolvers and are automatically converted to SQL where types.
 """
 
+import logging
 from dataclasses import make_dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -15,6 +16,8 @@ from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types.scalars.vector import HalfVectorField, QuantizedVectorField, SparseVectorField
+
+logger = logging.getLogger(__name__)
 
 # Type variable for generic filter types
 T = TypeVar("T")
@@ -685,6 +688,10 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
     # Add to generation stack to detect circular references
     _generation_stack.add(cls)
 
+    def _is_fraise_type(field_type: Any) -> bool:
+        """Check if a type is a FraiseQL type (has __fraiseql_definition__)."""
+        return hasattr(field_type, "__fraiseql_definition__")
+
     try:
         # Get type hints from the class
         try:
@@ -784,10 +791,167 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
         WhereInputClass._target_class = cls
         WhereInputClass._to_sql_where = lambda self: _convert_graphql_input_to_where_type(self, cls)
 
-        # Add helpful docstring
-        WhereInputClass.__doc__ = (
-            f"GraphQL where input type for {cls.__name__} with operator-based filtering."
-        )
+        # Add dict conversion method for normalization
+        def _to_whereinput_dict(self: Any) -> dict[str, Any]:
+            """Convert WhereInput to normalized dict format.
+
+            This method recursively extracts all filter values from the WhereInput
+            object and its nested objects/filters, converting them to a plain dict
+            structure that can be normalized to WhereClause.
+
+            Returns:
+                Dict representation with filter operators extracted
+
+            Examples:
+                # WhereInput with UUIDFilter
+                AllocationWhereInput(
+                    machine=MachineWhereInput(
+                        id=UUIDFilter(eq=UUID("123"))
+                    )
+                )._to_whereinput_dict()
+
+                # Returns:
+                {
+                    "machine": {
+                        "id": {
+                            "eq": UUID("123")
+                        }
+                    }
+                }
+            """
+            result = {}
+
+            for field_name, field_value in self.__dict__.items():
+                # Skip None values and private fields
+                if field_value is None or field_name.startswith("_"):
+                    continue
+
+                # Handle logical operators (OR, AND, NOT)
+                if field_name in ("OR", "AND", "NOT"):
+                    if field_name in ("OR", "AND") and isinstance(field_value, list):
+                        # OR/AND: list of WhereInput objects
+                        result[field_name] = [
+                            item._to_whereinput_dict()
+                            if hasattr(item, "_to_whereinput_dict")
+                            else item
+                            for item in field_value
+                        ]
+                    elif field_name == "NOT" and hasattr(field_value, "_to_whereinput_dict"):
+                        # NOT: single WhereInput object
+                        result[field_name] = field_value._to_whereinput_dict()
+                    else:
+                        result[field_name] = field_value
+                    continue
+
+                # Handle nested WhereInput objects
+                if hasattr(field_value, "_to_whereinput_dict"):
+                    nested_dict = field_value._to_whereinput_dict()
+                    if nested_dict:
+                        result[field_name] = nested_dict
+                # Handle Filter objects (UUIDFilter, StringFilter, etc.)
+                elif hasattr(field_value, "__dict__") and _is_filter_object(field_value):
+                    # Extract non-None operators from filter
+                    filter_dict = {
+                        op: val
+                        for op, val in field_value.__dict__.items()
+                        if val is not None and not op.startswith("_")
+                    }
+                    if filter_dict:
+                        result[field_name] = filter_dict
+                # Handle plain dicts
+                elif isinstance(field_value, dict):
+                    result[field_name] = field_value
+                # Handle scalar values
+                elif isinstance(field_value, (str, int, float, bool, UUID, date, datetime)):
+                    result[field_name] = {"eq": field_value}
+
+            return result
+
+        def _is_filter_object(obj: Any) -> bool:
+            """Check if object is a Filter type (has operator fields)."""
+            if not hasattr(obj, "__dict__"):
+                return False
+
+            # Filter objects have operator fields
+            operator_fields = {
+                "eq",
+                "neq",
+                "in_",
+                "nin",
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "contains",
+                "icontains",
+                "startswith",
+                "endswith",
+                "istartswith",
+                "iendswith",
+                "isnull",
+                "matches",
+                "imatches",
+                "not_matches",
+            }
+            obj_fields = set(obj.__dict__.keys())
+
+            # If it has at least one operator field, it's a Filter
+            return bool(operator_fields & obj_fields)
+
+        WhereInputClass._to_whereinput_dict = _to_whereinput_dict
+
+        # Get FK relationships from metadata
+        from fraiseql.db import _table_metadata
+
+        sql_source = getattr(cls, "__sql_source__", None) or getattr(cls, "_table_name", None)
+        fk_relationships = {}
+
+        if sql_source and sql_source in _table_metadata:
+            fk_relationships = _table_metadata[sql_source].get("fk_relationships", {})
+
+        # Attach metadata to class
+        WhereInputClass.__table_name__ = sql_source
+        WhereInputClass.__fk_relationships__ = fk_relationships
+
+        # Validate FK relationships at generation time
+        if sql_source and sql_source in _table_metadata:
+            metadata = _table_metadata[sql_source]
+            table_columns = metadata.get("columns", set())
+
+            # Validate declared FKs exist
+            for field_name, fk_column in fk_relationships.items():
+                if table_columns and fk_column not in table_columns:
+                    logger.warning(
+                        f"FK relationship {field_name} → {fk_column} declared "
+                        f"but {fk_column} not in registered columns for {sql_source}"
+                    )
+
+            # Check for undeclared FK candidates
+            type_hints = get_type_hints(cls)
+            for field_name, field_type in type_hints.items():
+                if _is_fraise_type(field_type):
+                    potential_fk = f"{field_name}_id"
+                    if (
+                        field_name not in fk_relationships
+                        and table_columns
+                        and potential_fk in table_columns
+                    ):
+                        logger.info(
+                            f"Field {cls.__name__}.{field_name} looks like FK relationship "
+                            f"(column {potential_fk} exists) but not declared in fk_relationships. "
+                            f"Using convention-based detection."
+                        )
+
+        # Add helpful docstring with FK info
+        docstring = f"GraphQL where input type for {cls.__name__} with operator-based filtering."
+
+        if fk_relationships:
+            fk_doc = "\n".join(
+                f"    - {field} → FK column '{col}'" for field, col in fk_relationships.items()
+            )
+            docstring += f"\n\nFK Relationships:\n{fk_doc}"
+
+        WhereInputClass.__doc__ = docstring
 
         return WhereInputClass
 

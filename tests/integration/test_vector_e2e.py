@@ -185,7 +185,9 @@ async def test_vector_filter_cosine_distance(class_db_pool, test_schema, vector_
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381  # Same as first document
 
     result = await repo.find(
-        "test_documents", where={"embedding": {"cosine_distance": query_embedding}}, limit=5
+        "test_documents",
+        where={"embedding": {"cosine_distance": {"vector": query_embedding, "threshold": 0.5}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")
@@ -230,7 +232,7 @@ async def test_vector_with_other_filters(class_db_pool, test_schema, vector_test
     result = await repo.find(
         "test_documents",
         where={
-            "embedding": {"cosine_distance": query_embedding},
+            "embedding": {"cosine_distance": (query_embedding, 0.5)},
             "title": {
                 "contains": "Python"  # Additional filter
             },
@@ -248,7 +250,9 @@ async def test_vector_l1_distance_filter(class_db_pool, test_schema, vector_test
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     result = await repo.find(
-        "test_documents", where={"embedding": {"l1_distance": query_embedding}}, limit=5
+        "test_documents",
+        where={"embedding": {"l1_distance": (query_embedding, 10.0)}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")
@@ -286,7 +290,7 @@ async def test_vector_l1_distance_combined(class_db_pool, test_schema, vector_te
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"l1_distance": query_embedding}},
+        where={"embedding": {"l1_distance": {"vector": query_embedding, "threshold": 10.0}}},
         order_by={"embedding": VectorOrderBy(l1_distance=query_embedding)},
         limit=3,
     )
@@ -305,7 +309,9 @@ async def test_binary_vector_hamming_distance_filter(
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
-        "test_fingerprints", where={"fingerprint": {"hamming_distance": query_fingerprint}}, limit=5
+        "test_fingerprints",
+        where={"fingerprint": {"hamming_distance": {"vector": query_fingerprint, "threshold": 10}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_fingerprints")
@@ -322,7 +328,11 @@ async def test_binary_vector_jaccard_distance_filter(
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
-        "test_fingerprints", where={"fingerprint": {"jaccard_distance": query_fingerprint}}, limit=5
+        "test_fingerprints",
+        where={
+            "fingerprint": {"jaccard_distance": {"vector": query_fingerprint, "threshold": 0.3}}
+        },
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_fingerprints")
@@ -422,8 +432,8 @@ async def test_vector_hnsw_index_performance(class_db_pool, test_schema, vector_
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"cosine_distance": query_embedding}},
-        limit=1,
+        where={"embedding": {"cosine_distance": {"vector": query_embedding, "threshold": 0.5}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")

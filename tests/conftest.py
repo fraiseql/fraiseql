@@ -151,6 +151,7 @@ def _clear_all_fraiseql_state() -> None:
     # Clear view type registry mapping
     try:
         from fraiseql.db import _view_type_registry
+
         _view_type_registry.clear()
     except ImportError:
         pass
@@ -166,6 +167,7 @@ def _clear_all_fraiseql_state() -> None:
     # Reset Rust schema registry LAST (after Python state is cleared)
     try:
         from fraiseql._fraiseql_rs import reset_schema_registry_for_testing
+
         reset_schema_registry_for_testing()
     except ImportError:
         pass
@@ -179,6 +181,7 @@ def _clear_all_fraiseql_state() -> None:
             set_db_pool,
             set_fraiseql_config,
         )
+
         set_db_pool(None)
         set_auth_provider(None)
         set_fraiseql_config(None)
@@ -221,3 +224,90 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
                 or "rust" in str(item.fspath).lower()
             ):
                 item.add_marker(skip_rust)
+
+
+@pytest.fixture
+async def setup_hybrid_table(class_db_pool, test_schema):
+    """Set up hybrid table (machine + tv_allocation) for testing.
+
+    Creates:
+    - machine table (FK target)
+    - tv_allocation table (hybrid: machine_id FK + data JSONB)
+    - Sample data for testing
+
+    Returns:
+        dict with test data IDs
+    """
+    import uuid
+    from fraiseql.db import register_type_for_view
+
+    async with class_db_pool.connection() as conn, conn.cursor() as cursor:
+        # Set schema
+        await cursor.execute(f"SET search_path TO {test_schema}")
+
+        # Create machine table
+        await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS machine (
+                id UUID PRIMARY KEY,
+                name TEXT
+            )
+        """)
+
+        # Create tv_allocation hybrid table
+        await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tv_allocation (
+                id UUID PRIMARY KEY,
+                machine_id UUID REFERENCES machine(id),
+                status TEXT,
+                name TEXT,
+                data JSONB,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+        # Insert test machines
+        machine1_id = uuid.uuid4()
+        machine2_id = uuid.uuid4()
+
+        await cursor.execute(
+            "INSERT INTO machine (id, name) VALUES (%s, %s), (%s, %s)",
+            (machine1_id, "Machine 1", machine2_id, "Machine 2"),
+        )
+
+        # Insert test allocations
+        alloc1_id = uuid.uuid4()
+        alloc2_id = uuid.uuid4()
+
+        await cursor.execute(
+            """
+            INSERT INTO tv_allocation (id, machine_id, status, name, data)
+            VALUES
+                (%s, %s, 'active', 'Test Allocation 1', '{"device": {"name": "Device1"}}'::jsonb),
+                (%s, %s, 'pending', 'Test Allocation 2', '{"device": {"name": "Device2"}}'::jsonb)
+        """,
+            (alloc1_id, machine1_id, alloc2_id, machine2_id),
+        )
+
+        await conn.commit()
+
+        # Register type metadata
+        register_type_for_view(
+            "tv_allocation",
+            object,  # Dummy type for testing
+            table_columns={"id", "machine_id", "status", "name", "data", "created_at"},
+            fk_relationships={"machine": "machine_id"},
+            has_jsonb_data=True,
+            jsonb_column="data",
+        )
+
+        yield {
+            "machine1_id": machine1_id,
+            "machine2_id": machine2_id,
+            "alloc1_id": alloc1_id,
+            "alloc2_id": alloc2_id,
+        }
+
+        # Cleanup
+        await cursor.execute("DROP TABLE IF EXISTS tv_allocation CASCADE")
+        await cursor.execute("DROP TABLE IF EXISTS machine CASCADE")
+        await conn.commit()
