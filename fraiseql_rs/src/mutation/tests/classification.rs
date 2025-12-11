@@ -1,10 +1,10 @@
-//! Status Taxonomy Tests
+//! Classification Tests - Stage 2: Status taxonomy
 //!
-//! Tests for:
+//! Tests for status string parsing and classification:
 //! - Status string parsing (new, updated, deleted, noop, failed, etc.)
 //! - Status code mapping (201, 200, 204, 422, 400, 404, 409)
-//! - Success/Error classification
-//! - Status taxonomy correctness
+//! - Success/Error/Noop classification
+//! - Status taxonomy correctness and edge cases
 
 use super::*;
 

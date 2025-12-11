@@ -1,4 +1,4 @@
-//! Mutation Response Integration Tests
+//! Integration Tests - Stage 4: End-to-end
 //!
 //! Comprehensive integration tests covering:
 //! - Full mutation response flow (parse → build → validate)
@@ -9,6 +9,7 @@
 //! - Array entity handling
 //! - Deep nesting scenarios
 //! - Special characters in field names
+//! - Error array generation and explicit errors
 
 use super::*;
 

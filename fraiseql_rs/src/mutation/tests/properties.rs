@@ -1,9 +1,10 @@
-//! Property-based Tests
+//! Property-based Tests - Property-based testing
 //!
 //! Property tests using proptest framework:
 //! - CASCADE never appears in entity wrapper
 //! - Entity structure validation
 //! - Status parsing edge cases
+//! - Format detection determinism
 
 use super::*;
 

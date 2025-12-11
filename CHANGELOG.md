@@ -148,6 +148,92 @@ tests/integration/database/sql/where/
 - Scalable structure for future operator categories
 - Consistent organization between unit and integration tests
 
+### 🔧 Maintenance: Mutation Test Suite Reorganization
+
+**Major test infrastructure improvement**: Complete reorganization of Rust mutation tests from fragmented feature-based structure to clean pipeline-based organization reflecting actual data flow.
+
+#### Test Structure Transformation
+
+**Before (Fragmented)**:
+```
+fraiseql_rs/src/mutation/tests/
+├── format_tests.rs (405 lines)              # MIXED: parsing + response building
+├── auto_populate_fields_tests.rs (196)      # Response building (isolated)
+├── error_array_generation.rs (130)          # Response building (isolated)
+├── validation_tests.rs (162)                # Response building (v1.8.0 routing)
+├── integration_tests.rs (442)               # End-to-end (keep)
+├── edge_case_tests.rs (359)                 # MIXED: various concerns
+├── status_tests.rs (133)                    # Classification (good)
+├── composite_tests.rs (64)                  # Parsing (isolated)
+├── property_tests.rs (92)                   # Property-based (keep)
+└── mod.rs (18)                              # Module imports
+```
+
+**After (Pipeline-Based)**:
+```
+fraiseql_rs/src/mutation/tests/
+├── parsing.rs (~470 lines)                  # Stage 1: JSON → MutationResult
+├── classification.rs (~133 lines)           # Stage 2: Status taxonomy
+├── response_building.rs (~900 lines)        # Stage 3: MutationResult → JSON
+├── integration.rs (~442 lines)              # Stage 4: End-to-end
+├── properties.rs (~92 lines)                # Property-based tests
+└── mod.rs (~25 lines)                       # Module imports + shared utilities
+```
+
+#### Key Improvements
+
+- ✅ **10 → 5 files**: Reduced file count through intelligent consolidation
+- ✅ **75 tests passing**: Enhanced coverage with better organization
+- ✅ **Pipeline alignment**: Tests organized by data flow stages (Parse → Classify → Build → Integrate)
+- ✅ **Clear boundaries**: Each file has single responsibility matching architecture
+- ✅ **Improved maintainability**: Easy to find where to add new tests
+
+#### Pipeline Stage Organization
+
+**Stage 1 - Parsing** (`parsing.rs`):
+- JSON format detection (simple vs full)
+- MutationResult creation from JSON
+- PostgreSQL composite type parsing
+- CASCADE extraction from database responses
+
+**Stage 2 - Classification** (`classification.rs`):
+- Status string parsing and taxonomy
+- Success/Error/Noop classification
+- Status code mapping (201, 200, 204, 422, 400, 404, 409)
+
+**Stage 3 - Response Building** (`response_building.rs`):
+- GraphQL response construction
+- Auto-populated fields (status, errors, message)
+- Error array generation
+- CASCADE placement and handling
+- __typename correctness
+- Format-specific response building
+
+**Stage 4 - Integration** (`integration.rs`):
+- End-to-end mutation flows
+- Full pipeline validation
+- Complex scenario testing
+
+**Property-Based** (`properties.rs`):
+- Invariant testing with proptest
+- Edge case exploration
+- Deterministic behavior validation
+
+#### Benefits
+
+- **Architectural Alignment**: Test structure now reflects actual mutation pipeline
+- **Reduced Duplication**: Consolidated related tests, eliminated redundancy
+- **Enhanced Discoverability**: Clear file names indicate test focus
+- **Improved Developer Experience**: Easy to locate relevant tests
+- **Future-Proof**: Scalable structure for new mutation features
+
+#### Migration Details
+
+- **Zero Functional Changes**: All existing test logic preserved
+- **Comprehensive Verification**: Each phase verified compilation and test counts
+- **Safe Rollback**: Git history maintained with backup branches
+- **Documentation Updated**: All test files have comprehensive headers
+
 ## [1.8.0] - 2025-12-10
 
 **🎉 Stable Release**: FraiseQL v1.8.0 transitions from beta to stable with critical bug fixes and enhanced filtering capabilities.
