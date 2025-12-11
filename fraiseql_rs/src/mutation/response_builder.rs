@@ -105,6 +105,12 @@ pub fn build_success_response(
     // Add message
     obj.insert("message".to_string(), json!(result.message));
 
+    // Add status (domain semantics)
+    obj.insert("status".to_string(), json!(result.status.to_string()));
+
+    // Add errors array (empty for success responses)
+    obj.insert("errors".to_string(), json!([]));
+
     // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
     if result.entity.is_none() {
         return Err(format!(

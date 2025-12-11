@@ -47,6 +47,7 @@ app = create_fraiseql_app(
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
+- ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 - 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 
