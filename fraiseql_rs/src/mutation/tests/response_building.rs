@@ -1072,3 +1072,171 @@ fn test_special_characters_in_fields() {
         "Hello 世界"
     );
 }
+
+// ============================================================================
+// Field Selection Filtering (GraphQL Spec Compliance)
+// ============================================================================
+
+#[test]
+fn test_success_response_field_filtering_all_fields() {
+    let result = MutationResult {
+        status: MutationStatus::Success("created".to_string()),
+        message: "User created".to_string(),
+        entity_id: Some("123".to_string()),
+        entity_type: Some("User".to_string()),
+        entity: Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields: Some(vec!["first_name".to_string()]),
+        cascade: None,
+        metadata: None,
+        is_simple_format: false,
+    };
+
+    // Request ALL fields
+    let selected_fields = vec![
+        "id".to_string(),
+        "status".to_string(),
+        "message".to_string(),
+        "errors".to_string(),
+        "updatedFields".to_string(),
+        "user".to_string(),
+    ];
+
+    let response = build_graphql_response(
+        &result,
+        "createUser",
+        "CreateUserSuccess",
+        "CreateUserError",
+        Some("user"),
+        Some("User"),
+        true,
+        Some(&selected_fields),
+        None,
+    ).unwrap();
+
+    let data = &response["data"]["createUser"];
+    assert_eq!(data["__typename"], "CreateUserSuccess");
+    assert_eq!(data["id"], "123");
+    assert_eq!(data["status"], "success");
+    assert_eq!(data["message"], "User created");
+    assert_eq!(data["errors"], json!([]));
+    assert_eq!(data["updatedFields"], json!(["firstName"])); // camelCase
+    assert_eq!(data["user"]["id"], "123");
+}
+
+#[test]
+fn test_success_response_field_filtering_partial_fields() {
+    let result = MutationResult {
+        status: MutationStatus::Success("created".to_string()),
+        message: "User created".to_string(),
+        entity_id: Some("123".to_string()),
+        entity_type: Some("User".to_string()),
+        entity: Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields: Some(vec!["first_name".to_string()]),
+        cascade: None,
+        metadata: None,
+        is_simple_format: false,
+    };
+
+    // Request only status and user
+    let selected_fields = vec!["status".to_string(), "user".to_string()];
+
+    let response = build_graphql_response(
+        &result,
+        "createUser",
+        "CreateUserSuccess",
+        "CreateUserError",
+        Some("user"),
+        Some("User"),
+        true,
+        Some(&selected_fields),
+        None,
+    ).unwrap();
+
+    let data = &response["data"]["createUser"];
+    assert_eq!(data["__typename"], "CreateUserSuccess");
+    assert_eq!(data["status"], "success");
+    assert_eq!(data["user"]["id"], "123");
+
+    // These should NOT be present (filtered out)
+    assert!(!data.as_object().unwrap().contains_key("id"));
+    assert!(!data.as_object().unwrap().contains_key("message"));
+    assert!(!data.as_object().unwrap().contains_key("errors"));
+    assert!(!data.as_object().unwrap().contains_key("updatedFields"));
+}
+
+#[test]
+fn test_success_response_field_filtering_no_filtering() {
+    let result = MutationResult {
+        status: MutationStatus::Success("created".to_string()),
+        message: "User created".to_string(),
+        entity_id: Some("123".to_string()),
+        entity_type: Some("User".to_string()),
+        entity: Some(json!({"id": "123", "first_name": "John"})),
+        updated_fields: Some(vec!["first_name".to_string()]),
+        cascade: None,
+        metadata: None,
+        is_simple_format: false,
+    };
+
+    // No field filtering (None)
+    let response = build_graphql_response(
+        &result,
+        "createUser",
+        "CreateUserSuccess",
+        "CreateUserError",
+        Some("user"),
+        Some("User"),
+        true,
+        None, // No filtering
+        None,
+    ).unwrap();
+
+    let data = &response["data"]["createUser"];
+    assert_eq!(data["__typename"], "CreateUserSuccess");
+    // All fields should be present when no filtering is applied
+    assert_eq!(data["id"], "123");
+    assert_eq!(data["status"], "success");
+    assert_eq!(data["message"], "User created");
+    assert_eq!(data["errors"], json!([]));
+    assert_eq!(data["updatedFields"], json!(["firstName"]));
+    assert_eq!(data["user"]["id"], "123");
+}
+
+#[test]
+fn test_error_response_field_filtering() {
+    let result = MutationResult {
+        status: MutationStatus::Error("failed:validation".to_string()),
+        message: "Invalid input".to_string(),
+        entity_id: None,
+        entity_type: None,
+        entity: None,
+        updated_fields: None,
+        cascade: None,
+        metadata: None,
+        is_simple_format: false,
+    };
+
+    // Request only status and message
+    let selected_fields = vec!["status".to_string(), "message".to_string()];
+
+    let response = build_graphql_response(
+        &result,
+        "createUser",
+        "CreateUserSuccess",
+        "CreateUserError",
+        None,
+        None,
+        true,
+        Some(&selected_fields),
+        None,
+    ).unwrap();
+
+    let data = &response["data"]["createUser"];
+    assert_eq!(data["__typename"], "CreateUserError");
+    assert_eq!(data["status"], "failed:validation");
+    assert_eq!(data["message"], "Invalid input");
+
+    // These should NOT be present (filtered out)
+    assert!(!data.as_object().unwrap().contains_key("code"));
+    assert!(!data.as_object().unwrap().contains_key("errors"));
+}

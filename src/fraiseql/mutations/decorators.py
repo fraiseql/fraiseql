@@ -87,27 +87,74 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL mutation success type."""
 
     def wrap(cls: T) -> T:
+        from fraiseql.fields import FraiseQLField  # Import for gql_fields
         from fraiseql.gql.schema_builder import SchemaRegistry
         from fraiseql.types.constructor import define_fraiseql_type
         from fraiseql.types.errors import Error
+
+        # Track which fields we're auto-injecting
+        auto_injected_fields = []
 
         # Auto-inject standard mutation fields if not already present
         annotations = getattr(cls, "__annotations__", {})
 
         if "status" not in annotations:
             annotations["status"] = str
-            cls.status = "success"  # Default value
+            cls.status = "success"
+            auto_injected_fields.append("status")
+
         if "message" not in annotations:
             annotations["message"] = str | None
-            cls.message = None  # Default value
+            cls.message = None
+            auto_injected_fields.append("message")
+
         if "errors" not in annotations:
             annotations["errors"] = list[Error] | None
-            cls.errors = None  # Default value
+            cls.errors = None
+            auto_injected_fields.append("errors")
+
+        # Add updatedFields (per CTO feedback)
+        if "updated_fields" not in annotations:
+            annotations["updated_fields"] = list[str] | None
+            cls.updated_fields = None
+            auto_injected_fields.append("updated_fields")
 
         cls.__annotations__ = annotations
 
+        # Detect if class has an entity field (any field that's not an auto-field)
+        has_entity_field = any(
+            field_name not in {"status", "message", "errors", "updated_fields", "id"}
+            for field_name in annotations
+        )
+
+        if has_entity_field and "id" not in annotations:
+            annotations["id"] = str | None
+            cls.id = None
+            auto_injected_fields.append("id")
+
         patch_missing_field_types(cls)
         cls = define_fraiseql_type(cls, kind="output")  # type: ignore[assignment]
+
+        # Add auto-injected fields to __gql_fields__
+        if auto_injected_fields:
+            gql_fields = getattr(cls, "__gql_fields__", {})
+            type_hints = getattr(cls, "__gql_type_hints__", {})
+
+            for field_name in auto_injected_fields:
+                # Don't override if user defined it explicitly
+                if field_name not in gql_fields:
+                    field_type = type_hints.get(field_name)
+                    if field_type:
+                        field = FraiseQLField(
+                            field_type=field_type,
+                            purpose="output",
+                            description=_get_auto_field_description(field_name),
+                            graphql_name=None,  # Use default camelCase
+                        )
+                        field.name = field_name
+                        gql_fields[field_name] = field
+
+            cls.__gql_fields__ = gql_fields
 
         SchemaRegistry.get_instance().register_type(cls)
 
@@ -129,29 +176,75 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL mutation error type."""
 
     def wrap(cls: T) -> T:
+        from fraiseql.fields import FraiseQLField  # Import for gql_fields
         from fraiseql.gql.schema_builder import SchemaRegistry
         from fraiseql.types.constructor import define_fraiseql_type
         from fraiseql.types.errors import Error
+
+        # Track auto-injected fields
+        auto_injected_fields = []
 
         # Auto-inject standard mutation fields if not already present
         annotations = getattr(cls, "__annotations__", {})
 
         if "status" not in annotations:
             annotations["status"] = str
-            cls.status = "success"  # Default value
+            cls.status = "error"  # Default for failure
+            auto_injected_fields.append("status")
+
         if "message" not in annotations:
             annotations["message"] = str | None
-            cls.message = None  # Default value
+            cls.message = None
+            auto_injected_fields.append("message")
+
         if "errors" not in annotations:
             annotations["errors"] = list[Error] | None
             # CRITICAL FIX: Don't set to None, create empty list that will be populated
             # This ensures frontend compatibility by always having an errors array
             cls.errors = []  # Empty list instead of None - populated at runtime
+            auto_injected_fields.append("errors")
+
+        # Add updatedFields
+        if "updated_fields" not in annotations:
+            annotations["updated_fields"] = list[str] | None
+            cls.updated_fields = None
+            auto_injected_fields.append("updated_fields")
 
         cls.__annotations__ = annotations
 
+        # Detect if class has an entity field (any field that's not an auto-field)
+        has_entity_field = any(
+            field_name not in {"status", "message", "errors", "updated_fields", "id"}
+            for field_name in annotations
+        )
+
+        if has_entity_field and "id" not in annotations:
+            annotations["id"] = str | None
+            cls.id = None
+            auto_injected_fields.append("id")
+
         patch_missing_field_types(cls)
         cls = define_fraiseql_type(cls, kind="output")  # type: ignore[assignment]
+
+        # Add auto-injected fields to __gql_fields__
+        if auto_injected_fields:
+            gql_fields = getattr(cls, "__gql_fields__", {})
+            type_hints = getattr(cls, "__gql_type_hints__", {})
+
+            for field_name in auto_injected_fields:
+                if field_name not in gql_fields:
+                    field_type = type_hints.get(field_name)
+                    if field_type:
+                        field = FraiseQLField(
+                            field_type=field_type,
+                            purpose="output",
+                            description=_get_auto_field_description_failure(field_name),
+                            graphql_name=None,
+                        )
+                        field.name = field_name
+                        gql_fields[field_name] = field
+
+            cls.__gql_fields__ = gql_fields
 
         SchemaRegistry.get_instance().register_type(cls)
 
@@ -205,3 +298,27 @@ def result(success_cls: type, error_cls: type) -> type:
     union = Annotated[success_cls | error_cls, FraiseUnion(union_name)]
     _union_registry[union_name] = union
     return cast("type", union)
+
+
+def _get_auto_field_description(field_name: str) -> str:
+    """Get description for auto-injected mutation fields."""
+    descriptions = {
+        "status": "Operation status (always 'success' for success types)",
+        "message": "Human-readable message describing the operation result",
+        "errors": "List of errors (always empty for success types)",
+        "updated_fields": "List of field names that were updated in the mutation",
+        "id": "ID of the created or updated entity",
+    }
+    return descriptions.get(field_name, f"Auto-populated {field_name} field")
+
+
+def _get_auto_field_description_failure(field_name: str) -> str:
+    """Get description for auto-injected failure fields."""
+    descriptions = {
+        "status": "Error status code (e.g., 'error', 'failed', 'blocked')",
+        "message": "Human-readable error message",
+        "errors": "List of detailed error information",
+        "updated_fields": "List of field names that would have been updated",
+        "id": "ID of the entity that would have been created or updated",
+    }
+    return descriptions.get(field_name, f"Auto-populated {field_name} field")

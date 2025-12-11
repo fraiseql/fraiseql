@@ -34,10 +34,12 @@ pub fn build_graphql_response(
         )?
     } else {
         // NEW: Error response includes REST-like code
+        // For error responses, we need error_type_fields (same as success_type_fields for now)
         build_error_response_with_code(
             result,
             error_type,
             auto_camel_case,
+            success_type_fields,  // Use same field selection for errors
             cascade_selections,
         )?
     };
@@ -94,22 +96,40 @@ pub fn build_success_response(
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
-    // Add __typename
+    // Add __typename (always included, special GraphQL field)
     obj.insert("__typename".to_string(), json!(success_type));
 
-    // Add id from entity_id if present
-    if let Some(ref entity_id) = result.entity_id {
-        obj.insert("id".to_string(), json!(entity_id));
+    // Check if field selection filtering is active
+    let should_filter = success_type_fields.is_some();
+    let empty_vec = Vec::new();
+    let selected_fields = success_type_fields.unwrap_or(&empty_vec);
+
+    // Helper function to check if field is selected
+    let is_selected = |field_name: &str| -> bool {
+        !should_filter || selected_fields.contains(&field_name.to_string())
+    };
+
+    // Add id from entity_id if present AND selected
+    if is_selected("id") {
+        if let Some(ref entity_id) = result.entity_id {
+            obj.insert("id".to_string(), json!(entity_id));
+        }
     }
 
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
+    // Add message if selected
+    if is_selected("message") {
+        obj.insert("message".to_string(), json!(result.message));
+    }
 
-    // Add status (domain semantics)
-    obj.insert("status".to_string(), json!(result.status.to_string()));
+    // Add status if selected
+    if is_selected("status") {
+        obj.insert("status".to_string(), json!(result.status.to_string()));
+    }
 
-    // Add errors array (empty for success responses)
-    obj.insert("errors".to_string(), json!([]));
+    // Add errors array if selected (empty for success responses)
+    if is_selected("errors") {
+        obj.insert("errors".to_string(), json!([]));
+    }
 
     // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
     if result.entity.is_none() {
@@ -123,7 +143,7 @@ pub fn build_success_response(
         ));
     }
 
-    // Add entity with __typename and camelCase keys
+    // Add entity with __typename and camelCase keys ONLY if selected
     if let Some(entity) = &result.entity {
         let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
 
@@ -146,48 +166,52 @@ pub fn build_success_response(
                 }
             });
 
-        // Check if entity is a wrapper object containing entity_field_name
-        // This happens when Python entity_flattener skips flattening (CASCADE case)
-        // The entity looks like: {"post": {...}, "message": "..."}
-        let actual_entity = if let Value::Object(entity_map) = entity {
-            // Check if the entity wrapper contains a field matching entity_field_name
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
-                    // Found nested entity - extract it
-                    nested_entity
+        // Only add entity if the field is selected
+        if is_selected(&field_name) {
+            // Check if entity is a wrapper object containing entity_field_name
+            // This happens when Python entity_flattener skips flattening (CASCADE case)
+            // The entity looks like: {"post": {...}, "message": "..."}
+            let actual_entity = if let Value::Object(entity_map) = entity {
+                // Check if the entity wrapper contains a field matching entity_field_name
+                if let Some(entity_field_name_raw) = entity_field_name {
+                    if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
+                        // Found nested entity - extract it
+                        nested_entity
+                    } else {
+                        // No nested field, use entire entity
+                        entity
+                    }
                 } else {
-                    // No nested field, use entire entity
+                    // No entity_field_name hint, use entire entity
                     entity
                 }
             } else {
-                // No entity_field_name hint, use entire entity
+                // Entity is not an object (array or primitive), use as-is
                 entity
-            }
-        } else {
-            // Entity is not an object (array or primitive), use as-is
-            entity
-        };
+            };
 
-        let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
-        obj.insert(field_name, transformed);
+            let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
+            obj.insert(field_name, transformed);
 
-        // If entity was a wrapper, copy other fields from it (like "message")
-        if let Value::Object(entity_map) = entity {
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if entity_map.contains_key(entity_field_name_raw) {
-                    // Entity was a wrapper - copy other fields
-                    for (key, value) in entity_map {
-                        if key != entity_field_name_raw && key != "entity" && key != "cascade" {
-                            // Don't copy the entity field itself, nested "entity", or CASCADE
-                            // CASCADE must only appear at success type level, never in entity
-                            let field_key = if auto_camel_case {
-                                to_camel_case(key)
-                            } else {
-                                key.clone()
-                            };
-                            // Only add if not already present (message might be at top level)
-                            if !obj.contains_key(&field_key) {
-                                obj.insert(field_key, transform_value(value, auto_camel_case));
+            // If entity was a wrapper, copy other fields from it (like "message")
+            // But only if those fields are also selected
+            if let Value::Object(entity_map) = entity {
+                if let Some(entity_field_name_raw) = entity_field_name {
+                    if entity_map.contains_key(entity_field_name_raw) {
+                        // Entity was a wrapper - copy other fields
+                        for (key, value) in entity_map {
+                            if key != entity_field_name_raw && key != "entity" && key != "cascade" {
+                                // Don't copy the entity field itself, nested "entity", or CASCADE
+                                // CASCADE must only appear at success type level, never in entity
+                                let field_key = if auto_camel_case {
+                                    to_camel_case(key)
+                                } else {
+                                    key.clone()
+                                };
+                                // Only add if not already present AND field is selected
+                                if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                                    obj.insert(field_key, transform_value(value, auto_camel_case));
+                                }
                             }
                         }
                     }
@@ -196,19 +220,21 @@ pub fn build_success_response(
         }
     }
 
-    // Add updatedFields (convert to camelCase)
-    if let Some(fields) = &result.updated_fields {
-        let transformed_fields: Vec<Value> = fields
-            .iter()
-            .map(|f| {
-                json!(if auto_camel_case {
-                    to_camel_case(f)
-                } else {
-                    f.to_string()
+    // Add updatedFields (convert to camelCase) if selected
+    if is_selected("updatedFields") {
+        if let Some(fields) = &result.updated_fields {
+            let transformed_fields: Vec<Value> = fields
+                .iter()
+                .map(|f| {
+                    json!(if auto_camel_case {
+                        to_camel_case(f)
+                    } else {
+                        f.to_string()
+                    })
                 })
-            })
-            .collect();
-        obj.insert("updatedFields".to_string(), json!(transformed_fields));
+                .collect();
+            obj.insert("updatedFields".to_string(), json!(transformed_fields));
+        }
     }
 
     // Add cascade if present AND requested in selection
@@ -265,26 +291,45 @@ pub fn build_error_response_with_code(
     result: &MutationResult,
     error_type: &str,
     auto_camel_case: bool,
+    error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
-    // Add __typename
+    // Add __typename (always included, special GraphQL field)
     obj.insert("__typename".to_string(), json!(error_type));
 
-    // Add REST-like code field (application-level, NOT HTTP status)
-    let code = map_status_to_code(&result.status);
-    obj.insert("code".to_string(), json!(code));
+    // Check if field selection filtering is active
+    let should_filter = error_type_fields.is_some();
+    let empty_vec = Vec::new();
+    let selected_fields = error_type_fields.unwrap_or(&empty_vec);
 
-    // Add status (domain semantics)
-    obj.insert("status".to_string(), json!(result.status.to_string()));
+    // Helper function to check if field is selected
+    let is_selected = |field_name: &str| -> bool {
+        !should_filter || selected_fields.contains(&field_name.to_string())
+    };
 
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
+    // Add REST-like code field if selected
+    if is_selected("code") {
+        let code = map_status_to_code(&result.status);
+        obj.insert("code".to_string(), json!(code));
+    }
 
-    // Add errors array (auto-generated or explicit)
-    let errors = generate_errors_array(result, code)?;
-    obj.insert("errors".to_string(), errors);
+    // Add status if selected
+    if is_selected("status") {
+        obj.insert("status".to_string(), json!(result.status.to_string()));
+    }
+
+    // Add message if selected
+    if is_selected("message") {
+        obj.insert("message".to_string(), json!(result.message));
+    }
+
+    // Add errors array if selected
+    if is_selected("errors") {
+        let errors = generate_errors_array(result, map_status_to_code(&result.status))?;
+        obj.insert("errors".to_string(), errors);
+    }
 
     // Add cascade if present AND requested in selection
     add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
@@ -401,7 +446,7 @@ pub fn build_error_response(
     auto_camel_case: bool,
 ) -> Result<Value, String> {
     // Delegate to new function
-    build_error_response_with_code(result, error_type, auto_camel_case, None)
+    build_error_response_with_code(result, error_type, auto_camel_case, None, None)
 }
 
 /// Transform entity: add __typename and convert keys to camelCase
