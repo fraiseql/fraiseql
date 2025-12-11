@@ -22,7 +22,7 @@ class TestPreciseSQLValidation:
         jsonb_path = SQL("(data ->> 'port')")
 
         strategy = registry.get_strategy("gte", int)
-        result = strategy.build_sql(jsonb_path, "gte", 443, int)
+        result = strategy.build_sql("gte", 443, jsonb_path, int)
 
         # Use the same rendering approach as complete SQL validation
         try:
@@ -68,7 +68,7 @@ class TestPreciseSQLValidation:
         jsonb_path = SQL("(data ->> 'is_active')")
 
         strategy = registry.get_strategy("eq", bool)
-        result = strategy.build_sql(jsonb_path, "eq", True, bool)
+        result = strategy.build_sql("eq", True, jsonb_path, bool)
 
         # Check the structure components
         sql_str = str(result)
@@ -90,7 +90,7 @@ class TestPreciseSQLValidation:
         jsonb_path = SQL("(data ->> 'hostname')")
 
         strategy = registry.get_strategy("eq", Hostname)
-        result = strategy.build_sql(jsonb_path, "eq", "printserver01.local", Hostname)
+        result = strategy.build_sql("eq", "printserver01.local", jsonb_path, Hostname)
 
         sql_str = str(result)
         print(f"Hostname SQL structure: {sql_str}")

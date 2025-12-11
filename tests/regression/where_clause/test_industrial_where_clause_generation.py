@@ -62,7 +62,7 @@ class TestREDPhaseHostnameLtreeBug:
 
         # Test hostname equality - should NOT get ltree casting
         strategy = registry.get_strategy("eq", Hostname)
-        result = strategy.build_sql(jsonb_path, "eq", "printserver01.local", Hostname)
+        result = strategy.build_sql("eq", "printserver01.local", jsonb_path, Hostname)
 
         sql_str = str(result)
         print(f"Generated SQL for hostname equality: {sql_str}")
@@ -95,7 +95,7 @@ class TestREDPhaseHostnameLtreeBug:
 
         for hostname in problematic_hostnames:
             strategy = registry.get_strategy("eq", Hostname)
-            result = strategy.build_sql(jsonb_path, "eq", hostname, Hostname)
+            result = strategy.build_sql("eq", hostname, jsonb_path, Hostname)
             sql_str = str(result)
 
             print(f"Testing hostname: {hostname} -> {sql_str}")
@@ -117,14 +117,14 @@ class TestREDPhaseHostnameLtreeBug:
         # Hostname - should NOT get ltree casting
         hostname_strategy = registry.get_strategy("eq", Hostname)
         hostname_result = hostname_strategy.build_sql(
-            jsonb_path_hostname, "eq", "server.local", Hostname
+            "eq", "server.local", jsonb_path_hostname, Hostname
         )
         hostname_sql = str(hostname_result)
 
         # LTree - SHOULD get ltree casting
         ltree_strategy = registry.get_strategy("eq", LTree)
         ltree_result = ltree_strategy.build_sql(
-            jsonb_path_ltree, "eq", "electronics.computers.servers", LTree
+            "eq", "electronics.computers.servers", jsonb_path_ltree, LTree
         )
         ltree_sql = str(ltree_result)
 

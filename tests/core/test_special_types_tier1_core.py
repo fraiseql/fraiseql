@@ -128,7 +128,7 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql(path_sql, "isPrivate", True, IpAddress)
+        result = strategy.build_sql("isPrivate", True, IpAddress)
 
         sql_str = str(result)
 
@@ -151,7 +151,7 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql(path_sql, "isPublic", True, IpAddress)
+        result = strategy.build_sql("isPublic", True, IpAddress)
 
         sql_str = str(result)
 
@@ -173,7 +173,7 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql(path_sql, "inSubnet", "192.168.0.0/16", IpAddress)
+        result = strategy.build_sql("inSubnet", "192.168.0.0/16", IpAddress)
 
         sql_str = str(result)
 
@@ -198,7 +198,7 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql(path_sql, "eq", "top.middle.bottom", LTree)
+        result = strategy.build_sql("eq", "top.middle.bottom", LTree)
 
         sql_str = str(result)
 
@@ -217,7 +217,7 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql(path_sql, "ancestor_of", "top.middle.bottom", LTree)
+        result = strategy.build_sql("ancestor_of", "top.middle.bottom", LTree)
 
         sql_str = str(result)
 
@@ -236,7 +236,7 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql(path_sql, "matches_lquery", "top.*", LTree)
+        result = strategy.build_sql("matches_lquery", "top.*", LTree)
 
         sql_str = str(result)
 
@@ -261,7 +261,7 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql(path_sql, "eq", "[2024-01-01,2024-12-31)", DateRange)
+        result = strategy.build_sql("eq", "[2024-01-01,2024-12-31)", DateRange)
 
         sql_str = str(result)
 
@@ -281,7 +281,7 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql(path_sql, "contains_date", "2024-06-15", DateRange)
+        result = strategy.build_sql("contains_date", "2024-06-15", DateRange)
 
         sql_str = str(result)
 
@@ -301,7 +301,7 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql(path_sql, "overlaps", "[2024-06-01,2024-06-30)", DateRange)
+        result = strategy.build_sql("overlaps", "[2024-06-01,2024-06-30)", DateRange)
 
         sql_str = str(result)
 
@@ -325,7 +325,7 @@ class TestTier1MacAddressTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'mac')")
-        result = strategy.build_sql(path_sql, "eq", "00:11:22:33:44:55", MacAddress)
+        result = strategy.build_sql("eq", "00:11:22:33:44:55", MacAddress)
 
         sql_str = str(result)
 
@@ -345,7 +345,7 @@ class TestTier1MacAddressTypes:
 
         path_sql = SQL("(data ->> 'mac')")
         mac_list = ["00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"]
-        result = strategy.build_sql(path_sql, "in", mac_list, MacAddress)
+        result = strategy.build_sql("in", mac_list, MacAddress)
 
         sql_str = str(result)
 

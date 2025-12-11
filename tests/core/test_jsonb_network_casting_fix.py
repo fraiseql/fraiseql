@@ -61,7 +61,7 @@ class TestJSONBNetworkCastingIssue:
         strategy = registry.get_strategy("eq", IpAddress)
 
         # Generate SQL for IP equality - this is where the issue occurs
-        result = strategy.build_sql(jsonb_path_sql, "eq", "8.8.8.8", IpAddress)
+        result = strategy.build_sql("eq", "8.8.8.8", jsonb_path_sql, IpAddress)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for IP equality: {sql_str}")
@@ -97,7 +97,7 @@ class TestJSONBNetworkCastingIssue:
 
         # Test private IP detection - this definitely needs inet casting
         strategy = registry.get_strategy("isPrivate", IpAddress)
-        result = strategy.build_sql(jsonb_path_sql, "isPrivate", True, IpAddress)
+        result = strategy.build_sql("isPrivate", True, jsonb_path_sql, IpAddress)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for isPrivate: {sql_str}")
@@ -119,7 +119,7 @@ class TestJSONBNetworkCastingIssue:
 
         # Test subnet matching - this is the most critical network operation
         strategy = registry.get_strategy("inSubnet", IpAddress)
-        result = strategy.build_sql(jsonb_path_sql, "inSubnet", "192.168.0.0/16", IpAddress)
+        result = strategy.build_sql("inSubnet", "192.168.0.0/16", jsonb_path_sql, IpAddress)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for inSubnet: {sql_str}")
@@ -157,7 +157,7 @@ class TestJSONBSpecialTypesCasting:
         jsonb_path_sql = SQL("(data ->> 'path')")
 
         strategy = registry.get_strategy("ancestor_of", LTree)
-        result = strategy.build_sql(jsonb_path_sql, "ancestor_of", "top.middle.bottom", LTree)
+        result = strategy.build_sql("ancestor_of", "top.middle.bottom", jsonb_path_sql, LTree)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for LTree ancestor_of: {sql_str}")
@@ -173,7 +173,7 @@ class TestJSONBSpecialTypesCasting:
         jsonb_path_sql = SQL("(data ->> 'period')")
 
         strategy = registry.get_strategy("contains_date", DateRange)
-        result = strategy.build_sql(jsonb_path_sql, "contains_date", "2024-06-15", DateRange)
+        result = strategy.build_sql("contains_date", "2024-06-15", jsonb_path_sql, DateRange)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for DateRange contains_date: {sql_str}")
@@ -189,7 +189,7 @@ class TestJSONBSpecialTypesCasting:
         jsonb_path_sql = SQL("(data ->> 'mac')")
 
         strategy = registry.get_strategy("eq", MacAddress)
-        result = strategy.build_sql(jsonb_path_sql, "eq", "00:11:22:33:44:55", MacAddress)
+        result = strategy.build_sql("eq", "00:11:22:33:44:55", jsonb_path_sql, MacAddress)
 
         sql_str = str(result)
         logger.debug(f"Generated SQL for MacAddress eq: {sql_str}")

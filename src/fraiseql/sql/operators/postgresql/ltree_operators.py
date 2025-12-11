@@ -41,6 +41,13 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "nlevel_gte",  # Depth greater than or equal
         "nlevel_lt",  # Depth less than
         "nlevel_lte",  # Depth less than or equal
+        "nlevel_neq",  # Depth not equal
+        "depth_eq",  # Alias for nlevel_eq
+        "depth_gt",  # Alias for nlevel_gt
+        "depth_gte",  # Alias for nlevel_gte
+        "depth_lt",  # Alias for nlevel_lt
+        "depth_lte",  # Alias for nlevel_lte
+        "depth_neq",  # Alias for nlevel_neq
         "subpath",  # Extract subpath
         "index",  # Find label index
         "index_eq",  # Index equals position
@@ -67,7 +74,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             "nlevel",
             "subpath",
             "index",
-        } or operator.startswith(("nlevel_", "index_")):
+        } or operator.startswith(("nlevel_", "depth_", "index_")):
             return True
 
         # With type hint, check if it's an LTree type
@@ -227,14 +234,26 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
 
             return Composed([SQL("nlevel("), casted_path, SQL(")")])
 
-        if operator.startswith("nlevel_"):
-            # nlevel_eq, nlevel_gt, nlevel_gte, nlevel_lt, nlevel_lte
-            comparison = operator.replace("nlevel_", "")
+        if operator.startswith(("nlevel_", "depth_")):
+            # nlevel_eq, nlevel_gt, nlevel_gte, nlevel_lt, nlevel_lte, nlevel_neq
+            # depth_eq, depth_gt, depth_gte, depth_lt, depth_lte, depth_neq (aliases)
+            if operator.startswith("depth_"):
+                comparison = operator.replace("depth_", "")
+            else:
+                comparison = operator.replace("nlevel_", "")
+
             from psycopg.sql import Composed
 
             nlevel_expr = Composed([SQL("nlevel("), casted_path, SQL(")")])
 
-            comparison_ops = {"eq": "=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+            comparison_ops = {
+                "eq": "=",
+                "neq": "!=",
+                "gt": ">",
+                "gte": ">=",
+                "lt": "<",
+                "lte": "<=",
+            }
             if comparison not in comparison_ops:
                 return None
             sql_op = comparison_ops[comparison]
