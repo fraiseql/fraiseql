@@ -29,6 +29,11 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "descendant_of",
         "matches_lquery",
         "matches_ltxtquery",
+        "matches_any_lquery",  # Array matching
+        "in_array",  # Path in array
+        "array_contains",  # Array contains path
+        "concat",  # Path concatenation
+        "lca",  # Lowest common ancestor
         "isnull",
     }
 
@@ -43,6 +48,11 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             "descendant_of",
             "matches_lquery",
             "matches_ltxtquery",
+            "matches_any_lquery",
+            "in_array",
+            "array_contains",
+            "concat",
+            "lca",
         }:
             return True
 
@@ -105,6 +115,94 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 negate=True,
                 cast_values="ltree",
             )
+
+        # Array operators
+        if operator == "matches_any_lquery":
+            # path ? ARRAY[lquery1, lquery2, ...]
+            if not isinstance(value, list):
+                raise TypeError(f"matches_any_lquery requires a list, got {type(value)}")
+            if not value:
+                raise ValueError("matches_any_lquery requires at least one pattern")
+
+            # Build: (path)::ltree ? ARRAY['pattern1', 'pattern2', ...]
+            from psycopg.sql import Composed
+
+            parts = [casted_path, SQL(" ? ARRAY[")]
+            for i, pattern in enumerate(value):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(str(pattern)))
+            parts.append(SQL("]"))
+            return Composed(parts)
+
+        if operator == "in_array":
+            # path <@ ARRAY[path1, path2, ...]
+            if not isinstance(value, list):
+                raise TypeError(f"in_array requires a list, got {type(value)}")
+
+            # Build: (path)::ltree <@ ARRAY['path1'::ltree, 'path2'::ltree, ...]
+            from psycopg.sql import Composed
+
+            parts = [casted_path, SQL(" <@ ARRAY[")]
+            for i, path in enumerate(value):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(str(path)), SQL("::ltree")])
+            parts.append(SQL("]"))
+            return Composed(parts)
+
+        if operator == "array_contains":
+            # ARRAY[path1, path2, ...] @> target_path
+            # value can be (array, target) or (array, ignored_path_sql, target)
+            if not isinstance(value, tuple):
+                raise TypeError(f"array_contains requires a tuple, got {type(value)}")
+
+            # Handle both (array, target) and (array, path_sql, target) formats
+            if len(value) == 2:
+                paths_array, target_path = value
+            elif len(value) == 3:
+                paths_array, _, target_path = value  # Middle element ignored
+            else:
+                raise TypeError(f"array_contains requires tuple of length 2 or 3, got {len(value)}")
+
+            if not isinstance(paths_array, list):
+                raise TypeError(
+                    f"array_contains first element must be a list, got {type(paths_array)}"
+                )
+
+            # Build: ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
+            from psycopg.sql import Composed
+
+            parts = [SQL("ARRAY[")]
+            for i, path in enumerate(paths_array):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(str(path)), SQL("::ltree")])
+            parts.extend([SQL("] @> "), Literal(str(target_path)), SQL("::ltree")])
+            return Composed(parts)
+
+        # Path manipulation operators
+        if operator == "concat":
+            # path1 || path2 - concatenate two ltree paths
+            return SQL("{} || {}::ltree").format(casted_path, Literal(str(value)))
+
+        if operator == "lca":
+            # lca(ARRAY[path1, path2, ...]) - lowest common ancestor
+            if not isinstance(value, list):
+                raise TypeError(f"lca operator requires a list of paths, got {type(value)}")
+            if not value:
+                raise ValueError("lca operator requires at least one path")
+
+            # Build: lca(ARRAY['path1'::ltree, 'path2'::ltree, ...])
+            from psycopg.sql import Composed
+
+            parts = [SQL("lca(ARRAY[")]
+            for i, path in enumerate(value):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(str(path)), SQL("::ltree")])
+            parts.append(SQL("])"))
+            return Composed(parts)
 
         # NULL checking
         if operator == "isnull":
