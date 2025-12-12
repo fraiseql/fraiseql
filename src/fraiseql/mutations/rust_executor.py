@@ -40,6 +40,7 @@ async def execute_mutation_rust(
     config: Any | None = None,
     success_type_class: Type | None = None,
     success_type_fields: list[str] | None = None,
+    error_type_fields: list[str] | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -61,6 +62,7 @@ async def execute_mutation_rust(
         success_type_class: Python Success type class for entity flattening.
             If provided, will flatten entity JSONB fields to match Success type schema.
         success_type_fields: List of field names expected in Success type for validation.
+        error_type_fields: List of field names expected in Error type for field selection.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -127,6 +129,8 @@ async def execute_mutation_rust(
             entity_type,
             None,  # cascade_selections
             auto_camel_case,  # Pass config flag
+            success_type_fields,  # Success type field list
+            error_type_fields,  # Error type field list
         )
         return RustResponseBytes(response_bytes)
 
@@ -207,6 +211,7 @@ async def execute_mutation_rust(
         cascade_selections,
         auto_camel_case,  # Pass config flag
         success_type_fields,  # Pass field list for schema validation
+        error_type_fields,  # Pass error type field list for auto-injection
     )
 
     # Validate Rust response structure

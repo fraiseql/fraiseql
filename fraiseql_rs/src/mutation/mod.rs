@@ -45,6 +45,7 @@ use serde_json::Value;
 /// * `cascade_selections` - Optional cascade field selections JSON
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
+/// * `error_type_fields` - Optional list of expected fields in error type for field selection
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -55,6 +56,7 @@ pub fn build_mutation_response(
     cascade_selections: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
+    error_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
     let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
@@ -80,6 +82,7 @@ pub fn build_mutation_response(
         entity_type,
         auto_camel_case,
         success_type_fields.as_ref(),
+        error_type_fields.as_ref(),
         cascade_selections,
     )?;
 

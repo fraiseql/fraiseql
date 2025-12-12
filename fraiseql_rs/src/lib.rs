@@ -308,7 +308,7 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 /// Raises:
 ///     ValueError: If JSON is malformed or transformation fails
 #[pyfunction]
-#[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None))]
+#[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -319,6 +319,7 @@ pub fn build_mutation_response(
     cascade_selections: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
+    error_type_fields: Option<Vec<String>>,
 ) -> PyResult<Vec<u8>> {
     mutation::build_mutation_response(
         mutation_json,
@@ -330,6 +331,7 @@ pub fn build_mutation_response(
         cascade_selections,
         auto_camel_case,
         success_type_fields,
+        error_type_fields,
     )
     .map_err(pyo3::exceptions::PyValueError::new_err)
 }

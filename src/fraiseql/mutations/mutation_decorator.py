@@ -415,7 +415,9 @@ class MutationDefinition:
                 # Extract selected fields from GraphQL query for field filtering
                 # Returns None if no specific selection found (backward compat: return all fields)
                 success_type_fields = _extract_mutation_selected_fields(info, success_type_name)
-                logger.debug(f"Selected fields from query: {success_type_fields}")
+                error_type_fields = _extract_mutation_selected_fields(info, error_type_name)
+                logger.debug(f"Selected success fields from query: {success_type_fields}")
+                logger.debug(f"Selected error fields from query: {error_type_fields}")
 
                 # Extract CASCADE selections from GraphQL query
                 cascade_selections_json = self._get_cascade_selections(info)
@@ -434,6 +436,7 @@ class MutationDefinition:
                         cascade_selections=cascade_selections_json,
                         success_type_class=self.success_type,
                         success_type_fields=success_type_fields,
+                        error_type_fields=error_type_fields,
                     )
                     logger.debug(f"Mutation {self.name} executed successfully")
                 except Exception as e:

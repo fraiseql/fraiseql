@@ -19,6 +19,7 @@ pub fn build_graphql_response(
     _entity_type: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
+    error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     // Success status returns Success type, all others return Error type
@@ -33,12 +34,12 @@ pub fn build_graphql_response(
         )?
     } else {
         // NEW: Error response includes REST-like code
-        // For error responses, we need error_type_fields (same as success_type_fields for now)
+        // For error responses, use error_type_fields for field selection
         build_error_response_with_code(
             result,
             error_type,
             auto_camel_case,
-            success_type_fields,  // Use same field selection for errors
+            error_type_fields,  // Use error type field selection
             cascade_selections,
         )?
     };
@@ -297,6 +298,18 @@ pub fn build_error_response_with_code(
     error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
+    // DEBUG: Log function call and parameters
+    eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
+    eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
+    eprintln!("╠══════════════════════════════════════════════════════════════╣");
+    eprintln!("  error_type: {}", error_type);
+    eprintln!("  auto_camel_case: {}", auto_camel_case);
+    eprintln!("  error_type_fields: {:?}", error_type_fields);
+    eprintln!("  result.status: {}", result.status);
+    eprintln!("  result.message: {:?}", result.message);
+    eprintln!("  result.entity: {}", if result.entity.is_some() { "Some(...)" } else { "None" });
+    eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
+
     let mut obj = Map::new();
 
     // Add __typename (always included, special GraphQL field)
@@ -307,9 +320,14 @@ pub fn build_error_response_with_code(
     let empty_vec = Vec::new();
     let selected_fields = error_type_fields.unwrap_or(&empty_vec);
 
+    eprintln!("  ├─ should_filter: {}", should_filter);
+    eprintln!("  └─ selected_fields: {:?}", selected_fields);
+
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
-        !should_filter || selected_fields.contains(&field_name.to_string())
+        let result = !should_filter || selected_fields.contains(&field_name.to_string());
+        eprintln!("    is_selected(\"{}\"): {}", field_name, result);
+        result
     };
 
     // Add REST-like code field (always included for compatibility)
@@ -317,15 +335,22 @@ pub fn build_error_response_with_code(
     // Even if not explicitly selected in GraphQL query, we must include it
     let code = map_status_to_code(&result.status);
     obj.insert("code".to_string(), json!(code));
+    eprintln!("    ✓ Added 'code': {}", code);
 
     // Add status if selected
     if is_selected("status") {
         obj.insert("status".to_string(), json!(result.status.to_string()));
+        eprintln!("    ✓ Added 'status': {}", result.status);
+    } else {
+        eprintln!("    ✗ Skipped 'status' (not selected)");
     }
 
     // Add message if selected
     if is_selected("message") {
         obj.insert("message".to_string(), json!(result.message));
+        eprintln!("    ✓ Added 'message': {:?}", result.message);
+    } else {
+        eprintln!("    ✗ Skipped 'message' (not selected)");
     }
 
     // Add errors array if selected
