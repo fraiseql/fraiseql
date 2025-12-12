@@ -7,6 +7,161 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2025-12-12
+
+### Features
+
+#### Auto-inject `code` field on Error types
+- `code` field is now automatically injected on all Error types
+- **BREAKING**: Remove manual `code: int` definitions (no longer needed)
+- `code` value is computed from `status` field (422, 404, 409, 500)
+- Provides REST-like error codes for better DX without manual boilerplate
+
+**Before (v1.8.0)**:
+```python
+@fraiseql.error
+class CreateMachineError:
+    code: int  # ❌ Required manual definition
+```
+
+**After (v1.8.1)**:
+```python
+@fraiseql.error
+class CreateMachineError:
+    pass  # ✅ code auto-injected (computed from status)
+```
+
+#### Named fragment support in field extraction
+- Field extraction now supports both inline fragments (`... on Type`) and named fragments (`...FragmentName`)
+- Fixes field selection reliability issues with GraphQL named fragments
+- Named fragments are resolved via `info.fragments` and properly extract selected fields
+
+**Example**:
+```graphql
+fragment MachineFields on CreateMachineSuccess {
+    status
+    message
+    machine { id name }
+}
+
+mutation CreateMachine($input: CreateMachineInput!) {
+    createMachine(input: $input) {
+        ...MachineFields  # ✅ Now properly extracts: status, message, machine
+    }
+}
+```
+
+### Breaking Changes
+
+#### Remove `updated_fields` from Error types
+- Error types no longer have `updated_fields` field auto-injected
+- **Rationale**: Errors represent failed operations - nothing was updated
+- **Action Required**: Remove `updatedFields` from Error type GraphQL queries
+
+**Before**:
+```graphql
+... on CreateMachineError {
+    code
+    status
+    message
+    updatedFields  # ❌ Remove this
+    id             # ❌ Remove this
+}
+```
+
+**After**:
+```graphql
+... on CreateMachineError {
+    code    # ✅ Still available (now auto-injected)
+    status
+    message
+    errors { identifier message }
+}
+```
+
+#### Remove `id` from Error types
+- Error types no longer have `id` field auto-injected
+- **Rationale**: Errors represent failed operations - nothing was created
+- **Action Required**: Remove `id` from Error type GraphQL queries
+
+### Improvements
+
+#### Rust response builder cleanup
+- Removed dead code for `errors` field on Success responses
+- Success types don't have `errors` field (semantically incorrect)
+- Cleaner code with proper semantic separation
+
+#### Production-safe diagnostic logging
+- All diagnostic logging wrapped in `#[cfg(debug_assertions)]`
+- Zero performance impact in release builds
+- Conditional Python logging via `FRAISEQL_DEBUG_FIELD_EXTRACTION` env var
+
+#### Comprehensive canary test suite
+- Added 6 canary tests to prevent future regressions
+- Tests validate exact field counts and types for Success/Error types
+- Will break loudly if auto-injection logic changes unexpectedly
+
+### Migration Guide
+
+**For Error Type Definitions**:
+```python
+# Before (v1.8.0):
+@fraiseql.error
+class CreateMachineError:
+    code: int  # Remove this line
+
+# After (v1.8.1):
+@fraiseql.error
+class CreateMachineError:
+    pass  # code auto-injected
+```
+
+**For GraphQL Queries**:
+```graphql
+# Before:
+... on CreateMachineError {
+    code
+    status
+    message
+    updatedFields  # Remove
+    id             # Remove
+}
+
+# After:
+... on CreateMachineError {
+    code    # Still available (auto-injected)
+    status
+    message
+    errors { identifier message }
+}
+```
+
+**Field Summary**:
+
+| Field | Success Type | Error Type | Notes |
+|-------|--------------|------------|-------|
+| `status` | ✅ Auto-injected | ✅ Auto-injected | Operation status |
+| `message` | ✅ Auto-injected | ✅ Auto-injected | Human-readable message |
+| `code` | ❌ Not present | ✅ **NEW** Auto-injected | HTTP-like error code |
+| `errors` | ❌ Not present | ✅ Auto-injected | Field-level errors |
+| `updated_fields` | ✅ Auto-injected | ❌ **REMOVED** v1.8.1 | Only on success |
+| `id` | ✅ Auto-injected (conditional) | ❌ **REMOVED** v1.8.1 | Only on success |
+
+### Files Changed
+
+**Python**:
+- `src/fraiseql/mutations/decorators.py` - Auto-inject code on Error types, remove updatedFields/id
+- `src/fraiseql/mutations/mutation_decorator.py` - Add named fragment support
+
+**Rust**:
+- `fraiseql_rs/src/mutation/response_builder.rs` - Remove errors from Success, wrap debug logging
+
+**Tests**:
+- `tests/mutations/test_canary.py` - New canary test suite (6 tests)
+- `tests/mutations/test_field_extraction_edge_cases.py` - Update named fragment test
+
+---
+
 ### Fixed
 
 #### Auto-populated mutation fields now properly registered in GraphQL schema and filtered by selection
