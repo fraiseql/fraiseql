@@ -16,7 +16,7 @@ class CreateUserSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     message: str
     code: str

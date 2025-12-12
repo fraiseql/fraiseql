@@ -74,7 +74,7 @@ def test_schema_introspection_v2(clear_registry) -> None:
     class CreateUserSuccess:
         user: GQLUser
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError:
         message: str
         code: int
@@ -126,7 +126,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
         user: GQLUser
         code: int = 200
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError:
         message: str
         code: int
@@ -207,7 +207,7 @@ def test_schema_structure(clear_registry) -> None:
         status: str
         message: str
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError:
         status: str
         message: str
@@ -256,7 +256,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
         metadata: JSON | None = None
         code: int = 200
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError:
         status: str
         message: str
@@ -313,7 +313,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
         metadata: JSON | None = None
         code: int = 200
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError:
         status: str
         message: str

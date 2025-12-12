@@ -62,7 +62,7 @@ class CreateNetworkConfigurationSuccess:
     network_configuration: dict[str, Any]
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateNetworkConfigurationError:
     message: str
     conflict_network_configuration: dict[str, Any] | None = None

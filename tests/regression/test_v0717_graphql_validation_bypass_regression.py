@@ -49,7 +49,7 @@ class CreateUserSuccess:
     name: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     """Error response for user creation."""
 

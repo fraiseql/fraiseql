@@ -201,7 +201,7 @@ def test_both_mutation_styles_in_same_app() -> None:
         branch: Branch
         message: str
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateError:
         message: str
 

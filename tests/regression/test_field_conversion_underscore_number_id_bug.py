@@ -36,7 +36,7 @@ class CreateNetworkConfigurationSuccess:
     message: str = "Network configuration created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateNetworkConfigurationError:
     """Error response for network configuration creation."""
 
@@ -272,7 +272,7 @@ async def test_various_underscore_number_id_patterns() -> None:
     class TestSuccess:
         result: dict[str, Any]
 
-    @fraiseql.failure
+    @fraiseql.error
     class TestError:
         message: str
 

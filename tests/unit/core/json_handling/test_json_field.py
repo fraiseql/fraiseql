@@ -64,7 +64,7 @@ async def test_json_field_in_mutation() -> None:
     class CreateUserSuccess(BaseResult):
         user: Annotated[GQLUser, fraise_field()]
 
-    @fraiseql.failure
+    @fraiseql.error
     class CreateUserError(BaseResult):
         duplicate_user: GQLUser | None = None
 

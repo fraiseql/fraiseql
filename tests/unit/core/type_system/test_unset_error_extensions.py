@@ -34,7 +34,7 @@ class SampleSuccess:
     item: SampleType
 
 
-@fraiseql.failure
+@fraiseql.error
 class SampleError:
     """Error response."""
 

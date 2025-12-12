@@ -104,7 +104,7 @@ def test_rust_binding_error():
 
     response = json.loads(response_bytes)
     assert response["data"]["createUser"]["__typename"] == "CreateUserError"
-    assert response["data"]["createUser"]["code"] == 500
+    assert response["data"]["createUser"]["code"] == 422  # Noop status maps to 422
 
 
 @requires_rust

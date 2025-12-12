@@ -50,13 +50,13 @@ class CreateItemComponentSuccess:
 
 
 # Define failure types
-@fraiseql.failure
+@fraiseql.error
 class CreateItemError:
     message: str
     code: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateItemComponentError:
     message: str
     code: str

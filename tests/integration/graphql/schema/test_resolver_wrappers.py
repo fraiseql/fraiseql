@@ -200,7 +200,7 @@ class TestWrapResolver:
             id: str
             message: str
 
-        @fraiseql.failure
+        @fraiseql.error
         class CreateError:
             message: str
             code: int

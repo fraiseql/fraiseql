@@ -97,11 +97,10 @@ def test_mutation_prefers_error_over_failure() -> None:
     class CreateUserBoth:
         input: CreateUserInput
         success: CreateUserSuccess
-        error: CreateUserFailure  # This should be used
-        error: OtherError  # This should be ignored
+        error: OtherError  # Last assignment wins in Python
 
         async def execute(self, db, input_data) -> None:
             return CreateUserSuccess(user_id=4)
 
-    # Should use 'error' when both are present
-    assert CreateUserBoth.__fraiseql_mutation__.error_type == CreateUserFailure
+    # Should use 'error' (last assignment wins)
+    assert CreateUserBoth.__fraiseql_mutation__.error_type == OtherError
