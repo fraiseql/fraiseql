@@ -95,19 +95,23 @@ pub fn build_success_response(
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     // 🔍 DIAGNOSTIC LOGGING (from FraiseQL team investigation)
-    eprintln!("🔍 RUST FIELD SELECTION DEBUG:");
-    eprintln!("  Type: {}", success_type);
-    eprintln!("  Entity field name: {:?}", entity_field_name);
-    eprintln!("  success_type_fields: {:?}", success_type_fields);
-    eprintln!("  should_filter: {}", success_type_fields.is_some());
+    // Wrapped in debug_assertions to avoid performance impact in release builds
+    #[cfg(debug_assertions)]
+    {
+        eprintln!("🔍 RUST FIELD SELECTION DEBUG:");
+        eprintln!("  Type: {}", success_type);
+        eprintln!("  Entity field name: {:?}", entity_field_name);
+        eprintln!("  success_type_fields: {:?}", success_type_fields);
+        eprintln!("  should_filter: {}", success_type_fields.is_some());
 
-    // 🔍 DIAGNOSTIC LOGGING - Database result
-    eprintln!("  Database result:");
-    eprintln!("    status: {:?}", result.status);
-    eprintln!("    message: {:?}", result.message);
-    eprintln!("    entity_id: {:?}", result.entity_id);
-    eprintln!("    has entity: {}", result.entity.is_some());
-    eprintln!("    updated_fields: {:?}", result.updated_fields);
+        // 🔍 DIAGNOSTIC LOGGING - Database result
+        eprintln!("  Database result:");
+        eprintln!("    status: {:?}", result.status);
+        eprintln!("    message: {:?}", result.message);
+        eprintln!("    entity_id: {:?}", result.entity_id);
+        eprintln!("    has entity: {}", result.entity.is_some());
+        eprintln!("    updated_fields: {:?}", result.updated_fields);
+    }
 
     let mut obj = Map::new();
 
@@ -120,52 +124,59 @@ pub fn build_success_response(
     let selected_fields = success_type_fields.unwrap_or(&empty_vec);
 
     // 🔍 DIAGNOSTIC LOGGING (continued)
-    eprintln!("  selected_fields count: {}", selected_fields.len());
-    eprintln!("  selected_fields: {:?}", selected_fields);
+    #[cfg(debug_assertions)]
+    {
+        eprintln!("  selected_fields count: {}", selected_fields.len());
+        eprintln!("  selected_fields: {:?}", selected_fields);
+    }
 
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
         let result = !should_filter || selected_fields.contains(&field_name.to_string());
+        #[cfg(debug_assertions)]
         eprintln!("    is_selected({}): {}", field_name, result);
         result
     };
 
     // 🔍 DIAGNOSTIC LOGGING - Check each field
+    #[cfg(debug_assertions)]
     eprintln!("  Checking field selections:");
 
     // Add id from entity_id if present AND selected
     if is_selected("id") {
         if let Some(ref entity_id) = result.entity_id {
+            #[cfg(debug_assertions)]
             eprintln!("    Adding 'id' to response");
             obj.insert("id".to_string(), json!(entity_id));
         }
     } else {
+        #[cfg(debug_assertions)]
         eprintln!("    SKIPPING 'id' (not selected)");
     }
 
     // Add message if selected
     if is_selected("message") {
+        #[cfg(debug_assertions)]
         eprintln!("    Adding 'message' to response");
         obj.insert("message".to_string(), json!(result.message));
     } else {
+        #[cfg(debug_assertions)]
         eprintln!("    SKIPPING 'message' (not selected)");
     }
 
     // Add status if selected
     if is_selected("status") {
+        #[cfg(debug_assertions)]
         eprintln!("    Adding 'status' to response");
         obj.insert("status".to_string(), json!(result.status.to_string()));
     } else {
+        #[cfg(debug_assertions)]
         eprintln!("    SKIPPING 'status' (not selected)");
     }
 
-    // Add errors array if selected (empty for success responses)
-    if is_selected("errors") {
-        eprintln!("    Adding 'errors' to response");
-        obj.insert("errors".to_string(), json!([]));
-    } else {
-        eprintln!("    SKIPPING 'errors' (not selected)");
-    }
+    // errors field removed from Success responses in v1.8.1
+    // Success types don't have errors - that's semantically incorrect
+    // errors field still exists on Error types where it belongs
 
     // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
     if result.entity.is_none() {
