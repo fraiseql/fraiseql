@@ -1,12 +1,18 @@
 -- Example SQL schema for context parameters demo
 -- This shows how to create PostgreSQL functions that work with FraiseQL context parameters
 
--- Create the mutation result type
-CREATE TYPE app.mutation_result AS (
+-- Create the mutation response type (standard FraiseQL v1.8+)
+-- Note: This example uses a simplified subset of these fields for demonstration purposes
+-- Full examples of all fields available in examples/mutation-patterns/
+CREATE TYPE app.mutation_response AS (
     status TEXT,
     message TEXT,
-    object_data JSONB,
-    extra_metadata JSONB
+    entity_id TEXT,
+    entity_type TEXT,
+    entity JSONB,
+    updated_fields TEXT[],
+    cascade JSONB,
+    metadata JSONB
 );
 
 -- Organizations table (for multi-tenancy)
@@ -63,13 +69,13 @@ CREATE OR REPLACE FUNCTION app.create_location(
     input_pk_organization INT,  -- Tenant ID from GraphQL context
     input_created_by INT,       -- User ID from GraphQL context
     input_json JSONB             -- Business data from mutation input
-) RETURNS app.mutation_result
+) RETURNS app.mutation_response
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
     v_location_id UUID;
-    v_result app.mutation_result;
+    v_result app.mutation_response;
 BEGIN
     -- Validate organization exists and is active
     IF NOT EXISTS (
@@ -148,14 +154,14 @@ CREATE OR REPLACE FUNCTION app.update_location(
     input_pk_organization INT,  -- Tenant ID from context
     input_updated_by INT,       -- User ID from context
     input_json JSONB             -- Update data
-) RETURNS app.mutation_result
+) RETURNS app.mutation_response
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
     v_location_id UUID;
     v_updated_fields TEXT[] := '{}';
-    v_result app.mutation_result;
+    v_result app.mutation_response;
 BEGIN
     -- Get location ID
     v_location_id := (input_json->>'id')::UUID;
@@ -213,13 +219,13 @@ CREATE OR REPLACE FUNCTION app.delete_location(
     input_pk_organization INT,  -- Tenant ID from context
     input_deleted_by INT,       -- User ID from context
     input_json JSONB             -- Contains location ID
-) RETURNS app.mutation_result
+) RETURNS app.mutation_response
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
     v_location_id UUID;
-    v_result app.mutation_result;
+    v_result app.mutation_response;
 BEGIN
     v_location_id := (input_json->>'id')::UUID;
 
@@ -265,7 +271,7 @@ $$;
 -- This function expects tenant_id and user_id in the JSONB payload
 CREATE OR REPLACE FUNCTION app.create_category(
     input_data JSONB  -- All data including context in single parameter
-) RETURNS app.mutation_result
+) RETURNS app.mutation_response
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -273,7 +279,7 @@ DECLARE
     v_organization_id UUID;
     v_created_by UUID;
     v_category_id UUID;
-    v_result app.mutation_result;
+    v_result app.mutation_response;
 BEGIN
     -- Extract context from the input data (not ideal)
     v_organization_id := (input_data->>'tenant_id')::UUID;
