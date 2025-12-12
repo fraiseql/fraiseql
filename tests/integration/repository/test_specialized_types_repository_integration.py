@@ -14,6 +14,7 @@ from unittest.mock import Mock
 import pytest
 
 from fraiseql.db import FraiseQLRepository
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 pytestmark = pytest.mark.integration
 
@@ -36,7 +37,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition)
+            condition_str = render_sql_for_testing(condition)
 
             print(f"IP test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -61,7 +62,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"MAC test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -87,7 +88,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"LTree test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -114,7 +115,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"Hostname test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -137,7 +138,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"Port test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -160,7 +161,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"Date test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -182,7 +183,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"DateRange test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -208,7 +209,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"Email test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -230,7 +231,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in test_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"CIDR test - Field: {field}, Op: {operator}, Value: {value}")
             print(f"Generated SQL: {condition_str}")
@@ -255,7 +256,7 @@ class TestSpecializedTypesRepositoryIntegration:
         results = []
         for field, operator, value in mixed_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
             results.append((field, condition_str))
 
             print(f"Mixed test - Field: {field}, SQL: {condition_str}")
@@ -285,7 +286,7 @@ class TestSpecializedTypesRepositoryIntegration:
 
         for field, operator, value in fallback_cases:
             condition = db._build_dict_where_condition(field, operator, value)
-            condition_str = str(condition) if condition else "None"
+            condition_str = render_sql_for_testing(condition) if condition else "None"
 
             print(f"Fallback test - Field: {field}, Op: {operator}, Result: {condition_str}")
 

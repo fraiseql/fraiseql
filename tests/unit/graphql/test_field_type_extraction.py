@@ -16,6 +16,7 @@ from fraiseql.graphql.field_type_extraction import (
     extract_field_type_from_graphql_info,
 )
 from fraiseql.types import IpAddress, MacAddress
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 
 class TestFieldTypeExtraction:
@@ -208,7 +209,7 @@ class TestNetworkFieldTypeIntegration:
 
         field_path = SQL("data->>'ipAddress'")
         sql = strategy.build_sql("eq", "8.8.8.8", field_path, field_type)
-        sql_str = str(sql)
+        sql_str = render_sql_for_testing(sql)
 
         # Should use proper network casting
         assert "::inet" in sql_str, f"Expected ::inet casting in SQL: {sql_str}"
