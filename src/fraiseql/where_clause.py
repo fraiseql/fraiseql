@@ -56,6 +56,9 @@ VECTOR_OPERATORS = {
     "jaccard_distance": "<%>",
 }
 
+# Binary vector operators (use bit type, not vector type)
+BINARY_VECTOR_OPERATORS = {"hamming_distance", "jaccard_distance"}
+
 FULLTEXT_OPERATORS = {
     "matches": "@@",
     "plain_query": "@@",
@@ -313,17 +316,35 @@ class FieldCondition:
 
                 comp_op = "<" if comparison == "lt" else "<=" if comparison == "lte" else ">"
                 vector_op = VECTOR_OPERATORS[self.operator]
+                # Escape % in operators to avoid psycopg placeholder interpretation
+                vector_op_escaped = vector_op.replace("%", "%%")
 
-                sql = Composed(
-                    [
-                        SQL("("),
-                        Identifier(self.target_column),
-                        SQL(f" {vector_op} "),
-                        SQL("%s"),
-                        SQL(f") {comp_op} "),
-                        SQL("%s"),
-                    ]
-                )
+                # Binary vectors (bit type) need different casting than regular vectors
+                if self.operator in BINARY_VECTOR_OPERATORS:
+                    # For bit type columns, no type cast needed (or use ::bit if needed)
+                    sql = Composed(
+                        [
+                            SQL("("),
+                            Identifier(self.target_column),
+                            SQL(f" {vector_op_escaped} "),
+                            SQL("%s"),
+                            SQL(f") {comp_op} "),
+                            SQL("%s"),
+                        ]
+                    )
+                else:
+                    # Regular vector type columns
+                    sql = Composed(
+                        [
+                            SQL("("),
+                            Identifier(self.target_column),
+                            SQL("::vector"),
+                            SQL(f" {vector_op_escaped} "),
+                            SQL("%s::vector"),
+                            SQL(f") {comp_op} "),
+                            SQL("%s"),
+                        ]
+                    )
                 params.extend([vector, threshold])
             elif self.operator in FULLTEXT_OPERATORS:
                 # Fulltext search operators

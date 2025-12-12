@@ -383,7 +383,7 @@ async def test_vector_limit_results(class_db_pool, test_schema, vector_test_setu
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"l2_distance": query_embedding}},
+        where={"embedding": {"l2_distance": {"vector": query_embedding, "threshold": 10.0}}},
         limit=2,
     )
 
@@ -402,17 +402,15 @@ async def test_vector_dimension_mismatch_error(
     repo = FraiseQLRepository(class_db_pool)
     wrong_dimension_embedding = [0.1, 0.2]  # Only 2 dimensions vs required 384
 
-    # This should NOT raise an exception in FraiseQL - dimension validation happens in PostgreSQL
-    result = await repo.find(
-        "test_documents",
-        where={"embedding": {"cosine_distance": wrong_dimension_embedding}},
-    )
+    # PostgreSQL will catch the dimension mismatch and raise an exception
+    # FraiseQL should not reject the query upfront - validation happens in PostgreSQL
+    from psycopg import errors as psycopg_errors
 
-    # PostgreSQL will catch the dimension mismatch and return an error
-    # The result should indicate the error from PostgreSQL
-    # For now, we just verify that FraiseQL doesn't reject the query upfront
-    # (The actual PostgreSQL error would be caught in the Rust pipeline)
-    assert result is not None  # Query was accepted by FraiseQL
+    with pytest.raises(psycopg_errors.DataException, match="different vector dimensions"):
+        await repo.find(
+            "test_documents",
+            where={"embedding": {"cosine_distance": {"vector": wrong_dimension_embedding, "threshold": 0.5}}},
+        )
 
 
 @pytest.mark.asyncio

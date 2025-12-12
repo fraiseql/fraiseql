@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fraiseql.where_clause import FieldCondition, WhereClause
+from fraiseql.where_clause import VECTOR_OPERATORS, FieldCondition, WhereClause
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +314,11 @@ def _is_nested_object_filter(
         - is_nested: True if this is a nested object filter
         - use_fk: True if should use FK column, False if should use JSONB path
     """
+    # Check if any keys are vector operators - these should not be treated as nested
+    # Example: {"cosine_distance": {"vector": [...], "threshold": 0.5}}
+    if any(k in VECTOR_OPERATORS for k in field_filter):
+        return False, False
+
     # Check if field_filter has nested operators
     # {"id": {"eq": value}} → nested
     # {"eq": value} → not nested
