@@ -180,7 +180,7 @@ async def setup_hybrid_table(class_db_pool, test_schema):
 
     Creates:
     - machine table (FK target)
-    - tv_allocation table (hybrid: machine_id FK + data JSONB)
+    - tv_allocation hybrid table (hybrid: machine_id FK + data JSONB)
     - Sample data for testing
 
     Returns:
@@ -189,6 +189,7 @@ async def setup_hybrid_table(class_db_pool, test_schema):
     import uuid
     from fraiseql.db import register_type_for_view
 
+    # Get connection, do setup, then release it before yielding
     async with class_db_pool.connection() as conn, conn.cursor() as cursor:
         # Set schema
         await cursor.execute(f"SET search_path TO {test_schema}")
@@ -238,24 +239,28 @@ async def setup_hybrid_table(class_db_pool, test_schema):
 
         await conn.commit()
 
-        # Register type metadata
-        register_type_for_view(
-            "tv_allocation",
-            object,  # Dummy type for testing
-            table_columns={"id", "machine_id", "status", "name", "data", "created_at"},
-            fk_relationships={"machine": "machine_id"},
-            has_jsonb_data=True,
-            jsonb_column="data",
-        )
+    # Connection released here - outside the context manager
 
-        yield {
-            "machine1_id": machine1_id,
-            "machine2_id": machine2_id,
-            "alloc1_id": alloc1_id,
-            "alloc2_id": alloc2_id,
-        }
+    # Register type metadata
+    register_type_for_view(
+        "tv_allocation",
+        object,  # Dummy type for testing
+        table_columns={"id", "machine_id", "status", "name", "data", "created_at"},
+        fk_relationships={"machine": "machine_id"},
+        has_jsonb_data=True,
+        jsonb_column="data",
+    )
 
-        # Cleanup
+    yield {
+        "machine1_id": machine1_id,
+        "machine2_id": machine2_id,
+        "alloc1_id": alloc1_id,
+        "alloc2_id": alloc2_id,
+    }
+
+    # Cleanup: get new connection for teardown
+    async with class_db_pool.connection() as conn, conn.cursor() as cursor:
+        await cursor.execute(f"SET search_path TO {test_schema}")
         await cursor.execute("DROP TABLE IF EXISTS tv_allocation CASCADE")
         await cursor.execute("DROP TABLE IF EXISTS machine CASCADE")
         await conn.commit()

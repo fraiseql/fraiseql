@@ -59,7 +59,7 @@ class CreatePostWithEntitySuccess:
 
 @fraiseql.type
 class CreatePostError:
-    code: str
+    code: int
     message: str
 
 

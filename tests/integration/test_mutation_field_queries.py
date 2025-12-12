@@ -5,6 +5,8 @@ import pytest
 from fraiseql import fraise_input, fraise_type, mutation, query, success
 from fraiseql.gql.builders.registry import SchemaRegistry
 
+pytestmark = pytest.mark.usefixtures("clear_registry")
+
 
 @fraise_type(sql_source="machines")
 class Machine:

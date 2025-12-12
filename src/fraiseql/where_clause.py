@@ -212,9 +212,12 @@ class FieldCondition:
             sql_op = ALL_OPERATORS[self.operator]
 
             if self.operator in CONTAINMENT_OPERATORS:
-                # IN/NOT IN: machine_id IN %s
-                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
-                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+                # IN/NOT IN: machine_id IN (%s, %s, ...)
+                # psycopg3 requires individual placeholders, not a single %s with tuple
+                values_list = self.value if isinstance(self.value, list) else [self.value]
+                placeholders = ", ".join(["%s"] * len(values_list))
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} ({placeholders})")])
+                params.extend(values_list)
             elif self.operator == "isnull":
                 # IS NULL / IS NOT NULL
                 null_op = "IS NULL" if self.value else "IS NOT NULL"
@@ -245,8 +248,11 @@ class FieldCondition:
             jsonb_expr = Composed(path_parts)
 
             if self.operator in CONTAINMENT_OPERATORS:
-                sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
-                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+                # IN/NOT IN: psycopg3 requires individual placeholders
+                values_list = self.value if isinstance(self.value, list) else [self.value]
+                placeholders = ", ".join(["%s"] * len(values_list))
+                sql = Composed([jsonb_expr, SQL(f" {sql_op} ({placeholders})")])
+                params.extend(values_list)
             elif self.operator == "isnull":
                 null_op = "IS NULL" if self.value else "IS NOT NULL"
                 sql = Composed([jsonb_expr, SQL(f" {null_op}")])
@@ -276,8 +282,11 @@ class FieldCondition:
                 sql = Composed([Identifier(self.target_column), SQL(f" {op} "), SQL("%s")])
                 params.append(self.value)
             elif self.operator in CONTAINMENT_OPERATORS:
-                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
-                params.append(tuple(self.value) if isinstance(self.value, list) else self.value)
+                # IN/NOT IN: psycopg3 requires individual placeholders
+                values_list = self.value if isinstance(self.value, list) else [self.value]
+                placeholders = ", ".join(["%s"] * len(values_list))
+                sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} ({placeholders})")])
+                params.extend(values_list)
             elif self.operator == "isnull":
                 null_op = "IS NULL" if self.value else "IS NOT NULL"
                 sql = Composed([Identifier(self.target_column), SQL(f" {null_op}")])
