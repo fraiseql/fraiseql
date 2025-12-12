@@ -124,7 +124,7 @@ FraiseQL uses Command Query Responsibility Segregation:
 
 ### Performance Optimizations
 
-See [OPTIMIZATIONS.md](OPTIMIZATIONS.md) for detailed performance optimizations applied.
+See [optimizations.md](optimizations.md) for detailed performance optimizations applied.
 
 ## Configuration
 
@@ -280,7 +280,7 @@ frameworks/fraiseql/
 ├── migrations/         # Database schema
 ├── docker-compose.yml  # Container orchestration
 ├── Dockerfile          # Application container
-├── OPTIMIZATIONS.md    # Performance details
+├── optimizations.md    # Performance details
 └── README.md           # This file
 ```
 

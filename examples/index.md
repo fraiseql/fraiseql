@@ -118,7 +118,7 @@ Examples for specific use cases and integrations.
 ## 🔧 Development Tools & Utilities
 
 ### Setup & Configuration
-- [`_TEMPLATE_README.md`](_TEMPLATE_README.md) - Template for new examples
+- [`_template-readme.md`](_template-readme.md) - Template for new examples
 
 ### Testing & Validation
 All examples include automated testing. Run tests with:
@@ -138,7 +138,7 @@ find . -name "*test*.py" -exec pytest {} \;
 
 ### Adding New Examples
 1. Create a new directory under `examples/`
-2. Follow the established structure (see [`_TEMPLATE_README.md`](_TEMPLATE_README.md))
+2. Follow the established structure (see [`_template-readme.md`](_template-readme.md))
 3. Add comprehensive documentation
 4. Include automated tests
 5. Update this INDEX.md file

@@ -256,7 +256,7 @@ services:
         condition: service_healthy
 ```
 
-**Documentation requirements** (in `OPTIMIZATIONS.md`):
+**Documentation requirements** (in `optimizations.md`):
 
 ```markdown
 ## Custom Database Configuration
@@ -428,7 +428,7 @@ frameworks/
     ├── Dockerfile                    # Production-ready container
     ├── docker-compose.yml            # Optional: Local testing
     ├── README.md                     # Framework-specific docs
-    ├── OPTIMIZATIONS.md              # Performance optimizations applied
+    ├── optimizations.md              # Performance optimizations applied
     ├── src/                          # Application code
     │   ├── schema.graphql            # GraphQL schema
     │   ├── resolvers/                # GraphQL resolvers
@@ -574,7 +574,7 @@ Before submitting, ensure:
 - [ ] N+1 queries are prevented (run query count tests)
 - [ ] Health check endpoint responds (`curl http://localhost:8000/health`)
 - [ ] Database connection works via `DATABASE_URL`
-- [ ] All optimizations documented in `OPTIMIZATIONS.md`
+- [ ] All optimizations documented in `optimizations.md`
 - [ ] README includes setup instructions
 - [ ] License is compatible with benchmark suite (MIT/Apache/BSD)
 - [ ] No hardcoded credentials or secrets

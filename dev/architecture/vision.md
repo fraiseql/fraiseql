@@ -669,7 +669,7 @@ docs/
 │   └── PERFORMANCE_TUNING.md
 ├── deployment/          # Production (for ops)
 │   ├── KUBERNETES.md
-│   ├── DOCKER.md
+│   ├── docker.md
 │   ├── MIGRATIONS.md
 │   ├── MONITORING.md
 │   └── SCALING.md

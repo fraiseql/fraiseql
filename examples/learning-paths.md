@@ -241,7 +241,7 @@ This document provides structured learning paths to help you master FraiseQL pro
 **Goal**: Learn development tools and best practices for FraiseQL projects.
 
 ### Essential Tools
-**[`_TEMPLATE_README.md`](_TEMPLATE_README.md)** - Example templates
+**[`_template-readme.md`](_template-readme.md)** - Example templates
 - ✅ Consistent documentation patterns
 - ✅ Testing and quality standards
 - ✅ Code organization best practices

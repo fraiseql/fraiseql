@@ -1,6 +1,6 @@
 # Benchmark Methodology
 
-**📍 Navigation**: [← Benchmarks](../benchmarks/) • [Performance Guide →](../docs/performance/PERFORMANCE_GUIDE.md) • [Results →](BENCHMARK_RESULTS.md)
+**📍 Navigation**: [← Benchmarks](../benchmarks/) • [Performance Guide →](../docs/performance/PERFORMANCE_GUIDE.md) • [Results →](benchmark-results.md)
 
 This document outlines the methodology used for FraiseQL performance benchmarking, ensuring reproducible and accurate measurements.
 

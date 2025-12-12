@@ -5,16 +5,16 @@ Welcome to the FraiseQL examples collection! This directory contains 20+ compreh
 ## 🚀 Quick Start
 
 **New to FraiseQL? Start here:**
-- **[📚 Examples Index](INDEX.md)** - Complete organized catalog of all examples
-- **[🎯 Learning Paths](LEARNING_PATHS.md)** - Structured progression from beginner to expert
+- **[📚 Examples Index](index.md)** - Complete organized catalog of all examples
+- **[🎯 Learning Paths](learning-paths.md)** - Structured progression from beginner to expert
 - **[`todo_quickstart.py`](todo_quickstart.py)** - 5-minute introduction to basic GraphQL API
 
 ## 📖 Navigation
 
 | Document | Purpose | Best For |
 |----------|---------|----------|
-| **[INDEX.md](INDEX.md)** | Complete catalog by difficulty and use case | Finding specific examples |
-| **[LEARNING_PATHS.md](LEARNING_PATHS.md)** | Structured learning progression | Following guided paths |
+| **[index.md](index.md)** | Complete catalog by difficulty and use case | Finding specific examples |
+| **[learning-paths.md](learning-paths.md)** | Structured learning progression | Following guided paths |
 | **[This README](README.md)** | Overview and legacy content | Understanding scope |
 
 ## 🎯 Popular Starting Points
@@ -44,7 +44,7 @@ Welcome to the FraiseQL examples collection! This directory contains 20+ compreh
 - **⚡ Performance & Caching** - Optimization, APQ, query routing
 - **🏢 Enterprise Patterns** - Compliance, multi-tenancy, audit trails
 
-See **[INDEX.md](INDEX.md)** for the complete organized catalog.
+See **[index.md](index.md)** for the complete organized catalog.
 
 ## 🏢 Enterprise Patterns (`enterprise_patterns/`)
 
@@ -54,7 +54,7 @@ Complete showcase of all FraiseQL enterprise patterns including mutation results
 
 **⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Enterprise** | **🏷️ Tags: audit, validation, compliance, production**
 
-See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
+See **[index.md](index.md)** for setup instructions and related examples.
 
 ## 🏪 E-commerce (`ecommerce/`)
 
@@ -62,7 +62,7 @@ Complete e-commerce platform with product catalog, shopping cart, orders, review
 
 **⏱️ Time: 30 min** | **🏷️ Difficulty: Intermediate** | **🎯 Use Case: E-commerce** | **🏷️ Tags: business, transactions, catalog, search**
 
-See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
+See **[index.md](index.md)** for setup instructions and related examples.
 
 ## 💬 Real-time Chat (`real_time_chat/`)
 
@@ -82,7 +82,7 @@ Content management with enterprise patterns, authentication, and audit trails.
 
 **⏱️ Time: 15 min** | **🏷️ Difficulty: Beginner** | **🎯 Use Case: Content Management** | **🏷️ Tags: cms, authentication, crud, enterprise**
 
-See **[INDEX.md](INDEX.md)** for complete details and setup instructions.
+See **[index.md](index.md)** for complete details and setup instructions.
 
 ## 📈 Performance & Architecture
 
@@ -148,4 +148,4 @@ uvicorn app:app --reload
 
 ---
 
-*This examples hub provides organized access to 20+ FraiseQL examples. Use [INDEX.md](INDEX.md) to find specific examples or [LEARNING_PATHS.md](LEARNING_PATHS.md) for structured learning progression.*
+*This examples hub provides organized access to 20+ FraiseQL examples. Use [index.md](index.md) to find specific examples or [learning-paths.md](learning-paths.md) for structured learning progression.*

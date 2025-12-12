@@ -100,5 +100,5 @@ find tests/integration/database/sql/where -name "__init__.py"
 
 ## Need Help?
 - Full docs: `README.md`
-- Migration details: `MIGRATION_HISTORY.md`
+- Migration details: `migration-history.md`
 - Contributing: `../../../../../../CONTRIBUTING.md`
