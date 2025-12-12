@@ -150,7 +150,7 @@ class CreateRole:
 
     input: CreateRoleInput
     success: RoleMutationResult
-    failure: RoleMutationResult
+    error: RoleMutationResult
 
     @staticmethod
     def sql(
@@ -221,7 +221,7 @@ class UpdateRole:
 
     input: UpdateRoleInput
     success: RoleMutationResult
-    failure: RoleMutationResult
+    error: RoleMutationResult
 
     @staticmethod
     def sql(
@@ -291,7 +291,7 @@ class DeleteRole:
 
     input: DeleteRoleInput
     success: RoleMutationResult
-    failure: RoleMutationResult
+    error: RoleMutationResult
 
     @staticmethod
     def sql(role_id: UUID) -> str:
@@ -324,7 +324,7 @@ class CreatePermission:
 
     input: CreatePermissionInput
     success: PermissionMutationResult
-    failure: PermissionMutationResult
+    error: PermissionMutationResult
 
     @staticmethod
     def sql(
@@ -388,7 +388,7 @@ class UpdatePermission:
 
     input: UpdatePermissionInput
     success: PermissionMutationResult
-    failure: PermissionMutationResult
+    error: PermissionMutationResult
 
     @staticmethod
     def sql(
@@ -464,7 +464,7 @@ class DeletePermission:
 
     input: DeletePermissionInput
     success: PermissionMutationResult
-    failure: PermissionMutationResult
+    error: PermissionMutationResult
 
     @staticmethod
     def sql(permission_id: UUID) -> str:
@@ -497,7 +497,7 @@ class GrantPermissionToRole:
 
     input: GrantPermissionToRoleInput
     success: RolePermissionMutationResult
-    failure: RolePermissionMutationResult
+    error: RolePermissionMutationResult
 
     @staticmethod
     def sql(role_id: UUID, permission_id: UUID) -> str:
@@ -534,7 +534,7 @@ class RevokePermissionFromRole:
 
     input: RevokePermissionFromRoleInput
     success: RolePermissionMutationResult
-    failure: RolePermissionMutationResult
+    error: RolePermissionMutationResult
 
     @staticmethod
     def sql(role_id: UUID, permission_id: UUID) -> str:
@@ -571,7 +571,7 @@ class AssignRoleToUser:
 
     input: AssignRoleToUserInput
     success: UserRoleMutationResult
-    failure: UserRoleMutationResult
+    error: UserRoleMutationResult
 
     @staticmethod
     def sql(
@@ -638,7 +638,7 @@ class RevokeRoleFromUser:
 
     input: RevokeRoleFromUserInput
     success: UserRoleMutationResult
-    failure: UserRoleMutationResult
+    error: UserRoleMutationResult
 
     @staticmethod
     def sql(

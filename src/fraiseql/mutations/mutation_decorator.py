@@ -123,9 +123,7 @@ class MutationDefinition:
         hints = get_type_hints(mutation_class)
         self.input_type = hints.get("input")
         self.success_type = hints.get("success")
-        self.error_type = hints.get("error") or hints.get(
-            "failure",
-        )  # Support both 'error' and 'failure'
+        self.error_type = hints.get("error")
 
         # Derive function name from class name if not provided
         if function_name:
