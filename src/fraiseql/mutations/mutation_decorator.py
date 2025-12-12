@@ -56,35 +56,21 @@ def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) 
 
     Extracts: ["status", "machine"] for type_name="CreateMachineSuccess"
     """
-    # 🔍 DIAGNOSTIC LOGGING
-    logger.warning("🔍 FIELD EXTRACTION DEBUG:")
-    logger.warning(f"  Type name: {type_name}")
-
     if not info or not info.field_nodes:
-        logger.warning("  No info or field_nodes - returning None")
         return None
 
     selected_fields = set()
 
     # Mutations typically have one field_node (the mutation field)
     for field_node in info.field_nodes:
-        logger.warning(
-            f"  Field node: {field_node.name.value if hasattr(field_node, 'name') else 'no name'}"
-        )
-
         if not field_node.selection_set:
-            logger.warning("    No selection_set on field_node")
             continue
 
         # Look through selections for fragments matching our type
         for selection in field_node.selection_set.selections:
-            logger.warning(f"    Selection: {type(selection).__name__}")
-
             # InlineFragment with type condition (e.g., "... on CreateMachineSuccess")
             if hasattr(selection, "type_condition") and selection.type_condition:
                 fragment_type = selection.type_condition.name.value
-                logger.warning(f"      Inline fragment: {fragment_type}")
-                logger.warning(f"      Matches {type_name}? {fragment_type == type_name}")
 
                 if fragment_type == type_name and selection.selection_set:
                     # Extract fields from this inline fragment
@@ -97,22 +83,15 @@ def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) 
 
                 if fragment and hasattr(fragment, "type_condition"):
                     fragment_type = fragment.type_condition.name.value
-                    logger.warning(f"      Named fragment: {fragment_name} → {fragment_type}")
-                    logger.warning(f"      Matches {type_name}? {fragment_type == type_name}")
 
                     if fragment_type == type_name:
                         # Extract fields from this named fragment
                         _extract_fields_from_selection_set(fragment.selection_set, selected_fields)
 
-    # 🔍 DIAGNOSTIC LOGGING
     if not selected_fields:
-        logger.warning("  Extracted fields: None (no fields found - backward compat mode)")
         return None
 
     result = list(selected_fields)
-    logger.warning(f"  Extracted fields: {result}")
-    logger.warning(f"  Field count: {len(result)}")
-
     return result
 
 
@@ -439,29 +418,6 @@ class MutationDefinition:
                 # Returns None if no specific selection found (backward compat: return all fields)
                 success_type_fields = _extract_mutation_selected_fields(info, success_type_name)
                 logger.debug(f"Selected fields from query: {success_type_fields}")
-
-                # 🔍 DIAGNOSTIC LOGGING (from FraiseQL team investigation)
-                logger.warning("🔍 FIELD EXTRACTION DEBUG:")
-                logger.warning(f"  Type name: {success_type_name}")
-                logger.warning(f"  Extracted fields: {success_type_fields}")
-                logger.warning(
-                    f"  Field count: {len(success_type_fields) if success_type_fields else 'None'}"
-                )
-
-                if info and info.field_nodes:
-                    for node in info.field_nodes:
-                        node_name = node.name.value if hasattr(node, "name") else "no name"
-                        logger.warning(f"  Field node: {node_name}")
-                        if hasattr(node, "selection_set") and node.selection_set:
-                            for sel in node.selection_set.selections:
-                                logger.warning(f"    Selection: {type(sel).__name__}")
-                                if hasattr(sel, "type_condition"):
-                                    type_cond = (
-                                        sel.type_condition.name.value
-                                        if sel.type_condition
-                                        else "None"
-                                    )
-                                    logger.warning(f"      Type condition: {type_cond}")
 
                 # Extract CASCADE selections from GraphQL query
                 cascade_selections_json = self._get_cascade_selections(info)

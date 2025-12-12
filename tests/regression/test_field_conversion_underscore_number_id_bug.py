@@ -181,8 +181,9 @@ class MockDatabase:
 class MockInfo:
     """Mock GraphQL info object."""
 
-    def __init__(self, db: MockDatabase) -> None:
+    def __init__(self, db: MockDatabase, field_nodes=None) -> None:
         self.context = {"db": db}
+        self.field_nodes = field_nodes or []
 
 
 @pytest.fixture(autouse=True)

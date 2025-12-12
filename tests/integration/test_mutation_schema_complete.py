@@ -53,8 +53,34 @@ def clean_registry() -> None:
 
 
 @pytest.mark.asyncio
-async def test_schema_includes_auto_populated_fields():
-    """GraphQL schema introspection should show all auto-populated fields."""
+async def test_schema_includes_auto_populated_fields(clear_registry):
+    """Test that auto-populated fields are included in the GraphQL schema."""
+
+    # Re-register types that were cleared by the fixture
+    from fraiseql import fraise_type, fraise_input, mutation, success, query
+
+    @fraise_type(sql_source="machines")
+    class Machine:
+        id: str
+        name: str
+
+    @fraise_input
+    class CreateMachineInput:
+        name: str
+
+    @success
+    class CreateMachineSuccess:
+        machine: Machine
+
+    @mutation
+    class CreateMachine:
+        input: CreateMachineInput
+        success: CreateMachineSuccess
+        failure: CreateMachineSuccess  # Using success type for simplicity in test
+
+    @query
+    async def test_health_check(info) -> str:
+        return "OK"
 
     registry = SchemaRegistry.get_instance()
     schema = registry.build_schema()
@@ -79,6 +105,12 @@ async def test_schema_includes_auto_populated_fields():
 
     result = graphql_sync(schema, introspection_query)
 
+    print(f"GraphQL Errors: {result.errors}")
+    print(f"Result data: {result.data}")
+    # Let's also check what types are actually in the schema
+    all_types = [t.name for t in schema.type_map.values() if hasattr(t, "name") and t.name]
+    print(f"Available types: {sorted(all_types)}")
+
     assert result.errors is None, f"Introspection errors: {result.errors}"
 
     field_names = {f["name"] for f in result.data["__type"]["fields"]}
@@ -87,7 +119,7 @@ async def test_schema_includes_auto_populated_fields():
     assert "machine" in field_names, "Original field missing"
     assert "status" in field_names, "status field missing from schema"
     assert "message" in field_names, "message field missing from schema"
-    assert "errors" in field_names, "errors field missing from schema"
+    # Note: 'errors' field removed in v1.8.1 - Success types no longer include errors
     assert "updatedFields" in field_names, "updatedFields missing (should be camelCase)"
     assert "id" in field_names, "id field missing from schema"
 
@@ -95,8 +127,34 @@ async def test_schema_includes_auto_populated_fields():
 
 
 @pytest.mark.asyncio
-async def test_field_types_correct():
+async def test_field_types_correct(clear_registry):
     """Auto-populated fields should have correct GraphQL types."""
+
+    # Re-register types that were cleared by the fixture
+    from fraiseql import fraise_type, fraise_input, mutation, success, query
+
+    @fraise_type(sql_source="machines")
+    class Machine:
+        id: str
+        name: str
+
+    @fraise_input
+    class CreateMachineInput:
+        name: str
+
+    @success
+    class CreateMachineSuccess:
+        machine: Machine
+
+    @mutation
+    class CreateMachine:
+        input: CreateMachineInput
+        success: CreateMachineSuccess
+        failure: CreateMachineSuccess  # Using success type for simplicity in test
+
+    @query
+    async def test_health_check(info) -> str:
+        return "OK"
 
     registry = SchemaRegistry.get_instance()
     schema = registry.build_schema()
@@ -134,10 +192,7 @@ async def test_field_types_correct():
     assert fields_by_name["id"]["kind"] == "SCALAR"
     assert fields_by_name["id"]["name"] == "String"
 
-    # errors: [Error!] (LIST of OBJECT)
-    assert fields_by_name["errors"]["kind"] == "LIST"
-    assert fields_by_name["errors"]["ofType"]["kind"] == "OBJECT"
-    assert fields_by_name["errors"]["ofType"]["name"] == "Error"
+    # Note: 'errors' field removed in v1.8.1 - Success types no longer include errors
 
     # updatedFields: [String] (LIST of SCALAR)
     assert fields_by_name["updatedFields"]["kind"] == "LIST"

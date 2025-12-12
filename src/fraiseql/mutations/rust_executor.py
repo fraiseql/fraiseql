@@ -133,20 +133,6 @@ async def execute_mutation_rust(
     # Get mutation result
     mutation_result = row[0]
 
-    # 🔍 DIAGNOSTIC LOGGING (from FraiseQL team investigation)
-    logger.warning("🔍 DATABASE RESPONSE:")
-    logger.warning(f"  Type: {type(mutation_result)}")
-    if isinstance(mutation_result, dict):
-        logger.warning(f"  Keys: {list(mutation_result.keys())}")
-        logger.warning(f"  status: {mutation_result.get('status', 'MISSING')}")
-        logger.warning(f"  errors: {mutation_result.get('errors', 'MISSING')}")
-        logger.warning(f"  message: {mutation_result.get('message', 'MISSING')}")
-    elif isinstance(mutation_result, tuple):
-        logger.warning(f"  Tuple length: {len(mutation_result)}")
-        if len(mutation_result) >= 8:
-            logger.warning(f"  status (index 0): {mutation_result[0]}")
-            logger.warning(f"  message (index 1): {mutation_result[1]}")
-
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
         # psycopg returned a dict (from JSONB or row_to_json composite)
