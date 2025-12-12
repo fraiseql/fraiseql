@@ -134,12 +134,12 @@ CREATE TYPE mutation_response AS (
 
 **No database migration needed** - this is purely a GraphQL/Python/Rust layer improvement.
 
-### Advanced: Multiple Entities in Success/Error Types
+### Advanced: Multiple Entities in Success Types
 
-Success and Error types can have **multiple entity fields** at the root level. This is common for:
-- Conflict scenarios (showing both the new and existing entity)
+**Success types** can have **multiple entity fields** at the root level. This pattern is supported and tested for:
 - Update operations (showing before and after states)
 - Related entities (showing cascaded changes)
+- Multi-entity responses
 
 **Example: Success type with multiple entities**:
 ```python
@@ -152,29 +152,23 @@ class UpdateMachineSuccess:
     # Auto-injected: status, message, updated_fields, id
 ```
 
-**Example: Error type with conflict entity**:
-```python
-@fraiseql.failure
-class CreateMachineError:
-    """Error with conflict entity."""
-    conflict_machine: Machine | None  # Existing conflicting entity
-    # Auto-injected: status, message, code, errors
-```
+**Note on Error types**: Multiple entity fields on Error types are **not currently supported** in v1.8.1. Error responses only include the auto-injected fields (`status`, `message`, `code`, `errors`). For conflict scenarios on errors, use the `metadata` field or include conflict information in the `errors` array.
 
-**Database side**: The `entity` field in `mutation_response` can be a wrapper object:
+**Database side**: The `entity` field in `mutation_response` is a wrapper object containing multiple entities:
 ```sql
--- Multiple entities example
+-- Multiple entities example (Success types only)
 result.entity := jsonb_build_object(
     'machine', row_to_json(new_machine),
-    'conflict_machine', row_to_json(existing_machine),
-    'previous_location', row_to_json(old_location)
+    'previous_location', row_to_json(old_location),
+    'new_location', row_to_json(new_location)
 );
 ```
 
-**How Rust handles this**:
-- Rust response builder extracts each entity field from the wrapper
+**How Rust handles this** (Success types):
+- Rust extracts the primary entity field (e.g., `machine`)
+- Additional fields from the wrapper are copied to the root level
 - Each entity gets its own `__typename` automatically
-- Field selection works independently for each entity
+- Field selection works for each entity field
 - Auto-injected fields (`status`, `message`, etc.) appear at the root level
 
 **GraphQL query example**:
@@ -185,12 +179,21 @@ mutation UpdateMachine($input: UpdateMachineInput!) {
             status
             message
             machine { id name }
-            previousLocation { id name }
-            newLocation { id name }
+            previousLocation { id name }  # ✅ Works (Success type)
+            newLocation { id name }        # ✅ Works (Success type)
+        }
+        ... on UpdateMachineError {
+            status
+            message
+            code
+            errors { code identifier message }
+            # ❌ conflictMachine not supported in Error types (v1.8.1)
         }
     }
 }
 ```
+
+**Test coverage**: See `tests/integration/graphql/mutations/test_multiple_entity_fields.py` for verified behavior.
 
 ### Migration Guide
 

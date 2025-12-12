@@ -12,3 +12,4 @@ mod classification;       // Stage 2: Status taxonomy
 mod response_building;    // Stage 3: MutationResult → JSON
 mod integration;          // Stage 4: End-to-end
 mod properties;           // Property-based tests
+mod test_multiple_entities;  // Multiple entity fields pattern (PrintOptim)
