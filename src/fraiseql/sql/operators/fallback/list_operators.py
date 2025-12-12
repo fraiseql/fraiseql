@@ -1,11 +1,23 @@
 """Fallback list operator strategy."""
 
+import re
 from decimal import Decimal
 from typing import Any, Optional
 
 from psycopg.sql import SQL, Composable, Literal
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
+
+# IP address pattern with validation (matches valid IPv4 and basic IPv6)
+# IPv4: octets must be 0-255
+# IPv6: simplified pattern for hex groups separated by colons
+_IP_PATTERN = re.compile(
+    r"^(?:"
+    # IPv4 with octet validation (0-255)
+    r"(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)|"
+    r"(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}"  # IPv6
+    r")$"
+)
 
 
 class ListOperatorStrategy(BaseOperatorStrategy):
@@ -37,9 +49,12 @@ class ListOperatorStrategy(BaseOperatorStrategy):
         if not isinstance(value, list):
             raise TypeError(f"'{operator}' operator requires a list, got {type(value)}")
 
-        # Apply type casting for JSONB fields based on first value type
+        # Apply type casting based on first value type
         if jsonb_column and value:
             casted_path = self._apply_type_cast(path_sql, value[0])
+        elif value and isinstance(value[0], str) and _IP_PATTERN.match(value[0]):
+            # Auto-detect IP addresses even for regular columns
+            casted_path = SQL("({})::inet").format(path_sql)
         else:
             casted_path = path_sql
 

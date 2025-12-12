@@ -1845,7 +1845,13 @@ class FraiseQLRepository:
 
             # Use the strategy to build intelligent SQL with type detection
             # This is where the IP filtering fixes from v0.7.1 are applied
-            sql_condition = strategy.build_sql(path_sql, operator, value, field_type=None)
+            sql_condition = strategy.build_sql(
+                operator=operator,
+                value=value,
+                path_sql=path_sql,
+                field_type=None,
+                jsonb_column=jsonb_column if use_jsonb_path else None,
+            )
 
             return sql_condition
 

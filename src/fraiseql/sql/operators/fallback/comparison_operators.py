@@ -1,5 +1,6 @@
 """Fallback comparison operator strategy."""
 
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
@@ -8,6 +9,17 @@ from uuid import UUID
 from psycopg.sql import SQL, Composable, Literal
 
 from fraiseql.sql.operators.base import BaseOperatorStrategy
+
+# IP address pattern with validation (matches valid IPv4 and basic IPv6)
+# IPv4: octets must be 0-255
+# IPv6: simplified pattern for hex groups separated by colons
+_IP_PATTERN = re.compile(
+    r"^(?:"
+    # IPv4 with octet validation (0-255)
+    r"(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)|"
+    r"(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}"  # IPv6
+    r")$"
+)
 
 
 class ComparisonOperatorStrategy(BaseOperatorStrategy):
@@ -45,9 +57,13 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         jsonb_column: Optional[str] = None,
     ) -> Optional[Composable]:
         """Build SQL for comparison operators with proper type casting."""
-        # Apply type casting for JSONB fields based on value type
+        # Apply type casting based on value type
+        # For JSONB, this is required; for regular columns, this adds safety
         if jsonb_column:
             casted_path = self._apply_type_cast(path_sql, value)
+        # Even for regular columns, detect IP addresses for auto-casting
+        elif isinstance(value, str) and _IP_PATTERN.match(value):
+            casted_path = SQL("({})::inet").format(path_sql)
         else:
             casted_path = path_sql
 
@@ -79,5 +95,8 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
             return SQL("({})::date").format(path_sql)
         if isinstance(value, UUID):
             return SQL("({})::uuid").format(path_sql)
+        # Check for IP address patterns (auto-detection)
+        if isinstance(value, str) and _IP_PATTERN.match(value):
+            return SQL("({})::inet").format(path_sql)
         # Default: no casting (treat as text)
         return path_sql
