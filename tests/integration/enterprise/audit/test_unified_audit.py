@@ -10,14 +10,13 @@ Demonstrates the simplified architecture:
 """
 
 from pathlib import Path
-from uuid import uuid4
-
 from typing import Any, cast
+from uuid import uuid4
 
 import psycopg.types.json
 import psycopg_pool
 import pytest
-from psycopg.sql import Composed, SQL
+from psycopg.sql import SQL
 
 from fraiseql.db import FraiseQLRepository
 

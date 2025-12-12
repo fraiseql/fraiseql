@@ -4,7 +4,6 @@ This test demonstrates that the WHERE clause generation bug has been completely
 fixed and GraphQL-style filtering now works correctly in the repository.
 """
 
-import psycopg
 import pytest
 
 from fraiseql.cqrs.repository import CQRSRepository

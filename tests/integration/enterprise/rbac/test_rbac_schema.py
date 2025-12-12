@@ -11,8 +11,6 @@ pytestmark = pytest.mark.integration
 @pytest_asyncio.fixture(autouse=True, scope="class")
 async def setup_rbac_schema(class_db_pool, test_schema) -> None:
     """Set up RBAC schema before running tests."""
-    from pathlib import Path
-
     # Read the RBAC migration file
     rbac_migration_path = Path("src/fraiseql/enterprise/migrations/002_rbac_tables.sql")
     rbac_migration_sql = rbac_migration_path.read_text()

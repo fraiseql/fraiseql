@@ -12,12 +12,6 @@ from fraiseql.introspection.metadata_parser import MetadataParser
 from fraiseql.introspection.mutation_generator import MutationGenerator
 from fraiseql.introspection.postgres_introspector import PostgresIntrospector
 from fraiseql.introspection.type_mapper import TypeMapper
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = pytest.mark.integration
 

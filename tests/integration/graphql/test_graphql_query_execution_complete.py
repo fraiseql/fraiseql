@@ -10,22 +10,11 @@ Status: ✅ PASSING - Direct path implemented and working!
 """
 
 import pytest
-from asgi_lifespan import LifespanManager
-from httpx import ASGITransport, AsyncClient
 
+# Import database fixtures
 from fraiseql import query
 from fraiseql import type as fraiseql_type
 from fraiseql.sql import create_graphql_where_input
-
-# Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    create_fraiseql_app_with_db,
-    db_connection,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = pytest.mark.integration
 
@@ -71,9 +60,10 @@ async def test_graphql_simple_query_returns_data(db_connection) -> None:
     schema = build_fraiseql_schema(query_types=[User, user])
 
     # Create a repository instance like the FastAPI app does
-    from fraiseql.db import FraiseQLRepository
-    from unittest.mock import AsyncMock, MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock
+
+    from fraiseql.db import FraiseQLRepository
 
     # Create a mock pool that returns our db_connection as an async context manager
     mock_pool = MagicMock()
@@ -145,9 +135,10 @@ async def test_graphql_list_query_returns_array(db_connection) -> None:
         return await db.find("v_users", info=info)
 
     # Create a repository instance like the FastAPI app does
-    from fraiseql.db import FraiseQLRepository
-    from unittest.mock import MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock
+
+    from fraiseql.db import FraiseQLRepository
 
     # Create a mock pool that returns our db_connection as an async context manager
     mock_pool = MagicMock()
@@ -222,9 +213,10 @@ async def test_graphql_field_selection(db_connection) -> None:
         return await db.find_one("v_user", info=info, id=id)
 
     # Create a repository instance like the FastAPI app does
-    from fraiseql.db import FraiseQLRepository
-    from unittest.mock import MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock
+
+    from fraiseql.db import FraiseQLRepository
 
     # Create a mock pool that returns our db_connection as an async context manager
     mock_pool = MagicMock()
@@ -312,9 +304,10 @@ async def test_graphql_with_where_filter(db_connection) -> None:
         return await db.find("v_user", info=info, where=where)
 
     # Create a repository instance like the FastAPI app does
-    from fraiseql.db import FraiseQLRepository
-    from unittest.mock import MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock
+
+    from fraiseql.db import FraiseQLRepository
 
     # Create a mock pool that returns our db_connection as an async context manager
     mock_pool = MagicMock()

@@ -19,8 +19,6 @@ pytestmark = pytest.mark.enterprise
 @pytest_asyncio.fixture(autouse=True, scope="class")
 async def ensure_rbac_schema(class_db_pool, test_schema) -> None:
     """Ensure RBAC schema exists before running tests."""
-    from pathlib import Path
-
     # Check if roles table exists
     async with class_db_pool.connection() as conn:
         await conn.execute(f"SET search_path TO {test_schema}, public")

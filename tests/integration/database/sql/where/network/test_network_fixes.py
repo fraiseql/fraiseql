@@ -116,7 +116,6 @@ class TestNetworkFilteringFix:
         # Test that NetworkOperatorStrategy rejects non-IP types
         from fraiseql.sql.operators import NetworkOperatorStrategy
 
-        from fraiseql.sql.operators import NetworkOperatorStrategy
 
         network_strategy = NetworkOperatorStrategy()
 

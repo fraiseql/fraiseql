@@ -11,7 +11,6 @@ class TestCascadeGraphQLSpec:
     @pytest.mark.asyncio
     async def test_cascade_only_returned_when_selected(self, cascade_http_client):
         """GraphQL spec: Only return fields that are selected."""
-
         # Test 1: Field not selected
         response1 = await cascade_http_client.post(
             "/graphql",
@@ -64,7 +63,6 @@ class TestCascadeGraphQLSpec:
     @pytest.mark.asyncio
     async def test_cascade_introspection(self, cascade_http_client):
         """CASCADE field should be visible in introspection."""
-
         introspection_query = """
             query {
                 __type(name: "CreatePostWithEntitySuccess") {

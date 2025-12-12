@@ -11,7 +11,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_cascade_with_minimal_selection_set(self, cascade_http_client):
         """CASCADE field with minimal selection set."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -55,7 +54,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_cascade_field_not_in_success_type_selection(self, cascade_http_client):
         """No selection set on Success type at all."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -90,7 +88,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_cascade_with_nested_field_selections(self, cascade_http_client):
         """CASCADE with nested field selections on cascade sub-fields."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -140,7 +137,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_mutation_without_cascade_enabled(self, cascade_http_client):
         """Mutation without enable_cascade should never return CASCADE."""
-
         # Use a mutation that doesn't have enable_cascade=True
         # (Assuming such a mutation exists in test schema)
 
@@ -181,7 +177,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_cascade_with_aliases(self, cascade_http_client):
         """CASCADE field with GraphQL alias."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -223,7 +218,6 @@ class TestCascadeEdgeCases:
     @pytest.mark.asyncio
     async def test_cascade_selection_with_variables(self, cascade_http_client):
         """CASCADE selection with GraphQL variables and directives."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!, $includeCascade: Boolean!) {
                 createPostWithEntity(input: $input) {
@@ -333,7 +327,6 @@ class TestCascadeNullHandling:
     @pytest.mark.asyncio
     async def test_cascade_when_no_side_effects(self, cascade_http_client):
         """CASCADE requested but mutation has no side effects."""
-
         # This would need a mutation that returns empty CASCADE
         # Skip if no such mutation exists
         pytest.skip("Requires mutation with empty CASCADE")
@@ -341,7 +334,6 @@ class TestCascadeNullHandling:
     @pytest.mark.asyncio
     async def test_cascade_with_null_fields(self, cascade_http_client):
         """CASCADE with null/missing optional fields."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {

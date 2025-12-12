@@ -1,7 +1,8 @@
 """Test that auto-populated fields are queryable and follow GraphQL spec."""
 
 import pytest
-from fraiseql import fraise_type, fraise_input, mutation, success, query
+
+from fraiseql import fraise_input, fraise_type, mutation, query, success
 from fraiseql.gql.builders.registry import SchemaRegistry
 
 
@@ -38,7 +39,6 @@ async def health_check(info) -> str:
 @pytest.mark.asyncio
 async def test_can_query_auto_populated_fields():
     """Auto-populated fields should be queryable without errors."""
-
     # For this test, we'll just verify the schema can be built and fields are registered
     # Actual query execution would require a full GraphQL client setup
     registry = SchemaRegistry.get_instance()
@@ -73,7 +73,6 @@ async def test_can_query_auto_populated_fields():
 @pytest.mark.asyncio
 async def test_fields_optional_in_query():
     """Auto-populated fields should be optional (don't have to query them)."""
-
     registry = SchemaRegistry.get_instance()
     schema = registry.build_schema()
 
@@ -100,7 +99,6 @@ async def test_fields_optional_in_query():
 @pytest.mark.asyncio
 async def test_graphql_spec_compliance():
     """Verify GraphQL spec: fields only in response if explicitly requested."""
-
     registry = SchemaRegistry.get_instance()
     schema = registry.build_schema()
 

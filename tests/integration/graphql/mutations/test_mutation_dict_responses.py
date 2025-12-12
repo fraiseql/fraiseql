@@ -1,6 +1,5 @@
 """Test that mutations return dicts in non-HTTP mode."""
 
-import pytest
 
 import fraiseql
 

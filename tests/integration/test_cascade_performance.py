@@ -1,6 +1,7 @@
 """Performance tests for CASCADE selection filtering."""
 
 import json
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -12,7 +13,6 @@ class TestCascadePerformance:
     @pytest.mark.asyncio
     async def test_response_size_reduction(self, cascade_http_client):
         """Verify response size is smaller without CASCADE."""
-
         # Without CASCADE
         response_without = await cascade_http_client.post(
             "/graphql",
@@ -84,7 +84,7 @@ class TestCascadePerformance:
             f"CASCADE should add significant data. Ratio: {reduction_ratio:.2f}x (expected > 1.5x)"
         )
 
-        print(f"\nPayload size reduction:")
+        print("\nPayload size reduction:")
         print(f"  Without CASCADE: {size_without} bytes")
         print(f"  With CASCADE: {size_with} bytes")
         print(f"  Ratio: {reduction_ratio:.2f}x")

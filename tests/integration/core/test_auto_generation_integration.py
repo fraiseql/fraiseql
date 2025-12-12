@@ -4,18 +4,8 @@ from dataclasses import asdict, dataclass
 from uuid import UUID
 
 import pytest
-import pytest_asyncio
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry,
-    clear_registry_class,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
-
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.types.lazy_properties import clear_auto_generated_cache
@@ -29,7 +19,7 @@ class TestAutoGenerationIntegration:
     @pytest.fixture(scope="class")
     def clear_registry_fixture(self, clear_registry_class):
         """Clear registry before class tests."""
-        yield
+        return
 
     @pytest.mark.asyncio
     async def test_auto_generated_where_input_in_query(

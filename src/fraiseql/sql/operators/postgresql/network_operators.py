@@ -16,6 +16,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         - isprivate: Is private network
         - ispublic: Is public network
         - insubnet: Network contains address
+        - inrange: IP in CIDR range (alias for insubnet)
+        - isipv4: Check if IPv4 address
+        - isipv6: Check if IPv6 address
         - overlaps: Networks overlap
         - strictleft, strictright: Ordering
         - isnull: NULL checking
@@ -29,6 +32,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         "isprivate",
         "ispublic",
         "insubnet",
+        "inrange",
+        "isipv4",
+        "isipv6",
         "overlaps",
         "strictleft",
         "strictright",
@@ -37,6 +43,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         "isPrivate",
         "isPublic",
         "inSubnet",
+        "inRange",
+        "isIPv4",
+        "isIPv6",
     }
 
     NETWORK_TYPES = {"IPv4Address", "IPv6Address", "IPv4Network", "IPv6Network", "IpAddress"}
@@ -58,6 +67,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             "isprivate",
             "ispublic",
             "insubnet",
+            "inrange",
+            "isipv4",
+            "isipv6",
             "overlaps",
             "strictleft",
             "strictright",
@@ -65,6 +77,9 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             "isPrivate",
             "isPublic",
             "inSubnet",
+            "inRange",
+            "isIPv4",
+            "isIPv6",
         }:
             # Only support these for network field types
             if field_type is not None:
@@ -132,6 +147,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         if operator in {"insubnet", "inSubnet"}:
             casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
             return SQL("{} <<= {}").format(casted_path, casted_value)
+
+        if operator in {"inrange", "inRange"}:
+            # inRange is an alias for inSubnet - check if IP is in CIDR range
+            casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")
+            return SQL("{} <<= {}").format(casted_path, casted_value)
+
+        if operator in {"isipv4", "isIPv4"}:
+            casted_path = SQL("({})::inet").format(path_sql)
+            return SQL("family({}) = 4").format(casted_path)
+
+        if operator in {"isipv6", "isIPv6"}:
+            casted_path = SQL("({})::inet").format(path_sql)
+            return SQL("family({}) = 6").format(casted_path)
 
         if operator == "overlaps":
             casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")

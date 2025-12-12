@@ -13,14 +13,6 @@ from uuid import UUID
 
 import pytest
 import pytest_asyncio
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry_class,
-    pgvector_available,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository

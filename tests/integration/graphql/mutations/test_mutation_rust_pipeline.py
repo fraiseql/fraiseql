@@ -1,6 +1,5 @@
 """End-to-end tests for Rust mutation pipeline."""
 
-import pytest
 
 
 def test_rust_pipeline_integration_placeholder():

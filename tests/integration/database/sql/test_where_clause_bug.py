@@ -6,7 +6,6 @@ The bug has been fixed by integrating proper WHERE clause generation.
 """
 
 import pytest
-import pytest_asyncio
 
 from fraiseql.cqrs.repository import CQRSRepository
 

@@ -5,6 +5,7 @@ in the GraphQL selection set, and that partial selections are respected.
 """
 
 import json
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -16,7 +17,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_cascade_not_returned_when_not_requested(self, cascade_http_client):
         """CASCADE should NOT be in response when not requested in selection."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -65,7 +65,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_cascade_returned_when_requested(self, cascade_http_client):
         """CASCADE should be in response when explicitly requested."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -143,7 +142,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_partial_cascade_selection_updated_only(self, cascade_http_client):
         """Only requested CASCADE fields should be returned (updated only)."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -194,7 +192,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_partial_cascade_selection_metadata_only(self, cascade_http_client):
         """Only metadata requested in CASCADE."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -241,7 +238,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_cascade_with_error_response(self, cascade_http_client):
         """CASCADE should not be present in error responses when not requested."""
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {
@@ -291,7 +287,6 @@ class TestCascadeSelectionFiltering:
     @pytest.mark.asyncio
     async def test_multiple_mutations_with_different_cascade_selections(self, cascade_http_client):
         """Multiple mutations in one query with different CASCADE selections."""
-
         mutation = """
             mutation MultiplePosts($input1: CreatePostInput!, $input2: CreatePostInput!) {
                 post1: createPostWithEntity(input: $input1) {
@@ -355,8 +350,6 @@ class TestCascadeSelectionPayloadSize:
     @pytest.mark.asyncio
     async def test_response_size_without_cascade(self, cascade_http_client):
         """Measure response size when CASCADE not requested."""
-        import json
-
         mutation = """
             mutation CreatePostWithEntity($input: CreatePostInput!) {
                 createPostWithEntity(input: $input) {

@@ -1,20 +1,12 @@
 """Tests for PostgreSQL table partitioning in monitoring module."""
 
 from datetime import datetime, timedelta
-from typing import AsyncGenerator
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry_class,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = pytest.mark.integration
 

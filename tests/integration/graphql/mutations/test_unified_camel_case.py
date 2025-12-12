@@ -6,11 +6,7 @@ camelCase conversion, ensuring consistency across all GraphQL responses.
 
 import pytest
 
-import fraiseql
-from fraiseql.mutations.decorators import success, failure
-from fraiseql.mutations.mutation_decorator import mutation
 from fraiseql.mutations.rust_executor import execute_mutation_rust
-from fraiseql.types.fraise_input import fraise_input
 
 pytestmark = pytest.mark.integration
 
@@ -89,13 +85,11 @@ class TestUnifiedCamelCase:
 
             await conn.commit()
 
-        yield
 
     async def test_mutation_with_auto_camel_case_true(
         self, db_connection, setup_test_schema, clear_registry
     ):
         """Verify mutation returns camelCase field names when auto_camel_case=True."""
-
         # Create a mock config with auto_camel_case=True
         from types import SimpleNamespace
         config = SimpleNamespace(auto_camel_case=True)
@@ -149,7 +143,6 @@ class TestUnifiedCamelCase:
         self, db_connection, setup_test_schema, clear_registry
     ):
         """Verify mutation preserves snake_case when auto_camel_case=False."""
-
         # Create a mock config with auto_camel_case=False
         from types import SimpleNamespace
         config = SimpleNamespace(auto_camel_case=False)
@@ -198,7 +191,6 @@ class TestUnifiedCamelCase:
         self, db_connection, setup_test_schema, clear_registry
     ):
         """Verify mutation defaults to camelCase when no config provided."""
-
         # Execute mutation without config (should default to auto_camel_case=True)
         result = await execute_mutation_rust(
             conn=db_connection,

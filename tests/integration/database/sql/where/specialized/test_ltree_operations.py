@@ -22,7 +22,7 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql("ancestor_of", "departments.engineering.backend", path_sql, field_type=LTree,)
+        sql = registry.build_sql("ancestor_of", "departments.engineering.backend", path_sql, field_type=LTree)
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"

@@ -5,9 +5,8 @@ and don't cause silent data corruption.
 """
 
 import uuid
-import pytest
+
 from fraiseql.db import FraiseQLRepository
-from fraiseql.where_clause import WhereClause
 
 
 class TestParameterBinding:

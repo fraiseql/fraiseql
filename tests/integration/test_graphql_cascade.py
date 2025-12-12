@@ -78,7 +78,7 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
     # Debug: print the response
     import json
 
-    print(f"\n\n=== CASCADE WITH ENTITY FIELD RESPONSE ===")
+    print("\n\n=== CASCADE WITH ENTITY FIELD RESPONSE ===")
     print(json.dumps(data, indent=2))
     print("=" * 50)
 

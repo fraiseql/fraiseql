@@ -16,14 +16,6 @@ import pytest_asyncio
 from fastapi.testclient import TestClient
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
-
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type

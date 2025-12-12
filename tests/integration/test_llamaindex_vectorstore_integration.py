@@ -15,14 +15,6 @@ from unittest.mock import Mock
 import pytest
 import pytest_asyncio
 from psycopg.types.json import Json
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry_class,
-    pgvector_available,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = pytest.mark.integration
 

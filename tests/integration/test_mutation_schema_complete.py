@@ -2,7 +2,8 @@
 
 import pytest
 from graphql import graphql_sync
-from fraiseql import fraise_type, fraise_input, mutation, success, query
+
+from fraiseql import fraise_input, fraise_type, mutation, query, success
 from fraiseql.gql.builders.registry import SchemaRegistry
 
 
@@ -55,9 +56,8 @@ def clean_registry() -> None:
 @pytest.mark.asyncio
 async def test_schema_includes_auto_populated_fields(clear_registry):
     """Test that auto-populated fields are included in the GraphQL schema."""
-
     # Re-register types that were cleared by the fixture
-    from fraiseql import fraise_type, fraise_input, mutation, success, query
+    from fraiseql import fraise_input, fraise_type, mutation, query, success
 
     @fraise_type(sql_source="machines")
     class Machine:
@@ -129,9 +129,8 @@ async def test_schema_includes_auto_populated_fields(clear_registry):
 @pytest.mark.asyncio
 async def test_field_types_correct(clear_registry):
     """Auto-populated fields should have correct GraphQL types."""
-
     # Re-register types that were cleared by the fixture
-    from fraiseql import fraise_type, fraise_input, mutation, success, query
+    from fraiseql import fraise_input, fraise_type, mutation, query, success
 
     @fraise_type(sql_source="machines")
     class Machine:

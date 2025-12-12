@@ -1,6 +1,7 @@
 """Test CASCADE selection behavior - verify data only returned when requested."""
 
 import json
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -8,8 +9,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_cascade_data_not_included_when_not_requested(cascade_http_client):
-    """
-    CRITICAL TEST: Verify CASCADE data is NOT included when not in GraphQL selection.
+    """CRITICAL TEST: Verify CASCADE data is NOT included when not in GraphQL selection.
 
     This tests that PostgreSQL may return CASCADE data, but Rust should filter it
     out if the GraphQL query doesn't request the cascade field.
@@ -59,7 +59,7 @@ async def test_cascade_data_not_included_when_not_requested(cascade_http_client)
     # Check CASCADE field presence
     if "cascade" in result:
         cascade_value = result["cascade"]
-        print(f"\n⚠️  CASCADE field found in response!")
+        print("\n⚠️  CASCADE field found in response!")
         print(f"CASCADE value: {cascade_value}")
         print(f"CASCADE type: {type(cascade_value)}")
 
@@ -69,7 +69,7 @@ async def test_cascade_data_not_included_when_not_requested(cascade_http_client)
         else:
             print("❌ FAIL: CASCADE contains data even though not requested!")
             print(f"   Updated: {len(cascade_value.get('updated', []))} items")
-            print(f"   This is a bug - CASCADE data should not be returned")
+            print("   This is a bug - CASCADE data should not be returned")
             pytest.fail(
                 "CASCADE data present in response even though not requested in selection. "
                 "PostgreSQL returned CASCADE data but Rust should filter it based on GraphQL selection."

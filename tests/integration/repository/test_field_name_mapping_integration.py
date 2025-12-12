@@ -90,7 +90,7 @@ class TestFieldNameMappingIntegration:
         }
 
         where_obj = self.repo._normalize_where(where_clause, "test_view", None)
-        result, params = where_obj.to_sql()
+        result, _params = where_obj.to_sql()
         assert result is not None
 
         sql_str = result.as_string(None)
@@ -211,7 +211,7 @@ class TestFieldNameMappingIntegration:
         result = None
         for _ in range(10):  # Reduced iterations for CI stability
             where_obj = self.repo._normalize_where(where_clause, "test_view", None)
-            result, params = where_obj.to_sql()
+            result, _params = where_obj.to_sql()
             assert result is not None
 
         # Verify field name conversion works correctly

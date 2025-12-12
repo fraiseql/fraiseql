@@ -22,14 +22,6 @@ pytestmark = pytest.mark.integration
 pytestmark = pytest.mark.database
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry,
-    clear_registry_class,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
@@ -100,7 +92,7 @@ class TestFastAPIJSONBIntegration:
     @pytest.fixture(scope="class")
     def clear_registry_fixture(self, clear_registry_class):
         """Clear registry before class tests."""
-        yield
+        return
 
     @pytest_asyncio.fixture(scope="class")
     async def setup_fastapi_jsonb_test(self, class_db_pool, test_schema) -> None:

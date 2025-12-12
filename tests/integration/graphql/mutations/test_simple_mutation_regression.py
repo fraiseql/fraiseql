@@ -23,8 +23,8 @@ def clear_registry() -> None:
     _graphql_type_cache.clear()
 
     # Clear global dependencies that might be set by create_fraiseql_app
-    import fraiseql.fastapi.dependencies as deps
     import fraiseql.fastapi.app
+    import fraiseql.fastapi.dependencies as deps
 
     deps._db_pool = None
     deps._auth_provider = None
@@ -137,6 +137,7 @@ def test_simple_mutation_in_schema() -> None:
 def test_quickstart_app_creation() -> None:
     """Test that quickstart app can be created with simple mutations."""
     from unittest.mock import patch
+
     from fraiseql import create_fraiseql_app
     from fraiseql.gql.schema_builder import SchemaRegistry
 

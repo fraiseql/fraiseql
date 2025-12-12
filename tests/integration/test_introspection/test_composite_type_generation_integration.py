@@ -10,12 +10,6 @@ import pytest
 import pytest_asyncio
 
 from fraiseql.introspection import AutoDiscovery
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = pytest.mark.integration
 

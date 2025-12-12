@@ -11,7 +11,6 @@ from uuid import UUID
 
 import psycopg
 import pytest
-import pytest_asyncio
 from graphql import GraphQLResolveInfo
 
 from fraiseql import query

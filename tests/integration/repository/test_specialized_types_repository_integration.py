@@ -12,9 +12,9 @@ complete repository layer integration works correctly for all specialized types.
 from unittest.mock import Mock
 
 import pytest
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 from fraiseql.db import FraiseQLRepository
-from tests.helpers.sql_rendering import render_sql_for_testing
 
 pytestmark = pytest.mark.integration
 
