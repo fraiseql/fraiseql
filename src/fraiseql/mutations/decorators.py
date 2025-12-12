@@ -90,7 +90,6 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
         from fraiseql.fields import FraiseQLField  # Import for gql_fields
         from fraiseql.gql.schema_builder import SchemaRegistry
         from fraiseql.types.constructor import define_fraiseql_type
-        from fraiseql.types.errors import Error
 
         # Track which fields we're auto-injecting
         auto_injected_fields = []
@@ -108,10 +107,9 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
             cls.message = None
             auto_injected_fields.append("message")
 
-        if "errors" not in annotations:
-            annotations["errors"] = list[Error] | None
-            cls.errors = None
-            auto_injected_fields.append("errors")
+        # NOTE: `errors` field removed from Success types in v1.9.0
+        # Success responses should NOT have errors - that's semantically incorrect
+        # `errors` field still exists on Error/Failure types where it belongs
 
         # Add updatedFields (per CTO feedback)
         if "updated_fields" not in annotations:

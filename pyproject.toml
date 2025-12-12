@@ -152,9 +152,9 @@ python_functions = ["test_*"]
 
 asyncio_mode = "auto"
 
-# timeout options
-timeout = 20
-timeout_method = "thread"
+# timeout options (disabled due to pytest-timeout config issue)
+# timeout = 20
+# timeout_method = "thread"
 
 # Output options
 addopts = [
