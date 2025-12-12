@@ -184,16 +184,11 @@ async def test_error_with_conflict_entity():
     print("\n=== Testing Conflict Entity Pattern ===")
     print(f"Response keys: {list(error.keys())}")
     print(f"Has conflictMachine: {'conflictMachine' in error}")
-    print(f"Has entity: {'entity' in error}")
 
-    if "conflictMachine" in error:
-        assert error["conflictMachine"]["id"] == "existing-123"
-        assert error["conflictMachine"]["serial_number"] == "ABC123"
-        print("✅ conflictMachine copied from wrapper")
-    elif "entity" in error and isinstance(error["entity"], dict):
-        if "conflict_machine" in error["entity"]:
-            pytest.fail("⚠️  conflict_machine in entity wrapper (not extracted to root)")
-        else:
-            pytest.fail("❌ conflict_machine not accessible anywhere")
-    else:
-        pytest.fail("❌ conflict_machine not found - error entity pattern not supported")
+    # TDD: Expecting this to work after implementation
+    assert "conflictMachine" in error, "conflictMachine should be copied from wrapper"
+    assert error["conflictMachine"]["id"] == "existing-123"
+    assert error["conflictMachine"]["name"] == "Existing Printer"
+    # Field names are camelCased due to auto_camel_case transformation
+    assert error["conflictMachine"]["serialNumber"] == "ABC123"
+    print("✅ conflictMachine copied from wrapper")

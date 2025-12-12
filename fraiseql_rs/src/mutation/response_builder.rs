@@ -378,6 +378,30 @@ pub fn build_error_response_with_code(
         obj.insert("errors".to_string(), errors);
     }
 
+    // Extract entity fields from wrapper (same pattern as Success types)
+    // For Error types, copy all fields from entity wrapper to root level
+    // This enables patterns like: conflict_machine, current_user, etc.
+    if let Some(entity) = &result.entity {
+        if let Value::Object(entity_map) = entity {
+            // Copy all fields from wrapper (excluding special fields)
+            for (key, value) in entity_map {
+                if key != "entity" && key != "cascade" {
+                    // Don't copy nested "entity" or CASCADE
+                    // CASCADE must only appear at error type level, never in entity
+                    let field_key = if auto_camel_case {
+                        to_camel_case(key)
+                    } else {
+                        key.clone()
+                    };
+                    // Only add if not already present AND field is selected
+                    if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                        obj.insert(field_key, transform_value(value, auto_camel_case));
+                    }
+                }
+            }
+        }
+    }
+
     // Add cascade if present AND requested in selection
     add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 

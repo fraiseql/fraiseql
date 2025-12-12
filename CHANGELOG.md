@@ -51,6 +51,36 @@ mutation CreateMachine($input: CreateMachineInput!) {
 }
 ```
 
+#### Multiple entity fields support in Error types
+- Error types can now have multiple entity fields at root level (same as Success types)
+- Enables conflict scenarios: show existing entity that caused the conflict
+- Enables multi-entity error responses: show related entities in error state
+- Field names are automatically converted to camelCase (e.g., `conflict_machine` → `conflictMachine`)
+- Fully tested and verified in `tests/integration/graphql/mutations/test_multiple_entity_fields.py`
+
+**Example**:
+```python
+@fraiseql.error
+class CreateMachineError:
+    """Error with conflict entity."""
+    conflict_machine: Machine | None  # Existing entity causing conflict
+    # Auto-injected: status, message, code, errors
+```
+
+**GraphQL usage**:
+```graphql
+mutation CreateMachine($input: CreateMachineInput!) {
+    createMachine(input: $input) {
+        ... on CreateMachineError {
+            status
+            message
+            code
+            conflictMachine { id name serialNumber }  # ✅ Conflict entity available
+        }
+    }
+}
+```
+
 ### Breaking Changes
 
 #### Remove `updated_fields` from Error types
@@ -134,11 +164,12 @@ CREATE TYPE mutation_response AS (
 
 **No database migration needed** - this is purely a GraphQL/Python/Rust layer improvement.
 
-### Advanced: Multiple Entities in Success Types
+### Advanced: Multiple Entities in Success/Error Types
 
-**Success types** can have **multiple entity fields** at the root level. This pattern is supported and tested for:
+Both **Success** and **Error** types can have **multiple entity fields** at the root level. This pattern is fully supported and tested for:
 - Update operations (showing before and after states)
 - Related entities (showing cascaded changes)
+- Conflict scenarios (showing both new and existing entity)
 - Multi-entity responses
 
 **Example: Success type with multiple entities**:
@@ -152,48 +183,77 @@ class UpdateMachineSuccess:
     # Auto-injected: status, message, updated_fields, id
 ```
 
-**Note on Error types**: Multiple entity fields on Error types are **not currently supported** in v1.8.1. Error responses only include the auto-injected fields (`status`, `message`, `code`, `errors`). For conflict scenarios on errors, use the `metadata` field or include conflict information in the `errors` array.
+**Example: Error type with conflict entity**:
+```python
+@fraiseql.error
+class CreateMachineError:
+    """Error with conflict entity at root."""
+    conflict_machine: Machine | None    # Existing entity causing conflict
+    # Auto-injected: status, message, code, errors
+```
 
 **Database side**: The `entity` field in `mutation_response` is a wrapper object containing multiple entities:
 ```sql
--- Multiple entities example (Success types only)
+-- Multiple entities example (Success)
 result.entity := jsonb_build_object(
     'machine', row_to_json(new_machine),
     'previous_location', row_to_json(old_location),
     'new_location', row_to_json(new_location)
 );
+
+-- Conflict entity example (Error)
+result.entity := jsonb_build_object(
+    'conflict_machine', row_to_json(existing_machine)
+);
 ```
 
-**How Rust handles this** (Success types):
-- Rust extracts the primary entity field (e.g., `machine`)
-- Additional fields from the wrapper are copied to the root level
+**How Rust handles this**:
+- **Success types**: Rust extracts the primary entity field (e.g., `machine`) specified by `entity_field_name`, then copies all other fields from the wrapper to root level
+- **Error types**: Rust copies all fields from the entity wrapper to root level (no concept of "primary" entity)
 - Each entity gets its own `__typename` automatically
 - Field selection works for each entity field
+- Field names are automatically converted to camelCase (e.g., `conflict_machine` → `conflictMachine`)
 - Auto-injected fields (`status`, `message`, etc.) appear at the root level
 
 **GraphQL query example**:
 ```graphql
+mutation CreateMachine($input: CreateMachineInput!) {
+    createMachine(input: $input) {
+        ... on CreateMachineSuccess {
+            status
+            message
+            machine { id name }
+        }
+        ... on CreateMachineError {
+            status
+            message
+            code
+            errors { code identifier message }
+            conflictMachine { id name serialNumber }  # ✅ Conflict entity available
+        }
+    }
+}
+
 mutation UpdateMachine($input: UpdateMachineInput!) {
     updateMachine(input: $input) {
         ... on UpdateMachineSuccess {
             status
             message
             machine { id name }
-            previousLocation { id name }  # ✅ Works (Success type)
-            newLocation { id name }        # ✅ Works (Success type)
+            previousLocation { id name }  # ✅ Before state
+            newLocation { id name }        # ✅ After state
         }
         ... on UpdateMachineError {
             status
             message
             code
             errors { code identifier message }
-            # ❌ conflictMachine not supported in Error types (v1.8.1)
         }
     }
 }
 ```
 
-**Test coverage**: See `tests/integration/graphql/mutations/test_multiple_entity_fields.py` for verified behavior.
+**Test coverage**: See `tests/integration/graphql/mutations/test_multiple_entity_fields.py` for verified behavior (both Success and Error types).
 
 ### Migration Guide
 
