@@ -150,11 +150,13 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
 
 
 @pytest_asyncio.fixture(scope="session")
-async def pgvector_available(postgres_url: str) -> bool:
+async def pgvector_available(postgres_url: str, postgres_container) -> bool:
     """Check if pgvector extension is available for testing.
 
     Returns True if pgvector extension can be used, False otherwise.
     This allows tests to skip gracefully when pgvector is not available.
+
+    Note: Depends on postgres_container to ensure container is ready before checking.
     """
     async with await psycopg.AsyncConnection.connect(postgres_url) as conn:
         # Try to install extension
