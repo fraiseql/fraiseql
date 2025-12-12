@@ -38,8 +38,6 @@ This demo shows how to use FraiseQL's PostgreSQL function-based mutation system 
 
 This example uses the **modern `mutation_response` type** (8 fields) introduced in FraiseQL v1.8.0.
 
-**Old version**: `_old_init.sql.deprecated` uses the legacy `mutation_result` type (6 fields) - do not use.
-
 ## What It Does
 
 The demo performs these operations:
