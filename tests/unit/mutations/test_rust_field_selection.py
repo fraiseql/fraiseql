@@ -206,7 +206,8 @@ def test_rust_error_response_field_filtering(fraiseql_rs):
         "Machine",  # entity_type (Option)
         None,  # cascade_selections (Option)
         True,  # auto_camel_case (bool)
-        selected_fields,  # success_type_fields (Option)
+        None,  # success_type_fields (not used for error responses)
+        selected_fields,  # error_type_fields (Option) - for error response filtering
     )
 
     response = json.loads(response_json)
@@ -262,7 +263,8 @@ def test_error_type_filters_auto_injected_fields(fraiseql_rs):
         None,
         None,
         True,
-        selected_fields,
+        None,  # success_type_fields (not used for error responses)
+        selected_fields,  # error_type_fields - for error response filtering
     )
 
     response = json.loads(response_json)
@@ -583,7 +585,8 @@ def test_multiple_entity_fields_selection(fraiseql_rs):
         "Machine",
         None,
         True,
-        selected_fields,
+        None,  # success_type_fields (not used for error responses)
+        selected_fields,  # error_type_fields - for error response filtering
     )
 
     response = json.loads(response_json)
