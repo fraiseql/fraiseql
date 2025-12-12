@@ -191,6 +191,24 @@ async def test_vector_filter_cosine_distance(class_db_pool, test_schema, vector_
 
 
 @pytest.mark.asyncio
+async def test_vector_filter_tuple_format(class_db_pool, test_schema, vector_test_setup) -> None:
+    """Test filtering with tuple format (vector, threshold)."""
+    repo = FraiseQLRepository(class_db_pool)
+    query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
+
+    # Use tuple format instead of dict
+    result = await repo.find(
+        "test_documents",
+        where={"embedding": {"cosine_distance": (query_embedding, 0.5)}},
+        limit=5,
+    )
+
+    results = extract_graphql_data(result, "test_documents")
+    assert len(results) > 0
+    assert results[0]["title"] == "Python Programming"
+
+
+@pytest.mark.asyncio
 async def test_vector_order_by_distance(class_db_pool, test_schema, vector_test_setup) -> None:
     """Test ordering results by vector distance using GraphQL input objects."""
     repo = FraiseQLRepository(class_db_pool)
