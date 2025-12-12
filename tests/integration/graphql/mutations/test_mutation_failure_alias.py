@@ -3,7 +3,7 @@
 import pytest
 
 import fraiseql
-from fraiseql import failure, fraise_input, mutation, success
+from fraiseql import error, fraise_input, mutation, success
 
 pytestmark = pytest.mark.integration
 
@@ -27,7 +27,7 @@ class CreateUserSuccess:
 
 
 # Error/Failure type
-@failure
+@error
 @fraiseql.type
 class CreateUserFailure:
     code: str
@@ -41,7 +41,7 @@ def test_mutation_with_failure_attribute() -> None:
     class CreateUser:
         input: CreateUserInput
         success: CreateUserSuccess
-        failure: CreateUserFailure  # Using 'failure' instead of 'error'
+        error: CreateUserFailure  # Using 'failure' instead of 'error'
 
         async def execute(self, db, input_data) -> None:
             # Mock implementation
@@ -98,7 +98,7 @@ def test_mutation_prefers_error_over_failure() -> None:
         input: CreateUserInput
         success: CreateUserSuccess
         error: CreateUserFailure  # This should be used
-        failure: OtherError  # This should be ignored
+        error: OtherError  # This should be ignored
 
         async def execute(self, db, input_data) -> None:
             return CreateUserSuccess(user_id=4)

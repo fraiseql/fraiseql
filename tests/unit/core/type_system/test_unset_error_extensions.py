@@ -48,7 +48,7 @@ class CreateTestItem:
 
     input: SampleInput
     success: SampleSuccess
-    failure: SampleError
+    error: SampleError
 
 
 # Mock query that might raise an error with UNSET in extensions

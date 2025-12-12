@@ -4,7 +4,7 @@ from uuid import UUID
 import pytest
 
 from fraiseql.fields import FRAISE_MISSING, fraise_field
-from fraiseql.mutations.decorators import failure, success
+from fraiseql.mutations.decorators import error, success
 from fraiseql.types import JSON
 from fraiseql.utils.fraiseql_builder import collect_fraise_fields
 
@@ -30,7 +30,7 @@ class DummySuccess(BaseResult):
     data: dict = fraise_field(default_factory=dict, purpose="output")
 
 
-@failure
+@error
 class DummyFailure(BaseResult):
     error_code: str
     details: str = "No specific details provided."

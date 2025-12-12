@@ -28,7 +28,7 @@ class CreateMachineSuccess:
 class CreateMachine:
     input: CreateMachineInput
     success: CreateMachineSuccess
-    failure: CreateMachineSuccess  # Using success type for simplicity in test
+    error: CreateMachineSuccess  # Using success type for simplicity in test
 
 
 # Dummy query to satisfy GraphQL schema requirements

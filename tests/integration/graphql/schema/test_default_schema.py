@@ -65,7 +65,7 @@ class TestMutationDefaultSchema:
         class CreateUser:
             input: dict
             success: dict
-            failure: dict
+            error: dict
 
         # Check that the mutation uses the default schema
         definition = CreateUser.__fraiseql_mutation__
@@ -86,7 +86,7 @@ class TestMutationDefaultSchema:
         class CreateUser:
             input: dict
             success: dict
-            failure: dict
+            error: dict
 
         # Check that the mutation uses the explicit schema
         definition = CreateUser.__fraiseql_mutation__
@@ -103,7 +103,7 @@ class TestMutationDefaultSchema:
         class CreateUser:
             input: dict
             success: dict
-            failure: dict
+            error: dict
 
         # Check that the mutation uses the fallback schema
         definition = CreateUser.__fraiseql_mutation__
@@ -122,7 +122,7 @@ class TestBackwardCompatibility:
         class CreateUser:
             input: dict
             success: dict
-            failure: dict
+            error: dict
 
         definition = CreateUser.__fraiseql_mutation__
         assert isinstance(definition, MutationDefinition)
@@ -139,7 +139,7 @@ class TestBackwardCompatibility:
         class CreateUser:
             input: dict
             success: dict
-            failure: dict
+            error: dict
 
         definition = CreateUser.__fraiseql_mutation__
         # Should use the default_mutation_schema from config, which is "public"

@@ -1,7 +1,7 @@
 """Canary tests - will break if field auto-injection changes unexpectedly."""
 
 import pytest
-from fraiseql.mutations.decorators import success, failure
+from fraiseql.mutations.decorators import success, error
 
 
 def test_success_type_fields_canary():
@@ -27,7 +27,7 @@ def test_success_type_fields_canary():
 def test_error_type_fields_canary():
     """Canary: Error type fields should not change unexpectedly."""
 
-    @failure
+    @error
     class TestError:
         pass
 
@@ -47,7 +47,7 @@ def test_error_type_fields_canary():
 def test_error_type_no_update_fields_canary():
     """Canary: Error types should NOT have updatedFields or id."""
 
-    @failure
+    @error
     class TestError:
         pass
 
@@ -100,7 +100,7 @@ def test_success_type_graphql_fields_canary():
 def test_error_type_graphql_fields_canary():
     """Canary: Error type GraphQL fields should include code but not updatedFields/id."""
 
-    @failure
+    @error
     class TestError:
         pass
 

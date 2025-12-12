@@ -69,7 +69,7 @@ class CreateItem:
 
     input: CreateItemInput
     success: CreateItemSuccess
-    failure: CreateItemError
+    error: CreateItemError
 
 
 @fraiseql.mutation(function="create_item_component")
@@ -78,7 +78,7 @@ class CreateItemComponent:
 
     input: CreateItemComponentInput
     success: CreateItemComponentSuccess
-    failure: CreateItemComponentError
+    error: CreateItemComponentError
 
 
 class TestMutationNameCollisionFix:

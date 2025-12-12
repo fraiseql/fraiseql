@@ -27,7 +27,7 @@ class CreateMachineSuccess:
 class CreateMachine:
     input: CreateMachineInput
     success: CreateMachineSuccess
-    failure: CreateMachineSuccess  # Using success type for simplicity in test
+    error: CreateMachineSuccess  # Using success type for simplicity in test
 
 
 # Dummy query to satisfy GraphQL schema requirements
@@ -76,7 +76,7 @@ async def test_schema_includes_auto_populated_fields(clear_registry):
     class CreateMachine:
         input: CreateMachineInput
         success: CreateMachineSuccess
-        failure: CreateMachineSuccess  # Using success type for simplicity in test
+        error: CreateMachineSuccess  # Using success type for simplicity in test
 
     @query
     async def test_health_check(info) -> str:
@@ -149,7 +149,7 @@ async def test_field_types_correct(clear_registry):
     class CreateMachine:
         input: CreateMachineInput
         success: CreateMachineSuccess
-        failure: CreateMachineSuccess  # Using success type for simplicity in test
+        error: CreateMachineSuccess  # Using success type for simplicity in test
 
     @query
     async def test_health_check(info) -> str:

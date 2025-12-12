@@ -63,7 +63,7 @@ class CreateUserMutation:
 
     input: CreateUserInput
     success: CreateUserSuccess
-    failure: CreateUserError
+    error: CreateUserError
 
 
 class TestV0717GraphQLValidationBypassRegression:

@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from fraiseql.mutations.decorators import success, failure
+from fraiseql.mutations.decorators import success, error
 
 
 def test_decorator_adds_fields_to_gql_fields():
@@ -28,9 +28,9 @@ def test_decorator_adds_fields_to_gql_fields():
 
 
 def test_failure_decorator_adds_fields():
-    """Verify @failure decorator adds auto-populated fields (v1.8.1)."""
+    """Verify @error decorator adds auto-populated fields (v1.8.1)."""
 
-    @failure
+    @error
     class TestError:
         error_code: str
 

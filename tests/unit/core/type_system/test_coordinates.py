@@ -172,7 +172,7 @@ def test_coordinate_scalar_in_graphql_schema() -> None:
 
         input: LocationInput
         success: CreateLocationSuccess
-        failure: CreateLocationError
+        error: CreateLocationError
 
     @fraiseql.query
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ def test_graphql_validation_with_coordinate_scalar() -> None:
 
         input: LocationInput
         success: CreateLocationSuccess
-        failure: CreateLocationError
+        error: CreateLocationError
 
     @fraiseql.query
     async def health_check(info) -> str:

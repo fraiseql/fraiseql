@@ -81,7 +81,7 @@ class TestDefaultSchemaE2E:
         class TestMutation:
             input: E2EInput
             success: E2ESuccess
-            failure: E2EError
+            error: E2EError
 
         create_fraiseql_app(
             config=config,
@@ -110,7 +110,7 @@ class TestDefaultSchemaE2E:
         class Mutation1:
             input: E2EInput
             success: E2ESuccess
-            failure: E2EError
+            error: E2EError
 
         create_fraiseql_app(
             config=config1,
@@ -141,7 +141,7 @@ class TestDefaultSchemaE2E:
         class Mutation2:
             input: E2EInput
             success: E2ESuccess
-            failure: E2EError
+            error: E2EError
 
         create_fraiseql_app(
             config=config2,
@@ -172,14 +172,14 @@ class TestDefaultSchemaE2E:
         class OverrideMutation3:
             input: E2EInput
             success: E2ESuccess
-            failure: E2EError
+            error: E2EError
 
         # Mutation using default
         @mutation(function="default_mutation")
         class DefaultMutation3:
             input: E2EInput
             success: E2ESuccess
-            failure: E2EError
+            error: E2EError
 
         # Verify schemas
         assert OverrideMutation3.__fraiseql_mutation__.schema == "explicit_schema"

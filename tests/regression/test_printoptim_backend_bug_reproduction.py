@@ -81,7 +81,7 @@ class CreateNetworkConfiguration:
 
     input: CreateNetworkConfigurationInput
     success: CreateNetworkConfigurationSuccess
-    failure: CreateNetworkConfigurationError
+    error: CreateNetworkConfigurationError
 
 
 @patch("fraiseql.config.schema_config.SchemaConfig.get_instance")

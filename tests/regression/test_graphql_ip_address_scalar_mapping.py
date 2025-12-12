@@ -59,7 +59,7 @@ class CreateDnsServer:
 
     input: CreateDnsServerInput
     success: CreateDnsServerSuccess
-    failure: CreateDnsServerError
+    error: CreateDnsServerError
 
 
 @fraiseql.query
@@ -220,7 +220,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
 
         input: ServerConfigInput
         success: ServerConfigSuccess
-        failure: ServerConfigError
+        error: ServerConfigError
 
     @fraiseql.query
     @pytest.mark.asyncio

@@ -50,7 +50,7 @@ class CreateNetworkConfiguration:
 
     input: CreateNetworkConfigurationInput
     success: CreateNetworkConfigurationSuccess
-    failure: CreateNetworkConfigurationError
+    error: CreateNetworkConfigurationError
 
 
 # Mock database function execution to capture the actual parameters being passed
@@ -280,7 +280,7 @@ async def test_various_underscore_number_id_patterns() -> None:
     class TestMutation:
         input: TestInput
         success: TestSuccess
-        failure: TestError
+        error: TestError
 
     # Create test UUIDs
     server_1_uuid = uuid.uuid4()
