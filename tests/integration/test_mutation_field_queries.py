@@ -60,14 +60,18 @@ async def test_can_query_auto_populated_fields():
     assert success_type is not None
 
     field_names = set(success_type.fields.keys())
-    assert "machine" in field_names, "Original field missing"
-    assert "status" in field_names, "status field missing"
-    assert "message" in field_names, "message field missing"
-    assert "errors" in field_names, "errors field missing"
-    assert "updatedFields" in field_names, "updatedFields missing"
-    assert "id" in field_names, "id field missing"
 
-    print(f"✅ All fields queryable in schema: {sorted(field_names)}")
+    # Check expected fields (auto-populated by @success decorator)
+    assert "machine" in field_names, "Original field missing"
+    assert "status" in field_names, "status field missing (auto-added)"
+    assert "message" in field_names, "message field missing (auto-added)"
+    assert "updatedFields" in field_names, "updatedFields missing (auto-added)"
+    assert "id" in field_names, "id field missing (auto-added)"
+
+    # Note: errors field is NOT added to success types (design decision)
+    assert "errors" not in field_names, "errors field should not be in success types"
+
+    print(f"✅ All auto-populated fields present in schema: {sorted(field_names)}")
 
 
 @pytest.mark.asyncio
@@ -90,10 +94,14 @@ async def test_fields_optional_in_query():
 
     # All fields should exist in the schema (they're optional to query, but must exist)
     field_names = set(success_type.fields.keys())
-    expected_fields = {"machine", "status", "message", "errors", "updatedFields", "id"}
+    expected_fields = {"machine", "status", "message", "updatedFields", "id"}
+    # Note: errors field NOT included (design decision - not auto-added to success types)
     assert expected_fields.issubset(field_names), f"Missing fields: {expected_fields - field_names}"
 
-    print(f"✅ All fields available in schema: {sorted(field_names)}")
+    # Verify errors field is NOT present
+    assert "errors" not in field_names, "errors field should not be auto-added to success types"
+
+    print(f"✅ All expected fields available in schema: {sorted(field_names)}")
 
 
 @pytest.mark.asyncio
@@ -116,10 +124,14 @@ async def test_graphql_spec_compliance():
     # This is a basic check - full GraphQL spec compliance would require
     # actual query execution with a client that respects field selection
     field_names = set(success_type.fields.keys())
-    required_fields = {"status", "message", "errors", "updatedFields", "id", "machine"}
+    required_fields = {"status", "message", "updatedFields", "id", "machine"}
+    # Note: errors field NOT auto-added (design decision)
 
     assert required_fields.issubset(field_names), (
         f"Missing required fields: {required_fields - field_names}"
     )
 
-    print("✅ GraphQL schema spec compliant - all fields properly defined")
+    # Verify errors field is NOT present
+    assert "errors" not in field_names, "errors field should not be auto-added to success types"
+
+    print("✅ GraphQL schema spec compliant - all expected fields properly defined")
