@@ -170,7 +170,7 @@ class {type_name}Success:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class {type_name}Error:
     """{type_name} mutation failed."""
     message: str

@@ -200,7 +200,7 @@ class TestCommentDescriptionsIntegration:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
         )
 
         # Generate input type first

@@ -83,7 +83,7 @@ class TestMutationGenerationIntegration:
                 COMMENT ON FUNCTION {test_schema}.{function_name}(TEXT, TEXT) IS '@fraiseql:mutation
                 name: createUser
                 success_type: User
-                failure_type: ValidationError
+                error_type: ValidationError
                 description: Create a new user account'
             """)
 
@@ -122,7 +122,7 @@ class TestMutationGenerationIntegration:
         annotation = metadata_parser.parse_mutation_annotation(function_metadata.comment)
         assert annotation is not None
         assert annotation.success_type == "User"
-        assert annotation.failure_type == "ValidationError"
+        assert annotation.error_type == "ValidationError"
 
         # Generate input type
         context_params = mutation_generator._extract_context_params(function_metadata, annotation)  # type: ignore[arg-type]
@@ -237,7 +237,7 @@ class TestMutationGenerationIntegration:
                 COMMENT ON FUNCTION {test_schema}.{function_name}(UUID, TEXT, TEXT) IS '@fraiseql:mutation
                 name: createPost
                 success_type: Post
-                failure_type: ValidationError'
+                error_type: ValidationError'
             """)
 
             # Commit the transaction so the function is visible to other connections

@@ -110,7 +110,7 @@ class MutationGenerator:
 
         Steps:
         1. Generate input type (from composite type that SpecQL created)
-        2. Resolve success/failure types
+        2. Resolve success/error types
         3. Extract context parameters (READ from function signature)
         4. Create mutation function
         5. Apply @fraiseql.mutation decorator
@@ -135,20 +135,20 @@ class MutationGenerator:
             context_params,  # Pass for exclusion
         )
 
-        # 3. Get success/failure types
+        # 3. Get success/error types
         success_type = type_registry.get(annotation.success_type)
-        failure_type = type_registry.get(annotation.failure_type)
+        error_type = type_registry.get(annotation.error_type)
 
-        if not success_type or not failure_type:
+        if not success_type or not error_type:
             logger.warning(
                 f"Cannot generate mutation {function_metadata.function_name}: "
-                f"missing types {annotation.success_type} or {annotation.failure_type}"
+                f"missing types {annotation.success_type} or {annotation.error_type}"
             )
             return None
 
         # 4. Create mutation class dynamically
         mutation_class = self._create_mutation_class(
-            function_metadata, annotation, input_cls, success_type, failure_type
+            function_metadata, annotation, input_cls, success_type, error_type
         )
 
         # 5. Apply @mutation decorator with context params
@@ -169,7 +169,7 @@ class MutationGenerator:
         annotation: MutationAnnotation,
         input_cls: Type,
         success_type: Type,
-        failure_type: Type,
+        error_type: Type,
     ) -> Type:
         """Create a mutation class with proper type annotations."""
         # Create class name
@@ -183,7 +183,7 @@ class MutationGenerator:
                 "__annotations__": {
                     "input": input_cls,
                     "success": success_type,
-                    "failure": failure_type,
+                    "error": error_type,
                 },
                 "__doc__": (
                     annotation.description  # Priority 1: Explicit annotation

@@ -70,7 +70,7 @@ async def specql_test_schema(class_db_pool, test_schema) -> None:
             -- @fraiseql:mutation
             -- name: createContact
             -- success_type: type_create_contact_success
-            -- failure_type: type_create_contact_error
+            -- error_type: type_create_contact_error
             -- context_params: [input_tenant_id, input_user_id]
             CREATE OR REPLACE FUNCTION create_contact(
                 input_tenant_id UUID,
@@ -124,7 +124,7 @@ async def specql_test_schema(class_db_pool, test_schema) -> None:
             '@fraiseql:mutation
             name: createContact
             success_type: CreateContactSuccess
-            failure_type: CreateContactError
+            error_type: CreateContactError
             context_params: [input_tenant_id, input_user_id]';
         """)
 

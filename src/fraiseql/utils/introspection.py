@@ -11,7 +11,7 @@ def describe_type(cls: type[Any]) -> dict[str, Any]:
     """Generate an introspection-style dictionary from a FraiseQL-decorated type.
 
     Args:
-        cls: A class decorated with @fraise_input, @success, @failure, or @fraise_type.
+        cls: A class decorated with @fraise_input, @success, @error, or @fraise_type.
 
     Returns:
         A structured dict describing the type's name, input/output mode,
