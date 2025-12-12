@@ -174,7 +174,7 @@ def normalize_dict_where(
                         conditions.append(condition)
 
         elif is_nested and not use_fk:
-            # JSONB-based nested filter: device.name → data->'device'->>'name'
+            # JSONB-based nested filter: handle arbitrarily deep nesting
             for original_nested_field, nested_value in field_value.items():
                 # Convert nested field names too
                 nested_field = original_nested_field
@@ -182,24 +182,67 @@ def normalize_dict_where(
                     nested_field = to_snake_case(nested_field)
 
                 if isinstance(nested_value, dict):
-                    for op, val in nested_value.items():
-                        if val is None:
-                            continue
+                    # Check if this nested value itself contains nested operators
+                    # If so, recursively normalize it
+                    has_nested_ops = any(
+                        isinstance(v, dict) and not any(k in ("OR", "AND", "NOT") for k in v)
+                        for v in nested_value.values()
+                    )
 
-                        condition = FieldCondition(
-                            field_path=[field_name, nested_field],
-                            operator=op,
-                            value=val,
-                            lookup_strategy="jsonb_path",
-                            target_column=jsonb_column,
-                            jsonb_path=[field_name, nested_field],
+                    if has_nested_ops:
+                        # This is a deeply nested object - recursively normalize
+                        # Create a nested WHERE clause with the parent path prepended
+                        nested_where = {nested_field: nested_value}
+                        nested_clause = normalize_dict_where(
+                            nested_where, view_name, table_columns, jsonb_column
                         )
-                        conditions.append(condition)
+                        # The nested clause will have conditions with field_path
+                        # like [parent, child, ...]
+                        # We need to prepend our current field_name to make it
+                        # [field_name, parent, child, ...]
+                        for condition in nested_clause.conditions:
+                            # Prepend field_name to field_path and jsonb_path
+                            condition.field_path.insert(0, field_name)
+                            if condition.jsonb_path:
+                                condition.jsonb_path.insert(0, field_name)
+                        conditions.extend(nested_clause.conditions)
 
-                        logger.debug(
-                            f"Dict WHERE: JSONB nested filter {field_name}.{nested_field}",
-                            extra={"condition": condition},
-                        )
+                        # Handle nested clauses too
+                        for nested_clause_item in nested_clause.nested_clauses:
+                            # Recursively prepend field_name to all conditions in nested clauses
+                            for condition in nested_clause_item.conditions:
+                                condition.field_path.insert(0, field_name)
+                                if condition.jsonb_path:
+                                    condition.jsonb_path.insert(0, field_name)
+                            nested_clauses.append(nested_clause_item)
+
+                        if nested_clause.not_clause:
+                            # Handle not_clause recursively
+                            for condition in nested_clause.not_clause.conditions:
+                                condition.field_path.insert(0, field_name)
+                                if condition.jsonb_path:
+                                    condition.jsonb_path.insert(0, field_name)
+                            not_clause = nested_clause.not_clause
+                    else:
+                        # This is a direct nested field with operators
+                        for op, val in nested_value.items():
+                            if val is None:
+                                continue
+
+                            condition = FieldCondition(
+                                field_path=[field_name, nested_field],
+                                operator=op,
+                                value=val,
+                                lookup_strategy="jsonb_path",
+                                target_column=jsonb_column,
+                                jsonb_path=[field_name, nested_field],
+                            )
+                            conditions.append(condition)
+
+                            logger.debug(
+                                f"Dict WHERE: JSONB nested filter {field_name}.{nested_field}",
+                                extra={"condition": condition},
+                            )
 
         else:
             # Direct column filter: status = 'active'

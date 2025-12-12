@@ -169,6 +169,39 @@ class TestFieldNameMappingIntegration:
         # Should contain the MAC value
         assert "aa:bb:cc:dd:ee:ff" in str(params)
 
+    def test_deep_nested_field_conversion(self) -> None:
+        """Test that deeply nested field names are converted correctly."""
+        # Test 3 levels of nesting with camelCase field names
+        where_clause = {
+            "machine": {
+                "network": {
+                    "ipAddress": {"eq": "192.168.1.1"},
+                    "macAddress": {"eq": "aa:bb:cc:dd:ee:ff"},
+                }
+            }
+        }
+
+        where_obj = self.repo._normalize_where(where_clause, "test_view", None)
+        result, params = where_obj.to_sql()
+        assert result is not None
+
+        sql_str = result.as_string(None)
+
+        # Should contain properly nested JSONB paths with converted field names
+        assert "data" in sql_str  # JSONB column
+        assert "machine" in sql_str
+        assert "network" in sql_str
+        assert "ip_address" in sql_str  # Converted from ipAddress
+        assert "mac_address" in sql_str  # Converted from macAddress
+
+        # Should NOT contain original camelCase names
+        assert "ipAddress" not in sql_str
+        assert "macAddress" not in sql_str
+
+        # Should contain the values
+        assert "192.168.1.1" in str(params)
+        assert "aa:bb:cc:dd:ee:ff" in str(params)
+
     def test_performance_validation(self) -> None:
         """Validate that field name conversion works correctly at scale."""
         # Create a moderately sized WHERE clause to test functionality at scale
