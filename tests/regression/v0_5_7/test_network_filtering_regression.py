@@ -152,8 +152,10 @@ class TestJSONBNetworkFilteringBug:
         field_path = SQL("data->>'ip_address'")  # JSONB text extraction
 
         # Test inSubnet (this should work)
-        subnet_sql = registry.build_sql(field_path, "inSubnet", "21.43.0.0/16", IpAddress)
-        subnet_str = str(subnet_sql)
+        subnet_sql = registry.build_sql("inSubnet", "21.43.0.0/16", field_path, IpAddress)
+
+        from tests.helpers.sql_rendering import render_sql_for_testing
+        subnet_str = render_sql_for_testing(subnet_sql)
 
         # Validate SQL generation includes proper INET casting
 
@@ -163,8 +165,8 @@ class TestJSONBNetworkFilteringBug:
         assert "21.43.0.0/16" in subnet_str, "Should include subnet parameter"
 
         # Test eq operator (this is the broken one)
-        eq_sql = registry.build_sql(field_path, "eq", "8.8.8.8", IpAddress)
-        eq_str = str(eq_sql)
+        eq_sql = registry.build_sql("eq", "8.8.8.8", field_path, IpAddress)
+        eq_str = render_sql_for_testing(eq_sql)
 
         # Validate equality operator generates proper SQL
 
@@ -413,13 +415,13 @@ class TestFraiseQLNetworkOperatorStrategy:
         strategy = NetworkOperatorStrategy()
 
         # Should handle IpAddress types
-        assert strategy.can_handle("eq", IpAddress), "Should handle eq for IpAddress"
-        assert strategy.can_handle("inSubnet", IpAddress), "Should handle inSubnet for IpAddress"
-        assert strategy.can_handle("isPrivate", IpAddress), "Should handle isPrivate for IpAddress"
+        assert strategy.supports_operator("eq", IpAddress), "Should handle eq for IpAddress"
+        assert strategy.supports_operator("inSubnet", IpAddress), "Should handle inSubnet for IpAddress"
+        assert strategy.supports_operator("isPrivate", IpAddress), "Should handle isPrivate for IpAddress"
 
         # Should not handle non-IP types
-        assert not strategy.can_handle("eq", str), "Should not handle eq for str"
-        assert not strategy.can_handle("inSubnet", int), "Should not handle inSubnet for int"
+        assert not strategy.supports_operator("eq", str), "Should not handle eq for str"
+        assert not strategy.supports_operator("inSubnet", int), "Should not handle inSubnet for int"
 
     def test_operator_registry_assigns_network_strategy_for_ip_equality(
         self,
