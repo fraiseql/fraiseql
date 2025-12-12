@@ -88,6 +88,22 @@ try:
 except ImportError:
     pass  # Skip cascade fixtures if dependencies not available
 
+try:
+    from tests.fixtures.security.vault_conftest import (  # noqa: F401
+        vault_container,
+        vault_token,
+        vault_transit_ready,
+        vault_url,
+    )
+    from tests.fixtures.security.aws_conftest import (  # noqa: F401
+        aws_kms_client,
+        aws_kms_mock,
+        aws_region,
+        kms_key_id,
+    )
+except ImportError:
+    pass  # Skip security fixtures if dependencies not available
+
 
 @pytest.fixture(scope="session")
 def clear_type_caches() -> Generator[None]:

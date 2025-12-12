@@ -49,9 +49,10 @@ def postgres_container() -> Generator[Any]:
     Cached and reused for test reruns within same session.
     """
     # Skip if using external database (GitHub Actions, etc)
+    # Only check TEST_DATABASE_URL (explicit external), not DATABASE_URL
+    # (which may be set by example fixtures and should not prevent container creation)
     test_db_url = os.environ.get("TEST_DATABASE_URL")
-    db_url = os.environ.get("DATABASE_URL")
-    if test_db_url or db_url:
+    if test_db_url:
         yield None
         return
 
@@ -72,6 +73,11 @@ def postgres_container() -> Generator[Any]:
     )
 
     container.start()
+
+    # Wait for database to be ready before proceeding
+    url = container.get_connection_url().replace("postgresql+psycopg://", "postgresql://")
+    _wait_for_database_ready(url)
+
     _container_cache["postgres"] = container
 
     yield container
@@ -82,19 +88,33 @@ def postgres_container() -> Generator[Any]:
 
 @pytest.fixture(scope="session")
 def postgres_url(postgres_container) -> str:
-    """Get PostgreSQL connection URL."""
-    # Check for external database
-    external_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
-    if external_url:
-        return external_url
+    """Get PostgreSQL connection URL.
 
-    # Use container
+    Priority order:
+    1. Container URL (if container available) - for test isolation
+    2. TEST_DATABASE_URL (explicit external database)
+    3. DATABASE_URL (may be set by example fixtures)
+
+    This ensures pgvector tests use the container even when examples
+    fixtures have set DATABASE_URL.
+    """
+    # Prefer container URL for test isolation
     if postgres_container and "postgres" in _container_cache:
         container = _container_cache["postgres"]
         url = container.get_connection_url()
         # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
         url = url.replace("postgresql+psycopg://", "postgresql://")
         return url
+
+    # Fallback to explicit external database
+    external_url = os.environ.get("TEST_DATABASE_URL")
+    if external_url:
+        return external_url
+
+    # Last resort: DATABASE_URL (may be from examples)
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        return db_url
 
     pytest.skip("No database available")
 
@@ -150,25 +170,43 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
 
 
 @pytest_asyncio.fixture(scope="session")
-async def pgvector_available(postgres_url: str, postgres_container) -> bool:
+async def pgvector_available(postgres_container, postgres_url: str) -> bool:
     """Check if pgvector extension is available for testing.
 
     Returns True if pgvector extension can be used, False otherwise.
     This allows tests to skip gracefully when pgvector is not available.
 
     Note: Depends on postgres_container to ensure container is ready before checking.
+    Includes retry logic to handle any remaining timing issues.
+
+    With the updated fixtures, postgres_container will always be available (and
+    postgres_url will prefer it), so pgvector tests will run in full suite.
     """
-    async with await psycopg.AsyncConnection.connect(postgres_url) as conn:
-        # Try to install extension
+    import asyncio
+
+    # Get URL from postgres_url fixture (which now prefers container)
+    db_url = postgres_url
+
+    # Try up to 5 times with 1-second delays
+    # (Should succeed immediately if health check works)
+    for attempt in range(5):
         try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            await conn.commit()
-            return True
+            async with await psycopg.AsyncConnection.connect(
+                db_url, connect_timeout=3
+            ) as conn:
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                await conn.commit()
+                return True
+        except (psycopg.OperationalError, OSError):
+            if attempt < 4:
+                await asyncio.sleep(1)
+                continue
+            # Database is up but doesn't have pgvector - skip tests
+            return False
         except psycopg.errors.InsufficientPrivilege:
-            # Check if already installed using a fresh connection
-            # (since the current transaction is aborted)
-            async with await psycopg.AsyncConnection.connect(postgres_url) as check_conn:
-                try:
+            # Check if already installed
+            try:
+                async with await psycopg.AsyncConnection.connect(db_url) as check_conn:
                     result = await check_conn.execute("""
                         SELECT EXISTS(
                             SELECT 1 FROM pg_extension WHERE extname = 'vector'
@@ -176,10 +214,13 @@ async def pgvector_available(postgres_url: str, postgres_container) -> bool:
                     """)
                     row = await result.fetchone()
                     return row[0] if row else False
-                except Exception:
-                    return False
+            except Exception:
+                return False
         except Exception:
+            # Other errors (permissions, etc) - skip tests
             return False
+
+    return False
 
 
 # ============================================================================
@@ -309,12 +350,12 @@ async def db_connection_committed(
                 await self._conn.execute(f"SET search_path TO {self.schema_name}, public")
             return self._conn
 
-        async def execute(self, query, *args, **kwargs):
+        async def execute(self, query, *args: Any, **kwargs: Any):
             """Execute query in test schema."""
             conn = await self._get_conn()
             return await conn.execute(query, *args, **kwargs)
 
-        def cursor(self, *args, **kwargs):
+        def cursor(self, *args: Any, **kwargs: Any):
             """Return a cursor from the underlying connection."""
 
             # Return a cursor context manager that properly handles async
@@ -328,7 +369,7 @@ async def db_connection_committed(
                     self._cursor = await conn.cursor(*args, **kwargs).__aenter__()
                     return self._cursor
 
-                async def __aexit__(self, *exc_args):
+                async def __aexit__(self, *exc_args: object):
                     if self._cursor:
                         await self._cursor.__aexit__(*exc_args)
 
@@ -342,7 +383,7 @@ async def db_connection_committed(
         async def __aenter__(self):
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *args: object):
             if self._conn:
                 ctx = self._conn
                 self._conn = None
@@ -482,7 +523,12 @@ def create_test_view() -> None:
 
 
 @pytest.fixture
-def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool, test_schema):
+def create_fraiseql_app_with_db(
+    postgres_url: str,
+    clear_registry: None,
+    class_db_pool: psycopg_pool.AsyncConnectionPool,
+    test_schema: str,
+) -> Any:
     """Factory fixture to create FraiseQL apps with real database connection.
 
     This fixture provides a factory function that creates properly configured
@@ -515,7 +561,7 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, class_db_pool, tes
         def __getattr__(self, name):
             return getattr(self._pool, name)
 
-    def _create_app(**kwargs):
+    def _create_app(**kwargs: Any):
         """Create a FraiseQL app with proper database URL and pool."""
         # Use the real database URL from the container
         kwargs.setdefault("database_url", postgres_url)
@@ -557,3 +603,38 @@ def pytest_collection_modifyitems(config, items) -> None:
         for item in items:
             if "database" in item.keywords:
                 item.add_marker(skip_db)
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+
+def _wait_for_database_ready(url: str, max_attempts: int = 30) -> None:
+    """Wait for PostgreSQL to accept connections.
+
+    Args:
+        url: PostgreSQL connection URL
+        max_attempts: Maximum retry attempts (default: 30 = 15 seconds)
+
+    Raises:
+        RuntimeError: If database doesn't become ready in time
+    """
+    import time
+
+    for attempt in range(max_attempts):
+        try:
+            # Try synchronous connection (simpler for startup check)
+            with psycopg.connect(url, connect_timeout=2) as conn:
+                # Verify database is actually ready
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                return  # Success!
+        except (psycopg.OperationalError, OSError):
+            if attempt < max_attempts - 1:
+                time.sleep(0.5)
+            else:
+                raise RuntimeError(
+                    f"PostgreSQL container did not become ready after "
+                    f"{max_attempts * 0.5:.1f} seconds"
+                )

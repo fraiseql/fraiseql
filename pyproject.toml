@@ -82,6 +82,7 @@ dev = [
   "pytest-timeout>=2.4.0",
   "faker>=37.5.3",
   "testcontainers[postgres]>=4.10.0",
+  "testcontainers[vault]>=4.10.0",
   "docker>=7.1.0",
   "pytest-xdist>=3.5.0",
   "pytest-watch>=1.0.0",
@@ -95,6 +96,8 @@ dev = [
   "pyyaml>=6.0.0",
   "prometheus-client>=0.20.0",
   "email-validator>=2.0.0",
+  "hvac>=2.0.0",
+  "moto[kms]>=5.0.0",
 ]
 auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
 sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
@@ -177,6 +180,8 @@ markers = [
   "core: Core functionality tests that must pass (Tier 1, <30s runtime)",
   "database: Tests that require database access",
   "auth: Tests that require authentication setup",
+  "vault: Tests that require Vault KMS (uses testcontainer)",
+  "aws: Tests that require AWS KMS (uses moto mock)",
   "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
   "blog_demo: Blog demo specific tests (blueprints)",
   "blog_simple: Blog simple example tests",

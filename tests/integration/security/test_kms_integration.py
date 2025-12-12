@@ -1,7 +1,5 @@
 """Integration tests for KMS providers (require external services)."""
 
-import os
-
 import pytest
 
 from fraiseql.security.kms import (
@@ -14,17 +12,23 @@ from fraiseql.security.kms import (
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.skipif(not os.environ.get("VAULT_ADDR"), reason="Vault not configured")
+@pytest.mark.vault
 class TestVaultIntegration:
-    """Integration tests for HashiCorp Vault KMS provider."""
+    """Integration tests for HashiCorp Vault KMS provider.
+
+    Uses testcontainers to automatically provision Vault server.
+    Tests skip gracefully if Docker is unavailable.
+    """
 
     @pytest.fixture
-    def vault_provider(self) -> VaultKMSProvider:
+    def vault_provider(
+        self, vault_url: str, vault_token: str, vault_transit_ready: None
+    ) -> VaultKMSProvider:
         """Create Vault KMS provider for testing."""
         config = VaultConfig(
-            vault_addr=os.environ["VAULT_ADDR"],
-            token=os.environ["VAULT_TOKEN"],
-            mount_path=os.environ.get("VAULT_TRANSIT_MOUNT", "transit"),
+            vault_addr=vault_url,
+            token=vault_token,
+            mount_path="transit",
         )
         return VaultKMSProvider(config)
 
@@ -76,65 +80,61 @@ class TestVaultIntegration:
         assert decrypted1 == decrypted2 == test_data
 
 
-@pytest.mark.skipif(not os.environ.get("AWS_REGION"), reason="AWS not configured - Manual testing only")
+@pytest.mark.aws
 class TestAWSKMSIntegration:
     """Integration tests for AWS KMS provider.
 
-    NOTE: These tests require real AWS credentials and are NOT run in CI/CD for security reasons.
-    They remain skipped unless explicitly enabled with AWS environment variables.
-
-    To run manually:
-        export AWS_REGION=us-east-1
-        export AWS_ACCESS_KEY_ID=your_key
-        export AWS_SECRET_ACCESS_KEY=your_secret
-        pytest tests/integration/security/test_kms_integration.py::TestAWSKMSIntegration -v
-
-    WARNING: These tests use real AWS resources and may incur costs.
-    See: /tmp/UNSKIP_TESTS_PLAN.md Category 2 Phase 2 for details.
+    Uses moto to mock AWS KMS service - no real AWS credentials needed.
+    Tests skip gracefully if moto is unavailable.
     """
 
     @pytest.fixture
-    def aws_provider(self) -> AWSKMSProvider:
+    def aws_provider(self, aws_region: str) -> AWSKMSProvider:
         """Create AWS KMS provider for testing."""
-        config = AWSKMSConfig(region_name=os.environ["AWS_REGION"])
+        config = AWSKMSConfig(region_name=aws_region)
         return AWSKMSProvider(config)
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(self, aws_provider: AWSKMSProvider):
-        """Full encryption/decryption with real AWS KMS."""
+    async def test_encrypt_decrypt_roundtrip(
+        self, aws_provider: AWSKMSProvider, kms_key_id: str
+    ):
+        """Full encryption/decryption with mocked AWS KMS."""
         test_data = b"Hello, World! This is test data for AWS KMS integration."
-        key_id = "alias/aws/s3"  # Use default key
 
         # Encrypt
-        encrypted = await aws_provider.encrypt(test_data, key_id=key_id)
+        encrypted = await aws_provider.encrypt(test_data, key_id=kms_key_id)
         assert encrypted is not None
         assert encrypted.ciphertext != test_data
-        assert encrypted.key_reference.key_id == key_id
+        assert encrypted.key_reference.key_id == kms_key_id
 
         # Decrypt
         decrypted = await aws_provider.decrypt(encrypted)
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_generate_data_key(self, aws_provider: AWSKMSProvider):
+    async def test_generate_data_key(
+        self, aws_provider: AWSKMSProvider, kms_key_id: str
+    ):
         """Generate data key with AWS KMS."""
-        key_id = "alias/aws/s3"
-
         # Generate data key
-        data_key = await aws_provider.generate_data_key(key_id=key_id)
+        data_key = await aws_provider.generate_data_key(key_id=kms_key_id)
         assert data_key is not None
         assert data_key.plaintext_key is not None
         assert data_key.encrypted_key is not None
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_context_encryption(self, aws_provider: AWSKMSProvider):
+    async def test_context_encryption(
+        self, aws_provider: AWSKMSProvider, kms_key_id: str
+    ):
         """Test encryption with additional authenticated data (context)."""
         test_data = b"Data with context"
         context = {"user_id": "12345", "action": "test"}
 
         # Encrypt with context
-        encrypted = await aws_provider.encrypt(test_data, key_id="alias/aws/s3", context=context)
+        encrypted = await aws_provider.encrypt(
+            test_data, key_id=kms_key_id, context=context
+        )
         assert encrypted is not None
 
         # Decrypt with same context should work
