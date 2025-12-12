@@ -107,6 +107,55 @@ mutation CreateMachine($input: CreateMachineInput!) {
 }
 ```
 
+### WHERE Clause Field Name Conversion
+- WHERE clauses now automatically convert snake_case Python field names to camelCase GraphQL field names
+- Enables seamless use of PostgreSQL column names (snake_case) in GraphQL queries (camelCase)
+- Supports deeply nested field names in complex WHERE conditions
+- No manual conversion needed - works automatically for all filter operations
+
+**Example**:
+```python
+# Python/Database: snake_case
+await repository.find_where(
+    where={
+        "created_at": {"gte": "2025-01-01"},  # Snake case Python
+        "user_profile": {                      # Nested snake case
+            "email_verified": True
+        }
+    }
+)
+
+# GraphQL query generated uses camelCase automatically:
+# { createdAt: { gte: "2025-01-01" }, userProfile: { emailVerified: true } }
+```
+
+### Network Operators for IP Filtering
+- **`inRange`**: Check if IP address is within a CIDR range
+- **`isIPv4`**: Validate if value is a valid IPv4 address
+- **`isIPv6`**: Validate if value is a valid IPv6 address
+- Supports both IPv4 and IPv6 addresses
+- Integrates with PostgreSQL `inet` and `cidr` types
+
+**Example**:
+```python
+# Find all IPs in a specific range
+await repository.find_where(
+    where={"ip_address": {"inRange": "192.168.1.0/24"}}
+)
+
+# Validate IPv4 addresses
+await repository.find_where(
+    where={"server_ip": {"isIPv4": True}}
+)
+```
+
+### Developer Features
+- **Schema Refresh API**: FastAPI endpoint for development and testing
+  - Endpoint: `POST /schema/refresh` (development mode only)
+  - Useful for hot-reloading schema changes during development
+  - Automatically rebuilds GraphQL schema without restarting server
+  - Documentation in `docs/testing/enabling-external-tests.md`
+
 ### Breaking Changes
 
 #### Remove `updated_fields` from Error types
