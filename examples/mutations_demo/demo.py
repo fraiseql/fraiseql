@@ -62,7 +62,7 @@ class CreateUserSuccess:
     user: User
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     message: str
     conflict_user: User | None = None
@@ -76,7 +76,7 @@ class UpdateUserSuccess:
     updated_fields: list[str] | None = None  # Make it optional
 
 
-@fraiseql.failure
+@fraiseql.error
 class UpdateUserError:
     message: str
     not_found: bool = False
@@ -89,7 +89,7 @@ class DeleteUserSuccess:
     user: User  # The deleted user data
 
 
-@fraiseql.failure
+@fraiseql.error
 class DeleteUserError:
     message: str
     not_found: bool = False

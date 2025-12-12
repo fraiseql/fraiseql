@@ -372,7 +372,7 @@ class ProcessOrderNoop:
     pricing_discrepancies: list[dict[str, Any | None]] = None
 
 
-@fraiseql.failure
+@fraiseql.error
 class ProcessOrderError:
     """Order processing failed."""
 
@@ -430,7 +430,7 @@ class UpdateInventoryNoop:
     concurrent_modification: dict[str, Any] | None = None
 
 
-@fraiseql.failure
+@fraiseql.error
 class UpdateInventoryError:
     """Inventory update failed."""
 
@@ -487,7 +487,7 @@ class ApplyDiscountNoop:
     temporal_restrictions: dict[str, Any] | None = None
 
 
-@fraiseql.failure
+@fraiseql.error
 class ApplyDiscountError:
     """Discount application failed."""
 

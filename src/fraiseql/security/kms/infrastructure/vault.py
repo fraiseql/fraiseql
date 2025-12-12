@@ -167,7 +167,9 @@ class VaultKMSProvider(BaseKMSProvider):
 
             data = response.json()["data"]
             plaintext_key = base64.b64decode(data["plaintext"])
-            encrypted_key = base64.b64decode(data["ciphertext"])
+            # Vault returns ciphertext in its format (vault:v1:base64data), not raw base64
+            # We store it as-is (encoded as bytes) since encrypt() returns it the same way
+            encrypted_key = data["ciphertext"].encode()
 
             return plaintext_key, encrypted_key
 

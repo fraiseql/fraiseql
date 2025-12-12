@@ -54,7 +54,7 @@ class TestInputGenerator:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
             description="Create a user",
         )
 
@@ -95,7 +95,7 @@ class TestInputGenerator:
         )
 
         annotation = MutationAnnotation(
-            name="createUser", success_type="User", failure_type="ValidationError"
+            name="createUser", success_type="User", error_type="ValidationError"
         )
 
         # When: Generate input type
@@ -133,7 +133,7 @@ class TestInputGenerator:
         )
 
         annotation = MutationAnnotation(
-            name="createPost", success_type="Post", failure_type="ValidationError"
+            name="createPost", success_type="Post", error_type="ValidationError"
         )
 
         # When: Generate input type
@@ -168,7 +168,7 @@ class TestInputGenerator:
         )
 
         annotation = MutationAnnotation(
-            name="createProduct", success_type="Product", failure_type="ValidationError"
+            name="createProduct", success_type="Product", error_type="ValidationError"
         )
 
         # When: Generate input type
@@ -206,7 +206,7 @@ class TestInputGenerator:
                 language="plpgsql",
             )
 
-            annotation = MutationAnnotation(name="test", success_type="Test", failure_type="Error")
+            annotation = MutationAnnotation(name="test", success_type="Test", error_type="Error")
 
             input_cls = await input_generator.generate_input_type(
                 function_metadata, annotation, mock_introspector
@@ -271,7 +271,7 @@ class TestInputGenerator:
 
         # Given: Annotation
         annotation = MutationAnnotation(
-            name="createContact", success_type="Contact", failure_type="ContactError"
+            name="createContact", success_type="Contact", error_type="ContactError"
         )
 
         # When: Generate input type (READS composite type from database)
@@ -313,7 +313,7 @@ class TestInputGenerator:
 
         # Given: Annotation
         annotation = MutationAnnotation(
-            name="createUser", success_type="User", failure_type="UserError"
+            name="createUser", success_type="User", error_type="UserError"
         )
 
         # When: Generate input type
@@ -353,7 +353,7 @@ class TestInputGenerator:
             name="qualifyLead",
             description=None,
             success_type="Contact",
-            failure_type="ContactError",
+            error_type="ContactError",
         )
 
         # When: Generate input type

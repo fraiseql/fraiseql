@@ -90,7 +90,8 @@ class TestSQLInjectionProtection:
         # Should use %s parameter, not inline values
         assert "OR '1'='1'" not in sql_str
         assert "%s" in sql_str
-        assert params[0] == tuple(malicious_values)
+        # psycopg3 uses individual placeholders, not a single tuple
+        assert params == malicious_values
 
     def test_like_pattern_sql_injection_protection(self):
         """Verify LIKE patterns don't allow SQL injection."""

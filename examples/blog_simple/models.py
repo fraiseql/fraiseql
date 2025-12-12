@@ -322,7 +322,7 @@ class CreateUserSuccess:
 
 
 # Error result types
-@fraiseql.failure
+@fraiseql.error
 class ValidationError:
     """Validation error with details."""
 
@@ -332,7 +332,7 @@ class ValidationError:
     # For explicit validation errors, use metadata.errors in your PostgreSQL function
 
 
-@fraiseql.failure
+@fraiseql.error
 class NotFoundError:
     """Entity not found error."""
 
@@ -342,7 +342,7 @@ class NotFoundError:
     entity_id: UUID | None = None
 
 
-@fraiseql.failure
+@fraiseql.error
 class PermissionError:
     """Permission denied error."""
 

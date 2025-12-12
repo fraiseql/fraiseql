@@ -44,6 +44,8 @@ async def test_can_query_auto_populated_fields():
     # For this test, we'll just verify the schema can be built and fields are registered
     # Actual query execution would require a full GraphQL client setup
     registry = SchemaRegistry.get_instance()
+    registry.register_query(health_check)
+    registry.register_mutation(CreateMachine)
     schema = registry.build_schema()
 
     # Verify schema was built successfully
@@ -80,6 +82,8 @@ async def test_can_query_auto_populated_fields():
 async def test_fields_optional_in_query():
     """Auto-populated fields should be optional (don't have to query them)."""
     registry = SchemaRegistry.get_instance()
+    registry.register_query(health_check)
+    registry.register_mutation(CreateMachine)
     schema = registry.build_schema()
 
     # Verify schema was built successfully
@@ -110,6 +114,8 @@ async def test_fields_optional_in_query():
 async def test_graphql_spec_compliance():
     """Verify GraphQL spec: fields only in response if explicitly requested."""
     registry = SchemaRegistry.get_instance()
+    registry.register_query(health_check)
+    registry.register_mutation(CreateMachine)
     schema = registry.build_schema()
 
     # Verify schema was built successfully

@@ -188,8 +188,8 @@ class TestFieldCondition:
         sql_str = sql.as_string(None)
         assert "status" in sql_str
         assert "IN" in sql_str
-        assert len(params) == 1
-        assert params[0] == ("active", "pending")
+        assert len(params) == 2  # psycopg3 uses individual placeholders
+        assert params == ["active", "pending"]
 
     def test_isnull_operator_to_sql(self):
         """Test IS NULL operator generates correct SQL."""

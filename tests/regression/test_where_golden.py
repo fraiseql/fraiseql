@@ -27,7 +27,7 @@ GOLDEN_QUERIES = [
         "name": "in_operator",
         "where": {"status": {"in": ["active", "pending"]}},
         "expected_sql_contains": ['"status"', "IN", "%s"],
-        "expected_params": [("active", "pending")],
+        "expected_params": ["active", "pending"],  # psycopg3 uses individual parameters
     },
     {
         "name": "fk_nested_filter",

@@ -402,7 +402,7 @@ class CreateTaskNoop:
 # Error Types with Detailed Context
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateOrganizationError:
     """Organization creation failed with context."""
 
@@ -418,7 +418,7 @@ class CreateOrganizationError:
     suggested_fixes: list[str]
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     """User creation failed with detailed information."""
 
@@ -438,7 +438,7 @@ class CreateUserError:
     security_policy_violations: list[str] = fraise_field(default_factory=list)
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateProjectError:
     """Project creation failed with business context."""
 
@@ -458,7 +458,7 @@ class CreateProjectError:
     insufficient_permissions: list[str] = fraise_field(default_factory=list)
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateTaskError:
     """Task creation failed with relationship context."""
 
@@ -547,7 +547,7 @@ class UpdateProjectNoop:
     business_rule_prevented_changes: list[str] = fraise_field(default_factory=list)
 
 
-@fraiseql.failure
+@fraiseql.error
 class UpdateProjectError:
     """Project update failed with context."""
 

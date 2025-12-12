@@ -59,7 +59,7 @@ class TestMutationGenerator:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
             description="Create a user",
         )
 
@@ -95,7 +95,7 @@ class TestMutationGenerator:
         )
 
         annotation = MutationAnnotation(
-            name="createUser", success_type="User", failure_type="ValidationError"
+            name="createUser", success_type="User", error_type="ValidationError"
         )
 
         # Empty type registry
@@ -125,7 +125,7 @@ class TestMutationGenerator:
         )
 
         annotation = MutationAnnotation(
-            name="createUser", success_type="User", failure_type="ValidationError"
+            name="createUser", success_type="User", error_type="ValidationError"
         )
 
         type_registry = {
@@ -146,7 +146,7 @@ class TestMutationGenerator:
         input_cls = type("CreateUserInput", (), {"__annotations__": {"name": str, "email": str}})
 
         success_type = type("User", (), {})
-        failure_type = type("ValidationError", (), {})
+        error_type = type("ValidationError", (), {})
 
         function_metadata = FunctionMetadata(
             schema_name="public",
@@ -160,13 +160,13 @@ class TestMutationGenerator:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
             description="Create a user",
         )
 
         # When: Create mutation class
         mutation_cls = mutation_generator._create_mutation_class(
-            function_metadata, annotation, input_cls, success_type, failure_type
+            function_metadata, annotation, input_cls, success_type, error_type
         )
 
         # Then: Class has correct structure
@@ -175,7 +175,7 @@ class TestMutationGenerator:
         annotations = mutation_cls.__annotations__
         assert annotations["input"] == input_cls
         assert annotations["success"] == success_type
-        assert annotations["failure"] == failure_type
+        assert annotations["error"] == error_type
         assert mutation_cls.__doc__ == "Create a user"
 
     def test_function_to_mutation_class_name_conversion(
@@ -219,7 +219,7 @@ class TestMutationGenerator:
             name="qualifyLead",
             description=None,
             success_type="Contact",
-            failure_type="ContactError",
+            error_type="ContactError",
             context_params=None,
         )
 
@@ -255,7 +255,7 @@ class TestMutationGenerator:
             name="qualifyLead",
             description=None,
             success_type="Contact",
-            failure_type="ContactError",
+            error_type="ContactError",
             context_params=["auth_tenant_id", "auth_user_id"],  # Explicit!
         )
 
@@ -283,7 +283,7 @@ class TestMutationGenerator:
             name="getStatus",
             description=None,
             success_type="Status",
-            failure_type="StatusError",
+            error_type="StatusError",
             context_params=None,
         )
 
@@ -315,7 +315,7 @@ class TestMutationGenerator:
             name="createItem",
             description=None,
             success_type="Item",
-            failure_type="ItemError",
+            error_type="ItemError",
             context_params=None,
         )
 
@@ -336,7 +336,7 @@ class TestMutationGenerator:
         input_cls = type("CreateUserInput", (), {"__annotations__": {"name": str, "email": str}})
 
         success_type = type("User", (), {})
-        failure_type = type("ValidationError", (), {})
+        error_type = type("ValidationError", (), {})
 
         function_metadata = FunctionMetadata(
             schema_name="app",
@@ -350,13 +350,13 @@ class TestMutationGenerator:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
             description=None,  # No explicit description
         )
 
         # When: Create mutation class
         mutation_cls = mutation_generator._create_mutation_class(
-            function_metadata, annotation, input_cls, success_type, failure_type
+            function_metadata, annotation, input_cls, success_type, error_type
         )
 
         # Then: Class uses function comment as description
