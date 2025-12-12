@@ -1452,10 +1452,12 @@ class FraiseQLRepository:
         """Normalize WHERE clause to canonical WhereClause representation.
 
         This is the single entry point for WHERE normalization, handling both
-        dict and WhereInput formats.
+        dict and WhereInput formats. Automatically converts GraphQL camelCase
+        field names to database snake_case column names.
 
         Args:
             where: WHERE clause (dict or WhereInput object)
+                  Field names can be camelCase (GraphQL) or snake_case (database)
             view_name: Table/view name for metadata lookup
             table_columns: Set of actual table column names
 
@@ -1464,6 +1466,17 @@ class FraiseQLRepository:
 
         Raises:
             TypeError: If where is not a supported type
+
+        Examples:
+            # CamelCase input (GraphQL style) - automatically converted
+            where = {"ipAddress": {"eq": "192.168.1.1"}}
+            # Converted internally to: {"ip_address": {"eq": "..."}}
+
+            # Snake_case input (already correct) - preserved as-is
+            where = {"ip_address": {"eq": "192.168.1.1"}}
+
+            # Deep nesting with mixed case - all levels converted
+            where = {"machine": {"network": {"ipAddress": {"eq": "..."}}}}
         """
         # Already normalized
         if isinstance(where, WhereClause):

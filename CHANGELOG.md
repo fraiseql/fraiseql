@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+#### Automatic Field Name Conversion in WHERE Clauses
+- WHERE clauses now automatically convert GraphQL camelCase field names to database snake_case
+- Supports arbitrary nesting levels (e.g., `machine.network.ipAddress`)
+- Backward compatible - existing snake_case field names work unchanged
+- Applies to both dict-based and WhereInput-based WHERE clauses
+
+**Examples**:
+```python
+# GraphQL camelCase (now works automatically)
+where = {"ipAddress": {"eq": "192.168.1.1"}}
+# Converts to: {"ip_address": {"eq": "192.168.1.1"}}
+
+# Deep nesting
+where = {"machine": {"network": {"ipAddress": {"eq": "192.168.1.1"}}}}
+# Converts all levels: machine → machine, network → network, ipAddress → ip_address
+```
+
+### Fixes
+
+#### Deep Nested WHERE Clause Support
+- Fixed WHERE clause processing to handle arbitrary levels of nesting
+- Previously only supported 1 level of nesting, now supports unlimited depth
+- Resolves "Invalid operator" errors for deeply nested GraphQL queries
+
 ## [1.8.1] - 2025-12-12
 
 ### Features
