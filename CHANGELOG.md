@@ -56,6 +56,7 @@ mutation CreateMachine($input: CreateMachineInput!) {
 #### Remove `updated_fields` from Error types
 - Error types no longer have `updated_fields` field auto-injected
 - **Rationale**: Errors represent failed operations - nothing was updated
+- **Database Note**: `updated_fields` remains in the `mutation_response` type (used by Success types)
 - **Action Required**: Remove `updatedFields` from Error type GraphQL queries
 
 **Before**:
@@ -82,6 +83,7 @@ mutation CreateMachine($input: CreateMachineInput!) {
 #### Remove `id` from Error types
 - Error types no longer have `id` field auto-injected
 - **Rationale**: Errors represent failed operations - nothing was created
+- **Database Note**: `entity_id` remains in the `mutation_response` type (used by Success types)
 - **Action Required**: Remove `id` from Error type GraphQL queries
 
 ### Improvements
@@ -100,6 +102,37 @@ mutation CreateMachine($input: CreateMachineInput!) {
 - Added 6 canary tests to prevent future regressions
 - Tests validate exact field counts and types for Success/Error types
 - Will break loudly if auto-injection logic changes unexpectedly
+
+### Database Layer (No Changes Required)
+
+**Important**: The `code` field is **computed by the Rust layer**, not stored in PostgreSQL.
+
+The PostgreSQL `mutation_response` composite type remains unchanged:
+
+```sql
+CREATE TYPE mutation_response AS (
+    status          TEXT,      -- e.g., "failed:validation", "created", "noop:invalid_id"
+    message         TEXT,      -- Human-readable message
+    entity_id       TEXT,      -- Optional: ID of affected entity
+    entity_type     TEXT,      -- Optional: GraphQL type name
+    entity          JSONB,     -- Optional: Entity data
+    updated_fields  TEXT[],    -- Optional: Fields that were updated (success only)
+    cascade         JSONB,     -- Optional: CASCADE data
+    metadata        JSONB      -- Optional: Explicit errors array
+);
+```
+
+**How `code` is computed**:
+- Rust extracts the `code` from the `status` field
+- Status pattern: `prefix:identifier` → HTTP-like code
+- Examples:
+  - `"noop:invalid_id"` → `422` (Unprocessable Entity)
+  - `"failed:not_found"` → `404` (Not Found)
+  - `"failed:conflict"` → `409` (Conflict)
+  - `"failed:validation"` → `422` (Unprocessable Entity)
+  - Other `"failed:*"` → `500` (Internal Server Error)
+
+**No database migration needed** - this is purely a GraphQL/Python/Rust layer improvement.
 
 ### Migration Guide
 
