@@ -8,6 +8,7 @@ from typing import Any
 import psycopg_pool
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from graphql import GraphQLSchema
 from psycopg import AsyncConnection
 
 from fraiseql.auth.auth0 import Auth0Config
@@ -489,6 +490,20 @@ def create_fraiseql_app(
         camel_case_fields=config.auto_camel_case,
     )
 
+    # Store configuration for potential schema refresh
+    app.state._fraiseql_refresh_config = {
+        "database_url": database_url,
+        "original_types": list(types),
+        "original_queries": list(queries),
+        "original_mutations": list(mutations),
+        "auto_discover": auto_discover,
+        "camel_case_fields": config.auto_camel_case,
+        "enable_schema_registry": enable_schema_registry,
+        "config": config,
+        "auth_provider": auth_provider,
+    }
+    app.state.graphql_schema = schema
+
     # Initialize Rust schema registry for type resolution
     # This enables correct __typename for nested JSONB objects and field aliasing
     if enable_schema_registry:
@@ -649,6 +664,171 @@ def create_fraiseql_app(
             },
             status_code=http_status,
         )
+
+    # Add refresh_schema method to app instance
+    async def refresh_schema() -> GraphQLSchema:
+        """Refresh the GraphQL schema by re-introspecting the database.
+
+        This rebuilds the schema from scratch, discovering new database functions
+        and views that were created after app initialization. Primarily useful
+        for testing scenarios where database functions are created dynamically.
+
+        The method:
+        1. Clears all Python and Rust caches
+        2. Re-runs auto-discovery (if enabled)
+        3. Rebuilds the GraphQL schema
+        4. Reinitializes the Rust schema registry
+        5. Updates TurboRegistry cache
+        6. Replaces the GraphQL route handler
+
+        Returns:
+            The newly built GraphQLSchema instance
+
+        Example:
+            >>> # In test after creating database functions
+            >>> await app.refresh_schema()
+            >>> # New mutations now available in schema
+
+        Raises:
+            RuntimeError: If refresh config not found (app not created with create_fraiseql_app)
+
+        Note:
+            Schema refresh is expensive (~50-200ms) due to database introspection
+            and schema rebuilding. Use sparingly, typically once per test class.
+        """
+        import importlib
+        import json
+        import time
+
+        def _replace_graphql_router(
+            app: FastAPI, new_schema: GraphQLSchema, refresh_config: dict[str, Any]
+        ) -> None:
+            """Replace GraphQL router with new schema (internal helper)."""
+            from fraiseql.fastapi.routers import create_graphql_router
+
+            # Remove existing GraphQL routes
+            original_route_count = len(app.routes)
+            app.routes[:] = [
+                route
+                for route in app.routes
+                if not (hasattr(route, "path") and route.path == "/graphql")
+            ]
+            removed_routes = original_route_count - len(app.routes)
+            logger.debug(f"Removed {removed_routes} GraphQL routes")
+
+            # Create and mount new router
+            new_router = create_graphql_router(
+                schema=new_schema,
+                config=refresh_config["config"],
+                auth_provider=refresh_config["auth_provider"],
+                turbo_registry=app.state.turbo_registry
+                if hasattr(app.state, "turbo_registry")
+                else None,
+            )
+            app.include_router(new_router)
+            logger.debug("Mounted new GraphQL router")
+
+        if not hasattr(app.state, "_fraiseql_refresh_config"):
+            raise RuntimeError(
+                "Cannot refresh schema: app not created with create_fraiseql_app(). "
+                "Ensure app was created using the standard FraiseQL factory."
+            )
+
+        refresh_config = app.state._fraiseql_refresh_config
+        logger.info("Starting schema refresh...")
+        refresh_start = time.time()
+
+        # Step 1: Clear all caches using utility
+        from fraiseql.testing import clear_fraiseql_caches
+
+        clear_fraiseql_caches()
+
+        # Step 2: Get Rust module reference for later use
+        _fraiseql_rs = None
+        try:
+            _fraiseql_rs = importlib.import_module("fraiseql._fraiseql_rs")
+        except Exception:
+            logger.warning("Rust extension not available")
+
+        # Step 3: Re-run auto-discovery if enabled
+        auto_types: list[type] = []
+        auto_queries: list = []
+        auto_mutations: list = []
+
+        if refresh_config["auto_discover"]:
+            from fraiseql.introspection import AutoDiscovery
+
+            logger.debug("Running auto-discovery...")
+            discoverer = AutoDiscovery(refresh_config["database_url"])
+            auto_types, auto_queries, auto_mutations = await discoverer.discover_all()
+            logger.info(
+                f"Auto-discovery: {len(auto_types)} types, "
+                f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
+            )
+
+        # Step 4: Rebuild GraphQL schema
+        from fraiseql.gql.schema_builder import build_fraiseql_schema
+
+        all_query_types = (
+            refresh_config["original_types"]
+            + refresh_config["original_queries"]
+            + auto_types
+            + auto_queries
+        )
+        all_mutations = refresh_config["original_mutations"] + auto_mutations
+
+        new_schema = build_fraiseql_schema(
+            query_types=all_query_types,
+            mutation_resolvers=all_mutations,
+            camel_case_fields=refresh_config["camel_case_fields"],
+        )
+        logger.debug(f"Rebuilt schema with {len(new_schema.type_map)} types")
+
+        # Step 5: Reinitialize Rust schema registry
+        if refresh_config["enable_schema_registry"] and _fraiseql_rs is not None:
+            try:
+                from fraiseql.core.schema_serializer import SchemaSerializer
+
+                serializer = SchemaSerializer()
+                schema_ir = serializer.serialize_schema(new_schema)
+                schema_json = json.dumps(schema_ir)
+                _fraiseql_rs.initialize_schema_registry(schema_json)
+                logger.debug("Reinitialized Rust schema registry")
+            except Exception as e:
+                logger.warning(f"Failed to reinitialize Rust registry: {e}")
+
+        # Step 6: Update app state and clear TurboRegistry
+        old_schema = app.state.graphql_schema
+        app.state.graphql_schema = new_schema
+
+        if hasattr(app.state, "turbo_registry") and app.state.turbo_registry:
+            app.state.turbo_registry.clear()
+            logger.debug("Cleared TurboRegistry cache")
+
+        # Step 7: Replace GraphQL router
+        _replace_graphql_router(app, new_schema, refresh_config)
+
+        # Validate refresh (development builds only)
+        if logger.isEnabledFor(logging.DEBUG):
+            from fraiseql.testing import validate_schema_refresh
+
+            try:
+                result = validate_schema_refresh(old_schema, new_schema)
+                logger.debug(
+                    f"Schema validation: {len(result['preserved_types'])} preserved, "
+                    f"{len(result['new_types'])} new"
+                )
+            except AssertionError as e:
+                logger.error(f"Schema refresh validation failed: {e}")
+                raise
+
+        refresh_duration = (time.time() - refresh_start) * 1000
+        logger.info(f"Schema refresh completed in {refresh_duration:.2f}ms")
+
+        return new_schema
+
+    # Attach method to app instance
+    app.refresh_schema = refresh_schema
 
     return app
 

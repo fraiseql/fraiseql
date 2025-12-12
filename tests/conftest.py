@@ -129,66 +129,14 @@ def clear_registry() -> Generator[None]:
 def _clear_all_fraiseql_state() -> None:
     """Comprehensive cleanup of all FraiseQL global state.
 
-    This function resets:
-    - Python SchemaRegistry
-    - Rust schema registry
-    - FastAPI global dependencies (db_pool, auth_provider, config)
-    - GraphQL type caches
-    - Type registry (view mappings)
+    Delegates to fraiseql.testing.clear_fraiseql_state() utility.
     """
     if not FRAISEQL_AVAILABLE:
         return
 
-    # Clear type caches FIRST (before resetting Rust registry to avoid conflicts)
-    try:
-        if _graphql_type_cache is not None:
-            _graphql_type_cache.clear()
-        if _type_registry is not None:
-            _type_registry.clear()
-    except Exception:
-        pass
+    from fraiseql.testing import clear_fraiseql_state
 
-    # Clear view type registry mapping
-    try:
-        from fraiseql.db import _view_type_registry
-
-        _view_type_registry.clear()
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
-    # Clear Python SchemaRegistry
-    try:
-        SchemaRegistry.get_instance().clear()  # type: ignore
-    except Exception:
-        pass
-
-    # Reset Rust schema registry LAST (after Python state is cleared)
-    try:
-        from fraiseql._fraiseql_rs import reset_schema_registry_for_testing
-
-        reset_schema_registry_for_testing()
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
-    # Reset FastAPI global dependencies
-    try:
-        from fraiseql.fastapi.dependencies import (
-            set_auth_provider,
-            set_db_pool,
-            set_fraiseql_config,
-        )
-
-        set_db_pool(None)
-        set_auth_provider(None)
-        set_fraiseql_config(None)
-    except ImportError:
-        pass
-    except Exception:
-        pass
+    clear_fraiseql_state()
 
 
 @pytest.fixture
