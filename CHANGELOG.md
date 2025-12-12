@@ -134,6 +134,64 @@ CREATE TYPE mutation_response AS (
 
 **No database migration needed** - this is purely a GraphQL/Python/Rust layer improvement.
 
+### Advanced: Multiple Entities in Success/Error Types
+
+Success and Error types can have **multiple entity fields** at the root level. This is common for:
+- Conflict scenarios (showing both the new and existing entity)
+- Update operations (showing before and after states)
+- Related entities (showing cascaded changes)
+
+**Example: Success type with multiple entities**:
+```python
+@fraiseql.success
+class UpdateMachineSuccess:
+    """Success with multiple entities at root."""
+    machine: Machine                    # Primary entity
+    previous_location: Location | None  # Before state
+    new_location: Location | None       # After state
+    # Auto-injected: status, message, updated_fields, id
+```
+
+**Example: Error type with conflict entity**:
+```python
+@fraiseql.failure
+class CreateMachineError:
+    """Error with conflict entity."""
+    conflict_machine: Machine | None  # Existing conflicting entity
+    # Auto-injected: status, message, code, errors
+```
+
+**Database side**: The `entity` field in `mutation_response` can be a wrapper object:
+```sql
+-- Multiple entities example
+result.entity := jsonb_build_object(
+    'machine', row_to_json(new_machine),
+    'conflict_machine', row_to_json(existing_machine),
+    'previous_location', row_to_json(old_location)
+);
+```
+
+**How Rust handles this**:
+- Rust response builder extracts each entity field from the wrapper
+- Each entity gets its own `__typename` automatically
+- Field selection works independently for each entity
+- Auto-injected fields (`status`, `message`, etc.) appear at the root level
+
+**GraphQL query example**:
+```graphql
+mutation UpdateMachine($input: UpdateMachineInput!) {
+    updateMachine(input: $input) {
+        ... on UpdateMachineSuccess {
+            status
+            message
+            machine { id name }
+            previousLocation { id name }
+            newLocation { id name }
+        }
+    }
+}
+```
+
 ### Migration Guide
 
 **For Error Type Definitions**:
