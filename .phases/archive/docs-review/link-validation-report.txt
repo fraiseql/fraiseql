@@ -1,0 +1,773 @@
+Link Validation Report
+================================================================================
+
+Files Scanned: 181
+Total Links: 1368
+  - Internal: 1052
+  - External: 106
+  - Anchors: 210
+Broken Links: 152
+Success Rate: 88.9%
+
+Broken Links:
+--------------------------------------------------------------------------------
+
+File: api-reference/README.md:8
+Link: [@type](../core/types-and-schema.md#type-decorator)
+Type: broken_file
+Issue: Anchor '#type-decorator' not found in types-and-schema.md
+
+File: api-reference/README.md:10
+Link: [@input](../core/types-and-schema.md#input-types)
+Type: broken_file
+Issue: Anchor '#input-types' not found in types-and-schema.md
+
+File: api-reference/README.md:11
+Link: [@success](../core/queries-and-mutations.md#success-failure-pattern)
+Type: broken_file
+Issue: Anchor '#success-failure-pattern' not found in queries-and-mutations.md
+
+File: api-reference/README.md:12
+Link: [@failure](../core/queries-and-mutations.md#success-failure-pattern)
+Type: broken_file
+Issue: Anchor '#success-failure-pattern' not found in queries-and-mutations.md
+
+File: api-reference/README.md:15
+Link: [@query](../core/queries-and-mutations.md#query-decorator)
+Type: broken_file
+Issue: Anchor '#query-decorator' not found in queries-and-mutations.md
+
+File: api-reference/README.md:17
+Link: [@mutation](../core/queries-and-mutations.md#mutation-decorator)
+Type: broken_file
+Issue: Anchor '#mutation-decorator' not found in queries-and-mutations.md
+
+File: api-reference/README.md:21
+Link: [@authorized](../advanced/authentication.md#authorization-decorator)
+Type: broken_file
+Issue: Anchor '#authorization-decorator' not found in authentication.md
+
+File: api-reference/README.md:27
+Link: [Database Pool](database.md#connection-pool)
+Type: broken_file
+Issue: Anchor '#connection-pool' not found in database.md
+
+File: api-reference/README.md:33
+Link: [call_function()](database.md#calling-functions)
+Type: broken_file
+Issue: Anchor '#calling-functions' not found in database.md
+
+File: api-reference/README.md:34
+Link: [execute_query()](database.md#raw-queries)
+Type: broken_file
+Issue: Anchor '#raw-queries' not found in database.md
+
+File: api-reference/README.md:35
+Link: [fetch_one() / fetch_all()](database.md#fetching-data)
+Type: broken_file
+Issue: Anchor '#fetching-data' not found in database.md
+
+File: api-reference/README.md:54
+Link: [PostgresCache](../performance/index.md#postgresql-caching)
+Type: broken_file
+Issue: Anchor '#postgresql-caching' not found in index.md
+
+File: api-reference/README.md:60
+Link: [init_error_tracker()](../production/monitoring.md#error-tracking)
+Type: broken_file
+Issue: Anchor '#error-tracking' not found in monitoring.md
+
+File: architecture/type-operator-architecture.md:84
+Link: [\[\(](\d{4}-\d{2}-\d{2})
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/architecture/\d{4}-\d{2}-\d{2}
+
+File: benchmarks/methodology.md:339
+Link: [N+1 Prevention](../performance/index.md#n-plus-one-prevention)
+Type: broken_file
+Issue: Anchor '#n-plus-one-prevention' not found in index.md
+
+File: case-studies/README.md:85
+Link: [GitHub Discussion](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: core/dependencies.md:58
+Link: [PostgreSQL Extensions Guide](./postgresql-extensions.md#jsonbivm-extension)
+Type: broken_file
+Issue: Anchor '#jsonbivm-extension' not found in postgresql-extensions.md
+
+File: core/trinity-pattern.md:484
+Link: [Database Naming Conventions](./naming-conventions.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/core/naming-conventions.md
+
+File: core/trinity-pattern.md:486
+Link: [View Strategies](./view-strategies.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/core/view-strategies.md
+
+File: core/trinity-pattern.md:487
+Link: [Performance Tuning](./performance-tuning.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/core/performance-tuning.md
+
+File: deployment/README.md:471
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: development/FRAMEWORK_SUBMISSION_GUIDE.md:727
+Link: [Join our server](#)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-framework-information, 1-simple-query-p0, 2-docker-container, 2-n1-query-test-p0, 3-complex-filtering-p1
+
+File: development/README.md:7
+Link: [Style Guide](/docs/development/style-guide.md)
+Type: broken_file
+Issue: File not found: /docs/development/style-guide.md
+
+File: development/README.md:8
+Link: [Link Best Practices](/docs/development/link-best-practices.md)
+Type: broken_file
+Issue: File not found: /docs/development/link-best-practices.md
+
+File: development/README.md:9
+Link: [Framework Submission Guide](/docs/development/FRAMEWORK_SUBMISSION_GUIDE.md)
+Type: broken_file
+Issue: File not found: /docs/development/FRAMEWORK_SUBMISSION_GUIDE.md
+
+File: development/README.md:10
+Link: [New User Confusions](/docs/development/NEW_USER_CONFUSIONS.md)
+Type: broken_file
+Issue: File not found: /docs/development/NEW_USER_CONFUSIONS.md
+
+File: development/README.md:11
+Link: [Philosophy](/docs/development/PHILOSOPHY.md)
+Type: broken_file
+Issue: File not found: /docs/development/PHILOSOPHY.md
+
+File: development/README.md:22
+Link: [Contributing Guide](/CONTRIBUTING.md)
+Type: broken_file
+Issue: File not found: /CONTRIBUTING.md
+
+File: development/README.md:23
+Link: [Examples](/examples/)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/README.md:24
+Link: [Core Concepts](/docs/core/)
+Type: broken_file
+Issue: File not found: /docs/core
+
+File: development/link-best-practices.md:9
+Link: [Installation Guide](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:10
+Link: [Examples](/examples/blog_api/)
+Type: broken_file
+Issue: File not found: /examples/blog_api
+
+File: development/link-best-practices.md:20
+Link: [See Configuration](#configuration-options)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-absolute-repository-links-recommended, 1-find-the-broken-link, 1-run-validation-to-find-errors, 1-wrong-relative-path-depth, 2-check-if-target-file-exists
+
+File: development/link-best-practices.md:32
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:33
+Link: [API Reference](/docs/api-reference/database.md)
+Type: broken_file
+Issue: File not found: /docs/api-reference/database.md
+
+File: development/link-best-practices.md:34
+Link: [Examples Directory](/examples/)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:35
+Link: [Contributing Guide](/CONTRIBUTING.md)
+Type: broken_file
+Issue: File not found: /CONTRIBUTING.md
+
+File: development/link-best-practices.md:108
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:117
+Link: [See Installation Steps](#installation-steps)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-absolute-repository-links-recommended, 1-find-the-broken-link, 1-run-validation-to-find-errors, 1-wrong-relative-path-depth, 2-check-if-target-file-exists
+
+File: development/link-best-practices.md:120
+Link: [Configuration Options](/docs/core/configuration.md#environment-variables)
+Type: broken_file
+Issue: File not found: /docs/core/configuration.md
+
+File: development/link-best-practices.md:143
+Link: [Configuration](/docs/core/configuration.md)
+Type: broken_file
+Issue: File not found: /docs/core/configuration.md
+
+File: development/link-best-practices.md:150
+Link: [Examples Directory](/examples/)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:151
+Link: [Core Docs](/docs/core/)
+Type: broken_file
+Issue: File not found: /docs/core
+
+File: development/link-best-practices.md:152
+Link: [Examples Directory](/examples)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:176
+Link: [Installation](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:183
+Link: [Examples](/examples)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:186
+Link: [Examples](/examples/)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:196
+Link: [Core](/docs/core/README.md)
+Type: broken_file
+Issue: File not found: /docs/core/README.md
+
+File: development/link-best-practices.md:203
+Link: [Installation](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:205
+Link: [API Reference](/docs/api-reference/)
+Type: broken_file
+Issue: File not found: /docs/api-reference
+
+File: development/link-best-practices.md:208
+Link: [Installation](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:209
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:210
+Link: [API Reference](/docs/api-reference/)
+Type: broken_file
+Issue: File not found: /docs/api-reference
+
+File: development/link-best-practices.md:273
+Link: [Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:302
+Link: [Database API](/docs/api-reference/database.md)
+Type: broken_file
+Issue: File not found: /docs/api-reference/database.md
+
+File: development/link-best-practices.md:312
+Link: [Core](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:318
+Link: [Config](/docs/core/configuration.md)
+Type: broken_file
+Issue: File not found: /docs/core/configuration.md
+
+File: development/link-best-practices.md:350
+Link: [Installation Guide](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:351
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:352
+Link: [Examples](/examples/)
+Type: broken_file
+Issue: File not found: /examples
+
+File: development/link-best-practices.md:403
+Link: [Installation Guide](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:404
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:405
+Link: [Performance Optimization](/docs/guides/performance-guide.md)
+Type: broken_file
+Issue: File not found: /docs/guides/performance-guide.md
+
+File: development/link-best-practices.md:406
+Link: [Blog API Example](/examples/blog_api/)
+Type: broken_file
+Issue: File not found: /examples/blog_api
+
+File: development/link-best-practices.md:409
+Link: [filter operators reference](/docs/advanced/filter-operators.md)
+Type: broken_file
+Issue: File not found: /docs/advanced/filter-operators.md
+
+File: development/link-best-practices.md:413
+Link: [deployment guide](/docs/production/deployment.md)
+Type: broken_file
+Issue: File not found: /docs/production/deployment.md
+
+File: development/link-best-practices.md:414
+Link: [security checklist](/docs/production/security.md)
+Type: broken_file
+Issue: File not found: /docs/production/security.md
+
+File: development/link-best-practices.md:425
+Link: [Performance Guide](/docs/guides/performance-guide.md)
+Type: broken_file
+Issue: File not found: /docs/guides/performance-guide.md
+
+File: development/link-best-practices.md:432
+Link: [Installation Guide](/docs/getting-started/installation.md)
+Type: broken_file
+Issue: File not found: /docs/getting-started/installation.md
+
+File: development/link-best-practices.md:433
+Link: [Core Concepts](/docs/core/concepts-glossary.md)
+Type: broken_file
+Issue: File not found: /docs/core/concepts-glossary.md
+
+File: development/link-best-practices.md:440
+Link: [Style Guide](/docs/development/style-guide.md)
+Type: broken_file
+Issue: File not found: /docs/development/style-guide.md
+
+File: development/link-best-practices.md:441
+Link: [Contributing Guide](/CONTRIBUTING.md)
+Type: broken_file
+Issue: File not found: /CONTRIBUTING.md
+
+File: development/link-best-practices.md:442
+Link: [Documentation Structure](/docs/README.md)
+Type: broken_file
+Issue: File not found: /docs/README.md
+
+File: examples/advanced-filtering.md:9
+Link: [User Management & Permissions](#user-management--permissions)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-always-use-indexes, 2-combine-filters-wisely, 3-use-limit, 4-monitor-query-performance, advanced-filtering-examples
+
+File: examples/advanced-filtering.md:10
+Link: [Log Analysis & Monitoring](#log-analysis--monitoring)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-always-use-indexes, 2-combine-filters-wisely, 3-use-limit, 4-monitor-query-performance, advanced-filtering-examples
+
+File: features/index.md:19
+Link: [Types Guide](../core/types-and-schema.md#input-types)
+Type: broken_file
+Issue: Anchor '#input-types' not found in types-and-schema.md
+
+File: features/index.md:20
+Link: [Mutations Guide](../core/queries-and-mutations.md#success-failure-pattern)
+Type: broken_file
+Issue: Anchor '#success-failure-pattern' not found in queries-and-mutations.md
+
+File: features/index.md:21
+Link: [Database API](../core/database-api.md#nested-relations)
+Type: broken_file
+Issue: Anchor '#nested-relations' not found in database-api.md
+
+File: features/index.md:31
+Link: [Core Concepts](../core/concepts-glossary.md#jsonb-views)
+Type: broken_file
+Issue: Anchor '#jsonb-views' not found in concepts-glossary.md
+
+File: features/index.md:33
+Link: [Database API](../core/database-api.md#calling-functions)
+Type: broken_file
+Issue: Anchor '#calling-functions' not found in database-api.md
+
+File: features/index.md:34
+Link: [Database API](../core/database-api.md#connection-pool)
+Type: broken_file
+Issue: Anchor '#connection-pool' not found in database-api.md
+
+File: features/index.md:35
+Link: [Database API](../core/database-api.md#transactions)
+Type: broken_file
+Issue: Anchor '#transactions' not found in database-api.md
+
+File: features/index.md:37
+Link: [Patterns Guide](../patterns/README.md#cqrs)
+Type: broken_file
+Issue: Anchor '#cqrs' not found in README.md
+
+File: features/index.md:47
+Link: [Specialized Types](../advanced/where_input_types.md#network-types)
+Type: broken_file
+Issue: Anchor '#network-types' not found in where_input_types.md
+
+File: features/index.md:48
+Link: [Hierarchical Guide](../advanced/database-patterns.md#ltree)
+Type: broken_file
+Issue: Anchor '#ltree' not found in database-patterns.md
+
+File: features/index.md:49
+Link: [Range Types](../advanced/where_input_types.md#range-types)
+Type: broken_file
+Issue: Anchor '#range-types' not found in where_input_types.md
+
+File: features/index.md:50
+Link: [Search Guide](../advanced/database-patterns.md#full-text-search)
+Type: broken_file
+Issue: Anchor '#full-text-search' not found in database-patterns.md
+
+File: features/index.md:60
+Link: [Performance Guide](../performance/index.md#n-plus-one-prevention)
+Type: broken_file
+Issue: Anchor '#n-plus-one-prevention' not found in index.md
+
+File: features/index.md:62
+Link: [Caching Guide](../performance/index.md#postgresql-caching)
+Type: broken_file
+Issue: Anchor '#postgresql-caching' not found in index.md
+
+File: features/index.md:63
+Link: [Database API](../core/database-api.md#batching)
+Type: broken_file
+Issue: Anchor '#batching' not found in database-api.md
+
+File: features/index.md:64
+Link: [Database API](../core/database-api.md#connection-pool)
+Type: broken_file
+Issue: Anchor '#connection-pool' not found in database-api.md
+
+File: features/index.md:72
+Link: [Security Guide](../production/security.md#rls)
+Type: broken_file
+Issue: Anchor '#rls' not found in security.md
+
+File: features/index.md:73
+Link: [Authentication](../advanced/authentication.md#field-authorization)
+Type: broken_file
+Issue: Anchor '#field-authorization' not found in authentication.md
+
+File: features/index.md:74
+Link: [Authentication](../advanced/authentication.md#authorized-decorator)
+Type: broken_file
+Issue: Anchor '#authorized-decorator' not found in authentication.md
+
+File: features/index.md:75
+Link: [Authentication](../advanced/authentication.md#jwt)
+Type: broken_file
+Issue: Anchor '#jwt' not found in authentication.md
+
+File: features/index.md:76
+Link: [Authentication](../advanced/authentication.md#oauth2)
+Type: broken_file
+Issue: Anchor '#oauth2' not found in authentication.md
+
+File: features/index.md:78
+Link: [Security Guide](../production/security.md#crypto-audit)
+Type: broken_file
+Issue: Anchor '#crypto-audit' not found in security.md
+
+File: features/index.md:79
+Link: [Security Guide](../production/security.md#sql-injection)
+Type: broken_file
+Issue: Anchor '#sql-injection' not found in security.md
+
+File: features/index.md:80
+Link: [Configuration](../core/configuration.md#cors)
+Type: broken_file
+Issue: Anchor '#cors' not found in configuration.md
+
+File: features/index.md:92
+Link: [Event Sourcing](../advanced/event-sourcing.md#domain-events)
+Type: broken_file
+Issue: Anchor '#domain-events' not found in event-sourcing.md
+
+File: features/index.md:93
+Link: [Patterns Guide](../patterns/README.md#cqrs)
+Type: broken_file
+Issue: Anchor '#cqrs' not found in README.md
+
+File: features/index.md:114
+Link: [Monitoring Guide](../production/monitoring.md#postgresql-monitoring)
+Type: broken_file
+Issue: Anchor '#postgresql-monitoring' not found in monitoring.md
+
+File: features/index.md:116
+Link: [Monitoring Guide](../production/monitoring.md#grafana)
+Type: broken_file
+Issue: Anchor '#grafana' not found in monitoring.md
+
+File: features/index.md:118
+Link: [Observability Guide](../production/observability.md#metrics)
+Type: broken_file
+Issue: Anchor '#metrics' not found in observability.md
+
+File: features/index.md:141
+Link: [CLI Reference](../reference/cli.md#type-generation)
+Type: broken_file
+Issue: Anchor '#type-generation' not found in cli.md
+
+File: features/index.md:142
+Link: [CLI Reference](../reference/cli.md#schema-export)
+Type: broken_file
+Issue: Anchor '#schema-export' not found in cli.md
+
+File: features/index.md:150
+Link: [Deployment Guide](../deployment/README.md#docker)
+Type: broken_file
+Issue: Anchor '#docker' not found in README.md
+
+File: features/index.md:151
+Link: [Deployment Guide](../deployment/README.md#kubernetes)
+Type: broken_file
+Issue: Anchor '#kubernetes' not found in README.md
+
+File: features/index.md:152
+Link: [Deployment Guide](../deployment/README.md#aws)
+Type: broken_file
+Issue: Anchor '#aws' not found in README.md
+
+File: features/index.md:153
+Link: [Deployment Guide](../deployment/README.md#gcp)
+Type: broken_file
+Issue: Anchor '#gcp' not found in README.md
+
+File: features/index.md:154
+Link: [Deployment Guide](../deployment/README.md#azure)
+Type: broken_file
+Issue: Anchor '#azure' not found in README.md
+
+File: getting-started/README.md:79
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: getting-started/first-hour.md:418
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: getting-started/installation.md:411
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: getting-started/installation.md:412
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: getting-started/quickstart.md:263
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: guides/performance-guide.md:5
+Link: [Performance Docs →](docs/performance/index.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/guides/docs/performance/index.md
+
+File: guides/troubleshooting-decision-tree.md:9
+Link: [Installation & Setup](#1-installation--setup-issues)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-application-error-check-logs, 1-installation-setup-issues, 137-oomkilled-increase-memory, 143-sigterm-graceful-shutdown-normal, 2-database-connection-issues
+
+File: guides/troubleshooting-decision-tree.md:470
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: guides/troubleshooting-decision-tree.md:471
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: guides/troubleshooting-decision-tree.md:529
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: guides/troubleshooting-decision-tree.md:530
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: guides/troubleshooting.md:9
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: guides/troubleshooting.md:9
+Link: [Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: guides/troubleshooting.md:307
+Link: [existing issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: guides/troubleshooting.md:308
+Link: [GitHub Discussions](../discussions)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/discussions
+
+File: journeys/devops-engineer.md:156
+Link: [Database Configuration](../database/README.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/database/README.md
+
+File: patterns/README.md:8
+Link: [Trinity Identifiers Pattern](trinity_identifiers.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/patterns/trinity_identifiers.md
+
+File: patterns/README.md:30
+Link: [CQRS Pattern](../advanced/bounded-contexts.md#cqrs-pattern)
+Type: broken_file
+Issue: Anchor '#cqrs-pattern' not found in bounded-contexts.md
+
+File: patterns/README.md:166
+Link: [Database Patterns](../advanced/database-patterns.md#hybrid-tables)
+Type: broken_file
+Issue: Anchor '#hybrid-tables' not found in database-patterns.md
+
+File: production/README.md:91
+Link: [Deployment Guide](deployment.md#docker-setup)
+Type: broken_file
+Issue: Anchor '#docker-setup' not found in deployment.md
+
+File: production/README.md:122
+Link: [GitHub Issues](../issues)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/issues
+
+File: production/deployment-checklist.md:16
+Link: [Security & Compliance](#2-security--compliance)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-pre-deployment-planning, 10-final-gono-go-decision, 101-critical-blockers-must-be-done, 102-non-blocking-issues-can-be-addressed-post-launch, 103-launch-decision
+
+File: production/deployment-checklist.md:19
+Link: [Observability & Monitoring](#5-observability--monitoring)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-pre-deployment-planning, 10-final-gono-go-decision, 101-critical-blockers-must-be-done, 102-non-blocking-issues-can-be-addressed-post-launch, 103-launch-decision
+
+File: reference/decorators.md:127
+Link: [Queries and Mutations](../core/queries-and-mutations.md#query-decorator)
+Type: broken_file
+Issue: Anchor '#query-decorator' not found in queries-and-mutations.md
+
+File: reference/decorators.md:384
+Link: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
+Type: broken_file
+Issue: Anchor '#mutation-decorator' not found in queries-and-mutations.md
+
+File: reference/decorators.md:474
+Link: [Queries and Mutations](../core/queries-and-mutations.md#field-decorator)
+Type: broken_file
+Issue: Anchor '#field-decorator' not found in queries-and-mutations.md
+
+File: runbooks/ci-troubleshooting.md:9
+Link: [Quality Gate Issues](#quality-gate-issues)
+Type: broken_anchor
+Issue: Anchor not found. Available: 1-check-github-actions-status, 1-check-if-postgresql-service-started, 1-check-performance-test-results, 1-check-vault-container-logs, 1-check-which-job-failed
+
+File: security-compliance/README.md:79
+Link: [Audit Trails Deep Dive](../advanced/audit-trails.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md
+
+File: security-compliance/README.md:132
+Link: [GDPR Compliance Features](../compliance/GLOBAL_REGULATIONS.md#gdpr)
+Type: broken_file
+Issue: Anchor '#gdpr' not found in GLOBAL_REGULATIONS.md
+
+File: security-compliance/README.md:200
+Link: [HIPAA Security Profile](./security-profiles.md#hipaa)
+Type: broken_file
+Issue: Anchor '#hipaa' not found in security-profiles.md
+
+File: security-compliance/README.md:245
+Link: [SOC 2 Controls Mapping](./compliance-matrix.md#soc2)
+Type: broken_file
+Issue: Anchor '#soc2' not found in compliance-matrix.md
+
+File: security-compliance/README.md:318
+Link: [SBOM Generation and Analysis](./slsa-provenance.md#sbom-verification)
+Type: broken_file
+Issue: Anchor '#sbom-verification' not found in slsa-provenance.md
+
+File: security-compliance/README.md:342
+Link: [Audit Trails Deep Dive](../advanced/audit-trails.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md
+
+File: security-compliance/README.md:361
+Link: [Audit Preparation Checklist](../production/README.md#security-audit-preparation)
+Type: broken_file
+Issue: Anchor '#security-audit-preparation' not found in README.md
+
+File: security-compliance/README.md:372
+Link: [ADR-005: Unified Audit Table](../architecture/decisions/003_unified_audit.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/architecture/decisions/003_unified_audit.md
+
+File: security-compliance/README.md:382
+Link: [Audit Trails Deep Dive](../advanced/audit-trails.md)
+Type: broken_file
+Issue: File not found: /home/lionel/code/fraiseql/docs/advanced/audit-trails.md
+
+File: security-compliance/compliance-matrix.md:43
+Link: [SBOM Guide](./slsa-provenance.md#sbom-verification)
+Type: broken_file
+Issue: Anchor '#sbom-verification' not found in slsa-provenance.md
+
+File: security-compliance/compliance-matrix.md:98
+Link: [SLSA Provenance](./slsa-provenance.md#sbom-verification)
+Type: broken_file
+Issue: Anchor '#sbom-verification' not found in slsa-provenance.md
+
+File: security-compliance/compliance-matrix.md:154
+Link: [SLSA Provenance](./slsa-provenance.md#sbom-verification)
+Type: broken_file
+Issue: Anchor '#sbom-verification' not found in slsa-provenance.md
+
+File: security-compliance/compliance-matrix.md:197
+Link: [Security Controls](../security/controls-matrix.md#observability--monitoring-controls)
+Type: broken_file
+Issue: Anchor '#observability--monitoring-controls' not found in controls-matrix.md
+
+File: security-compliance/compliance-matrix.md:259
+Link: [SLSA Provenance](./slsa-provenance.md#sbom-verification)
+Type: broken_file
+Issue: Anchor '#sbom-verification' not found in slsa-provenance.md

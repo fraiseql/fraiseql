@@ -39,6 +39,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+coverage_html/
 .tox/
 .nox/
 .coverage
@@ -178,6 +179,8 @@ tests/fixtures/examples/.install_log.txt
 .ruff_cache/
 .mypy_cache/
 security_events.log
+tox_failure*.log
+*.log
 
 # TODO directory (deployment analysis and guides)
 TODO/
@@ -197,4 +200,10 @@ TODO/
 /archive/
 
 # Phase tracking directory for Pentagon-Readiness implementation
-.phases/
+# Note: Now tracked in git - remove this line if phases should be version controlled
+# .phases/
+
+# Reports directory - generated files
+/reports/coverage/
+/reports/security/*-scan.json
+/reports/security/*-cves.json
