@@ -290,19 +290,9 @@ class MutationDefinition:
 
         error_annotations = self.error_type.__annotations__
 
-        # Error must have code field (v1.8.0)
-        if "code" not in error_annotations:
-            raise ValueError(
-                f"Error type {error_type_name} must have 'code: int' field. "
-                f"v1.8.0 requires Error types to include REST-like error codes."
-            )
-
-        # Code must be int
-        code_type = error_annotations["code"]
-        if code_type != int:  # noqa: E721
-            raise ValueError(
-                f"Error type {error_type_name} has wrong 'code' type: {code_type}. Expected 'int'."
-            )
+        # NOTE: code field validation REMOVED (v1.8.1)
+        # The 'code' field is now auto-injected by @fraiseql.error decorator
+        # No manual definition required - automatically added to all Error types
 
         # Error must have status field
         if "status" not in error_annotations:

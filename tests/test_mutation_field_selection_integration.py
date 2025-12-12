@@ -24,7 +24,7 @@ def test_decorator_adds_fields_to_gql_fields():
 
 
 def test_failure_decorator_adds_fields():
-    """Verify @failure decorator also adds auto-populated fields."""
+    """Verify @failure decorator adds auto-populated fields (v1.8.1)."""
 
     @failure
     class TestError:
@@ -32,14 +32,17 @@ def test_failure_decorator_adds_fields():
 
     gql_fields = getattr(TestError, "__gql_fields__", {})
 
+    # Fields that SHOULD be present on Error types
     assert "error_code" in gql_fields
     assert "status" in gql_fields
     assert "message" in gql_fields
     assert "errors" in gql_fields
-    assert "updated_fields" in gql_fields
+    assert "code" in gql_fields, "code field missing (auto-injected in v1.8.1)"
 
-    # No entity field, so id should still be present (error types might have conflicting entity)
-    # Actually checking the implementation...
+    # Fields that should NOT be present on Error types (semantically incorrect)
+    assert "updated_fields" not in gql_fields, "updated_fields should not be on Error types"
+    assert "id" not in gql_fields, "id should not be on Error types"
+
     print(f"✅ Failure decorator: Fields present: {sorted(gql_fields.keys())}")
 
 

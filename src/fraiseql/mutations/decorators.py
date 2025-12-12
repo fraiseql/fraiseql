@@ -202,24 +202,22 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
             cls.errors = []  # Empty list instead of None - populated at runtime
             auto_injected_fields.append("errors")
 
-        # Add updatedFields
-        if "updated_fields" not in annotations:
-            annotations["updated_fields"] = list[str] | None
-            cls.updated_fields = None
-            auto_injected_fields.append("updated_fields")
+        # NEW: Auto-inject code field on Error types (v1.8.1)
+        # Computed from status by Rust response builder (422, 404, 409, 500)
+        if "code" not in annotations:
+            annotations["code"] = int
+            cls.code = 0  # Placeholder - Rust computes actual value from status
+            auto_injected_fields.append("code")
+
+        # NOTE: updated_fields REMOVED from Error types (v1.8.1)
+        # Semantically incorrect: Errors don't update fields - operation failed
+        # This field only belongs on Success types where updates actually occurred
+
+        # NOTE: id field REMOVED from Error types (v1.8.1)
+        # Semantically incorrect: Errors don't create/update entities - operation failed
+        # This field only belongs on Success types where entities were created/updated
 
         cls.__annotations__ = annotations
-
-        # Detect if class has an entity field (any field that's not an auto-field)
-        has_entity_field = any(
-            field_name not in {"status", "message", "errors", "updated_fields", "id"}
-            for field_name in annotations
-        )
-
-        if has_entity_field and "id" not in annotations:
-            annotations["id"] = str | None
-            cls.id = None
-            auto_injected_fields.append("id")
 
         patch_missing_field_types(cls)
         cls = define_fraiseql_type(cls, kind="output")  # type: ignore[assignment]
@@ -315,8 +313,9 @@ def _get_auto_field_description_failure(field_name: str) -> str:
     descriptions = {
         "status": "Error status code (e.g., 'error', 'failed', 'blocked')",
         "message": "Human-readable error message",
+        "code": (
+            "HTTP-like error code (422=validation, 404=not_found, 409=conflict, 500=server_error)"
+        ),
         "errors": "List of detailed error information",
-        "updated_fields": "List of field names that would have been updated",
-        "id": "ID of the entity that would have been created or updated",
     }
     return descriptions.get(field_name, f"Auto-populated {field_name} field")
