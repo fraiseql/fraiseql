@@ -121,14 +121,14 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
     post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
     assert post_entity is not None
     assert post_entity["operation"] == "CREATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
     # Since we didn't query entity field, it won't be present
 
     # Find User entity in CASCADE
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1
@@ -327,13 +327,13 @@ async def test_cascade_end_to_end(cascade_http_client):
     post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
     assert post_entity is not None
     assert post_entity["operation"] == "CREATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Find User entity
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1

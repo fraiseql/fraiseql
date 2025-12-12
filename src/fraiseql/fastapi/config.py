@@ -228,10 +228,6 @@ class FraiseQLConfig(BaseSettings):
         20  # Switch to full data column when field count exceeds this
     )
 
-    # v1.0.0: Rust-first architecture - Single execution path
-    # All transformation handled by fraiseql-rs (required dependency)
-    # Execution mode options removed - always uses Rust passthrough
-
     # Token revocation settings
     revocation_enabled: bool = True
     revocation_check_enabled: bool = True

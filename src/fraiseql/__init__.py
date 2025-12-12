@@ -8,7 +8,7 @@ from .cqrs import CQRSExecutor, CQRSRepository
 from .decorators import connection, field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
-from .mutations.decorators import failure, result, success
+from .mutations.decorators import error, result, success
 from .mutations.error_config import (
     ALWAYS_DATA_CONFIG,
     DEFAULT_ERROR_CONFIG,
@@ -137,7 +137,7 @@ __all__ = [
     "create_fraiseql_app",
     "dataloader_field",
     "enum",
-    "failure",
+    "error",
     "field",
     "fraise_enum",
     "fraise_field",

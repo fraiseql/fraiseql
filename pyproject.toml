@@ -463,6 +463,7 @@ dev = [
   "testcontainers>=4.10.0",
   "twine>=6.1.0",
   "ty>=0.0.1a28",
+  "moto[kms]>=5.1.18",
 ]
 docs = [
   "mkdocs>=1.6.1",

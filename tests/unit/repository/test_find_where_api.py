@@ -17,9 +17,8 @@ pytestmark = pytest.mark.unit
 class TestRepositoryFindWhereAPI:
     """Test that FraiseQLRepository.find() uses FraiseQL's WHERE generation system."""
 
-    @pytest.mark.skip(reason="RED test documenting known limitation - repository uses WHERE clause system now")
     def test_repository_find_uses_primitive_sql_templates_not_operator_strategies(self) -> None:
-        """TEST THAT WILL FAIL: Repository bypasses operator strategies.
+        """TEST THAT SHOULD NOW PASS: Repository was fixed to use operator strategies.
 
         This test demonstrates that FraiseQLRepository.find() uses primitive
         SQL templates instead of the sophisticated operator strategy system
@@ -60,42 +59,6 @@ class TestRepositoryFindWhereAPI:
             f"Repository should use operator strategies with INET casting for IP addresses, "
             f"but got primitive SQL: {condition_str}"
         )
-
-    @pytest.mark.skip(reason="RED test documenting expected behavior not yet implemented")
-    @pytest.mark.asyncio
-    async def test_repository_find_should_use_operator_strategy_system(
-        self, class_db_pool, test_schema
-    ) -> None:
-        """TEST SHOWING THE CORRECT BEHAVIOR: find() should use operator strategies."""
-        db = FraiseQLRepository(class_db_pool)
-
-        # Mock the operator strategy system to show it should be called
-        with patch("fraiseql.sql.operators.get_default_registry") as mock_registry:
-            mock_strategy = Mock()
-            mock_strategy.build_sql.return_value = Mock()  # Mock SQL result
-
-            mock_registry_instance = Mock()
-            mock_registry_instance.get_strategy.return_value = mock_strategy
-            mock_registry.return_value = mock_registry_instance
-
-            # This will fail because find() doesn't call operator strategies
-            where_input = {"ipAddress": {"eq": "192.168.1.1"}}
-
-            try:
-                await db.find("test_view", tenant_id="test-tenant", where=where_input, limit=1)
-            except Exception:
-                # Expected to fail due to missing view, that's fine
-                pass
-
-            # This assertion will FAIL because find() doesn't use operator strategies
-            # It uses primitive SQL templates instead
-            (
-                mock_registry.assert_called(),
-                (
-                    "find() should use get_operator_registry() to get operator strategies "
-                    "instead of primitive SQL templates"
-                ),
-            )
 
     def test_operator_strategy_system_provides_intelligent_casting(self) -> None:
         """Show that the fixed system provides intelligent type casting."""

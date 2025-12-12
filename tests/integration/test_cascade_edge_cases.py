@@ -52,7 +52,6 @@ class TestCascadeEdgeCases:
         assert cascade["metadata"]["affectedCount"] == 2
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="TODO: Schema validation error - Rust pipeline reports missing 'code' field despite it being defined in CreatePostError. Investigate schema serialization.")
     async def test_cascade_field_not_in_success_type_selection(self, cascade_http_client):
         """No selection set on Success type at all."""
         mutation = """
@@ -136,7 +135,6 @@ class TestCascadeEdgeCases:
         assert "timestamp" in cascade["metadata"]
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="TODO: Schema validation error - Rust pipeline reports missing 'code' field despite it being defined in CreatePostError. Investigate schema serialization.")
     async def test_mutation_without_cascade_enabled(self, cascade_http_client):
         """Mutation without enable_cascade should never return CASCADE."""
         # Use a mutation that doesn't have enable_cascade=True
@@ -218,7 +216,6 @@ class TestCascadeEdgeCases:
         assert "updated" in response_data["cascade"]
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="TODO: Rust pipeline doesn't inject 'code' field yet. Error type has code: int annotation but Rust build_mutation_response() needs to compute code from status field. Requires Rust extension update.")
     async def test_cascade_selection_with_variables(self, cascade_http_client):
         """CASCADE selection with GraphQL variables and directives."""
         mutation = """
@@ -330,9 +327,52 @@ class TestCascadeNullHandling:
     @pytest.mark.asyncio
     async def test_cascade_when_no_side_effects(self, cascade_http_client):
         """CASCADE requested but mutation has no side effects."""
-        # This would need a mutation that returns empty CASCADE
-        # Skip if no such mutation exists
-        pytest.skip("Requires mutation with empty CASCADE")
+        mutation = """
+            mutation UpdatePostTitle($input: CreatePostInput!) {
+                updatePostTitle(input: $input) {
+                    ... on UpdatePostTitleSuccess {
+                        message
+                        cascade {
+                            updated {
+                                id
+                            }
+                            deleted {
+                                id
+                            }
+                            metadata {
+                                affectedCount
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+        variables = {
+            "input": {
+                "title": "Updated Title",
+                "authorId": "user-123",
+            }
+        }
+
+        response = await cascade_http_client.post(
+            "/graphql", json={"query": mutation, "variables": variables}
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "errors" not in result
+        response_data = result["data"]["updatePostTitle"]
+
+        # Cascade should be present with empty arrays
+        assert "cascade" in response_data
+        cascade = response_data["cascade"]
+
+        # All arrays should be empty (no side effects)
+        assert cascade["updated"] == []
+        assert cascade["deleted"] == []
+        assert cascade["metadata"]["affectedCount"] == 0
 
     @pytest.mark.asyncio
     async def test_cascade_with_null_fields(self, cascade_http_client):

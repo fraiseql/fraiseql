@@ -209,7 +209,7 @@ async def execute_mutation_rust(
         success_type_fields,  # Pass field list for schema validation
     )
 
-    # v1.8.0: Validate Rust response structure
+    # Validate Rust response structure
     # Parse the response to check for required fields
     try:
         response_dict = json.loads(response_bytes.decode("utf-8"))
@@ -229,12 +229,12 @@ async def execute_mutation_rust(
                         f"Validation failures should return Error type, not Success type."
                     )
 
-            # Error type: code field must be present (v1.8.0)
+            # Error type: code field must be present
             elif typename == error_type:
                 if "code" not in mutation_result:
                     raise ValueError(
                         f"Error type '{typename}' missing required 'code' field. "
-                        f"Ensure Rust pipeline is updated to v1.8.0."
+                        f"Ensure Rust pipeline includes code field."
                     )
                 if not isinstance(mutation_result["code"], int):
                     raise ValueError(

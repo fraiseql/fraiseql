@@ -231,14 +231,14 @@ impl MutationStatus {
 
     /// Returns true if this status should return Error type
     ///
-    /// v1.8.0: Both Noop and Error return Error type
+    /// Both Noop and Error return Error type
     pub fn is_error(&self) -> bool {
         matches!(self, MutationStatus::Error(_) | MutationStatus::Noop(_))
     }
 
     /// Returns true if this status should return Success type
     ///
-    /// v1.8.0: Only Success(_) returns Success type
+    /// Only Success(_) returns Success type
     pub fn is_graphql_success(&self) -> bool {
         matches!(self, MutationStatus::Success(_))
     }
@@ -261,8 +261,11 @@ impl MutationStatus {
             MutationStatus::Noop(_) => 422, // Validation/business rule
             MutationStatus::Error(reason) => {
                 let reason_lower = reason.to_lowercase();
-                if reason_lower.starts_with("not_found:") {
+                // Map error reasons to HTTP-like codes
+                if reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
                     404
+                } else if reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
+                    422
                 } else if reason_lower.starts_with("unauthorized:") {
                     401
                 } else if reason_lower.starts_with("forbidden:") {

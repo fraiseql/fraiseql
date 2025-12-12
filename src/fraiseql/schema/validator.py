@@ -1,11 +1,11 @@
-"""Schema validation for v1.8.0 requirements."""
+"""Schema validation for FraiseQL requirements."""
 
 import types
 from typing import Any, List, Type
 
 
 class SchemaValidator:
-    """Validate FraiseQL schemas conform to v1.8.0 requirements."""
+    """Validate FraiseQL schemas conform to requirements."""
 
     @staticmethod
     def validate_mutation_types(
@@ -13,7 +13,7 @@ class SchemaValidator:
         success_type: Type,
         error_type: Type,
     ) -> List[str]:
-        """Validate mutation types conform to v1.8.0.
+        """Validate mutation types conform to requirements.
 
         Returns:
             List of validation errors (empty if valid)

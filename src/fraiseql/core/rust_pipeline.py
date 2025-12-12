@@ -3,8 +3,6 @@
 This module provides zero-copy path from database to HTTP by delegating
 ALL string operations to Rust after query execution.
 
-Updated for fraiseql_rs v0.2.0: Uses unified build_graphql_response() API
-instead of deprecated build_*_response() functions.
 """
 
 import json

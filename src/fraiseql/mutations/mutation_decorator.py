@@ -113,8 +113,8 @@ class MutationDefinition:
         # Store the provided schema for lazy resolution
         self._provided_schema = schema
         self._resolved_schema = None  # Will be resolved lazily
-        self._provided_error_config = error_config  # <-- NEW: Store provided value
-        self._resolved_error_config = None  # <-- NEW: Lazy resolution
+        self._provided_error_config = error_config  # Store provided value
+        self._resolved_error_config = None  # Lazy resolution
 
         self.context_params = context_params or {}
         self.enable_cascade = enable_cascade

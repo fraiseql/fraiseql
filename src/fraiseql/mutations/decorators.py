@@ -21,14 +21,14 @@ from fraiseql.utils.fields import patch_missing_field_types
 T = TypeVar("T", bound=type[Any])
 
 _success_registry: dict[str, type] = {}
-_failure_registry: dict[str, type] = {}
+_error_registry: dict[str, type] = {}
 _union_registry: dict[str, object] = {}
 
 
 def clear_mutation_registries() -> None:
     """Clear all mutation decorator registries and SchemaRegistry mutations."""
     _success_registry.clear()
-    _failure_registry.clear()
+    _error_registry.clear()
     _union_registry.clear()
 
     # Also clear the SchemaRegistry mutations to prevent test pollution
@@ -165,12 +165,12 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
 
 @dataclass_transform(field_specifiers=(fraise_field,))
 @overload
-def failure(_cls: None = None) -> Callable[[T], T]: ...
+def error(_cls: None = None) -> Callable[[T], T]: ...
 @overload
-def failure(_cls: T) -> T: ...
+def error(_cls: T) -> T: ...
 
 
-def failure(_cls: T | None = None) -> T | Callable[[T], T]:
+def error(_cls: T | None = None) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL mutation error type."""
 
     def wrap(cls: T) -> T:
@@ -187,7 +187,7 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
 
         if "status" not in annotations:
             annotations["status"] = str
-            cls.status = "error"  # Default for failure
+            cls.status = "error"  # Default for error types
             auto_injected_fields.append("status")
 
         if "message" not in annotations:
@@ -234,7 +234,7 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
                         field = FraiseQLField(
                             field_type=field_type,
                             purpose="output",
-                            description=_get_auto_field_description_failure(field_name),
+                            description=_get_auto_field_description_error(field_name),
                             graphql_name=None,
                         )
                         field.name = field_name
@@ -244,7 +244,7 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
 
         SchemaRegistry.get_instance().register_type(cls)
 
-        _failure_registry[cls.__name__] = cls
+        _error_registry[cls.__name__] = cls
         _maybe_register_union(cls.__name__)
         return cls
 
@@ -259,25 +259,25 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
 def _maybe_register_union(_: str) -> None:
     for success_name, success_cls in _success_registry.items():
         error_name = f"{success_name.removesuffix('Success')}Error"
-        if error_name in _failure_registry:
-            failure_cls = _failure_registry[error_name]
+        if error_name in _error_registry:
+            error_cls = _error_registry[error_name]
             union_name = f"{success_name}Result"
             if union_name not in _union_registry:
-                register_result(success_cls, failure_cls)
+                register_result(success_cls, error_cls)
                 _union_registry[union_name] = Annotated[
-                    success_cls | failure_cls,
+                    success_cls | error_cls,
                     FraiseUnion(union_name),
                 ]
 
-    for failure_name, failure_cls in _failure_registry.items():
-        success_name = f"{failure_name.removesuffix('Error')}Success"
+    for error_name, error_cls in _error_registry.items():
+        success_name = f"{error_name.removesuffix('Error')}Success"
         if success_name in _success_registry:
             success_cls = _success_registry[success_name]
             union_name = f"{success_name}Result"
             if union_name not in _union_registry:
-                register_result(success_cls, failure_cls)
+                register_result(success_cls, error_cls)
                 _union_registry[union_name] = Annotated[
-                    success_cls | failure_cls,
+                    success_cls | error_cls,
                     FraiseUnion(union_name),
                 ]
 
@@ -308,8 +308,8 @@ def _get_auto_field_description(field_name: str) -> str:
     return descriptions.get(field_name, f"Auto-populated {field_name} field")
 
 
-def _get_auto_field_description_failure(field_name: str) -> str:
-    """Get description for auto-injected failure fields."""
+def _get_auto_field_description_error(field_name: str) -> str:
+    """Get description for auto-injected error fields."""
     descriptions = {
         "status": "Error status code (e.g., 'error', 'failed', 'blocked')",
         "message": "Human-readable error message",

@@ -55,6 +55,7 @@ try:
         db_connection,
         db_connection_committed,
         db_cursor,
+        pgvector_available,
         postgres_container,
         postgres_url,
         test_schema,

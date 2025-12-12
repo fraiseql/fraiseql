@@ -21,8 +21,7 @@ pub fn build_graphql_response(
     success_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-    // v1.8.0: Only TRUE success returns Success type
-    // All errors (noop, failed, conflict, etc.) return Error type
+    // Success status returns Success type, all others return Error type
     let response_obj = if result.status.is_success() {
         build_success_response(
             result,
@@ -94,24 +93,7 @@ pub fn build_success_response(
     success_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-    // 🔍 DIAGNOSTIC LOGGING (from FraiseQL team investigation)
-    // Wrapped in debug_assertions to avoid performance impact in release builds
-    #[cfg(debug_assertions)]
-    {
-        eprintln!("🔍 RUST FIELD SELECTION DEBUG:");
-        eprintln!("  Type: {}", success_type);
-        eprintln!("  Entity field name: {:?}", entity_field_name);
-        eprintln!("  success_type_fields: {:?}", success_type_fields);
-        eprintln!("  should_filter: {}", success_type_fields.is_some());
 
-        // 🔍 DIAGNOSTIC LOGGING - Database result
-        eprintln!("  Database result:");
-        eprintln!("    status: {:?}", result.status);
-        eprintln!("    message: {:?}", result.message);
-        eprintln!("    entity_id: {:?}", result.entity_id);
-        eprintln!("    has entity: {}", result.entity.is_some());
-        eprintln!("    updated_fields: {:?}", result.updated_fields);
-    }
 
     let mut obj = Map::new();
 
@@ -123,62 +105,36 @@ pub fn build_success_response(
     let empty_vec = Vec::new();
     let selected_fields = success_type_fields.unwrap_or(&empty_vec);
 
-    // 🔍 DIAGNOSTIC LOGGING (continued)
-    #[cfg(debug_assertions)]
-    {
-        eprintln!("  selected_fields count: {}", selected_fields.len());
-        eprintln!("  selected_fields: {:?}", selected_fields);
-    }
+
 
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
-        let result = !should_filter || selected_fields.contains(&field_name.to_string());
-        #[cfg(debug_assertions)]
-        eprintln!("    is_selected({}): {}", field_name, result);
-        result
+        !should_filter || selected_fields.contains(&field_name.to_string())
     };
 
-    // 🔍 DIAGNOSTIC LOGGING - Check each field
-    #[cfg(debug_assertions)]
-    eprintln!("  Checking field selections:");
+
 
     // Add id from entity_id if present AND selected
     if is_selected("id") {
         if let Some(ref entity_id) = result.entity_id {
-            #[cfg(debug_assertions)]
-            eprintln!("    Adding 'id' to response");
             obj.insert("id".to_string(), json!(entity_id));
         }
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("    SKIPPING 'id' (not selected)");
     }
 
     // Add message if selected
     if is_selected("message") {
-        #[cfg(debug_assertions)]
-        eprintln!("    Adding 'message' to response");
         obj.insert("message".to_string(), json!(result.message));
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("    SKIPPING 'message' (not selected)");
     }
 
     // Add status if selected
     if is_selected("status") {
-        #[cfg(debug_assertions)]
-        eprintln!("    Adding 'status' to response");
         obj.insert("status".to_string(), json!(result.status.to_string()));
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("    SKIPPING 'status' (not selected)");
     }
 
-    // errors field removed from Success responses in v1.8.1
-    // Success types don't have errors - that's semantically incorrect
-    // errors field still exists on Error types where it belongs
+    // Success types do not have errors field
+    // Only Error types include errors array
 
-    // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
+    // Success type requires non-null entity
     if result.entity.is_none() {
         return Err(format!(
             "Success type '{}' requires non-null entity. \
@@ -356,11 +312,11 @@ pub fn build_error_response_with_code(
         !should_filter || selected_fields.contains(&field_name.to_string())
     };
 
-    // Add REST-like code field if selected
-    if is_selected("code") {
-        let code = map_status_to_code(&result.status);
-        obj.insert("code".to_string(), json!(code));
-    }
+    // Add REST-like code field (always included for compatibility)
+    // The code field is required by mutation response spec
+    // Even if not explicitly selected in GraphQL query, we must include it
+    let code = map_status_to_code(&result.status);
+    obj.insert("code".to_string(), json!(code));
 
     // Add status if selected
     if is_selected("status") {
@@ -480,9 +436,11 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
         MutationStatus::Error(reason) => {
             let reason_lower = reason.to_lowercase();
 
-            // Map error reasons to codes
-            if reason_lower.starts_with("not_found:") {
+            // Map error reasons to HTTP-like codes
+            if reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
                 404 // Not Found
+            } else if reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
+                422 // Unprocessable Entity
             } else if reason_lower.starts_with("unauthorized:") {
                 401 // Unauthorized
             } else if reason_lower.starts_with("forbidden:") {
@@ -492,9 +450,9 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
             } else if reason_lower.starts_with("timeout:") {
                 408 // Request Timeout
             } else if reason_lower.starts_with("failed:") {
-                500 // Internal Server Error
+                500 // Internal Server Error (generic failure)
             } else {
-                // Unknown error type
+                // Unknown error type - default to 500
                 500
             }
         }
@@ -507,10 +465,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
 /// - Extract error code from status string (part after ':')
 /// - Auto-generate errors array if not in metadata
 /// - Map status to HTTP code
-#[deprecated(
-    since = "1.8.0",
-    note = "Use build_error_response_with_code instead"
-)]
+#[deprecated(note = "Use build_error_response_with_code")]
 pub fn build_error_response(
     result: &MutationResult,
     error_type: &str,
@@ -725,12 +680,13 @@ mod tests {
     #[test]
     fn test_http_code_mapping() {
         // Test various error types map to correct HTTP codes
+        // Greenfield: all use "prefix:" format
         let test_cases = vec![
             ("failed:not_found", 404),
+            ("failed:validation", 422),
             ("unauthorized:token", 401),
             ("forbidden:access", 403),
             ("conflict:duplicate", 409),
-            ("failed:validation", 422),
             ("timeout:database", 408),
             ("failed:unknown", 500),
         ];
@@ -756,5 +712,68 @@ mod tests {
                 status_str, expected_code
             );
         }
+    }
+
+    #[test]
+    fn test_error_response_with_code_field_injection() {
+        // Test that code field is correctly injected into error responses
+        let result = MutationResult {
+            status: MutationStatus::Error("failed:validation".to_string()),
+            message: "Validation failed".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        // Test with field selection that includes 'code'
+        let response = build_error_response_with_code(
+            &result,
+            "CreatePostError",
+            true,
+            Some(&vec!["code".to_string(), "message".to_string()]),
+            None,
+        )
+        .unwrap();
+
+        let obj = response.as_object().unwrap();
+
+        // Verify code field is present and correct
+        assert!(obj.contains_key("code"), "Error response must have 'code' field");
+        assert_eq!(obj["code"], 422, "Validation error should map to 422");
+        assert_eq!(obj["message"], "Validation failed");
+        assert_eq!(obj["__typename"], "CreatePostError");
+    }
+
+    #[test]
+    fn test_failed_not_found_maps_to_404() {
+        // Specific test for the CASCADE edge case issue
+        let result = MutationResult {
+            status: MutationStatus::Error("failed:not_found".to_string()),
+            message: "Author not found".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_error_response_with_code(
+            &result,
+            "CreatePostError",
+            true,
+            Some(&vec!["code".to_string(), "message".to_string()]),
+            None,
+        )
+        .unwrap();
+
+        let obj = response.as_object().unwrap();
+
+        assert_eq!(obj["code"], 404, "failed:not_found should map to 404");
     }
 }

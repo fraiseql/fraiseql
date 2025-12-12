@@ -137,7 +137,7 @@ class Cascade:
 
 @dataclass
 class MutationError:
-    """Error response for mutations (v1.8.0).
+    """Error response for mutations.
 
     Attributes:
         code: Application-level error code (422, 404, 409, 500, etc.)
@@ -171,9 +171,9 @@ class MutationError:
 
 @dataclass
 class MutationSuccess:
-    """Success response for mutations (v1.8.0).
+    """Success response for mutations.
 
-    v1.8.0: Success type ALWAYS has non-null entity.
+    Success type ALWAYS has non-null entity.
     If entity is None, the mutation should return MutationError instead.
 
     Attributes:
@@ -183,7 +183,7 @@ class MutationSuccess:
         updated_fields: Optional list of updated field names
     """
 
-    entity: Any  # REQUIRED - never None in v1.8.0
+    entity: Any  # REQUIRED - never None
     cascade: dict[str, Any] | None = None
     message: str | None = None
     updated_fields: list[str] | None = None
