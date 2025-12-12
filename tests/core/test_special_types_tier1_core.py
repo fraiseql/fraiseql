@@ -21,6 +21,7 @@ import pytest
 
 from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.types import DateRange, IpAddress, LTree, MacAddress
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,9 @@ class TestTier1NetworkTypes:
         jsonb_path_sql = SQL("(data ->> 'ip_address')")
 
         # This is the core fix - should work now even without field_type
-        result = strategy_no_field_type.build_sql(jsonb_path_sql, "eq", "8.8.8.8", field_type=None)
+        result = strategy_no_field_type.build_sql("eq", "8.8.8.8", jsonb_path_sql, field_type=None)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
         logger.debug(f"Network eq SQL (no field_type): {sql_str}")
 
         # The critical fix: should now detect IP and apply proper casting
@@ -102,10 +103,10 @@ class TestTier1NetworkTypes:
         # Also test with field_type for backward compatibility
         strategy_with_field_type = registry.get_strategy("eq", field_type=IpAddress)
         result_with_type = strategy_with_field_type.build_sql(
-            jsonb_path_sql, "eq", "8.8.8.8", field_type=IpAddress
+            "eq", "8.8.8.8", jsonb_path_sql, field_type=IpAddress
         )
 
-        sql_with_type = str(result_with_type)
+        sql_with_type = render_sql_for_testing(result_with_type)
         logger.debug(f"Network eq SQL (with field_type): {sql_with_type}")
 
         # Both should now work and produce similar results
@@ -128,17 +129,15 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql("isPrivate", True, IpAddress)
+        result = strategy.build_sql("isPrivate", True, path_sql, field_type=IpAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must include proper inet casting
         assert "::inet" in sql_str, "Private IP detection requires inet casting"
 
-        # Must check RFC 1918 ranges
-        rfc1918_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
-        has_private_ranges = any(range_str in sql_str for range_str in rfc1918_ranges)
-        assert has_private_ranges, f"Should check RFC 1918 ranges, got: {sql_str}"
+        # Should use PostgreSQL inet_public() function (more comprehensive than RFC 1918 checks)
+        assert "NOT inet_public(" in sql_str, f"isPrivate should use NOT inet_public(), got: {sql_str}"
 
     def test_network_ispublic_operator_jsonb_flat(self) -> None:
         """RED: Test Network isPublic operator with JSONB flat storage.
@@ -151,15 +150,16 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql("isPublic", True, IpAddress)
+        result = strategy.build_sql("isPublic", True, path_sql, field_type=IpAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must include proper inet casting
         assert "::inet" in sql_str, "Public IP detection requires inet casting"
 
-        # Should be NOT private (inversion logic)
-        assert "NOT" in sql_str, "Public should be NOT private"
+        # Should use PostgreSQL inet_public() function directly (without NOT)
+        assert "inet_public(" in sql_str, f"isPublic should use inet_public(), got: {sql_str}"
+        assert "NOT inet_public(" not in sql_str, "isPublic should NOT have NOT (that's for isPrivate)"
 
     def test_network_insubnet_operator_jsonb_flat(self) -> None:
         """RED: Test Network inSubnet operator with JSONB flat storage.
@@ -173,9 +173,9 @@ class TestTier1NetworkTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'ip_address')")
-        result = strategy.build_sql("inSubnet", "192.168.0.0/16", IpAddress)
+        result = strategy.build_sql("inSubnet", "192.168.0.0/16", path_sql, field_type=IpAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use PostgreSQL subnet matching operator
         assert "<<=" in sql_str, "Subnet matching requires PostgreSQL <<= operator"
@@ -198,9 +198,9 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql("eq", "top.middle.bottom", LTree)
+        result = strategy.build_sql("eq", "top.middle.bottom", path_sql, field_type=LTree)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must include proper ltree casting for JSONB fields
         assert "::ltree" in sql_str, "LTree equality requires ltree casting"
@@ -217,9 +217,9 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql("ancestor_of", "top.middle.bottom", LTree)
+        result = strategy.build_sql("ancestor_of", "top.middle.bottom", path_sql, field_type=LTree)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use PostgreSQL ltree ancestor operator
         assert "@>" in sql_str, "Ancestor relationship requires PostgreSQL @> operator"
@@ -236,9 +236,9 @@ class TestTier1LTreeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'path')")
-        result = strategy.build_sql("matches_lquery", "top.*", LTree)
+        result = strategy.build_sql("matches_lquery", "top.*", path_sql, field_type=LTree)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use PostgreSQL ltree pattern matching
         assert "~" in sql_str, "Pattern matching requires PostgreSQL ~ operator"
@@ -261,9 +261,9 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql("eq", "[2024-01-01,2024-12-31)", DateRange)
+        result = strategy.build_sql("eq", "[2024-01-01,2024-12-31)", path_sql, field_type=DateRange)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must include proper daterange casting for JSONB fields
         assert "::daterange" in sql_str, "DateRange equality requires daterange casting"
@@ -281,9 +281,9 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql("contains_date", "2024-06-15", DateRange)
+        result = strategy.build_sql("contains_date", "2024-06-15", path_sql, field_type=DateRange)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use PostgreSQL range contains operator
         assert "@>" in sql_str, "Range contains requires PostgreSQL @> operator"
@@ -301,9 +301,9 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql("overlaps", "[2024-06-01,2024-06-30)", DateRange)
+        result = strategy.build_sql("overlaps", "[2024-06-01,2024-06-30)", path_sql, field_type=DateRange)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use PostgreSQL range overlap operator
         assert "&&" in sql_str, "Range overlap requires PostgreSQL && operator"
@@ -325,9 +325,9 @@ class TestTier1MacAddressTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'mac')")
-        result = strategy.build_sql("eq", "00:11:22:33:44:55", MacAddress)
+        result = strategy.build_sql("eq", "00:11:22:33:44:55", path_sql, field_type=MacAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must include proper macaddr casting for JSONB fields
         assert "::macaddr" in sql_str, "MAC equality requires macaddr casting"
@@ -345,9 +345,9 @@ class TestTier1MacAddressTypes:
 
         path_sql = SQL("(data ->> 'mac')")
         mac_list = ["00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"]
-        result = strategy.build_sql("in", mac_list, MacAddress)
+        result = strategy.build_sql("in", mac_list, path_sql, field_type=MacAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
 
         # Must use proper IN clause with macaddr casting
         assert " IN " in sql_str, "MAC in operator requires IN clause"
@@ -371,7 +371,7 @@ class TestTier1FieldTypePassthrough:
         path_sql = SQL("(data ->> 'ip_address')")
         result = build_operator_composed(path_sql, "isPrivate", True, IpAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
         assert "::inet" in sql_str, "Field type should enable proper inet casting"
 
         # Test without field_type (may fail - this reveals the issue)
@@ -394,7 +394,7 @@ class TestTier1FieldTypePassthrough:
         path_sql = SQL("(data ->> 'path')")
         result = build_operator_composed(path_sql, "ancestor_of", "top.middle", LTree)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
         assert "::ltree" in sql_str, "Field type should enable proper ltree casting"
 
     def test_field_type_propagation_daterange(self) -> None:
@@ -406,7 +406,7 @@ class TestTier1FieldTypePassthrough:
         path_sql = SQL("(data ->> 'period')")
         result = build_operator_composed(path_sql, "contains_date", "2024-06-15", DateRange)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
         assert "::daterange" in sql_str, "Field type should enable proper daterange casting"
 
     def test_field_type_propagation_macaddress(self) -> None:
@@ -418,7 +418,7 @@ class TestTier1FieldTypePassthrough:
         path_sql = SQL("(data ->> 'mac')")
         result = build_operator_composed(path_sql, "eq", "00:11:22:33:44:55", MacAddress)
 
-        sql_str = str(result)
+        sql_str = render_sql_for_testing(result)
         assert "::macaddr" in sql_str, "Field type should enable proper macaddr casting"
 
 

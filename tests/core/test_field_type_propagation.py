@@ -157,10 +157,10 @@ class TestFieldTypePropagation:
                 from psycopg.sql import SQL
 
                 if op in ("isPrivate", "isPublic"):
-                    result = strategy.build_sql(SQL("data->>'ip_address'"), op, True, None)
+                    result = strategy.build_sql(op, True, SQL("data->>'ip_address'"), None)
                 elif op == "inSubnet":
                     result = strategy.build_sql(
-                        SQL("data->>'ip_address'"), op, "192.168.0.0/16", None
+                        op, "192.168.0.0/16", SQL("data->>'ip_address'"), None
                     )
 
                 sql_str = str(result)
@@ -188,7 +188,7 @@ class TestFieldTypePropagation:
         # With field_type (should work)
         strategy_with_type = registry.get_strategy("eq", IpAddress)
         result_with_type = strategy_with_type.build_sql(
-            SQL("data->>'ip_address'"), "eq", "8.8.8.8", IpAddress
+            "eq", "8.8.8.8", SQL("data->>'ip_address'"), IpAddress
         )
         sql_with_type = str(result_with_type)
         logger.debug(f"  With field_type: {sql_with_type}")
@@ -196,7 +196,7 @@ class TestFieldTypePropagation:
         # Without field_type (might be the issue)
         strategy_no_type = registry.get_strategy("eq", None)
         result_no_type = strategy_no_type.build_sql(
-            SQL("data->>'ip_address'"), "eq", "8.8.8.8", None
+            "eq", "8.8.8.8", SQL("data->>'ip_address'"), None
         )
         sql_no_type = str(result_no_type)
         logger.debug(f"  Without field_type: {sql_no_type}")

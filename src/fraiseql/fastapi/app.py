@@ -750,24 +750,46 @@ def create_fraiseql_app(
         except Exception:
             logger.warning("Rust extension not available")
 
-        # Step 3: Re-run auto-discovery if enabled
+        # Step 3: Re-run auto-discovery to find new functions
+        # Note: We always run auto-discovery during refresh to find dynamically created functions,
+        # even if auto_discover was originally disabled
         auto_types: list[type] = []
         auto_queries: list = []
         auto_mutations: list = []
 
-        if refresh_config["auto_discover"]:
-            from fraiseql.introspection import AutoDiscovery
+        from fraiseql.fastapi.app import create_db_pool
+        from fraiseql.introspection import AutoDiscovery
 
-            logger.debug("Running auto-discovery...")
-            discoverer = AutoDiscovery(refresh_config["database_url"])
-            auto_types, auto_queries, auto_mutations = await discoverer.discover_all()
+        logger.debug("Running auto-discovery...")
+        # Create a temporary connection pool for auto-discovery
+        pool = await create_db_pool(refresh_config["database_url"])
+        try:
+            discoverer = AutoDiscovery(pool)
+            # Use a broad pattern to discover test functions and any other functions
+            discovery_result = await discoverer.discover_all(function_pattern="test_%")
+            auto_types = discovery_result["types"]
+            auto_queries = discovery_result["queries"]
+            auto_mutations = discovery_result["mutations"]
             logger.info(
                 f"Auto-discovery: {len(auto_types)} types, "
                 f"{len(auto_queries)} queries, {len(auto_mutations)} mutations"
             )
+        finally:
+            await pool.close()
 
         # Step 4: Rebuild GraphQL schema
         from fraiseql.gql.schema_builder import build_fraiseql_schema
+
+        original_types_sample = (
+            refresh_config["original_types"][:3]
+            if isinstance(refresh_config["original_types"], list)
+            else refresh_config["original_types"]
+        )
+        logger.debug(
+            f"Original types: {type(refresh_config['original_types'])}, "
+            f"value: {original_types_sample}"
+        )
+        logger.debug(f"Auto types: {type(auto_types)}, length: {len(auto_types)}")
 
         all_query_types = (
             refresh_config["original_types"]

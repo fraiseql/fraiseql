@@ -30,7 +30,10 @@ class NumericOperatorStrategy(BaseOperatorStrategy):
             # Only handle if operator is clearly numeric-specific
             return operator in {"gt", "gte", "lt", "lte"}
 
-        # Check for numeric types
+        # Check for numeric types (exclude bool which has its own strategy)
+        if field_type is bool:
+            return False
+
         try:
             return issubclass(field_type, self.NUMERIC_TYPES)
         except TypeError:
