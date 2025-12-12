@@ -380,7 +380,7 @@ class UserCreated:
     user_id: str  # AI sees success response
     message: str
 
-@failure
+@error
 class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"

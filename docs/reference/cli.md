@@ -483,7 +483,7 @@ class UserSuccess:
     user: User
     message: str
 
-@failure
+@error
 class UserError:
     message: str
     code: str

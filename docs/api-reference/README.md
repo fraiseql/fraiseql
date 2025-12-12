@@ -9,7 +9,7 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
   - Parameters: `sql_source`, `jsonb_column`, `table_view`, `pk_column`
 - **[@input](../core/types-and-schema.md#input-types)** - Define GraphQL input types for mutations
 - **[@success](../core/queries-and-mutations.md#success-failure-pattern)** - Define success response types
-- **[@failure](../core/queries-and-mutations.md#success-failure-pattern)** - Define failure/error response types
+- **[@error](../core/queries-and-mutations.md#success-failure-pattern)** - Define failure/error response types
 
 ### Query & Mutation Decorators
 - **[@query](../core/queries-and-mutations.md#query-decorator)** - Define GraphQL queries
