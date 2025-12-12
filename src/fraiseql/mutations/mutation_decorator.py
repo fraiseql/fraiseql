@@ -16,19 +16,41 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
+def _extract_fields_from_selection_set(selection_set: Any, field_set: set[str]) -> None:
+    """Helper to extract field names from selection set recursively."""
+    for field_selection in selection_set.selections:
+        if hasattr(field_selection, "name"):
+            field_name = field_selection.name.value
+            if field_name != "__typename":
+                field_set.add(field_name)
+
+
 def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) -> list[str] | None:
     """Extract fields selected on a mutation response type from GraphQL query.
+
+    Supports both inline fragments (... on Type) and named fragments (...FragmentName).
 
     For mutations with union types, looks for fragments on the specific type.
     Returns None if no specific selection found (= return all fields for backward compat).
 
-    Example query:
+    Example query (inline fragment):
         mutation {
             createMachine(input: $input) {
                 ... on CreateMachineSuccess {
                     status
                     machine { id }
                 }
+            }
+        }
+
+    Example query (named fragment):
+        fragment MachineFields on CreateMachineSuccess {
+            status
+            machine { id }
+        }
+        mutation {
+            createMachine(input: $input) {
+                ...MachineFields
             }
         }
 
@@ -61,17 +83,26 @@ def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) 
             # InlineFragment with type condition (e.g., "... on CreateMachineSuccess")
             if hasattr(selection, "type_condition") and selection.type_condition:
                 fragment_type = selection.type_condition.name.value
-                logger.warning(f"      Type condition: {fragment_type}")
+                logger.warning(f"      Inline fragment: {fragment_type}")
                 logger.warning(f"      Matches {type_name}? {fragment_type == type_name}")
 
                 if fragment_type == type_name and selection.selection_set:
-                    # Extract fields from this fragment
-                    for field_selection in selection.selection_set.selections:
-                        if hasattr(field_selection, "name"):
-                            field_name = field_selection.name.value
-                            # Skip __typename (always included by GraphQL)
-                            if field_name != "__typename":
-                                selected_fields.add(field_name)
+                    # Extract fields from this inline fragment
+                    _extract_fields_from_selection_set(selection.selection_set, selected_fields)
+
+            # Named fragment spread (e.g., "...FragmentName")
+            elif hasattr(selection, "name") and hasattr(info, "fragments"):
+                fragment_name = selection.name.value
+                fragment = info.fragments.get(fragment_name)
+
+                if fragment and hasattr(fragment, "type_condition"):
+                    fragment_type = fragment.type_condition.name.value
+                    logger.warning(f"      Named fragment: {fragment_name} → {fragment_type}")
+                    logger.warning(f"      Matches {type_name}? {fragment_type == type_name}")
+
+                    if fragment_type == type_name:
+                        # Extract fields from this named fragment
+                        _extract_fields_from_selection_set(fragment.selection_set, selected_fields)
 
     # 🔍 DIAGNOSTIC LOGGING
     if not selected_fields:

@@ -36,7 +36,7 @@ def test_fragment_type_name_mismatch():
 
 
 def test_named_fragments():
-    """Test behavior with named fragments (not currently supported)."""
+    """Test behavior with named fragments (supported as of Phase 0 fix)."""
     query_string = """
     fragment MachineFields on CreateMachineSuccess {
         status
@@ -53,12 +53,24 @@ def test_named_fragments():
     """
     document = parse(query_string)
     mutation_field = document.definitions[1].selection_set.selections[0]
-    mock_info = MockInfo([mutation_field])
 
-    # Named fragments are not currently extracted
-    # Expected: Returns None (not implemented yet)
+    # Create mock info with fragments
+    class MockInfoWithFragments:
+        def __init__(self, field_nodes, fragments):
+            self.field_nodes = field_nodes
+            self.fragments = fragments
+
+    # Extract fragment definitions from document
+    fragments = {defn.name.value: defn for defn in document.definitions if hasattr(defn, 'type_condition')}
+    mock_info = MockInfoWithFragments([mutation_field], fragments)
+
+    # Named fragments are now supported
+    # Expected: Returns fields from the named fragment
     result = _extract_mutation_selected_fields(mock_info, "CreateMachineSuccess")
-    assert result is None, "Named fragments not yet supported - should return None"
+    assert result is not None, "Named fragments are now supported"
+    assert "status" in result
+    assert "machine" in result
+    assert len(result) == 2
 
 
 def test_multiple_fragments_same_type():
