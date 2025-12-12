@@ -113,9 +113,9 @@ class BaseOperatorStrategy(ABC):
 
         Examples:
             >>> path = SQL("data->>'mac'")
-            >>> casted_path, casted_value = self._cast_both_sides(path, "00:11:22:33:44:55", "macaddr")
-            >>> # casted_path: (data->>'mac')::macaddr
-            >>> # casted_value: '00:11:22:33:44:55'::macaddr
+            >>> result = self._cast_both_sides(path, "00:11:22:33:44:55", "macaddr")
+            >>> # result[0]: (data->>'mac')::macaddr
+            >>> # result[1]: '00:11:22:33:44:55'::macaddr
 
             >>> path = SQL("ip_address")
             >>> casted_path, casted_value = self._cast_both_sides(path, "192.168.1.1", "inet")
