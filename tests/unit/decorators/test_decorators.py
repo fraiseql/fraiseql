@@ -80,8 +80,9 @@ def test_success_decorator_field_order() -> None:
         "status",
         "message",
         "metadata",
-        "updated_fields",
-        "errors",
+        "updated_fields",  # User-defined in BaseResult
+        "errors",  # User-defined in BaseResult (not auto-injected)
+        "id",  # Auto-injected when entity field present (v1.8.1)
         "user",
         "count",
         "tags",
@@ -124,11 +125,13 @@ def test_failure_decorator_field_order() -> None:
         "status",
         "message",
         "metadata",
-        "updated_fields",
-        "errors",
+        "updated_fields",  # User-defined in BaseResult (preserved)
+        "errors",  # User-defined in BaseResult (preserved)
+        "id",  # Auto-injected (v1.8.1)
         "error_code",
         "details",
         "reasons",
+        "code",  # Auto-injected in v1.8.1
     ]
 
 

@@ -24,7 +24,7 @@ def test_success_decorator_adds_fields_to_gql_fields():
     assert "machine" in gql_fields, "Original field should be present"
     assert "status" in gql_fields, "Auto-injected status missing"
     assert "message" in gql_fields, "Auto-injected message missing"
-    assert "errors" in gql_fields, "Auto-injected errors missing"
+    assert "errors" not in gql_fields, "Success types should NOT have errors field (v1.8.1)"
     assert "updated_fields" in gql_fields, "Auto-injected updatedFields missing"
     assert "id" in gql_fields, "Auto-injected id missing (entity detected)"
 
@@ -45,9 +45,12 @@ def test_failure_decorator_adds_fields():
     assert "status" in gql_fields
     assert "message" in gql_fields
     assert "errors" in gql_fields
-    assert "updated_fields" in gql_fields
-    # Has entity field (error_code), so id should be added
-    assert "id" in gql_fields
+    assert "code" in gql_fields  # Auto-injected in v1.8.1
+    assert "updated_fields" not in gql_fields  # Errors don't update entities (v1.8.1)
+    assert "id" not in gql_fields  # Errors don't create entities (v1.8.1)
+
+    # Verify field types
+    assert gql_fields["code"].field_type == int  # Error code is integer
 
 
 def test_no_entity_field_no_id():
@@ -64,7 +67,7 @@ def test_no_entity_field_no_id():
     # Standard fields should be present
     assert "status" in gql_fields
     assert "message" in gql_fields
-    assert "errors" in gql_fields
+    assert "errors" not in gql_fields  # Success types don't have errors (v1.8.1)
     assert "updated_fields" in gql_fields
 
     # But NOT id (no entity field detected)
@@ -85,4 +88,6 @@ def test_user_defined_fields_not_overridden():
     assert "status" in gql_fields
     # But auto-injected fields should still be added
     assert "message" in gql_fields
-    assert "errors" in gql_fields
+    assert "errors" not in gql_fields  # Success types don't have errors (v1.8.1)
+    assert "updated_fields" in gql_fields  # Auto-injected for success types
+    assert "id" in gql_fields  # Auto-injected when entity field present
