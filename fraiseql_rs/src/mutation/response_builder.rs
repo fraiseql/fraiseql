@@ -430,7 +430,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
             500
         }
         MutationStatus::Noop(_) => {
-            // Validation failure or business rule rejection
+            // Validation error or business rule rejection
             422 // Unprocessable Entity
         }
         MutationStatus::Error(reason) => {
@@ -450,7 +450,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
             } else if reason_lower.starts_with("timeout:") {
                 408 // Request Timeout
             } else if reason_lower.starts_with("failed:") {
-                500 // Internal Server Error (generic failure)
+                500 // Internal Server Error (generic error)
             } else {
                 // Unknown error type - default to 500
                 500
