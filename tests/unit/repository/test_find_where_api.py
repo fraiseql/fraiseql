@@ -1,7 +1,7 @@
-"""Test FraiseQLRepository.find() WHERE clause processing integration.
+"""Unit tests for FraiseQLRepository.find() WHERE clause API.
 
-This test reproduces the bug where FraiseQLRepository.find() uses primitive
-SQL templates instead of FraiseQL's operator strategy system for WHERE clauses.
+Tests the internal API for building WHERE clauses in the repository layer,
+verifying that the operator strategy system is properly integrated.
 """
 
 from unittest.mock import Mock, patch
@@ -9,17 +9,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from fraiseql.db import FraiseQLRepository
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
-class TestRepositoryFindWhereProcessing:
+class TestRepositoryFindWhereAPI:
     """Test that FraiseQLRepository.find() uses FraiseQL's WHERE generation system."""
 
     def test_repository_find_uses_primitive_sql_templates_not_operator_strategies(self) -> None:

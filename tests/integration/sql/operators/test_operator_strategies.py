@@ -1,8 +1,9 @@
-"""Tier 1 Core Tests for Special Types Filtering (Target: <30s runtime).
+"""Integration tests for operator strategy selection and SQL generation.
 
-This module implements the bulletproof testing strategy for FraiseQL special types.
-These are the essential tests that must pass for basic functionality and run on
-every commit to catch JSONB type casting issues early.
+This module tests the operator strategy system end-to-end, ensuring that:
+- Correct strategies are selected for each operator and field type
+- SQL generation produces correct output for special types
+- JSONB type casting works correctly for Network, LTree, DateRange, and MacAddress types
 
 Test Coverage:
 - Network types: 4 core tests (eq, isPrivate, isPublic, inSubnet)
@@ -10,8 +11,7 @@ Test Coverage:
 - DateRange types: 3 core tests (eq, contains_date, overlaps)
 - MacAddress types: 2 core tests (eq, in)
 
-All tests use real database interactions with JSONB storage patterns to reveal
-actual production failures that unit tests miss.
+These are integration tests that verify the operator registry and strategy system work together.
 """
 
 import logging

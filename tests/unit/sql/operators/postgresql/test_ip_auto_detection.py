@@ -1,7 +1,8 @@
-"""Comprehensive test for all special types JSONB casting fix.
+"""Unit tests for IP address auto-detection in comparison operators.
 
-This test validates that ALL special types (Network, LTree, DateRange, MacAddress)
-now work correctly with eq/neq operators even when field_type information is missing.
+This test validates that IP addresses are automatically detected and cast to ::inet
+even when field_type information is missing, ensuring special types work correctly
+with eq/neq operators in JSONB contexts.
 """
 
 import logging
@@ -14,11 +15,10 @@ from tests.helpers.sql_rendering import render_sql_for_testing
 
 logger = logging.getLogger(__name__)
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
-@pytest.mark.core
-class TestAllSpecialTypesFix:
+class TestIPAutoDetection:
     """Test that all special types work with eq operator without field_type."""
 
     def test_all_special_types_comprehensive_fix(self) -> None:
