@@ -1,0 +1,408 @@
+rules:
+  # ==============================================================================
+  # TRINITY PATTERN RULES
+  # ==============================================================================
+
+  TR-001:
+    name: "Trinity: INTEGER Primary Key"
+    description: "Every table must have pk_<entity> INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
+    severity: ERROR
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: regex
+      pattern: "pk_\\w+\\s+INTEGER\\s+GENERATED\\s+(ALWAYS|BY\\s+DEFAULT)\\s+AS\\s+IDENTITY\\s+PRIMARY\\s+KEY"
+      negative_pattern: "pk_\\w+\\s+SERIAL"
+    example_pass: |
+      CREATE TABLE tb_user (
+          pk_user INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          ...
+      );
+    example_fail: |
+      CREATE TABLE tb_user (
+          pk_user SERIAL PRIMARY KEY,  -- ❌ Use INTEGER GENERATED ALWAYS
+          ...
+      );
+
+  TR-002:
+    name: "Trinity: UUID Public Identifier"
+    description: "Every table must have 'id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE'"
+    severity: ERROR
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: regex
+      pattern: "\\bid\\s+UUID\\s+(DEFAULT\\s+gen_random_uuid\\(\\))?\\s*.*?UNIQUE"
+      requires: ["id", "UUID", "UNIQUE"]
+    example_pass: |
+      CREATE TABLE tb_post (
+          pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,
+          ...
+      );
+    example_fail: |
+      CREATE TABLE tb_post (
+          pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          id UUID,  -- ❌ Missing DEFAULT gen_random_uuid() and UNIQUE
+          ...
+      );
+
+  TR-003:
+    name: "Trinity: TEXT Identifier (Optional)"
+    description: "Tables MAY have 'identifier TEXT UNIQUE' for human-readable slugs"
+    severity: INFO
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: regex
+      pattern: "identifier\\s+TEXT.*?UNIQUE"
+      optional: true
+    example_pass: |
+      CREATE TABLE tb_post (
+          pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,
+          identifier TEXT UNIQUE,  -- ✅ Optional but recommended
+          ...
+      );
+
+  # ==============================================================================
+  # JSONB VIEW RULES
+  # ==============================================================================
+
+  VW-001:
+    name: "View: Must Expose id Column"
+    description: "Views must SELECT id column (not in JSONB) for WHERE filtering"
+    severity: ERROR
+    applies_to: ["CREATE VIEW", "CREATE OR REPLACE VIEW"]
+    verification:
+      method: sql_parse
+      check: "SELECT clause must contain 'id' as direct column (not in JSONB)"
+    example_pass: |
+      CREATE VIEW v_user AS
+      SELECT
+          id,  -- ✅ Direct column for WHERE filtering
+          jsonb_build_object(
+              'id', id,
+              'name', name
+          ) as data
+      FROM tb_user;
+    example_fail: |
+      CREATE VIEW v_user AS
+      SELECT
+          jsonb_build_object(
+              'id', id,  -- ❌ id must be direct column, not only in JSONB
+              'name', name
+          ) as data
+      FROM tb_user;
+
+  VW-002:
+    name: "View: Include pk_* Only If Referenced"
+    description: "Views should include pk_<entity> column ONLY if other views JOIN to it"
+    severity: WARNING
+    applies_to: ["CREATE VIEW"]
+    verification:
+      method: dependency_analysis
+      check: |
+        - Find all views that JOIN to this view
+        - If any JOIN uses pk_<entity>, it must be in SELECT
+        - If no JOIN uses pk_<entity>, it should NOT be in SELECT
+    example_pass: |
+      -- v_post is referenced by v_comment (which JOINs on pk_post)
+      CREATE VIEW v_post AS
+      SELECT
+          id,       -- For WHERE filtering
+          pk_post,  -- ✅ For parent views to JOIN
+          jsonb_build_object(...) as data
+      FROM tb_post;
+
+      -- v_user is not referenced by other views
+      CREATE VIEW v_user AS
+      SELECT
+          id,  -- Only id needed
+          jsonb_build_object(...) as data
+      FROM tb_user;
+      -- ✅ No pk_user because no other views JOIN to this
+
+  VW-003:
+    name: "JSONB: Never Expose pk_* Fields"
+    description: "jsonb_build_object() must NEVER include pk_<entity> fields (internal only)"
+    severity: ERROR
+    applies_to: ["CREATE VIEW"]
+    verification:
+      method: regex
+      pattern: "jsonb_build_object\\([^)]*'pk_\\w+'"
+      negative_match: true  # This pattern should NOT be found
+    example_pass: |
+      CREATE VIEW v_user AS
+      SELECT
+          id,
+          pk_user,  -- ✅ OK as direct column (for JOINs)
+          jsonb_build_object(
+              'id', id,          -- ✅ Public UUID
+              'name', name
+              -- pk_user NOT here ✅
+          ) as data
+      FROM tb_user;
+    example_fail: |
+      CREATE VIEW v_user AS
+      SELECT
+          id,
+          jsonb_build_object(
+              'id', id,
+              'pk_user', pk_user,  -- ❌ NEVER expose pk_* in JSONB!
+              'name', name
+          ) as data
+      FROM tb_user;
+
+  # ==============================================================================
+  # FOREIGN KEY RULES
+  # ==============================================================================
+
+  FK-001:
+    name: "FK: Must Reference INTEGER pk_*"
+    description: "FOREIGN KEY constraints must reference pk_<entity> columns, not id (UUID)"
+    severity: ERROR
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: regex
+      pattern: "REFERENCES\\s+\\w+\\s*\\(\\s*pk_\\w+\\s*\\)"
+    example_pass: |
+      CREATE TABLE tb_post (
+          fk_user INTEGER REFERENCES tb_user(pk_user),  -- ✅ References pk_user
+          ...
+      );
+    example_fail: |
+      CREATE TABLE tb_post (
+          fk_user UUID REFERENCES tb_user(id),  -- ❌ Must reference pk_user, not id
+          ...
+      );
+
+  FK-002:
+    name: "FK: Column Must Be INTEGER Type"
+    description: "Foreign key columns must be INTEGER (matching pk_*), not UUID"
+    severity: ERROR
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: sql_parse
+      check: |
+        - Find all FK columns (fk_*)
+        - Each must be INTEGER type
+        - Each REFERENCES clause must point to pk_* column
+    example_pass: |
+      CREATE TABLE tb_post (
+          fk_user INTEGER REFERENCES tb_user(pk_user),  -- ✅ INTEGER → INTEGER
+          ...
+      );
+    example_fail: |
+      CREATE TABLE tb_post (
+          fk_user UUID REFERENCES tb_user(id),  -- ❌ UUID FK (inefficient, wrong pattern)
+          ...
+      );
+
+  # ==============================================================================
+  # HELPER FUNCTION RULES
+  # ==============================================================================
+
+  HF-001:
+    name: "Helper: Correct Naming Convention"
+    description: "Helper functions must follow: core.get_pk_<entity>() or core.get_<entity>_id()"
+    severity: ERROR
+    applies_to: ["CREATE FUNCTION"]
+    verification:
+      method: function_signature
+      patterns:
+        - "core\\.get_pk_\\w+\\(.*\\)"
+        - "core\\.get_\\w+_id\\(.*\\)"
+    example_pass: |
+      CREATE FUNCTION core.get_pk_user(p_tenant_id UUID, p_user_id UUID)
+      RETURNS INTEGER ...
+
+      CREATE FUNCTION core.get_user_id(p_tenant_id UUID, p_pk_user INTEGER)
+      RETURNS UUID ...
+    example_fail: |
+      CREATE FUNCTION core.get_user_pk(...)  -- ❌ Should be get_pk_user
+      CREATE FUNCTION core.fetch_user_id(...)  -- ❌ Should be get_user_id
+
+  HF-002:
+    name: "Variables: Follow Naming Convention"
+    description: |
+      Function variables must follow patterns:
+      - v_<entity>_pk INTEGER (resolved pk)
+      - v_<entity>_id UUID (resolved id)
+      - p_<entity>_id UUID (parameter)
+      - p_<entity>_ids UUID[] (parameter array)
+    severity: WARNING
+    applies_to: ["CREATE FUNCTION"]
+    verification:
+      method: variable_analysis
+      patterns:
+        parameter: "p_\\w+_ids?\\s+(UUID|INTEGER|TEXT)"
+        variable_pk: "v_\\w+_pks?\\s+INTEGER"
+        variable_id: "v_\\w+_ids?\\s+UUID"
+    example_pass: |
+      CREATE FUNCTION app.fn_create_post(p_input_data JSONB) ...
+      DECLARE
+          v_user_id UUID;
+          v_user_pk INTEGER;
+          v_post_id UUID;
+      BEGIN
+          v_user_id := (p_input_data->>'user_id')::UUID;
+          v_user_pk := core.get_pk_user(v_tenant_id, v_user_id);
+          ...
+    example_fail: |
+      DECLARE
+          user_id_pk INTEGER;  -- ❌ Should be v_user_pk
+          userId UUID;          -- ❌ Should be v_user_id (snake_case)
+
+  # ==============================================================================
+  # MUTATION FUNCTION RULES
+  # ==============================================================================
+
+  MF-001:
+    name: "Mutation: Simple vs Advanced Return Types"
+    description: "Simple mutations return basic types (UUID, BOOLEAN), Advanced mutations return structured JSONB"
+    severity: WARNING
+    applies_to: ["CREATE FUNCTION"]
+    verification:
+      method: function_signature
+      check: |
+        - app.* functions should return JSONB (Advanced)
+        - core.* functions can return simple types (UUID, BOOLEAN, etc.) (Simple)
+        - Direct fn_* functions may return either (Flexible)
+    example_pass: |
+      -- Advanced: JSONB response with full structure
+      CREATE FUNCTION app.create_customer(input_payload JSONB) RETURNS JSONB AS $$
+      BEGIN
+          v_customer_id := core.create_customer(...);
+          RETURN app.build_mutation_response(true, 'SUCCESS', 'Created', jsonb_build_object('id', v_customer_id));
+      END;
+      $$;
+
+      -- Simple: Just the essential data
+      CREATE FUNCTION core.create_customer(...) RETURNS UUID AS $$
+      BEGIN
+          INSERT INTO customers (...) RETURNING id INTO v_id;
+          PERFORM app.sync_tv_customer();
+          RETURN v_id;
+      END;
+      $$;
+
+  MF-002:
+    name: "Mutation: Explicit Sync for tv_* Tables"
+    description: "Mutations modifying data must explicitly call sync functions (app.sync_tv_<entity>() or sync_tv_<entity>())"
+    severity: ERROR
+    applies_to: ["CREATE FUNCTION"]
+    verification:
+      method: function_body_analysis
+      check: |
+        - If function modifies tb_* table
+        - And corresponding tv_* table exists
+        - Must contain PERFORM sync_tv_<entity>() or PERFORM app.sync_tv_<entity>() call
+    example_pass: |
+      CREATE FUNCTION core.create_user(...) RETURNS UUID AS $$
+      BEGIN
+          INSERT INTO tb_user (...) VALUES (...);
+          PERFORM app.sync_tv_user();  -- ✅ Explicit sync
+          RETURN v_user_id;
+      END;
+      $$;
+    example_fail: |
+      CREATE FUNCTION core.create_user(...) RETURNS UUID AS $$
+      BEGIN
+          INSERT INTO tb_user (...) VALUES (...);
+          -- ❌ Missing PERFORM app.sync_tv_user() call!
+          RETURN v_user_id;
+      END;
+      $$;
+
+  MF-003:
+    name: "Mutation: Advanced Response Format"
+    description: "Advanced mutations should use app.build_mutation_response() for consistent JSONB structure"
+    severity: INFO
+    applies_to: ["CREATE FUNCTION app.*"]
+    verification:
+      method: function_body_analysis
+      check: "Should contain app.build_mutation_response(success, code, message, data) call"
+    example_pass: |
+      CREATE FUNCTION app.create_user(input_payload JSONB) RETURNS JSONB AS $$
+      BEGIN
+          v_user_id := core.create_user(...);
+          RETURN app.build_mutation_response(
+              true,
+              'SUCCESS',
+              'User created successfully',
+              jsonb_build_object('user_id', v_user_id)
+          );
+      END;
+      $$;
+    example_fail: |
+      CREATE FUNCTION app.create_user(...) RETURNS JSONB AS $$
+      BEGIN
+          -- ❌ Manual JSONB construction instead of build_mutation_response
+          RETURN jsonb_build_object(
+              'success', true,
+              'user_id', v_user_id
+          );
+      END;
+      $$;
+
+  # ==============================================================================
+  # ADDITIONAL RULES (from analysis)
+  # ==============================================================================
+
+  VW-004:
+    name: "View: Must Have data Column"
+    description: "Views must have a 'data' column containing JSONB"
+    severity: ERROR
+    applies_to: ["CREATE VIEW"]
+    verification:
+      method: regex
+      pattern: "data\\s+JSONB|data\\s+AS\\s+jsonb_build_object"
+    example_pass: |
+      CREATE VIEW v_user AS
+      SELECT
+          id,
+          jsonb_build_object(...) AS data  -- ✅ data column
+      FROM tb_user;
+
+  VW-005:
+    name: "View: JSONB Must Include id Field"
+    description: "JSONB data must include 'id' field (exposed to GraphQL)"
+    severity: ERROR
+    applies_to: ["CREATE VIEW"]
+    verification:
+      method: regex
+      pattern: "jsonb_build_object\\([^)]*'id'"
+    example_pass: |
+      CREATE VIEW v_user AS
+      SELECT
+          id,
+          jsonb_build_object(
+              'id', id,  -- ✅ id in JSONB
+              'name', name
+          ) AS data
+      FROM tb_user;
+
+  TB-001:
+    name: "Table: No Direct pk_* Exposure in JSONB"
+    description: "Tables should not expose pk_* columns in any JSONB structures"
+    severity: ERROR
+    applies_to: ["CREATE TABLE"]
+    verification:
+      method: regex
+      pattern: "jsonb_build_object\\([^)]*'pk_\\w+'"
+      negative_match: true
+
+  FN-001:
+    name: "Function: Use DECLARE for Variables"
+    description: "PostgreSQL functions should use DECLARE block for variable declarations"
+    severity: WARNING
+    applies_to: ["CREATE FUNCTION"]
+    verification:
+      method: regex
+      pattern: "DECLARE[\\s\\S]*BEGIN"
+    example_pass: |
+      CREATE FUNCTION fn_example() RETURNS JSONB AS $$
+      DECLARE
+          v_user_id UUID;
+      BEGIN
+          ...
+      END;
+      $$ LANGUAGE plpgsql;

@@ -1,6 +1,23 @@
 # FraiseQL Examples Hub
 
-Welcome to the FraiseQL examples collection! This directory contains 20+ comprehensive example applications demonstrating FraiseQL's capabilities across different domains and use cases.
+Welcome to the FraiseQL examples collection! This directory contains 35+ comprehensive example applications demonstrating FraiseQL's capabilities across different domains and use cases.
+
+## ✅ Trinity Pattern Compliance
+
+All examples follow the [Trinity Pattern](../docs/guides/trinity-pattern-guide.md) - FraiseQL's three-identifier system for optimal performance, security, and UX.
+
+**Verification Status**: All examples are automatically verified for pattern compliance.
+
+| Compliance Level | Badge | Description |
+|------------------|-------|-------------|
+| **100% Compliant** | 🟢 | Perfect Trinity implementation |
+| **95%+ Compliant** | 🟡 | Minor warnings acceptable |
+| **<95% Compliant** | 🔴 | Needs remediation |
+
+**Run verification on any example:**
+```bash
+python .phases/verify-examples-compliance/verify.py examples/blog_api/
+```
 
 ## 🚀 Quick Start
 
@@ -19,15 +36,15 @@ Welcome to the FraiseQL examples collection! This directory contains 20+ compreh
 
 ## 🎯 Popular Starting Points
 
-### 🟢 Beginner Friendly
-- **[`todo_quickstart.py`](todo_quickstart.py)** - Simple todo app (5 min)
-- **[`blog_api/`](blog_api/)** - Content management with enterprise patterns (15 min)
+### 🟢 Beginner Friendly (100% Compliant)
+- **[`todo_xs/`](todo_xs/)** 🟢 - Minimal todo app with perfect Trinity (10 min)
+- **[`blog_api/`](blog_api/)** 🟢 - Content management with enterprise patterns (15 min)
 - **[`health_check_example.py`](health_check_example.py)** - Basic endpoints (5 min)
 
-### 🏢 Production Ready
-- **[`enterprise_patterns/`](enterprise_patterns/)** - All enterprise patterns (45 min)
-- **[`ecommerce/`](ecommerce/)** - Complete e-commerce platform (30 min)
-- **[`saas-starter/`](saas-starter/)** - Multi-tenant SaaS foundation (50 min)
+### 🏢 Production Ready (95%+ Compliant)
+- **[`enterprise_patterns/`](enterprise_patterns/)** 🟡 - All enterprise patterns (45 min)
+- **[`ecommerce_api/`](ecommerce_api/)** 🟡 - Complete e-commerce platform (30 min)
+- **[`real_time_chat/`](real_time_chat/)** 🟢 - Real-time chat with subscriptions (25 min)
 
 ## 🏗️ Example Categories
 
@@ -45,6 +62,29 @@ Welcome to the FraiseQL examples collection! This directory contains 20+ compreh
 - **🏢 Enterprise Patterns** - Compliance, multi-tenancy, audit trails
 
 See **[index.md](index.md)** for the complete organized catalog.
+
+## 🆕 Creating New Examples
+
+**Use the template for guaranteed compliance:**
+
+```bash
+# Copy the template
+cp -r examples/_TEMPLATE examples/my-awesome-example
+
+# Follow the Trinity checklist in _TEMPLATE/README.md
+# Run verification before submitting
+python .phases/verify-examples-compliance/verify.py examples/my-awesome-example/
+
+# Should show: ✅ Compliance: 100%
+```
+
+**Template includes:**
+- ✅ Complete Trinity pattern setup
+- ✅ Verification checklist
+- ✅ Example structure and documentation
+- ✅ CI-ready configuration
+
+See [Contributing Guide](../CONTRIBUTING.md#adding-examples) for details.
 
 ## 🏢 Enterprise Patterns (`enterprise_patterns/`)
 

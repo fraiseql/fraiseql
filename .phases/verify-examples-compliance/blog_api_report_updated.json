@@ -1,0 +1,195 @@
+{
+  "example_name": "blog_api",
+  "total_files": 24,
+  "files_checked": 24,
+  "violations": [
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/functions/core_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "process_post_tags",
+      "description": "Function process_post_tags modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/functions/core_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "update_post_search_index",
+      "description": "Function update_post_search_index modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/001_initial_schema.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "update_updated_at_column",
+      "description": "Function update_updated_at_column modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_user",
+      "description": "Mutation function fn_create_user should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_user",
+      "description": "Function fn_create_user modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_post",
+      "description": "Mutation function fn_create_post should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_post",
+      "description": "Function fn_create_post modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_update_post",
+      "description": "Mutation function fn_update_post should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_update_post",
+      "description": "Function fn_update_post modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_comment",
+      "description": "Mutation function fn_create_comment should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_create_comment",
+      "description": "Function fn_create_comment modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_delete_post",
+      "description": "Mutation function fn_delete_post should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-001",
+      "rule_name": "Mutation: Simple vs Advanced Return Types",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_increment_view_count",
+      "description": "Mutation function fn_increment_view_count should return JSONB, got JSON",
+      "example_fix": "RETURNS JSONB AS $$ ... RETURN jsonb_build_object('success', true, ...); $$"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/migrations/002_functions.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "fn_increment_view_count",
+      "description": "Function fn_increment_view_count modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/0_schema/04_triggers/041_triggers.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "update_updated_at_column",
+      "description": "Function update_updated_at_column modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/0_schema/03_functions/031_fn_user.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "create_user",
+      "description": "Function create_user modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    },
+    {
+      "rule_id": "MF-002",
+      "rule_name": "Mutation: Explicit Sync for tv_* Tables",
+      "severity": "ERROR",
+      "file_path": "examples/blog_api/db/0_schema/03_functions/031_fn_user.sql",
+      "line_number": null,
+      "violation_type": "function",
+      "entity_name": "update_user_profile",
+      "description": "Function update_user_profile modifies data but missing sync calls",
+      "example_fix": "PERFORM app.sync_tv_entity(); after data modifications"
+    }
+  ],
+  "compliance_score": 0.6458333333333333
+}

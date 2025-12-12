@@ -232,6 +232,43 @@ By contributing, you agree that your contributions will be licensed under the sa
 
 Thank you for contributing to FraiseQL!
 
+## Adding Examples
+
+FraiseQL examples must follow the [Trinity Pattern](docs/guides/trinity-pattern-guide.md) for consistency, security, and performance.
+
+### Example Guidelines
+
+1. **Use the template** for guaranteed compliance:
+   ```bash
+   cp -r examples/_TEMPLATE examples/my-example
+   ```
+
+2. **Follow the Trinity Pattern checklist** in `examples/_TEMPLATE/README.md`
+
+3. **Run verification** before submitting:
+   ```bash
+   python .phases/verify-examples-compliance/verify.py examples/my-example/
+   # Should show: ✅ Compliance: 100%
+   ```
+
+4. **Include comprehensive tests** and documentation
+
+5. **Update examples/README.md** with your new example
+
+### Trinity Pattern Requirements
+
+All examples must implement:
+- **Tables**: `pk_* INTEGER GENERATED`, `id UUID`, `identifier TEXT` (optional)
+- **Views**: Direct `id` column, JSONB without `pk_*` fields
+- **Functions**: Proper sync calls, consistent variable naming
+- **Python Types**: Match JSONB structure exactly
+
+See [Trinity Pattern Guide](docs/guides/trinity-pattern-guide.md) for complete details.
+
+### CI Verification
+
+Examples are automatically verified in CI. PRs with pattern violations will be blocked until fixed.
+
 ## Adding Integration Tests
 
 ### WHERE Clause Tests

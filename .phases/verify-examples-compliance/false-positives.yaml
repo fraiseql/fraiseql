@@ -1,0 +1,35 @@
+exceptions:
+  # Tables that don't need Trinity pattern
+  - rule_id: TR-001
+    entity_pattern: "tv_*"
+    reason: "Projection tables use simple UUID PK, not Trinity pattern"
+    permanent: true
+
+  # Functions that don't need sync calls
+  - rule_id: MF-002
+    entity_pattern: "DELETE FROM tb_*"
+    reason: "DELETE operations use CASCADE constraints for tv_* cleanup"
+    permanent: true
+
+  - rule_id: MF-002
+    entity_pattern: "tenant.*"
+    reason: "Tenant schema modifications don't affect main tv_* tables"
+    permanent: true
+
+  # Views that legitimately need pk_*
+  - rule_id: VW-002
+    entity_pattern: "*recursive*|*hierarchical*"
+    reason: "Hierarchical data structures need pk_* for path construction"
+    permanent: true
+
+  # Functions that correctly return simple types
+  - rule_id: MF-001
+    entity_pattern: "core.*"
+    reason: "Core layer functions return simple types, app layer returns JSONB"
+    permanent: true
+
+legacy_patterns:
+  - pattern: "SERIAL PRIMARY KEY"
+    replacement: "INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
+    reason: "SERIAL is deprecated, use standard SQL GENERATED syntax"
+    examples: ["examples/simple_blog/"]

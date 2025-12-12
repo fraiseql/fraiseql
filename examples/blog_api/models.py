@@ -26,6 +26,7 @@ class User:
     """
 
     id: UUID
+    identifier: str  # Human-readable username (from JSONB)
     email: str
     name: str
     bio: str | None

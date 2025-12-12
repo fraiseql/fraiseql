@@ -1,0 +1,516 @@
+{
+  "metadata": {
+    "phase": "verify-examples-compliance",
+    "stage": "phase-1-discovery",
+    "generated_at": "2025-12-12T00:00:00Z",
+    "total_examples": 39,
+    "total_sql_files": 127,
+    "total_doc_sql_examples": 41,
+    "total_pattern_rules": 20
+  },
+  "examples": {
+    "admin-panel": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["queries.py", "models.py", "main.py", "mutations.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Admin Panel"],
+      "compliance_status": "PARTIAL"
+    },
+    "analytics_dashboard": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": [],
+      "sql_files": ["db/migrations/001_analytics_schema.sql"],
+      "patterns_claimed": ["Analytics", "Dashboard"],
+      "compliance_status": "UNKNOWN"
+    },
+    "apq_multi_tenant": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": [],
+      "patterns_claimed": ["APQ", "Multi-tenant"],
+      "compliance_status": "UNKNOWN"
+    },
+    "blog_api": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": ["queries.py", "app.py", "models.py", "db.py", "mutations.py"],
+      "sql_files": [
+        "db/0_schema/00_common/001_extensions.sql",
+        "db/0_schema/01_write/011_tb_user.sql",
+        "db/0_schema/01_write/012_tb_post.sql",
+        "db/0_schema/01_write/013_tb_comment.sql",
+        "db/0_schema/02_read/021_user/0211_v_user.sql",
+        "db/0_schema/02_read/021_user/0212_tv_user.sql",
+        "db/0_schema/02_read/022_post/0221_v_post.sql",
+        "db/0_schema/02_read/022_post/0222_tv_post.sql",
+        "db/0_schema/02_read/023_comment/0231_v_comment.sql",
+        "db/0_schema/02_read/023_comment/0232_tv_comment.sql",
+        "db/0_schema/03_functions/031_fn_user.sql",
+        "db/0_schema/03_functions/031_user_functions/0311_crud_user.sql",
+        "db/0_schema/03_functions/031_user_functions/0312_sync_user.sql",
+        "db/0_schema/03_functions/032_post_functions/0321_crud_post.sql",
+        "db/0_schema/03_functions/032_post_functions/0322_sync_post.sql",
+        "db/0_schema/03_functions/033_comment_functions/0331_crud_comment.sql",
+        "db/0_schema/03_functions/033_comment_functions/0332_sync_comment.sql",
+        "db/0_schema/04_triggers/041_triggers.sql",
+        "db/functions/app_functions.sql",
+        "db/functions/core_functions.sql",
+        "db/migrations/001_initial_schema.sql",
+        "db/migrations/002_functions.sql",
+        "db/migrations/003_views.sql",
+        "db/views/composed_views.sql"
+      ],
+      "patterns_claimed": ["Trinity", "CQRS", "Enterprise mutations"],
+      "compliance_status": "FULL"
+    },
+    "blog_enterprise": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["app.py"],
+      "sql_files": [],
+      "patterns_claimed": ["Enterprise", "Blog"],
+      "compliance_status": "UNKNOWN"
+    },
+    "blog_simple": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": ["app.py", "models.py"],
+      "sql_files": ["db/seed_data.sql", "db/setup.sql"],
+      "patterns_claimed": ["Simple Blog"],
+      "compliance_status": "UNKNOWN"
+    },
+    "cascade-create-post": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Cascade", "Create"],
+      "compliance_status": "UNKNOWN"
+    },
+    "cascade-patterns": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": [],
+      "patterns_claimed": ["Cascade Patterns"],
+      "compliance_status": "UNKNOWN"
+    },
+    "complete_cqrs_blog": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["schema.py", "app.py", "sync.py"],
+      "sql_files": ["init_extensions.sql", "migrations/001_initial_schema.sql"],
+      "patterns_claimed": ["CQRS", "Blog"],
+      "compliance_status": "UNKNOWN"
+    },
+    "compliance-demo": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Compliance"],
+      "compliance_status": "UNKNOWN"
+    },
+    "context_parameters": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["mutations.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Context Parameters"],
+      "compliance_status": "UNKNOWN"
+    },
+    "documented_api": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Documented API"],
+      "compliance_status": "UNKNOWN"
+    },
+    "ecommerce": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["queries.py", "app.py", "models.py", "mutations.py"],
+      "sql_files": ["functions.sql", "schema.sql", "seed_data.sql"],
+      "patterns_claimed": ["Ecommerce"],
+      "compliance_status": "UNKNOWN"
+    },
+    "ecommerce_api": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": ["app.py", "models.py", "mutations.py"],
+      "sql_files": [
+        "db/0_schema/00_common/000_security/0001_extensions.sql",
+        "db/0_schema/00_common/001_types/0010_enums.sql",
+        "db/0_schema/00_common/001_types/0011_schemas.sql",
+        "db/0_schema/00_common/001_types/0012_mutation_utils.sql",
+        "db/0_schema/00_common/001_types/0013_cdc_logging.sql",
+        "db/0_schema/01_core_domain/010_customers/0101_tb_customer.sql",
+        "db/0_schema/01_core_domain/010_customers/0102_tb_address.sql",
+        "db/0_schema/01_core_domain/020_products/0201_tb_product.sql",
+        "db/0_schema/01_core_domain/020_products/0202_tb_category.sql",
+        "db/0_schema/01_core_domain/020_products/0203_tb_product_variant.sql",
+        "db/0_schema/01_core_domain/030_orders/0301_tb_order.sql",
+        "db/0_schema/01_core_domain/030_orders/0302_tb_order_item.sql",
+        "db/0_schema/02_read/020_customer/02001_v_customer.sql",
+        "db/0_schema/02_read/020_customer/02002_tv_customer.sql",
+        "db/0_schema/02_read/020_customer/02003_customer_orders.sql",
+        "db/0_schema/02_read/021_product/02101_v_product.sql",
+        "db/0_schema/02_read/021_product/02102_v_category.sql",
+        "db/0_schema/02_read/021_product/02103_tv_product.sql",
+        "db/0_schema/02_read/021_product/02104_tv_category.sql",
+        "db/0_schema/02_read/021_product/02105_products_with_categories.sql",
+        "db/0_schema/02_read/022_order/02201_v_order.sql",
+        "db/0_schema/02_read/022_order/02202_tv_order.sql",
+        "db/0_schema/03_functions/010_customer_functions/0101_customer_mutations.sql",
+        "db/0_schema/03_functions/030_customer_functions/0301_create_customer.sql",
+        "db/0_schema/03_functions/030_customer_functions/0301_create_customer_with_cdc.sql",
+        "db/0_schema/03_functions/030_customer_functions/0302_update_customer.sql",
+        "db/0_schema/03_functions/030_customer_functions/0302_update_customer_with_cdc.sql",
+        "db/0_schema/03_functions/030_customer_functions/0303_delete_customer.sql",
+        "db/0_schema/03_functions/030_customer_functions/0303_delete_customer_with_cdc.sql",
+        "db/0_schema/03_functions/030_customer_functions/0304_sync_customer.sql",
+        "db/0_schema/03_functions/031_product_functions/0311_create_product.sql",
+        "db/0_schema/03_functions/031_product_functions/0312_update_product.sql",
+        "db/0_schema/03_functions/031_product_functions/0313_delete_product.sql",
+        "db/0_schema/03_functions/031_product_functions/0314_sync_product.sql",
+        "db/0_schema/03_functions/032_order_functions/0321_create_order.sql",
+        "db/0_schema/03_functions/032_order_functions/0321_create_order_with_cdc.sql",
+        "db/0_schema/03_functions/032_order_functions/0322_update_order.sql",
+        "db/0_schema/03_functions/032_order_functions/0322_update_order_with_cdc.sql",
+        "db/0_schema/03_functions/032_order_functions/0323_delete_order.sql",
+        "db/0_schema/03_functions/032_order_functions/0323_delete_order_with_cdc.sql",
+        "db/0_schema/03_functions/032_order_functions/0324_sync_order.sql",
+        "db/functions/cart_functions.sql",
+        "db/functions/customer_functions.sql",
+        "db/functions/order_functions.sql",
+        "db/migrations/001_initial_schema.sql",
+        "db/seeds/sample_data.sql",
+        "db/views/customer_order_views.sql",
+        "db/views/customer_order_views_updated.sql",
+        "db/views/product_views.sql",
+        "db/views/product_views_updated.sql"
+      ],
+      "patterns_claimed": ["Ecommerce", "Complex validation"],
+      "compliance_status": "UNKNOWN"
+    },
+    "enterprise_patterns": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": ["models.py", "mutations.py"],
+      "sql_files": [
+        "cqrs/functions.sql",
+        "cqrs/schema.sql",
+        "cqrs/views.sql",
+        "db/migrations/001_schema.sql"
+      ],
+      "patterns_claimed": ["Enterprise Patterns"],
+      "compliance_status": "UNKNOWN"
+    },
+    "fastapi": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["queries.py", "main.py", "types.py", "mutations.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["FastAPI"],
+      "compliance_status": "UNKNOWN"
+    },
+    "filtering": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": [],
+      "patterns_claimed": ["Filtering"],
+      "compliance_status": "UNKNOWN"
+    },
+    "graphql-cascade": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["GraphQL Cascade"],
+      "compliance_status": "UNKNOWN"
+    },
+    "hybrid_tables": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Hybrid Tables"],
+      "compliance_status": "UNKNOWN"
+    },
+    "ltree-hierarchical-data": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": ["organization-chart/setup.sql", "product-catalog/setup.sql"],
+      "patterns_claimed": ["LTree", "Hierarchical"],
+      "compliance_status": "UNKNOWN"
+    },
+    "migrations": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": ["datetime_utc_normalization.sql"],
+      "patterns_claimed": ["Migrations"],
+      "compliance_status": "UNKNOWN"
+    },
+    "multi-tenant-saas": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Multi-tenant", "SaaS"],
+      "compliance_status": "UNKNOWN"
+    },
+    "mutation-patterns": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": [
+        "01-basic-crud/create-user.sql",
+        "01-basic-crud/delete-user.sql",
+        "01-basic-crud/update-user.sql",
+        "02-validation/custom-validation-rules.sql",
+        "02-validation/multiple-field-validation.sql",
+        "02-validation/simple-validation.sql",
+        "03-business-logic/calculated-fields.sql",
+        "03-business-logic/conditional-update.sql",
+        "03-business-logic/state-machine.sql",
+        "04-relationships/create-with-children.sql",
+        "04-relationships/delete-with-cascade.sql",
+        "04-relationships/update-with-cascade.sql",
+        "05-error-handling/conflict-duplicate.sql",
+        "05-error-handling/not-found.sql",
+        "05-error-handling/permission-denied.sql",
+        "06-advanced/async-processing.sql",
+        "06-advanced/bulk-operations.sql",
+        "06-advanced/transaction-rollback.sql",
+        "schema.sql"
+      ],
+      "patterns_claimed": ["Mutation Patterns"],
+      "compliance_status": "UNKNOWN"
+    },
+    "mutations_demo": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["demo.py"],
+      "sql_files": ["mutation_functions.sql", "setup.sql"],
+      "patterns_claimed": ["Mutations Demo"],
+      "compliance_status": "UNKNOWN"
+    },
+    "native-auth-app": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": [],
+      "patterns_claimed": ["Native Auth"],
+      "compliance_status": "UNKNOWN"
+    },
+    "observability": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": [],
+      "sql_files": [],
+      "patterns_claimed": ["Observability"],
+      "compliance_status": "UNKNOWN"
+    },
+    "query_patterns": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["blog_pattern.py", "app.py"],
+      "sql_files": [],
+      "patterns_claimed": ["Query Patterns"],
+      "compliance_status": "UNKNOWN"
+    },
+    "rag-system": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["app.py", "local_embeddings.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["RAG", "AI"],
+      "compliance_status": "UNKNOWN"
+    },
+    "real_time_chat": {
+      "readme": true,
+      "db_dir": true,
+      "python_files": ["app.py", "models.py", "mutations.py"],
+      "sql_files": [
+        "db/functions/chat_functions.sql",
+        "db/migrations/001_chat_schema.sql",
+        "db/views/chat_views.sql"
+      ],
+      "patterns_claimed": ["Real-time", "Chat"],
+      "compliance_status": "UNKNOWN"
+    },
+    "saas-starter": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["models.py", "main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["SaaS", "Starter"],
+      "compliance_status": "UNKNOWN"
+    },
+    "security": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["secure_graphql_api.py"],
+      "sql_files": [],
+      "patterns_claimed": ["Security"],
+      "compliance_status": "UNKNOWN"
+    },
+    "specialized_types": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": [],
+      "patterns_claimed": ["Specialized Types"],
+      "compliance_status": "UNKNOWN"
+    },
+    "todo_xs": {
+      "readme": false,
+      "db_dir": true,
+      "python_files": [],
+      "sql_files": ["db/00_schema/schema.sql"],
+      "patterns_claimed": ["Todo", "XS"],
+      "compliance_status": "PARTIAL"
+    },
+    "turborouter": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["turbo_config.py", "queries.py", "schema.py", "main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Turbo Router"],
+      "compliance_status": "UNKNOWN"
+    },
+    "vector_search": {
+      "readme": true,
+      "db_dir": false,
+      "python_files": ["main.py"],
+      "sql_files": ["schema.sql"],
+      "patterns_claimed": ["Vector Search"],
+      "compliance_status": "UNKNOWN"
+    }
+  },
+  "sql_files_metadata": {
+    "total_files": 127,
+    "largest_file": {
+      "path": "examples/enterprise_patterns/cqrs/functions.sql",
+      "lines": 658
+    },
+    "file_types": {
+      "schema_files": 45,
+      "migration_files": 15,
+      "view_files": 25,
+      "function_files": 32,
+      "seed_files": 5,
+      "other": 5
+    }
+  },
+  "documentation_sql_examples": {
+    "docs/core/concepts-glossary.md": {
+      "examples_count": 16,
+      "patterns_covered": [
+        "Trinity Identifiers - Base Table",
+        "JSONB View with Trinity",
+        "Trinity View Patterns",
+        "Projection Tables (tv_*)",
+        "Helper Functions",
+        "Mutation Functions",
+        "PostgreSQL Functions"
+      ]
+    },
+    "~/.claude/skills/printoptim-database-patterns.md": {
+      "examples_count": 25,
+      "patterns_covered": [
+        "Translation Tables (tl_*)",
+        "Trinity Identifier System",
+        "ltree Path Construction",
+        "CQRS Schema Organization",
+        "Helper Functions",
+        "Variable Naming Conventions"
+      ]
+    }
+  },
+  "pattern_rules": {
+    "trinity_identifiers": {
+      "tables": [
+        {
+          "rule": "Must have pk_<entity> INTEGER GENERATED ... PRIMARY KEY",
+          "severity": "ERROR",
+          "check_method": "regex",
+          "pattern": "pk_\\w+\\s+INTEGER\\s+GENERATED"
+        },
+        {
+          "rule": "Must have id UUID DEFAULT gen_random_uuid() ... UNIQUE",
+          "severity": "ERROR",
+          "check_method": "regex",
+          "pattern": "id\\s+UUID\\s+DEFAULT\\s+gen_random_uuid"
+        },
+        {
+          "rule": "May have identifier TEXT ... UNIQUE (optional)",
+          "severity": "WARNING",
+          "check_method": "regex",
+          "pattern": "identifier\\s+TEXT.*UNIQUE"
+        }
+      ],
+      "views": [
+        {
+          "rule": "Must have 'id' column (not in JSONB)",
+          "severity": "ERROR",
+          "check_method": "sql_parse"
+        },
+        {
+          "rule": "Include pk_* only if view is referenced by other views",
+          "severity": "WARNING",
+          "check_method": "dependency_analysis"
+        },
+        {
+          "rule": "JSONB must NOT contain pk_* field",
+          "severity": "ERROR",
+          "check_method": "jsonb_analysis",
+          "pattern": "'pk_\\w+'"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "rule": "Must reference pk_* column, not id",
+          "severity": "ERROR",
+          "check_method": "sql_parse",
+          "pattern": "REFERENCES.*\\(pk_\\w+\\)"
+        },
+        {
+          "rule": "FK column must be INTEGER type",
+          "severity": "ERROR",
+          "check_method": "sql_parse"
+        }
+      ],
+      "helper_functions": [
+        {
+          "rule": "Name pattern: core.get_pk_<entity>(tenant_id?, <entity>_id)",
+          "severity": "ERROR",
+          "check_method": "function_signature"
+        },
+        {
+          "rule": "Variables: v_<entity>_pk (INTEGER), v_<entity>_id (UUID)",
+          "severity": "ERROR",
+          "check_method": "variable_naming"
+        }
+      ]
+    }
+  },
+  "compliance_summary": {
+    "total_examples": 39,
+    "examples_with_db": 6,
+    "examples_with_sql_files": 8,
+    "examples_following_trinity": 2,
+    "examples_needing_review": 35,
+    "high_priority_remediation": [
+      "admin-panel (missing identifier column)",
+      "todo_xs (missing README.md)"
+    ]
+  }
+}

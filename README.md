@@ -518,15 +518,15 @@ async def users(info) -> list[User]:
 ### Mutations with Business Logic
 
 ```sql
-CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id INT) RETURNS JSONB AS $$
+CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id UUID) RETURNS JSONB AS $$
 DECLARE
     v_post RECORD;
 BEGIN
-    -- Get post with user info
+    -- Get post with user info (Trinity pattern: JOIN on pk_user)
     SELECT p.*, u.email as user_email
     INTO v_post
     FROM tb_post p
-    JOIN tb_user u ON p.user_id = u.id
+    JOIN tb_user u ON p.fk_user = u.pk_user  -- ✅ Trinity: INTEGER FK to pk_user
     WHERE p.id = p_post_id;
 
     -- Validate post exists
@@ -543,6 +543,9 @@ BEGIN
     UPDATE tb_post
     SET published_at = NOW()
     WHERE id = p_post_id;
+
+    -- Sync projection table
+    PERFORM fn_sync_tv_post(p_post_id);
 
     -- Log event
     INSERT INTO audit_log (action, details)
