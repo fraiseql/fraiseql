@@ -66,11 +66,12 @@ cat .phases/fraiseql-auto-injection-redesign/PHASE_0_PREPARATION.md
 # 3. Manual testing
 ```
 
-**Phase 4: PrintOptim Migration** (6 hours)
+**Phase 4: PrintOptim Migration** (4 hours) - **DOCUMENTATION COMPLETE**
 ```bash
-# See IMPLEMENTATION_PLAN.md - Phase 4
-# 1. Remove manual code fields
-# 2. Update test expectations
+# See: /home/lionel/code/printoptim_backend/.phases/fraiseql-v1.8.1-migration-guide.md
+# Comprehensive migration guide with automated scripts provided to PrintOptim team
+# 1. Remove manual code fields (AST-based migration script)
+# 2. Update test queries (regex-based migration script)
 # 3. Run full test suite
 ```
 
