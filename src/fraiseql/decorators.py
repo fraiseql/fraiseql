@@ -9,6 +9,7 @@ from typing import Any, Optional, TypeVar, overload
 from graphql import GraphQLResolveInfo
 
 from fraiseql.gql.schema_builder import SchemaRegistry
+from fraiseql.types.generic import Connection
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -866,6 +867,18 @@ def connection(
         # Infer view name from function name if not provided
         inferred_view_name = _infer_view_name_from_function(func.__name__, view_name)
 
+        # Construct type annotations for wrapper function
+        # This ensures schema builder can extract correct arguments and return type
+        wrapper_annotations = {
+            "info": GraphQLResolveInfo,
+            "first": int | None,
+            "after": str | None,
+            "last": int | None,
+            "before": str | None,
+            "where": dict[str, Any] | None,
+            "return": Connection[node_type],
+        }
+
         @wraps(func)
         async def wrapper(
             info: GraphQLResolveInfo,
@@ -940,6 +953,10 @@ def connection(
             "jsonb_column": jsonb_column,
             "supports_global_jsonb": True,  # Indicate global config support
         }
+
+        # CRITICAL: Set __annotations__ so schema builder can extract types
+        # Without this, get_type_hints(wrapper) returns {}
+        wrapper.__annotations__ = wrapper_annotations
 
         return wrapper  # type: ignore[return-value]
 

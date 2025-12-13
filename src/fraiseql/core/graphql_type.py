@@ -26,17 +26,21 @@ from typing import (
 )
 
 from graphql import (
+    GraphQLBoolean,
     GraphQLEnumType,
     GraphQLError,
     GraphQLField,
     GraphQLInputField,
     GraphQLInputObjectType,
+    GraphQLInt,
     GraphQLInterfaceType,
     GraphQLList,
+    GraphQLNonNull,
     GraphQLObjectType,
     GraphQLOutputType,
     GraphQLResolveInfo,
     GraphQLScalarType,
+    GraphQLString,
     GraphQLType,
     GraphQLUnionType,
 )
@@ -349,6 +353,24 @@ def convert_type_to_graphql_output(
     origin = get_origin(typ)
     args = get_args(typ)
     if origin is not None and args:
+        # Check if it's a Connection[T] generic type
+        # Import here to avoid circular dependency
+        from fraiseql.types.generic import Connection
+
+        if origin is Connection or (
+            hasattr(origin, "__name__") and origin.__name__ == "Connection"
+        ):
+            # Extract the node type from Connection[NodeType]
+            if not args:
+                raise TypeError(
+                    "Connection type must have a type argument (e.g., Connection[User])"
+                )
+
+            node_type = args[0]
+
+            # Generate and return Connection GraphQL type
+            return _create_connection_type(node_type)
+
         # Import here to avoid circular imports
         from fraiseql.types.generic import (
             get_or_create_concrete_type,
@@ -831,6 +853,146 @@ def convert_type_to_graphql_output(
 
     msg = f"Unsupported output type: {typ}"
     raise TypeError(msg)
+
+
+def _create_connection_type(node_type: type) -> GraphQLObjectType:
+    """Create GraphQL Connection type for a given node type.
+
+    Args:
+        node_type: The type of node in the connection (e.g., User, Post)
+
+    Returns:
+        GraphQLObjectType for NodeConnection (e.g., UserConnection)
+
+    Example:
+        For node_type=User, generates:
+        - UserConnection type
+        - UserEdge type
+        - PageInfo type (singleton)
+    """
+    from fraiseql.gql.builders.registry import SchemaRegistry
+
+    node_name = node_type.__name__
+    connection_name = f"{node_name}Connection"
+    edge_name = f"{node_name}Edge"
+
+    registry = SchemaRegistry.get_instance()
+
+    # Check if Connection type already exists (avoid duplicates)
+    if connection_name in registry._type_map:
+        return registry._type_map[connection_name]
+
+    # 1. Create PageInfo type (singleton, shared across all connections)
+    page_info_type = _get_or_create_page_info_type(registry)
+
+    # 2. Create Edge type for this node
+    edge_type = _create_edge_type(node_type, edge_name, registry)
+
+    # 3. Create Connection type
+    connection_type = GraphQLObjectType(
+        name=connection_name,
+        fields={
+            "edges": GraphQLField(
+                GraphQLNonNull(GraphQLList(GraphQLNonNull(edge_type))),
+                description="List of edges in this connection",
+            ),
+            "pageInfo": GraphQLField(
+                GraphQLNonNull(page_info_type), description="Information about pagination"
+            ),
+            "totalCount": GraphQLField(
+                GraphQLInt, description="Total number of items (if includeTotal was enabled)"
+            ),
+        },
+        description=f"A connection to a list of {node_name} items.",
+    )
+
+    # Register the connection type
+    registry._type_map[connection_name] = connection_type
+    registry._type_map[edge_name] = edge_type
+
+    return connection_type
+
+
+def _create_edge_type(node_type: type, edge_name: str, registry: Any) -> GraphQLObjectType:
+    """Create GraphQL Edge type for a given node type.
+
+    Args:
+        node_type: The type of node (e.g., User)
+        edge_name: Name for the edge type (e.g., "UserEdge")
+        registry: Schema registry for type lookup
+
+    Returns:
+        GraphQLObjectType for NodeEdge
+    """
+    # Get the GraphQL type for the node
+    node_graphql_type = convert_type_to_graphql_output(node_type)
+
+    edge_type = GraphQLObjectType(
+        name=edge_name,
+        fields={
+            "node": GraphQLField(
+                GraphQLNonNull(node_graphql_type),
+                description=f"The {node_type.__name__} at the end of this edge",
+            ),
+            "cursor": GraphQLField(
+                GraphQLNonNull(GraphQLString), description="Cursor for this node"
+            ),
+        },
+        description=f"An edge in a {node_type.__name__} connection.",
+    )
+
+    return edge_type
+
+
+# Module-level cache for PageInfo type (singleton)
+_PAGE_INFO_TYPE = None
+
+
+def _get_or_create_page_info_type(registry: Any) -> GraphQLObjectType:
+    """Get or create PageInfo type (singleton).
+
+    PageInfo is shared across all connection types, so we only create it once.
+
+    Returns:
+        GraphQLObjectType for PageInfo
+    """
+    global _PAGE_INFO_TYPE
+
+    # Return cached type if exists
+    if _PAGE_INFO_TYPE is not None:
+        return _PAGE_INFO_TYPE
+
+    # Check registry
+    if "PageInfo" in registry._type_map:
+        _PAGE_INFO_TYPE = registry._type_map["PageInfo"]
+        return _PAGE_INFO_TYPE
+
+    page_info_type = GraphQLObjectType(
+        name="PageInfo",
+        fields={
+            "hasNextPage": GraphQLField(
+                GraphQLNonNull(GraphQLBoolean),
+                description="Whether more items exist after this page",
+            ),
+            "hasPreviousPage": GraphQLField(
+                GraphQLNonNull(GraphQLBoolean),
+                description="Whether more items exist before this page",
+            ),
+            "startCursor": GraphQLField(
+                GraphQLString, description="Cursor for the first item in this page"
+            ),
+            "endCursor": GraphQLField(
+                GraphQLString, description="Cursor for the last item in this page"
+            ),
+        },
+        description="Information about pagination in a connection.",
+    )
+
+    # Register and cache
+    registry._type_map["PageInfo"] = page_info_type
+    _PAGE_INFO_TYPE = page_info_type
+
+    return page_info_type
 
 
 def translate_query_from_type(

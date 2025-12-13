@@ -28,6 +28,7 @@ class SchemaRegistry:
         self._subscriptions: dict[str, Callable[..., Any]] = {}
         self._enums: dict[type, GraphQLEnumType] = {}
         self._interfaces: dict[type, type] = {}
+        self._type_map: dict[str, Any] = {}  # GraphQL types cache for Connection/Edge/PageInfo
         self.config: Any = None  # FraiseQLConfig instance
 
     @classmethod
@@ -58,6 +59,7 @@ class SchemaRegistry:
         self._subscriptions.clear()
         self._enums.clear()
         self._interfaces.clear()
+        self._type_map.clear()
         self.config = None
         logger.debug("Registry after clearing: %s", list(self._types.keys()))
 
