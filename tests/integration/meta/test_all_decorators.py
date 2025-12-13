@@ -41,8 +41,10 @@ def get_all_decorators():
     # Mutation decorators
     decorators["mutation"] = mutation
     decorators["error"] = error
-    decorators["result"] = result
     decorators["success"] = success
+    # NOTE: result() is a type factory, not a decorator.
+    # It's used as: result_type = result(Success, Error)
+    # Not as: @result(Success, Error)  # This won't work!
 
     return decorators
 
@@ -94,9 +96,9 @@ def decorator_test_schema(meta_test_schema):
     class CreateUserError:
         message: str
 
-    @result(CreateUserSuccess, CreateUserError)
-    class CreateUserResult:
-        pass
+    # CreateUserResult union is automatically created by FraiseQL
+    # when both @success CreateUserSuccess and @error CreateUserError are defined.
+    # No manual class definition needed.
 
     @mutation
     class CreateUser:
@@ -204,7 +206,7 @@ async def test_decorator_executes_in_graphql(decorator_name, decorator_fn, decor
         ("mutation", mutation),
         ("success", success),
         ("error", error),
-        ("result", result),
+        # NOTE: result is not a decorator, it's a type factory
     ],
 )
 async def test_mutation_decorators_build_schema(
