@@ -148,14 +148,14 @@ FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Sta
 
 FraiseQL recognizes specific error prefixes that map to HTTP status codes:
 
-- `failed:<type>` - Generic failure (500) - e.g., `failed:validation`, `failed:database_error`
+- `failed:<type>` - Generic failure (500) - e.g., `validation:`, `failed:database_error`
 - `unauthorized:<type>` - Authentication required (401) - e.g., `unauthorized:token_expired`
 - `forbidden:<type>` - Insufficient permissions (403) - e.g., `forbidden:admin_only`
 - `not_found:<type>` - Resource doesn't exist (404) - e.g., `not_found:user_missing`
 - `conflict:<type>` - Resource conflict (409) - e.g., `conflict:duplicate_email`
 - `timeout:<type>` - Operation timeout (408/504) - e.g., `timeout:external_api`
 
-**Note**: All status matching is case-insensitive (`FAILED:validation` = `failed:validation`).
+**Note**: All status matching is case-insensitive (`FAILED:validation` = `validation:`).
 
 ### SQL Helper Functions
 
@@ -284,7 +284,7 @@ For REST-like semantics, error responses include a `code` field with equivalent 
   "data": {
     "createUser": {
       "__typename": "CreateUserError",
-      "status": "failed:validation",
+      "status": "validation:",
       "code": 422,
       "message": "Email already exists",
       "errors": [
@@ -312,7 +312,7 @@ FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. S
 | `not_found:*` | 404 | Not Found | Resource doesn't exist |
 | `timeout:*` | 408 | Request Timeout | Operation timed out |
 | `conflict:*` | 409 | Conflict | Duplicate key, version conflict |
-| `failed:validation`, `failed:invalid` | 422 | Unprocessable Entity | Invalid input data |
+| `validation:`, `failed:invalid` | 422 | Unprocessable Entity | Invalid input data |
 | `failed:*` (other) | 500 | Internal Server Error | Generic server error |
 
 **Note**: The Rust layer performs case-insensitive matching on status prefixes.
@@ -403,7 +403,7 @@ When no explicit errors are provided in `metadata.errors`, the system generates 
   "errors": [
     {
       "field": null,
-      "code": "validation",  // Derived from status "failed:validation"
+      "code": "validation",  // Derived from status "validation:"
       "message": "Email already exists"
     }
   ]

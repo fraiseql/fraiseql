@@ -160,7 +160,7 @@ class TestErrorHandling:
 
         assert result.get("errors") is None
         data = result["data"]["testErrorHandling"]
-        assert data["status"] == "failed:validation"
+        assert data["status"] == "validation:"
         assert data["message"] == "Test error message"
 ```
 

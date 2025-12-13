@@ -41,7 +41,7 @@ Error responses have a **two-level structure** by intentional design. Understand
 ```json
 {
   "code": 422,                     // HTTP-like status for quick checks
-  "status": "failed:validation",   // Domain-specific status string
+  "status": "validation:",   // Domain-specific status string
   "message": "Name is required",   // Human-readable summary
   "errors": [...]                  // Detailed structured errors (see below)
 }
@@ -51,7 +51,7 @@ Error responses have a **two-level structure** by intentional design. Understand
 - Quick error checks: `if (response.code === 422) { ... }`
 - Display single error message: `toast.error(response.message)`
 - Legacy client compatibility
-- You need the overall status: `response.status === "failed:validation"`
+- You need the overall status: `response.status === "validation:"`
 
 ### Errors Array (Structured Details)
 
@@ -122,7 +122,7 @@ The simplest and most common pattern: status strings automatically become struct
 
 ### How It Works
 
-1. **PostgreSQL returns status string:** `"failed:validation"`
+1. **PostgreSQL returns status string:** `"validation:"`
 2. **Rust pipeline extracts identifier:** `"validation"`
 3. **GraphQL response includes:** `errors: [{code: 422, identifier: "validation", ...}]`
 
@@ -144,7 +144,7 @@ The simplest and most common pattern: status strings automatically become struct
 **Examples:**
 ```sql
 -- Input validation
-status := 'failed:validation'
+status := 'validation:'
 
 -- User not found
 status := 'not_found:user'
@@ -238,7 +238,7 @@ BEGIN
 
     -- Return errors if any
     IF jsonb_array_length(validation_errors) > 0 THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := format('Validation failed with %s errors',
                                jsonb_array_length(validation_errors));
         result.metadata := jsonb_build_object('errors', validation_errors);

@@ -109,7 +109,7 @@ print(json.dumps(response, indent=2))
 
 ```python
 mutation_json = json.dumps({
-    "status": "failed:validation",
+    "status": "validation:",
     "message": "Email address is already in use",
     "entity_id": null,
     "entity_type": null,
@@ -145,7 +145,7 @@ print(json.dumps(response, indent=2))
   "data": {
     "createUser": {
       "__typename": "CreateUserError",
-      "status": "failed:validation",
+      "status": "validation:",
       "message": "Email address is already in use",
       "code": 422,
       "errors": [
