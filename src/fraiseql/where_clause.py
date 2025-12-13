@@ -18,6 +18,8 @@ from typing import Any, Literal
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 
+from fraiseql.sql.operators import get_default_registry
+
 # Supported operators
 COMPARISON_OPERATORS = {
     "eq": "=",
@@ -98,19 +100,21 @@ ARRAY_OPERATORS = {
 _ARRAY_OPERATORS_FOR_ALL = {k: v for k, v in ARRAY_OPERATORS.items() if k != "contains"}
 
 # Network operators for INET/CIDR types
+# NOTE: These template strings are for documentation/validation only.
+# Actual SQL generation is delegated to NetworkOperatorStrategy via operator registry.
 NETWORK_OPERATORS = {
     "isIPv4": "family({}) = 4",
     "isIPv6": "family({}) = 6",
-    "isPrivate": "NOT inet_public({})",
-    "isPublic": "inet_public({})",
+    "isPrivate": "CIDR_RANGE_CHECK",  # Uses CIDR containment checks, not inet_public()
+    "isPublic": "NOT_CIDR_RANGE_CHECK",  # Uses NOT (CIDR containment checks)
     "inSubnet": "{} <<= {}",
     "inRange": "{} <<= {}",
     "overlaps": "{} && {}",
     "strictleft": "{} << {}",
     "strictright": "{} >> {}",
     # CamelCase aliases for compatibility
-    "isprivate": "NOT inet_public({})",
-    "ispublic": "inet_public({})",
+    "isprivate": "CIDR_RANGE_CHECK",  # Uses CIDR containment checks, not inet_public()
+    "ispublic": "NOT_CIDR_RANGE_CHECK",  # Uses NOT (CIDR containment checks)
     "insubnet": "{} <<= {}",
     "inrange": "{} <<= {}",
     "isipv4": "family({}) = 4",
@@ -377,6 +381,20 @@ class FieldCondition:
                 pattern = self._build_like_pattern()
                 sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
                 params.append(pattern)
+            elif self.operator in NETWORK_OPERATORS:
+                # Delegate to NetworkOperatorStrategy via operator registry
+                registry = get_default_registry()
+                sql = registry.build_sql(
+                    operator=self.operator,
+                    value=self.value,
+                    path_sql=jsonb_expr,
+                    field_type=None,  # Will be inferred by NetworkOperatorStrategy
+                    jsonb_column="data",
+                )
+                if sql is None:
+                    raise ValueError(
+                        f"Network operator '{self.operator}' not supported by registry"
+                    )
             else:
                 # JSONB text comparison - need to handle boolean conversion
                 sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
@@ -613,6 +631,21 @@ class FieldCondition:
                         [SQL("%s = "), SQL(f"{op}("), Identifier(self.target_column), SQL(")")]
                     )
                     params.append(self.value)
+            elif self.operator in NETWORK_OPERATORS:
+                # Delegate to NetworkOperatorStrategy via operator registry
+                registry = get_default_registry()
+                column_sql = Identifier(self.target_column)
+                sql = registry.build_sql(
+                    operator=self.operator,
+                    value=self.value,
+                    path_sql=column_sql,
+                    field_type=None,  # Will be inferred by NetworkOperatorStrategy
+                    jsonb_column=None,
+                )
+                if sql is None:
+                    raise ValueError(
+                        f"Network operator '{self.operator}' not supported by registry"
+                    )
             else:
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
                 params.append(self.value)

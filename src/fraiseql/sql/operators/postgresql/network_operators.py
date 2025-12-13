@@ -55,14 +55,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         if operator not in self.SUPPORTED_OPERATORS:
             return False
 
-        # Check field type for network fields
-        if field_type is not None:
-            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
-            if any(net_type in type_name for net_type in self.NETWORK_TYPES):
-                return True
-
-        # Network-specific operators only for network field types
-        # (Don't claim them for other types like DateRange)
+        # Network-specific operators - support even without field_type
+        # The operator name itself is a strong signal this is a network operation
         if operator in {
             "isprivate",
             "ispublic",
@@ -81,14 +75,22 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             "isIPv4",
             "isIPv6",
         }:
-            # Only support these for network field types
+            # Accept these operators even without field_type
+            # If field_type is provided, verify it's a network type
             if field_type is not None:
                 type_name = (
                     field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
                 )
-                if any(net_type in type_name for net_type in self.NETWORK_TYPES):
-                    return True
-            return False
+                # Only accept if it's actually a network type
+                if not any(net_type in type_name for net_type in self.NETWORK_TYPES):
+                    return False
+            return True
+
+        # Generic operators (eq, neq, in, nin) - require field type verification
+        if field_type is not None:
+            type_name = field_type.__name__ if hasattr(field_type, "__name__") else str(field_type)
+            if any(net_type in type_name for net_type in self.NETWORK_TYPES):
+                return True
 
         return False
 
@@ -137,12 +139,47 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
 
         # Network-specific operators
         if operator in {"isprivate", "isPrivate"}:
+            # Private IP check using CIDR containment operators
+            # Check if IP is in any private range (RFC 1918 + special use)
             casted_path = SQL("({})::inet").format(path_sql)
-            return SQL("NOT inet_public({})").format(casted_path)
+            return SQL(
+                "({} << inet '10.0.0.0/8' OR "
+                "{} << inet '172.16.0.0/12' OR "
+                "{} << inet '192.168.0.0/16' OR "
+                "{} << inet '127.0.0.0/8' OR "
+                "{} << inet '169.254.0.0/16' OR "
+                "{} << inet 'fc00::/7' OR "
+                "{} << inet 'fe80::/10')"
+            ).format(
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+            )
 
         if operator in {"ispublic", "isPublic"}:
+            # Public IP check: NOT in any private range
             casted_path = SQL("({})::inet").format(path_sql)
-            return SQL("inet_public({})").format(casted_path)
+            return SQL(
+                "NOT ({} << inet '10.0.0.0/8' OR "
+                "{} << inet '172.16.0.0/12' OR "
+                "{} << inet '192.168.0.0/16' OR "
+                "{} << inet '127.0.0.0/8' OR "
+                "{} << inet '169.254.0.0/16' OR "
+                "{} << inet 'fc00::/7' OR "
+                "{} << inet 'fe80::/10')"
+            ).format(
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+                casted_path,
+            )
 
         if operator in {"insubnet", "inSubnet"}:
             casted_path, casted_value = self._cast_both_sides(path_sql, str(value), "inet")

@@ -136,8 +136,9 @@ class TestTier1NetworkTypes:
         # Must include proper inet casting
         assert "::inet" in sql_str, "Private IP detection requires inet casting"
 
-        # Should use PostgreSQL inet_public() function (more comprehensive than RFC 1918 checks)
-        assert "NOT inet_public(" in sql_str, f"isPrivate should use NOT inet_public(), got: {sql_str}"
+        # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
+        assert "10.0.0.0/8" in sql_str, f"isPrivate should check RFC 1918 ranges, got: {sql_str}"
+        assert "192.168.0.0/16" in sql_str, f"isPrivate should check RFC 1918 ranges, got: {sql_str}"
 
     def test_network_ispublic_operator_jsonb_flat(self) -> None:
         """RED: Test Network isPublic operator with JSONB flat storage.
@@ -157,9 +158,10 @@ class TestTier1NetworkTypes:
         # Must include proper inet casting
         assert "::inet" in sql_str, "Public IP detection requires inet casting"
 
-        # Should use PostgreSQL inet_public() function directly (without NOT)
-        assert "inet_public(" in sql_str, f"isPublic should use inet_public(), got: {sql_str}"
-        assert "NOT inet_public(" not in sql_str, "isPublic should NOT have NOT (that's for isPrivate)"
+        # Should use CIDR range checks with NOT for public IPs (no inet_public() in PostgreSQL)
+        assert "NOT" in sql_str, f"isPublic should use NOT (private ranges), got: {sql_str}"
+        assert "10.0.0.0/8" in sql_str, f"isPublic should check RFC 1918 ranges, got: {sql_str}"
+        assert "192.168.0.0/16" in sql_str, f"isPublic should check RFC 1918 ranges, got: {sql_str}"
 
     def test_network_insubnet_operator_jsonb_flat(self) -> None:
         """RED: Test Network inSubnet operator with JSONB flat storage.

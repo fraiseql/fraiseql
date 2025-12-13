@@ -62,8 +62,9 @@ class TestNetworkFilteringFix:
         assert private_sql is not None
         private_str = private_sql.as_string(None)  # type: ignore
 
-        # Should use PostgreSQL's inet_public function for private IP detection
-        assert "NOT inet_public" in private_str
+        # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
+        assert "10.0.0.0/8" in private_str  # RFC 1918 private range
+        assert "192.168.0.0/16" in private_str  # RFC 1918 private range
         assert "::inet" in private_str
 
     def test_eq_operator_vs_network_operators_consistency(self) -> None:
@@ -164,8 +165,9 @@ class TestNetworkFilteringFix:
         assert private_sql is not None
         private_str = private_sql.as_string(None)  # type: ignore
 
-        # Should use PostgreSQL's inet_public function for private IP detection
-        assert "NOT inet_public" in private_str
+        # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
+        assert "10.0.0.0/8" in private_str  # RFC 1918 private range
+        assert "192.168.0.0/16" in private_str  # RFC 1918 private range
         assert "::inet" in private_str
 
 

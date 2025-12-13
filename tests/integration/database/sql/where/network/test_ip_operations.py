@@ -409,9 +409,10 @@ class TestNetworkOperatorIntegration:
             "isprivate", True, SQL("data->>'ip_address'"), field_type=IpAddress
         )
 
-        # Should use PostgreSQL's inet_public function
+        # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
         sql_str = result.as_string(None)  # type: ignore
-        assert "NOT inet_public" in sql_str
+        assert "10.0.0.0/8" in sql_str  # RFC 1918 private range
+        assert "192.168.0.0/16" in sql_str  # RFC 1918 private range
         assert "::inet" in sql_str
 
 
