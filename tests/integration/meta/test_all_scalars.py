@@ -449,7 +449,7 @@ def get_test_value_for_scalar(scalar_class):
         VINScalar: "1HGBH41JXMN109186",
         # Communications
         PhoneNumberScalar: "+14155552671",
-        # ApiKeyScalar: "my_test_api_key_12345678901234567890",  # Temporarily disabled due to GitHub secret scanning
+        ApiKeyScalar: "TEST_API_KEY_0000000000000000",  # Obvious fake to bypass GitHub secret scanning
         # Content & Data
         HTMLScalar: "<p>Hello World</p>",
         MarkdownScalar: "# Hello World",
