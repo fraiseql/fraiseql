@@ -464,7 +464,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
             // Map error reasons to HTTP-like codes
             if reason_lower.starts_with("not_found:") || reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
                 404 // Not Found
-            } else if reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
+            } else if reason_lower.starts_with("validation:") || reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
                 422 // Unprocessable Entity
             } else if reason_lower.starts_with("unauthorized:") {
                 401 // Unauthorized

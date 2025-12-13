@@ -40,7 +40,7 @@ class MutationErrorConfig:
             # Traditional errors
             "error:",
             "failed:",  # System failures (500)
-            "validation_error:",
+            "validation:",  # Input validation failures (422)
             "unauthorized:",  # Auth failures (401)
             "forbidden:",  # Permission failures (403)
             "not_found:",  # Missing resources (404)

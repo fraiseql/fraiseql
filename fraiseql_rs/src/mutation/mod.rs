@@ -198,6 +198,7 @@ impl MutationStatus {
 
         // ERROR PREFIXES - Return Error type with full status string
         if status_lower.starts_with("failed:")
+            || status_lower.starts_with("validation:")
             || status_lower.starts_with("unauthorized:")
             || status_lower.starts_with("forbidden:")
             || status_lower.starts_with("not_found:")
