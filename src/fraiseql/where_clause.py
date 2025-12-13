@@ -8,6 +8,24 @@ Architecture:
         → Normalize to WhereClause
         → Generate SQL
         → PostgreSQL
+
+Known Limitations:
+    JSON/Dict-valued scalar types (e.g., JSONScalar) cannot use standard WHERE
+    operators (eq, ne, in, etc.) because the parser interprets dict keys as
+    filter operators. For example:
+
+        # This fails:
+        where: {jsonField: {eq: {"key": "value"}}}
+
+        # Parser sees "key" and thinks it's an operator like "eq", "contains"
+        # Error: "Invalid operator 'key'"
+
+    For JSON filtering, use specialized JSONB operators (contains, path, etc.)
+    or filter on specific JSON paths rather than the whole object.
+
+    Atomic-value custom scalars (strings, numbers) work correctly:
+        where: {emailField: {eq: "user@test.com"}}  # ✅ Works
+        where: {cidrField: {eq: "192.168.1.0/24"}}  # ✅ Works
 """
 
 from __future__ import annotations

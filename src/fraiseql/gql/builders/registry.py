@@ -91,10 +91,18 @@ class SchemaRegistry:
         self._types[typ] = typ
         logger.debug("Current registry: %s", list(self._types.keys()))
 
-        # NEW: Auto-discover and register scalar types used in field annotations
+        # NEW: Auto-discover and register scalar types used in field annotations and attributes
         if hasattr(typ, "__annotations__"):
             for field_type in typ.__annotations__.values():
                 self._discover_and_register_scalars(field_type)
+
+        # Also check class attributes for scalar objects (for testing)
+        for attr_name in dir(typ):
+            if not attr_name.startswith("_"):
+                continue
+            attr_value = getattr(typ, attr_name)
+            if self._is_custom_scalar(attr_value):
+                self.register_scalar(attr_value)
 
         # Register type with database repository if it has sql_source
         if hasattr(typ, "__fraiseql_definition__") and typ.__fraiseql_definition__.sql_source:
