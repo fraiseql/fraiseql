@@ -13,7 +13,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @pytest.mark.asyncio
-class TestWhereClauseFix:
+class TestWhereClauseHandling:
     """Test cases demonstrating the WHERE clause generation fix."""
 
     async def test_simple_string_filter_works(self, class_db_pool, test_schema) -> None:

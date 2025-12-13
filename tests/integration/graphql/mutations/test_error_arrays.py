@@ -1,15 +1,10 @@
-"""Integration tests for native error arrays in mutation responses.
+"""Tests for mutation error array handling.
 
-Tests that error arrays are automatically populated on ALL mutation error responses,
-without requiring MutationResultBase.
+Validates that mutations can return arrays of error objects in GraphQL
+responses, properly serialized and accessible to clients.
 
-WP-034 Phase 1 - Feature implemented in v1.8.0-beta.4 (2025-12-09)
-WP-034 Phase 2 - Tests enabled after schema refresh API implementation
-
-CURRENT STATUS: Schema refresh API is complete. These tests use the refresh_schema()
-feature to dynamically discover test mutations created during fixture setup.
-
-See: .phases/schema-refresh-api/README.md for schema refresh documentation.
+Tests cover automatic error generation from status strings, explicit error
+arrays via metadata, and backward compatibility with existing patterns.
 """
 
 import pytest

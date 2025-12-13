@@ -625,9 +625,9 @@ def validate_cascade_structure(cascade: Dict[str, Any]) -> bool:
 async def test_schema_validation_with_success_type_fields(cascade_http_client):
     """Test that Rust schema validation works with success_type_fields parameter.
 
-    This test verifies Phase 3: Rust Schema Validation is working correctly.
-    The Rust transformer should validate that all expected fields from the Success type
-    are present in the mutation response, and warn about missing/extra fields.
+    Validates that the Rust transformer correctly validates that all expected fields
+    from the Success type are present in the mutation response, and warns about
+    missing or extra fields.
     """
     # This test uses the existing CreatePostWithEntity mutation which has:
     # - Success type: CreatePostWithEntitySuccess with fields: post, message, cascade

@@ -57,7 +57,7 @@ async def data_query(info) -> DataType:
     return DataType(snake_case_field="test_value", another_snake_field="another_value")
 
 
-class TestJSONPassthroughConfigFix:
+class TestJSONPassthroughConfiguration:
     """Test that JSON passthrough is always enabled in production (v1 behavior)."""
 
     def test_json_passthrough_always_enabled_in_production(self) -> None:

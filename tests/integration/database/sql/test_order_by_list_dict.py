@@ -33,7 +33,7 @@ class DnsServer:
     dns_server_type: Optional[str] = None
 
 
-class TestOrderByListDictRegression:
+class TestOrderByListDictHandling:
     """Regression tests for the OrderBy list of dictionaries bug."""
 
     def test_list_of_dicts_conversion(self) -> None:
@@ -228,7 +228,7 @@ class TestOrderByListDictRegression:
         assert fields["server_name"] == OrderDirection.DESC
 
 
-class TestOrderByIntegrationRegression:
+class TestOrderByIntegration:
     """Integration tests with the database layer."""
 
     def test_repository_handles_list_dicts(self) -> None:

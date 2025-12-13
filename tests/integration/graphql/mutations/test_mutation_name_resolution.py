@@ -81,7 +81,7 @@ class CreateItemComponent:
     error: CreateItemComponentError
 
 
-class TestMutationNameCollisionFix:
+class TestMutationNameResolution:
     """Test the fix for mutation name collisions."""
 
     def test_resolver_names_use_function_names(self) -> None:

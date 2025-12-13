@@ -21,7 +21,7 @@ class DnsServer:
     n_total_allocations: int | None = None
 
 
-class TestNetworkFilteringFix:
+class TestNetworkFiltering:
     """Test that our fix resolves the reported network filtering issues."""
 
     def test_network_operator_selection_with_ip_types(self) -> None:
@@ -40,7 +40,7 @@ class TestNetworkFilteringFix:
         strategy = registry.get_strategy("isPrivate", IpAddress)
         assert strategy.__class__.__name__ == "NetworkOperatorStrategy"
 
-    def test_fixed_sql_generation_for_network_operators(self) -> None:
+    def test_sql_generation_for_network_operators(self) -> None:
         """Test that network operators generate consistent SQL."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -117,7 +117,6 @@ class TestNetworkFilteringFix:
         # Test that NetworkOperatorStrategy rejects non-IP types
         from fraiseql.sql.operators import NetworkOperatorStrategy
 
-
         network_strategy = NetworkOperatorStrategy()
 
         # Should handle IP addresses
@@ -129,7 +128,7 @@ class TestNetworkFilteringFix:
         # Should reject int types
         assert not network_strategy.supports_operator("inSubnet", int)
 
-    def test_regression_reported_issue_patterns(self) -> None:
+    def test_reported_issue_patterns(self) -> None:
         """Test the specific patterns from the reported issue."""
         registry = get_operator_registry()
         field_path = SQL("data->>'ip_address'")
@@ -172,8 +171,8 @@ class TestNetworkFilteringFix:
 
 
 if __name__ == "__main__":
-    test = TestNetworkFilteringFix()
+    test = TestNetworkFiltering()
     test.test_network_operator_selection_with_ip_types()
-    test.test_fixed_sql_generation_for_network_operators()
+    test.test_sql_generation_for_network_operators()
     test.test_eq_operator_vs_network_operators_consistency()
-    test.test_regression_reported_issue_patterns()
+    test.test_reported_issue_patterns()

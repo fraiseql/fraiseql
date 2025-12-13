@@ -54,7 +54,7 @@ async def task_resolver(
     return status.name
 
 
-class TestEnumParameterConversionFix:
+class TestEnumParameterConversion:
     """Test suite for enum parameter conversion bug fix."""
 
     @pytest.mark.asyncio

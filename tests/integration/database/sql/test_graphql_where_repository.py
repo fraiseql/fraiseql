@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 @pytest.mark.database
-class TestGraphQLWhereRepositoryFix:
+class TestGraphQLWhereRepository:
     """Test GraphQL WHERE clause filtering works correctly after the fix."""
 
     @pytest.mark.asyncio

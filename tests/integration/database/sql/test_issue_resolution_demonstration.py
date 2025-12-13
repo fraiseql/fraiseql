@@ -29,7 +29,7 @@ class DnsServer:
 class TestIssueResolutionDemonstration:
     """Demonstrate that all reported issues are resolved."""
 
-    def test_issue_1_insubnet_filter_fixed(self) -> None:
+    def test_insubnet_filter_works(self) -> None:
         """RESOLVED: inSubnet filter now returns correct results.
 
         Original Issue: inSubnet: "192.168.0.0/16" returned 21.43.108.1
@@ -60,7 +60,7 @@ class TestIssueResolutionDemonstration:
         # - ✅ 192.168.1.102 (in subnet)
         # - ❌ 21.43.108.1 (NOT in subnet) <- This was the bug!
 
-    def test_issue_2_exact_matching_eq_fixed(self) -> None:
+    def test_exact_matching_eq_works(self) -> None:
         """RESOLVED: eq filter now works correctly.
 
         Original Issue: eq: "1.1.1.1" returned empty array
@@ -84,7 +84,7 @@ class TestIssueResolutionDemonstration:
         # - host('1.1.1.1'::inet) = '1.1.1.1' ✅
         # - host('1.1.1.1/32'::inet) = '1.1.1.1' ✅
 
-    def test_issue_3_isprivate_filter_fixed(self) -> None:
+    def test_isprivate_filter_works(self) -> None:
         """RESOLVED: isPrivate filter now returns correct results.
 
         Original Issue: isPrivate: true returned empty array
@@ -189,17 +189,17 @@ class TestIssueResolutionDemonstration:
             assert "data->>'ip_address'" in sql_str, f"Operator {op} failed"
             assert "::inet" in sql_str or "inet_public" in sql_str, f"Operator {op} missing cast"
 
-    def test_comprehensive_fix_summary(self) -> None:
+    def test_comprehensive_validation_summary(self) -> None:
         """Summary of all fixes applied to resolve the JSONB network filtering issue."""
 
 
 if __name__ == "__main__":
     test = TestIssueResolutionDemonstration()
-    test.test_issue_1_insubnet_filter_fixed()
-    test.test_issue_2_exact_matching_eq_fixed()
-    test.test_issue_3_isprivate_filter_fixed()
+    test.test_insubnet_filter_works()
+    test.test_exact_matching_eq_works()
+    test.test_isprivate_filter_works()
     test.test_string_filtering_still_works()
     test.test_network_operators_type_safety_improved()
     test.test_graphql_integration_works()
     test.test_sql_generation_consistency_verified()
-    test.test_comprehensive_fix_summary()
+    test.test_comprehensive_validation_summary()

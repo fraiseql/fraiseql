@@ -1,13 +1,9 @@
-"""Integration tests for FastAPI Router with JSONB entities and RustResponseBytes.
+"""Tests for FastAPI GraphQL router with JSONB entities.
 
-Phase 6: FastAPI Router Integration
-TDD Cycles 6.1-6.3: Complete FastAPI router validation with real database
+Validates that the FastAPI create_graphql_router correctly handles
+JSONB entities through the complete HTTP stack with RustResponseBytes pass-through.
 
-This test suite validates that the FastAPI create_graphql_router correctly handles
-JSONB entities through the full stack with RustResponseBytes pass-through.
-
-These tests mirror the GraphNoteRouter tests from Phase 5 but use FastAPI's
-TestClient for HTTP-level testing.
+Tests cover queries, mutations, and error handling through the full FastAPI HTTP layer.
 """
 
 import json
@@ -30,7 +26,7 @@ from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-# Test type with JSONB data (same as Phase 5)
+# Test type with JSONB data
 @fraiseql.type
 class ProductWithJSONB:
     """Product entity with JSONB data column."""
@@ -42,7 +38,7 @@ class ProductWithJSONB:
     price: float  # Stored in JSONB
 
 
-# GraphQL resolvers (same as Phase 5)
+# GraphQL resolvers
 @fraiseql.query
 async def products_with_jsonb(info, limit: int = 10) -> list[ProductWithJSONB]:
     """List query with typed return value."""

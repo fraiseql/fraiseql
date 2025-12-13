@@ -149,7 +149,7 @@ class TestPortEndToEndIntegration:
         assert result.as_string(None) == expected
 
 
-class TestPhase4IntegratedScenarios:
+class TestHostnameIntegratedScenarios:
     """Test Phase 4 operators in realistic integrated scenarios."""
 
     def test_server_configuration_filtering(self) -> None:

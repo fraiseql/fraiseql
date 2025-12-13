@@ -221,7 +221,7 @@ class TestDateTimeVsDateOperators:
             assert key in OPERATOR_MAP, f"Missing Date operator: {key[1]}"
 
 
-class TestPhase5ErrorHandling:
+class TestDateTimeErrorHandling:
     """Test error handling for DateTime/Date operators."""
 
     def test_datetime_invalid_operator_error(self) -> None:

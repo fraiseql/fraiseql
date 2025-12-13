@@ -13,7 +13,7 @@ import pytest
 async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url):
     """Blog app with native error array test mutations.
 
-    Creates database functions for testing WP-034 native error arrays feature,
+    Creates database functions for testing native error array functionality,
     then refreshes the schema to discover them.
 
     This fixture demonstrates using app.refresh_schema() to test features
@@ -241,6 +241,7 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
     @fraiseql.type
     class MutationError:
         """Error details in mutation response."""
+
         code: int
         identifier: str
         message: str
@@ -250,6 +251,7 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
     @fraiseql.type
     class TestMutationResponse:
         """Response from test mutations."""
+
         code: int
         status: str
         message: str
@@ -269,12 +271,14 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=row.get("status", "failed:validation"),
             message=row.get("message", "Validation failed"),
-            errors=[MutationError(
-                code=400,
-                identifier="validation",
-                message=row.get("message", "Validation failed"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier="validation",
+                    message=row.get("message", "Validation failed"),
+                    details=None,
+                )
+            ],
         )
 
     @fraiseql.mutation
@@ -292,12 +296,14 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=status,
             message=row.get("message", "Test message"),
-            errors=[MutationError(
-                code=400,
-                identifier=identifier,
-                message=row.get("message", "Test message"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier=identifier,
+                    message=row.get("message", "Test message"),
+                    details=None,
+                )
+            ],
         )
 
     @fraiseql.mutation
@@ -315,12 +321,14 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=status,
             message=row.get("message", "Test message"),
-            errors=[MutationError(
-                code=400,
-                identifier=identifier,
-                message=row.get("message", "Test message"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier=identifier,
+                    message=row.get("message", "Test message"),
+                    details=None,
+                )
+            ],
         )
 
     @fraiseql.mutation
@@ -338,12 +346,14 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=status,
             message=row.get("message", "Test message"),
-            errors=[MutationError(
-                code=400,
-                identifier=identifier,
-                message=row.get("message", "Test message"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier=identifier,
+                    message=row.get("message", "Test message"),
+                    details=None,
+                )
+            ],
         )
 
     @fraiseql.mutation
@@ -361,12 +371,14 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=status,
             message=row.get("message", "Test message"),
-            errors=[MutationError(
-                code=400,
-                identifier=identifier,
-                message=row.get("message", "Test message"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier=identifier,
+                    message=row.get("message", "Test message"),
+                    details=None,
+                )
+            ],
         )
 
     @fraiseql.mutation
@@ -386,7 +398,7 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
                 code=err.get("code", 400),
                 identifier=err.get("identifier", "unknown"),
                 message=err.get("message", ""),
-                details=err.get("details")
+                details=err.get("details"),
             )
             for err in explicit_errors
         ]
@@ -395,7 +407,7 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=row.get("status", "failed:validation"),
             message=row.get("message", "Multiple validation errors"),
-            errors=errors
+            errors=errors,
         )
 
     @fraiseql.mutation
@@ -410,29 +422,35 @@ async def blog_simple_app_with_native_errors(blog_simple_app, blog_simple_db_url
             code=400,
             status=row.get("status", "failed:validation"),
             message=row.get("message", "Validation failed"),
-            errors=[MutationError(
-                code=400,
-                identifier="validation",
-                message=row.get("message", "Validation failed"),
-                details=None
-            )]
+            errors=[
+                MutationError(
+                    code=400,
+                    identifier="validation",
+                    message=row.get("message", "Validation failed"),
+                    details=None,
+                )
+            ],
         )
 
     # Add types and mutations to the refresh config
     if hasattr(blog_simple_app.state, "_fraiseql_refresh_config"):
-        blog_simple_app.state._fraiseql_refresh_config["original_types"].extend([
-            MutationError,
-            TestMutationResponse,
-        ])
-        blog_simple_app.state._fraiseql_refresh_config["original_mutations"].extend([
-            test_auto_error,
-            test_status_validation,
-            test_status_notfound,
-            test_status_authorization,
-            test_status_generalerror,
-            test_explicit_errors,
-            test_with_base,
-        ])
+        blog_simple_app.state._fraiseql_refresh_config["original_types"].extend(
+            [
+                MutationError,
+                TestMutationResponse,
+            ]
+        )
+        blog_simple_app.state._fraiseql_refresh_config["original_mutations"].extend(
+            [
+                test_auto_error,
+                test_status_validation,
+                test_status_notfound,
+                test_status_authorization,
+                test_status_generalerror,
+                test_explicit_errors,
+                test_with_base,
+            ]
+        )
 
     # Refresh schema to rebuild with the new types and mutations
     await blog_simple_app.refresh_schema()
