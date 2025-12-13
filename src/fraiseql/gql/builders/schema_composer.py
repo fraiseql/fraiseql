@@ -65,9 +65,11 @@ class SchemaComposer:
         """Collect all types that should be included in the schema.
 
         Returns:
-            List of GraphQLObjectType instances.
+            List of GraphQLObjectType instances and GraphQLScalarType instances.
         """
         all_types = []
+
+        # Add registered object types
         for typ in list(self.registry.types.values()):
             # Skip QueryRoot - it's special and its fields are added to Query type
             if typ.__name__ == "QueryRoot":
@@ -79,5 +81,14 @@ class SchemaComposer:
                 gql_type = convert_type_to_graphql_output(typ)
                 if isinstance(gql_type, GraphQLObjectType):
                     all_types.append(gql_type)
+
+        # Add registered scalar types
+        all_types.extend(self.registry.scalars.values())
+
+        logger.debug(
+            "Collected %d types for schema (including %d scalars)",
+            len(all_types),
+            len(self.registry.scalars),
+        )
 
         return all_types

@@ -45,15 +45,21 @@ def scalar_test_schema(meta_test_schema):
     # Clear any existing registrations
     meta_test_schema.clear()
 
+    # Build field annotations dict explicitly
+    annotations = {"id": int}
+
+    # Add one field for each scalar type
+    for scalar_name, scalar_class in get_all_scalar_types():
+        field_name = scalar_name.lower().replace("scalar", "_field")
+        annotations[field_name] = scalar_class
+
     # Register a test type that uses all scalar types as fields
     @fraise_type
     class ScalarTestType:
-        id: int
+        pass
 
-        # Add one field for each scalar type
-        for scalar_name, scalar_class in get_all_scalar_types():
-            field_name = scalar_name.lower().replace("scalar", "_field")
-            locals()[field_name] = scalar_class
+    # Manually set annotations (workaround for dynamic fields)
+    ScalarTestType.__annotations__ = annotations
 
     # Register a simple query
     @query
@@ -70,17 +76,19 @@ def scalar_test_schema(meta_test_schema):
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should be registrable in a GraphQL schema."""
-    from fraiseql.gql.schema_builder import build_fraiseql_schema
-
-    # Build the schema using the build_fraiseql_schema function
-    schema = build_fraiseql_schema()
+    # Build the schema using the prepared registry from the fixture
+    schema = scalar_test_schema.build_schema()
 
     # Verify schema was built successfully
     assert schema is not None
 
     # Verify the scalar type exists in the schema
-    scalar_type = schema.get_type(scalar_name)
-    assert scalar_type is not None, f"Scalar {scalar_name} not found in schema"
+    # Use the scalar's GraphQL name (scalar_class.name), not the variable name
+    graphql_scalar_name = scalar_class.name
+    scalar_type = schema.get_type(graphql_scalar_name)
+    assert scalar_type is not None, (
+        f"Scalar {graphql_scalar_name} (from {scalar_name}) not found in schema"
+    )
 
 
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())

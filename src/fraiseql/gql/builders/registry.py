@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from fraiseql.config.schema_config import SchemaConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from graphql import GraphQLEnumType
+    from graphql import GraphQLEnumType, GraphQLScalarType
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +21,14 @@ class SchemaRegistry:
     _instance = None
 
     def __init__(self) -> None:
-        """Initialize empty registries for types, mutations, enums, and interfaces."""
+        """Initialize empty registries for types, mutations, enums, interfaces, and scalars."""
         self._types: dict[type, type] = {}
         self._mutations: dict[str, Callable[..., Any]] = {}
         self._queries: dict[str, Callable[..., Any]] = {}
         self._subscriptions: dict[str, Callable[..., Any]] = {}
         self._enums: dict[type, GraphQLEnumType] = {}
         self._interfaces: dict[type, type] = {}
+        self._scalars: dict[str, GraphQLScalarType] = {}  # NEW: Custom scalar registry
         self._type_map: dict[str, Any] = {}  # GraphQL types cache for Connection/Edge/PageInfo
         self.config: Any = None  # FraiseQLConfig instance
 
@@ -90,6 +91,11 @@ class SchemaRegistry:
         self._types[typ] = typ
         logger.debug("Current registry: %s", list(self._types.keys()))
 
+        # NEW: Auto-discover and register scalar types used in field annotations
+        if hasattr(typ, "__annotations__"):
+            for field_type in typ.__annotations__.values():
+                self._discover_and_register_scalars(field_type)
+
         # Register type with database repository if it has sql_source
         if hasattr(typ, "__fraiseql_definition__") and typ.__fraiseql_definition__.sql_source:
             from fraiseql.db import register_type_for_view
@@ -133,6 +139,76 @@ class SchemaRegistry:
             logger.debug("Registering interface '%s' to the schema.", interface_cls.__name__)
 
         self._interfaces[interface_cls] = interface_cls
+
+    def register_scalar(self, scalar_class: GraphQLScalarType) -> None:
+        """Register a custom scalar type.
+
+        Args:
+            scalar_class: A GraphQLScalarType instance to register.
+
+        Raises:
+            TypeError: If scalar_class is not a GraphQLScalarType.
+        """
+        from graphql import GraphQLScalarType
+
+        if not isinstance(scalar_class, GraphQLScalarType):
+            raise TypeError(
+                f"{scalar_class} must be a GraphQLScalarType instance, got {type(scalar_class)}"
+            )
+
+        scalar_name = scalar_class.name
+        if scalar_name in self._scalars:
+            logger.debug("Scalar '%s' is already registered in the schema.", scalar_name)
+        else:
+            logger.debug("Registering scalar '%s' to the schema.", scalar_name)
+
+        self._scalars[scalar_name] = scalar_class
+        logger.debug("Total scalars registered: %d", len(self._scalars))
+
+    def _discover_and_register_scalars(self, field_type: Any) -> None:
+        """Recursively discover and register scalar types in field annotations.
+
+        Handles:
+        - Direct scalar: UUIDScalar
+        - Optional scalar: UUIDScalar | None
+        - List of scalars: list[UUIDScalar]
+        - Complex: list[UUIDScalar | None]
+
+        Args:
+            field_type: The type annotation to analyze.
+        """
+        # Handle generic types (Optional, Union, list, etc.)
+        origin = get_origin(field_type)
+
+        if origin is not None:
+            # Extract type arguments (e.g., [UUID, None] from UUID | None)
+            args = get_args(field_type)
+            for arg in args:
+                if arg is type(None):  # Skip NoneType
+                    continue
+                # Recursively check each argument
+                self._discover_and_register_scalars(arg)
+            return
+
+        # Check if this is a custom scalar
+        if self._is_custom_scalar(field_type):
+            # Only register if not already registered
+            scalar_name = field_type.name  # GraphQLScalarType has 'name' attribute
+            if scalar_name not in self._scalars:
+                self.register_scalar(field_type)
+
+    def _is_custom_scalar(self, type_obj: Any) -> bool:
+        """Check if a type is a custom GraphQL scalar.
+
+        Args:
+            type_obj: The type to check.
+
+        Returns:
+            bool: True if type_obj is a GraphQLScalarType instance.
+        """
+        from graphql import GraphQLScalarType
+
+        return isinstance(type_obj, GraphQLScalarType)
 
     def deregister(self, typename: str) -> None:
         """Deregister a type by its name to avoid name conflicts in subsequent tests."""
@@ -233,3 +309,8 @@ class SchemaRegistry:
     def interfaces(self) -> dict[type, type]:
         """Get registered interfaces."""
         return self._interfaces
+
+    @property
+    def scalars(self) -> dict[str, GraphQLScalarType]:
+        """Get registered scalars."""
+        return self._scalars
