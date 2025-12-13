@@ -189,7 +189,7 @@ impl MutationStatus {
     /// # Examples
     /// ```
     /// assert!(MutationStatus::from_str("success").is_success());
-    /// assert!(MutationStatus::from_str("failed:validation").is_error());
+    /// assert!(MutationStatus::from_str("validation:invalid_input").is_error());
     /// assert!(MutationStatus::from_str("noop:unchanged").is_noop());
     /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
     /// ```

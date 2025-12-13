@@ -416,13 +416,14 @@ pub fn generate_errors_array(result: &MutationResult, code: i32) -> Result<Value
 /// Extract error identifier from mutation status
 ///
 /// Examples:
-/// - "noop:not_found" -> "not_found"
-/// - "failed:validation" -> "validation"
+/// - "noop:already_exists" -> "already_exists"
+/// - "validation:invalid_input" -> "invalid_input"
+/// - "not_found:user_missing" -> "user_missing"
 /// - "failed" -> "general_error"
 pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
     match status {
         MutationStatus::Noop(reason) => {
-            // Extract part after colon: "noop:not_found" -> "not_found"
+            // Extract part after colon: "noop:already_exists" -> "already_exists"
             if let Some((_prefix, identifier)) = reason.split_once(':') {
                 identifier.to_string()
             } else {
@@ -430,7 +431,7 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
             }
         }
         MutationStatus::Error(reason) => {
-            // Extract part after colon: "failed:validation" -> "validation"
+            // Extract part after colon: "validation:invalid_input" -> "invalid_input"
             if let Some((_prefix, identifier)) = reason.split_once(':') {
                 identifier.to_string()
             } else {
@@ -651,7 +652,7 @@ mod tests {
     #[test]
     fn test_build_error() {
         let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
+            status: MutationStatus::Error("validation:invalid_email".to_string()),
             message: "Validation failed".to_string(),
             entity_id: None,
             entity_type: None,
@@ -669,7 +670,7 @@ mod tests {
 
         assert_eq!(obj["__typename"], "CreateUserError");
         assert_eq!(obj["message"], "Validation failed");
-        assert_eq!(obj["status"], "failed:validation");
+        assert_eq!(obj["status"], "validation:invalid_email");
         assert_eq!(obj["code"], 422); // HTTP code for validation error
 
         let errors = obj["errors"].as_array().unwrap();
@@ -681,7 +682,7 @@ mod tests {
     #[test]
     fn test_error_code_extraction() {
         let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
+            status: MutationStatus::Error("validation:invalid_input".to_string()),
             message: "Validation failed".to_string(),
             entity_id: None,
             entity_type: None,
@@ -698,22 +699,21 @@ mod tests {
         // Auto-generated error with extracted code
         let errors = obj["errors"].as_array().unwrap();
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0]["code"], "validation");
+        assert_eq!(errors[0]["code"], "invalid_input");
         assert_eq!(errors[0]["message"], "Validation failed");
     }
 
     #[test]
     fn test_http_code_mapping() {
-        // Test various error types map to correct HTTP codes
-        // Greenfield: all use "prefix:" format
+        // Test semantic prefixes map to correct HTTP codes
         let test_cases = vec![
-            ("failed:not_found", 404),
-            ("failed:validation", 422),
-            ("unauthorized:token", 401),
-            ("forbidden:access", 403),
-            ("conflict:duplicate", 409),
-            ("timeout:database", 408),
-            ("failed:unknown", 500),
+            ("not_found:user_missing", 404),
+            ("validation:invalid_input", 422),
+            ("unauthorized:token_expired", 401),
+            ("forbidden:insufficient_permissions", 403),
+            ("conflict:duplicate_email", 409),
+            ("timeout:database_timeout", 408),
+            ("failed:database_error", 500),
         ];
 
         for (status_str, expected_code) in test_cases {
@@ -743,7 +743,7 @@ mod tests {
     fn test_error_response_with_code_field_injection() {
         // Test that code field is correctly injected into error responses
         let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
+            status: MutationStatus::Error("validation:invalid_input".to_string()),
             message: "Validation failed".to_string(),
             entity_id: None,
             entity_type: None,
@@ -774,10 +774,10 @@ mod tests {
     }
 
     #[test]
-    fn test_failed_not_found_maps_to_404() {
-        // Specific test for the CASCADE edge case issue
+    fn test_not_found_maps_to_404() {
+        // Specific test for not_found: semantic prefix
         let result = MutationResult {
-            status: MutationStatus::Error("failed:not_found".to_string()),
+            status: MutationStatus::Error("not_found:author_missing".to_string()),
             message: "Author not found".to_string(),
             entity_id: None,
             entity_type: None,
@@ -799,6 +799,6 @@ mod tests {
 
         let obj = response.as_object().unwrap();
 
-        assert_eq!(obj["code"], 404, "failed:not_found should map to 404");
+        assert_eq!(obj["code"], 404, "not_found: should map to 404");
     }
 }
