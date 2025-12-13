@@ -97,6 +97,109 @@ ARRAY_OPERATORS = {
 # It's handled specially based on value type
 _ARRAY_OPERATORS_FOR_ALL = {k: v for k, v in ARRAY_OPERATORS.items() if k != "contains"}
 
+# Network operators for INET/CIDR types
+NETWORK_OPERATORS = {
+    "isIPv4": "family({}) = 4",
+    "isIPv6": "family({}) = 6",
+    "isPrivate": "NOT inet_public({})",
+    "isPublic": "inet_public({})",
+    "inSubnet": "{} <<= {}",
+    "inRange": "{} <<= {}",
+    "overlaps": "{} && {}",
+    "strictleft": "{} << {}",
+    "strictright": "{} >> {}",
+    # CamelCase aliases for compatibility
+    "isprivate": "NOT inet_public({})",
+    "ispublic": "inet_public({})",
+    "insubnet": "{} <<= {}",
+    "inrange": "{} <<= {}",
+    "isipv4": "family({}) = 4",
+    "isipv6": "family({}) = 6",
+}
+
+# MAC Address operators
+MACADDR_OPERATORS = {
+    "notin": "NOT IN",  # Handled by MacAddressOperatorStrategy
+}
+
+# DateRange operators
+DATERANGE_OPERATORS = {
+    "contains_date": "@>",
+    "adjacent": "-|-",
+    "strictly_left": "<<",
+    "strictly_right": ">>",
+    "not_left": "&>",
+    "not_right": "&<",
+    "notin": "NOT IN",  # Note: 'notin' appears in multiple strategies
+}
+
+# LTree (hierarchical path) operators
+LTREE_OPERATORS = {
+    "ancestor_of": "@>",
+    "descendant_of": "<@",
+    "matches_lquery": "~",
+    "matches_ltxtquery": "@",
+    "matches_any_lquery": "?",
+    "in_array": "<@",
+    "concat": "||",
+    "lca": "lca",
+    "nlevel": "nlevel({})",
+    "nlevel_eq": "nlevel({}) =",
+    "nlevel_gt": "nlevel({}) >",
+    "nlevel_gte": "nlevel({}) >=",
+    "nlevel_lt": "nlevel({}) <",
+    "nlevel_lte": "nlevel({}) <=",
+    "nlevel_neq": "nlevel({}) !=",
+    # Depth aliases for nlevel
+    "depth_eq": "nlevel({}) =",
+    "depth_gt": "nlevel({}) >",
+    "depth_gte": "nlevel({}) >=",
+    "depth_lt": "nlevel({}) <",
+    "depth_lte": "nlevel({}) <=",
+    "depth_neq": "nlevel({}) !=",
+    "subpath": "subpath",
+    "index": "index",
+    "index_eq": "index =",
+    "index_gte": "index >=",
+    "notin": "NOT IN",
+}
+
+# JSONB operators
+JSONB_OPERATORS = {
+    "strictly_contains": "@>",  # Strictly contains (not just overlaps)
+}
+
+# Coordinate/spatial operators
+COORDINATE_OPERATORS = {
+    "distance_within": "distance_within",
+    "notin": "NOT IN",
+}
+
+# Pattern matching operators
+PATTERN_OPERATORS = {
+    "imatches": "~*",  # Case-insensitive regex match
+    "not_matches": "!~",  # Negated regex match
+}
+
+# Additional array operators (missing from ARRAY_OPERATORS)
+ARRAY_OPERATORS_EXTRA = {
+    "len_lte": "<=",
+    "len_neq": "!=",
+}
+
+# Path operators (for hierarchical paths)
+PATH_OPERATORS = {
+    "depth_eq": "depth =",
+    "depth_gt": "depth >",
+    "depth_lt": "depth <",
+    "isdescendant": "isdescendant",
+}
+
+# List operators (fallback)
+LIST_OPERATORS = {
+    "notin": "NOT IN",
+}
+
 ALL_OPERATORS = {
     **COMPARISON_OPERATORS,
     **CONTAINMENT_OPERATORS,
@@ -105,6 +208,16 @@ ALL_OPERATORS = {
     **VECTOR_OPERATORS,
     **FULLTEXT_OPERATORS,
     **_ARRAY_OPERATORS_FOR_ALL,  # All array operators except 'contains'
+    **NETWORK_OPERATORS,  # Network operators for INET/CIDR types
+    **MACADDR_OPERATORS,  # MAC address operators
+    **DATERANGE_OPERATORS,  # Date range operators
+    **LTREE_OPERATORS,  # LTree hierarchical path operators
+    **JSONB_OPERATORS,  # JSONB operators
+    **COORDINATE_OPERATORS,  # Coordinate/spatial operators
+    **PATTERN_OPERATORS,  # Pattern matching operators
+    **ARRAY_OPERATORS_EXTRA,  # Additional array operators
+    **PATH_OPERATORS,  # Path operators
+    **LIST_OPERATORS,  # List operators (fallback)
 }
 
 
