@@ -215,7 +215,6 @@ class TestNestedObjectFilterIntegration:
     def test_nested_camelcase_to_snake_case_conversion_in_sql(self) -> None:
         """Test that camelCase field names are converted to snake_case in nested JSONB paths.
 
-        This is a regression test for Issue #111:
         When filtering on nested object fields, FraiseQL must convert camelCase GraphQL
         field names (e.g., 'isActive', 'isCurrent') to snake_case database field names
         (e.g., 'is_active', 'is_current') in JSONB path queries.
@@ -264,7 +263,7 @@ class TestNestedObjectFilterIntegration:
     def test_nested_multiple_camelcase_fields_conversion(self) -> None:
         """Test that multiple camelCase fields in nested objects are all converted to snake_case.
 
-        Regression test for Issue #111 with multiple nested fields.
+        Test camelCase conversion with multiple nested fields.
         """
 
         # Create a device type with multiple camelCase fields

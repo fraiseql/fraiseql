@@ -43,8 +43,7 @@ async def task_resolver(
     priority: Optional[Priority] = None,
 ) -> str:
     """Resolver that expects enum parameters."""
-    # Before the fix, status would be a string "TODO" instead of TaskStatus.TODO
-    # This would cause issues when trying to use enum methods or comparisons
+    # Status should be properly converted to TaskStatus enum instance
     assert isinstance(status, TaskStatus), f"Expected TaskStatus, got {type(status)}"
 
     if priority is not None:
@@ -161,7 +160,7 @@ async def test_real_world_example() -> None:
         if period is None:
             return "all periods"
 
-        # Before the fix, this would fail because period would be a string
+        # Period should be properly converted to Period enum instance
         if period == Period.CURRENT:
             return "current period data"
         if period == Period.PAST:

@@ -152,7 +152,7 @@ class TestWhereClauseHandling:
     @pytest.mark.asyncio
     async def test_expected_where_clause_generation(self) -> None:
         """Test what the WHERE clause generation should produce."""
-        # This test documents the expected behavior after the fix
+        # This test documents the expected WHERE clause generation behavior
 
         test_cases = [
             # Test case: string contains

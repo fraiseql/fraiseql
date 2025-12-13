@@ -1,4 +1,4 @@
-"""Regression test for simple mutations in quickstart examples."""
+"""Tests for simple mutations in quickstart examples."""
 
 from datetime import UTC, datetime
 

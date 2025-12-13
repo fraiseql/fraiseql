@@ -1,4 +1,4 @@
-"""Regression tests for OrderBy list of dictionaries fix.
+"""Tests for OrderBy list of dictionaries functionality.
 
 This test suite ensures that FraiseQL can handle OrderBy inputs in the format
 [{'ipAddress': 'asc'}] which was failing in v0.3.5 due to:
@@ -34,7 +34,7 @@ class DnsServer:
 
 
 class TestOrderByListDictHandling:
-    """Regression tests for the OrderBy list of dictionaries bug."""
+    """Tests for OrderBy list of dictionaries handling."""
 
     def test_list_of_dicts_conversion(self) -> None:
         """Test that list of dicts is properly converted to OrderBySet."""
@@ -195,7 +195,7 @@ class TestOrderByListDictHandling:
         assert result.instructions[0].direction == OrderDirection.ASC
 
     def test_generated_input_types_still_work(self) -> None:
-        """Test that FraiseQL-generated input types still work after the fix."""
+        """Test that FraiseQL-generated input types work correctly."""
         # Create the proper FraiseQL OrderBy input type
         DnsServerOrderBy = create_graphql_order_by_input(DnsServer)
 

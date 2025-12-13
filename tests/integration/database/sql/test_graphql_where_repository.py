@@ -1,4 +1,4 @@
-"""Test GraphQL WHERE clause integration with repository after the fix.
+"""Test GraphQL WHERE clause integration with repository.
 
 This test demonstrates that the WHERE clause generation bug has been completely
 fixed and GraphQL-style filtering now works correctly in the repository.
@@ -13,7 +13,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 @pytest.mark.database
 class TestGraphQLWhereRepository:
-    """Test GraphQL WHERE clause filtering works correctly after the fix."""
+    """Test GraphQL WHERE clause filtering works correctly."""
 
     @pytest.mark.asyncio
     async def test_graphql_string_operators_work(self, class_db_pool, test_schema) -> None:

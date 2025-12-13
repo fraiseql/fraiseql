@@ -1,7 +1,6 @@
 """End-to-end tests for Rust mutation pipeline."""
 
 
-
 def test_rust_pipeline_integration_placeholder():
     """Placeholder test for Rust mutation pipeline integration.
 
@@ -16,7 +15,6 @@ def test_rust_pipeline_integration_placeholder():
 
     For now, this test passes to indicate the test framework is in place.
     """
-    # This is a regression test marker for Phase 5
     # Full integration tests would be added here in a production environment
     assert True
 

@@ -150,7 +150,7 @@ class TestPortEndToEndIntegration:
 
 
 class TestHostnameIntegratedScenarios:
-    """Test Phase 4 operators in realistic integrated scenarios."""
+    """Test hostname operators in realistic integrated scenarios."""
 
     def test_server_configuration_filtering(self) -> None:
         """Test integrated server configuration filtering."""
@@ -185,8 +185,8 @@ class TestHostnameIntegratedScenarios:
         port_expected = "(data->>'service_port')::integer IN (22, 80, 443, 3306, 5432)"
         assert port_result.as_string(None) == port_expected
 
-    def test_phase4_error_handling_integration(self) -> None:
-        """Test Phase 4 operator error handling in integration context."""
+    def test_operator_error_handling_integration(self) -> None:
+        """Test operator error handling in integration context."""
         # Test Hostname IN requires list
         hostname_func = get_operator_function(FieldType.HOSTNAME, "in")
         with pytest.raises(TypeError, match="'in' operator requires a list"):
@@ -202,8 +202,8 @@ class TestHostnameIntegratedScenarios:
         with pytest.raises(TypeError, match="'in' operator requires a list"):
             port_func(SQL("data->>'port'"), 8080)
 
-    def test_phase4_operator_coverage_integration(self) -> None:
-        """Test that all Phase 4 operators are properly integrated."""
+    def test_operator_coverage_integration(self) -> None:
+        """Test that all operators are properly integrated."""
         # Hostname operators
         hostname_ops = {"eq", "neq", "in", "notin"}
         for op in hostname_ops:
@@ -222,8 +222,8 @@ class TestHostnameIntegratedScenarios:
             func = get_operator_function(FieldType.PORT, op)
             assert callable(func), f"Port {op} not integrated"
 
-    def test_phase4_casting_consistency(self) -> None:
-        """Test that Phase 4 operators use consistent casting patterns."""
+    def test_casting_consistency(self) -> None:
+        """Test that operators use consistent casting patterns."""
         path_sql = SQL("data->>'field'")
 
         # Hostname and Email should not cast (text-based)

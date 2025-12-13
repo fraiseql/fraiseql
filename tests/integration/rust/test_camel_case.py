@@ -1,7 +1,6 @@
 """Test fraiseql_rs camelCase conversion.
 
-Phase 2, TDD Cycle 2.1 - RED: Test basic snake_case → camelCase conversion
-These tests should FAIL initially because the function doesn't exist yet.
+Test basic snake_case to camelCase conversion functionality.
 """
 
 import pytest

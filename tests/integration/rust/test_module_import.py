@@ -1,7 +1,6 @@
 """Test fraiseql_rs module import.
 
-Phase 1, TDD Cycle 1.1 - RED: Test basic module import
-This test should FAIL initially because the module doesn't exist yet.
+Test basic module import functionality.
 """
 
 import pytest
