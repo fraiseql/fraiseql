@@ -462,7 +462,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
             let reason_lower = reason.to_lowercase();
 
             // Map error reasons to HTTP-like codes
-            if reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
+            if reason_lower.starts_with("not_found:") || reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
                 404 // Not Found
             } else if reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
                 422 // Unprocessable Entity
