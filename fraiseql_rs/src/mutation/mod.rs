@@ -266,9 +266,9 @@ impl MutationStatus {
             MutationStatus::Error(reason) => {
                 let reason_lower = reason.to_lowercase();
                 // Map error reasons to HTTP-like codes
-                if reason_lower == "failed:not_found" || reason_lower.starts_with("failed:not_found:") {
+                if reason_lower.starts_with("not_found:") {
                     404
-                } else if reason_lower == "failed:validation" || reason_lower.starts_with("failed:validation:") {
+                } else if reason_lower.starts_with("validation:") {
                     422
                 } else if reason_lower.starts_with("unauthorized:") {
                     401

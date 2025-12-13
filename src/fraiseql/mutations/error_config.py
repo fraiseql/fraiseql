@@ -189,7 +189,7 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         # Traditional errors
         "error:",
         "failed:",
-        "validation_error:",
+        "validation:",
         "unauthorized:",
         "forbidden:",
         "not_found:",
