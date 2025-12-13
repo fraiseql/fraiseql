@@ -180,9 +180,6 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
     assert not result.errors, f"Scalar {scalar_name} failed in GraphQL query: {result.errors}"
 
 
-@pytest.mark.skip(
-    reason="WHERE clause auto-generation not yet configured for dynamic types - separate feature from scalar support"
-)
 @pytest.mark.parametrize(
     "scalar_name,scalar_class",
     [
@@ -199,21 +196,21 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
     from graphql import graphql
     from fraiseql import fraise_type, query
     from fraiseql.gql.builders import SchemaRegistry
+    from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
-    # Create a test table with the scalar column
+    # Create test table
     table_name = f"test_{scalar_name.lower()}_table"
     column_name = f"{scalar_name.lower()}_col"
 
-    # Create table in database
     async with meta_test_pool.connection() as conn:
         await conn.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(table_name)))
         await conn.execute(
             sql.SQL("""
-                CREATE TABLE {} (
-                    id SERIAL PRIMARY KEY,
-                    {} {}
-                )
-            """).format(
+                    CREATE TABLE {} (
+                        id SERIAL PRIMARY KEY,
+                        {} {}
+                    )
+                """).format(
                 sql.Identifier(table_name),
                 sql.Identifier(column_name),
                 sql.SQL(get_postgres_type_for_scalar(scalar_class)),
@@ -222,7 +219,6 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
 
         # Insert test data
         test_value = get_test_value_for_scalar(scalar_class)
-        # Handle JSON types that need special adaptation
         if isinstance(test_value, dict):
             from psycopg.types.json import Jsonb
 
@@ -231,88 +227,82 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
             adapted_value = test_value
 
         await conn.execute(
-            sql.SQL("""
-                INSERT INTO {} ({}) VALUES (%s)
-            """).format(sql.Identifier(table_name), sql.Identifier(column_name)),
+            sql.SQL("INSERT INTO {} ({}) VALUES (%s)").format(
+                sql.Identifier(table_name), sql.Identifier(column_name)
+            ),
             [adapted_value],
         )
-
         await conn.commit()
 
     try:
-        # Create schema with the test type
+        # Create schema
         registry = SchemaRegistry.get_instance()
         registry.clear()
 
-        # Create type dynamically like the working WHERE test
-        TestType = type(
-            "TestType",
-            (),
-            {
-                "__annotations__": {"id": int, "test_field": scalar_class},
-                "__fraiseql_definition__": type(
-                    "Definition", (), {"sql_source": table_name, "fields": {}}
-                )(),
-            },
-        )
+        # Create type with scalar field
+        @fraise_type(sql_source=table_name)
+        class TestType:
+            id: int
 
-        # Apply the fraise_type decorator
-        TestType = fraise_type(sql_source=table_name)(TestType)
+        # Add scalar field annotation dynamically
+        TestType.__annotations__["test_field"] = scalar_class
 
-        @query
-        async def get_test_data(info) -> list[TestType]:
-            return []
+        # Create WhereInput
+        TestTypeWhereInput = create_graphql_where_input(TestType)
 
+        # Register type
         registry.register_type(TestType)
+
+        # Create query with WHERE parameter
+        @query
+        async def get_test_data(info, where: TestTypeWhereInput | None = None) -> list[TestType]:
+            """Query with WHERE support."""
+            from fraiseql.db import FraiseQLRepository
+
+            db = info.context.get("db") or info.context.get("pool")
+            repo = FraiseQLRepository(db)
+            result = await repo.find(table_name, where=where)
+            return result.get(table_name, [])
+
         registry.register_query(get_test_data)
 
-        # Test WHERE clause with the scalar
-        test_value = get_test_value_for_scalar(scalar_class)
-
-        # Format value for GraphQL (double quotes for strings, no quotes for numbers)
-        if isinstance(test_value, str):
-            graphql_value = f'"{test_value}"'
-        elif isinstance(test_value, dict):
-            # For JSON, use a simple string representation
-            graphql_value = f'"{str(test_value)}"'
-        else:
-            graphql_value = str(test_value)
-
-        # First test: just query the field without WHERE to check if field annotation worked
-        simple_query_str = """
-        query {
-            getTestData {
-                id
-                testField
-            }
-        }
-        """
-
+        # Build schema
         schema = registry.build_schema()
 
-        # Test basic field access first
-        result = await graphql(schema, simple_query_str)
-        assert not result.errors, f"Scalar {scalar_name} field not accessible: {result.errors}"
+        # Verify WhereInput was created correctly
+        where_input_type = schema.get_type("TestTypeWhereInput")
+        assert where_input_type is not None
 
-        # Now test WHERE clause
+        # Verify testField filter exists
+        assert "testField" in where_input_type.fields
+
+        # Execute GraphQL query with WHERE filter
+        graphql_scalar_name = scalar_class.name
+        test_value = get_test_value_for_scalar(scalar_class)
+
         query_str = f"""
-        query {{
-            getTestData(where: {{testField: {{eq: {graphql_value}}}}}) {{
+        query GetTestData($filterValue: {graphql_scalar_name}!) {{
+            getTestData(where: {{testField: {{eq: $filterValue}}}}) {{
                 id
                 testField
             }}
         }}
         """
 
-        schema = registry.build_schema()
+        context = {"db": meta_test_pool}
+        variables = {"filterValue": test_value}
 
-        # Execute query with database context (might be needed for WHERE support)
-        context = {"db": meta_test_pool, "pool": meta_test_pool}
+        result = await graphql(schema, query_str, variable_values=variables, context_value=context)
 
-        # Execute query - should work without errors
-        result = await graphql(schema, query_str, context_value=context)
-
+        # Should work without errors
         assert not result.errors, f"Scalar {scalar_name} failed in WHERE clause: {result.errors}"
+
+        # Should return the inserted row
+        assert result.data is not None
+        assert "getTestData" in result.data
+        results = result.data["getTestData"]
+        assert len(results) == 1
+        assert results[0]["id"] == 1
 
     finally:
         # Cleanup

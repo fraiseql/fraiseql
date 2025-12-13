@@ -12,6 +12,9 @@ from decimal import Decimal
 from typing import Any, Dict, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
+# Import GraphQL types for custom scalar detection
+from graphql import GraphQLScalarType
+
 from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
 from fraiseql.sql.where_generator import safe_create_where_type
@@ -26,6 +29,8 @@ T = TypeVar("T")
 _where_input_cache: dict[type, type] = {}
 # Stack to track types being generated to detect circular references
 _generation_stack: set[type] = set()
+# Cache for custom scalar filter types
+_custom_scalar_filter_cache: dict[GraphQLScalarType, type] = {}
 
 
 # Base operator filter types for GraphQL inputs
@@ -395,6 +400,50 @@ class VectorFilter:
     isnull: bool | None = None
 
 
+def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
+    """Create a filter type for a custom GraphQL scalar.
+
+    Generates a filter with the same operators as StringFilter,
+    but using the scalar type instead of String.
+    """
+    # Check cache first
+    if scalar_type in _custom_scalar_filter_cache:
+        return _custom_scalar_filter_cache[scalar_type]
+
+    # Generate filter name (e.g., CIDRScalar -> CIDRFilter)
+    scalar_name = scalar_type.name
+    if scalar_name.endswith("Scalar"):
+        filter_name = scalar_name.replace("Scalar", "Filter")
+    else:
+        filter_name = f"{scalar_name}Filter"
+
+    # Create the filter class manually since make_dataclass can't handle keyword field names
+    # Use the same pattern as StringFilter
+    class CustomScalarFilter:
+        """Custom scalar filter operations."""
+
+        eq: Optional[scalar_type] = None
+        ne: Optional[scalar_type] = None
+        in_: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="in")
+        not_in: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="notIn")
+        contains: Optional[scalar_type] = None
+        starts_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="startsWith")
+        ends_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="endsWith")
+
+    # Set the class name
+    CustomScalarFilter.__name__ = filter_name
+    CustomScalarFilter.__qualname__ = filter_name
+
+    # Mark as FraiseQL input type
+    filter_class = fraise_input(CustomScalarFilter)
+    filter_class = fraise_input(filter_class)
+
+    # Cache it
+    _custom_scalar_filter_cache[scalar_type] = filter_class
+
+    return filter_class
+
+
 def _get_filter_type_for_field(
     field_type: type, parent_class: type | None = None, field_name: str | None = None
 ) -> type:
@@ -524,6 +573,10 @@ def _get_filter_type_for_field(
         datetime: DateTimeFilter,
         dict: JSONBFilter,  # JSONB fields are typically dict type in Python
     }
+
+    # Check for custom GraphQL scalars
+    if isinstance(field_type, GraphQLScalarType):
+        return _create_custom_scalar_filter(field_type)
 
     return type_mapping.get(field_type, StringFilter)  # Default to StringFilter
 
