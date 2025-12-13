@@ -3,6 +3,40 @@
 This module provides utilities to dynamically generate GraphQL input types
 that support operator-based filtering. These types can be used directly in
 GraphQL resolvers and are automatically converted to SQL where types.
+
+Custom Scalar WHERE Filter Support
+===================================
+
+This module extends FraiseQL's WHERE clause generation to support custom
+GraphQL scalar types. Previously, all custom scalars defaulted to StringFilter,
+causing type mismatches in GraphQL queries.
+
+Key Features:
+- Automatic detection of GraphQLScalarType instances
+- Generation of type-specific filters (CIDRFilter, EmailFilter, etc.)
+- Standard operators: eq, ne, in, notIn, contains, startsWith, endsWith
+- Caching to prevent duplicate filter generation
+- Full GraphQL schema integration
+
+Example:
+    @fraise_type
+    class NetworkDevice:
+        ip_address: CIDRScalar
+
+    # Generates:
+    input NetworkDeviceWhereInput {
+        ipAddress: CIDRFilter
+    }
+
+    input CIDRFilter {
+        eq: CIDR
+        ne: CIDR
+        in: [CIDR!]
+        notIn: [CIDR!]
+        contains: CIDR
+        startsWith: CIDR
+        endsWith: CIDR
+    }
 """
 
 import logging
@@ -14,6 +48,9 @@ from uuid import UUID
 
 # Import GraphQL types for custom scalar detection
 from graphql import GraphQLScalarType
+
+# Type alias for better readability
+FilterFieldSpec = tuple[type, Any, str | None]  # (field_type, default_value, graphql_name)
 
 from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
@@ -403,10 +440,22 @@ class VectorFilter:
 def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
     """Create a filter type for a custom GraphQL scalar.
 
-    Generates a filter with the same operators as StringFilter,
-    but using the scalar type instead of String.
+    Generates a filter with standard operators (eq, ne, in, notIn, contains,
+    startsWith, endsWith) that accept the scalar type instead of String.
+
+    This enables type-safe WHERE filtering for custom scalars like CIDR,
+    Email, Color, etc.
+
+    Args:
+        scalar_type: The GraphQL scalar type to create a filter for
+
+    Returns:
+        A new dataclass decorated with @fraise_input for GraphQL input types
+
+    Example:
+        _create_custom_scalar_filter(CIDRScalar) -> CIDRFilter class
     """
-    # Check cache first
+    # Check cache first to avoid duplicate filter generation
     if scalar_type in _custom_scalar_filter_cache:
         return _custom_scalar_filter_cache[scalar_type]
 
@@ -417,28 +466,32 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
     else:
         filter_name = f"{scalar_name}Filter"
 
-    # Create the filter class manually since make_dataclass can't handle keyword field names
-    # Use the same pattern as StringFilter
+    # Create the filter class with standard operators
+    # We use manual class creation since make_dataclass can't handle fraise_field
     class CustomScalarFilter:
-        """Custom scalar filter operations."""
+        """Filter operations for custom scalar types."""
 
+        # Equality and comparison operators
         eq: Optional[scalar_type] = None
         ne: Optional[scalar_type] = None
+
+        # List membership operators (with GraphQL name mapping)
         in_: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="in")
         not_in: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="notIn")
+
+        # String pattern matching operators (may be useful for custom scalars)
         contains: Optional[scalar_type] = None
         starts_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="startsWith")
         ends_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="endsWith")
 
-    # Set the class name
+    # Set the class name dynamically
     CustomScalarFilter.__name__ = filter_name
     CustomScalarFilter.__qualname__ = filter_name
 
-    # Mark as FraiseQL input type
+    # Mark as FraiseQL input type for GraphQL schema generation
     filter_class = fraise_input(CustomScalarFilter)
-    filter_class = fraise_input(filter_class)
 
-    # Cache it
+    # Cache it to prevent regeneration for the same scalar type
     _custom_scalar_filter_cache[scalar_type] = filter_class
 
     return filter_class
