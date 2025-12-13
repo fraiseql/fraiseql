@@ -167,7 +167,7 @@ class QueryTypeBuilder:
                 root: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any
             ) -> Any:
                 # Store GraphQL info and field name in context for repository
-                if hasattr(info, "context"):
+                if hasattr(info, "context") and info.context is not None:
                     info.context["graphql_info"] = info
                     info.context["graphql_field_name"] = info.field_name
 
@@ -190,7 +190,7 @@ class QueryTypeBuilder:
 
         def sync_resolver(root: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Store GraphQL info and field name in context for repository
-            if hasattr(info, "context"):
+            if hasattr(info, "context") and info.context is not None:
                 info.context["graphql_info"] = info
                 info.context["graphql_field_name"] = info.field_name
 
