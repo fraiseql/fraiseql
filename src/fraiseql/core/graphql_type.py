@@ -286,6 +286,11 @@ def convert_type_to_graphql_input(
 
         return GraphQLList(GraphQLString)
 
+    # Handle custom GraphQL scalars (e.g., CIDRScalar, UUIDScalar)
+    # Check if the type is already a GraphQLScalarType instance
+    if isinstance(typ, GraphQLScalarType):
+        return typ
+
     # Handle scalar types using the existing scalar mapping utility
     if isinstance(typ, type):
         try:
@@ -850,6 +855,11 @@ def convert_type_to_graphql_output(
                 )
                 _graphql_type_cache[key] = gql_type
                 return gql_type
+
+    # Handle custom GraphQL scalars (e.g., CIDRScalar, UUIDScalar)
+    # Check if the type is already a GraphQLScalarType instance
+    if isinstance(typ, GraphQLScalarType):
+        return typ
 
     msg = f"Unsupported output type: {typ}"
     raise TypeError(msg)

@@ -134,20 +134,50 @@ def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_sc
     )
 
 
-@pytest.mark.skip(
-    reason="Test not yet implemented - schema registration test covers scalar validation"
-)
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should work as a query argument without validation errors."""
-    # TODO: Implement when build_fraiseql_schema() helper is available
-    # For now, schema registration test validates scalars work correctly
-    pass
+    from graphql import graphql
+
+    # Get test value for this scalar
+    test_value = get_test_value_for_scalar(scalar_class)
+
+    # Use the GraphQL scalar name (scalar_class.name), not the Python variable name
+    graphql_scalar_name = scalar_class.name
+
+    # Build query using the scalar as an argument type
+    query_str = f"""
+    query TestScalar($testValue: {graphql_scalar_name}!) {{
+        getScalarsWithArg(testValue: $testValue) {{
+            id
+        }}
+    }}
+    """
+
+    # Register a query that accepts the scalar as an argument
+    from fraiseql import query as query_decorator, fraise_type
+    from typing import Optional
+
+    # Create a simple return type
+    @fraise_type
+    class ScalarQueryResult:
+        id: int
+
+    @query_decorator
+    async def get_scalars_with_arg(info, test_value: Optional[scalar_class] = None) -> list[ScalarQueryResult]:
+        return []
+
+    scalar_test_schema.register_query(get_scalars_with_arg)
+
+    schema = scalar_test_schema.build_schema()
+
+    # Execute query - should NOT raise validation error
+    result = await graphql(schema, query_str, variable_values={"testValue": test_value})
+
+    # Should not have validation errors
+    assert not result.errors, f"Scalar {scalar_name} failed in GraphQL query: {result.errors}"
 
 
-@pytest.mark.skip(
-    reason="WHERE clause functionality not yet implemented - database roundtrip test covers scalar persistence"
-)
 @pytest.mark.parametrize(
     "scalar_name,scalar_class",
     [
