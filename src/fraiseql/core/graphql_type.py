@@ -960,9 +960,12 @@ def _get_or_create_page_info_type(registry: Any) -> GraphQLObjectType:
 
     # Return cached type if exists
     if _PAGE_INFO_TYPE is not None:
+        # Ensure it's also in the registry
+        if "PageInfo" not in registry._type_map:
+            registry._type_map["PageInfo"] = _PAGE_INFO_TYPE
         return _PAGE_INFO_TYPE
 
-    # Check registry
+    # Check registry first (in case it was created by schema building)
     if "PageInfo" in registry._type_map:
         _PAGE_INFO_TYPE = registry._type_map["PageInfo"]
         return _PAGE_INFO_TYPE
