@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-FraiseQL Examples Compliance Verification Script
+"""FraiseQL Examples Compliance Verification Script
 
 Validates all example applications for compliance with FraiseQL standards:
 - File structure validation
@@ -22,7 +21,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional
 
 
 @dataclass
@@ -134,7 +133,7 @@ class ExamplesComplianceValidator:
     def _validate_python_syntax(self, file_path: Path, report: ExampleReport):
         """Validate Python syntax"""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 source = f.read()
 
             # Parse AST
@@ -144,6 +143,7 @@ class ExamplesComplianceValidator:
             try:
                 result = subprocess.run(
                     ["ruff", "check", "--output-format", "json", str(file_path)],
+                    check=False,
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -203,7 +203,7 @@ class ExamplesComplianceValidator:
     def _validate_requirements(self, file_path: Path, report: ExampleReport):
         """Validate requirements.txt format"""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 lines = f.readlines()
 
             for i, line in enumerate(lines, 1):
