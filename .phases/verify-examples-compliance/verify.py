@@ -19,7 +19,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
 
@@ -285,7 +285,7 @@ def main() -> None:
             "total_examples": len(reports),
             "fully_compliant": sum(1 for r in reports if r.fully_compliant),
             "average_score": sum(r.score for r in reports) / len(reports) if reports else 0.0,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         },
         reports=reports,
     )
