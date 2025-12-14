@@ -90,7 +90,7 @@ def main() -> None:
     with Path(args.output).open("w") as f:
         f.write(report)
 
-    print(f"Report generated: {args.output}")
+    print(f"Report generated: {args.output}")  # noqa: T201
 
 
 if __name__ == "__main__":

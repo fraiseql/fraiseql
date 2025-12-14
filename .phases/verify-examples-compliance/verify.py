@@ -265,7 +265,7 @@ def main() -> None:
     for example_path_str in args.examples:
         example_path = Path(example_path_str)
         if not example_path.exists() or not example_path.is_dir():
-            print(f"Warning: {example_path} is not a valid directory", file=sys.stderr)
+            print(f"Warning: {example_path} is not a valid directory", file=sys.stderr)  # noqa: T201
             continue
 
         # Skip template and cache directories
@@ -290,7 +290,7 @@ def main() -> None:
 
     if args.json:
         # Output JSON for CI/CD
-        print(
+        print(  # noqa: T201
             json.dumps(
                 {
                     "metadata": compliance_report.metadata,
@@ -319,27 +319,27 @@ def main() -> None:
         )
     else:
         # Human-readable output
-        print("FraiseQL Examples Compliance Report")
-        print("=" * 40)
-        print(f"Total examples: {compliance_report.total_examples}")
-        print(f"Fully compliant: {compliance_report.fully_compliant}")
-        print(".1f")
-        print()
+        print("FraiseQL Examples Compliance Report")  # noqa: T201
+        print("=" * 40)  # noqa: T201
+        print(f"Total examples: {compliance_report.total_examples}")  # noqa: T201
+        print(f"Fully compliant: {compliance_report.fully_compliant}")  # noqa: T201
+        print(".1f")  # noqa: T201
+        print()  # noqa: T201
 
         for report in reports:
             status = "✅ PASS" if report.fully_compliant else "❌ FAIL"
-            print(f"{status} {report.name} (Score: {report.score:.1f})")
+            print(f"{status} {report.name} (Score: {report.score:.1f})")  # noqa: T201
 
             for violation in report.violations:
-                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "ℹ"}.get(violation.severity, "?")
-                print(f"  {marker} {violation.category}: {violation.message}")
+                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "i"}.get(violation.severity, "?")
+                print(f"  {marker} {violation.category}: {violation.message}")  # noqa: T201
                 if violation.file_path:
                     loc = f" at {violation.file_path}"
                     if violation.line_number:
                         loc += f":{violation.line_number}"
-                    print(f"    {loc}")
+                    print(f"    {loc}")  # noqa: T201
 
-            print()
+            print()  # noqa: T201
 
     # Exit with error if any examples have ERROR violations
     has_errors = any(any(v.severity == "ERROR" for v in r.violations) for r in reports)
