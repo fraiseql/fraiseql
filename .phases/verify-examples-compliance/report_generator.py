@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""
-FraiseQL Examples Compliance Report Generator
+"""FraiseQL Examples Compliance Report Generator
 
 Generates human-readable reports from compliance JSON data.
 """
 
 import argparse
 import json
-from pathlib import Path
 
 
 def generate_markdown_report(data: dict) -> str:
@@ -77,7 +75,7 @@ def main():
     args = parser.parse_args()
 
     # Read input JSON
-    with open(args.input, "r") as f:
+    with open(args.input) as f:
         data = json.load(f)
 
     # Generate report
