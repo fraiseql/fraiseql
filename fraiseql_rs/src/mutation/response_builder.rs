@@ -333,7 +333,7 @@ pub fn build_error_response_with_code(
     // Add REST-like code field (always included for compatibility)
     // The code field is required by mutation response spec
     // Even if not explicitly selected in GraphQL query, we must include it
-    let code = map_status_to_code(&result.status);
+    let code = result.status.application_code();
     obj.insert("code".to_string(), json!(code));
     eprintln!("    ✓ Added 'code': {}", code);
 
@@ -355,7 +355,7 @@ pub fn build_error_response_with_code(
 
     // Add errors array if selected
     if is_selected("errors") {
-        let errors = generate_errors_array(result, map_status_to_code(&result.status))?;
+        let errors = generate_errors_array(result, result.status.application_code())?;
         obj.insert("errors".to_string(), errors);
     }
 
@@ -441,46 +441,6 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
         MutationStatus::Success(_) => {
             // Should never reach here (only errors call this function)
             "unexpected_success".to_string()
-        }
-    }
-}
-
-/// Map mutation status to REST-like code (application-level only)
-///
-/// These codes are for DX and categorization only.
-/// HTTP response is always 200 OK (GraphQL convention).
-fn map_status_to_code(status: &MutationStatus) -> i32 {
-    match status {
-        MutationStatus::Success(_) => {
-            // Should never reach here (only errors call this function)
-            500
-        }
-        MutationStatus::Noop(_) => {
-            // Validation error or business rule rejection
-            422 // Unprocessable Entity
-        }
-        MutationStatus::Error(reason) => {
-            let reason_lower = reason.to_lowercase();
-
-            // Map error reasons to HTTP-like codes
-            if reason_lower.starts_with("not_found:") {
-                404 // Not Found
-            } else if reason_lower.starts_with("validation:") {
-                422 // Unprocessable Entity
-            } else if reason_lower.starts_with("unauthorized:") {
-                401 // Unauthorized
-            } else if reason_lower.starts_with("forbidden:") {
-                403 // Forbidden
-            } else if reason_lower.starts_with("conflict:") {
-                409 // Conflict
-            } else if reason_lower.starts_with("timeout:") {
-                408 // Request Timeout
-            } else if reason_lower.starts_with("failed:") {
-                500 // Internal Server Error (generic error)
-            } else {
-                // Unknown error type - default to 500
-                500
-            }
         }
     }
 }

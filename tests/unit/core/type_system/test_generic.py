@@ -121,7 +121,7 @@ class TestGenericTypes:
         assert isinstance(graphql_type, GraphQLObjectType)
 
         # Should have the right name
-        assert graphql_type.name == "ConnectionProduct"
+        assert graphql_type.name == "ProductConnection"
 
         # Should have the expected fields
         fields = graphql_type.fields

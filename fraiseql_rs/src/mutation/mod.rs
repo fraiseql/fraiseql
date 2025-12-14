@@ -268,7 +268,9 @@ impl MutationStatus {
                 // Map error reasons to HTTP-like codes
                 if reason_lower.starts_with("not_found:") {
                     404
-                } else if reason_lower.starts_with("validation:") {
+                } else if reason_lower.starts_with("validation:")
+                    || (reason_lower.starts_with("failed:") && reason_lower.contains("validation"))
+                {
                     422
                 } else if reason_lower.starts_with("unauthorized:") {
                     401

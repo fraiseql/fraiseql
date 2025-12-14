@@ -378,7 +378,8 @@ pub fn is_schema_registry_initialized() -> bool {
 ///
 /// Performance target: 10-50x faster than pure Python implementation
 #[pymodule]
-fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pyo3(name = "_fraiseql_rs")]
+fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add version string
     m.add("__version__", VERSION)?;
 
