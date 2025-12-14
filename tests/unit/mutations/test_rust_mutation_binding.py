@@ -76,12 +76,12 @@ def test_rust_binding_v2_success():
 
 @requires_rust
 def test_rust_binding_error():
-    """Test error mutation transformation."""
+    """Test error mutation transformation with validation error."""
     import json
 
     mutation_json = json.dumps(
         {
-            "status": "failed:validation",
+            "status": "validation:invalid_email",
             "message": "Invalid email",
             "entity_id": None,
             "entity_type": None,
@@ -104,7 +104,7 @@ def test_rust_binding_error():
 
     response = json.loads(response_bytes)
     assert response["data"]["createUser"]["__typename"] == "CreateUserError"
-    assert response["data"]["createUser"]["code"] == 422  # Noop status maps to 422
+    assert response["data"]["createUser"]["code"] == 422  # Validation errors map to 422
 
 
 @requires_rust
