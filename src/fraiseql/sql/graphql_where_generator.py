@@ -748,8 +748,30 @@ def _get_filter_type_for_field(
         dict: JSONBFilter,  # JSONB fields are typically dict type in Python
     }
 
-    # Check for custom GraphQL scalars
+    # Check for GraphQL scalar types that should use specialized filters
+    # These need to be checked before the generic GraphQLScalarType handling
     if isinstance(field_type, GraphQLScalarType):
+        try:
+            from fraiseql.types.scalars import (
+                CIDRScalar,
+                IpAddressScalar,
+                LTreeScalar,
+                MacAddressScalar,
+            )
+
+            graphql_scalar_mapping = {
+                IpAddressScalar: NetworkAddressFilter,
+                CIDRScalar: NetworkAddressFilter,
+                MacAddressScalar: MacAddressFilter,
+                LTreeScalar: LTreeFilter,
+            }
+
+            if field_type in graphql_scalar_mapping:
+                return graphql_scalar_mapping[field_type]
+        except ImportError:
+            pass
+
+        # Fall back to generic custom scalar filter
         return _create_custom_scalar_filter(field_type)
 
     return type_mapping.get(field_type, StringFilter)  # Default to StringFilter

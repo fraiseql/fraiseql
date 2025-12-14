@@ -312,8 +312,14 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
         graphql_scalar_name = scalar_class.name
         test_value = get_test_value_for_scalar(scalar_class)
 
+        # Network-related scalars use NetworkAddressFilter which expects String for eq
+        # MacAddress uses MacAddressFilter which also expects String
+        # LTree uses LTreeFilter which also expects String
+        network_scalars = {"IpAddressString", "CIDR", "MacAddress", "LTree"}
+        variable_type = "String" if graphql_scalar_name in network_scalars else graphql_scalar_name
+
         query_str = f"""
-        query GetTestData($filterValue: {graphql_scalar_name}!) {{
+        query GetTestData($filterValue: {variable_type}!) {{
             getTestData(where: {{{graphql_field_name}: {{eq: $filterValue}}}}) {{
                 id
                 {graphql_field_name}

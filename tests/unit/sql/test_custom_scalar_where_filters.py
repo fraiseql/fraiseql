@@ -48,8 +48,8 @@ def test_custom_scalar_filter_is_generated():
         non_none_args = [arg for arg in args if arg is not type(None)]
         ip_filter_type = non_none_args[0] if non_none_args else ip_filter_type
 
-    # This should be CIDRFilter but currently defaults to StringFilter
-    assert ip_filter_type.__name__ == "CIDRFilter"
+    # CIDRScalar now maps to NetworkAddressFilter for full network operator support
+    assert ip_filter_type.__name__ == "NetworkAddressFilter"
 
 
 def test_custom_scalar_filter_has_standard_operators():
@@ -202,7 +202,8 @@ def test_mixed_field_types():
     assert get_filter_name("name") == "StringFilter"
     assert get_filter_name("cusip") == "CUSIPFilter"
     assert get_filter_name("count") == "IntFilter"
-    assert get_filter_name("ip_address") == "CIDRFilter"
+    # CIDRScalar now maps to NetworkAddressFilter for full network operator support
+    assert get_filter_name("ip_address") == "NetworkAddressFilter"
 
 
 def test_built_in_scalar_types_unchanged():

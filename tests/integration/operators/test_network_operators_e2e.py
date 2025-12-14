@@ -190,9 +190,6 @@ class TestNetworkOperatorsE2E:
             await conn.execute(f"DROP TABLE IF EXISTS {table_name}")
             await conn.commit()
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_in_graphql_schema_registration(self, network_test_schema):
         """Network operators should be available in GraphQL schema with IpAddressScalar."""
         schema = network_test_schema.build_schema()
@@ -200,9 +197,10 @@ class TestNetworkOperatorsE2E:
         # Verify schema built successfully
         assert schema is not None
 
-        # Verify IpAddressScalar is registered
-        ip_address_type = schema.get_type("IpAddressScalar")
-        assert ip_address_type is not None, "IpAddressScalar not found in schema"
+        # Verify IpAddressString scalar is registered (Python variable is IpAddressScalar,
+        # but GraphQL type name is "IpAddressString")
+        ip_address_type = schema.get_type("IpAddressString")
+        assert ip_address_type is not None, "IpAddressString scalar not found in schema"
 
         # Verify NetworkDevice type exists
         network_device_type = schema.get_type("NetworkDevice")
@@ -212,12 +210,9 @@ class TestNetworkOperatorsE2E:
         ip_address_field = network_device_type.fields.get("ipAddress")
         assert ip_address_field is not None, "ipAddress field not found"
 
-        # The field type should be IpAddressScalar
-        assert ip_address_field.type.name == "IpAddressScalar"
+        # The field type should be IpAddressString (the GraphQL scalar name)
+        assert ip_address_field.type.name == "IpAddressString"
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_graphql_query_parsing(self, network_test_schema):
         """Network operators should parse correctly in GraphQL queries."""
         schema = network_test_schema.build_schema()
@@ -261,9 +256,6 @@ class TestNetworkOperatorsE2E:
             result = await graphql(schema, query_str)
             assert not result.errors, f"GraphQL query failed: {query_str}\nErrors: {result.errors}"
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_combined_with_other_operators(self, network_test_schema):
         """Network operators should work in combination with other WHERE operators."""
         schema = network_test_schema.build_schema()
@@ -308,9 +300,6 @@ class TestNetworkOperatorsE2E:
                 f"Combined operator query failed: {query_str}\nErrors: {result.errors}"
             )
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_with_null_values(self, network_test_schema):
         """Network operators should handle null values gracefully."""
         schema = network_test_schema.build_schema()
@@ -328,17 +317,14 @@ class TestNetworkOperatorsE2E:
         result = await graphql(schema, query_str)
         assert not result.errors, f"Null handling query failed: {result.errors}"
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_schema_introspection(self, network_test_schema):
         """Network operators should be introspectable through GraphQL schema."""
         schema = network_test_schema.build_schema()
 
-        # Test introspection query for IpAddressScalar
+        # Test introspection query for IpAddressString (the GraphQL scalar name)
         introspection_query = """
         query {
-            __type(name: "IpAddressScalar") {
+            __type(name: "IpAddressString") {
                 name
                 kind
                 description
@@ -351,7 +337,7 @@ class TestNetworkOperatorsE2E:
 
         type_info = result.data["__type"]
         assert type_info is not None
-        assert type_info["name"] == "IpAddressScalar"
+        assert type_info["name"] == "IpAddressString"
         assert type_info["kind"] == "SCALAR"
 
     @pytest.mark.parametrize(
@@ -412,9 +398,6 @@ class TestNetworkOperatorsE2E:
         # The important thing is no crashes occur
         assert result is not None, "GraphQL execution should not crash"
 
-    @pytest.mark.skip(
-        reason="IpAddressScalar → NetworkAddressFilter mapping not yet implemented"
-    )
     async def test_network_operators_with_large_dataset_simulation(self, network_test_schema):
         """Network operators should work efficiently with larger datasets."""
         schema = network_test_schema.build_schema()
