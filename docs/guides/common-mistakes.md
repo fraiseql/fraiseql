@@ -385,8 +385,8 @@ python .phases/verify-examples-compliance/auto_fix.py your_example/
 ## 🔗 Related Resources
 
 - [Trinity Pattern Guide](./trinity-pattern-guide.md)
-- [Migration Guide](../.phases/verify-examples-compliance/migration-guide.md)
-- [Verification Tools](../development/verification-tools.md)
-- [Example Template](../examples/_TEMPLATE/)
+- [Migration Guide](../mutations/migration-guide.md)
+- [Verification Tools](../testing/developer-guide.md)
+- [Example Template](../../examples/_TEMPLATE/)
 
 Remember: These patterns exist for good reasons. Following them ensures your FraiseQL implementation is secure, performant, and maintainable.

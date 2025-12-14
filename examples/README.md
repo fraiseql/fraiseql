@@ -168,9 +168,9 @@ uvicorn app:app --reload
 ## 🤝 Contributing Examples
 
 **Adding new examples:**
-- Follow the structure in [`_TEMPLATE_README.md`](_TEMPLATE_README.md)
+- Follow the structure in [`_template-readme.md`](_template-readme.md)
 - Include comprehensive documentation and tests
-- Update [INDEX.md](INDEX.md) with new examples
+- Update [index.md](index.md) with new examples
 
 ## 📖 Documentation Links
 

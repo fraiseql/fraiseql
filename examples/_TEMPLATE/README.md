@@ -201,8 +201,8 @@ examples/my-example/
 
 - [Trinity Pattern Guide](../../docs/guides/trinity-pattern-guide.md)
 - [Common Mistakes](../../docs/guides/common-mistakes.md)
-- [Migration Guide](../../.phases/verify-examples-compliance/migration-guide.md)
-- [Verification Tools](../../docs/development/verification-tools.md)
+- [Migration Guide](../../docs/mutations/migration-guide.md)
+- [Verification Tools](../../docs/testing/developer-guide.md)
 
 ## ✅ Success Criteria
 
