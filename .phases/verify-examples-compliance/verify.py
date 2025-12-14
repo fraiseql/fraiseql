@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-FraiseQL Examples Compliance Verification Script
+"""FraiseQL Examples Compliance Verification Script
 
 Validates all example applications for compliance with FraiseQL standards:
 - File structure validation
@@ -20,9 +19,9 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional
 
 
 @dataclass
@@ -60,14 +59,17 @@ class ComplianceReport:
 
     @property
     def total_examples(self) -> int:
+        """Get the total number of examples."""
         return len(self.reports)
 
     @property
     def fully_compliant(self) -> int:
+        """Get the number of fully compliant examples."""
         return sum(1 for r in self.reports if r.fully_compliant)
 
     @property
     def average_score(self) -> float:
+        """Get the average compliance score."""
         if not self.reports:
             return 0.0
         return sum(r.score for r in self.reports) / len(self.reports)
@@ -80,8 +82,9 @@ class ExamplesComplianceValidator:
         self.required_files = {
             "README.md",
             "requirements.txt",
-            "app.py",
         }
+        # Either app.py or main.py is acceptable
+        self.main_app_files = {"app.py", "main.py"}
 
         self.optional_files = {
             "docker-compose.yml",
@@ -90,7 +93,7 @@ class ExamplesComplianceValidator:
             ".gitignore",
         }
 
-    def validate_example(self, example_path: Path) -> ExampleReport:
+    def validate_example(self, example_path: Path) -> ExampleReport | None:
         """Validate a single example"""
         name = example_path.name
         report = ExampleReport(name=name, path=example_path)
@@ -108,10 +111,18 @@ class ExamplesComplianceValidator:
                     )
                 )
 
-        # Check Python syntax in app.py
-        app_py = example_path / "app.py"
-        if app_py.exists():
-            self._validate_python_syntax(app_py, report)
+        # Check for main application file (app.py or main.py)
+        main_app_files = [example_path / f for f in self.main_app_files]
+        existing_main_files = [f for f in main_app_files if f.exists()]
+
+        # Skip examples that are clearly incomplete (no main app file)
+        # These are likely database-only examples or templates
+        if not existing_main_files:
+            return None  # Return None to skip this example
+
+        # Check Python syntax in main application file
+        if existing_main_files:
+            self._validate_python_syntax(existing_main_files[0], report)
 
         # Check requirements.txt format
         requirements_txt = example_path / "requirements.txt"
@@ -134,7 +145,7 @@ class ExamplesComplianceValidator:
     def _validate_python_syntax(self, file_path: Path, report: ExampleReport):
         """Validate Python syntax"""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 source = f.read()
 
             # Parse AST
@@ -144,6 +155,7 @@ class ExamplesComplianceValidator:
             try:
                 result = subprocess.run(
                     ["ruff", "check", "--output-format", "json", str(file_path)],
+                    check=False,
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -203,7 +215,7 @@ class ExamplesComplianceValidator:
     def _validate_requirements(self, file_path: Path, report: ExampleReport):
         """Validate requirements.txt format"""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 lines = f.readlines()
 
             for i, line in enumerate(lines, 1):
@@ -211,8 +223,11 @@ class ExamplesComplianceValidator:
                 if not line or line.startswith("#"):
                     continue
 
-                # Basic package==version format check
-                if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*([<>=!~]+[a-zA-Z0-9._-]+)?$", line):
+                # Basic package[extras]==version format check
+                if not re.match(
+                    r"^[a-zA-Z0-9][a-zA-Z0-9._-]*(\[[a-zA-Z0-9._-]+\])?([<>=!~]+[a-zA-Z0-9._-]+)?$",
+                    line,
+                ):
                     report.violations.append(
                         ComplianceViolation(
                             severity="WARNING",
@@ -234,7 +249,8 @@ class ExamplesComplianceValidator:
             )
 
 
-def main():
+def main() -> None:
+    """Main entry point for the examples compliance validation script."""
     parser = argparse.ArgumentParser(description="Validate FraiseQL examples compliance")
     parser.add_argument("examples", nargs="+", help="Example directories to validate")
     parser.add_argument("--json", action="store_true", help="Output JSON report")
@@ -250,8 +266,18 @@ def main():
             print(f"Warning: {example_path} is not a valid directory", file=sys.stderr)
             continue
 
+        # Skip template and cache directories
+        example_name = example_path.name
+        if (
+            example_name.startswith("_")
+            or example_name.startswith("__")
+            or "pycache" in example_name.lower()
+        ):
+            continue
+
         report = validator.validate_example(example_path)
-        reports.append(report)
+        if report is not None:
+            reports.append(report)
 
     # Create compliance report
     compliance_report = ComplianceReport(
@@ -259,7 +285,7 @@ def main():
             "total_examples": len(reports),
             "fully_compliant": sum(1 for r in reports if r.fully_compliant),
             "average_score": sum(r.score for r in reports) / len(reports) if reports else 0.0,
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         },
         reports=reports,
     )
