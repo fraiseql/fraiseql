@@ -145,7 +145,7 @@ class ExamplesComplianceValidator:
     def _validate_python_syntax(self, file_path: Path, report: ExampleReport):
         """Validate Python syntax"""
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:
                 source = f.read()
 
             # Parse AST
@@ -173,7 +173,9 @@ class ExamplesComplianceValidator:
                                 ComplianceViolation(
                                     severity=severity,
                                     category="ruff_lint",
-                                    message=f"{issue.get('code', 'UNK')}: {issue.get('message', '')}",
+                                    message=(
+                                        f"{issue.get('code', 'UNK')}: {issue.get('message', '')}"
+                                    ),
                                     file_path=str(file_path),
                                     line_number=issue.get("location", {}).get("row"),
                                 )
@@ -215,11 +217,11 @@ class ExamplesComplianceValidator:
     def _validate_requirements(self, file_path: Path, report: ExampleReport):
         """Validate requirements.txt format"""
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:
                 lines = f.readlines()
 
-            for i, line in enumerate(lines, 1):
-                line = line.strip()
+            for i, line_text in enumerate(lines, 1):
+                line = line_text.strip()
                 if not line or line.startswith("#"):
                     continue
 
@@ -268,11 +270,7 @@ def main() -> None:
 
         # Skip template and cache directories
         example_name = example_path.name
-        if (
-            example_name.startswith("_")
-            or example_name.startswith("__")
-            or "pycache" in example_name.lower()
-        ):
+        if example_name.startswith(("_", "__")) or "pycache" in example_name.lower():
             continue
 
         report = validator.validate_example(example_path)
@@ -333,7 +331,7 @@ def main() -> None:
             print(f"{status} {report.name} (Score: {report.score:.1f})")
 
             for violation in report.violations:
-                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "ℹ️"}.get(violation.severity, "?")
+                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "ℹ"}.get(violation.severity, "?")
                 print(f"  {marker} {violation.category}: {violation.message}")
                 if violation.file_path:
                     loc = f" at {violation.file_path}"
