@@ -6,6 +6,7 @@ Generates human-readable reports from compliance JSON data.
 
 import argparse
 import json
+from pathlib import Path
 
 
 def generate_markdown_report(data: dict) -> str:
@@ -52,7 +53,7 @@ def generate_markdown_report(data: dict) -> str:
             lines.append("**Violations:**")
             lines.append("")
             for violation in report["violations"]:
-                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "ℹ️"}.get(
+                marker = {"ERROR": "🔴", "WARNING": "🟡", "INFO": "i"}.get(
                     violation["severity"], "?"
                 )
                 lines.append(f"- {marker} **{violation['category']}**: {violation['message']}")
@@ -66,7 +67,8 @@ def generate_markdown_report(data: dict) -> str:
     return "\n".join(lines)
 
 
-def main():
+def main() -> None:
+    """Main entry point for the report generator."""
     parser = argparse.ArgumentParser(description="Generate compliance reports")
     parser.add_argument("--input", required=True, help="Input JSON file")
     parser.add_argument("--output", required=True, help="Output file")
@@ -75,7 +77,7 @@ def main():
     args = parser.parse_args()
 
     # Read input JSON
-    with open(args.input) as f:
+    with Path(args.input).open() as f:
         data = json.load(f)
 
     # Generate report
@@ -85,7 +87,7 @@ def main():
         raise ValueError(f"Unsupported format: {args.format}")
 
     # Write output
-    with open(args.output, "w") as f:
+    with Path(args.output).open("w") as f:
         f.write(report)
 
     print(f"Report generated: {args.output}")
