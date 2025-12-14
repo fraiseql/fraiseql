@@ -25,7 +25,7 @@ import fraiseql
 from fraiseql.cqrs import CQRSRepository
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 from fraiseql.fastapi.app import create_db_pool
-from fraiseql.fastapi.dependencies import set_db_pool, get_db_pool
+from fraiseql.fastapi.dependencies import get_db_pool, set_db_pool
 
 # Configure logging
 logging.basicConfig(
@@ -159,7 +159,7 @@ def _create_base_app() -> FastAPI:
             set_db_pool(pool)
             logger.info("✅ Database pool created successfully")
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("❌ Database pool creation timed out after 30 seconds")
             # Continue without pool - app will fail gracefully on database requests
             raise RuntimeError("Database pool creation timed out")
@@ -301,7 +301,7 @@ def create_app():
                         await conn.execute("SELECT 1")
                         await conn.close()
                         return "healthy"
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         return "unhealthy: timeout"
                     except Exception as e:
                         return f"unhealthy: {e!s}"
@@ -321,7 +321,7 @@ def create_app():
                         asyncio.wait_for(db_task, timeout=10.0),
                         asyncio.wait_for(cache_task, timeout=5.0),
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # If any check times out, mark as unhealthy
                     db_status = "unhealthy: timeout" if not db_task.done() else await db_task
                     cache_status = (

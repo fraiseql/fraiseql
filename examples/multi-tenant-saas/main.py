@@ -1,5 +1,4 @@
-"""
-Multi-Tenant SaaS Application with FraiseQL
+"""Multi-Tenant SaaS Application with FraiseQL
 ============================================
 
 Features:
@@ -16,15 +15,16 @@ Then visit: http://localhost:8000/graphql
 """
 
 import os
-from uuid import UUID
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
-from fraiseql import FraiseQL, create_fraiseql_app
-from fraiseql.security import SecurityProfile
 import jwt
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from fraiseql import FraiseQL, create_fraiseql_app
+from fraiseql.security import SecurityProfile
 
 # ============================================================================
 # CONFIGURATION
@@ -116,7 +116,7 @@ class Task:
     assigned_to: UUID | None
     title: str
     description: str | None
-    status: str  # todo, in_progress, done, cancelled
+    status: str  # TODO, in_progress, done, cancelled
     priority: str  # low, medium, high, urgent
     due_date: datetime | None
     completed_at: datetime | None
@@ -250,8 +250,7 @@ class Query:
         limit: int = 100,
         offset: int = 0,
     ) -> list[Task]:
-        """
-        List tasks in current organization (RLS automatically filters).
+        """List tasks in current organization (RLS automatically filters).
 
         Filters:
         - project_id: Filter by project
@@ -286,8 +285,7 @@ class Query:
         limit: int = 100,
         offset: int = 0,
     ) -> list[AuditLog]:
-        """
-        List audit logs for current organization (RLS automatically filters).
+        """List audit logs for current organization (RLS automatically filters).
 
         Filters:
         - resource_type: Filter by resource type (project, task, user, etc.)
@@ -315,8 +313,7 @@ class Query:
 
 @fraiseql.mutation(function="fn_create_project", enable_cascade=True)
 class CreateProject:
-    """
-    Create a new project.
+    """Create a new project.
 
     CASCADE enabled: Returns updated organization statistics.
     """
@@ -329,8 +326,7 @@ class CreateProject:
 
 @fraiseql.mutation(function="fn_create_task", enable_cascade=True)
 class CreateTask:
-    """
-    Create a new task.
+    """Create a new task.
 
     CASCADE enabled: Returns updated project with new task.
     """
@@ -346,8 +342,7 @@ class CreateTask:
 
 @fraiseql.mutation(function="fn_update_task_status", enable_cascade=True)
 class UpdateTaskStatus:
-    """
-    Update task status.
+    """Update task status.
 
     CASCADE enabled: Returns updated task and project statistics.
     """
@@ -383,8 +378,7 @@ def decode_jwt_token(token: str) -> dict[str, Any]:
 
 
 async def auth_middleware(request: Request, call_next):
-    """
-    Authentication middleware - extracts tenant context from JWT.
+    """Authentication middleware - extracts tenant context from JWT.
 
     Sets request.state with:
     - user_id: Current user ID
@@ -410,8 +404,7 @@ async def auth_middleware(request: Request, call_next):
 
 
 def get_context(request: Request) -> dict[str, Any]:
-    """
-    Build GraphQL context from request state.
+    """Build GraphQL context from request state.
 
     Includes:
     - user_id: Current user ID
@@ -433,8 +426,7 @@ def get_context(request: Request) -> dict[str, Any]:
 
 
 async def set_tenant_context(info) -> None:
-    """
-    Set PostgreSQL session variable for RLS.
+    """Set PostgreSQL session variable for RLS.
 
     This ensures Row-Level Security policies use the correct tenant ID.
     """
@@ -478,8 +470,7 @@ async def register(
     owner_password: str,
     owner_name: str,
 ):
-    """
-    Register a new organization (tenant) and owner user.
+    """Register a new organization (tenant) and owner user.
 
     Returns JWT token for immediate login.
     """
@@ -535,8 +526,7 @@ async def register(
 
 @app.post("/auth/login")
 async def login(email: str, password: str):
-    """
-    Login with email and password.
+    """Login with email and password.
 
     Returns JWT token with tenant context.
     """
