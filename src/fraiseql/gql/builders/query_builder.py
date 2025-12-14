@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, List, cast, get_args, get_origin, get_type_hints
 
 from graphql import (
     GraphQLArgument,
+    GraphQLError,
     GraphQLField,
     GraphQLObjectType,
     GraphQLOutputType,
@@ -41,6 +42,40 @@ class QueryTypeBuilder:
             registry: The schema registry containing registered types and queries.
         """
         self.registry = registry
+
+    def _is_fraise_type(self, field_type: Any) -> bool:
+        """Check if a type is a FraiseQL type (has __fraiseql_definition__)."""
+        return hasattr(field_type, "__fraiseql_definition__")
+
+    def _should_add_where_parameter(self, return_type: Any) -> tuple[bool, Any | None]:
+        """Check if query should get automatic WHERE parameter and return element type.
+
+        Returns:
+            (should_add_where, element_type)
+        """
+        origin = get_origin(return_type)
+        if origin in (list, List):
+            args = get_args(return_type)
+            if args and self._is_fraise_type(args[0]):
+                return True, args[0]
+        return False, None
+
+    def _add_where_parameter_if_needed(
+        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+    ) -> None:
+        """Add where parameter to GraphQL args if query returns list of Fraise types."""
+        should_add, element_type = self._should_add_where_parameter(return_type)
+        if should_add and element_type:
+            # Generate WhereInput type for the element type
+            from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+
+            where_input_type = create_graphql_where_input(element_type)
+
+            # Register the WHERE input type with the schema registry
+            self.registry.register_type(where_input_type)
+
+            gql_where_type = convert_type_to_graphql_input(where_input_type)
+            gql_args["where"] = GraphQLArgument(gql_where_type)
 
     def build(self) -> GraphQLObjectType:
         """Build the root Query GraphQLObjectType from registered types and query functions.
@@ -117,6 +152,9 @@ class QueryTypeBuilder:
                 # Store mapping from GraphQL name to Python name
                 arg_name_mapping[graphql_arg_name] = param_name
 
+            # Automatically add WHERE parameter if query returns list of Fraise types
+            self._add_where_parameter_if_needed(gql_args, hints["return"])
+
             # Create a wrapper that adapts the GraphQL resolver signature
             wrapped_resolver = self._create_gql_resolver(fn, arg_name_mapping, name)
             wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)
@@ -176,6 +214,12 @@ class QueryTypeBuilder:
                         info.context["db"].context["graphql_info"] = info
                         info.context["db"].context["graphql_field_name"] = info.field_name
 
+                # Validate WHERE parameter if present
+                if "where" in kwargs and kwargs["where"] is not None:
+                    where_clause = kwargs["where"]
+                    if not isinstance(where_clause, dict):
+                        raise GraphQLError("WHERE parameter must be an object")
+
                 # Map GraphQL argument names to Python parameter names
                 if arg_name_mapping:
                     mapped_kwargs = {}
@@ -198,6 +242,12 @@ class QueryTypeBuilder:
                 if "db" in info.context and hasattr(info.context["db"], "context"):
                     info.context["db"].context["graphql_info"] = info
                     info.context["db"].context["graphql_field_name"] = info.field_name
+
+            # Validate WHERE parameter if present
+            if "where" in kwargs and kwargs["where"] is not None:
+                where_clause = kwargs["where"]
+                if not isinstance(where_clause, dict):
+                    raise GraphQLError("WHERE parameter must be an object")
 
             # Map GraphQL argument names to Python parameter names
             if arg_name_mapping:

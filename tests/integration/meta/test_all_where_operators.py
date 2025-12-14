@@ -9,12 +9,11 @@ It auto-discovers all operators and tests each one in real GraphQL queries.
 import pytest
 from graphql import graphql
 
+# Import schema_builder to ensure SchemaRegistry is patched
+import fraiseql.gql.schema_builder  # noqa: F401
 from fraiseql import fraise_type, query
 from fraiseql.gql.builders import SchemaRegistry
 from fraiseql.where_clause import ALL_OPERATORS
-
-# Import schema_builder to ensure SchemaRegistry is patched
-import fraiseql.gql.schema_builder  # noqa: F401
 
 
 def get_all_operators():
@@ -98,7 +97,7 @@ async def test_operator_in_graphql_query_validation(operator, operator_test_sche
     # Build GraphQL query using the operator
     query_str = f"""
     query {{
-        {query_name}(where: {{{field_name}: {{{operator}: {repr(test_value)}}}}}) {{
+        {query_name}(where: {{{field_name}: {{{operator}: {test_value!r}}}}}) {{
             id
         }}
     }}
@@ -180,19 +179,20 @@ async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
 
     # Create test table
     async with meta_test_pool.connection() as conn:
-        await conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-        await conn.execute(f"""
-            CREATE TABLE {table_name} (
-                id SERIAL PRIMARY KEY,
-                {field_name} {column_type}
+        from psycopg import sql
+
+        await conn.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(table_name)))
+        await conn.execute(
+            sql.SQL("CREATE TABLE {} (id SERIAL PRIMARY KEY, {} {})").format(
+                sql.Identifier(table_name), sql.Identifier(field_name), sql.SQL(column_type)
             )
-        """)
+        )
 
         # Insert test data
         await conn.execute(
-            f"""
-            INSERT INTO {table_name} ({field_name}) VALUES ($1)
-        """,
+            sql.SQL("INSERT INTO {} ({}) VALUES (%s)").format(
+                sql.Identifier(table_name), sql.Identifier(field_name)
+            ),
             [test_value],
         )
 
@@ -203,29 +203,36 @@ async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
         registry = SchemaRegistry.get_instance()
         registry.clear()
 
-        # Create dynamic type for this operator
-        TestType = type(
-            f"Test{operator.title()}Type",
-            (),
-            {
-                "__annotations__": {"id": int, field_name: str},
-                "__fraiseql_definition__": type(
-                    "Definition", (), {"sql_source": table_name, "fields": {}}
-                )(),
-            },
-        )
+        # Determine Python type based on column type
+        if column_type == "INTEGER":
+            field_type = int
+        elif column_type == "FLOAT" or column_type == "DOUBLE PRECISION":
+            field_type = float
+        else:
+            field_type = str
+
+        # Create dynamic type for this operator using @fraise_type
+        @fraise_type(sql_source=table_name, jsonb_column=None)
+        class TestType:
+            id: int
+            __annotations__ = {"id": int, field_name: field_type}
 
         @query
         async def get_test_data(info) -> list[TestType]:
             return []
 
-        registry.register_type(TestType)
         registry.register_query(get_test_data)
 
         # Test WHERE clause with the operator
+        # Format test_value properly for GraphQL (double quotes for strings)
+        if isinstance(test_value, str):
+            formatted_value = f'"{test_value}"'
+        else:
+            formatted_value = str(test_value)
+
         query_str = f"""
         query {{
-            getTestData(where: {{{field_name}: {{{operator}: {repr(test_value)}}}}}) {{
+            getTestData(where: {{{field_name}: {{{operator}: {formatted_value}}}}}) {{
                 id
                 {field_name}
             }}
@@ -242,7 +249,11 @@ async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
     finally:
         # Cleanup
         async with meta_test_pool.connection() as conn:
-            await conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            from psycopg import sql
+
+            await conn.execute(
+                sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(table_name))
+            )
             await conn.commit()
 
 
@@ -256,8 +267,8 @@ async def test_operator_combinations_with_and_or(operator, operator_test_schema)
     query {{
         getStrings(where: {{
             AND: [
-                {{name: {{eq: {repr(test_value1)}}}}},
-                {{description: {{{operator}: {repr(test_value2)}}}}}
+                {{name: {{eq: {test_value1!r}}}}},
+                {{description: {{{operator}: {test_value2!r}}}}}
             ]
         }}) {{
             id
@@ -279,8 +290,8 @@ async def test_operator_combinations_with_and_or(operator, operator_test_schema)
     query {{
         getStrings(where: {{
             OR: [
-                {{name: {{eq: {repr(test_value1)}}}}},
-                {{description: {{{operator}: {repr(test_value2)}}}}}
+                {{name: {{eq: {test_value1!r}}}}},
+                {{description: {{{operator}: {test_value2!r}}}}}
             ]
         }}) {{
             id

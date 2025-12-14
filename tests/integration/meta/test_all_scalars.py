@@ -8,8 +8,12 @@ It auto-discovers all scalar types and tests each one comprehensively.
 
 import pytest
 from psycopg import sql
+from typing import Any
+
+# Import schema_builder to ensure SchemaRegistry is patched with build_schema method
+import fraiseql.gql.schema_builder  # noqa: F401
 from fraiseql import fraise_type, query
-from fraiseql.types.scalars import __all__ as ALL_SCALARS
+from fraiseql.gql.builders import SchemaRegistry
 from fraiseql.types.scalars import (
     AirportCodeScalar,
     ApiKeyScalar,
@@ -66,10 +70,7 @@ from fraiseql.types.scalars import (
     VectorScalar,
     VINScalar,
 )
-from fraiseql.gql.builders import SchemaRegistry
-
-# Import schema_builder to ensure SchemaRegistry is patched with build_schema method
-import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql.types.scalars import __all__ as ALL_SCALARS
 
 
 def get_all_scalar_types():
@@ -155,8 +156,10 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
     """
 
     # Register a query that accepts the scalar as an argument
-    from fraiseql import query as query_decorator, fraise_type
     from typing import Optional
+
+    from fraiseql import fraise_type
+    from fraiseql import query as query_decorator
 
     # Create a simple return type
     @fraise_type
@@ -200,8 +203,8 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool):
     """Every scalar should work in WHERE clauses with database roundtrip."""
     from graphql import graphql
+
     from fraiseql import fraise_type, query
-    from fraiseql.gql.builders import SchemaRegistry
     from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
     # Create test table
@@ -264,15 +267,12 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
             jsonb_column=None,
         )
 
-        # Create WhereInput
-        TestTypeWhereInput = create_graphql_where_input(TestType)
-
         # Register type
         registry.register_type(TestType)
 
-        # Create query with WHERE parameter
+        # Create query - WHERE parameter should be automatically added
         @query
-        async def get_test_data(info, where: TestTypeWhereInput | None = None) -> list[TestType]:
+        async def get_test_data(info, where: Any = None) -> list[TestType]:
             """Query with WHERE support."""
             from fraiseql.db import FraiseQLRepository
 
