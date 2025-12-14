@@ -229,21 +229,21 @@ jobs:
         echo "=== Validating Network Filtering Bug Fix ==="
         echo "This validates the core bug fix from PR #25"
 
-        echo "Testing JSONB network filtering bug fix..."
-        uv run pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v --tb=short || {
+        echo "Testing network filtering functionality..."
+        uv run pytest tests/integration/database/sql/where/network/ -v --tb=short || {
           echo "❌ CRITICAL: Network filtering tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
         }
 
-        echo "Testing network address filtering functionality..."
-        uv run pytest tests/integration/database/sql/test_network_address_filtering.py -v --tb=short || {
-          echo "❌ CRITICAL: Network address filtering tests failed!"
+        echo "Testing core JSONB network casting fix..."
+        uv run pytest tests/core/test_jsonb_network_casting_fix.py -v --tb=short || {
+          echo "❌ CRITICAL: JSONB network casting tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
         }
 
-        echo "✅ Network filtering bug fix validated successfully - all 25 tests passed"
+        echo "✅ Network filtering bug fix validated successfully"
 
     - name: Run example integration tests
       env:
