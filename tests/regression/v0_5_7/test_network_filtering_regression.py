@@ -53,7 +53,7 @@ DnsServerWhereInput = create_graphql_where_input(DnsServer)
 
 @fraiseql.query
 async def dns_servers(
-    info, where: "DnsServerWhereInput | None" = None, first: int = 100
+    info, where: DnsServerWhereInput | None = None, first: int = 100
 ) -> list[DnsServer]:
     """Query DNS servers with filtering support."""
     # In real implementation, this would use the repository

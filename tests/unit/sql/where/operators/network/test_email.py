@@ -22,28 +22,28 @@ class TestEmailBasicOperators:
         path_sql = SQL("data->>'email'")
         result = build_email_eq_sql(path_sql, "user@example.com")
         sql_str = result.as_string(None)
-        assert "data->>'email' = 'user@example.com'" == sql_str
+        assert sql_str == "data->>'email' = 'user@example.com'"
 
     def test_email_neq(self):
         """Test email inequality operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_neq_sql(path_sql, "spam@example.com")
         sql_str = result.as_string(None)
-        assert "data->>'email' != 'spam@example.com'" == sql_str
+        assert sql_str == "data->>'email' != 'spam@example.com'"
 
     def test_email_in(self):
         """Test email IN operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_in_sql(path_sql, ["admin@example.com", "support@example.com"])
         sql_str = result.as_string(None)
-        assert "data->>'email' IN ('admin@example.com', 'support@example.com')" == sql_str
+        assert sql_str == "data->>'email' IN ('admin@example.com', 'support@example.com')"
 
     def test_email_notin(self):
         """Test email NOT IN operator."""
         path_sql = SQL("data->>'email'")
         result = build_email_notin_sql(path_sql, ["banned@spam.com", "blocked@spam.com"])
         sql_str = result.as_string(None)
-        assert "data->>'email' NOT IN ('banned@spam.com', 'blocked@spam.com')" == sql_str
+        assert sql_str == "data->>'email' NOT IN ('banned@spam.com', 'blocked@spam.com')"
 
     def test_build_email_equality_sql(self) -> None:
         """Test Email equality operator with proper text handling."""

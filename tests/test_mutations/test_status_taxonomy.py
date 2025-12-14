@@ -1,7 +1,6 @@
 """Test status taxonomy in Python → Rust → Python flow."""
 
 import pytest
-from fraiseql.mutations.error_config import MutationErrorConfig
 
 
 @pytest.mark.asyncio

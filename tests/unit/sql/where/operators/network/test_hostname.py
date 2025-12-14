@@ -22,14 +22,14 @@ class TestHostnameBasicOperators:
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_eq_sql(path_sql, "api.example.com")
         sql_str = result.as_string(None)
-        assert "data->>'hostname' = 'api.example.com'" == sql_str
+        assert sql_str == "data->>'hostname' = 'api.example.com'"
 
     def test_hostname_neq(self):
         """Test hostname inequality operator."""
         path_sql = SQL("data->>'hostname'")
         result = build_hostname_neq_sql(path_sql, "old-server.example.com")
         sql_str = result.as_string(None)
-        assert "data->>'hostname' != 'old-server.example.com'" == sql_str
+        assert sql_str == "data->>'hostname' != 'old-server.example.com'"
 
     def test_hostname_in(self):
         """Test hostname IN operator."""
@@ -39,8 +39,8 @@ class TestHostnameBasicOperators:
         )
         sql_str = result.as_string(None)
         assert (
-            "data->>'server' IN ('web1.example.com', 'web2.example.com', 'web3.example.com')"
-            == sql_str
+            sql_str
+            == "data->>'server' IN ('web1.example.com', 'web2.example.com', 'web3.example.com')"
         )
 
     def test_hostname_notin(self):
@@ -48,7 +48,7 @@ class TestHostnameBasicOperators:
         path_sql = SQL("data->>'server'")
         result = build_hostname_notin_sql(path_sql, ["blacklist1.com", "blacklist2.com"])
         sql_str = result.as_string(None)
-        assert "data->>'server' NOT IN ('blacklist1.com', 'blacklist2.com')" == sql_str
+        assert sql_str == "data->>'server' NOT IN ('blacklist1.com', 'blacklist2.com')"
 
     def test_build_hostname_equality_sql(self) -> None:
         """Test Hostname equality operator with proper text handling."""

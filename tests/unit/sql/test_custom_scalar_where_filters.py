@@ -1,5 +1,4 @@
-"""
-Custom Scalar WHERE Filter Tests
+"""Custom Scalar WHERE Filter Tests
 
 These tests verify that custom scalar types can be used in WHERE clause
 filtering. The filter generator should create scalar-specific filter types
@@ -14,12 +13,11 @@ Expected behavior:
 5. GraphQL query: WHERE clause works with custom scalar variables
 """
 
-import pytest
-from typing import Union, get_origin, get_args
-from graphql import GraphQLScalarType
-from fraiseql.types.scalars import CIDRScalar, CUSIPScalar, ColorScalar
-from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+from typing import Union, get_args, get_origin
+
 from fraiseql import fraise_type
+from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+from fraiseql.types.scalars import CIDRScalar, ColorScalar, CUSIPScalar
 
 
 def test_custom_scalar_filter_is_generated():
@@ -43,7 +41,7 @@ def test_custom_scalar_filter_is_generated():
     # For now, this will fail because custom scalars default to StringFilter
     ip_filter_type = where_input.__annotations__["ip_network"]
     # Remove Optional wrapper for comparison
-    from typing import get_origin, get_args
+    from typing import get_args, get_origin
 
     if get_origin(ip_filter_type) is Union:
         args = get_args(ip_filter_type)
@@ -209,8 +207,8 @@ def test_mixed_field_types():
 
 def test_built_in_scalar_types_unchanged():
     """Built-in scalars (UUID, DateTime) should still work."""
-    from datetime import datetime
     import uuid
+    from datetime import datetime
 
     @fraise_type
     class TestType:

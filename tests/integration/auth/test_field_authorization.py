@@ -6,7 +6,6 @@ import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
 from graphql import GraphQLResolveInfo, graphql, graphql_sync
 
 import fraiseql
@@ -38,7 +37,6 @@ class TestFieldAuthorization:
 
     def test_field_auth_integration_with_graphql(self) -> None:
         """Test field authorization in actual GraphQL execution."""
-        from graphql import graphql_sync
 
         @fraiseql.type
         class SecureData:
@@ -110,7 +108,6 @@ class TestFieldAuthorization:
 
     def test_field_authorization_basic(self) -> None:
         """Test basic field authorization with GraphQL execution."""
-        from graphql import graphql_sync
 
         @fraiseql.type
         class User:
@@ -150,7 +147,6 @@ class TestFieldAuthorization:
 
     def test_field_authorization_with_custom_message(self) -> None:
         """Test field authorization with custom error message."""
-        from graphql import graphql_sync
 
         @fraiseql.type
         class User:
@@ -187,7 +183,6 @@ class TestFieldAuthorization:
 
     def test_field_authorization_multiple_fields(self) -> None:
         """Test authorization on multiple fields."""
-        from graphql import graphql_sync
 
         @fraiseql.type
         class User:
@@ -280,7 +275,6 @@ class TestFieldAuthorization:
 
     def test_field_authorization_with_owner_check(self) -> None:
         """Test field authorization that checks ownership."""
-        from graphql import graphql_sync
 
         @fraiseql.type
         class UserProfile:
@@ -336,7 +330,6 @@ class TestFieldAuthorization:
     def test_field_authorization_async(self) -> None:
         """Test field authorization with async fields."""
         import asyncio
-        from graphql import graphql
 
         @fraiseql.type
         class AsyncData:

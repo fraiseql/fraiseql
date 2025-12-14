@@ -4,12 +4,12 @@ Tests the internal API for building WHERE clauses in the repository layer,
 verifying that the operator strategy system is properly integrated.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 from fraiseql.db import FraiseQLRepository
-from tests.helpers.sql_rendering import render_sql_for_testing
 
 pytestmark = pytest.mark.unit
 

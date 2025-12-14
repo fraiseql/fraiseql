@@ -3,8 +3,7 @@
 Verifies that malicious input is properly escaped and cannot cause SQL injection.
 """
 
-import pytest
-from fraiseql.where_clause import FieldCondition, WhereClause
+from fraiseql.where_clause import FieldCondition
 
 
 class TestSQLInjectionProtection:

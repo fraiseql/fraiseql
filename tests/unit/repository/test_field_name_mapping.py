@@ -5,9 +5,9 @@ GraphQL camelCase field names to database snake_case field names automatically
 in WHERE clause processing.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import FraiseQLRepository

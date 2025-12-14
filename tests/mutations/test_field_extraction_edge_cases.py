@@ -1,7 +1,7 @@
 """Test edge cases in field extraction."""
 
-import pytest
 from graphql import parse
+
 from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
 
@@ -61,7 +61,7 @@ def test_named_fragments():
             self.fragments = fragments
 
     # Extract fragment definitions from document
-    fragments = {defn.name.value: defn for defn in document.definitions if hasattr(defn, 'type_condition')}
+    fragments = {defn.name.value: defn for defn in document.definitions if hasattr(defn, "type_condition")}
     mock_info = MockInfoWithFragments([mutation_field], fragments)
 
     # Named fragments are now supported

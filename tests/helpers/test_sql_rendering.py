@@ -4,10 +4,9 @@ Tests the render_sql_for_testing() function and related utilities
 that convert psycopg.sql objects to human-readable SQL strings.
 """
 
-import re
 
 import pytest
-from psycopg.sql import SQL, Composed, Identifier, Literal, Placeholder
+from psycopg.sql import SQL, Identifier, Literal, Placeholder
 
 from tests.helpers.sql_rendering import (
     assert_sql_contains,

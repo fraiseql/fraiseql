@@ -5,9 +5,10 @@ Each test records the expected SQL and parameters, then verifies they remain ide
 """
 
 import uuid
-import pytest
-from fraiseql.db import FraiseQLRepository
 
+import pytest
+
+from fraiseql.db import FraiseQLRepository
 
 # Golden queries: real production patterns with expected SQL output
 GOLDEN_QUERIES = [

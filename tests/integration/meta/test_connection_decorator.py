@@ -1,10 +1,12 @@
 """Integration tests for @connection decorator with database execution."""
 
+
 import pytest
-from typing import Any
 from graphql import graphql
+
 from fraiseql import fraise_type
-from fraiseql.decorators import connection, query as query_decorator
+from fraiseql.decorators import connection
+from fraiseql.decorators import query as query_decorator
 from fraiseql.gql.builders import SchemaRegistry
 
 

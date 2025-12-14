@@ -1,10 +1,12 @@
 """Test named fragment support in field selection."""
 
 import json
-import pytest
-from fraiseql import _get_fraiseql_rs
 from unittest.mock import MagicMock
-from graphql import FieldNode, FragmentDefinitionNode, NameNode
+
+import pytest
+from graphql import FragmentDefinitionNode
+
+from fraiseql import _get_fraiseql_rs
 
 
 @pytest.fixture
@@ -72,7 +74,6 @@ def test_named_fragment_with_inline_fragments():
 
 def test_rust_with_named_fragment_fields(fraiseql_rs):
     """Verify Rust layer respects field selection from named fragments."""
-
     fake_result = {
         "status": "success",
         "message": "Machine created",

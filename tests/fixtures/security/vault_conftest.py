@@ -4,9 +4,10 @@ Provides automatic Vault container management for integration tests.
 Tests automatically skip if Docker is unavailable.
 """
 
+from collections.abc import Generator
+
 import httpx
 import pytest
-from collections.abc import Generator
 
 try:
     from testcontainers.vault import VaultContainer
@@ -18,7 +19,7 @@ except ImportError:
 
 
 @pytest.fixture(scope="session")
-def vault_container() -> Generator[VaultContainer | None, None, None]:
+def vault_container() -> Generator[VaultContainer | None]:
     """Start Vault container for testing.
 
     Scope: session - container is started once per test session

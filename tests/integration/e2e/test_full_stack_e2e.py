@@ -7,16 +7,13 @@ These tests ensure the system can handle real-world production scenarios.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock
 
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")
@@ -557,7 +554,7 @@ class TestProductionReadiness:
 
         # Execute many operations
         for i in range(20):
-            query_str = f"query {{ getUsers {{ id }} }}"
+            query_str = "query { getUsers { id } }"
             result = await graphql(schema, query_str)
             assert result is not None
 

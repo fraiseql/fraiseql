@@ -1,13 +1,12 @@
 """Comprehensive tests for array operator SQL building."""
 
-import pytest
-from psycopg.sql import SQL, Identifier
+from psycopg.sql import SQL
 
 from fraiseql.sql.where.operators.arrays import (
     build_array_all_eq_sql,
     build_array_any_eq_sql,
-    build_array_contains_sql,
     build_array_contained_by_sql,
+    build_array_contains_sql,
     build_array_eq_sql,
     build_array_len_eq_sql,
     build_array_len_gt_sql,

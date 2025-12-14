@@ -4,8 +4,9 @@ Provides mocked AWS KMS service for integration tests without real AWS credentia
 Tests automatically skip if moto is unavailable.
 """
 
-import pytest
 from collections.abc import Generator
+
+import pytest
 
 try:
     import boto3
@@ -19,7 +20,7 @@ except ImportError:
 
 
 @pytest.fixture
-def aws_kms_mock() -> Generator[None, None, None]:
+def aws_kms_mock() -> Generator[None]:
     """Start mocked AWS KMS service.
 
     Scope: function - mock is active per test function
@@ -54,7 +55,7 @@ def aws_kms_client(aws_kms_mock):
 
 
 @pytest.fixture
-def kms_key_id(aws_kms_client) -> Generator[str, None, None]:
+def kms_key_id(aws_kms_client) -> Generator[str]:
     """Create a test KMS key.
 
     Scope: function - new key created for each test

@@ -1,8 +1,8 @@
 """Integration tests for mutation field selection (Python + Rust)."""
 
 import json
-import pytest
-from fraiseql.mutations.decorators import success, error
+
+from fraiseql.mutations.decorators import error, success
 
 
 def test_decorator_adds_fields_to_gql_fields():
@@ -53,7 +53,6 @@ def test_failure_decorator_adds_fields():
 def test_rust_field_filtering():
     """Verify Rust filters fields based on selection."""
     from fraiseql import _get_fraiseql_rs
-    import json
 
     fraiseql_rs = _get_fraiseql_rs()
 
@@ -109,7 +108,6 @@ def test_rust_field_filtering():
 def test_rust_no_selection_returns_all():
     """Verify backward compatibility - no selection returns all fields."""
     from fraiseql import _get_fraiseql_rs
-    import json
 
     fraiseql_rs = _get_fraiseql_rs()
 
@@ -157,7 +155,6 @@ def test_rust_no_selection_returns_all():
 def test_partial_field_selection():
     """Verify partial field selection works correctly."""
     from fraiseql import _get_fraiseql_rs
-    import json
 
     fraiseql_rs = _get_fraiseql_rs()
 

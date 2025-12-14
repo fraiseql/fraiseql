@@ -2,7 +2,9 @@
 
 import json
 import time
+
 import pytest
+
 from fraiseql import _get_fraiseql_rs
 
 
@@ -14,7 +16,6 @@ def fraiseql_rs():
 
 def test_performance_small_response_field_filtering(fraiseql_rs, benchmark=None):
     """Benchmark field filtering on small response (5 fields, request 2)."""
-
     fake_result = {
         "status": "success",
         "message": "Created",
@@ -58,7 +59,6 @@ def test_performance_small_response_field_filtering(fraiseql_rs, benchmark=None)
 
 def test_performance_medium_response_field_filtering(fraiseql_rs, benchmark=None):
     """Benchmark field filtering on medium response (20 fields, request 5)."""
-
     # Create response with many auto-injected fields + entity
     fake_result = {
         "status": "success",
@@ -113,7 +113,6 @@ def test_performance_medium_response_field_filtering(fraiseql_rs, benchmark=None
 
 def test_performance_large_cascade_field_filtering(fraiseql_rs, benchmark=None):
     """Benchmark field filtering on response with large cascade (100 entities)."""
-
     # Create 100 reservation entities in cascade
     cascade_entities = [
         {"id": f"r{i}", "name": f"Reservation {i}", "status": "cancelled"} for i in range(100)
@@ -170,7 +169,6 @@ def test_performance_large_cascade_field_filtering(fraiseql_rs, benchmark=None):
 
 def test_performance_no_filtering_vs_filtering(fraiseql_rs):
     """Compare performance: filtering vs no filtering."""
-
     fake_result = {
         "status": "success",
         "message": "Created",

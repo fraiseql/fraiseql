@@ -1,5 +1,4 @@
-"""
-Comprehensive test coverage for nested filter id field handling.
+"""Comprehensive test coverage for nested filter id field handling.
 
 This test suite validates that nested filters on related entity 'id' fields work correctly
 across different scenarios: FK-based, JSONB-based, and mixed filtering.

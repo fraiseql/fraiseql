@@ -218,42 +218,48 @@ def convert_type_to_graphql_input(
         fields = getattr(typ, "__gql_fields__", {})
         type_hints = getattr(typ, "__gql_type_hints__", {})
 
-        gql_fields = {}
-        for name, field in fields.items():
-            field_type = field.field_type or type_hints.get(name)
-            if field_type is None:
-                continue
+        # Create a thunk (lazy function) for fields to handle circular references
+        # This allows the type to reference itself (e.g., AND/OR in WhereInput)
+        def make_fields_thunk():
+            gql_fields = {}
+            for name, field in fields.items():
+                field_type = field.field_type or type_hints.get(name)
+                if field_type is None:
+                    continue
 
-            # Check for JSONScalar and validate data
-            if field_type == JSONScalar:
-                try:
-                    # Assuming the field has some default value to validate
-                    # Validate the field's default value
-                    parse_json_value(getattr(typ, name, None))
-                except GraphQLError as e:
-                    msg = f"Invalid JSON value in field {name}: {e!s}"
-                    raise GraphQLError(msg) from None
+                # Check for JSONScalar and validate data
+                if field_type == JSONScalar:
+                    try:
+                        # Assuming the field has some default value to validate
+                        # Validate the field's default value
+                        parse_json_value(getattr(typ, name, None))
+                    except GraphQLError as e:
+                        msg = f"Invalid JSON value in field {name}: {e!s}"
+                        raise GraphQLError(msg) from None
 
-            # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
-            config = SchemaConfig.get_instance()
-            if field.graphql_name:
-                graphql_field_name = field.graphql_name
-            else:
-                graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
+                # Use explicit graphql_name if provided, else convert to camelCase
+                config = SchemaConfig.get_instance()
+                if field.graphql_name:
+                    graphql_field_name = field.graphql_name
+                else:
+                    graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
-            # Convert field type to GraphQL input type
-            gql_input_type = convert_type_to_graphql_input(field_type)
+                # Convert field type to GraphQL input type
+                gql_input_type = convert_type_to_graphql_input(field_type)
 
-            # Wrap in GraphQLNonNull if field has no default and is not already optional
-            # (Optional types are already handled in convert_type_to_graphql_input)
-            if not field.has_default() and not is_optional_type(field_type):
-                from graphql import GraphQLNonNull
+                # Wrap in GraphQLNonNull if field has no default and is not already optional
+                # (Optional types are already handled in convert_type_to_graphql_input)
+                if not field.has_default() and not is_optional_type(field_type):
+                    from graphql import GraphQLNonNull
 
-                gql_input_type = GraphQLNonNull(gql_input_type)
+                    gql_input_type = GraphQLNonNull(gql_input_type)
 
-            gql_fields[graphql_field_name] = GraphQLInputField(gql_input_type)
+                gql_fields[graphql_field_name] = GraphQLInputField(gql_input_type)
+            return gql_fields
 
-        gql_type = GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
+        # Create the type with a thunk and cache it BEFORE resolving fields
+        # This enables self-referential types like AND/OR in WhereInput
+        gql_type = GraphQLInputObjectType(name=typ.__name__, fields=make_fields_thunk)
         _graphql_type_cache[cache_key] = gql_type
         return gql_type
 

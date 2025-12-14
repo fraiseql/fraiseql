@@ -1,7 +1,6 @@
 """Canary tests - will break if field auto-injection changes unexpectedly."""
 
-import pytest
-from fraiseql.mutations.decorators import success, error
+from fraiseql.mutations.decorators import error, success
 
 
 def test_success_type_fields_canary():

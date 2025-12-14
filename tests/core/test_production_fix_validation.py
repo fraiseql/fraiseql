@@ -8,9 +8,9 @@ import logging
 
 import pytest
 from psycopg.sql import SQL
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 from fraiseql.sql.operators import get_default_registry as get_operator_registry
-from tests.helpers.sql_rendering import render_sql_for_testing
 
 logger = logging.getLogger(__name__)
 

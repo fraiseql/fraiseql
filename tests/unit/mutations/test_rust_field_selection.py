@@ -1,7 +1,9 @@
 """Test Rust field selection filtering directly."""
 
 import json
+
 import pytest
+
 from fraiseql import _get_fraiseql_rs
 
 
@@ -12,8 +14,7 @@ def fraiseql_rs():
 
 
 def test_rust_filters_success_fields_correctly(fraiseql_rs):
-    """
-    Verify Rust only returns requested fields in Success response.
+    """Verify Rust only returns requested fields in Success response.
 
     This is the PRIMARY test for field selection. If this fails, field selection is broken.
 
@@ -24,7 +25,6 @@ def test_rust_filters_success_fields_correctly(fraiseql_rs):
 
     Related: test_error_type_filters_auto_injected_fields (for Error types)
     """
-
     # Fake mutation result from database
     fake_result = {
         "status": "success",
@@ -83,7 +83,6 @@ def test_rust_filters_success_fields_correctly(fraiseql_rs):
 
 def test_rust_returns_all_fields_when_all_requested(fraiseql_rs):
     """Verify all fields returned when all are requested."""
-
     fake_result = {
         "status": "success",
         "message": "Created",
@@ -129,7 +128,6 @@ def test_rust_returns_all_fields_when_all_requested(fraiseql_rs):
 
 def test_rust_backward_compat_none_selection(fraiseql_rs):
     """Verify None selection returns all fields (backward compatibility)."""
-
     fake_result = {
         "status": "success",
         "message": "Created",
@@ -172,15 +170,13 @@ def test_rust_backward_compat_none_selection(fraiseql_rs):
 
 
 def test_rust_error_response_field_filtering(fraiseql_rs):
-    """
-    Verify Error responses respect field selection (v1.8.1+).
+    """Verify Error responses respect field selection (v1.8.1+).
 
     Tests Error type field filtering with proper v1.8.1 semantics:
     - Error types have: code, status, message, errors
     - Error types do NOT have: id, updatedFields (semantically incorrect)
     - code field is computed from status (failed:validation → 422)
     """
-
     # Proper error response (v1.8.1)
     fake_error = {
         "status": "failed:validation",
@@ -238,7 +234,6 @@ def test_rust_error_response_field_filtering(fraiseql_rs):
 
 def test_error_type_filters_auto_injected_fields(fraiseql_rs):
     """Verify Error types filter auto-injected fields (code, status, message, errors)."""
-
     fake_error = {
         "status": "failed:not_found",
         "message": "Machine not found",
@@ -285,7 +280,6 @@ def test_error_type_filters_auto_injected_fields(fraiseql_rs):
 
 def test_error_type_all_auto_injected_fields(fraiseql_rs):
     """Verify Error types return all auto-injected fields when requested."""
-
     fake_error = {
         "status": "failed:conflict",
         "message": "Machine already exists",
@@ -330,7 +324,6 @@ def test_error_type_all_auto_injected_fields(fraiseql_rs):
 
 def test_error_type_code_computation(fraiseql_rs):
     """Verify Error type 'code' field is computed correctly from status."""
-
     test_cases = [
         ("failed:not_found", 404),
         ("failed:conflict", 409),
@@ -378,7 +371,6 @@ def test_error_type_code_computation(fraiseql_rs):
 
 def test_error_type_does_not_have_success_fields(fraiseql_rs):
     """Verify Error types never have Success-only fields (id, updatedFields)."""
-
     fake_error = {
         "status": "failed:validation",
         "message": "Validation failed",
@@ -425,7 +417,6 @@ def test_error_type_does_not_have_success_fields(fraiseql_rs):
 
 def test_cascade_field_selection(fraiseql_rs):
     """Verify cascade field respects field selection."""
-
     fake_result = {
         "status": "success",
         "message": "Machine created",
@@ -494,7 +485,6 @@ def test_cascade_field_selection(fraiseql_rs):
 
 def test_empty_cascade_selection(fraiseql_rs):
     """Verify empty cascade field selection returns only __typename."""
-
     fake_result = {
         "status": "success",
         "message": "Created",
@@ -548,7 +538,6 @@ def test_empty_cascade_selection(fraiseql_rs):
 
 def test_multiple_entity_fields_selection(fraiseql_rs):
     """Verify field selection with multiple entity fields (v1.8.1 feature)."""
-
     # Error response with conflict entity
     fake_error = {
         "status": "failed:conflict",
@@ -614,7 +603,6 @@ def test_multiple_entity_fields_selection(fraiseql_rs):
 
 def test_multiple_entity_fields_success_type(fraiseql_rs):
     """Verify field selection with multiple entities in Success type."""
-
     fake_result = {
         "status": "updated",
         "message": "Location updated",
@@ -668,7 +656,6 @@ def test_multiple_entity_fields_success_type(fraiseql_rs):
 
 def test_nested_entity_field_selection(fraiseql_rs):
     """Verify nested entity fields respect selection (e.g., machine.contract.customer)."""
-
     fake_result = {
         "status": "success",
         "message": "Created",

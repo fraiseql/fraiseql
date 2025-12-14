@@ -1,5 +1,4 @@
-"""
-FraiseQL Blog Enterprise - Domain Layer
+"""FraiseQL Blog Enterprise - Domain Layer
 
 This package contains the domain models, entities, value objects, and domain
 services for the enterprise blog application following Domain-Driven Design (DDD)

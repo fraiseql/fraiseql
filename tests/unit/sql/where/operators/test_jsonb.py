@@ -1,6 +1,5 @@
 """Comprehensive tests for JSONB and NULL operator SQL building."""
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.where.operators.jsonb import (
@@ -26,35 +25,35 @@ class TestJSONBKeyOperators:
         field_sql = SQL("data->>'metadata'")
         result = build_has_key_sql(field_sql, "username")
         sql_str = result.as_string(None)
-        assert "data->>'metadata' ? 'username'" == sql_str
+        assert sql_str == "data->>'metadata' ? 'username'"
 
     def test_has_any_keys(self):
         """Test JSONB has_any_keys operator (?|)."""
         field_sql = SQL("data->>'metadata'")
         result = build_has_any_keys_sql(field_sql, ["email", "phone", "address"])
         sql_str = result.as_string(None)
-        assert "data->>'metadata' ?| '{email,phone,address}'" == sql_str
+        assert sql_str == "data->>'metadata' ?| '{email,phone,address}'"
 
     def test_has_all_keys(self):
         """Test JSONB has_all_keys operator (?&)."""
         field_sql = SQL("data->>'config'")
         result = build_has_all_keys_sql(field_sql, ["host", "port", "protocol"])
         sql_str = result.as_string(None)
-        assert "data->>'config' ?& '{host,port,protocol}'" == sql_str
+        assert sql_str == "data->>'config' ?& '{host,port,protocol}'"
 
     def test_has_single_key_any(self):
         """Test has_any_keys with single key."""
         field_sql = SQL("metadata")
         result = build_has_any_keys_sql(field_sql, ["status"])
         sql_str = result.as_string(None)
-        assert "metadata ?| '{status}'" == sql_str
+        assert sql_str == "metadata ?| '{status}'"
 
     def test_has_single_key_all(self):
         """Test has_all_keys with single key."""
         field_sql = SQL("metadata")
         result = build_has_all_keys_sql(field_sql, ["id"])
         sql_str = result.as_string(None)
-        assert "metadata ?& '{id}'" == sql_str
+        assert sql_str == "metadata ?& '{id}'"
 
 
 class TestJSONBContainmentOperators:
@@ -115,42 +114,42 @@ class TestJSONBPathOperators:
         field_sql = SQL("data")
         result = build_path_exists_sql(field_sql, "$.user.email")
         sql_str = result.as_string(None)
-        assert "data @? '$.user.email'" == sql_str
+        assert sql_str == "data @? '$.user.email'"
 
     def test_path_match(self):
         """Test JSONPath match operator (@@)."""
         field_sql = SQL("data")
         result = build_path_match_sql(field_sql, "$.age > 18")
         sql_str = result.as_string(None)
-        assert "data @@ '$.age > 18'" == sql_str
+        assert sql_str == "data @@ '$.age > 18'"
 
     def test_get_path(self):
         """Test JSONB get path operator (#>)."""
         field_sql = SQL("data")
         result = build_get_path_sql(field_sql, ["user", "profile", "name"])
         sql_str = result.as_string(None)
-        assert "data #> '{user,profile,name}'" == sql_str
+        assert sql_str == "data #> '{user,profile,name}'"
 
     def test_get_path_text(self):
         """Test JSONB get path as text operator (#>>)."""
         field_sql = SQL("data")
         result = build_get_path_text_sql(field_sql, ["user", "email"])
         sql_str = result.as_string(None)
-        assert "data #>> '{user,email}'" == sql_str
+        assert sql_str == "data #>> '{user,email}'"
 
     def test_get_path_single_level(self):
         """Test get_path with single level."""
         field_sql = SQL("config")
         result = build_get_path_sql(field_sql, ["version"])
         sql_str = result.as_string(None)
-        assert "config #> '{version}'" == sql_str
+        assert sql_str == "config #> '{version}'"
 
     def test_get_path_text_deep(self):
         """Test get_path_text with deep path."""
         field_sql = SQL("data")
         result = build_get_path_text_sql(field_sql, ["a", "b", "c", "d", "e"])
         sql_str = result.as_string(None)
-        assert "data #>> '{a,b,c,d,e}'" == sql_str
+        assert sql_str == "data #>> '{a,b,c,d,e}'"
 
 
 class TestJSONBEdgeCases:
@@ -208,7 +207,7 @@ class TestJSONBEdgeCases:
     def test_jsonpath_complex_expression(self):
         """Test JSONPath with complex expression."""
         field_sql = SQL("data")
-        result = build_path_match_sql(field_sql, '$.items[*] ? (@.price < 100 && @.available == true)')
+        result = build_path_match_sql(field_sql, "$.items[*] ? (@.price < 100 && @.available == true)")
         sql_str = result.as_string(None)
         assert "@@" in sql_str
         assert "items" in sql_str
@@ -222,32 +221,32 @@ class TestNullOperators:
         path_sql = SQL("data->>'optional_field'")
         result = build_isnull_sql(path_sql, True)
         sql_str = result.as_string(None)
-        assert "data->>'optional_field' IS NULL" == sql_str
+        assert sql_str == "data->>'optional_field' IS NULL"
 
     def test_isnull_false(self):
         """Test IS NOT NULL operator."""
         path_sql = SQL("data->>'required_field'")
         result = build_isnull_sql(path_sql, False)
         sql_str = result.as_string(None)
-        assert "data->>'required_field' IS NOT NULL" == sql_str
+        assert sql_str == "data->>'required_field' IS NOT NULL"
 
     def test_isnull_on_simple_column(self):
         """Test IS NULL on simple column name."""
         path_sql = SQL("email")
         result = build_isnull_sql(path_sql, True)
         sql_str = result.as_string(None)
-        assert "email IS NULL" == sql_str
+        assert sql_str == "email IS NULL"
 
     def test_isnotnull_on_simple_column(self):
         """Test IS NOT NULL on simple column name."""
         path_sql = SQL("email")
         result = build_isnull_sql(path_sql, False)
         sql_str = result.as_string(None)
-        assert "email IS NOT NULL" == sql_str
+        assert sql_str == "email IS NOT NULL"
 
     def test_isnull_on_jsonb_path(self):
         """Test IS NULL on JSONB path."""
         path_sql = SQL("data->'user'->'profile'->>'email'")
         result = build_isnull_sql(path_sql, True)
         sql_str = result.as_string(None)
-        assert "data->'user'->'profile'->>'email' IS NULL" == sql_str
+        assert sql_str == "data->'user'->'profile'->>'email' IS NULL"

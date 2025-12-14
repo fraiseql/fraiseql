@@ -9,14 +9,13 @@ It auto-discovers all decorators and tests each one comprehensively.
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.decorators import connection, field, query as query_decorator, subscription
-from fraiseql.gql.builders import SchemaRegistry
-from fraiseql.mutations import mutation
-from fraiseql.mutations.decorators import error, result, success
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type
+from fraiseql.decorators import connection, field, subscription
+from fraiseql.decorators import query as query_decorator
+from fraiseql.mutations import mutation
+from fraiseql.mutations.decorators import error, success
 
 
 def get_all_decorators():

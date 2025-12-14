@@ -7,10 +7,8 @@ and pass once normalization is implemented (GREEN phase).
 
 import uuid
 
-import pytest
-
-from fraiseql.where_clause import WhereClause, FieldCondition
 from fraiseql.db import FraiseQLRepository
+from fraiseql.where_clause import WhereClause
 
 
 class TestDictNormalization:

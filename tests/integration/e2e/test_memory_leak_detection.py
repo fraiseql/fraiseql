@@ -7,16 +7,13 @@ occur in production deployments with sustained load.
 import asyncio
 import gc
 import time
-from typing import List
 
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")

@@ -27,21 +27,21 @@ class TestBasicFullTextSearch:
         field_sql = SQL("document_tsv")
         result = build_matches_sql(field_sql, "database & optimization")
         sql_str = result.as_string(None)
-        assert "document_tsv @@ to_tsquery('english', 'database & optimization')" == sql_str
+        assert sql_str == "document_tsv @@ to_tsquery('english', 'database & optimization')"
 
     def test_matches_with_operators(self):
         """Test full-text search with boolean operators."""
         field_sql = SQL("content_tsv")
         result = build_matches_sql(field_sql, "python | javascript")
         sql_str = result.as_string(None)
-        assert "content_tsv @@ to_tsquery('english', 'python | javascript')" == sql_str
+        assert sql_str == "content_tsv @@ to_tsquery('english', 'python | javascript')"
 
     def test_matches_with_phrases(self):
         """Test full-text search with phrases."""
         field_sql = SQL("article_tsv")
         result = build_matches_sql(field_sql, '"machine learning"')
         sql_str = result.as_string(None)
-        assert "article_tsv @@ to_tsquery('english', '\"machine learning\"')" == sql_str
+        assert sql_str == "article_tsv @@ to_tsquery('english', '\"machine learning\"')"
 
     def test_plain_query_basic(self):
         """Test plain text query search."""
@@ -49,8 +49,8 @@ class TestBasicFullTextSearch:
         result = build_plain_query_sql(field_sql, "natural language processing")
         sql_str = result.as_string(None)
         assert (
-            "description_tsv @@ plainto_tsquery('english', 'natural language processing')"
-            == sql_str
+            sql_str
+            == "description_tsv @@ plainto_tsquery('english', 'natural language processing')"
         )
 
     def test_phrase_query_basic(self):
@@ -58,14 +58,14 @@ class TestBasicFullTextSearch:
         field_sql = SQL("title_tsv")
         result = build_phrase_query_sql(field_sql, "artificial intelligence")
         sql_str = result.as_string(None)
-        assert "title_tsv @@ phraseto_tsquery('english', 'artificial intelligence')" == sql_str
+        assert sql_str == "title_tsv @@ phraseto_tsquery('english', 'artificial intelligence')"
 
     def test_websearch_query_basic(self):
         """Test web search query."""
         field_sql = SQL("body_tsv")
         result = build_websearch_query_sql(field_sql, "machine learning OR AI")
         sql_str = result.as_string(None)
-        assert "body_tsv @@ websearch_to_tsquery('english', 'machine learning OR AI')" == sql_str
+        assert sql_str == "body_tsv @@ websearch_to_tsquery('english', 'machine learning OR AI')"
 
     def test_websearch_with_quotes(self):
         """Test web search with quoted phrases."""
@@ -73,7 +73,7 @@ class TestBasicFullTextSearch:
         result = build_websearch_query_sql(field_sql, '"deep learning" -neural')
         sql_str = result.as_string(None)
         assert (
-            "content_tsv @@ websearch_to_tsquery('english', '\"deep learning\" -neural')" == sql_str
+            sql_str == "content_tsv @@ websearch_to_tsquery('english', '\"deep learning\" -neural')"
         )
 
 
@@ -85,35 +85,35 @@ class TestRelevanceRankingOperators:
         field_sql = SQL("document_tsv")
         result = build_rank_gt_sql(field_sql, "database:0.5")
         sql_str = result.as_string(None)
-        assert "ts_rank(document_tsv, to_tsquery('english', 'database')) > 0.5" == sql_str
+        assert sql_str == "ts_rank(document_tsv, to_tsquery('english', 'database')) > 0.5"
 
     def test_rank_gt_with_complex_query(self):
         """Test rank greater than with complex query."""
         field_sql = SQL("content_tsv")
         result = build_rank_gt_sql(field_sql, "machine & learning:0.3")
         sql_str = result.as_string(None)
-        assert "ts_rank(content_tsv, to_tsquery('english', 'machine & learning')) > 0.3" == sql_str
+        assert sql_str == "ts_rank(content_tsv, to_tsquery('english', 'machine & learning')) > 0.3"
 
     def test_rank_gte_basic(self):
         """Test rank greater than or equal comparison."""
         field_sql = SQL("article_tsv")
         result = build_rank_gte_sql(field_sql, "optimization:0.2")
         sql_str = result.as_string(None)
-        assert "ts_rank(article_tsv, to_tsquery('english', 'optimization')) >= 0.2" == sql_str
+        assert sql_str == "ts_rank(article_tsv, to_tsquery('english', 'optimization')) >= 0.2"
 
     def test_rank_lt_basic(self):
         """Test rank less than comparison."""
         field_sql = SQL("title_tsv")
         result = build_rank_lt_sql(field_sql, "tutorial:0.8")
         sql_str = result.as_string(None)
-        assert "ts_rank(title_tsv, to_tsquery('english', 'tutorial')) < 0.8" == sql_str
+        assert sql_str == "ts_rank(title_tsv, to_tsquery('english', 'tutorial')) < 0.8"
 
     def test_rank_lte_basic(self):
         """Test rank less than or equal comparison."""
         field_sql = SQL("description_tsv")
         result = build_rank_lte_sql(field_sql, "guide:0.1")
         sql_str = result.as_string(None)
-        assert "ts_rank(description_tsv, to_tsquery('english', 'guide')) <= 0.1" == sql_str
+        assert sql_str == "ts_rank(description_tsv, to_tsquery('english', 'guide')) <= 0.1"
 
 
 class TestCoverDensityRankingOperators:
@@ -124,28 +124,28 @@ class TestCoverDensityRankingOperators:
         field_sql = SQL("document_tsv")
         result = build_rank_cd_gt_sql(field_sql, "database:0.4")
         sql_str = result.as_string(None)
-        assert "ts_rank_cd(document_tsv, to_tsquery('english', 'database')) > 0.4" == sql_str
+        assert sql_str == "ts_rank_cd(document_tsv, to_tsquery('english', 'database')) > 0.4"
 
     def test_rank_cd_gte_basic(self):
         """Test cover density rank greater than or equal comparison."""
         field_sql = SQL("content_tsv")
         result = build_rank_cd_gte_sql(field_sql, "algorithm:0.6")
         sql_str = result.as_string(None)
-        assert "ts_rank_cd(content_tsv, to_tsquery('english', 'algorithm')) >= 0.6" == sql_str
+        assert sql_str == "ts_rank_cd(content_tsv, to_tsquery('english', 'algorithm')) >= 0.6"
 
     def test_rank_cd_lt_basic(self):
         """Test cover density rank less than comparison."""
         field_sql = SQL("article_tsv")
         result = build_rank_cd_lt_sql(field_sql, "research:0.9")
         sql_str = result.as_string(None)
-        assert "ts_rank_cd(article_tsv, to_tsquery('english', 'research')) < 0.9" == sql_str
+        assert sql_str == "ts_rank_cd(article_tsv, to_tsquery('english', 'research')) < 0.9"
 
     def test_rank_cd_lte_basic(self):
         """Test cover density rank less than or equal comparison."""
         field_sql = SQL("title_tsv")
         result = build_rank_cd_lte_sql(field_sql, "paper:0.7")
         sql_str = result.as_string(None)
-        assert "ts_rank_cd(title_tsv, to_tsquery('english', 'paper')) <= 0.7" == sql_str
+        assert sql_str == "ts_rank_cd(title_tsv, to_tsquery('english', 'paper')) <= 0.7"
 
 
 class TestFullTextEdgeCases:

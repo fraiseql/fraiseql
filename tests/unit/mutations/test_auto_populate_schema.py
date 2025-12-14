@@ -1,7 +1,6 @@
 """Test that auto-populated fields appear in GraphQL schema."""
 
-import pytest
-from fraiseql.mutations.decorators import success, error
+from fraiseql.mutations.decorators import error, success
 from fraiseql.types import fraise_type
 
 
@@ -60,7 +59,6 @@ def test_no_entity_field_no_id():
     class DeleteSuccess:
         """Deletion confirmation without entity."""
 
-        pass
 
     gql_fields = getattr(DeleteSuccess, "__gql_fields__", {})
 

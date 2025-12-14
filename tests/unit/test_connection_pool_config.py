@@ -5,7 +5,7 @@ environment-based defaults work as expected (WP-027).
 """
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 

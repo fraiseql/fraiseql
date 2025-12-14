@@ -4,14 +4,13 @@ These tests validate the complete SQL output to ensure it generates syntacticall
 correct PostgreSQL queries that can actually be executed.
 """
 
-import re
 
 import pytest
 from psycopg.sql import SQL
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 from fraiseql.sql.operators import get_default_registry as get_operator_registry
 from fraiseql.sql.where_generator import build_operator_composed
-from tests.helpers.sql_rendering import render_sql_for_testing
 
 pytestmark = pytest.mark.integration
 

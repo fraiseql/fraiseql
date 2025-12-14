@@ -33,7 +33,6 @@ from fraiseql.sql.where.operators.ltree import (
 )
 from fraiseql.types import LTree
 
-
 # ============================================================================
 # BASIC OPERATORS: eq, neq, in, notin
 # ============================================================================
@@ -106,28 +105,28 @@ class TestLTreeBasicDirectFunctions:
         path_sql = SQL("data->>'path'")
         result = build_ltree_eq_sql(path_sql, "top.science.physics")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree = 'top.science.physics'::ltree" == sql_str
+        assert sql_str == "(data->>'path')::ltree = 'top.science.physics'::ltree"
 
     def test_ltree_neq_direct(self):
         """Test ltree inequality function directly."""
         path_sql = SQL("data->>'path'")
         result = build_ltree_neq_sql(path_sql, "top.technology")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree != 'top.technology'::ltree" == sql_str
+        assert sql_str == "(data->>'path')::ltree != 'top.technology'::ltree"
 
     def test_ltree_in_direct(self):
         """Test ltree IN function directly."""
         path_sql = SQL("data->>'path'")
         result = build_ltree_in_sql(path_sql, ["top.science", "top.technology"])
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree IN ('top.science'::ltree, 'top.technology'::ltree)" == sql_str
+        assert sql_str == "(data->>'path')::ltree IN ('top.science'::ltree, 'top.technology'::ltree)"
 
     def test_ltree_notin_direct(self):
         """Test ltree NOT IN function directly."""
         path_sql = SQL("data->>'path'")
         result = build_ltree_notin_sql(path_sql, ["top.arts", "top.sports"])
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree NOT IN ('top.arts'::ltree, 'top.sports'::ltree)" == sql_str
+        assert sql_str == "(data->>'path')::ltree NOT IN ('top.arts'::ltree, 'top.sports'::ltree)"
 
 
 # ============================================================================
@@ -196,28 +195,28 @@ class TestLTreeHierarchicalDirectFunctions:
         path_sql = SQL("data->>'path'")
         result = build_ancestor_of_sql(path_sql, "top.science.physics")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree @> 'top.science.physics'::ltree" == sql_str
+        assert sql_str == "(data->>'path')::ltree @> 'top.science.physics'::ltree"
 
     def test_descendant_of_direct(self):
         """Test descendant_of function directly."""
         path_sql = SQL("data->>'path'")
         result = build_descendant_of_sql(path_sql, "top.science")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree <@ 'top.science'::ltree" == sql_str
+        assert sql_str == "(data->>'path')::ltree <@ 'top.science'::ltree"
 
     def test_matches_lquery_direct(self):
         """Test matches_lquery function directly."""
         path_sql = SQL("data->>'path'")
         result = build_matches_lquery_sql(path_sql, "*.science.*")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree ~ '*.science.*'::lquery" == sql_str
+        assert sql_str == "(data->>'path')::ltree ~ '*.science.*'::lquery"
 
     def test_matches_ltxtquery_direct(self):
         """Test matches_ltxtquery function directly."""
         path_sql = SQL("data->>'path'")
         result = build_matches_ltxtquery_sql(path_sql, "science & physics")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree ? 'science & physics'::ltxtquery" == sql_str
+        assert sql_str == "(data->>'path')::ltree ? 'science & physics'::ltxtquery"
 
 
 # ============================================================================
@@ -284,42 +283,42 @@ class TestLTreeDepthDirectFunctions:
         path_sql = SQL("data->>'path'")
         result = build_depth_eq_sql(path_sql, 3)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) = 3" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) = 3"
 
     def test_depth_gt_direct(self):
         """Test depth greater than function directly."""
         path_sql = SQL("data->>'path'")
         result = build_depth_gt_sql(path_sql, 2)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) > 2" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) > 2"
 
     def test_depth_gte_direct(self):
         """Test depth greater than or equal function directly."""
         path_sql = SQL("data->>'path'")
         result = build_depth_gte_sql(path_sql, 1)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) >= 1" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) >= 1"
 
     def test_depth_lt_direct(self):
         """Test depth less than function directly."""
         path_sql = SQL("data->>'path'")
         result = build_depth_lt_sql(path_sql, 5)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) < 5" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) < 5"
 
     def test_depth_lte_direct(self):
         """Test depth less than or equal function directly."""
         path_sql = SQL("data->>'path'")
         result = build_depth_lte_sql(path_sql, 4)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) <= 4" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) <= 4"
 
     def test_depth_neq_direct(self):
         """Test depth inequality function directly."""
         path_sql = SQL("data->>'path'")
         result = build_depth_neq_sql(path_sql, 3)
         sql_str = result.as_string(None)
-        assert "nlevel((data->>'path')::ltree) != 3" == sql_str
+        assert sql_str == "nlevel((data->>'path')::ltree) != 3"
 
 
 # ============================================================================

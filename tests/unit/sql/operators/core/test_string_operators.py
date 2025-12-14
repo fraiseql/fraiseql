@@ -1,7 +1,7 @@
 """Tests for string operator strategy."""
 
 import pytest
-from psycopg.sql import Identifier, SQL
+from psycopg.sql import Identifier
 
 from fraiseql.sql.operators.core.string_operators import StringOperatorStrategy
 

@@ -10,8 +10,6 @@ Phase R3 of the industrial WHERE refactor.
 
 import uuid
 
-import pytest
-
 from fraiseql.sql import (
     FloatFilter,
     IntFilter,

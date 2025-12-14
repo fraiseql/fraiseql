@@ -5,14 +5,12 @@ for the canonical WHERE representation.
 """
 
 import uuid
-from datetime import date
-
-import pytest
-from psycopg.sql import SQL, Composed
 from typing import cast
 
+import pytest
+from psycopg.sql import Composed
+
 from fraiseql.where_clause import (
-    ALL_OPERATORS,
     FieldCondition,
     WhereClause,
 )

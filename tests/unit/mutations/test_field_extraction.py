@@ -1,5 +1,6 @@
 """Test field extraction from GraphQL info object."""
 from unittest.mock import Mock
+
 from fraiseql.mutations.mutation_decorator import _extract_mutation_selected_fields
 
 

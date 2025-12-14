@@ -7,12 +7,10 @@ and database operations, not just isolated unit tests.
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry
-from fraiseql.utils.casing import to_camel_case, to_snake_case
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type, query
+from fraiseql.utils.casing import to_camel_case, to_snake_case
 
 
 @pytest.fixture(scope="class")
@@ -193,7 +191,7 @@ class TestCaseConversionIntegration:
 
     async def test_case_conversion_with_nested_data_structures(self, utils_test_schema):
         """Case conversion should work with nested GraphQL data structures."""
-        from fraiseql.utils.casing import transform_keys_to_camel_case, dict_keys_to_snake_case
+        from fraiseql.utils.casing import dict_keys_to_snake_case, transform_keys_to_camel_case
 
         # Test data that might come from GraphQL input
         input_data = {

@@ -10,12 +10,10 @@ test prevents regression of this critical functionality.
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry
-from fraiseql.types.scalars import IpAddressScalar  # type: ignore
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type, query
+from fraiseql.types.scalars import IpAddressScalar  # type: ignore
 
 
 @pytest.fixture(scope="class")

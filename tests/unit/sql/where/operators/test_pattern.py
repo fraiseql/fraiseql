@@ -1,6 +1,5 @@
 """Comprehensive tests for pattern operator SQL building."""
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.where.operators.text import (

@@ -3,8 +3,8 @@
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.where.operators import get_operator_function
 from fraiseql.sql.where.core.field_detection import FieldType
+from fraiseql.sql.where.operators import get_operator_function
 
 
 class TestInvalidOperators:

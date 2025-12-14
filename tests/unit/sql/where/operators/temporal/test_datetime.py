@@ -26,7 +26,7 @@ class TestDateTimeBasicOperators:
         path_sql = SQL("data->>'created_at'")
         result = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00Z")
         sql_str = result.as_string(None)
-        assert "(data->>'created_at')::timestamptz = '2023-07-15T14:30:00Z'::timestamptz" == sql_str
+        assert sql_str == "(data->>'created_at')::timestamptz = '2023-07-15T14:30:00Z'::timestamptz"
 
     def test_datetime_neq(self):
         """Test datetime inequality operator."""
@@ -34,7 +34,7 @@ class TestDateTimeBasicOperators:
         result = build_datetime_neq_sql(path_sql, "2023-07-15T14:30:00Z")
         sql_str = result.as_string(None)
         assert (
-            "(data->>'modified_at')::timestamptz != '2023-07-15T14:30:00Z'::timestamptz" == sql_str
+            sql_str == "(data->>'modified_at')::timestamptz != '2023-07-15T14:30:00Z'::timestamptz"
         )
 
     def test_datetime_in(self):
@@ -150,7 +150,7 @@ class TestDateTimeComparisonOperators:
         path_sql = SQL("data->>'created_at'")
         result = build_datetime_gt_sql(path_sql, "2023-01-01T00:00:00Z")
         sql_str = result.as_string(None)
-        assert "(data->>'created_at')::timestamptz > '2023-01-01T00:00:00Z'::timestamptz" == sql_str
+        assert sql_str == "(data->>'created_at')::timestamptz > '2023-01-01T00:00:00Z'::timestamptz"
 
     def test_datetime_gte(self):
         """Test datetime greater than or equal operator."""
@@ -158,7 +158,7 @@ class TestDateTimeComparisonOperators:
         result = build_datetime_gte_sql(path_sql, "2023-06-01T12:00:00Z")
         sql_str = result.as_string(None)
         assert (
-            "(data->>'start_time')::timestamptz >= '2023-06-01T12:00:00Z'::timestamptz" == sql_str
+            sql_str == "(data->>'start_time')::timestamptz >= '2023-06-01T12:00:00Z'::timestamptz"
         )
 
     def test_datetime_lt(self):
@@ -166,14 +166,14 @@ class TestDateTimeComparisonOperators:
         path_sql = SQL("data->>'expires_at'")
         result = build_datetime_lt_sql(path_sql, "2024-12-31T23:59:59Z")
         sql_str = result.as_string(None)
-        assert "(data->>'expires_at')::timestamptz < '2024-12-31T23:59:59Z'::timestamptz" == sql_str
+        assert sql_str == "(data->>'expires_at')::timestamptz < '2024-12-31T23:59:59Z'::timestamptz"
 
     def test_datetime_lte(self):
         """Test datetime less than or equal operator."""
         path_sql = SQL("data->>'deadline'")
         result = build_datetime_lte_sql(path_sql, "2023-12-31T23:59:59Z")
         sql_str = result.as_string(None)
-        assert "(data->>'deadline')::timestamptz <= '2023-12-31T23:59:59Z'::timestamptz" == sql_str
+        assert sql_str == "(data->>'deadline')::timestamptz <= '2023-12-31T23:59:59Z'::timestamptz"
 
     def test_build_datetime_greater_than_sql(self) -> None:
         """Test DateTime greater than operator."""

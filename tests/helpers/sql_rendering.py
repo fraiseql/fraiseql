@@ -30,7 +30,7 @@ Example:
 
 from typing import Any
 
-from psycopg.sql import Composable, Composed, SQL, Literal, Identifier, Placeholder
+from psycopg.sql import Composable
 
 
 def render_sql_for_testing(sql_object: Any) -> str:
@@ -140,7 +140,7 @@ def assert_sql_contains(sql_object: Any, *expected_substrings: str) -> None:
 
 
 def assert_sql_pattern(sql_object: Any, pattern: str) -> None:
-    """Assert that rendered SQL matches a regex pattern.
+    r"""Assert that rendered SQL matches a regex pattern.
 
     Args:
         sql_object: psycopg.sql object to render
@@ -158,5 +158,5 @@ def assert_sql_pattern(sql_object: Any, pattern: str) -> None:
 
     sql_str = render_sql_for_testing(sql_object)
     assert re.search(pattern, sql_str), (
-        f"Pattern '{pattern}' not found in rendered SQL.\n" f"Rendered SQL: {sql_str}"
+        f"Pattern '{pattern}' not found in rendered SQL.\nRendered SQL: {sql_str}"
     )

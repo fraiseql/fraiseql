@@ -22,14 +22,14 @@ class TestMacAddressBasicOperators:
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_eq_sql(path_sql, "00:11:22:33:44:55")
         sql_str = result.as_string(None)
-        assert "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr" == sql_str
+        assert sql_str == "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
 
     def test_mac_neq(self):
         """Test MAC address inequality operator."""
         path_sql = SQL("data->>'mac_address'")
         result = build_mac_neq_sql(path_sql, "ff:ff:ff:ff:ff:ff")
         sql_str = result.as_string(None)
-        assert "(data->>'mac_address')::macaddr != 'ff:ff:ff:ff:ff:ff'::macaddr" == sql_str
+        assert sql_str == "(data->>'mac_address')::macaddr != 'ff:ff:ff:ff:ff:ff'::macaddr"
 
     def test_mac_in(self):
         """Test MAC address IN operator."""

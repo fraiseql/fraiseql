@@ -26,14 +26,14 @@ class TestBuildComparisonSQL:
         path_sql = SQL("data->>'birth_date'")
         result = build_comparison_sql(path_sql, "2023-07-15", "=", "date")
         sql_str = result.as_string(None)
-        assert "(data->>'birth_date')::date = '2023-07-15'::date" == sql_str
+        assert sql_str == "(data->>'birth_date')::date = '2023-07-15'::date"
 
     def test_comparison_left_side_only_cast(self):
         """Test comparison with casting on left side only."""
         path_sql = SQL("data->>'port'")
         result = build_comparison_sql(path_sql, 8080, "=", "integer", cast_value=False)
         sql_str = result.as_string(None)
-        assert "(data->>'port')::integer = 8080" == sql_str
+        assert sql_str == "(data->>'port')::integer = 8080"
         assert "::integer" in sql_str
         assert "8080::integer" not in sql_str
 
@@ -52,35 +52,35 @@ class TestBuildComparisonSQL:
         path_sql = SQL("data->>'created_at'")
         result = build_comparison_sql(path_sql, "2023-07-15 10:30:00", "=", "timestamptz")
         sql_str = result.as_string(None)
-        assert "(data->>'created_at')::timestamptz = '2023-07-15 10:30:00'::timestamptz" == sql_str
+        assert sql_str == "(data->>'created_at')::timestamptz = '2023-07-15 10:30:00'::timestamptz"
 
     def test_comparison_with_macaddr_cast(self):
         """Test comparison with MAC address casting."""
         path_sql = SQL("data->>'mac_address'")
         result = build_comparison_sql(path_sql, "00:11:22:33:44:55", "=", "macaddr")
         sql_str = result.as_string(None)
-        assert "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr" == sql_str
+        assert sql_str == "(data->>'mac_address')::macaddr = '00:11:22:33:44:55'::macaddr"
 
     def test_comparison_with_inet_cast(self):
         """Test comparison with IP address casting."""
         path_sql = SQL("data->>'ip_address'")
         result = build_comparison_sql(path_sql, "192.168.1.1", "=", "inet")
         sql_str = result.as_string(None)
-        assert "(data->>'ip_address')::inet = '192.168.1.1'::inet" == sql_str
+        assert sql_str == "(data->>'ip_address')::inet = '192.168.1.1'::inet"
 
     def test_comparison_with_ltree_cast(self):
         """Test comparison with ltree casting."""
         path_sql = SQL("data->>'path'")
         result = build_comparison_sql(path_sql, "root.child.leaf", "=", "ltree")
         sql_str = result.as_string(None)
-        assert "(data->>'path')::ltree = 'root.child.leaf'::ltree" == sql_str
+        assert sql_str == "(data->>'path')::ltree = 'root.child.leaf'::ltree"
 
     def test_comparison_with_numeric_cast(self):
         """Test comparison with numeric casting."""
         path_sql = SQL("data->>'score'")
         result = build_comparison_sql(path_sql, 95.5, ">", "numeric")
         sql_str = result.as_string(None)
-        assert "(data->>'score')::numeric > 95.5::numeric" == sql_str
+        assert sql_str == "(data->>'score')::numeric > 95.5::numeric"
 
     def test_comparison_with_uuid_cast(self):
         """Test comparison with UUID casting."""
@@ -100,7 +100,7 @@ class TestBuildInListSQL:
         values = ["active", "pending", "approved"]
         result = build_in_list_sql(path_sql, values, "IN")
         sql_str = result.as_string(None)
-        assert "data->>'status' IN ('active', 'pending', 'approved')" == sql_str
+        assert sql_str == "data->>'status' IN ('active', 'pending', 'approved')"
 
     def test_notin_list_no_casting(self):
         """Test NOT IN list with no type casting."""
@@ -108,7 +108,7 @@ class TestBuildInListSQL:
         values = ["admin", "superuser"]
         result = build_in_list_sql(path_sql, values, "NOT IN")
         sql_str = result.as_string(None)
-        assert "data->>'role' NOT IN ('admin', 'superuser')" == sql_str
+        assert sql_str == "data->>'role' NOT IN ('admin', 'superuser')"
 
     def test_in_list_both_sides_cast(self):
         """Test IN list with casting on both sides."""
@@ -125,7 +125,7 @@ class TestBuildInListSQL:
         values = [80, 443, 8080]
         result = build_in_list_sql(path_sql, values, "IN", "integer", cast_value=False)
         sql_str = result.as_string(None)
-        assert "(data->>'port')::integer IN (80, 443, 8080)" == sql_str
+        assert sql_str == "(data->>'port')::integer IN (80, 443, 8080)"
         assert "::integer" in sql_str
         assert "80::integer" not in sql_str
 
@@ -135,7 +135,7 @@ class TestBuildInListSQL:
         values = ["electronics"]
         result = build_in_list_sql(path_sql, values, "IN")
         sql_str = result.as_string(None)
-        assert "data->>'category' IN ('electronics')" == sql_str
+        assert sql_str == "data->>'category' IN ('electronics')"
 
     def test_in_list_empty_list(self):
         """Test IN list with empty list."""
@@ -143,7 +143,7 @@ class TestBuildInListSQL:
         values = []
         result = build_in_list_sql(path_sql, values, "IN")
         sql_str = result.as_string(None)
-        assert "data->>'tags' IN ()" == sql_str
+        assert sql_str == "data->>'tags' IN ()"
 
     def test_in_list_with_integers_cast(self):
         """Test IN list with integer casting."""
@@ -151,7 +151,7 @@ class TestBuildInListSQL:
         values = [1, 2, 3, 5, 8]
         result = build_in_list_sql(path_sql, values, "IN", "integer", cast_value=False)
         sql_str = result.as_string(None)
-        assert "(data->>'user_id')::integer IN (1, 2, 3, 5, 8)" == sql_str
+        assert sql_str == "(data->>'user_id')::integer IN (1, 2, 3, 5, 8)"
 
     def test_in_list_with_timestamps_cast(self):
         """Test IN list with timestamp casting."""
@@ -199,7 +199,7 @@ class TestBuildInListSQL:
         values = [9223372036854775807, 9223372036854775806]
         result = build_in_list_sql(path_sql, values, "IN", "bigint", cast_value=False)
         sql_str = result.as_string(None)
-        assert "(data->>'big_id')::bigint IN (9223372036854775807, 9223372036854775806)" == sql_str
+        assert sql_str == "(data->>'big_id')::bigint IN (9223372036854775807, 9223372036854775806)"
 
 
 class TestBaseBuildersEdgeCases:
@@ -210,7 +210,7 @@ class TestBaseBuildersEdgeCases:
         path_sql = SQL("data->>'optional_field'")
         result = build_comparison_sql(path_sql, None, "IS")
         sql_str = result.as_string(None)
-        assert "data->>'optional_field' IS NULL" == sql_str
+        assert sql_str == "data->>'optional_field' IS NULL"
 
     def test_in_list_with_none_values(self):
         """Test IN list containing None values."""
@@ -218,14 +218,14 @@ class TestBaseBuildersEdgeCases:
         values = ["value1", None, "value2"]
         result = build_in_list_sql(path_sql, values, "IN")
         sql_str = result.as_string(None)
-        assert "data->>'nullable_field' IN ('value1', NULL, 'value2')" == sql_str
+        assert sql_str == "data->>'nullable_field' IN ('value1', NULL, 'value2')"
 
     def test_comparison_with_boolean_values(self):
         """Test comparison with boolean values."""
         path_sql = SQL("data->>'is_active'")
         result = build_comparison_sql(path_sql, True, "=")
         sql_str = result.as_string(None)
-        assert "data->>'is_active' = true" == sql_str
+        assert sql_str == "data->>'is_active' = true"
 
     def test_in_list_with_boolean_values(self):
         """Test IN list with boolean values."""
@@ -233,7 +233,7 @@ class TestBaseBuildersEdgeCases:
         values = [True, False, True]
         result = build_in_list_sql(path_sql, values, "IN")
         sql_str = result.as_string(None)
-        assert "data->>'flags' IN (true, false, true)" == sql_str
+        assert sql_str == "data->>'flags' IN (true, false, true)"
 
 
 class TestNestedObjectWhereBuilder:

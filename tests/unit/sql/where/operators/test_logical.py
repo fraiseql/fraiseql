@@ -1,6 +1,5 @@
 """Comprehensive tests for logical operator SQL building."""
 
-import pytest
 from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.operators.logical import build_and_sql, build_not_sql, build_or_sql

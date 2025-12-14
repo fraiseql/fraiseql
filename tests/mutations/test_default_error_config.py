@@ -1,12 +1,11 @@
 """Tests for default_error_config in FraiseQLConfig."""
 
-import pytest
 from fraiseql import (
-    FraiseQLConfig,
-    MutationErrorConfig,
+    ALWAYS_DATA_CONFIG,
     DEFAULT_ERROR_CONFIG,
     STRICT_STATUS_CONFIG,
-    ALWAYS_DATA_CONFIG,
+    FraiseQLConfig,
+    MutationErrorConfig,
     mutation,
 )
 from fraiseql.gql.builders.registry import SchemaRegistry

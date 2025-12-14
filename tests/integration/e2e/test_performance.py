@@ -7,16 +7,13 @@ the system maintains acceptable response times under various load conditions.
 import asyncio
 import statistics
 import time
-from typing import List
 
 import pytest
 from graphql import graphql
 
-from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry
-
 # Import schema_builder to ensure SchemaRegistry is patched
 import fraiseql.gql.schema_builder  # noqa: F401
+from fraiseql import fraise_type, query
 
 
 @pytest.fixture(scope="class")
@@ -130,7 +127,7 @@ class TestPerformanceBaseline:
         schema = performance_schema.build_schema()
 
         async def execute_query(query_id: int):
-            query_str = f"query {{ getUsers {{ id }} }}"
+            query_str = "query { getUsers { id } }"
             start = time.perf_counter()
             result = await graphql(schema, query_str)
             end = time.perf_counter()

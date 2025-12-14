@@ -18,9 +18,8 @@ Actual (before fix):
 
 import json
 
-import pytest
-
 import fraiseql._fraiseql_rs as fraiseql_rs
+import pytest
 
 pytestmark = pytest.mark.rust
 

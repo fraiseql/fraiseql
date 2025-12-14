@@ -3,7 +3,6 @@
 Consolidated from test_ip_operators_sql_building.py and IP parts of test_network_operators_complete.py.
 """
 
-import pytest
 from psycopg.sql import SQL
 
 from fraiseql.sql.where.operators.network import (
