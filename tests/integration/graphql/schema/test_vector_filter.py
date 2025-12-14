@@ -32,16 +32,18 @@ class TestVectorFilterSchema:
 
     def test_vector_filter_field_types(self) -> None:
         """Should have proper GraphQL field types for vector operations."""
-        # The fields should support both dense vectors (list[float]) and sparse vectors (Dict)
+        from fraiseql.sql.graphql_where_generator import VectorDistanceInput
+
         hints = typing.get_type_hints(VectorFilter)
 
-        # Vector distance fields support both dense and sparse formats
-        expected_vector_type = typing.Union[list[float], typing.Dict[str, typing.Any], None]
+        # Vector distance fields now use VectorDistanceInput which supports
+        # both dense vectors (list[float]) and sparse vectors (Dict)
+        expected_vector_type = VectorDistanceInput | None
         assert hints.get("cosine_distance") == expected_vector_type
         assert hints.get("l2_distance") == expected_vector_type
         assert hints.get("l1_distance") == expected_vector_type
         assert hints.get("inner_product") == expected_vector_type
-        assert hints.get("isnull") == typing.Optional[bool]
+        assert hints.get("isnull") == (bool | None)
 
     def test_vector_filter_docstring(self) -> None:
         """Should have comprehensive docstring explaining pgvector operators."""

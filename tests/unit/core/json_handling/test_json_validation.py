@@ -60,11 +60,14 @@ class TestJSONValidation:
             metadata: JSONScalar = NonSerializable()
 
         # The error should occur when we try to convert this to a GraphQL type
+        # and then access the fields (thunk evaluation)
         from fraiseql.core.graphql_type import convert_type_to_graphql_input
 
-        # The validation actually does work! It checks the class attribute value
+        # The validation happens when the GraphQL type's fields thunk is evaluated
+        gql_type = convert_type_to_graphql_input(InvalidDefaultInput)
         with pytest.raises(GraphQLError, match="Invalid JSON value in field metadata"):
-            convert_type_to_graphql_input(InvalidDefaultInput)
+            # Accessing .fields triggers the thunk and validates defaults
+            _ = gql_type.fields
 
     @pytest.mark.asyncio
     async def test_graphql_mutation_with_invalid_json(self, clear_registry) -> None:

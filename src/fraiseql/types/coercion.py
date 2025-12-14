@@ -82,7 +82,11 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
 
 def coerce_input(cls: type, raw: dict[str, object]) -> object:
     """Coerce a dict into a FraiseQL object instance."""
-    fields, type_hints = collect_fraise_fields(cls)
+    # Determine the kind from the class definition if available
+    kind = "output"
+    if hasattr(cls, "__fraiseql_definition__"):
+        kind = cls.__fraiseql_definition__.kind or "output"
+    fields, type_hints = collect_fraise_fields(cls, kind=kind)
     coerced_data: dict[str, object] = {}
 
     # Get schema config to check if camelCase is enabled

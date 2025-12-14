@@ -84,8 +84,6 @@ def test_rust_field_filtering():
         selected_fields,  # success_type_fields
     )
 
-    import json
-
     response_json = json.loads(response)
     data = response_json["data"]["testMutation"]
 

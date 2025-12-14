@@ -100,11 +100,10 @@ class TestIssueResolutionDemonstration:
         )
         sql_str = render_sql_for_testing(private_sql)
 
-        # Verify uses inet_public() function (better than manual range checks)
-        # inet_public() correctly identifies RFC 1918 private addresses:
+        # Verify SQL checks RFC 1918 private address ranges:
         # - 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
         # Plus link-local (169.254.0.0/16) and loopback (127.0.0.0/8)
-        assert "inet_public" in sql_str or "NOT" in sql_str
+        assert "10.0.0.0/8" in sql_str or "inet_public" in sql_str
         assert "::inet" in sql_str
 
         # This SQL will now correctly identify:
