@@ -17,6 +17,8 @@ from graphql import (
     is_object_type,
 )
 
+from fraiseql.utils.casing import to_camel_case
+
 
 @dataclass
 class FieldInfo:
@@ -186,9 +188,10 @@ def build_selection_tree(
                 # Leaf field: use the alias from the AST
                 alias = fp.alias
             else:
-                # Intermediate field: use field name as alias
+                # Intermediate field: convert snake_case field name to camelCase for alias
+                # This ensures nested objects like "smtp_server" get alias "smtpServer"
                 # (Will be overridden if there's another FieldPath with this exact path)
-                alias = field_name
+                alias = to_camel_case(field_name)
 
             selections.append(
                 FieldSelection(
