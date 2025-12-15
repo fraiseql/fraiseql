@@ -219,7 +219,7 @@ jobs:
 
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         pattern: '{wheels-*,sdist}'
         merge-multiple: true
@@ -364,7 +364,7 @@ jobs:
 
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         pattern: '{wheels-*,sdist}'
         merge-multiple: true
@@ -410,7 +410,7 @@ jobs:
 
     steps:
     - name: Download signed artifacts
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: signed-artifacts
         path: dist
@@ -438,7 +438,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Download signed artifacts for release
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: signed-artifacts
         path: dist
