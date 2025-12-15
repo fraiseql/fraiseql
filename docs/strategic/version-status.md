@@ -1,7 +1,7 @@
 # FraiseQL Version Status & Roadmap
 
-**Last Updated**: October 23, 2025
-**Current Stable**: v1.6.1
+**Last Updated**: December 15, 2025
+**Current Stable**: v1.8.2
 
 ---
 
@@ -178,6 +178,4 @@ FraiseQL maintains backward compatibility within the unified Rust pipeline archi
 
 ---
 
-*This document reflects FraiseQL's unified Rust pipeline architecture. Last updated: October 23, 2025*</content>
-</xai:function_call name="read">
-<parameter name="filePath">README.md
+*This document reflects FraiseQL's unified Rust pipeline architecture. Last updated: December 15, 2025*

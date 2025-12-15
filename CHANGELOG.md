@@ -13,6 +13,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+#### GraphQL-Cascade Specification Compliance
+FraiseQL is now fully compliant with the [graphql-cascade specification v1](https://github.com/graphql-cascade/graphql-cascade).
+
+**CascadeMetadata** now includes all spec-required fields:
+- `depth: Int!` - Maximum relationship depth traversed during cascade
+- `transactionId: String` - PostgreSQL transaction ID for debugging/correlation
+
+```graphql
+type CascadeMetadata {
+  timestamp: String!
+  affectedCount: Int!
+  depth: Int!           # NEW
+  transactionId: String # NEW
+}
+```
+
+**CascadeInvalidation** includes the required `queryName` field:
+```graphql
+type CascadeInvalidation {
+  queryName: String!  # Required per spec
+  strategy: String!
+  scope: String!
+}
+```
+
+#### Regex Pattern Support for PostgresIntrospector (#149)
+`discover_views()` and `discover_functions()` now support PostgreSQL regex patterns via the `use_regex` parameter.
+
+```python
+# SQL LIKE patterns (default - unchanged)
+await introspector.discover_views("v_%")
+
+# Regex patterns (new)
+await introspector.discover_views(r"^v_(user|post)s?$", use_regex=True)
+await introspector.discover_functions(r"^fn_(create|update|delete)_", use_regex=True)
+```
+
+- `use_regex=False` (default): Uses SQL LIKE operator (backward compatible)
+- `use_regex=True`: Uses PostgreSQL `~` regex operator
+- Invalid regex patterns raise `ValueError` with descriptive message
+
+*Based on PR #155 by @purvanshjoshi*
+
 #### Auto-Wired Query Parameters
 Queries returning `list[FraiseType]` or `Connection[FraiseType]` now automatically receive common query parameters without manual declaration.
 
