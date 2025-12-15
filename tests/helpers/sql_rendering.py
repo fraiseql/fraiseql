@@ -134,8 +134,7 @@ def assert_sql_contains(sql_object: Any, *expected_substrings: str) -> None:
 
     for expected in expected_substrings:
         assert expected in sql_str, (
-            f"Expected substring '{expected}' not found in rendered SQL.\n"
-            f"Rendered SQL: {sql_str}"
+            f"Expected substring '{expected}' not found in rendered SQL.\nRendered SQL: {sql_str}"
         )
 
 

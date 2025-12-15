@@ -146,10 +146,18 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config) -> None:
 
         # The key assertion: input_dict contains dns_1_id and dns_2_id, not dns_1 and dns_2
         # This is the actual bug fix validation - _to_dict no longer strips _id suffix
-        assert "dns_1_id" in input_dict, f"BUG: dns_1_id missing from input_dict: {list(input_dict.keys())}"
-        assert "dns_2_id" in input_dict, f"BUG: dns_2_id missing from input_dict: {list(input_dict.keys())}"
-        assert "dns_1" not in input_dict, f"BUG: dns_1 found (should be dns_1_id): {list(input_dict.keys())}"
-        assert "dns_2" not in input_dict, f"BUG: dns_2 found (should be dns_2_id): {list(input_dict.keys())}"
+        assert "dns_1_id" in input_dict, (
+            f"BUG: dns_1_id missing from input_dict: {list(input_dict.keys())}"
+        )
+        assert "dns_2_id" in input_dict, (
+            f"BUG: dns_2_id missing from input_dict: {list(input_dict.keys())}"
+        )
+        assert "dns_1" not in input_dict, (
+            f"BUG: dns_1 found (should be dns_1_id): {list(input_dict.keys())}"
+        )
+        assert "dns_2" not in input_dict, (
+            f"BUG: dns_2 found (should be dns_2_id): {list(input_dict.keys())}"
+        )
 
         logger.info("✅ All assertions passed - bug is fixed!")
 

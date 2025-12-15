@@ -95,9 +95,7 @@ class TestAWSKMSIntegration:
         return AWSKMSProvider(config)
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_roundtrip(
-        self, aws_provider: AWSKMSProvider, kms_key_id: str
-    ):
+    async def test_encrypt_decrypt_roundtrip(self, aws_provider: AWSKMSProvider, kms_key_id: str):
         """Full encryption/decryption with mocked AWS KMS."""
         test_data = b"Hello, World! This is test data for AWS KMS integration."
 
@@ -112,9 +110,7 @@ class TestAWSKMSIntegration:
         assert decrypted == test_data
 
     @pytest.mark.asyncio
-    async def test_generate_data_key(
-        self, aws_provider: AWSKMSProvider, kms_key_id: str
-    ):
+    async def test_generate_data_key(self, aws_provider: AWSKMSProvider, kms_key_id: str):
         """Generate data key with AWS KMS."""
         # Generate data key
         data_key = await aws_provider.generate_data_key(key_id=kms_key_id)
@@ -124,17 +120,13 @@ class TestAWSKMSIntegration:
         assert len(data_key.plaintext_key) == 32  # AES-256 key
 
     @pytest.mark.asyncio
-    async def test_context_encryption(
-        self, aws_provider: AWSKMSProvider, kms_key_id: str
-    ):
+    async def test_context_encryption(self, aws_provider: AWSKMSProvider, kms_key_id: str):
         """Test encryption with additional authenticated data (context)."""
         test_data = b"Data with context"
         context = {"user_id": "12345", "action": "test"}
 
         # Encrypt with context
-        encrypted = await aws_provider.encrypt(
-            test_data, key_id=kms_key_id, context=context
-        )
+        encrypted = await aws_provider.encrypt(test_data, key_id=kms_key_id, context=context)
         assert encrypted is not None
 
         # Decrypt with same context should work

@@ -120,6 +120,105 @@ async def get_user_stats(info, user_id: UUID) -> UserStats:
 - Access user context via `info.context["user"]` (if authentication enabled)
 - Exclusive Rust pipeline automatically handles camelCase conversion and __typename injection
 
+## Auto-Wired Query Parameters
+
+FraiseQL automatically adds common query parameters based on return type annotations. This reduces boilerplate and ensures consistent API patterns.
+
+### List Queries (`list[T]`)
+
+Queries returning `list[FraiseType]` automatically get these parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `where` | `{TypeName}WhereInput` | Filter conditions |
+| `orderBy` | `[{TypeName}OrderByInput!]` | Sort criteria (multiple fields supported) |
+| `limit` | `Int` | Maximum results to return |
+| `offset` | `Int` | Number of results to skip |
+
+**Example**:
+```python
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", info=info)
+```
+
+GraphQL schema automatically includes:
+```graphql
+type Query {
+  users(
+    where: UserWhereInput
+    orderBy: [UserOrderByInput!]
+    limit: Int
+    offset: Int
+  ): [User!]!
+}
+```
+
+**Usage**:
+```graphql
+query {
+  users(
+    where: { age: { gte: 18 } }
+    orderBy: [{ createdAt: DESC }]
+    limit: 10
+    offset: 0
+  ) {
+    id
+    name
+  }
+}
+```
+
+### Connection Queries (`Connection[T]`)
+
+Queries returning `Connection[FraiseType]` automatically get Relay pagination parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `first` | `Int` | Number of items from the start |
+| `after` | `String` | Cursor for forward pagination |
+| `last` | `Int` | Number of items from the end |
+| `before` | `String` | Cursor for backward pagination |
+| `where` | `{TypeName}WhereInput` | Filter conditions |
+| `orderBy` | `[{TypeName}OrderByInput!]` | Sort criteria |
+
+**Example**:
+```python
+from fraiseql.types.generic import Connection
+
+@fraiseql.query
+async def users_connection(info) -> Connection[User]:
+    db = info.context["db"]
+    return await db.paginate("v_user", info=info)
+```
+
+### Manual Parameter Override
+
+If you declare a parameter manually, FraiseQL will use your declaration instead of auto-wiring:
+
+```python
+@fraiseql.query
+async def users(
+    info,
+    where: UserWhereInput | None = None,  # Your type takes precedence
+    limit: int = 50  # Custom default
+) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", info=info, where=where, limit=limit)
+```
+
+### Validation
+
+Auto-wired pagination parameters include built-in validation:
+- `limit`, `offset`, `first`, `last` must be non-negative (returns GraphQL error if negative)
+
+### Exclusions
+
+Some types are excluded from `orderBy` auto-wiring:
+- Types with vector/embedding fields (e.g., `list[float]` fields named `embedding`, `vector`, etc.)
+- These types use `VectorOrderBy` which requires special distance-based ordering
+
 ## @fraiseql.field Decorator
 
 **Purpose**: Mark methods as GraphQL fields with optional custom resolvers

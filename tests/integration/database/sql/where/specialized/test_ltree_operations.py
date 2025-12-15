@@ -22,7 +22,9 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql("ancestor_of", "departments.engineering.backend", path_sql, field_type=LTree)
+        sql = registry.build_sql(
+            "ancestor_of", "departments.engineering.backend", path_sql, field_type=LTree
+        )
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -34,7 +36,9 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql("descendant_of", "departments.engineering", path_sql, field_type=LTree)
+        sql = registry.build_sql(
+            "descendant_of", "departments.engineering", path_sql, field_type=LTree
+        )
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -60,7 +64,9 @@ class TestLTreeFilterOperations:
         path_sql = SQL("data->>'path'")
 
         # Test with text query
-        sql = registry.build_sql("matches_ltxtquery", "engineering & backend", path_sql, field_type=LTree)
+        sql = registry.build_sql(
+            "matches_ltxtquery", "engineering & backend", path_sql, field_type=LTree
+        )
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"
@@ -72,7 +78,9 @@ class TestLTreeFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'path'")
 
-        sql = registry.build_sql("eq", "departments.engineering.backend", path_sql, field_type=LTree)
+        sql = registry.build_sql(
+            "eq", "departments.engineering.backend", path_sql, field_type=LTree
+        )
 
         sql_str = str(sql)
         assert "::ltree" in sql_str, "Missing ltree cast"

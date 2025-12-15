@@ -56,9 +56,7 @@ class TestWhereInputToDict:
         UserWhereInput = create_graphql_where_input(User)
 
         user_id = uuid.uuid4()
-        where_input = UserWhereInput(
-            id=UUIDFilter(eq=user_id), name=StringFilter(contains="john")
-        )
+        where_input = UserWhereInput(id=UUIDFilter(eq=user_id), name=StringFilter(contains="john"))
 
         result = where_input._to_whereinput_dict()
 
@@ -368,12 +366,8 @@ class TestArrayFilterConversion:
         assert where._to_whereinput_dict() == {"tags": {"overlaps": ["python", "rust"]}}
 
         # Test contained_by
-        where = DocumentWhereInput(
-            tags=ArrayFilter(contained_by=["python", "rust", "go"])
-        )
-        assert where._to_whereinput_dict() == {
-            "tags": {"contained_by": ["python", "rust", "go"]}
-        }
+        where = DocumentWhereInput(tags=ArrayFilter(contained_by=["python", "rust", "go"]))
+        assert where._to_whereinput_dict() == {"tags": {"contained_by": ["python", "rust", "go"]}}
 
     def test_array_filter_length_operators(self):
         """Test array length operators."""
@@ -426,9 +420,7 @@ class TestEdgeCases:
         UserWhereInput = create_graphql_where_input(User)
 
         # Create filter with all None (should be ignored)
-        where = UserWhereInput(
-            name=StringFilter(eq=None, contains=None, startswith=None)
-        )
+        where = UserWhereInput(name=StringFilter(eq=None, contains=None, startswith=None))
 
         result = where._to_whereinput_dict()
 
@@ -439,9 +431,7 @@ class TestEdgeCases:
         """Test filter with some None and some valid operators."""
         UserWhereInput = create_graphql_where_input(User)
 
-        where = UserWhereInput(
-            name=StringFilter(eq="John", contains=None, startswith=None)
-        )
+        where = UserWhereInput(name=StringFilter(eq="John", contains=None, startswith=None))
 
         result = where._to_whereinput_dict()
 

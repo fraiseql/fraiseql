@@ -119,7 +119,9 @@ class TestLTreeBasicDirectFunctions:
         path_sql = SQL("data->>'path'")
         result = build_ltree_in_sql(path_sql, ["top.science", "top.technology"])
         sql_str = result.as_string(None)
-        assert sql_str == "(data->>'path')::ltree IN ('top.science'::ltree, 'top.technology'::ltree)"
+        assert (
+            sql_str == "(data->>'path')::ltree IN ('top.science'::ltree, 'top.technology'::ltree)"
+        )
 
     def test_ltree_notin_direct(self):
         """Test ltree NOT IN function directly."""
@@ -166,7 +168,9 @@ class TestLTreeHierarchicalOperators:
     def test_ltree_matches_ltxtquery(self) -> None:
         """Test ? operator (path matches ltxtquery text search)."""
         # "top.science.physics" ? "science & physics" = true
-        result = self.strategy.build_sql("matches_ltxtquery", "science & physics", self.path_sql, LTree)
+        result = self.strategy.build_sql(
+            "matches_ltxtquery", "science & physics", self.path_sql, LTree
+        )
         expected = "(data->>'path')::ltree ? 'science & physics'::ltxtquery"
         assert result.as_string(None) == expected
 
@@ -174,16 +178,18 @@ class TestLTreeHierarchicalOperators:
         """Test hierarchical operators with deeply nested paths."""
         # Test deeply nested ancestor relationship
         deep_ancestor = "top.academics.university.department.faculty.professor.research"
-        result_ancestor = self.strategy.build_sql("ancestor_of", deep_ancestor, self.path_sql, LTree)
+        result_ancestor = self.strategy.build_sql(
+            "ancestor_of", deep_ancestor, self.path_sql, LTree
+        )
         expected_ancestor = "(data->>'path')::ltree @> 'top.academics.university.department.faculty.professor.research'::ltree"
         assert result_ancestor.as_string(None) == expected_ancestor
 
         # Test complex lquery pattern
         complex_pattern = "top.academics.university.*.faculty.*"
-        result_lquery = self.strategy.build_sql("matches_lquery", complex_pattern, self.path_sql, LTree)
-        expected_lquery = (
-            "(data->>'path')::ltree ~ 'top.academics.university.*.faculty.*'::lquery"
+        result_lquery = self.strategy.build_sql(
+            "matches_lquery", complex_pattern, self.path_sql, LTree
         )
+        expected_lquery = "(data->>'path')::ltree ~ 'top.academics.university.*.faculty.*'::lquery"
         assert result_lquery.as_string(None) == expected_lquery
 
 
@@ -352,7 +358,9 @@ class TestLTreeArrayOperators:
         """Test @> operator with path array - array contains path."""
         paths_array = ["top.science", "top.technology", "top.arts"]
         target_path = "top.science"
-        result = self.strategy.build_sql("array_contains", (paths_array, self.path_sql, target_path), LTree)
+        result = self.strategy.build_sql(
+            "array_contains", (paths_array, self.path_sql, target_path), LTree
+        )
         expected = "ARRAY['top.science'::ltree, 'top.technology'::ltree, 'top.arts'::ltree] @> 'top.science'::ltree"
         assert result.as_string(None) == expected
 
@@ -471,14 +479,18 @@ class TestLTreePathAnalysisOperators:
     def test_ltree_index_gte_operator(self) -> None:
         """Test filtering by minimum position of sublabel."""
         sublabel, min_position = "physics", 2
-        result = self.strategy.build_sql("index_gte", (sublabel, self.path_sql, min_position), LTree)
+        result = self.strategy.build_sql(
+            "index_gte", (sublabel, self.path_sql, min_position), LTree
+        )
         expected = "index((data->>'path')::ltree, 'physics'::ltree) >= 2"
         assert result.as_string(None) == expected
 
     def test_filter_by_sublabel_presence(self) -> None:
         """Test filtering paths that contain a specific sublabel."""
         sublabel, min_position = "science", 0
-        result = self.strategy.build_sql("index_gte", (sublabel, self.path_sql, min_position), LTree)
+        result = self.strategy.build_sql(
+            "index_gte", (sublabel, self.path_sql, min_position), LTree
+        )
         expected = "index((data->>'path')::ltree, 'science'::ltree) >= 0"
         assert result.as_string(None) == expected
 

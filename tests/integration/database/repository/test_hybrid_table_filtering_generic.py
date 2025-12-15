@@ -254,7 +254,9 @@ class TestHybridTableFiltering:
             assert product["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_dynamic_filter_construction_by_status(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
+    async def test_dynamic_filter_construction_by_status(
+        self, class_db_pool, test_schema, setup_hybrid_table
+    ) -> None:
         """Test dynamic filter construction pattern used in resolvers.
 
         This simulates the exact pattern from the production bug report
@@ -303,7 +305,9 @@ class TestHybridTableFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_multiple_regular_column_filters(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
+    async def test_multiple_regular_column_filters(
+        self, class_db_pool, test_schema, setup_hybrid_table
+    ) -> None:
         """Test filtering by multiple regular SQL columns simultaneously."""
         setup_hybrid_table
 
@@ -341,7 +345,9 @@ class TestHybridTableFiltering:
         assert results[0]["isFeatured"] is True
 
     @pytest.mark.asyncio
-    async def test_mixed_regular_and_jsonb_filtering(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
+    async def test_mixed_regular_and_jsonb_filtering(
+        self, class_db_pool, test_schema, setup_hybrid_table
+    ) -> None:
         """Test filtering by both regular SQL columns and JSONB fields.
 
         This tests the hybrid nature where some filters should use regular columns
@@ -393,7 +399,9 @@ class TestHybridTableFiltering:
             assert product["brand"] == "TechCorp"
 
     @pytest.mark.asyncio
-    async def test_whereinput_type_on_hybrid_table(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
+    async def test_whereinput_type_on_hybrid_table(
+        self, class_db_pool, test_schema, setup_hybrid_table
+    ) -> None:
         """Test using WhereInput type (generated filter class) on hybrid table."""
         counts = setup_hybrid_table
 
@@ -430,7 +438,9 @@ class TestHybridTableFiltering:
         assert results[0]["status"] == "draft"
 
     @pytest.mark.asyncio
-    async def test_direct_sql_verification(self, class_db_pool, test_schema, setup_hybrid_table) -> None:
+    async def test_direct_sql_verification(
+        self, class_db_pool, test_schema, setup_hybrid_table
+    ) -> None:
         """Verify that the data and filters work correctly with direct SQL.
 
         This proves that the issue is with FraiseQL's filter generation,

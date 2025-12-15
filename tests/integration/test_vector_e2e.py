@@ -427,7 +427,11 @@ async def test_vector_dimension_mismatch_error(
     with pytest.raises(psycopg_errors.DataException, match="different vector dimensions"):
         await repo.find(
             "test_documents",
-            where={"embedding": {"cosine_distance": {"vector": wrong_dimension_embedding, "threshold": 0.5}}},
+            where={
+                "embedding": {
+                    "cosine_distance": {"vector": wrong_dimension_embedding, "threshold": 0.5}
+                }
+            },
         )
 
 

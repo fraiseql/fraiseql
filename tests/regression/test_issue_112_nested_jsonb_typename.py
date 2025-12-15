@@ -83,9 +83,7 @@ class TestIssue112NestedJSONBTypename:
     """
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_issue_112_database(
-        self, class_db_pool, test_schema
-    ) -> AsyncGenerator[None]:
+    async def setup_issue_112_database(self, class_db_pool, test_schema) -> AsyncGenerator[None]:
         """Set up database schema matching issue #112 reproduction case.
 
         This is a class-scoped fixture that creates tables/views once for all tests in the class.

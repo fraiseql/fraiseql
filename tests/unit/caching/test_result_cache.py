@@ -140,15 +140,11 @@ class TestResultCache:
         return CacheConfig()
 
     @pytest.fixture
-    def cache(
-        self, backend: MockCacheBackend, config: CacheConfig
-    ) -> ResultCache:
+    def cache(self, backend: MockCacheBackend, config: CacheConfig) -> ResultCache:
         """Create result cache."""
         return ResultCache(backend, config)
 
-    def test_init_stores_backend_and_config(
-        self, backend: MockCacheBackend
-    ) -> None:
+    def test_init_stores_backend_and_config(self, backend: MockCacheBackend) -> None:
         """ResultCache stores backend and config."""
         config = CacheConfig(default_ttl=600)
         cache = ResultCache(backend, config)
@@ -185,6 +181,7 @@ class TestResultCache:
         self, cache: ResultCache, backend: MockCacheBackend
     ) -> None:
         """get_or_set executes function on miss and caches result."""
+
         async def fetch_data() -> dict[str, str]:
             return {"data": "fresh"}
 
@@ -196,9 +193,7 @@ class TestResultCache:
         assert backend._cache["test_key"] == {"data": "fresh"}
 
     @pytest.mark.asyncio
-    async def test_get_or_set_disabled(
-        self, backend: MockCacheBackend
-    ) -> None:
+    async def test_get_or_set_disabled(self, backend: MockCacheBackend) -> None:
         """get_or_set bypasses cache when disabled."""
         config = CacheConfig(enabled=False)
         cache = ResultCache(backend, config)
@@ -216,9 +211,7 @@ class TestResultCache:
         assert backend.get_called == 0  # Cache not consulted
 
     @pytest.mark.asyncio
-    async def test_get_or_set_cache_error(
-        self, backend: MockCacheBackend
-    ) -> None:
+    async def test_get_or_set_cache_error(self, backend: MockCacheBackend) -> None:
         """get_or_set handles cache errors gracefully."""
         config = CacheConfig(cache_errors=False)
         cache = ResultCache(backend, config)
@@ -261,9 +254,7 @@ class TestResultCache:
         assert set_ttls[0] == 300  # Should be capped at max_ttl
 
     @pytest.mark.asyncio
-    async def test_invalidate_key(
-        self, cache: ResultCache, backend: MockCacheBackend
-    ) -> None:
+    async def test_invalidate_key(self, cache: ResultCache, backend: MockCacheBackend) -> None:
         """invalidate() removes specific key from cache."""
         backend._cache["test_key"] = {"data": "cached"}
 
@@ -273,9 +264,7 @@ class TestResultCache:
         assert backend.delete_called == 1
 
     @pytest.mark.asyncio
-    async def test_invalidate_pattern(
-        self, cache: ResultCache, backend: MockCacheBackend
-    ) -> None:
+    async def test_invalidate_pattern(self, cache: ResultCache, backend: MockCacheBackend) -> None:
         """invalidate_pattern() removes matching keys."""
         backend._cache["users:1"] = {"id": 1}
         backend._cache["users:2"] = {"id": 2}
@@ -312,9 +301,7 @@ class TestResultCache:
         assert cache.stats.errors == 0
 
     @pytest.mark.asyncio
-    async def test_warm_cache(
-        self, cache: ResultCache, backend: MockCacheBackend
-    ) -> None:
+    async def test_warm_cache(self, cache: ResultCache, backend: MockCacheBackend) -> None:
         """warm_cache() pre-populates cache with query results."""
         queries = [
             ("users", {"status": "active"}),
@@ -393,6 +380,7 @@ class TestCachedQueryDecorator:
         self, cache: ResultCache, backend: MockCacheBackend
     ) -> None:
         """cached_query uses custom key function if provided."""
+
         def custom_key(user_id: int, **kwargs: Any) -> str:
             return f"custom:user:{user_id}"
 
@@ -409,6 +397,7 @@ class TestCachedQueryDecorator:
         self, cache: ResultCache, backend: MockCacheBackend
     ) -> None:
         """cached_query auto-generates key from function name and args."""
+
         @cached_query(cache, ttl=300)
         async def fetch_data(param1: str, param2: int) -> dict[str, Any]:
             return {"param1": param1, "param2": param2}

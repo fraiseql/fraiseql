@@ -591,7 +591,9 @@ def test_cascade_data_structure():
         ],
         "metadata": {
             "timestamp": "2025-11-13T10:00:00Z",
-            "affectedCount": 1
+            "affectedCount": 1,
+            "depth": 1,
+            "transactionId": "123456789"
         }
     }
 

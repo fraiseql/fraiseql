@@ -92,7 +92,9 @@ class TestFullTextFilter:
         # Cleanup happens automatically when test schema is dropped
 
     @pytest.mark.asyncio
-    async def test_matches_operator_basic_search(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_matches_operator_basic_search(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test basic full-text search with matches operator."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -107,7 +109,9 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_plain_query_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_plain_query_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test plain text query parsing."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -122,7 +126,9 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "JavaScript Tutorial"
 
     @pytest.mark.asyncio
-    async def test_phrase_query_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_phrase_query_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test phrase search query."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -137,7 +143,9 @@ class TestFullTextFilter:
         assert documents[0]["title"] == "Python Guide"
 
     @pytest.mark.asyncio
-    async def test_websearch_query_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_websearch_query_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test websearch-style query parsing."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -156,7 +164,9 @@ class TestFullTextFilter:
         assert "Python Guide" in titles
 
     @pytest.mark.asyncio
-    async def test_rank_gt_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_rank_gt_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test relevance ranking greater than threshold."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -173,7 +183,9 @@ class TestFullTextFilter:
         assert any(doc["title"] == "Python Guide" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_lt_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_rank_lt_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test relevance ranking less than threshold."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -192,7 +204,9 @@ class TestFullTextFilter:
         assert ("JavaScript Tutorial" in titles) or ("Database Design" in titles)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_gt_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_rank_cd_gt_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test cover density ranking greater than threshold."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -208,7 +222,9 @@ class TestFullTextFilter:
         assert any(doc["title"] == "JavaScript Tutorial" for doc in documents)
 
     @pytest.mark.asyncio
-    async def test_rank_cd_lt_operator(self, class_db_pool, test_schema, setup_test_documents, test_types) -> None:
+    async def test_rank_cd_lt_operator(
+        self, class_db_pool, test_schema, setup_test_documents, test_types
+    ) -> None:
         DocumentWhere = test_types["DocumentWhere"]
         """Test cover density ranking less than threshold."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})

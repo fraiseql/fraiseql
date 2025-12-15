@@ -9,6 +9,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (Empty - ready for next development)
 
+## [1.8.2] - 2025-12-15
+
+### Features
+
+#### GraphQL-Cascade Specification Compliance
+FraiseQL is now fully compliant with the [graphql-cascade specification v1](https://github.com/graphql-cascade/graphql-cascade).
+
+**CascadeMetadata** now includes all spec-required fields:
+- `depth: Int!` - Maximum relationship depth traversed during cascade
+- `transactionId: String` - PostgreSQL transaction ID for debugging/correlation
+
+```graphql
+type CascadeMetadata {
+  timestamp: String!
+  affectedCount: Int!
+  depth: Int!           # NEW
+  transactionId: String # NEW
+}
+```
+
+**CascadeInvalidation** includes the required `queryName` field:
+```graphql
+type CascadeInvalidation {
+  queryName: String!  # Required per spec
+  strategy: String!
+  scope: String!
+}
+```
+
+#### Regex Pattern Support for PostgresIntrospector (#149)
+`discover_views()` and `discover_functions()` now support PostgreSQL regex patterns via the `use_regex` parameter.
+
+```python
+# SQL LIKE patterns (default - unchanged)
+await introspector.discover_views("v_%")
+
+# Regex patterns (new)
+await introspector.discover_views(r"^v_(user|post)s?$", use_regex=True)
+await introspector.discover_functions(r"^fn_(create|update|delete)_", use_regex=True)
+```
+
+- `use_regex=False` (default): Uses SQL LIKE operator (backward compatible)
+- `use_regex=True`: Uses PostgreSQL `~` regex operator
+- Invalid regex patterns raise `ValueError` with descriptive message
+
+*Based on PR #155 by @purvanshjoshi*
+
+#### Auto-Wired Query Parameters
+Queries returning `list[FraiseType]` or `Connection[FraiseType]` now automatically receive common query parameters without manual declaration.
+
+**List Queries (`list[T]`)** automatically get:
+- `where: {TypeName}WhereInput` - Filter conditions
+- `orderBy: [{TypeName}OrderByInput!]` - Sort criteria (multiple fields supported)
+- `limit: Int` - Maximum results to return
+- `offset: Int` - Number of results to skip
+
+**Connection Queries (`Connection[T]`)** automatically get Relay pagination:
+- `first: Int` - Number of items from the start
+- `after: String` - Cursor for forward pagination
+- `last: Int` - Number of items from the end
+- `before: String` - Cursor for backward pagination
+- Plus `where` and `orderBy` parameters
+
+**Example - Before (manual declaration)**:
+```python
+@fraiseql.query
+async def users(
+    info,
+    where: UserWhereInput | None = None,
+    order_by: list[UserOrderByInput] | None = None,
+    limit: int | None = None,
+    offset: int | None = None
+) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", info=info, where=where, order_by=order_by, limit=limit, offset=offset)
+```
+
+**Example - After (auto-wired)**:
+```python
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", info=info)
+# Parameters automatically added to GraphQL schema!
+```
+
+**GraphQL Usage**:
+```graphql
+query {
+  users(
+    where: { age: { gte: 18 } }
+    orderBy: [{ createdAt: DESC }]
+    limit: 10
+    offset: 0
+  ) {
+    id
+    name
+  }
+}
+```
+
+**Key behaviors**:
+- Manual parameter declarations take precedence over auto-wiring
+- Built-in validation rejects negative `limit`, `offset`, `first`, `last` values
+- Types with vector/embedding fields are excluded from `orderBy` generation (VectorOrderBy requires special distance-based ordering)
+
+### Documentation
+
+- Added "Auto-Wired Query Parameters" section to `docs/core/queries-and-mutations.md`
+- Documents list queries, Connection queries, manual overrides, validation, and exclusions
+
+### Internal
+
+- Added 31 new integration tests for auto-wired query parameters
+- New test files:
+  - `test_query_parameters_schema.py` - Schema generation tests
+  - `test_query_parameters_execution.py` - Runtime execution tests
+  - `test_query_parameters_relay.py` - Relay pagination tests
+- Created reusable GraphQL test fixtures in `tests/fixtures/graphql/`
+
 ## [1.8.1] - 2025-12-15
 
 ### Features

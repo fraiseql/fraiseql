@@ -108,7 +108,9 @@ class TestPermissionResolution:
         # (In real test, we'd check cache stats or mock the cache)
 
         # Test cache bypass
-        permissions_no_cache = await resolver.get_user_permissions(user_id, tenant_id, use_cache=False)
+        permissions_no_cache = await resolver.get_user_permissions(
+            user_id, tenant_id, use_cache=False
+        )
 
         # Should be the same result
         assert permissions == permissions_no_cache

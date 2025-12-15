@@ -257,7 +257,9 @@ Final layer:
   ],
   "metadata": {
     "timestamp": "2025-12-05T10:30:00Z",
-    "affectedCount": 2
+    "affectedCount": 2,
+    "depth": 1,
+    "transactionId": "123456789"
   }
 }
 ```

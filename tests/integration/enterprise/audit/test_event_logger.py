@@ -37,7 +37,9 @@ async def setup_audit_schema(class_db_pool, test_schema) -> None:
         # PostgreSQL handles hashing, signing, and chain linking
 
         # Disable the partition trigger for tests to avoid complexity
-        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+        await conn.execute(
+            "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
+        )
 
         # Check if test signing key exists
         cur = await conn.execute(

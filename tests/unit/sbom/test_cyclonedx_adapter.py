@@ -93,9 +93,7 @@ class TestCycloneDXAdapter:
             purl="pkg:pypi/package@1.0.0",
         )
         component = Component(identifier=identifier)
-        component.add_hash(
-            Hash(algorithm=HashAlgorithm.SHA256, value="abc123def456")
-        )
+        component.add_hash(Hash(algorithm=HashAlgorithm.SHA256, value="abc123def456"))
         component.add_license(License(id="MIT", name="MIT"))
         sbom.add_component(component)
 
@@ -168,7 +166,14 @@ class TestCycloneDXAdapter:
         data = json.loads(json_str)
 
         # Validate required top-level fields
-        required_fields = ["bomFormat", "specVersion", "serialNumber", "version", "metadata", "components"]
+        required_fields = [
+            "bomFormat",
+            "specVersion",
+            "serialNumber",
+            "version",
+            "metadata",
+            "components",
+        ]
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
 

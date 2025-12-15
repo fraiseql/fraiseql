@@ -56,9 +56,7 @@ class TestInMemoryRevocationStore:
         return InMemoryRevocationStore()
 
     @pytest.mark.asyncio
-    async def test_revoke_token_adds_to_store(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_revoke_token_adds_to_store(self, store: InMemoryRevocationStore) -> None:
         """revoke_token adds token to revocation store."""
         await store.revoke_token("token_123", "user_456")
 
@@ -100,9 +98,7 @@ class TestInMemoryRevocationStore:
         assert "expired_token" not in store._revoked_tokens
 
     @pytest.mark.asyncio
-    async def test_revoke_all_user_tokens(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_revoke_all_user_tokens(self, store: InMemoryRevocationStore) -> None:
         """revoke_all_user_tokens revokes all tokens for a user."""
         # Add some tokens for the user
         await store.revoke_token("token_1", "user_123")
@@ -117,9 +113,7 @@ class TestInMemoryRevocationStore:
         assert await store.is_revoked("token_3")
 
     @pytest.mark.asyncio
-    async def test_cleanup_expired_removes_old_tokens(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_cleanup_expired_removes_old_tokens(self, store: InMemoryRevocationStore) -> None:
         """cleanup_expired removes expired revocations."""
         # Add some expired tokens
         store._revoked_tokens["expired_1"] = time.time() - 100
@@ -148,9 +142,7 @@ class TestInMemoryRevocationStore:
         assert "user1" not in store._user_tokens
 
     @pytest.mark.asyncio
-    async def test_get_revoked_count(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_get_revoked_count(self, store: InMemoryRevocationStore) -> None:
         """get_revoked_count returns number of revoked tokens."""
         await store.revoke_token("token_1", "user_1")
         await store.revoke_token("token_2", "user_2")
@@ -184,9 +176,7 @@ class TestTokenRevocationService:
         """Create revocation service."""
         return TokenRevocationService(store, config)
 
-    def test_init_with_config(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    def test_init_with_config(self, store: InMemoryRevocationStore) -> None:
         """TokenRevocationService stores config."""
         config = RevocationConfig(enabled=True, ttl=7200)
         service = TokenRevocationService(store, config)
@@ -195,9 +185,7 @@ class TestTokenRevocationService:
         assert service.config is config
         assert service.config.ttl == 7200
 
-    def test_init_default_config(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    def test_init_default_config(self, store: InMemoryRevocationStore) -> None:
         """TokenRevocationService uses default config when not provided."""
         service = TokenRevocationService(store)
 
@@ -205,9 +193,7 @@ class TestTokenRevocationService:
         assert service.config.ttl == 86400
 
     @pytest.mark.asyncio
-    async def test_revoke_token_success(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_revoke_token_success(self, service: TokenRevocationService) -> None:
         """revoke_token revokes a token."""
         payload = {"jti": "token_123", "sub": "user_456"}
 
@@ -218,9 +204,7 @@ class TestTokenRevocationService:
         assert await service.store.is_revoked("token_123")
 
     @pytest.mark.asyncio
-    async def test_revoke_token_missing_jti_raises(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_revoke_token_missing_jti_raises(self, service: TokenRevocationService) -> None:
         """revoke_token raises ValueError when jti is missing."""
         payload: dict[str, Any] = {"sub": "user_456"}
 
@@ -228,9 +212,7 @@ class TestTokenRevocationService:
             await service.revoke_token(payload)
 
     @pytest.mark.asyncio
-    async def test_revoke_token_missing_sub_raises(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_revoke_token_missing_sub_raises(self, service: TokenRevocationService) -> None:
         """revoke_token raises ValueError when sub is missing."""
         payload: dict[str, Any] = {"jti": "token_123"}
 
@@ -238,9 +220,7 @@ class TestTokenRevocationService:
             await service.revoke_token(payload)
 
     @pytest.mark.asyncio
-    async def test_revoke_token_when_disabled(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_revoke_token_when_disabled(self, store: InMemoryRevocationStore) -> None:
         """revoke_token does nothing when disabled."""
         config = RevocationConfig(enabled=False)
         service = TokenRevocationService(store, config)
@@ -251,9 +231,7 @@ class TestTokenRevocationService:
         assert not await store.is_revoked("token_123")
 
     @pytest.mark.asyncio
-    async def test_is_token_revoked_true(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_is_token_revoked_true(self, service: TokenRevocationService) -> None:
         """is_token_revoked returns True for revoked tokens."""
         await service.store.revoke_token("token_123", "user_456")
         payload = {"jti": "token_123"}
@@ -263,9 +241,7 @@ class TestTokenRevocationService:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_is_token_revoked_false(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_is_token_revoked_false(self, service: TokenRevocationService) -> None:
         """is_token_revoked returns False for valid tokens."""
         payload = {"jti": "token_not_revoked"}
 
@@ -274,9 +250,7 @@ class TestTokenRevocationService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_is_token_revoked_no_jti(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_is_token_revoked_no_jti(self, service: TokenRevocationService) -> None:
         """is_token_revoked returns False when no jti claim."""
         payload: dict[str, Any] = {"sub": "user_456"}
 
@@ -285,9 +259,7 @@ class TestTokenRevocationService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_is_token_revoked_when_disabled(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_is_token_revoked_when_disabled(self, store: InMemoryRevocationStore) -> None:
         """is_token_revoked returns False when disabled."""
         config = RevocationConfig(enabled=False)
         service = TokenRevocationService(store, config)
@@ -313,9 +285,7 @@ class TestTokenRevocationService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_revoke_all_user_tokens(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_revoke_all_user_tokens(self, service: TokenRevocationService) -> None:
         """revoke_all_user_tokens revokes all user tokens."""
         await service.store.revoke_token("token_1", "user_123")
         await service.store.revoke_token("token_2", "user_123")
@@ -340,9 +310,7 @@ class TestTokenRevocationService:
         # Should not raise, just do nothing
 
     @pytest.mark.asyncio
-    async def test_get_stats(
-        self, service: TokenRevocationService
-    ) -> None:
+    async def test_get_stats(self, service: TokenRevocationService) -> None:
         """get_stats returns revocation statistics."""
         await service.store.revoke_token("token_1", "user_1")
         await service.store.revoke_token("token_2", "user_2")
@@ -354,9 +322,7 @@ class TestTokenRevocationService:
         assert stats["revoked_tokens"] == 2
 
     @pytest.mark.asyncio
-    async def test_start_creates_cleanup_task(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_start_creates_cleanup_task(self, store: InMemoryRevocationStore) -> None:
         """start() creates background cleanup task."""
         config = RevocationConfig(enabled=True, cleanup_interval=1)
         service = TokenRevocationService(store, config)
@@ -369,9 +335,7 @@ class TestTokenRevocationService:
         await service.stop()
 
     @pytest.mark.asyncio
-    async def test_start_does_nothing_when_disabled(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_start_does_nothing_when_disabled(self, store: InMemoryRevocationStore) -> None:
         """start() does nothing when disabled."""
         config = RevocationConfig(enabled=False)
         service = TokenRevocationService(store, config)
@@ -381,9 +345,7 @@ class TestTokenRevocationService:
         assert service._cleanup_task is None
 
     @pytest.mark.asyncio
-    async def test_stop_cancels_cleanup_task(
-        self, store: InMemoryRevocationStore
-    ) -> None:
+    async def test_stop_cancels_cleanup_task(self, store: InMemoryRevocationStore) -> None:
         """stop() cancels the cleanup task."""
         config = RevocationConfig(enabled=True, cleanup_interval=1)
         service = TokenRevocationService(store, config)
@@ -436,9 +398,7 @@ class TestTokenRevocationMixin:
         assert await store.is_revoked("token_123")
 
     @pytest.mark.asyncio
-    async def test_logout_does_nothing_without_service(
-        self, mixin_class: type
-    ) -> None:
+    async def test_logout_does_nothing_without_service(self, mixin_class: type) -> None:
         """logout() does nothing when no service configured."""
         provider = mixin_class()
         provider.revocation_service = None

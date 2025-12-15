@@ -88,9 +88,7 @@ class TestCommandMethods:
         input_data = {"name": "Test", "email": "test@example.com"}
         await repository.create("user", input_data)
 
-        mock_executor.execute_function.assert_called_once_with(
-            "fn_create_user", input_data
-        )
+        mock_executor.execute_function.assert_called_once_with("fn_create_user", input_data)
 
     @pytest.mark.asyncio
     async def test_create_returns_result(
@@ -110,9 +108,7 @@ class TestCommandMethods:
         input_data = {"id": "123", "name": "Updated"}
         await repository.update("user", input_data)
 
-        mock_executor.execute_function.assert_called_once_with(
-            "fn_update_user", input_data
-        )
+        mock_executor.execute_function.assert_called_once_with("fn_update_user", input_data)
 
     @pytest.mark.asyncio
     async def test_delete_calls_execute_function(
@@ -133,9 +129,7 @@ class TestCommandMethods:
         """call_function delegates to executor."""
         await repository.call_function("custom_function", {"arg": "value"})
 
-        mock_executor.execute_function.assert_called_once_with(
-            "custom_function", {"arg": "value"}
-        )
+        mock_executor.execute_function.assert_called_once_with("custom_function", {"arg": "value"})
 
     @pytest.mark.asyncio
     async def test_execute_function_is_alias_for_call_function(
@@ -242,9 +236,7 @@ class TestQueryMethods:
         mock_cursor.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_query_raw(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_query_raw(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """query_raw executes raw SQL."""
         mock_cursor.fetchall.return_value = [({"id": "1"},)]
 
@@ -266,9 +258,7 @@ class TestGenericMethods:
         """select_from_json_view delegates to query."""
         mock_cursor.fetchall.return_value = [({"id": "1"},)]
 
-        result = await repository.select_from_json_view(
-            "v_users", where={"status": "active"}
-        )
+        result = await repository.select_from_json_view("v_users", where={"status": "active"})
 
         assert len(result) == 1
 
@@ -315,9 +305,7 @@ class TestGenericMethods:
         """query_interface applies filters."""
         mock_cursor.fetchall.return_value = []
 
-        await repository.query_interface(
-            "v_node", filters={"created_at": {"$gt": "2024-01-01"}}
-        )
+        await repository.query_interface("v_node", filters={"created_at": {"$gt": "2024-01-01"}})
 
         mock_cursor.execute.assert_called_once()
 
@@ -361,9 +349,7 @@ class TestBatchOperations:
     """Tests for batch operations."""
 
     @pytest.mark.asyncio
-    async def test_batch_create(
-        self, repository: CQRSRepository, mock_executor: AsyncMock
-    ) -> None:
+    async def test_batch_create(self, repository: CQRSRepository, mock_executor: AsyncMock) -> None:
         """batch_create creates multiple entities."""
         inputs = [{"name": "A"}, {"name": "B"}, {"name": "C"}]
         mock_executor.execute_function.return_value = {"success": True}
@@ -374,9 +360,7 @@ class TestBatchOperations:
         assert mock_executor.execute_function.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_batch_update(
-        self, repository: CQRSRepository, mock_executor: AsyncMock
-    ) -> None:
+    async def test_batch_update(self, repository: CQRSRepository, mock_executor: AsyncMock) -> None:
         """batch_update updates multiple entities."""
         updates = [{"id": "1", "name": "A"}, {"id": "2", "name": "B"}]
         mock_executor.execute_function.return_value = {"success": True}
@@ -387,9 +371,7 @@ class TestBatchOperations:
         assert mock_executor.execute_function.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_batch_delete(
-        self, repository: CQRSRepository, mock_executor: AsyncMock
-    ) -> None:
+    async def test_batch_delete(self, repository: CQRSRepository, mock_executor: AsyncMock) -> None:
         """batch_delete deletes multiple entities."""
         entity_ids = [uuid4(), uuid4()]
         mock_executor.execute_function.return_value = {"success": True}
@@ -406,9 +388,7 @@ class TestUtilityMethods:
     """Tests for utility methods."""
 
     @pytest.mark.asyncio
-    async def test_count(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_count(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """Count returns entity count."""
         mock_cursor.fetchone.return_value = (42,)
 
@@ -449,9 +429,7 @@ class TestUtilityMethods:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_exists_true(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_exists_true(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """Exists returns True when entity found."""
         entity_id = uuid4()
         mock_cursor.fetchone.return_value = ({"id": str(entity_id)},)
@@ -464,9 +442,7 @@ class TestUtilityMethods:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_exists_false(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_exists_false(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """Exists returns False when entity not found."""
         mock_cursor.fetchone.return_value = None
 
@@ -478,9 +454,7 @@ class TestUtilityMethods:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_find_by_id(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_find_by_id(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """find_by_id uses entity class to determine view."""
         entity_id = uuid4()
         mock_cursor.fetchone.return_value = ({"id": str(entity_id)},)
@@ -493,9 +467,7 @@ class TestUtilityMethods:
         assert result == {"id": str(entity_id)}
 
     @pytest.mark.asyncio
-    async def test_list_entities(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_list_entities(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """list_entities returns list of entities."""
         mock_cursor.fetchall.return_value = [({"id": "1"},), ({"id": "2"},)]
 
@@ -516,9 +488,7 @@ class TestUtilityMethods:
         class User:
             pass
 
-        await repository.list_entities(
-            User, order_by=[("created_at", "DESC"), ("name", "ASC")]
-        )
+        await repository.list_entities(User, order_by=[("created_at", "DESC"), ("name", "ASC")])
 
         mock_cursor.execute.assert_called_once()
 
@@ -544,9 +514,7 @@ class TestUtilityMethods:
         assert repository._get_function_name("update", "post") == "fn_update_post"
         assert repository._get_function_name("delete", "comment") == "fn_delete_comment"
 
-    def test_convert_order_by_to_tuples_from_tuples(
-        self, repository: CQRSRepository
-    ) -> None:
+    def test_convert_order_by_to_tuples_from_tuples(self, repository: CQRSRepository) -> None:
         """_convert_order_by_to_tuples returns tuples as-is."""
         order_by = [("name", "ASC"), ("created_at", "DESC")]
         result = repository._convert_order_by_to_tuples(order_by)
@@ -557,9 +525,7 @@ class TestUtilityMethods:
         """_convert_order_by_to_tuples returns None for None input."""
         assert repository._convert_order_by_to_tuples(None) is None
 
-    def test_convert_order_by_to_tuples_from_order_by_set(
-        self, repository: CQRSRepository
-    ) -> None:
+    def test_convert_order_by_to_tuples_from_order_by_set(self, repository: CQRSRepository) -> None:
         """_convert_order_by_to_tuples converts OrderBySet."""
 
         class OrderByInstruction:
@@ -641,9 +607,7 @@ class TestFindByView:
     """Tests for find_by_view method."""
 
     @pytest.mark.asyncio
-    async def test_find_by_view(
-        self, repository: CQRSRepository, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_find_by_view(self, repository: CQRSRepository, mock_cursor: AsyncMock) -> None:
         """find_by_view queries by view name."""
         mock_cursor.fetchall.return_value = [({"id": "1"},)]
 

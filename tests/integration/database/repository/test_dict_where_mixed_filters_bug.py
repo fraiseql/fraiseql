@@ -68,7 +68,9 @@ class TestDictWhereMixedFiltersBug:
     """Test suite to reproduce and fix the dict WHERE mixed filters bug."""
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_test_tables(self, class_db_pool, test_schema) -> AsyncGenerator[dict[str, UUID]]:
+    async def setup_test_tables(
+        self, class_db_pool, test_schema
+    ) -> AsyncGenerator[dict[str, UUID]]:
         """Create test tables for machines and router configs."""
         # Register types for views
         register_type_for_view("test_machine_view", Machine)

@@ -104,6 +104,16 @@ try:
 except ImportError:
     pass  # Skip security fixtures if dependencies not available
 
+try:
+    from tests.fixtures.graphql.conftest_graphql import (  # noqa: F401
+        gql_context,
+        gql_mock_pool,
+        seed_graphql_data,
+        setup_graphql_table,
+    )
+except ImportError:
+    pass  # Skip GraphQL fixtures if dependencies not available
+
 
 @pytest.fixture(scope="session")
 def clear_type_caches() -> Generator[None]:

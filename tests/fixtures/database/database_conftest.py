@@ -191,9 +191,7 @@ async def pgvector_available(postgres_container, postgres_url: str) -> bool:
     # (Should succeed immediately if health check works)
     for attempt in range(5):
         try:
-            async with await psycopg.AsyncConnection.connect(
-                db_url, connect_timeout=3
-            ) as conn:
+            async with await psycopg.AsyncConnection.connect(db_url, connect_timeout=3) as conn:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
                 await conn.commit()
                 return True

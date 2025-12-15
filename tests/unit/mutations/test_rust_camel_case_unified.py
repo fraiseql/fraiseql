@@ -12,11 +12,13 @@ def test_rust_build_mutation_response_with_camel_case_true():
     import fraiseql._fraiseql_rs as fraiseql_rs
 
     # Simple mutation result with snake_case fields
-    mutation_json = json.dumps({
-        "id": "123",
-        "ip_address": "192.168.1.1",
-        "dns_server_name": "test-dns",
-    })
+    mutation_json = json.dumps(
+        {
+            "id": "123",
+            "ip_address": "192.168.1.1",
+            "dns_server_name": "test-dns",
+        }
+    )
 
     result_bytes = fraiseql_rs.build_mutation_response(
         mutation_json,
@@ -56,11 +58,13 @@ def test_rust_build_mutation_response_with_camel_case_false():
     import fraiseql._fraiseql_rs as fraiseql_rs
 
     # Simple mutation result with snake_case fields
-    mutation_json = json.dumps({
-        "id": "123",
-        "ip_address": "192.168.1.1",
-        "dns_server_name": "test-dns",
-    })
+    mutation_json = json.dumps(
+        {
+            "id": "123",
+            "ip_address": "192.168.1.1",
+            "dns_server_name": "test-dns",
+        }
+    )
 
     result_bytes = fraiseql_rs.build_mutation_response(
         mutation_json,
@@ -99,10 +103,12 @@ def test_rust_mutation_default_auto_camel_case_is_true():
     """Verify that auto_camel_case defaults to True for backward compatibility."""
     import fraiseql._fraiseql_rs as fraiseql_rs
 
-    mutation_json = json.dumps({
-        "id": "123",
-        "ip_address": "192.168.1.1",
-    })
+    mutation_json = json.dumps(
+        {
+            "id": "123",
+            "ip_address": "192.168.1.1",
+        }
+    )
 
     # Call without auto_camel_case parameter (should default to True)
     result_bytes = fraiseql_rs.build_mutation_response(

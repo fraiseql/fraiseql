@@ -119,10 +119,23 @@ class CascadeInvalidation:
 
 @fraiseql_type
 class CascadeMetadata:
-    """Metadata about the cascade operation."""
+    """Metadata about a GraphQL Cascade operation.
+
+    Compliant with graphql-cascade specification v1:
+    https://github.com/graphql-cascade/graphql-cascade
+
+    Attributes:
+        timestamp: Server timestamp when mutation executed (ISO 8601 format).
+        affected_count: Total number of entities affected by the cascade.
+        depth: Maximum relationship depth traversed during cascade.
+        transaction_id: PostgreSQL transaction ID for debugging and correlation.
+            Use txid_current()::text in your PostgreSQL function.
+    """
 
     timestamp: str
     affected_count: int
+    depth: int  # Required per spec
+    transaction_id: str | None = None  # Optional per spec
 
 
 @fraiseql_type

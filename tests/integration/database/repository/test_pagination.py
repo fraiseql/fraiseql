@@ -175,7 +175,9 @@ class TestCursorPaginator:
             # No commit needed - within test transaction
 
     @pytest.mark.asyncio
-    async def test_paginate_forward_basic(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
+    async def test_paginate_forward_basic(
+        self, class_db_pool, test_schema, setup_pagination_tables
+    ) -> None:
         """Test basic forward pagination."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -208,7 +210,9 @@ class TestCursorPaginator:
             assert result["total_count"] == 5
 
     @pytest.mark.asyncio
-    async def test_paginate_with_after_cursor(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
+    async def test_paginate_with_after_cursor(
+        self, class_db_pool, test_schema, setup_pagination_tables
+    ) -> None:
         """Test pagination with after cursor."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -216,7 +220,9 @@ class TestCursorPaginator:
             await self.setup_test_data(conn)
 
             paginator = CursorPaginator(conn)
-            params = PaginationParams(first=2, after=encode_cursor("2024-01-02"), order_by="createdAt")
+            params = PaginationParams(
+                first=2, after=encode_cursor("2024-01-02"), order_by="createdAt"
+            )
             result = await paginator.paginate("v_items", params, include_total=False)
 
             # Should return items 3 and 4
@@ -226,7 +232,9 @@ class TestCursorPaginator:
             assert result["page_info"]["has_next_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_backward(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
+    async def test_paginate_backward(
+        self, class_db_pool, test_schema, setup_pagination_tables
+    ) -> None:
         """Test backward pagination."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -234,7 +242,9 @@ class TestCursorPaginator:
             await self.setup_test_data(conn)
 
             paginator = CursorPaginator(conn)
-            params = PaginationParams(last=2, before=encode_cursor("2024-01-04"), order_by="createdAt")
+            params = PaginationParams(
+                last=2, before=encode_cursor("2024-01-04"), order_by="createdAt"
+            )
             result = await paginator.paginate("v_items", params, include_total=False)
 
             # Should return items 2 and 3 (in forward order after reversal)
@@ -244,7 +254,9 @@ class TestCursorPaginator:
             assert result["page_info"]["has_previous_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_with_filters(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
+    async def test_paginate_with_filters(
+        self, class_db_pool, test_schema, setup_pagination_tables
+    ) -> None:
         """Test pagination with filters."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -297,7 +309,9 @@ class TestRepositoryIntegration:
     """Test pagination integration with CQRSRepository."""
 
     @pytest.mark.asyncio
-    async def test_repository_paginate_method(self, class_db_pool, test_schema, setup_pagination_tables) -> None:
+    async def test_repository_paginate_method(
+        self, class_db_pool, test_schema, setup_pagination_tables
+    ) -> None:
         """Test the paginate method on CQRSRepository."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
