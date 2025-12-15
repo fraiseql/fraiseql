@@ -173,7 +173,7 @@ jobs:
         args: --out dist
 
     - name: Upload sdist
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -207,7 +207,7 @@ jobs:
         args: --release --out dist --find-interpreter
 
     - name: Upload wheels
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: wheels-${{ matrix.os }}
         path: dist/*.whl
@@ -394,7 +394,7 @@ jobs:
         cat dist/*.sha256
 
     - name: Upload signed artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: signed-artifacts
         path: dist/
