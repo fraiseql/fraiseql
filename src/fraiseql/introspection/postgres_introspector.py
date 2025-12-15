@@ -4,6 +4,7 @@ This module provides the core introspection engine that discovers database views
 functions, and their metadata from PostgreSQL catalog tables.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -80,28 +81,66 @@ class PostgresIntrospector:
         self.pool = connection_pool
 
     async def discover_views(
-        self, pattern: str = "v_%", schemas: list[str] | None = None
+        self,
+        pattern: str = "v_%",
+        use_regex: bool = False,
+        schemas: list[str] | None = None,
     ) -> list[ViewMetadata]:
-        """Discover database views matching the given pattern."""
+        r"""Discover database views matching the given pattern.
+
+        Args:
+            pattern: Pattern to match view names against.
+                - If use_regex=False (default): SQL LIKE pattern (%, _)
+                - If use_regex=True: PostgreSQL regex pattern
+            use_regex: If True, use PostgreSQL ~ operator for regex matching.
+                If False (default), use LIKE operator.
+            schemas: List of schemas to search. Defaults to ['public'].
+
+        Returns:
+            List of ViewMetadata objects for matching views.
+
+        Raises:
+            ValueError: If use_regex=True and pattern is not a valid regex.
+
+        Examples:
+            # SQL LIKE patterns (default)
+            await introspector.discover_views("v_%")  # Views starting with v_
+            await introspector.discover_views("%user%")  # Views containing 'user'
+
+            # Regex patterns
+            await introspector.discover_views(r"^v_(user|post)s?$", use_regex=True)
+            await introspector.discover_views(r"v_\d+_.*", use_regex=True)
+        """
         if schemas is None:
             schemas = ["public"]
-        """Discover views matching pattern.
 
-        Implementation:
-        1. Query pg_views for view definitions
-        2. Query pg_class for comments
-        3. Query pg_attribute for column info
-        4. Combine into ViewMetadata objects
-        """
+        # Validate regex pattern if use_regex=True
+        if use_regex:
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
+
         async with self.pool.connection() as conn:
-            # Get views
-            views_query = """
-                SELECT schemaname, viewname, definition
-                FROM pg_views
-                WHERE schemaname = ANY(%s)
-                  AND viewname LIKE %s
-                ORDER BY schemaname, viewname
-            """
+            # Build query with appropriate operator
+            if use_regex:
+                # PostgreSQL ~ operator for regex
+                views_query = """
+                    SELECT schemaname, viewname, definition
+                    FROM pg_views
+                    WHERE schemaname = ANY(%s)
+                      AND viewname ~ %s
+                    ORDER BY schemaname, viewname
+                """
+            else:
+                # SQL LIKE operator (default behavior)
+                views_query = """
+                    SELECT schemaname, viewname, definition
+                    FROM pg_views
+                    WHERE schemaname = ANY(%s)
+                      AND viewname LIKE %s
+                    ORDER BY schemaname, viewname
+                """
             cursor = await conn.execute(views_query, (schemas, pattern))
             view_rows = await cursor.fetchall()
 
@@ -160,27 +199,81 @@ class PostgresIntrospector:
             return views
 
     async def discover_functions(
-        self, pattern: str = "fn_%", schemas: list[str] | None = None
+        self,
+        pattern: str = "fn_%",
+        use_regex: bool = False,
+        schemas: list[str] | None = None,
     ) -> list[FunctionMetadata]:
-        """Discover database functions matching the given pattern."""
+        """Discover database functions matching the given pattern.
+
+        Args:
+            pattern: Pattern to match function names against.
+                - If use_regex=False (default): SQL LIKE pattern (%, _)
+                - If use_regex=True: PostgreSQL regex pattern
+            use_regex: If True, use PostgreSQL ~ operator for regex matching.
+                If False (default), use LIKE operator.
+            schemas: List of schemas to search. Defaults to ['public'].
+
+        Returns:
+            List of FunctionMetadata objects for matching functions.
+
+        Raises:
+            ValueError: If use_regex=True and pattern is not a valid regex.
+
+        Examples:
+            # SQL LIKE patterns (default)
+            await introspector.discover_functions("fn_%")
+            await introspector.discover_functions("fn_create%")
+
+            # Regex patterns
+            await introspector.discover_functions(r"^fn_(create|update|delete)_", use_regex=True)
+        """
         if schemas is None:
             schemas = ["public"]
+
+        # Validate regex pattern if use_regex=True
+        if use_regex:
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
+
         async with self.pool.connection() as conn:
-            query = """
-            SELECT
-                n.nspname as schema_name,
-                p.proname as function_name,
-                pg_get_function_arguments(p.oid) as arguments,
-                pg_get_function_result(p.oid) as return_type,
-                obj_description(p.oid, 'pg_proc') as comment,
-                l.lanname as language
-            FROM pg_proc p
-            JOIN pg_namespace n ON n.oid = p.pronamespace
-            JOIN pg_language l ON l.oid = p.prolang
-            WHERE n.nspname = ANY(%s)
-              AND p.proname LIKE %s
-            ORDER BY n.nspname, p.proname
-            """
+            # Build query with appropriate operator
+            if use_regex:
+                # PostgreSQL ~ operator for regex
+                query = """
+                SELECT
+                    n.nspname as schema_name,
+                    p.proname as function_name,
+                    pg_get_function_arguments(p.oid) as arguments,
+                    pg_get_function_result(p.oid) as return_type,
+                    obj_description(p.oid, 'pg_proc') as comment,
+                    l.lanname as language
+                FROM pg_proc p
+                JOIN pg_namespace n ON n.oid = p.pronamespace
+                JOIN pg_language l ON l.oid = p.prolang
+                WHERE n.nspname = ANY(%s)
+                  AND p.proname ~ %s
+                ORDER BY n.nspname, p.proname
+                """
+            else:
+                # SQL LIKE operator (default behavior)
+                query = """
+                SELECT
+                    n.nspname as schema_name,
+                    p.proname as function_name,
+                    pg_get_function_arguments(p.oid) as arguments,
+                    pg_get_function_result(p.oid) as return_type,
+                    obj_description(p.oid, 'pg_proc') as comment,
+                    l.lanname as language
+                FROM pg_proc p
+                JOIN pg_namespace n ON n.oid = p.pronamespace
+                JOIN pg_language l ON l.oid = p.prolang
+                WHERE n.nspname = ANY(%s)
+                  AND p.proname LIKE %s
+                ORDER BY n.nspname, p.proname
+                """
             cursor = await conn.execute(query, (schemas, pattern))
             rows = await cursor.fetchall()
 
