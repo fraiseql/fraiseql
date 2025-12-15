@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (Empty - ready for next development)
 
-## [1.8.1] - 2025-12-13
+## [1.8.1] - 2025-12-15
 
 ### Features
 
@@ -70,6 +70,25 @@ where = {"machine": {"network": {"ipAddress": {"eq": "192.168.1.1"}}}}
 #### Connection Decorator Type Annotations
 - Fixed @connection decorator to preserve original function type annotations
 - Resolves type checker warnings and improves IDE autocomplete
+
+#### JSONB Nested Field CamelCase Conversion
+- Fixed nested JSONB object fields not converting to camelCase in GraphQL responses
+- Fields like `smtp_server`, `dns_1`, `print_servers` now correctly appear as `smtpServer`, `dns1`, `printServers`
+- Applies to all nested object patterns: single objects, numbered fields, and arrays
+
+### Rust Module Improvements
+
+#### Clippy Warnings Resolved
+- Removed deprecated `build_error_response` function (replaced by `build_error_response_with_code`)
+- Removed unused `transform_error` function
+- Fixed collapsible if-let patterns and format string optimizations
+- Added appropriate `#[allow]` annotations for intentional patterns
+- All code now passes `cargo clippy -- -D warnings`
+
+#### Test Suite Fixes
+- Fixed 41 pre-existing test compilation errors in mutation module
+- Updated all `build_mutation_response` and `build_graphql_response` calls to use correct 10-argument signature
+- Removed duplicate imports and fixed formatting inconsistencies
 
 ## [1.8.0] - 2025-12-10
 
