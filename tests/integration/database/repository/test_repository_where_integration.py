@@ -35,6 +35,7 @@ class TestRepositoryWhereIntegration:
         Where types. Using a fixture ensures the types are created fresh
         for each test and the clear_registry fixture handles cleanup.
         """
+
         @fraiseql.type
         class Product:
             id: UUID
@@ -65,7 +66,9 @@ class TestRepositoryWhereIntegration:
         }
 
     @pytest_asyncio.fixture(scope="class")
-    async def setup_test_views(self, class_db_pool, test_schema, test_types) -> AsyncGenerator[None]:
+    async def setup_test_views(
+        self, class_db_pool, test_schema, test_types
+    ) -> AsyncGenerator[None]:
         """Create test views with proper structure."""
         Product = test_types["Product"]
         Order = test_types["Order"]

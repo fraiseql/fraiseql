@@ -256,9 +256,7 @@ class TestBuildMutationPattern:
 
         assert pattern == "myapp:users:*"
 
-    def test_build_mutation_pattern_different_tables(
-        self, builder: CacheKeyBuilder
-    ) -> None:
+    def test_build_mutation_pattern_different_tables(self, builder: CacheKeyBuilder) -> None:
         """build_mutation_pattern works for different tables."""
         assert builder.build_mutation_pattern("orders") == "myapp:orders:*"
         assert builder.build_mutation_pattern("products") == "myapp:products:*"

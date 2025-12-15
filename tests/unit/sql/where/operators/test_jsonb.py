@@ -186,7 +186,7 @@ class TestJSONBEdgeCases:
         result = build_contains_sql(field_sql, {"enabled": True, "verified": False})
         sql_str = result.as_string(None)
         assert "@>" in sql_str
-        assert ("true" in sql_str.lower() or "True" in sql_str)
+        assert "true" in sql_str.lower() or "True" in sql_str
 
     def test_contains_empty_dict(self):
         """Test contains with empty dictionary."""
@@ -207,7 +207,9 @@ class TestJSONBEdgeCases:
     def test_jsonpath_complex_expression(self):
         """Test JSONPath with complex expression."""
         field_sql = SQL("data")
-        result = build_path_match_sql(field_sql, "$.items[*] ? (@.price < 100 && @.available == true)")
+        result = build_path_match_sql(
+            field_sql, "$.items[*] ? (@.price < 100 && @.available == true)"
+        )
         sql_str = result.as_string(None)
         assert "@@" in sql_str
         assert "items" in sql_str

@@ -4,7 +4,6 @@ These tests validate the complete SQL output to ensure it generates syntacticall
 correct PostgreSQL queries that can actually be executed.
 """
 
-
 import pytest
 from psycopg.sql import SQL
 from tests.helpers.sql_rendering import render_sql_for_testing

@@ -85,13 +85,13 @@ class TestUnifiedCamelCase:
 
             await conn.commit()
 
-
     async def test_mutation_with_auto_camel_case_true(
         self, db_connection, setup_test_schema, clear_registry
     ):
         """Verify mutation returns camelCase field names when auto_camel_case=True."""
         # Create a mock config with auto_camel_case=True
         from types import SimpleNamespace
+
         config = SimpleNamespace(auto_camel_case=True)
 
         # Execute mutation directly via rust_executor
@@ -145,6 +145,7 @@ class TestUnifiedCamelCase:
         """Verify mutation preserves snake_case when auto_camel_case=False."""
         # Create a mock config with auto_camel_case=False
         from types import SimpleNamespace
+
         config = SimpleNamespace(auto_camel_case=False)
 
         # Execute mutation directly via rust_executor
@@ -173,8 +174,12 @@ class TestUnifiedCamelCase:
         mutation_result = data["data"]["createTestServer"]
 
         # CRITICAL: Verify entity_field_name was NOT converted (stays snake_case)
-        assert "test_server" in mutation_result, "Entity field should remain snake_case when auto_camel_case=False"
-        assert "testServer" not in mutation_result, "Entity field should NOT be camelCase when auto_camel_case=False"
+        assert "test_server" in mutation_result, (
+            "Entity field should remain snake_case when auto_camel_case=False"
+        )
+        assert "testServer" not in mutation_result, (
+            "Entity field should NOT be camelCase when auto_camel_case=False"
+        )
 
         # Verify entity fields remain snake_case
         test_server = mutation_result["test_server"]

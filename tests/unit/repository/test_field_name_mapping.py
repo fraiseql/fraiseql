@@ -47,9 +47,7 @@ class TestFieldNameMapping:
         }
 
         clause = self.repo._normalize_where(
-            where_clause,
-            "test_view",
-            {"ip_address", "mac_address", "device_name", "data"}
+            where_clause, "test_view", {"ip_address", "mac_address", "device_name", "data"}
         )
         result, params = clause.to_sql()
 
@@ -166,17 +164,9 @@ class TestFieldNameMapping:
 
     def test_nested_camel_case_fields(self) -> None:
         """Test nested object fields with camelCase names."""
-        where_clause = {
-            "machineInfo": {
-                "ipAddress": {"eq": "192.168.1.1"}
-            }
-        }
+        where_clause = {"machineInfo": {"ipAddress": {"eq": "192.168.1.1"}}}
 
-        clause = self.repo._normalize_where(
-            where_clause,
-            "test_view",
-            {"machine_info", "data"}
-        )
+        clause = self.repo._normalize_where(where_clause, "test_view", {"machine_info", "data"})
         result, params = clause.to_sql()
 
         assert result is not None

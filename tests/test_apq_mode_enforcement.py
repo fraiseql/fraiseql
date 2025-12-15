@@ -207,9 +207,7 @@ class TestAPQModeRouterIntegration:
             auth_enabled=False,
         )
 
-        return create_fraiseql_app(
-            config=config, queries=[hello_query], lifespan=noop_lifespan
-        )
+        return create_fraiseql_app(config=config, queries=[hello_query], lifespan=noop_lifespan)
 
     @pytest.fixture
     def app_disabled_mode(self, noop_lifespan, hello_query, clear_registry):
@@ -223,9 +221,7 @@ class TestAPQModeRouterIntegration:
             auth_enabled=False,
         )
 
-        return create_fraiseql_app(
-            config=config, queries=[hello_query], lifespan=noop_lifespan
-        )
+        return create_fraiseql_app(config=config, queries=[hello_query], lifespan=noop_lifespan)
 
     @pytest.fixture
     def app_optional_mode(self, noop_lifespan, hello_query, clear_registry):
@@ -239,9 +235,7 @@ class TestAPQModeRouterIntegration:
             auth_enabled=False,
         )
 
-        return create_fraiseql_app(
-            config=config, queries=[hello_query], lifespan=noop_lifespan
-        )
+        return create_fraiseql_app(config=config, queries=[hello_query], lifespan=noop_lifespan)
 
     def test_required_mode_rejects_arbitrary_query(self, app_required_mode) -> None:
         """Test that required mode rejects arbitrary queries."""

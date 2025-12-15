@@ -1,6 +1,5 @@
 """Integration tests for @connection decorator with database execution."""
 
-
 import pytest
 from graphql import graphql
 

@@ -538,7 +538,9 @@ class TestRecursiveJSONField:
         assert "field" in result.fields
         # Required field (no default) should be non-null
         assert isinstance(result.fields["field"].type, GraphQLNonNull)
-        assert isinstance(result.fields["field"].type.of_type, GraphQLScalarType)  # JSON scalar type
+        assert isinstance(
+            result.fields["field"].type.of_type, GraphQLScalarType
+        )  # JSON scalar type
 
 
 class TestMissingFieldsInComplexTypes:

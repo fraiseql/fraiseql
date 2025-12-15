@@ -3,7 +3,6 @@
 Tests the core domain logic following Domain-Driven Design principles.
 """
 
-
 import pytest
 
 from fraiseql.sbom.domain.models import (
@@ -165,9 +164,7 @@ class TestComponent:
 
     def test_component_add_license(self) -> None:
         """Test adding a license to a component."""
-        identifier = ComponentIdentifier(
-            name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0"
-        )
+        identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
         license = License(id="MIT", name="MIT License")
@@ -178,9 +175,7 @@ class TestComponent:
 
     def test_component_add_duplicate_license(self) -> None:
         """Test that adding duplicate license raises error."""
-        identifier = ComponentIdentifier(
-            name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0"
-        )
+        identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
         license = License(id="MIT", name="MIT License")
@@ -191,9 +186,7 @@ class TestComponent:
 
     def test_component_add_hash(self) -> None:
         """Test adding a hash to a component."""
-        identifier = ComponentIdentifier(
-            name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0"
-        )
+        identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
         hash = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")
@@ -204,9 +197,7 @@ class TestComponent:
 
     def test_component_add_duplicate_hash_algorithm(self) -> None:
         """Test that adding hash with same algorithm raises error."""
-        identifier = ComponentIdentifier(
-            name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0"
-        )
+        identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
         hash1 = Hash(algorithm=HashAlgorithm.SHA256, value="abc123")
@@ -218,9 +209,7 @@ class TestComponent:
 
     def test_component_license_checks(self) -> None:
         """Test component license type checking."""
-        identifier = ComponentIdentifier(
-            name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0"
-        )
+        identifier = ComponentIdentifier(name="test", version="1.0.0", purl="pkg:pypi/test@1.0.0")
         component = Component(identifier=identifier)
 
         mit = License(id="MIT", name="MIT License")

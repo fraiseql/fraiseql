@@ -7,7 +7,6 @@ It auto-discovers all operators and tests each one in real GraphQL queries.
 """
 
 import json
-import re
 
 import pytest
 from graphql import graphql
@@ -116,25 +115,24 @@ def format_graphql_value(value):
     if isinstance(value, str):
         # Use json.dumps to get double-quoted strings
         return json.dumps(value)
-    elif isinstance(value, bool):
+    if isinstance(value, bool):
         # GraphQL uses lowercase true/false
         return "true" if value else "false"
-    elif isinstance(value, (int, float)):
+    if isinstance(value, (int, float)):
         # Numbers don't need quotes
         return str(value)
-    elif isinstance(value, list):
+    if isinstance(value, list):
         # Arrays: [item1, item2, ...]
         items = ", ".join(format_graphql_value(item) for item in value)
         return f"[{items}]"
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         # Objects: {key: value, ...}
         pairs = ", ".join(f"{k}: {format_graphql_value(v)}" for k, v in value.items())
         return f"{{{pairs}}}"
-    elif value is None:
+    if value is None:
         return "null"
-    else:
-        # Fallback: convert to string (may not always work)
-        return str(value)
+    # Fallback: convert to string (may not always work)
+    return str(value)
 
 
 def get_all_operators():
@@ -317,7 +315,6 @@ async def test_operator_in_graphql_query_validation(operator, operator_test_sche
 @pytest.mark.parametrize("operator", get_all_operators())
 async def test_operator_in_where_clause_with_database(operator, meta_test_pool):
     """Every operator should work in WHERE clauses with real database operations."""
-
     # Convert operator name to camelCase for GraphQL
     graphql_operator = snake_to_camel(operator)
 

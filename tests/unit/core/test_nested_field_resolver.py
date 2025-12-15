@@ -483,9 +483,7 @@ class TestCreateSmartNestedFieldResolver:
         parent = MockParentObject(department={"id": "123", "name": "Engineering"})
         info = MockGraphQLInfo()
 
-        resolver = create_smart_nested_field_resolver(
-            "department", MockFraiseQLTypeWithFromDict
-        )
+        resolver = create_smart_nested_field_resolver("department", MockFraiseQLTypeWithFromDict)
         result = await resolver(parent, info)
 
         assert isinstance(result, MockFraiseQLTypeWithFromDict)
@@ -538,9 +536,7 @@ class TestCreateSmartNestedFieldResolver:
 
         # Mock db in context
         mock_db = AsyncMock()
-        mock_db.find_one = AsyncMock(
-            return_value={"id": "dept-123", "name": "Engineering"}
-        )
+        mock_db.find_one = AsyncMock(return_value={"id": "dept-123", "name": "Engineering"})
         info = MockGraphQLInfo(context={"db": mock_db, "tenant_id": "tenant-1"})
 
         resolver = create_smart_nested_field_resolver("department", TypeWithTable)
@@ -562,9 +558,7 @@ class TestCreateNestedArrayFieldResolverWithWhere:
         parent = MockParentObject()  # No items field
         info = MockGraphQLInfo()
 
-        resolver = create_nested_array_field_resolver_with_where(
-            "items", list[MockParentObject]
-        )
+        resolver = create_nested_array_field_resolver_with_where("items", list[MockParentObject])
         result = await resolver(parent, info, where=None)
 
         assert result == []
@@ -576,9 +570,7 @@ class TestCreateNestedArrayFieldResolverWithWhere:
         parent = MockParentObject(items=items)
         info = MockGraphQLInfo()
 
-        resolver = create_nested_array_field_resolver_with_where(
-            "items", list[MockParentObject]
-        )
+        resolver = create_nested_array_field_resolver_with_where("items", list[MockParentObject])
         result = await resolver(parent, info, where=None)
 
         assert result == items
@@ -595,9 +587,7 @@ class TestCreateNestedArrayFieldResolverWithWhere:
 
         where = MockParentObject(name={"eq": "test"})
 
-        resolver = create_nested_array_field_resolver_with_where(
-            "items", list[MockParentObject]
-        )
+        resolver = create_nested_array_field_resolver_with_where("items", list[MockParentObject])
         result = await resolver(parent, info, where=where)
 
         assert len(result) == 1

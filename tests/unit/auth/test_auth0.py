@@ -122,9 +122,7 @@ class TestValidateToken:
     """Tests for Auth0Provider.validate_token method."""
 
     @pytest.mark.asyncio
-    async def test_validate_token_success(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_validate_token_success(self, auth0_provider: Auth0Provider) -> None:
         """validate_token returns decoded payload for valid token."""
         expected_payload = {
             "sub": "auth0|123",
@@ -294,9 +292,7 @@ class TestGetUserProfile:
     """Tests for Auth0Provider.get_user_profile method."""
 
     @pytest.mark.asyncio
-    async def test_get_user_profile_success(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_get_user_profile_success(self, auth0_provider: Auth0Provider) -> None:
         """get_user_profile returns profile data from Management API."""
         profile_data = {
             "user_id": "auth0|123",
@@ -359,9 +355,7 @@ class TestGetUserRoles:
     """Tests for Auth0Provider.get_user_roles method."""
 
     @pytest.mark.asyncio
-    async def test_get_user_roles_success(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_get_user_roles_success(self, auth0_provider: Auth0Provider) -> None:
         """get_user_roles returns roles from Management API."""
         roles_data: list[dict[str, Any]] = [
             {"id": "rol_123", "name": "admin"},
@@ -408,9 +402,7 @@ class TestGetUserPermissions:
     """Tests for Auth0Provider.get_user_permissions method."""
 
     @pytest.mark.asyncio
-    async def test_get_user_permissions_success(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_get_user_permissions_success(self, auth0_provider: Auth0Provider) -> None:
         """get_user_permissions returns permissions from Management API."""
         permissions_data: list[dict[str, Any]] = [
             {"permission_name": "read:users", "resource_server_identifier": "api"},
@@ -457,9 +449,7 @@ class TestClose:
     """Tests for Auth0Provider.close method."""
 
     @pytest.mark.asyncio
-    async def test_close_closes_http_client(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_close_closes_http_client(self, auth0_provider: Auth0Provider) -> None:
         """close() closes the HTTP client."""
         mock_client = AsyncMock()
         auth0_provider._http_client = mock_client
@@ -470,9 +460,7 @@ class TestClose:
         assert auth0_provider._http_client is None
 
     @pytest.mark.asyncio
-    async def test_close_does_nothing_when_no_client(
-        self, auth0_provider: Auth0Provider
-    ) -> None:
+    async def test_close_does_nothing_when_no_client(self, auth0_provider: Auth0Provider) -> None:
         """close() is safe to call when no client exists."""
         auth0_provider._http_client = None
 

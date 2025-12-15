@@ -52,9 +52,7 @@ class MockQueryAnalyzer:
         self._complexity_score = complexity_score
         self._max_depth = max_depth
 
-    def analyze_for_passthrough(
-        self, query: str, variables: dict[str, Any]
-    ) -> MagicMock:
+    def analyze_for_passthrough(self, query: str, variables: dict[str, Any]) -> MagicMock:
         result = MagicMock()
         result.eligible = self._eligible
         result.complexity_score = self._complexity_score
@@ -251,9 +249,7 @@ class TestSelectModeWithPriority:
 
     def test_select_mode_priority_passthrough_first(self) -> None:
         """Passthrough mode is selected when first and eligible."""
-        config = MockConfig(
-            execution_mode_priority=["passthrough", "turbo", "normal"]
-        )
+        config = MockConfig(execution_mode_priority=["passthrough", "turbo", "normal"])
         selector = ModeSelector(config)
 
         # Set up query analyzer that returns eligible

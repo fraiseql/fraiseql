@@ -31,29 +31,22 @@ async def test_success_with_multiple_entities():
 
     # Mock connection - mutation_response with wrapper containing multiple entities
     mock_cursor = AsyncMock()
-    mock_cursor.fetchone.return_value = ({
-        "status": "updated",
-        "message": "Machine location updated",
-        "entity_id": "123",
-        "entity_type": "Machine",
-        "entity": {
-            "machine": {
-                "id": "123",
-                "name": "Printer-01"
+    mock_cursor.fetchone.return_value = (
+        {
+            "status": "updated",
+            "message": "Machine location updated",
+            "entity_id": "123",
+            "entity_type": "Machine",
+            "entity": {
+                "machine": {"id": "123", "name": "Printer-01"},
+                "previous_location": {"id": "old-loc-456", "name": "Warehouse A"},
+                "new_location": {"id": "new-loc-789", "name": "Warehouse B"},
             },
-            "previous_location": {
-                "id": "old-loc-456",
-                "name": "Warehouse A"
-            },
-            "new_location": {
-                "id": "new-loc-789",
-                "name": "Warehouse B"
-            }
+            "updated_fields": ["location"],
+            "cascade": None,
+            "metadata": None,
         },
-        "updated_fields": ["location"],
-        "cascade": None,
-        "metadata": None
-    },)
+    )
 
     # Mock async context manager for cursor
     mock_cursor_ctx = AsyncMock()
@@ -104,14 +97,18 @@ async def test_success_with_multiple_entities():
         assert success["previousLocation"]["name"] == "Warehouse A"
         print("✅ previousLocation copied from wrapper")
     else:
-        pytest.fail("❌ previousLocation NOT copied from wrapper - multiple entities pattern not supported")
+        pytest.fail(
+            "❌ previousLocation NOT copied from wrapper - multiple entities pattern not supported"
+        )
 
     if "newLocation" in success:
         assert success["newLocation"]["id"] == "new-loc-789"
         assert success["newLocation"]["name"] == "Warehouse B"
         print("✅ newLocation copied from wrapper")
     else:
-        pytest.fail("❌ newLocation NOT copied from wrapper - multiple entities pattern not supported")
+        pytest.fail(
+            "❌ newLocation NOT copied from wrapper - multiple entities pattern not supported"
+        )
 
 
 @pytest.mark.asyncio
@@ -130,22 +127,24 @@ async def test_error_with_conflict_entity():
 
     # Mock connection - mutation_response with conflict entity
     mock_cursor = AsyncMock()
-    mock_cursor.fetchone.return_value = ({
-        "status": "conflict:duplicate",  # Use conflict: prefix for 409 code
-        "message": "Machine with this serial number already exists",
-        "entity_id": None,
-        "entity_type": "Machine",
-        "entity": {
-            "conflict_machine": {
-                "id": "existing-123",
-                "name": "Existing Printer",
-                "serial_number": "ABC123"
-            }
+    mock_cursor.fetchone.return_value = (
+        {
+            "status": "conflict:duplicate",  # Use conflict: prefix for 409 code
+            "message": "Machine with this serial number already exists",
+            "entity_id": None,
+            "entity_type": "Machine",
+            "entity": {
+                "conflict_machine": {
+                    "id": "existing-123",
+                    "name": "Existing Printer",
+                    "serial_number": "ABC123",
+                }
+            },
+            "updated_fields": None,
+            "cascade": None,
+            "metadata": None,
         },
-        "updated_fields": None,
-        "cascade": None,
-        "metadata": None
-    },)
+    )
 
     # Mock async context manager for cursor
     mock_cursor_ctx = AsyncMock()

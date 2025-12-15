@@ -250,7 +250,9 @@ class TestHybridTableNestedObjectFiltering:
         )
 
     @pytest.mark.asyncio
-    async def test_direct_sql_comparison(self, class_db_pool, test_schema, setup_hybrid_allocation_table) -> None:
+    async def test_direct_sql_comparison(
+        self, class_db_pool, test_schema, setup_hybrid_allocation_table
+    ) -> None:
         """Verify that direct SQL works correctly, proving the issue is in FraiseQL."""
         test_data = setup_hybrid_allocation_table
 
@@ -310,7 +312,9 @@ class TestHybridTableNestedObjectFiltering:
         assert len(results) == test_data["machine2_allocations"]
 
     @pytest.mark.asyncio
-    async def test_dict_based_nested_filter(self, class_db_pool, test_schema, setup_hybrid_allocation_table) -> None:
+    async def test_dict_based_nested_filter(
+        self, class_db_pool, test_schema, setup_hybrid_allocation_table
+    ) -> None:
         """Test using dictionary-based nested filters (common in GraphQL resolvers)."""
         test_data = setup_hybrid_allocation_table
 

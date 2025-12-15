@@ -6,9 +6,10 @@ complete GraphQL pipeline: schema registration → query validation → executio
 It auto-discovers all scalar types and tests each one comprehensively.
 """
 
+from typing import Any
+
 import pytest
 from psycopg import sql
-from typing import Any
 
 # Import schema_builder to ensure SchemaRegistry is patched with build_schema method
 import fraiseql.gql.schema_builder  # noqa: F401
@@ -205,7 +206,6 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
     from graphql import graphql
 
     from fraiseql import fraise_type, query
-    from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
     # Create test table
     table_name = f"test_{scalar_name.lower()}_table"

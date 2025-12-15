@@ -106,10 +106,7 @@ class TestRepositoryFindWhereAPI:
         # Test IP address with eq operator
         strategy = registry.get_strategy("eq", field_type=None)
         sql = strategy.build_sql(
-            operator="eq",
-            value="192.168.1.1",
-            path_sql=field_path,
-            field_type=None
+            operator="eq", value="192.168.1.1", path_sql=field_path, field_type=None
         )
         sql_str = render_sql_for_testing(sql)
 

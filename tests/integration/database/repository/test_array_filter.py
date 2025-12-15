@@ -141,7 +141,9 @@ class TestArrayFilter:
         assert all(r["name"] != "Widget A" for r in results)
 
     @pytest.mark.asyncio
-    async def test_array_contains_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_contains_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array contains operator (@> in PostgreSQL)."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -158,7 +160,9 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Gadget Z"}
 
     @pytest.mark.asyncio
-    async def test_array_contained_by_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_contained_by_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array contained_by operator (<@ in PostgreSQL)."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -175,7 +179,9 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Gadget Z"}
 
     @pytest.mark.asyncio
-    async def test_array_overlaps_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_overlaps_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array overlaps operator (&& in PostgreSQL)."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -192,7 +198,9 @@ class TestArrayFilter:
         assert product_names == {"Widget B", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_eq_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_eq_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length equality operator."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -209,7 +217,9 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Book X", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_gt_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_gt_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length greater than operator."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -225,7 +235,9 @@ class TestArrayFilter:
         assert results[0]["name"] == "Gadget Z"
 
     @pytest.mark.asyncio
-    async def test_array_length_lt_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_lt_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length less than operator."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})
@@ -242,7 +254,9 @@ class TestArrayFilter:
         assert product_names == {"Widget A", "Widget B", "Book X", "Tool Y"}
 
     @pytest.mark.asyncio
-    async def test_array_length_gte_operator(self, class_db_pool, setup_test_views, test_types) -> None:
+    async def test_array_length_gte_operator(
+        self, class_db_pool, setup_test_views, test_types
+    ) -> None:
         ProductWhere = test_types["ProductWhere"]
         """Test array length greater than or equal operator."""
         repo = FraiseQLRepository(class_db_pool, context={"mode": "development"})

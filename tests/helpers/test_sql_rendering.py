@@ -4,7 +4,6 @@ Tests the render_sql_for_testing() function and related utilities
 that convert psycopg.sql objects to human-readable SQL strings.
 """
 
-
 import pytest
 from psycopg.sql import SQL, Identifier, Literal, Placeholder
 
@@ -88,7 +87,15 @@ class TestRenderSQLForTesting:
         and_op = SQL(" AND ")
 
         composed = (
-            age_field + age_cast + age_op + age_val + and_op + active_field + active_cast + active_op + active_val
+            age_field
+            + age_cast
+            + age_op
+            + age_val
+            + and_op
+            + active_field
+            + active_cast
+            + active_op
+            + active_val
         )
 
         result = render_sql_for_testing(composed)

@@ -68,9 +68,7 @@ class TestBuildFindQueryUsesUnifiedWhere:
         AllocationWhereInput = create_graphql_where_input(Allocation)
 
         machine_id = uuid.UUID("01513100-0000-0000-0000-000000000066")
-        where = AllocationWhereInput(
-            machine=MachineWhereInput(id=UUIDFilter(eq=machine_id))
-        )
+        where = AllocationWhereInput(machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)))
 
         # Patch _build_where_clause to verify it's called
         with patch.object(repo, "_build_where_clause", wraps=repo._build_where_clause) as mock_bwc:
@@ -92,9 +90,7 @@ class TestBuildFindQueryUsesUnifiedWhere:
         AllocationWhereInput = create_graphql_where_input(Allocation)
 
         machine_id = uuid.UUID("01513100-0000-0000-0000-000000000066")
-        where = AllocationWhereInput(
-            machine=MachineWhereInput(id=UUIDFilter(eq=machine_id))
-        )
+        where = AllocationWhereInput(machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)))
 
         # Build query - should not raise any errors
         query = repo._build_find_query("tv_allocation", where=where, jsonb_column="data")
@@ -183,9 +179,7 @@ class TestBuildFindQueryCodePathUnification:
             AllocationWhereInput = create_graphql_where_input(Allocation)
 
             machine_id = uuid.UUID("01513100-0000-0000-0000-000000000066")
-            where = AllocationWhereInput(
-                machine=MachineWhereInput(id=UUIDFilter(eq=machine_id))
-            )
+            where = AllocationWhereInput(machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)))
 
             # Get WHERE parts directly from _build_where_clause
             where_parts_direct = repo._build_where_clause("tv_test", where=where)
@@ -196,9 +190,7 @@ class TestBuildFindQueryCodePathUnification:
 
             # Verify _build_find_query uses _build_where_clause (indirectly)
             # by checking that the query builds successfully with same where input
-            where2 = AllocationWhereInput(
-                machine=MachineWhereInput(id=UUIDFilter(eq=machine_id))
-            )
+            where2 = AllocationWhereInput(machine=MachineWhereInput(id=UUIDFilter(eq=machine_id)))
             query = repo._build_find_query("tv_test", where=where2, jsonb_column="data")
             assert query.statement is not None, "Query should be built successfully"
 

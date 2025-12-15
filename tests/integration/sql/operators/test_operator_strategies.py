@@ -138,7 +138,9 @@ class TestTier1NetworkTypes:
 
         # Should use CIDR range checks for private IPs (no inet_public() in PostgreSQL)
         assert "10.0.0.0/8" in sql_str, f"isPrivate should check RFC 1918 ranges, got: {sql_str}"
-        assert "192.168.0.0/16" in sql_str, f"isPrivate should check RFC 1918 ranges, got: {sql_str}"
+        assert "192.168.0.0/16" in sql_str, (
+            f"isPrivate should check RFC 1918 ranges, got: {sql_str}"
+        )
 
     def test_network_ispublic_operator_jsonb_flat(self) -> None:
         """RED: Test Network isPublic operator with JSONB flat storage.
@@ -303,7 +305,9 @@ class TestTier1DateRangeTypes:
         from psycopg.sql import SQL
 
         path_sql = SQL("(data ->> 'period')")
-        result = strategy.build_sql("overlaps", "[2024-06-01,2024-06-30)", path_sql, field_type=DateRange)
+        result = strategy.build_sql(
+            "overlaps", "[2024-06-01,2024-06-30)", path_sql, field_type=DateRange
+        )
 
         sql_str = render_sql_for_testing(result)
 

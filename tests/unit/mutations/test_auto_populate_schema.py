@@ -59,7 +59,6 @@ def test_no_entity_field_no_id():
     class DeleteSuccess:
         """Deletion confirmation without entity."""
 
-
     gql_fields = getattr(DeleteSuccess, "__gql_fields__", {})
 
     # Standard fields should be present

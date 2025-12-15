@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.1) - Stable Release**
+**📍 You are here: Main FraiseQL Framework (v1.8.2) - Stable Release**
 
-**Current Version**: v1.8.1 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.2 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -48,6 +48,7 @@ app = create_fraiseql_app(
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
+- 🎯 **Auto-wired query params** - `where`, `orderBy`, `limit`, `offset` added automatically to list queries
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 - 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 

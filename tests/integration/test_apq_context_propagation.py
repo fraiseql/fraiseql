@@ -124,11 +124,15 @@ class TestContextExtraction:
         def mock_apq_processing(*args, **kwargs) -> None:
             call_order.append("apq_processing")
 
-        with patch(
-            "fraiseql.fastapi.dependencies.build_graphql_context", side_effect=mock_build_context
-        ), patch(
-            "fraiseql.middleware.apq_caching.handle_apq_request_with_cache",
-            side_effect=mock_apq_processing,
+        with (
+            patch(
+                "fraiseql.fastapi.dependencies.build_graphql_context",
+                side_effect=mock_build_context,
+            ),
+            patch(
+                "fraiseql.middleware.apq_caching.handle_apq_request_with_cache",
+                side_effect=mock_apq_processing,
+            ),
         ):
             # Simulate the call sequence
             mock_build_context()

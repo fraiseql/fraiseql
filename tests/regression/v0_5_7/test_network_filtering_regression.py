@@ -155,6 +155,7 @@ class TestJSONBNetworkFilteringBug:
         subnet_sql = registry.build_sql("inSubnet", "21.43.0.0/16", field_path, IpAddress)
 
         from tests.helpers.sql_rendering import render_sql_for_testing
+
         subnet_str = render_sql_for_testing(subnet_sql)
 
         # Validate SQL generation includes proper INET casting
@@ -416,8 +417,12 @@ class TestFraiseQLNetworkOperatorStrategy:
 
         # Should handle IpAddress types
         assert strategy.supports_operator("eq", IpAddress), "Should handle eq for IpAddress"
-        assert strategy.supports_operator("inSubnet", IpAddress), "Should handle inSubnet for IpAddress"
-        assert strategy.supports_operator("isPrivate", IpAddress), "Should handle isPrivate for IpAddress"
+        assert strategy.supports_operator("inSubnet", IpAddress), (
+            "Should handle inSubnet for IpAddress"
+        )
+        assert strategy.supports_operator("isPrivate", IpAddress), (
+            "Should handle isPrivate for IpAddress"
+        )
 
         # Should not handle non-IP types
         assert not strategy.supports_operator("eq", str), "Should not handle eq for str"

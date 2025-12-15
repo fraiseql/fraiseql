@@ -129,11 +129,11 @@ def test_failure_decorator_field_order() -> None:
         "metadata",
         "updated_fields",
         "errors",
-        "id",     # Auto-injected field (v1.8.1)
+        "id",  # Auto-injected field (v1.8.1)
         "error_code",
         "details",
         "reasons",
-        "code",   # Auto-injected field (v1.8.1)
+        "code",  # Auto-injected field (v1.8.1)
     ]
 
 

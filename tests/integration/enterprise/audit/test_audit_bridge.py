@@ -38,7 +38,9 @@ async def setup_bridge_schema(class_db_pool, test_schema) -> None:
             await conn.execute(migration_sql)
 
         # Disable partition trigger for tests
-        await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger")
+        await conn.execute(
+            "ALTER TABLE audit_events DISABLE TRIGGER create_audit_partition_trigger"
+        )
 
         # Ensure test signing key exists
         cur = await conn.execute(

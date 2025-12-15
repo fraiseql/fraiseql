@@ -1719,8 +1719,10 @@ class FraiseQLRepository:
                         # OrderBySet.to_sql() already includes "ORDER BY " prefix
                         query_parts.append(SQL(" "))
                         query_parts.append(order_sql)
-            elif isinstance(order_by, dict):
-                # Convert dict-style order by input to SQL OrderBySet
+            elif isinstance(order_by, (dict, list)):
+                # Convert dict or list-style order by input to SQL OrderBySet
+                # List format: [{"age": "ASC"}, {"name": "DESC"}] - from GraphQL
+                # Dict format: {"age": "ASC"} - single field
                 from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
 
                 sql_order_by_obj = _convert_order_by_input_to_sql(order_by)

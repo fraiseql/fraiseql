@@ -11,9 +11,12 @@ from graphql import (
     GraphQLArgument,
     GraphQLError,
     GraphQLField,
+    GraphQLInt,
+    GraphQLList,
     GraphQLObjectType,
     GraphQLOutputType,
     GraphQLResolveInfo,
+    GraphQLString,
 )
 
 from fraiseql.config.schema_config import SchemaConfig
@@ -63,7 +66,12 @@ class QueryTypeBuilder:
     def _add_where_parameter_if_needed(
         self, gql_args: dict[str, GraphQLArgument], return_type: Any
     ) -> None:
-        """Add where parameter to GraphQL args if query returns list of Fraise types."""
+        """Add where parameter to GraphQL args if query returns list of Fraise types.
+
+        If a 'where' parameter already exists (e.g., declared as `where: Any`),
+        this method updates it to use the properly-typed WhereInput type.
+        This ensures the WhereInput type is always referenced in the schema.
+        """
         should_add, element_type = self._should_add_where_parameter(return_type)
         if should_add and element_type:
             # Generate WhereInput type for the element type
@@ -74,8 +82,165 @@ class QueryTypeBuilder:
             # Register the WHERE input type with the schema registry
             self.registry.register_type(where_input_type)
 
+            # Convert to GraphQL input type
             gql_where_type = convert_type_to_graphql_input(where_input_type)
+
+            # Always set/update the where argument with the properly-typed WhereInput
+            # This ensures the WhereInput type is referenced in the schema even if
+            # the user declared `where: Any`
             gql_args["where"] = GraphQLArgument(gql_where_type)
+
+    def _has_vector_fields(self, element_type: Any) -> bool:
+        """Check if type has vector/embedding fields that use VectorOrderBy.
+
+        VectorOrderBy uses Union types (list[float] | dict[str, Any]) that cannot
+        be converted to GraphQL input types, so we skip orderBy generation for
+        types containing these fields.
+        """
+        try:
+            type_hints = get_type_hints(element_type)
+        except Exception:
+            type_hints = getattr(element_type, "__annotations__", {})
+
+        # Vector field patterns that trigger VectorOrderBy usage
+        vector_patterns = {
+            "embedding",
+            "vector",
+            "_embedding",
+            "_vector",
+            "embedding_vector",
+            "embeddingvector",
+            "text_embedding",
+            "textembedding",
+            "image_embedding",
+            "imageembedding",
+        }
+
+        # Check for vector field types
+        try:
+            from fraiseql.types.scalars.vector import (
+                HalfVectorField,
+                QuantizedVectorField,
+                SparseVectorField,
+            )
+
+            vector_types = (HalfVectorField, SparseVectorField, QuantizedVectorField)
+        except ImportError:
+            vector_types = ()
+
+        for field_name, field_type in type_hints.items():
+            field_lower = field_name.lower()
+            # Check if field name matches vector patterns
+            if any(pattern in field_lower for pattern in vector_patterns):
+                origin = get_origin(field_type)
+                if origin is list or (vector_types and field_type in vector_types):
+                    return True
+            # Check if field type is a vector type
+            if vector_types and field_type in vector_types:
+                return True
+
+        return False
+
+    def _add_order_by_parameter_if_needed(
+        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+    ) -> None:
+        """Add orderBy parameter to GraphQL args if query returns list of Fraise types.
+
+        Note: Types with vector/embedding fields are skipped because VectorOrderBy
+        uses Union types that cannot be converted to GraphQL input types.
+        """
+        from fraiseql.sql.graphql_order_by_generator import create_graphql_order_by_input
+
+        # Don't add if already present (check both camelCase and snake_case)
+        if "orderBy" in gql_args or "order_by" in gql_args:
+            return
+
+        should_add, element_type = self._should_add_where_parameter(return_type)
+        if should_add and element_type:
+            # Skip types with vector fields - VectorOrderBy uses Union types
+            # that can't be converted to GraphQL input types
+            if self._has_vector_fields(element_type):
+                logger.debug(
+                    "Skipping orderBy generation for type %s (has vector fields)",
+                    element_type.__name__ if hasattr(element_type, "__name__") else element_type,
+                )
+                return
+
+            try:
+                order_by_input_type = create_graphql_order_by_input(element_type)
+                self.registry.register_type(order_by_input_type)
+                gql_order_by_type = convert_type_to_graphql_input(order_by_input_type)
+                gql_args["orderBy"] = GraphQLArgument(GraphQLList(gql_order_by_type))
+            except (TypeError, ValueError) as e:
+                # Fallback: Some types may have other fields that can't be converted
+                logger.debug(
+                    "Could not generate orderBy for type %s: %s",
+                    element_type.__name__ if hasattr(element_type, "__name__") else element_type,
+                    e,
+                )
+
+    def _add_pagination_parameters_if_needed(
+        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+    ) -> None:
+        """Add limit/offset parameters if query returns list of Fraise types."""
+        should_add, _ = self._should_add_where_parameter(return_type)
+        if should_add:
+            if "limit" not in gql_args:
+                gql_args["limit"] = GraphQLArgument(GraphQLInt)
+            if "offset" not in gql_args:
+                gql_args["offset"] = GraphQLArgument(GraphQLInt)
+
+    def _should_add_relay_parameters(self, return_type: Any) -> tuple[bool, Any | None]:
+        """Check if query should get Relay pagination parameters."""
+        try:
+            from fraiseql.types.generic import Connection
+        except ImportError:
+            return False, None
+
+        origin = get_origin(return_type)
+        if origin is Connection:
+            args = get_args(return_type)
+            if args and self._is_fraise_type(args[0]):
+                return True, args[0]
+
+        return False, None
+
+    def _add_relay_parameters_if_needed(
+        self, gql_args: dict[str, GraphQLArgument], return_type: Any
+    ) -> None:
+        """Add Relay pagination parameters if query returns Connection[T]."""
+        from fraiseql.sql.graphql_order_by_generator import create_graphql_order_by_input
+        from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+
+        should_add, element_type = self._should_add_relay_parameters(return_type)
+        if not should_add or not element_type:
+            return
+
+        # Forward pagination
+        if "first" not in gql_args:
+            gql_args["first"] = GraphQLArgument(GraphQLInt)
+        if "after" not in gql_args:
+            gql_args["after"] = GraphQLArgument(GraphQLString)
+
+        # Backward pagination
+        if "last" not in gql_args:
+            gql_args["last"] = GraphQLArgument(GraphQLInt)
+        if "before" not in gql_args:
+            gql_args["before"] = GraphQLArgument(GraphQLString)
+
+        # Also add where
+        if "where" not in gql_args:
+            where_input_type = create_graphql_where_input(element_type)
+            self.registry.register_type(where_input_type)
+            gql_args["where"] = GraphQLArgument(convert_type_to_graphql_input(where_input_type))
+
+        # Also add orderBy
+        if "orderBy" not in gql_args and "order_by" not in gql_args:
+            order_by_input_type = create_graphql_order_by_input(element_type)
+            self.registry.register_type(order_by_input_type)
+            gql_args["orderBy"] = GraphQLArgument(
+                GraphQLList(convert_type_to_graphql_input(order_by_input_type))
+            )
 
     def build(self) -> GraphQLObjectType:
         """Build the root Query GraphQLObjectType from registered types and query functions.
@@ -152,8 +317,16 @@ class QueryTypeBuilder:
                 # Store mapping from GraphQL name to Python name
                 arg_name_mapping[graphql_arg_name] = param_name
 
-            # Automatically add WHERE parameter if query returns list of Fraise types
-            self._add_where_parameter_if_needed(gql_args, hints["return"])
+            # Automatically add query parameters for list/Connection returns
+            # Check for Connection[T] first (Relay pagination)
+            is_relay, _ = self._should_add_relay_parameters(hints["return"])
+            if is_relay:
+                self._add_relay_parameters_if_needed(gql_args, hints["return"])
+            else:
+                # Standard list[T] - add where, orderBy, limit, offset
+                self._add_where_parameter_if_needed(gql_args, hints["return"])
+                self._add_order_by_parameter_if_needed(gql_args, hints["return"])
+                self._add_pagination_parameters_if_needed(gql_args, hints["return"])
 
             # Create a wrapper that adapts the GraphQL resolver signature
             wrapped_resolver = self._create_gql_resolver(fn, arg_name_mapping, name)
@@ -220,6 +393,11 @@ class QueryTypeBuilder:
                     if not isinstance(where_clause, dict):
                         raise GraphQLError("WHERE parameter must be an object")
 
+                # Validate pagination parameters are non-negative
+                for param in ("limit", "offset", "first", "last"):
+                    if param in kwargs and kwargs[param] is not None and kwargs[param] < 0:
+                        raise GraphQLError(f"{param} must be non-negative")
+
                 # Map GraphQL argument names to Python parameter names
                 if arg_name_mapping:
                     mapped_kwargs = {}
@@ -248,6 +426,11 @@ class QueryTypeBuilder:
                 where_clause = kwargs["where"]
                 if not isinstance(where_clause, dict):
                     raise GraphQLError("WHERE parameter must be an object")
+
+            # Validate pagination parameters are non-negative
+            for param in ("limit", "offset", "first", "last"):
+                if param in kwargs and kwargs[param] is not None and kwargs[param] < 0:
+                    raise GraphQLError(f"{param} must be non-negative")
 
             # Map GraphQL argument names to Python parameter names
             if arg_name_mapping:

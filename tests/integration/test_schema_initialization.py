@@ -28,10 +28,7 @@ pytestmark = pytest.mark.integration
 
 
 # Skip tests if Rust extension is not available
-requires_rust = pytest.mark.skipif(
-    _fraiseql_rs is None,
-    reason="Rust extension not available"
-)
+requires_rust = pytest.mark.skipif(_fraiseql_rs is None, reason="Rust extension not available")
 
 
 class TestSchemaRegistryInitialization:

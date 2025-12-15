@@ -229,9 +229,7 @@ class TestCursorPaginator:
 
         paginator = CursorPaginator(mock_connection)
         params = PaginationParams(first=10)
-        result = await paginator.paginate(
-            "v_users", params, filters={"status": "active"}
-        )
+        result = await paginator.paginate("v_users", params, filters={"status": "active"})
 
         assert result["edges"] == []
         mock_cursor.execute.assert_called()
@@ -246,9 +244,7 @@ class TestCursorPaginator:
 
         paginator = CursorPaginator(mock_connection)
         params = PaginationParams(first=10)
-        await paginator.paginate(
-            "v_users", params, filters={"roles": ["admin", "user"]}
-        )
+        await paginator.paginate("v_users", params, filters={"roles": ["admin", "user"]})
 
         mock_cursor.execute.assert_called()
 
@@ -359,9 +355,7 @@ class TestCursorPaginator:
         assert result["page_info"]["has_previous_page"] is False
 
     @pytest.mark.asyncio
-    async def test_empty_results(
-        self, mock_connection: MagicMock, mock_cursor: AsyncMock
-    ) -> None:
+    async def test_empty_results(self, mock_connection: MagicMock, mock_cursor: AsyncMock) -> None:
         """Empty results return empty edges and null cursors."""
         mock_cursor.fetchall.return_value = []
         mock_cursor.fetchone.return_value = (0,)
@@ -473,9 +467,7 @@ class TestGetTotalCount:
         mock_cursor.fetchone.return_value = (42,)
 
         paginator = CursorPaginator(mock_connection)
-        result = await paginator._get_total_count(
-            "v_users", filters={"status": "active"}
-        )
+        result = await paginator._get_total_count("v_users", filters={"status": "active"})
 
         assert result == 42
 

@@ -29,7 +29,9 @@ def vault_container() -> Generator[VaultContainer | None]:
         VaultContainer instance with running Vault server
     """
     if not HAS_VAULT_CONTAINER:
-        pytest.skip("Vault testcontainer not available (install with: pip install testcontainers[vault])")
+        pytest.skip(
+            "Vault testcontainer not available (install with: pip install testcontainers[vault])"
+        )
 
     container = VaultContainer()
     container.start()

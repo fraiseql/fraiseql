@@ -43,9 +43,7 @@ class TestOperatorRegistrationIntegrity:
 
                 # Check if operator is in ALL_OPERATORS
                 if operator not in ALL_OPERATORS:
-                    missing_operators.append(
-                        {"operator": operator, "strategy": strategy_name}
-                    )
+                    missing_operators.append({"operator": operator, "strategy": strategy_name})
 
         # Report all missing operators
         if missing_operators:
@@ -54,10 +52,7 @@ class TestOperatorRegistrationIntegrity:
                 f"but missing from ALL_OPERATORS:\n"
             )
             for missing in missing_operators:
-                error_msg += (
-                    f"  ❌ {missing['operator']} "
-                    f"(from {missing['strategy']})\n"
-                )
+                error_msg += f"  ❌ {missing['operator']} (from {missing['strategy']})\n"
             error_msg += (
                 "\nThese operators must be added to where_clause.py ALL_OPERATORS dict.\n"
                 "Otherwise they will fail validation even though they have implementations."
@@ -297,18 +292,14 @@ class TestAllOperatorCategoriesRegistered:
         comparison_ops = ["eq", "neq", "gt", "gte", "lt", "lte"]
 
         for op in comparison_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Comparison operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Comparison operator '{op}' missing from ALL_OPERATORS"
 
     def test_containment_operators_registered(self):
         """Containment operators should be in ALL_OPERATORS."""
         containment_ops = ["in", "nin"]
 
         for op in containment_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Containment operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Containment operator '{op}' missing from ALL_OPERATORS"
 
     def test_string_operators_registered(self):
         """String operators should be in ALL_OPERATORS."""
@@ -324,9 +315,7 @@ class TestAllOperatorCategoriesRegistered:
         ]
 
         for op in string_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"String operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"String operator '{op}' missing from ALL_OPERATORS"
 
     def test_null_operators_registered(self):
         """NULL operators should be in ALL_OPERATORS."""
@@ -343,9 +332,7 @@ class TestAllOperatorCategoriesRegistered:
         ]
 
         for op in vector_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Vector operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Vector operator '{op}' missing from ALL_OPERATORS"
 
     def test_fulltext_operators_registered(self):
         """Fulltext operators should be in ALL_OPERATORS."""
@@ -361,9 +348,7 @@ class TestAllOperatorCategoriesRegistered:
         ]
 
         for op in fulltext_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Fulltext operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Fulltext operator '{op}' missing from ALL_OPERATORS"
 
     def test_array_operators_registered(self):
         """Array operators should be in ALL_OPERATORS."""
@@ -383,9 +368,7 @@ class TestAllOperatorCategoriesRegistered:
         ]
 
         for op in array_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Array operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Array operator '{op}' missing from ALL_OPERATORS"
 
     def test_network_operators_registered(self):
         """Network operators should be in ALL_OPERATORS (regression test)."""
@@ -402,6 +385,4 @@ class TestAllOperatorCategoriesRegistered:
         ]
 
         for op in network_ops:
-            assert (
-                op in ALL_OPERATORS
-            ), f"Network operator '{op}' missing from ALL_OPERATORS"
+            assert op in ALL_OPERATORS, f"Network operator '{op}' missing from ALL_OPERATORS"
