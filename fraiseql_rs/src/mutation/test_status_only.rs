@@ -151,7 +151,10 @@ mod test_status_taxonomy {
             !status.is_success(),
             "noop:no_changes should not be Success"
         );
-        assert!(status.is_error(), "noop:no_changes should be Error (v1.8.0)"); // NEW
+        assert!(
+            status.is_error(),
+            "noop:no_changes should be Error (v1.8.0)"
+        ); // NEW
     }
 
     // CASE INSENSITIVITY - should handle mixed case

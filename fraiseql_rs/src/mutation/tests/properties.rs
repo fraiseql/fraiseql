@@ -7,8 +7,6 @@
 //! - Format detection determinism
 
 use super::*;
-
-use super::*;
 // Temporarily disabled proptest due to missing dependency
 // use proptest::prelude::*;
 

@@ -105,7 +105,10 @@ fn test_parse_full_with_updated_fields() {
     let result = MutationResult::from_json(json, None).unwrap();
 
     assert!(result.status.is_success());
-    assert_eq!(result.updated_fields, Some(vec!["name".to_string(), "email".to_string()]));
+    assert_eq!(
+        result.updated_fields,
+        Some(vec!["name".to_string(), "email".to_string()])
+    );
 }
 
 // ============================================================================

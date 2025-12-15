@@ -70,8 +70,6 @@ impl CascadeSelections {
         serde_json::from_str(json_str)
             .map_err(|e| format!("Invalid cascade selections JSON: {}", e))
     }
-
-
 }
 
 /// Filter cascade value based on GraphQL field selections

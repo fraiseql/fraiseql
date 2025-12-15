@@ -7,9 +7,9 @@ use super::*;
 use serde_json::{json, Value};
 
 // Test modules - organized by pipeline stage
-mod parsing;              // Stage 1: JSON → MutationResult
-mod classification;       // Stage 2: Status taxonomy
-mod response_building;    // Stage 3: MutationResult → JSON
-mod integration;          // Stage 4: End-to-end
-mod properties;           // Property-based tests
-mod test_multiple_entities;  // Multiple entity fields pattern (PrintOptim)
+mod classification; // Stage 2: Status taxonomy
+mod integration; // Stage 4: End-to-end
+mod parsing; // Stage 1: JSON → MutationResult
+mod properties; // Property-based tests
+mod response_building; // Stage 3: MutationResult → JSON
+mod test_multiple_entities; // Multiple entity fields pattern (PrintOptim)

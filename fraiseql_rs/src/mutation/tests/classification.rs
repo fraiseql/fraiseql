@@ -8,8 +8,6 @@
 
 use super::*;
 
-use super::*;
-
 // SUCCESS KEYWORDS (no colon)
 #[test]
 fn test_success_keywords() {
