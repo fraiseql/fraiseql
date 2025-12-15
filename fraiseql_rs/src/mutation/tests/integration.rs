@@ -13,8 +13,6 @@
 
 use super::*;
 
-use super::*;
-
 #[test]
 fn test_build_error_response_validation() {
     let mutation_json = r#"{
@@ -37,6 +35,7 @@ fn test_build_error_response_validation() {
         Some("User"),
         None,
         true,
+        None,
         None,
     );
 
@@ -81,6 +80,7 @@ fn test_build_error_response_conflict() {
         None,
         true,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -122,6 +122,7 @@ fn test_build_noop_response() {
         None,
         true,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -162,6 +163,7 @@ fn test_build_success_response() {
         None,
         true,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -201,6 +203,7 @@ fn test_unauthorized_error() {
         None,
         true,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -236,6 +239,7 @@ fn test_timeout_error() {
         None,
         None,
         true,
+        None,
         None,
     );
 
@@ -314,19 +318,27 @@ fn test_generate_errors_array_explicit_errors() {
 #[test]
 fn test_extract_identifier_from_status_error() {
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Error("failed:validation".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Error(
+            "failed:validation".to_string()
+        )),
         "validation"
     );
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Error("not_found:user".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Error(
+            "not_found:user".to_string()
+        )),
         "user"
     );
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Error("failed:".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Error(
+            "failed:".to_string()
+        )),
         "general_error"
     );
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Error("failed".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Error(
+            "failed".to_string()
+        )),
         "general_error"
     );
 }
@@ -334,15 +346,21 @@ fn test_extract_identifier_from_status_error() {
 #[test]
 fn test_extract_identifier_from_status_noop() {
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop("noop:not_found".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop(
+            "noop:not_found".to_string()
+        )),
         "not_found"
     );
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop("noop:duplicate".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop(
+            "noop:duplicate".to_string()
+        )),
         "duplicate"
     );
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop("noop".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Noop(
+            "noop".to_string()
+        )),
         "general_error"
     );
 }
@@ -351,7 +369,9 @@ fn test_extract_identifier_from_status_noop() {
 fn test_extract_identifier_from_status_success() {
     // Should not happen in practice, but handle gracefully
     assert_eq!(
-        super::response_builder::extract_identifier_from_status(&MutationStatus::Success("created".to_string())),
+        super::response_builder::extract_identifier_from_status(&MutationStatus::Success(
+            "created".to_string()
+        )),
         "unexpected_success"
     );
 }
@@ -379,7 +399,9 @@ fn test_error_response_includes_errors_array() {
         None,
         true,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];
@@ -426,7 +448,9 @@ fn test_error_response_with_explicit_errors() {
         None,
         true,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
     let error_response = &response["data"]["createUser"];

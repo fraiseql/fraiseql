@@ -44,7 +44,9 @@ fn test_build_simple_format_response() {
         true,
         None,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -77,7 +79,9 @@ fn test_build_simple_format_with_status_data_field() {
         true,
         None,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createTask"];
     assert_eq!(data["task"]["statusData"], "pending");
@@ -110,7 +114,9 @@ fn test_build_simple_format_array_response() {
         true,
         None,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUsers"];
     assert_eq!(data["users"][0]["id"], "1");
@@ -150,9 +156,11 @@ fn test_build_simple_format_response_with_cascade() {
         Some("post"),
         Some("Post"),
         true,
-        None,  // success_type_fields
-        Some(r#"{"cascade": true}"#),  // cascade_selections
-    ).unwrap();
+        None,                         // success_type_fields
+        None,                         // error_type_fields
+        Some(r#"{"cascade": true}"#), // cascade_selections
+    )
+    .unwrap();
 
     let data = &response["data"]["updatePost"];
     assert_eq!(data["post"]["id"], "post-123");
@@ -208,7 +216,9 @@ fn test_build_full_success_response() {
         true,
         None,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -241,7 +251,9 @@ fn test_build_full_error_response() {
         true,
         None,
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserError");
@@ -275,20 +287,28 @@ fn test_success_response_has_status_field() {
         &result,
         "CreateUserSuccess",
         Some("user"),
-        true,  // auto_camel_case
-        None,  // success_type_fields
-        None,  // cascade_selections
-    ).expect("Failed to build response");
+        true, // auto_camel_case
+        None, // success_type_fields
+        None, // cascade_selections
+    )
+    .expect("Failed to build response");
 
     // Verify
     let obj = response.as_object().expect("Response should be object");
 
     // Check status field exists
-    assert!(obj.contains_key("status"), "Response missing 'status' field");
+    assert!(
+        obj.contains_key("status"),
+        "Response missing 'status' field"
+    );
 
     // Check status value
     let status = obj.get("status").expect("status field should exist");
-    assert_eq!(status.as_str(), Some("success"), "status should be 'success'");
+    assert_eq!(
+        status.as_str(),
+        Some("success"),
+        "status should be 'success'"
+    );
 }
 
 #[test]
@@ -307,25 +327,27 @@ fn test_success_response_has_errors_field() {
     };
 
     // Execute
-    let response = build_success_response(
-        &result,
-        "CreateUserSuccess",
-        Some("user"),
-        true,
-        None,
-        None,
-    ).expect("Failed to build response");
+    let response =
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+            .expect("Failed to build response");
 
     // Verify
     let obj = response.as_object().expect("Response should be object");
 
     // Check errors field exists
-    assert!(obj.contains_key("errors"), "Response missing 'errors' field");
+    assert!(
+        obj.contains_key("errors"),
+        "Response missing 'errors' field"
+    );
 
     // Check errors is empty array
     let errors = obj.get("errors").expect("errors field should exist");
     let errors_array = errors.as_array().expect("errors should be array");
-    assert_eq!(errors_array.len(), 0, "errors array should be empty for success");
+    assert_eq!(
+        errors_array.len(),
+        0,
+        "errors array should be empty for success"
+    );
 }
 
 #[test]
@@ -344,14 +366,9 @@ fn test_success_response_all_standard_fields() {
     };
 
     // Execute
-    let response = build_success_response(
-        &result,
-        "CreateUserSuccess",
-        Some("user"),
-        true,
-        None,
-        None,
-    ).expect("Failed to build response");
+    let response =
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+            .expect("Failed to build response");
 
     // Verify all standard fields present
     let obj = response.as_object().expect("Response should be object");
@@ -365,9 +382,15 @@ fn test_success_response_all_standard_fields() {
     assert!(obj.contains_key("updatedFields"), "Missing updatedFields");
 
     // Verify values
-    assert_eq!(obj.get("__typename").unwrap().as_str(), Some("CreateUserSuccess"));
+    assert_eq!(
+        obj.get("__typename").unwrap().as_str(),
+        Some("CreateUserSuccess")
+    );
     assert_eq!(obj.get("status").unwrap().as_str(), Some("success:created"));
-    assert_eq!(obj.get("message").unwrap().as_str(), Some("User created successfully"));
+    assert_eq!(
+        obj.get("message").unwrap().as_str(),
+        Some("User created successfully")
+    );
 
     let errors = obj.get("errors").unwrap().as_array().unwrap();
     assert_eq!(errors.len(), 0, "Success should have empty errors array");
@@ -388,19 +411,17 @@ fn test_success_status_preserves_detail() {
         is_simple_format: false,
     };
 
-    let response = build_success_response(
-        &result,
-        "UpdatePostSuccess",
-        Some("post"),
-        true,
-        None,
-        None,
-    ).expect("Failed to build response");
+    let response =
+        build_success_response(&result, "UpdatePostSuccess", Some("post"), true, None, None)
+            .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
     let status = obj.get("status").unwrap().as_str().unwrap();
 
-    assert_eq!(status, "success:updated", "Status detail should be preserved");
+    assert_eq!(
+        status, "success:updated",
+        "Status detail should be preserved"
+    );
 }
 
 #[test]
@@ -418,14 +439,9 @@ fn test_success_fields_order() {
         is_simple_format: false,
     };
 
-    let response = build_success_response(
-        &result,
-        "CreateUserSuccess",
-        Some("user"),
-        true,
-        None,
-        None,
-    ).expect("Failed to build response");
+    let response =
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+            .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
     let keys: Vec<&String> = obj.keys().collect();
@@ -441,7 +457,10 @@ fn test_success_fields_order() {
     // Verify ordering
     assert!(typename_idx < id_idx, "__typename should come before id");
     assert!(id_idx < message_idx, "id should come before message");
-    assert!(message_idx < status_idx, "message should come before status");
+    assert!(
+        message_idx < status_idx,
+        "message should come before status"
+    );
     assert!(status_idx < errors_idx, "status should come before errors");
     assert!(errors_idx < user_idx, "errors should come before entity");
 }
@@ -450,7 +469,7 @@ fn test_success_fields_order() {
 // Error Array Generation Tests
 // ============================================================================
 
-use crate::mutation::response_builder::{generate_errors_array, extract_identifier_from_status};
+use crate::mutation::response_builder::{extract_identifier_from_status, generate_errors_array};
 
 #[test]
 fn test_extract_identifier_from_failed_with_colon() {
@@ -594,8 +613,10 @@ fn test_noop_returns_error_type_v1_8() {
         Some("Machine"),
         true,
         None,
+        None,
         Some(r#"{"status": true}"#),
-    ).unwrap();
+    )
+    .unwrap();
 
     let data = &response["data"]["createMachine"];
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -619,7 +640,19 @@ fn test_not_found_returns_error_type_with_404() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(&result, "deleteMachine", "DeleteMachineSuccess", "DeleteMachineError", None, None, true, None, None).unwrap();
+    let response = build_graphql_response(
+        &result,
+        "deleteMachine",
+        "DeleteMachineSuccess",
+        "DeleteMachineError",
+        None,
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let data = &response["data"]["deleteMachine"];
 
     assert_eq!(data["__typename"], "DeleteMachineError");
@@ -641,7 +674,19 @@ fn test_conflict_returns_error_type_with_409() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", None, None, true, None, None).unwrap();
+    let response = build_graphql_response(
+        &result,
+        "createMachine",
+        "CreateMachineSuccess",
+        "CreateMachineError",
+        None,
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -664,7 +709,18 @@ fn test_success_with_null_entity_returns_error() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", Some("machine"), None, true, None, None);
+    let response = build_graphql_response(
+        &result,
+        "createMachine",
+        "CreateMachineSuccess",
+        "CreateMachineError",
+        Some("machine"),
+        None,
+        true,
+        None,
+        None,
+        None,
+    );
     assert!(response.is_err());
     let error_msg = response.unwrap_err();
     assert!(error_msg.contains("Success type"));
@@ -685,7 +741,19 @@ fn test_success_always_has_entity() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", Some("machine"), None, true, None, None).unwrap();
+    let response = build_graphql_response(
+        &result,
+        "createMachine",
+        "CreateMachineSuccess",
+        "CreateMachineError",
+        Some("machine"),
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineSuccess");
@@ -707,7 +775,19 @@ fn test_error_response_includes_cascade() {
         is_simple_format: false,
     };
 
-    let response = build_graphql_response(&result, "createMachine", "CreateMachineSuccess", "CreateMachineError", None, None, true, None, Some(r#"{"status": true, "reason": true}"#)).unwrap();
+    let response = build_graphql_response(
+        &result,
+        "createMachine",
+        "CreateMachineSuccess",
+        "CreateMachineError",
+        None,
+        None,
+        true,
+        None,
+        None,
+        Some(r#"{"status": true, "reason": true}"#),
+    )
+    .unwrap();
     let data = &response["data"]["createMachine"];
 
     assert_eq!(data["__typename"], "CreateMachineError");
@@ -739,6 +819,7 @@ fn test_cascade_never_nested_in_entity() {
         Some("Post"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -816,6 +897,7 @@ fn test_cascade_never_copied_from_entity_wrapper() {
         None,
         true,
         None,
+        None,
     )
     .unwrap();
 
@@ -866,8 +948,8 @@ fn test_typename_always_present() {
         None,
         true,
         None,
+        None,
     )
-
     .unwrap();
 
     let response: serde_json::Value = serde_json::from_slice(&result).unwrap();
@@ -895,6 +977,7 @@ fn test_typename_matches_entity_type() {
         Some("CustomType"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -925,6 +1008,7 @@ fn test_ambiguous_status_treated_as_simple() {
         Some("Entity"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -958,6 +1042,7 @@ fn test_null_entity() {
         None,
         true,
         None,
+        None,
     )
     .unwrap();
 
@@ -988,6 +1073,7 @@ fn test_array_of_entities() {
         Some("User"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -1027,6 +1113,7 @@ fn test_deeply_nested_objects() {
         None,
         true,
         None,
+        None,
     )
     .unwrap();
 
@@ -1061,6 +1148,7 @@ fn test_special_characters_in_fields() {
         None,
         false,
         None, // No camelCase
+        None,
     )
     .unwrap();
 
@@ -1111,7 +1199,9 @@ fn test_success_response_field_filtering_all_fields() {
         true,
         Some(&selected_fields),
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1150,7 +1240,9 @@ fn test_success_response_field_filtering_partial_fields() {
         true,
         Some(&selected_fields),
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1189,7 +1281,9 @@ fn test_success_response_field_filtering_no_filtering() {
         true,
         None, // No filtering
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserSuccess");
@@ -1229,7 +1323,9 @@ fn test_error_response_field_filtering() {
         true,
         Some(&selected_fields),
         None,
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     let data = &response["data"]["createUser"];
     assert_eq!(data["__typename"], "CreateUserError");

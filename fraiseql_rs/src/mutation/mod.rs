@@ -2,7 +2,6 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
-
 mod entity_processor;
 mod parser;
 mod postgres_composite;
@@ -107,6 +106,7 @@ mod integration_tests {
             None,
             true,
             None,
+            None,
         )
         .unwrap();
 
@@ -137,6 +137,7 @@ mod integration_tests {
             Some("User"),
             None,
             true,
+            None,
             None,
         )
         .unwrap();
@@ -284,8 +285,6 @@ impl MutationStatus {
             }
         }
     }
-
-
 }
 
 /// Parsed mutation result from PostgreSQL

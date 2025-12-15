@@ -2,7 +2,6 @@
 ///
 /// This pattern is used in PrintOptim for conflict scenarios, before/after states,
 /// and related entities in mutation responses.
-
 use super::*;
 
 #[test]
@@ -41,10 +40,11 @@ fn test_success_with_multiple_entities() {
         "updateMachine",
         "UpdateMachineSuccess",
         "UpdateMachineError",
-        Some("machine"),  // Primary entity field
+        Some("machine"), // Primary entity field
         Some("Machine"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -58,7 +58,10 @@ fn test_success_with_multiple_entities() {
     assert_eq!(success["message"], "Machine location updated");
 
     // Primary entity (extracted from wrapper)
-    assert!(success["machine"].is_object(), "machine entity should exist");
+    assert!(
+        success["machine"].is_object(),
+        "machine entity should exist"
+    );
     assert_eq!(success["machine"]["id"], "123");
     assert_eq!(success["machine"]["name"], "Printer-01");
 
@@ -107,10 +110,11 @@ fn test_error_with_conflict_entity() {
         "createMachine",
         "CreateMachineSuccess",
         "CreateMachineError",
-        Some("machine"),  // Would be used for success, ignored for error
+        Some("machine"), // Would be used for success, ignored for error
         Some("Machine"),
         None,
         true,
+        None,
         None,
     )
     .unwrap();
@@ -121,8 +125,11 @@ fn test_error_with_conflict_entity() {
     // Auto-injected fields at root
     assert_eq!(error["__typename"], "CreateMachineError");
     assert_eq!(error["status"], "failed:conflict");
-    assert_eq!(error["message"], "Machine with this serial number already exists");
-    assert_eq!(error["code"], 409);  // Conflict
+    assert_eq!(
+        error["message"],
+        "Machine with this serial number already exists"
+    );
+    assert_eq!(error["code"], 409); // Conflict
 
     // Conflict entity should be extracted from wrapper
     // NOTE: For errors, entity handling works differently
@@ -176,6 +183,7 @@ fn test_multiple_entities_field_selection() {
         None,
         true,
         Some(selected_fields),
+        None,
     )
     .unwrap();
 
