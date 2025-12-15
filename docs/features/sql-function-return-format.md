@@ -346,9 +346,13 @@ Additional metadata about the mutation:
 ```sql
 jsonb_build_object(
     'timestamp', now(),                    -- When mutation occurred
-    'affectedCount', 2                     -- Number of entities affected
+    'affected_count', 2,                   -- Number of entities affected
+    'depth', 1,                            -- Relationship depth traversed
+    'transaction_id', txid_current()::text -- Optional: for debugging
 )
 ```
+
+> **Note**: Use snake_case in PostgreSQL (`affected_count`, `transaction_id`). FraiseQL's Rust layer automatically converts to camelCase (`affectedCount`, `transactionId`) in GraphQL responses.
 
 ---
 
@@ -435,7 +439,9 @@ BEGIN
             ),
             'metadata', jsonb_build_object(
                 'timestamp', now(),
-                'affectedCount', 2
+                'affected_count', 2,
+                'depth', 1,
+                'transaction_id', txid_current()::text
             )
         )
     );
@@ -493,7 +499,9 @@ $$ LANGUAGE plpgsql;
         ],
         "metadata": {
           "timestamp": "2025-11-11T10:30:00Z",
-          "affectedCount": 2
+          "affectedCount": 2,
+          "depth": 1,
+          "transactionId": "123456789"
         }
       }
     }
@@ -594,7 +602,9 @@ BEGIN
             ),
             'metadata', jsonb_build_object(
                 'timestamp', now(),
-                'affectedCount', 1 + array_length(v_deleted_comment_ids, 1)
+                'affected_count', 1 + array_length(v_deleted_comment_ids, 1),
+                'depth', 2,
+                'transaction_id', txid_current()::text
             )
         )
     );
@@ -709,7 +719,7 @@ Provide accurate counts and timestamps:
 ```sql
 'metadata', jsonb_build_object(
     'timestamp', now(),                           -- Current timestamp
-    'affectedCount',
+    'affected_count',
         array_length(v_updated_ids, 1) +          -- Count all affected
         array_length(v_deleted_ids, 1)
 )

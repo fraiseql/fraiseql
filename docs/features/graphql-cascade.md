@@ -96,7 +96,9 @@ BEGIN
             ),
             'metadata', jsonb_build_object(
                 'timestamp', now(),
-                'affected_count', 2
+                'affected_count', 2,
+                'depth', 1,
+                'transaction_id', txid_current()::text
             )
         )
     );
@@ -175,7 +177,7 @@ class CreatePost:
 
 ## Cascade Structure
 
-The cascade object (from `cascade` field in v2 format or `_cascade` in legacy format) contains:
+The cascade object (from `cascade` field in v2 format or `_cascade` in legacy format) contains the following fields. Examples below show **PostgreSQL output format** (snake_case); FraiseQL automatically converts to camelCase for GraphQL clients.
 
 ### `updated` (Array)
 Array of entities that were created or updated:
@@ -238,11 +240,13 @@ Operation metadata:
 ```json
 {
   "timestamp": "2025-11-25T10:30:00Z",
-  "transaction_id": "optional-uuid",     // In SQL: snake_case
+  "transaction_id": "optional-uuid",
   "depth": 1,
-  "affected_count": 2                    // In SQL: snake_case
+  "affected_count": 2
 }
 ```
+
+> **Note**: Use snake_case in PostgreSQL (`affected_count`, `transaction_id`). FraiseQL's Rust layer automatically converts to camelCase (`affectedCount`, `transactionId`) in GraphQL responses.
 
 ## GraphQL Response
 
@@ -275,7 +279,9 @@ Cascade data appears in the mutation response as a `cascade` field:
         ],
         "metadata": {
           "timestamp": "2025-11-11T10:30:00Z",
-          "affectedCount": 2
+          "affectedCount": 2,
+          "depth": 1,
+          "transactionId": "123456789"
         }
       }
     }

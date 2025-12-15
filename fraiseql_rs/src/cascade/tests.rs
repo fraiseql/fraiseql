@@ -250,7 +250,8 @@ fn test_filter_metadata_fields() {
         "metadata": {
             "timestamp": "2025-11-13T10:00:00Z",
             "affectedCount": 2,
-            "extra": "data"
+            "depth": 3,
+            "transactionId": "123456789"
         }
     }"#;
 
@@ -267,7 +268,67 @@ fn test_filter_metadata_fields() {
 
     assert!(metadata.get("timestamp").is_some());
     assert!(metadata.get("affectedCount").is_some());
-    assert!(metadata.get("extra").is_none());
+    assert!(metadata.get("depth").is_none()); // Not selected
+    assert!(metadata.get("transactionId").is_none()); // Not selected
+}
+
+#[test]
+fn test_filter_metadata_with_new_spec_fields() {
+    let cascade = r#"{
+        "metadata": {
+            "timestamp": "2025-12-15T10:00:00Z",
+            "affectedCount": 5,
+            "depth": 2,
+            "transactionId": "987654321"
+        }
+    }"#;
+
+    // Client requests only depth and transactionId
+    let selections = r#"{
+        "fields": ["metadata"],
+        "metadata": {
+            "fields": ["depth", "transactionId"]
+        }
+    }"#;
+
+    let result = filter_cascade_data(cascade, Some(selections)).unwrap();
+    let v: Value = serde_json::from_str(&result).unwrap();
+    let metadata = v["metadata"].as_object().unwrap();
+
+    assert!(metadata.get("timestamp").is_none()); // Not selected
+    assert!(metadata.get("affectedCount").is_none()); // Not selected
+    assert_eq!(metadata.get("depth").unwrap(), 2);
+    assert_eq!(metadata.get("transactionId").unwrap(), "987654321");
+}
+
+#[test]
+fn test_filter_metadata_all_spec_fields() {
+    let cascade = r#"{
+        "metadata": {
+            "timestamp": "2025-12-15T10:00:00Z",
+            "affectedCount": 10,
+            "depth": 4,
+            "transactionId": "txn_abc123"
+        }
+    }"#;
+
+    // Client requests all spec fields
+    let selections = r#"{
+        "fields": ["metadata"],
+        "metadata": {
+            "fields": ["timestamp", "affectedCount", "depth", "transactionId"]
+        }
+    }"#;
+
+    let result = filter_cascade_data(cascade, Some(selections)).unwrap();
+    let v: Value = serde_json::from_str(&result).unwrap();
+    let metadata = v["metadata"].as_object().unwrap();
+
+    assert_eq!(metadata.len(), 4);
+    assert_eq!(metadata.get("timestamp").unwrap(), "2025-12-15T10:00:00Z");
+    assert_eq!(metadata.get("affectedCount").unwrap(), 10);
+    assert_eq!(metadata.get("depth").unwrap(), 4);
+    assert_eq!(metadata.get("transactionId").unwrap(), "txn_abc123");
 }
 
 #[test]

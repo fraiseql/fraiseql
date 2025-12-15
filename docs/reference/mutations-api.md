@@ -34,6 +34,8 @@ type CascadeInvalidation {
 type CascadeMetadata {
   timestamp: String!
   affectedCount: Int!
+  depth: Int!
+  transactionId: String
 }
 ```
 
@@ -60,6 +62,8 @@ cascade {
   metadata {
     timestamp
     affectedCount
+    depth
+    transactionId
   }
 }
 ```
