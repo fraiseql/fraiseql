@@ -1,6 +1,6 @@
 """GraphQL schema generation for FraiseQL mutations.
 
-v1.8.0: Generates union types for all mutations.
+Generates union types for all mutations.
 """
 
 import types
@@ -14,13 +14,13 @@ from fraiseql.mutations.decorators import FraiseUnion
 class MutationSchema:
     """Schema definition for a mutation.
 
-    v1.8.0: All mutations return union types.
+    All mutations return union types.
     """
 
     mutation_name: str
     success_type: Type
     error_type: Type
-    union_type: Any  # NEW in v1.8.0 - FraiseQL union type
+    union_type: Any  # FraiseQL union type
 
     def to_graphql_sdl(self) -> str:
         """Generate GraphQL SDL for this mutation.
@@ -51,7 +51,7 @@ extend type Mutation {{
     def _generate_success_fields(self) -> str:
         """Generate GraphQL fields for Success type.
 
-        v1.8.0: Entity field is always non-nullable.
+        Entity field is always non-nullable.
         """
         fields = []
         annotations = self.success_type.__annotations__
@@ -59,7 +59,7 @@ extend type Mutation {{
         for field_name, field_type in annotations.items():
             graphql_type = self._python_type_to_graphql(field_type)
 
-            # v1.8.0: Entity field must be non-nullable
+            # Entity field must be non-nullable
             if self._is_entity_field(field_name):
                 if graphql_type.endswith("!"):
                     fields.append(f"  {self._to_camel_case(field_name)}: {graphql_type}")
@@ -74,7 +74,7 @@ extend type Mutation {{
     def _generate_error_fields(self) -> str:
         """Generate GraphQL fields for Error type.
 
-        v1.8.0: Must include code: Int! field.
+        Must include code: Int! field.
         """
         fields = []
         annotations = self.error_type.__annotations__
@@ -83,7 +83,7 @@ extend type Mutation {{
         if "code" not in annotations:
             raise ValueError(
                 f"Error type {self.error_type.__name__} missing required 'code: int' field. "
-                f"v1.8.0 requires Error types to include REST-like error codes."
+                f"Error types must include REST-like error codes."
             )
 
         for field_name, field_type in annotations.items():
@@ -200,7 +200,7 @@ extend type Mutation {{
                 # Remove trailing "!" to make nullable
                 return inner_type.rstrip("!")
 
-            # Multiple non-None types: not supported in v1.8.0
+            # Multiple non-None types: not supported
             raise ValueError(
                 f"Union types with multiple non-None types not supported: {python_type}. "
                 f"GraphQL unions require separate type definitions."
@@ -275,7 +275,7 @@ def generate_mutation_schema(
 ) -> MutationSchema:
     """Generate schema for a mutation.
 
-    v1.8.0: Creates union type automatically.
+    Creates union type automatically.
 
     Args:
         mutation_name: Name of the mutation (e.g., "CreateMachine")
@@ -286,7 +286,7 @@ def generate_mutation_schema(
         MutationSchema with union type
 
     Raises:
-        ValueError: If types don't conform to v1.8.0 requirements
+        ValueError: If types don't conform to requirements
     """
     # Validate Success type
     if not hasattr(success_type, "__annotations__"):
@@ -320,7 +320,7 @@ def generate_mutation_schema(
     if _is_optional(entity_type):
         raise ValueError(
             f"Success type {success_type.__name__} has nullable entity field '{entity_field}'. "
-            f"v1.8.0 requires entity to be non-null in Success types. "
+            f"Entity must be non-null in Success types. "
             f"Change type from '{entity_type}' to non-nullable."
         )
 
@@ -334,7 +334,7 @@ def generate_mutation_schema(
     if "code" not in error_annotations:
         raise ValueError(
             f"Error type {error_type.__name__} must have 'code: int' field. "
-            f"v1.8.0 requires Error types to include REST-like error codes."
+            f"Error types must include REST-like error codes."
         )
 
     # Ensure status field exists

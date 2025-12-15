@@ -1,5 +1,4 @@
-"""
-Compliance Demo Application
+"""Compliance Demo Application
 ============================
 
 Demonstrates:
@@ -15,8 +14,8 @@ Then visit: http://localhost:8000/graphql
 """
 
 import os
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 from fraiseql import FraiseQL, create_fraiseql_app
 from fraiseql.security import SecurityProfile
@@ -173,8 +172,7 @@ class Query:
         resource_id: UUID | None = None,
         limit: int = 100,
     ) -> list[AuditEntry]:
-        """
-        List audit trail entries.
+        """List audit trail entries.
 
         Filters:
         - resource_type: Filter by resource type (document, user, etc.)
@@ -197,8 +195,7 @@ class Query:
     async def audit_chain_validation(
         self, info
     ) -> list[AuditEntryWithValidation]:
-        """
-        Get audit trail with chain validation status.
+        """Get audit trail with chain validation status.
 
         Each entry includes 'chain_valid' boolean indicating
         whether the cryptographic chain is intact.
@@ -218,8 +215,7 @@ class Query:
         verified_only: bool = False,
         limit: int = 50,
     ) -> list[SLSAProvenance]:
-        """
-        List SLSA provenance attestations.
+        """List SLSA provenance attestations.
 
         Filters:
         - artifact_name: Filter by artifact name
@@ -240,8 +236,7 @@ class Query:
         provider: str | None = None,
         status: str | None = None,
     ) -> list[KMSKey]:
-        """
-        List KMS keys.
+        """List KMS keys.
 
         Filters:
         - provider: aws-kms, gcp-kms, hashicorp-vault
@@ -263,8 +258,7 @@ class Query:
 
 @fraiseql.mutation(function="fn_create_document", enable_cascade=True)
 class CreateDocument:
-    """
-    Create document with automatic audit trail.
+    """Create document with automatic audit trail.
 
     CASCADE enabled: Returns updated document with audit count.
     """
@@ -298,8 +292,7 @@ from fastapi.responses import JSONResponse
 
 @fraiseql.app.get("/compliance/verify-audit-chain")
 async def verify_audit_chain():
-    """
-    Verify integrity of cryptographic audit chain.
+    """Verify integrity of cryptographic audit chain.
 
     Returns:
         - total_entries: Total audit entries
@@ -337,8 +330,7 @@ async def verify_audit_chain():
 
 @fraiseql.app.post("/compliance/slsa/verify/{artifact_name}")
 async def verify_slsa_provenance(artifact_name: str, version: str):
-    """
-    Verify SLSA provenance for an artifact.
+    """Verify SLSA provenance for an artifact.
 
     In production, this would:
     1. Fetch attestation from registry
@@ -388,8 +380,7 @@ async def verify_slsa_provenance(artifact_name: str, version: str):
 
 @fraiseql.app.get("/compliance/kms/rotate/{key_id}")
 async def rotate_kms_key(key_id: str):
-    """
-    Rotate KMS key (demo endpoint).
+    """Rotate KMS key (demo endpoint).
 
     In production, this would:
     1. Call KMS provider API

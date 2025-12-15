@@ -27,7 +27,7 @@ class MutationResultBase:
         class CreateUserSuccess(MutationResultBase):
             user: User | None = None
 
-        @fraiseql.failure
+        @fraiseql.error
         class CreateUserError(MutationResultBase):
             conflict_user: User | None = None
 
@@ -39,7 +39,7 @@ class MutationResultBase:
             errors: list[Error] | None = None  # Auto-populated
             user: User | None = None
 
-        @fraiseql.failure
+        @fraiseql.error
         class CreateUserError:
             status: str
             message: str

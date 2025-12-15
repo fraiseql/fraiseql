@@ -160,8 +160,13 @@ def define_fraiseql_type(
         ) from e
     field_map, patched_annotations = collect_fraise_fields(typed_cls, type_hints, kind=kind)
 
-    # For type and interface decorators, set all fields to "output" purpose if they are "both"
-    if kind in ("type", "interface"):
+    # Set field purposes based on type kind
+    if kind == "input":
+        # Input types should have input-only fields
+        for field in field_map.values():
+            field.purpose = "input"
+    elif kind in ("type", "interface"):
+        # Output types should have output-only fields (unless explicitly marked as both)
         for field in field_map.values():
             if field.purpose == "both":
                 field.purpose = "output"

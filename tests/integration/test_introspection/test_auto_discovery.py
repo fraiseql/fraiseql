@@ -76,7 +76,7 @@ class TestAutoDiscovery:
                 (),
                 {
                     "function_name": "fn_create_user",
-                    "comment": "@fraiseql:mutation\ninput_schema:\n  name: {type: string}\n  email: {type: string}\nsuccess_type: User\nfailure_type: Error",
+                    "comment": "@fraiseql:mutation\ninput_schema:\n  name: {type: string}\n  email: {type: string}\nsuccess_type: User\nerror_type: Error",
                 },
             )()
         ]

@@ -103,7 +103,7 @@ class TestMutationDescriptions:
         class CreateUserSuccess:
             message: str
 
-        @fraiseql.failure
+        @fraiseql.error
         class CreateUserError:
             message: str
 
@@ -113,7 +113,7 @@ class TestMutationDescriptions:
 
             input: CreateUserInput
             success: CreateUserSuccess
-            failure: CreateUserError
+            error: CreateUserError
 
             async def resolve(self, info) -> None:
                 return CreateUserSuccess(message="User created")
@@ -142,7 +142,7 @@ class TestMutationDescriptions:
         class UpdateDataSuccess:
             message: str
 
-        @fraiseql.failure
+        @fraiseql.error
         class UpdateDataError:
             message: str
 
@@ -150,7 +150,7 @@ class TestMutationDescriptions:
         class UpdateData:
             input: UpdateDataInput
             success: UpdateDataSuccess
-            failure: UpdateDataError
+            error: UpdateDataError
 
             async def resolve(self, info) -> None:
                 return UpdateDataSuccess(message="Data updated")
@@ -179,7 +179,7 @@ class TestMutationDescriptions:
         class ProcessOrderSuccess:
             message: str
 
-        @fraiseql.failure
+        @fraiseql.error
         class ProcessOrderError:
             message: str
 
@@ -193,7 +193,7 @@ class TestMutationDescriptions:
 
             input: ProcessOrderInput
             success: ProcessOrderSuccess
-            failure: ProcessOrderError
+            error: ProcessOrderError
 
             async def resolve(self, info) -> None:
                 return ProcessOrderSuccess(message="Order processed")

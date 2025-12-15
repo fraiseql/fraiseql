@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(Empty - ready for next development)
+
+## [1.8.1] - 2025-12-15
+
+### Features
+
+#### Custom Scalar WHERE Clause Filtering
+- All 54 custom scalar types now support WHERE clause filtering
+- Standard operators work: eq, ne, in, notIn, contains, startsWith, endsWith
+- Completes custom scalar integration across the entire pipeline
+- Fully tested with 167/167 tests passing
+
+**Example**:
+```python
+from fraiseql.types.scalars import EmailScalar, CIDRScalar, PhoneNumberScalar
+
+@fraise_type(sql_source="users")
+class User:
+    email: EmailScalar
+    phone: PhoneNumberScalar
+    ip_address: CIDRScalar
+
+# All WHERE operators work:
+query {
+    users(where: {email: {contains: "@company.com"}}) { email }
+    users(where: {phone: {startsWith: "+1"}}) { phone }
+    users(where: {ipAddress: {eq: "192.168.1.0/24"}}) { ipAddress }
+}
+```
+
+**Known Limitation**: JSONScalar cannot use standard WHERE operators because the parser interprets dict keys as filter operators. Use specialized JSONB operators or filter on JSON paths instead. See `src/fraiseql/where_clause.py` for details.
+
+#### Automatic Field Name Conversion in WHERE Clauses
+- WHERE clauses now automatically convert GraphQL camelCase field names to database snake_case
+- Supports arbitrary nesting levels (e.g., `machine.network.ipAddress`)
+- Backward compatible - existing snake_case field names work unchanged
+- Applies to both dict-based and WhereInput-based WHERE clauses
+
+**Examples**:
+```python
+# GraphQL camelCase (now works automatically)
+where = {"ipAddress": {"eq": "192.168.1.1"}}
+# Converts to: {"ip_address": {"eq": "192.168.1.1"}}
+
+# Deep nesting
+where = {"machine": {"network": {"ipAddress": {"eq": "192.168.1.1"}}}}
+# Converts all levels: machine → machine, network → network, ipAddress → ip_address
+```
+
+### Fixes
+
+#### Deep Nested WHERE Clause Support
+- Fixed WHERE clause processing to handle arbitrary levels of nesting
+- Previously only supported 1 level of nesting, now supports unlimited depth
+- Resolves "Invalid operator" errors for deeply nested GraphQL queries
+
+#### PageInfo Type Consistency
+- Fixed PageInfo type caching to ensure single instance across schema
+- Prevents "duplicate type" errors in complex schemas with multiple connections
+
+#### Connection Decorator Type Annotations
+- Fixed @connection decorator to preserve original function type annotations
+- Resolves type checker warnings and improves IDE autocomplete
+
+#### JSONB Nested Field CamelCase Conversion
+- Fixed nested JSONB object fields not converting to camelCase in GraphQL responses
+- Fields like `smtp_server`, `dns_1`, `print_servers` now correctly appear as `smtpServer`, `dns1`, `printServers`
+- Applies to all nested object patterns: single objects, numbered fields, and arrays
+
+### Rust Module Improvements
+
+#### Clippy Warnings Resolved
+- Removed deprecated `build_error_response` function (replaced by `build_error_response_with_code`)
+- Removed unused `transform_error` function
+- Fixed collapsible if-let patterns and format string optimizations
+- Added appropriate `#[allow]` annotations for intentional patterns
+- All code now passes `cargo clippy -- -D warnings`
+
+#### Test Suite Fixes
+- Fixed 41 pre-existing test compilation errors in mutation module
+- Updated all `build_mutation_response` and `build_graphql_response` calls to use correct 10-argument signature
+- Removed duplicate imports and fixed formatting inconsistencies
+
 ## [1.8.0] - 2025-12-10
 
 **🎉 Stable Release**: FraiseQL v1.8.0 transitions from beta to stable with critical bug fixes and enhanced filtering capabilities.

@@ -349,7 +349,7 @@ class TestDynamicFilterConstruction:
         # Add text search filter
         search_term = "meeting"
         if search_term:
-            where["title"] = {"ilike": search_term}
+            where["title"] = {"icontains": search_term}
 
         # Add range filter with multiple operators
         min_attendees = 10

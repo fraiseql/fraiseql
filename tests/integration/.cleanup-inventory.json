@@ -1,0 +1,196 @@
+{
+  "audit_date": "2025-12-13",
+  "categories": {
+    "duplicates": {
+      "description": "Files that need to be consolidated",
+      "groups": [
+        {
+          "feature": "field_authorization",
+          "keep": "tests/integration/auth/test_field_authorization.py",
+          "merge": [
+            "tests/integration/auth/test_field_authorization_simple.py",
+            "tests/integration/auth/test_field_authorization_fixed.py",
+            "tests/integration/auth/test_field_auth_complex.py"
+          ],
+          "final_name": "tests/integration/auth/test_field_authorization.py"
+        },
+        {
+          "feature": "validators",
+          "keep": "tests/integration/auth/test_validators.py",
+          "merge": [
+            "tests/integration/auth/test_validators_extended.py"
+          ],
+          "final_name": "tests/integration/auth/test_validators.py"
+        }
+      ]
+    },
+    "renames": {
+      "description": "Files that need renaming to remove process hints",
+      "files": [
+        {
+          "old": "tests/integration/auth/test_decorators_extended.py",
+          "new": "tests/integration/auth/test_decorators.py",
+          "reason": "Remove '_extended' suffix"
+        },
+        {
+          "old": "tests/integration/auth/test_field_auth_complex.py",
+          "new": "tests/integration/auth/test_field_authorization_complex.py",
+          "reason": "Remove '_auth_' abbreviation, standardize naming"
+        },
+        {
+          "old": "tests/integration/auth/test_field_authorization_fixed.py",
+          "new": "tests/integration/auth/test_field_authorization_fixed.py",
+          "reason": "Keep as is - part of consolidation"
+        },
+        {
+          "old": "tests/integration/auth/test_field_authorization_simple.py",
+          "new": "tests/integration/auth/test_field_authorization_simple.py",
+          "reason": "Keep as is - part of consolidation"
+        },
+        {
+          "old": "tests/integration/auth/test_json_passthrough_config_fix.py",
+          "new": "tests/integration/auth/test_json_passthrough_config.py",
+          "reason": "Remove '_fix' suffix"
+        },
+        {
+          "old": "tests/integration/auth/test_validators_extended.py",
+          "new": "tests/integration/auth/test_validators_extended.py",
+          "reason": "Keep as is - part of consolidation"
+        },
+        {
+          "old": "tests/integration/database/repository/test_db_integration_simple.py",
+          "new": "tests/integration/database/repository/test_db_integration.py",
+          "reason": "Remove '_simple' suffix"
+        },
+        {
+          "old": "tests/integration/database/repository/test_nested_object_tenant_id_fix.py",
+          "new": "tests/integration/database/repository/test_nested_object_tenant_id.py",
+          "reason": "Remove '_fix' suffix"
+        },
+        {
+          "old": "tests/integration/database/repository/test_nested_tenant_fix_real_db.py",
+          "new": "tests/integration/database/repository/test_nested_tenant_integration.py",
+          "reason": "Remove '_fix_real_db', use '_integration' suffix"
+        },
+        {
+          "old": "tests/integration/database/sql/test_graphql_where_repository_fix.py",
+          "new": "tests/integration/database/sql/test_graphql_where_repository.py",
+          "reason": "Remove '_fix' suffix"
+        },
+        {
+          "old": "tests/integration/database/sql/test_order_by_list_dict_regression.py",
+          "new": "tests/integration/database/sql/test_order_by_list_dict.py",
+          "reason": "Remove '_regression' suffix"
+        },
+        {
+          "old": "tests/integration/database/sql/test_orderby_complex_scenarios.py",
+          "new": "tests/integration/database/sql/test_orderby_scenarios.py",
+          "reason": "Remove '_complex' suffix"
+        },
+        {
+          "old": "tests/integration/database/sql/test_where_generator_extended.py",
+          "new": "tests/integration/database/sql/test_where_generator.py",
+          "reason": "Remove '_extended' suffix"
+        },
+        {
+          "old": "tests/integration/database/sql/where/network/test_network_fixes.py",
+          "new": "tests/integration/database/sql/where/network/test_network_filtering.py",
+          "reason": "Remove '_fixes', improve name clarity"
+        },
+        {
+          "old": "tests/integration/e2e/test_performance_regression.py",
+          "new": "tests/integration/e2e/test_performance.py",
+          "reason": "Remove '_regression' suffix"
+        },
+        {
+          "old": "tests/integration/examples/test_blog_simple_integration.py",
+          "new": "tests/integration/examples/test_blog_integration.py",
+          "reason": "Remove '_simple' suffix"
+        },
+        {
+          "old": "tests/integration/graphql/mutations/test_similar_mutation_names_collision_fix.py",
+          "new": "tests/integration/graphql/mutations/test_mutation_name_resolution.py",
+          "reason": "Remove '_fix' and improve name clarity"
+        },
+        {
+          "old": "tests/integration/graphql/mutations/test_simple_mutation_regression.py",
+          "new": "tests/integration/graphql/mutations/test_simple_mutations.py",
+          "reason": "Remove '_regression' suffix"
+        },
+        {
+          "old": "tests/integration/graphql/test_enum_conversion_fix.py",
+          "new": "tests/integration/graphql/test_enum_conversion.py",
+          "reason": "Remove '_fix' suffix"
+        },
+        {
+          "old": "tests/integration/graphql/test_enum_parameter_simple.py",
+          "new": "tests/integration/graphql/test_enum_parameters.py",
+          "reason": "Remove '_simple' suffix"
+        },
+        {
+          "old": "tests/integration/performance/test_n_plus_one_detector_extended.py",
+          "new": "tests/integration/performance/test_n_plus_one_detector.py",
+          "reason": "Remove '_extended' suffix"
+        }
+      ]
+    },
+    "content_cleanup": {
+      "description": "Patterns to remove from all test files",
+      "markers": [
+        "WP-XXX work package references (3 found)",
+        "Phase X development phase mentions (30 found)",
+        "RED/GREEN/REFACTOR TDD markers (0 found)",
+        "Regression test for... comments (13 found)",
+        "This test verifies the fix for... comments",
+        "Fixed version in docstrings",
+        "Version numbers and dates",
+        "TODO comments in implementations",
+        "Before the fix.../After the fix... comments",
+        "old behavior vs new behavior references",
+        "Historical architectural decision explanations"
+      ],
+      "affected_files_count": "~50+ files (most of integration suite)"
+    },
+    "incomplete_tests": {
+      "description": "Files with placeholder tests to review",
+      "files": [
+        {
+          "path": "tests/integration/enterprise/rbac/test_role_hierarchy.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        },
+        {
+          "path": "tests/integration/performance/test_dataloader_field_decorator.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        },
+        {
+          "path": "tests/integration/test_connection_jsonb_integration.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        },
+        {
+          "path": "tests/integration/graphql/mutations/test_mutation_rust_pipeline.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        },
+        {
+          "path": "tests/integration/e2e/test_full_stack_e2e.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        },
+        {
+          "path": "tests/integration/e2e/test_performance_regression.py",
+          "action": "REVIEW",
+          "reason": "Contains placeholder assert True test"
+        }
+      ]
+    }
+  },
+  "statistics": {
+    "total_files_to_rename": 21,
+    "duplicate_groups": 2,
+    "files_to_review": 6,
+    "estimated_files_needing_content_cleanup": 50
+  }
+}

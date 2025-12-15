@@ -51,29 +51,26 @@ logger = logging.getLogger(__name__)
 
 
 class RustTransformer:
-    """Manages fraiseql-rs JSON transformations (v0.2.0+).
+    """Manages fraiseql-rs JSON transformations.
 
     This class provides integration with fraiseql-rs for high-performance
     JSON transformation from snake_case to camelCase with __typename injection.
-
-    Note: SchemaRegistry removed in v0.2.0 - transformation is now automatic.
     """
 
     def __init__(self) -> None:
         """Initialize the Rust transformer."""
-        # SchemaRegistry removed in v0.2.0 - transformation now automatic!
+        # Transformation is now automatic
         self._type_names: set[str] = set()  # Track registered types for validation
-        logger.info("fraiseql-rs v0.2.0 transformer initialized")
+        logger.info("fraiseql-rs transformer initialized")
 
     def register_type(self, type_class: Type, type_name: Optional[str] = None) -> None:
-        """Register a GraphQL type name (schema analysis removed in v0.2.0).
+        """Register a GraphQL type name.
 
-        Note: fraiseql_rs v0.2.0 no longer requires schema registration.
-        This method now just tracks type names for validation purposes.
+        This method tracks type names for validation purposes.
         """
         type_name = type_name or type_class.__name__
         self._type_names.add(type_name)
-        logger.debug(f"Registered type '{type_name}' (v0.2.0 - no schema needed)")
+        logger.debug(f"Registered type '{type_name}'")
 
     def transform(self, json_str: str, root_type: str) -> str:
         """Transform JSON string to GraphQL response format.
@@ -85,7 +82,7 @@ class RustTransformer:
         Returns:
             GraphQL response JSON string with camelCase + __typename
         """
-        # v0.2.0: Use build_graphql_response for single object
+        # Use build_graphql_response for single object
         response_bytes = fraiseql_rs.build_graphql_response(
             json_strings=[json_str],
             field_name="data",  # Generic wrapper field

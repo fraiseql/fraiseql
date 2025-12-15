@@ -26,6 +26,7 @@ class User:
     """
 
     id: UUID
+    identifier: str  # Human-readable username (from JSONB)
     email: str
     name: str
     bio: str | None
@@ -319,7 +320,7 @@ class CreateUserSuccess:
     message: str = "User created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     """Failed user creation result."""
 
@@ -336,7 +337,7 @@ class CreatePostSuccess:
     message: str = "Post created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreatePostError:
     """Failed post creation result."""
 
@@ -354,7 +355,7 @@ class UpdatePostSuccess:
     updated_fields: list[str]
 
 
-@fraiseql.failure
+@fraiseql.error
 class UpdatePostError:
     """Failed post update result."""
 
@@ -434,7 +435,7 @@ class UpdatePostSuccessEnterprise:
 # Enhanced Error Types with Validation Context
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserErrorEnterprise:
     """User creation failed with detailed context."""
 
@@ -445,7 +446,7 @@ class CreateUserErrorEnterprise:
     conflicting_user: User | None = None
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreatePostErrorEnterprise:
     """Post creation failed with detailed context."""
 

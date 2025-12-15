@@ -9,6 +9,7 @@ Supports:
 import asyncio
 import os
 from typing import List, Optional
+
 import httpx
 
 
@@ -147,7 +148,7 @@ def get_embedding_provider(
 
         return OpenAIEmbeddings(openai_api_key=openai_api_key)
 
-    elif provider == "sentence-transformers" or provider == "local":
+    if provider == "sentence-transformers" or provider == "local":
         # Use sentence-transformers with local GPU
         return SentenceTransformerEmbeddings(
             model_name=os.getenv(
@@ -156,7 +157,7 @@ def get_embedding_provider(
             device=os.getenv("EMBEDDING_DEVICE", "cuda"),
         )
 
-    elif provider == "auto":
+    if provider == "auto":
         # Try providers in order of preference
         if openai_api_key:
             print("✓ Using OpenAI embeddings")

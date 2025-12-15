@@ -36,7 +36,7 @@ FraiseQL treats PostgreSQL as:
 | Structure primary keys | **Trinity Identifiers** (id/identifier/uuid) | [Trinity Identifiers](#2-trinity-identifiers) |
 | Expose data to GraphQL | **JSONB Views** (`v_*`) | [View Strategies](#3-view-strategies) |
 | Write mutations | **mutation_response + Status Strings** | [Mutation Requirements](#4-mutation-patterns) |
-| Handle errors | **Status strings** (`failed:validation`) | [Error Handling](#5-error-handling) |
+| Handle errors | **Status strings** (`validation:`) | [Error Handling](#5-error-handling) |
 | Validate input | **PL/pgSQL validation** in functions | [Validation Patterns](#6-validation-patterns) |
 | Control access | **Row-Level Security (RLS)** | [Security & RLS](#7-security-patterns) |
 | Improve performance | **Materialized views + indexes** | [Performance](#8-performance-patterns) |
@@ -301,7 +301,7 @@ All FraiseQL mutations use PostgreSQL functions returning `mutation_response`:
 
 ```sql
 CREATE TYPE mutation_response AS (
-    status          TEXT,      -- "created", "failed:validation", "not_found:user"
+    status          TEXT,      -- "created", "validation:", "not_found:user"
     message         TEXT,      -- Human-readable message
     entity_id       TEXT,      -- Optional entity identifier
     entity_type     TEXT,      -- GraphQL type name (for __typename)
@@ -322,7 +322,7 @@ DECLARE
 BEGIN
     -- Validation
     IF input_data->>'email' IS NULL THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Email is required';
         RETURN result;
     END IF;
@@ -363,7 +363,7 @@ FraiseQL uses **status strings** that automatically generate structured errors:
 
 ```sql
 -- Validation error
-status := 'failed:validation';
+status := 'validation:';
 
 -- Not found
 status := 'not_found:user';
@@ -377,7 +377,7 @@ status := 'forbidden:insufficient_role';
 
 **Automatic transformation**:
 ```
-PostgreSQL:  status = "failed:validation"
+PostgreSQL:  status = "validation:"
              message = "Email format invalid"
 
 GraphQL:     errors = [{
@@ -421,13 +421,13 @@ BEGIN
 
     -- Validation
     IF title IS NULL OR length(trim(title)) = 0 THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Title is required';
         RETURN result;
     END IF;
 
     IF length(title) > 200 THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Title must be 200 characters or less';
         RETURN result;
     END IF;
@@ -466,7 +466,7 @@ BEGIN
 
     -- Return all errors at once
     IF jsonb_array_length(validation_errors) > 0 THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Validation failed';
         result.metadata := jsonb_build_object('errors', validation_errors);
         RETURN result;
@@ -783,7 +783,7 @@ CREATE OR REPLACE FUNCTION fn_create_user(input_data JSONB)
 RETURNS mutation_response AS $$
 BEGIN
     IF input_data->>'name' IS NULL THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Name is required';
         RETURN result;
     END IF;
@@ -827,7 +827,7 @@ DECLARE
 BEGIN
     -- Validation
     IF input_data->>'field' IS NULL THEN
-        result.status := 'failed:validation';
+        result.status := 'validation:';
         result.message := 'Field is required';
         RETURN result;
     END IF;

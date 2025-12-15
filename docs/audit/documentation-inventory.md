@@ -57,8 +57,8 @@ This inventory catalogs all documentation files in the FraiseQL project, assessi
 | Example | README Status | Completeness | Quality | Notes |
 |---------|---------------|--------------|---------|-------|
 | `README.md` | ✅ Complete | Excellent | Excellent | Comprehensive index with navigation |
-| `INDEX.md` | ✅ Complete | Excellent | Excellent | Detailed catalog by difficulty/use case |
-| `LEARNING_PATHS.md` | ✅ Complete | Excellent | Excellent | Structured learning progression |
+| `index.md` | ✅ Complete | Excellent | Excellent | Detailed catalog by difficulty/use case |
+| `learning-paths.md` | ✅ Complete | Excellent | Excellent | Structured learning progression |
 | `blog_simple/` | ✅ Complete | Excellent | Excellent | Very detailed, 580+ lines, comprehensive |
 | `ecommerce/` | ✅ Complete | Good | Good | Concise but complete, follows template |
 | `blog_api/` | ✅ Complete | Good | Good | Standard format, good coverage |
@@ -215,7 +215,7 @@ This inventory catalogs all documentation files in the FraiseQL project, assessi
 
 ### Phase 1B: Standardization (Week 2)
 **Goal**: Consistent documentation format
-- Create `examples/_TEMPLATE_README.md` standard template
+- Create `examples/_template-readme.md` standard template
 - Update inconsistent READMEs to match template
 - Establish README quality guidelines
 

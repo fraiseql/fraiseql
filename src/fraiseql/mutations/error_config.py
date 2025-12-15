@@ -8,22 +8,8 @@ from typing import Pattern
 class MutationErrorConfig:
     """Configurable error detection for mutations.
 
-    v1.8.0 Breaking Change:
-    ----------------------
-    - Removed `error_as_data_prefixes` (all errors are now Error type)
-    - `noop:*` statuses now return Error type with code 422
-    - Success type ALWAYS has non-null entity
-    - Error type includes REST-like `code` field (422, 404, 409, 500)
-
-    Migration Guide:
-    ---------------
-    OLD (v1.7.x):
-        noop:invalid_contract_id → CreateMachineSuccess with machine=null
-
-    NEW (v1.8.0):
-        noop:invalid_contract_id → CreateMachineError with code=422
-
-    See docs/migrations/v1.8.0.md for details.
+    Defines patterns for detecting success vs error responses from database
+    operations, including status keywords, error prefixes, and HTTP-like codes.
     """
 
     # Success keywords (unchanged)
@@ -46,7 +32,7 @@ class MutationErrorConfig:
     # Error prefixes - NOW INCLUDES noop:, blocked:, etc.
     error_prefixes: set[str] = field(
         default_factory=lambda: {
-            # v1.8.0: Moved from error_as_data_prefixes
+            # Validation/business rule failures
             "noop:",  # Validation/business rule failures (422)
             "blocked:",  # Blocked operations (422)
             "skipped:",  # Skipped operations (422)
@@ -54,7 +40,7 @@ class MutationErrorConfig:
             # Traditional errors
             "error:",
             "failed:",  # System failures (500)
-            "validation_error:",
+            "validation:",  # Input validation failures (422)
             "unauthorized:",  # Auth failures (401)
             "forbidden:",  # Permission failures (403)
             "not_found:",  # Missing resources (404)
@@ -63,8 +49,7 @@ class MutationErrorConfig:
         },
     )
 
-    # REMOVED in v1.8.0: error_as_data_prefixes
-    # All errors are now Error type
+    # All errors are Error type
 
     # Error keywords (unchanged)
     error_keywords: set[str] = field(
@@ -80,14 +65,14 @@ class MutationErrorConfig:
     # Custom regex pattern for error detection (optional)
     error_pattern: Pattern[str] | None = None
 
-    # DEPRECATED in v1.8.0: always_return_as_data
+    # DEPRECATED: always_return_as_data
     # Use success_keywords and error_prefixes instead
     always_return_as_data: bool = False
 
     def is_error_status(self, status: str) -> bool:
         """Check if a status should be treated as a GraphQL error.
 
-        v1.8.0: This method now returns True for noop:* statuses.
+        Returns True for noop:* statuses.
 
         Args:
             status: The status string from the mutation result
@@ -103,7 +88,7 @@ class MutationErrorConfig:
             import warnings
 
             warnings.warn(
-                "always_return_as_data is deprecated in v1.8.0. "
+                "always_return_as_data is deprecated. "
                 "Use success_keywords and error_prefixes instead.",
                 DeprecationWarning,
                 stacklevel=2,
@@ -116,7 +101,6 @@ class MutationErrorConfig:
         if status_lower in self.success_keywords:
             return False
 
-        # v1.8.0: REMOVED error_as_data_prefixes check
         # All non-success prefixes are errors
 
         # Check error prefixes (includes noop: now)
@@ -137,8 +121,6 @@ class MutationErrorConfig:
 
     def get_error_code(self, status: str) -> int:
         """Map status string to REST-like error code.
-
-        v1.8.0: New method for mapping statuses to application-level codes.
 
         Args:
             status: The status string from the mutation result
@@ -199,7 +181,7 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         "cancelled",  # Added for enterprise compatibility
     },
     error_prefixes={
-        # v1.8.0: Validation/business rule failures
+        # Validation/business rule failures
         "noop:",
         "blocked:",
         "skipped:",
@@ -207,7 +189,7 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         # Traditional errors
         "error:",
         "failed:",
-        "validation_error:",
+        "validation:",
         "unauthorized:",
         "forbidden:",
         "not_found:",
@@ -216,19 +198,18 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
     },
 )
 
-# DEPRECATED in v1.8.0: STRICT_STATUS_CONFIG
+# DEPRECATED: STRICT_STATUS_CONFIG
 # Use DEFAULT_ERROR_CONFIG instead
 STRICT_STATUS_CONFIG = DEFAULT_ERROR_CONFIG
 
 
-# DEPRECATED in v1.8.0: ALWAYS_DATA_CONFIG
-# All errors are now Error type
+# DEPRECATED: ALWAYS_DATA_CONFIG
+# All errors are Error type
 def ALWAYS_DATA_CONFIG() -> MutationErrorConfig:  # noqa: D103
     import warnings
 
     warnings.warn(
-        "ALWAYS_DATA_CONFIG is deprecated in v1.8.0. "
-        "All errors now return Error type with appropriate codes.",
+        "ALWAYS_DATA_CONFIG is deprecated. All errors return Error type with appropriate codes.",
         DeprecationWarning,
         stacklevel=2,
     )

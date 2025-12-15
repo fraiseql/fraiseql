@@ -176,7 +176,7 @@ async def products(
 
 
 @app.query
-async def expensive_products(info, min_price: Decimal = Decimal("1000")) -> list[Product]:
+async def expensive_products(info, min_price: Decimal = Decimal(1000)) -> list[Product]:
     """Find expensive products using indexed price column.
 
     **Performance:**

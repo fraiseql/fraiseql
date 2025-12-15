@@ -16,6 +16,7 @@ from fraiseql.graphql.field_type_extraction import (
     extract_field_type_from_graphql_info,
 )
 from fraiseql.types import IpAddress, MacAddress
+from tests.helpers.sql_rendering import render_sql_for_testing
 
 
 class TestFieldTypeExtraction:
@@ -172,7 +173,7 @@ class TestNetworkFieldTypeIntegration:
 
     def test_field_extraction_supports_network_operator_selection(self) -> None:
         """Test that extracted field types can be used for operator selection."""
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         # Mock GraphQL info
         mock_info = Mock()
@@ -196,7 +197,7 @@ class TestNetworkFieldTypeIntegration:
         """Test that field type extraction enables proper SQL casting."""
         from psycopg.sql import SQL
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         # Mock GraphQL info and extract field type
         mock_info = Mock()
@@ -207,8 +208,8 @@ class TestNetworkFieldTypeIntegration:
         strategy = registry.get_strategy("eq", field_type=field_type)
 
         field_path = SQL("data->>'ipAddress'")
-        sql = strategy.build_sql(field_path, "eq", "8.8.8.8", field_type)
-        sql_str = str(sql)
+        sql = strategy.build_sql("eq", "8.8.8.8", field_path, field_type)
+        sql_str = render_sql_for_testing(sql)
 
         # Should use proper network casting
         assert "::inet" in sql_str, f"Expected ::inet casting in SQL: {sql_str}"

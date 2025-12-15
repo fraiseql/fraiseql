@@ -46,6 +46,7 @@ pub enum StatusKind {
 
 impl StatusKind {
     /// Parse status string into classification
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 

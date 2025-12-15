@@ -19,12 +19,6 @@ import pytest_asyncio
 pytestmark = pytest.mark.database
 
 # Import database fixtures
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
@@ -221,7 +215,7 @@ class TestJSONBFullGraphQLExecution:
         # execute_graphql() should return RustResponseBytes directly for repo.find() results
         if isinstance(result, RustResponseBytes):
             # Success! RustResponseBytes was passed through correctly
-            # Use to_json() method for testing (Phase 3 enhancement)
+            # Use to_json() method for testing
             data = result.to_json()
 
             # Verify structure
@@ -312,7 +306,7 @@ class TestJSONBFullGraphQLExecution:
         # execute_graphql() should return RustResponseBytes directly for repo.find_one() results
         if isinstance(result, RustResponseBytes):
             # Success! RustResponseBytes was passed through correctly
-            # Use to_json() method for testing (Phase 3 enhancement)
+            # Use to_json() method for testing
             data = result.to_json()
 
             # Verify structure

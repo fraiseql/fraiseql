@@ -15,6 +15,8 @@ from fraiseql.core.rust_pipeline import (
     execute_via_rust_pipeline,
 )
 from fraiseql.utils.casing import to_snake_case
+from fraiseql.where_clause import WhereClause
+from fraiseql.where_normalization import normalize_dict_where, normalize_whereinput
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +127,8 @@ def register_type_for_view(
     table_columns: set[str] | None = None,
     has_jsonb_data: bool | None = None,
     jsonb_column: str | None = None,
+    fk_relationships: dict[str, str] | None = None,
+    validate_fk_strict: bool = True,
 ) -> None:
     """Register a type class for a specific view name with optional metadata.
 
@@ -137,16 +141,43 @@ def register_type_for_view(
         table_columns: Optional set of actual database columns (for hybrid tables)
         has_jsonb_data: Optional flag indicating if table has a JSONB 'data' column
         jsonb_column: Optional name of the JSONB column (defaults to "data")
+        fk_relationships: Map GraphQL field name → FK column name.
+            Example: {"machine": "machine_id", "printer": "printer_id"}
+            If not specified, uses convention: field + "_id"
+        validate_fk_strict: If True, raise error on FK validation failures.
+            If False, only warn (useful for legacy code migration).
     """
     _type_registry[view_name] = type_class
     logger.debug(f"Registered type {type_class.__name__} for view {view_name}")
 
+    # Initialize FK relationships
+    fk_relationships = fk_relationships or {}
+
+    # Validate FK relationships if strict mode
+    if validate_fk_strict and fk_relationships and table_columns:
+        for field_name, fk_column in fk_relationships.items():
+            if fk_column not in table_columns:
+                raise ValueError(
+                    f"Invalid FK relationship for {view_name}: "
+                    f"Field '{field_name}' mapped to FK column '{fk_column}', "
+                    f"but '{fk_column}' not in table_columns: {table_columns}. "
+                    f"Either add '{fk_column}' to table_columns or fix fk_relationships. "
+                    f"To allow this (not recommended), set validate_fk_strict=False."
+                )
+
     # Store metadata if provided
-    if table_columns is not None or has_jsonb_data is not None or jsonb_column is not None:
+    if (
+        table_columns is not None
+        or has_jsonb_data is not None
+        or jsonb_column is not None
+        or fk_relationships
+    ):
         metadata = {
             "columns": table_columns or set(),
             "has_jsonb_data": has_jsonb_data or False,
             "jsonb_column": jsonb_column,  # Always store the jsonb_column value
+            "fk_relationships": fk_relationships,
+            "validate_fk_strict": validate_fk_strict,
         }
         _table_metadata[view_name] = metadata
         logger.debug(
@@ -824,7 +855,7 @@ class FraiseQLRepository:
         from psycopg.sql import SQL, Composed, Identifier
 
         # Build WHERE clause (extracted to helper method for reuse)
-        where_parts = self._build_where_clause(view_name, **kwargs)
+        where_parts, params = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
@@ -844,7 +875,10 @@ class FraiseQLRepository:
 
         # Execute query and return count
         async with self._pool.connection() as conn, conn.cursor() as cursor:
-            await cursor.execute(query)
+            if params:
+                await cursor.execute(query, params)
+            else:
+                await cursor.execute(query)
             result = await cursor.fetchone()
             return result[0] if result else 0
 
@@ -884,7 +918,7 @@ class FraiseQLRepository:
         from psycopg.sql import SQL, Composed, Identifier
 
         # Build WHERE clause using existing helper
-        where_parts = self._build_where_clause(view_name, **kwargs)
+        where_parts, params = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
@@ -905,7 +939,10 @@ class FraiseQLRepository:
 
         # Execute query
         async with self._pool.connection() as conn, conn.cursor() as cursor:
-            await cursor.execute(query)
+            if params:
+                await cursor.execute(query, params)
+            else:
+                await cursor.execute(query)
             result = await cursor.fetchone()
             return bool(result[0]) if result else False
 
@@ -1296,7 +1333,7 @@ class FraiseQLRepository:
             return {}
 
         # Build WHERE clause using existing helper
-        where_parts = self._build_where_clause(view_name, **kwargs)
+        where_parts, params = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
@@ -1320,7 +1357,10 @@ class FraiseQLRepository:
 
         # Execute query
         async with self._pool.connection() as conn, conn.cursor() as cursor:
-            await cursor.execute(query)
+            if params:
+                await cursor.execute(query, params)
+            else:
+                await cursor.execute(query)
             result = await cursor.fetchone()
 
             if not result:
@@ -1362,7 +1402,7 @@ class FraiseQLRepository:
             return {}
 
         # Build WHERE clause using existing helper
-        where_parts = self._build_where_clause(view_name, **kwargs)
+        where_parts, where_params = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
@@ -1394,7 +1434,7 @@ class FraiseQLRepository:
 
         # Execute query
         async with self._pool.connection() as conn, conn.cursor() as cursor:
-            await cursor.execute(query, ids)
+            await cursor.execute(query, where_params + ids)
             results = await cursor.fetchall()
 
             # Extract existing IDs
@@ -1403,119 +1443,163 @@ class FraiseQLRepository:
             # Build result dict
             return {id_val: (id_val in existing_ids) for id_val in ids}
 
-    def _build_where_clause(self, view_name: str, **kwargs: Any) -> list[Any]:
-        """Build WHERE clause parts from kwargs.
+    def _normalize_where(
+        self,
+        where: dict | Any,
+        view_name: str,
+        table_columns: set[str] | None = None,
+    ) -> WhereClause:
+        """Normalize WHERE clause to canonical WhereClause representation.
 
-        Extracted helper method to avoid code duplication between count() and
-        other query-building methods.
+        This is the single entry point for WHERE normalization, handling both
+        dict and WhereInput formats. Automatically converts GraphQL camelCase
+        field names to database snake_case column names.
 
         Args:
-            view_name: View name for metadata lookup
-            **kwargs: Query parameters including where, tenant_id, etc.
+            where: WHERE clause (dict or WhereInput object)
+                  Field names can be camelCase (GraphQL) or snake_case (database)
+            view_name: Table/view name for metadata lookup
+            table_columns: Set of actual table column names
 
         Returns:
-            List of SQL Composed objects for WHERE clause parts
+            Canonical WhereClause representation
+
+        Raises:
+            TypeError: If where is not a supported type
+
+        Examples:
+            # CamelCase input (GraphQL style) - automatically converted
+            where = {"ipAddress": {"eq": "192.168.1.1"}}
+            # Converted internally to: {"ip_address": {"eq": "..."}}
+
+            # Snake_case input (already correct) - preserved as-is
+            where = {"ip_address": {"eq": "192.168.1.1"}}
+
+            # Deep nesting with mixed case - all levels converted
+            where = {"machine": {"network": {"ipAddress": {"eq": "..."}}}}
         """
-        from psycopg.sql import SQL, Composed, Identifier, Literal
+        # Already normalized
+        if isinstance(where, WhereClause):
+            return where
 
-        where_parts = []
+        # Dict-based WHERE
+        if isinstance(where, dict):
+            jsonb_column = "data"
+            if view_name in _table_metadata:
+                metadata = _table_metadata[view_name]
+                if metadata.get("has_jsonb_data", False):
+                    jsonb_column = metadata.get("jsonb_column") or "data"
 
-        # Extract where parameter
-        where_obj = kwargs.pop("where", None)
+            result = normalize_dict_where(where, view_name, table_columns, jsonb_column)
+            if result is None:
+                raise ValueError(f"normalize_dict_where returned None for {where!r}")
+            return result
 
-        # Process where object
-        if where_obj:
-            if hasattr(where_obj, "to_sql"):
-                where_composed = where_obj.to_sql()
-                if where_composed:
-                    where_parts.append(where_composed)
-            elif hasattr(where_obj, "_to_sql_where"):
-                # Convert GraphQL WhereInput to SQL where type
-                sql_where_obj = where_obj._to_sql_where()
+        # WhereInput-based WHERE
+        if hasattr(where, "_to_whereinput_dict"):
+            jsonb_column = "data"
+            if view_name in _table_metadata:
+                metadata = _table_metadata[view_name]
+                if metadata.get("has_jsonb_data", False):
+                    jsonb_column = metadata.get("jsonb_column") or "data"
 
-                # FIX FOR ISSUE #124: Handle nested object filters in hybrid tables
-                # When a table has both SQL columns (e.g., machine_id) and JSONB data
-                # (e.g., data->'machine'->>'id'), nested object filters like
-                # {machine: {id: {eq: value}}} should use the SQL column for performance.
-                #
-                # Without this fix, WhereInput objects bypass the hybrid table logic
-                # and generate incorrect JSONB paths, causing "Unsupported operator: id"
-                # warnings and returning unfiltered results.
-                #
-                # Check if this is a hybrid table with registered columns
-                table_columns = None
-                if (
-                    hasattr(self, "_introspected_columns")
-                    and view_name in self._introspected_columns
-                ):
-                    table_columns = self._introspected_columns[view_name]
-                elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
-                    table_columns = _table_metadata[view_name]["columns"]
+            result = normalize_whereinput(where, view_name, table_columns, jsonb_column)
+            if result is None:
+                raise ValueError(f"normalize_whereinput returned None for {where!r}")
+            return result
 
-                # If we have table column metadata, convert WHERE object to dict
-                # for hybrid table processing (enables FK column detection)
-                if table_columns and hasattr(sql_where_obj, "to_sql"):
-                    # Convert WHERE object to dict to detect nested object filters
-                    where_dict = self._where_obj_to_dict(sql_where_obj, table_columns)
+        # Try to convert dataclass WhereInput objects to dict
+        # (for dynamically created WhereInput types without _to_whereinput_dict method)
+        from dataclasses import asdict, is_dataclass
 
-                    if where_dict:
-                        # Get JSONB column from metadata
-                        jsonb_column = None
-                        if view_name in _table_metadata:
-                            metadata = _table_metadata[view_name]
-                            if metadata.get("has_jsonb_data", False):
-                                jsonb_column = metadata.get("jsonb_column") or "data"
-                            elif "jsonb_column" in metadata:
-                                jsonb_column = metadata["jsonb_column"]
+        if is_dataclass(where):
+            # Convert dataclass to dict, filtering out None values
+            where_dict = {
+                field_name: field_value
+                for field_name, field_value in asdict(where).items()
+                if field_value is not None and field_value != {}
+            }
 
-                        # Use dict-based processing which handles hybrid tables correctly
-                        dict_where_sql = self._convert_dict_where_to_sql(
-                            where_dict, view_name, table_columns, jsonb_column
-                        )
-                        if dict_where_sql:
-                            where_parts.append(dict_where_sql)
-                    else:
-                        # Fallback to standard processing if conversion fails
-                        where_composed = sql_where_obj.to_sql()
-                        if where_composed:
-                            where_parts.append(where_composed)
-                # No table columns metadata, use standard processing
-                elif hasattr(sql_where_obj, "to_sql"):
-                    where_composed = sql_where_obj.to_sql()
-                    if where_composed:
-                        where_parts.append(where_composed)
-            elif isinstance(where_obj, dict):
-                # Get JSONB column from metadata
-                jsonb_column = None
+            if where_dict:  # Only process if there are non-empty values
+                jsonb_column = "data"
                 if view_name in _table_metadata:
                     metadata = _table_metadata[view_name]
                     if metadata.get("has_jsonb_data", False):
                         jsonb_column = metadata.get("jsonb_column") or "data"
-                    elif "jsonb_column" in metadata:
-                        jsonb_column = metadata["jsonb_column"]
 
-                # Get table columns for nested object detection
-                table_columns = None
-                if (
-                    hasattr(self, "_introspected_columns")
-                    and view_name in self._introspected_columns
-                ):
-                    table_columns = self._introspected_columns[view_name]
-                elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
-                    table_columns = _table_metadata[view_name]["columns"]
+                result = normalize_dict_where(where_dict, view_name, table_columns, jsonb_column)
+                if result is None:
+                    raise ValueError(f"normalize_dict_where returned None for {where_dict!r}")
+                return result
 
-                dict_where_sql = self._convert_dict_where_to_sql(
-                    where_obj, view_name, table_columns, jsonb_column
-                )
-                if dict_where_sql:
-                    where_parts.append(dict_where_sql)
+        # FIX: Always raise error for unsupported types, never return None
+        raise TypeError(
+            f"WHERE clause must be dict, WhereClause, or WhereInput object. "
+            f"Got: {type(where).__name__}"
+        )
+
+    def _build_where_clause(self, view_name: str, **kwargs: Any) -> tuple[list[Any], list[Any]]:
+        """Build WHERE clause parts from kwargs.
+
+        New architecture:
+            1. Extract where parameter
+            2. Normalize to WhereClause (single code path)
+            3. Generate SQL from WhereClause
+            4. Process remaining kwargs
+
+        Returns:
+            Tuple of (where_parts, params)
+        """
+        from psycopg.sql import SQL, Composed, Identifier
+
+        where_parts = []
+        all_params = []
+
+        # Extract where parameter
+        where_obj = kwargs.pop("where", None)
+
+        if where_obj:
+            # Get table columns for normalization
+            table_columns = None
+            if hasattr(self, "_introspected_columns") and view_name in self._introspected_columns:
+                table_columns = self._introspected_columns[view_name]
+            elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
+                table_columns = _table_metadata[view_name]["columns"]
+
+            # SINGLE CODE PATH: Normalize to WhereClause
+            try:
+                where_clause = self._normalize_where(where_obj, view_name, table_columns)
+
+                # Generate SQL from WhereClause
+                sql, params = where_clause.to_sql()
+
+                if sql:
+                    all_params.extend(params)
+                    where_parts.append(sql)
+
+                    logger.debug(
+                        f"WHERE clause built from {type(where_obj).__name__}",
+                        extra={
+                            "view_name": view_name,
+                            "conditions": len(where_clause.conditions),
+                            "fk_optimizations": sum(
+                                1
+                                for c in where_clause.conditions
+                                if c.lookup_strategy == "fk_column"
+                            ),
+                        },
+                    )
+            except Exception:
+                logger.exception(f"WHERE normalization failed for {view_name}")
+                raise
 
         # Process remaining kwargs as simple equality filters
         for key, value in kwargs.items():
-            where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
+            where_condition = Composed([Identifier(key), SQL(" = "), SQL("%s")])
             where_parts.append(where_condition)
+            all_params.append(value)
 
-        return where_parts
+        return where_parts, all_params
 
     def _extract_type(self, field_type: type) -> Optional[type]:
         """Extract the actual type from Optional, Union, etc."""
@@ -1576,7 +1660,7 @@ class FraiseQLRepository:
 
         # Use unified WHERE clause building (includes Issue #124 fix for hybrid tables)
         # This ensures WhereInput nested filters work correctly in all code paths
-        where_parts = self._build_where_clause(view_name, **kwargs)
+        where_parts, where_params = self._build_where_clause(view_name, **kwargs)
 
         # Handle schema-qualified table names
         if "." in view_name:
@@ -1658,7 +1742,7 @@ class FraiseQLRepository:
             query_parts.extend([SQL(" OFFSET "), Literal(offset)])
 
         statement = SQL("").join(query_parts)
-        return DatabaseQuery(statement=statement, params={}, fetch_result=True)
+        return DatabaseQuery(statement=statement, params=where_params, fetch_result=True)
 
     def _build_find_one_query(
         self,
@@ -1697,894 +1781,6 @@ class FraiseQLRepository:
         except Exception:
             return None
 
-    def _is_nested_object_filter(
-        self,
-        field_name: str,
-        field_filter: dict[str, Any],
-        table_columns: set[str] | None = None,
-        view_name: str | None = None,
-    ) -> tuple[bool, bool]:
-        """Determine if a field filter represents a nested object filter.
-
-        Analyzes filter structure to detect nested object filtering patterns.
-        Supports two filtering scenarios for related data:
-
-        1. FK Scenario: Direct foreign key column access
-           Pattern: {"id": {"eq": value}}
-           SQL: device_id = value
-           Used when filtering by related object ID
-
-        2. JSONB Scenario: JSONB path access for embedded fields
-           Pattern: {"field": {"operator": value}}
-           SQL: data->'device'->>'field' operator value
-           Used when filtering by fields within related JSONB objects
-
-        Detection Logic:
-        - FK: Detected when 'id' key present and table has FK column
-        - JSONB: Detected when non-'id' keys have operator dictionaries
-        - Mixed: Both FK and JSONB filtering supported simultaneously
-
-        Args:
-            field_name: The field name being filtered (e.g., 'device', 'machine')
-            field_filter: The filter dict containing nested filter conditions
-            table_columns: Optional set of actual table columns for FK detection
-            view_name: Optional view name for logging and debugging
-
-        Returns:
-            Tuple of (is_nested: bool, use_fk: bool)
-            - is_nested: True if this appears to be a nested object filter
-            - use_fk: True for FK scenario, False for JSONB scenario
-
-        Examples:
-            # FK scenario - filter by device ID
-            _is_nested_object_filter('device', {'id': {'eq': '123'}}, {'device_id'})
-            # Returns: (True, True)
-
-            # JSONB scenario - filter by device field
-            _is_nested_object_filter('device', {'is_active': {'eq': True}}, {'data'})
-            # Returns: (True, False)
-
-            # Mixed scenario - both FK and JSONB
-            _is_nested_object_filter(
-                'device',
-                {'id': {'eq': '123'}, 'name': {'contains': 'router'}},
-                {'device_id', 'data'}
-            )
-            # Returns: (True, True) - FK takes precedence, but both are processed
-        """
-        # Convert field name to database format for FK column checking
-        db_field_name = self._convert_field_name_to_database(field_name)
-
-        # PHASE 2 IMPROVEMENT: Try to retrieve table_columns from type registry
-        # Even without explicit table_columns, check if view metadata hints at FK relationships
-        if table_columns is None and view_name and view_name in _table_metadata:
-            # Try to get metadata from type registry
-            metadata = _table_metadata[view_name]
-            if metadata.get("columns"):
-                table_columns = set(metadata["columns"])
-                logger.debug(
-                    f"Dict WHERE: Retrieved table_columns from registry for "
-                    f"{view_name}: {table_columns}"
-                )
-
-        # PHASE 2 IMPROVEMENT: Enhanced heuristic detection
-        # Check if the filter structure matches nested object pattern:
-        # - Has "id" key with operator dict value
-        # - Field name suggests relationship (not a scalar field)
-        # - No direct operator keys at top level
-
-        # Check for operator-like keys at top level
-        operator_keys = {
-            "eq",
-            "neq",
-            "gt",
-            "gte",
-            "lt",
-            "lte",
-            "contains",
-            "icontains",
-            "in",
-            "nin",
-        }
-        has_top_level_operators = any(k in operator_keys for k in field_filter)
-
-        # If top-level has operators, it's NOT a nested object filter
-        if has_top_level_operators:
-            logger.debug(
-                f"Dict WHERE: Treating {field_name} as regular field filter "
-                f"(has top-level operators: {list(field_filter.keys() & operator_keys)})"
-            )
-            return False, False
-
-        # SCENARIO 1: FK-based nested filter (existing behavior)
-        if "id" in field_filter and isinstance(field_filter["id"], dict):
-            # This looks like a nested object filter
-            # Check if we have a corresponding SQL column for this relationship
-            potential_fk_column = f"{db_field_name}_id"
-
-            # PHASE 2 IMPROVEMENT: Enhanced heuristic validation
-            # True nested objects have:
-            # 1. A single "id" key (or very few keys like "id" + metadata)
-            # 2. The "id" value is a dict with operator keys
-            # 3. The field name suggests a relationship (not a scalar field)
-            # 4. No top-level operator keys (already checked above)
-
-            # Enhanced heuristic: check for nested object pattern
-            looks_like_nested = len(field_filter) == 1 or (  # Only contains "id" key
-                len(field_filter) <= 2 and all(k in ("id", "__typename") for k in field_filter)
-            )
-
-            if table_columns and potential_fk_column in table_columns:
-                # BEST CASE: We have actual column metadata
-                # We know for sure this FK column exists, so treat as nested object
-                logger.debug(
-                    f"Dict WHERE: Detected FK nested object filter for {field_name} "
-                    f"(FK column {potential_fk_column} exists)"
-                )
-                return True, True  # is_nested=True, use_fk=True
-            if table_columns is None and looks_like_nested:
-                # FALLBACK CASE: No column metadata available (development/testing)
-                # Use heuristics to determine if this is a nested object
-                # RISK: If a field is literally named "id" with operator filters like
-                # {"id": {"eq": value}}, it will be treated as nested object.
-                # However, this is an unlikely naming pattern in practice.
-                logger.debug(
-                    f"Dict WHERE: Assuming FK nested object filter for {field_name} "
-                    f"(table_columns=None, using heuristics). "
-                    f"If incorrect, register table metadata with "
-                    f"register_type_for_view()."
-                )
-                return True, True  # is_nested=True, use_fk=True
-            if not looks_like_nested:
-                # Safety check: Even if table_columns is None, if the structure doesn't
-                # look like a nested object (e.g., has multiple keys beyond "id"),
-                # treat it as regular field operators
-                logger.debug(
-                    f"Dict WHERE: Treating {field_name} as regular field filter "
-                    f"(structure doesn't match nested object pattern)"
-                )
-                return False, False
-
-        # SCENARIO 2: JSONB-based nested filter (NEW - Phase 2)
-        # Check if field_filter represents nested field filtering like {"is_active": {"eq": True}}
-        # This is different from direct operator filters like {"eq": "value"}
-        # The key insight: nested field filters have field names as keys, not operators
-        operator_keys = {
-            "eq",
-            "neq",
-            "gt",
-            "gte",
-            "lt",
-            "lte",
-            "contains",
-            "icontains",
-            "in",
-            "nin",
-        }
-
-        # Check if any value in field_filter is a dict containing operators
-        # This indicates nested field filtering like {"is_active": {"eq": True}}
-        has_nested_operator_values = any(
-            isinstance(value, dict) and any(k in operator_keys for k in value)
-            for value in field_filter.values()
-        )
-
-        # Check if field_filter contains logical operators (OR, AND, NOT)
-        LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
-        has_logical_operators = bool(set(field_filter.keys()) & LOGICAL_OPERATORS)
-
-        # Check if this is a JSONB table (either from metadata or table_columns containing 'data')
-        is_jsonb_table = (
-            view_name in _table_metadata and _table_metadata[view_name].get("has_jsonb_data", False)
-        ) or (table_columns and "data" in table_columns)
-
-        if (has_nested_operator_values or has_logical_operators) and is_jsonb_table:
-            # For JSONB tables, we can filter on nested fields or use logical operators
-            logger.debug(
-                f"Dict WHERE: Detected JSONB nested filter for {field_name} "
-                f"(nested fields: {list(field_filter.keys())}, "
-                f"logical ops: {has_logical_operators})"
-            )
-            return True, False  # is_nested=True, use_fk=False (JSONB scenario)
-
-        return False, False
-
-    def _build_nested_jsonb_path(self, parent_field: str, nested_field: str) -> Composed:
-        """Build a JSONB path for nested field access within related objects.
-
-        Constructs SQL path expressions for querying fields within JSONB-stored
-        related objects. Automatically converts GraphQL-style camelCase field names
-        to database snake_case format.
-
-        Generated SQL follows PostgreSQL JSONB path syntax:
-        data -> 'parent_field' ->> 'nested_field'
-
-        Examples:
-            _build_nested_jsonb_path('device', 'isActive')
-            # Returns: data -> 'device' ->> 'is_active'
-
-            _build_nested_jsonb_path('user', 'firstName')
-            # Returns: data -> 'user' ->> 'first_name'
-
-        Args:
-            parent_field: The parent object field name (e.g., 'device', 'user')
-                         Automatically converted to snake_case
-            nested_field: The nested field name within the parent object
-                         (e.g., 'is_active', 'firstName')
-                         Automatically converted to snake_case
-
-        Returns:
-            A Composed SQL object representing the JSONB path expression
-
-        Note:
-            Only supports 2-level nesting (parent -> field).
-            Deep nesting (parent -> child -> field) is not supported in dict-based where clauses.
-        """
-        from psycopg.sql import SQL, Composed, Literal
-
-        # Convert field names to snake_case database format
-        parent_db_field = self._convert_field_name_to_database(parent_field)
-        nested_db_field = self._convert_field_name_to_database(nested_field)
-
-        # Build path: data -> 'parent' ->> 'nested'
-        # Follow same pattern as existing code: Composed([parts...])
-        return Composed(
-            [
-                SQL("data"),
-                SQL(" -> "),
-                Literal(parent_db_field),
-                SQL(" ->> "),
-                Literal(nested_db_field),
-            ]
-        )
-
-    def _convert_dict_where_to_sql(
-        self,
-        where_dict: dict[str, Any],
-        view_name: str | None = None,
-        table_columns: set[str] | None = None,
-        jsonb_column: str | None = None,
-    ) -> Composed | None:
-        """Convert a dictionary WHERE clause to SQL conditions.
-
-        This method handles dynamically constructed where clauses used in GraphQL resolvers.
-        Supports nested object filtering for both FK relationships and JSONB fields.
-
-        Filter Types Supported:
-        - Scalar filters: {'name': {'contains': 'router'}, 'port': {'gt': 20}}
-        - FK nested filters: {'device': {'id': {'eq': device_id}}}
-        - JSONB nested filters: {'device': {'is_active': {'eq': True}}}
-        - Mixed nested filters:
-          {'device': {'id': {'eq': device_id}, 'name': {'contains': 'router'}}}
-        - Multiple nested fields:
-          {'device': {'is_active': {'eq': True}, 'name': {'contains': 'router'}}}
-
-        For JSONB tables, uses JSONB path operators (data->>'field').
-        For regular tables, uses direct column names.
-        Automatically converts camelCase field names to snake_case for database compatibility.
-
-        Args:
-            where_dict: Dictionary with field names as keys and operator dictionaries as values
-                        Supports nested object filters for relationships and JSONB fields
-            view_name: Optional view/table name for hybrid table detection
-            table_columns: Optional set of actual table columns for accurate detection
-            jsonb_column: Optional JSONB column name (if present, use JSONB path operators)
-
-        Returns:
-            A Composed SQL object with parameterized conditions, or None if no valid conditions
-
-        Examples:
-            # Scalar filter
-            {'status': {'eq': 'active'}}
-
-            # FK nested filter
-            {'device': {'id': {'eq': '123'}}}
-
-            # JSONB nested filter
-            {'device': {'is_active': {'eq': True}}}
-
-            # Multiple nested fields
-            {'device': {'is_active': {'eq': True}, 'name': {'contains': 'router'}}}
-
-            # Mixed scalar and nested
-            {'status': {'eq': 'active'}, 'device': {'is_active': {'eq': True}}}
-        """
-        from psycopg.sql import SQL, Composed
-
-        conditions = []
-
-        for field_name, field_filter in where_dict.items():
-            if field_filter is None:
-                continue
-
-            # Check for logical operators FIRST, before any type checking
-            # Logical operators can have list or dict values
-            LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
-
-            if field_name in LOGICAL_OPERATORS:
-                # This is a top-level logical operator
-                logical_conditions = self._handle_logical_operator(
-                    field_name, field_filter, view_name, table_columns, jsonb_column
-                )
-                if logical_conditions:
-                    conditions.extend(logical_conditions)
-                continue  # Skip further processing for logical operators
-
-            # Convert GraphQL field names to database field names
-            db_field_name = self._convert_field_name_to_database(field_name)
-
-            if isinstance(field_filter, dict):
-                # Initialize variables that may be used later
-                is_nested_object = False
-                use_fk = False
-
-                # This is a regular field filter or nested object filter
-                # Check if this might be a nested object filter
-                # (e.g., {machine: {id: {eq: value}}} or {device: {is_active: {eq: true}}})
-                is_nested_object, use_fk = self._is_nested_object_filter(
-                    field_name, field_filter, table_columns, view_name
-                )
-
-                if is_nested_object and use_fk:
-                    # FK SCENARIO: Handle nested filters on 'id' field using FK column
-                    # Extract the filter value from the nested structure
-                    id_filter = field_filter.get("id")
-
-                    if id_filter is not None:
-                        # Validate that id_filter contains operator keys
-                        if not isinstance(id_filter, dict) or not id_filter:
-                            logger.warning(
-                                f"Dict WHERE: Nested object filter for {field_name} has invalid "
-                                f"id_filter structure: {id_filter}. Skipping id filter."
-                            )
-                        else:
-                            # Build FK column name
-                            db_field_name = self._convert_field_name_to_database(field_name)
-                            fk_column = f"{db_field_name}_id"
-
-                            for operator, value in id_filter.items():
-                                if value is None:
-                                    continue
-                                # Build condition using the FK column directly
-                                logger.debug(
-                                    f"Dict WHERE: Building FK condition "
-                                    f"for {fk_column} {operator} {value}"
-                                )
-                                condition_sql = self._build_dict_where_condition(
-                                    fk_column,
-                                    operator,
-                                    value,
-                                    view_name,
-                                    table_columns,
-                                    jsonb_column,
-                                )
-                                if condition_sql:
-                                    logger.debug("Dict WHERE: FK condition built successfully")
-                                    conditions.append(condition_sql)
-                                else:
-                                    logger.warning(
-                                        f"Dict WHERE: FK condition returned None "
-                                        f"for {fk_column} {operator} {value}"
-                                    )
-
-                    # Check for mixed filters: both FK and JSONB fields
-                    # Process any non-id fields as JSONB filters
-                    non_id_fields = {k: v for k, v in field_filter.items() if k != "id"}
-                    if non_id_fields:
-                        logger.debug(
-                            f"Dict WHERE: Mixed filter detected for {field_name}. "
-                            f"Processing non-id fields as JSONB: {list(non_id_fields.keys())}"
-                        )
-
-                        # Process non-id fields as JSONB nested filters
-                        for nested_field, nested_filter in non_id_fields.items():
-                            if nested_filter is None:
-                                continue
-
-                            # Validate that nested_filter contains operator keys
-                            if not isinstance(nested_filter, dict) or not nested_filter:
-                                logger.warning(
-                                    f"Dict WHERE: Mixed nested field filter "
-                                    f"for {field_name}.{nested_field} "
-                                    f"has invalid structure: {nested_filter}. Skipping."
-                                )
-                                continue
-
-                            logger.debug(
-                                f"Dict WHERE: Processing mixed nested field "
-                                f"{field_name}.{nested_field} with filter {nested_filter}"
-                            )
-
-                            # Build nested JSONB path
-                            nested_path = self._build_nested_jsonb_path(field_name, nested_field)
-
-                            # Build condition for each operator using the pre-built nested path
-                            for operator, value in nested_filter.items():
-                                if value is None:
-                                    continue
-
-                                logger.debug(
-                                    f"Dict WHERE: Building mixed condition "
-                                    f"for {field_name}.{nested_field} {operator} {value}"
-                                )
-
-                                try:
-                                    # Use operator strategy system with pre-built path
-                                    from fraiseql.sql.operator_strategies import (
-                                        get_operator_registry,
-                                    )
-
-                                    registry = get_operator_registry()
-                                    strategy = registry.get_strategy(operator, field_type=None)
-
-                                    if strategy:
-                                        # Build SQL condition using the pre-built nested JSONB path
-                                        condition_sql = strategy.build_sql(
-                                            nested_path, operator, value, field_type=None
-                                        )
-                                        if condition_sql:
-                                            conditions.append(condition_sql)
-                                            logger.debug(
-                                                "Dict WHERE: Added mixed condition: "
-                                                f"{condition_sql.as_string(None)}"
-                                            )
-                                    else:
-                                        logger.warning(
-                                            f"No strategy found for operator: {operator}"
-                                        )
-
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Operator strategy failed for mixed nested field "
-                                        f"{field_name}.{nested_field} {operator} {value}: {e}"
-                                    )
-                                    # Fallback to basic condition building
-                                    condition_sql = self._build_basic_condition_with_path(
-                                        nested_path, operator, value
-                                    )
-                                    if condition_sql:
-                                        conditions.append(condition_sql)
-
-                if is_nested_object and not use_fk:
-                    # JSONB SCENARIO: Handle nested filters on other fields using JSONB paths
-                    logger.debug(
-                        f"Dict WHERE: Processing JSONB nested filter for {field_name}: "
-                        f"{field_filter}"
-                    )
-
-                    # Check if this nested object contains logical operators
-                    LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
-                    nested_logical_ops = set(field_filter.keys()) & LOGICAL_OPERATORS
-
-                    if nested_logical_ops:
-                        # Handle nested logical operators like {device: {OR: [...]}}
-                        for op in nested_logical_ops:
-                            nested_logical_conditions = self._handle_nested_logical_operator(
-                                parent_field=field_name,
-                                operator=op,
-                                conditions=field_filter[op],
-                                table_columns=table_columns,
-                                jsonb_column=jsonb_column,
-                            )
-                            if nested_logical_conditions:
-                                conditions.extend(nested_logical_conditions)
-                    else:
-                        # Process each nested field filter like {"is_active": {"eq": True}}
-                        # Collect all conditions for nested fields and combine with AND
-                        nested_field_conditions = []
-
-                        for nested_field, nested_filter in field_filter.items():
-                            if nested_filter is None:
-                                continue
-
-                            # Validate that nested_filter contains operator keys
-                            if not isinstance(nested_filter, dict) or not nested_filter:
-                                logger.warning(
-                                    f"Dict WHERE: Nested field filter "
-                                    f"for {field_name}.{nested_field} "
-                                    f"has invalid structure: {nested_filter}. Skipping."
-                                )
-                                continue
-
-                            # Check for deep nesting
-                            # (nested_filter contains field names, not just operators)
-                            operator_keys = {
-                                "eq",
-                                "neq",
-                                "gt",
-                                "gte",
-                                "lt",
-                                "lte",
-                                "contains",
-                                "icontains",
-                                "in",
-                                "nin",
-                                "matches",
-                                "matches_ltxtquery",
-                            }
-                            has_nested_fields = any(
-                                isinstance(v, dict) and not any(k in operator_keys for k in v)
-                                for v in nested_filter.values()
-                            )
-                            if has_nested_fields:
-                                logger.warning(
-                                    f"Dict WHERE: Deep nesting detected "
-                                    f"in {field_name}.{nested_field}. "
-                                    f"Deep nesting (3+ levels) is not fully supported "
-                                    f"in dict-based where clauses. "
-                                    f"Filter: {nested_filter}. Processing as shallow filter."
-                                )
-                                # For now, skip deep nested fields
-                                continue
-
-                            logger.debug(
-                                f"Dict WHERE: Processing nested field "
-                                f"{field_name}.{nested_field} with filter {nested_filter}"
-                            )
-
-                            # Build nested JSONB path
-                            nested_path = self._build_nested_jsonb_path(field_name, nested_field)
-
-                            # Build condition for each operator with pre-built path
-                            for operator, value in nested_filter.items():
-                                if value is None:
-                                    continue
-
-                                logger.debug(
-                                    f"Dict WHERE: Building condition "
-                                    f"for {field_name}.{nested_field} {operator} {value}"
-                                )
-
-                                try:
-                                    # Use operator strategy system with pre-built path
-                                    from fraiseql.sql.operator_strategies import (
-                                        get_operator_registry,
-                                    )
-
-                                    registry = get_operator_registry()
-                                    strategy = registry.get_strategy(operator, field_type=None)
-
-                                    if strategy:
-                                        # Build SQL condition using the pre-built nested JSONB path
-                                        condition_sql = strategy.build_sql(
-                                            nested_path, operator, value, field_type=None
-                                        )
-                                        if condition_sql:
-                                            nested_field_conditions.append(condition_sql)
-                                            logger.debug(
-                                                f"Dict WHERE: Added nested field condition: "
-                                                f"{condition_sql.as_string(None)}"
-                                            )
-                                    else:
-                                        logger.warning(
-                                            f"No strategy found for operator: {operator}"
-                                        )
-
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Operator strategy failed for nested field "
-                                        f"{field_name}.{nested_field} {operator} {value}: {e}"
-                                    )
-                                    # Fallback to basic condition building
-                                    condition_sql = self._build_basic_condition_with_path(
-                                        nested_path, operator, value
-                                    )
-                                    if condition_sql:
-                                        nested_field_conditions.append(condition_sql)
-
-                        # Combine all nested field conditions with AND
-                        if nested_field_conditions:
-                            if len(nested_field_conditions) == 1:
-                                conditions.append(nested_field_conditions[0])
-                            else:
-                                # Multiple conditions for nested fields: (cond1 AND cond2 AND ...)
-                                from fraiseql.sql.where.operators.logical import build_and_sql
-
-                                combined = build_and_sql(nested_field_conditions)
-                                conditions.append(combined)
-
-                if not is_nested_object:
-                    # Handle regular operator-based filtering: {'contains': 'router', 'gt': 10}
-                    field_conditions = []
-
-                    for operator, value in field_filter.items():
-                        if value is None:
-                            continue
-
-                        # Build SQL condition using converted database field name
-                        condition_sql = self._build_dict_where_condition(
-                            db_field_name, operator, value, view_name, table_columns, jsonb_column
-                        )
-                        if condition_sql:
-                            field_conditions.append(condition_sql)
-
-                    # Combine multiple conditions for the same field with AND
-                    if field_conditions:
-                        if len(field_conditions) == 1:
-                            conditions.append(field_conditions[0])
-                        else:
-                            # Multiple conditions for same field: (cond1 AND cond2 AND ...)
-                            combined_parts = []
-                            for i, cond in enumerate(field_conditions):
-                                if i > 0:
-                                    combined_parts.append(SQL(" AND "))
-                                combined_parts.append(cond)
-                            conditions.append(Composed([SQL("("), *combined_parts, SQL(")")]))
-
-            else:
-                # Handle simple equality: {'status': 'active'}
-                condition_sql = self._build_dict_where_condition(db_field_name, "eq", field_filter)
-                if condition_sql:
-                    conditions.append(condition_sql)
-
-        # Combine all field conditions with AND
-        if not conditions:
-            return None
-
-        if len(conditions) == 1:
-            return conditions[0]
-
-        # Multiple field conditions: (field1_cond AND field2_cond AND ...)
-        result_parts = []
-        for i, condition in enumerate(conditions):
-            if i > 0:
-                result_parts.append(SQL(" AND "))
-            result_parts.append(condition)
-
-        return Composed(result_parts)
-
-    def _handle_logical_operator(
-        self,
-        operator: str,
-        conditions_list: list[dict] | dict,
-        view_name: str | None = None,
-        table_columns: set[str] | None = None,
-        jsonb_column: str | None = None,
-    ) -> list[Composed | SQL]:
-        """Handle logical operators (OR, AND, NOT) in dict-based where clauses.
-
-        Args:
-            operator: The logical operator ("OR", "AND", or "NOT")
-            conditions_list: List of condition dicts for OR/AND, or single dict for NOT
-            view_name: Optional view/table name
-            table_columns: Optional set of table columns
-            jsonb_column: Optional JSONB column name
-
-        Returns:
-            List of SQL conditions to be combined with the logical operator
-        """
-        from fraiseql.sql.where.operators.logical import build_and_sql, build_not_sql, build_or_sql
-
-        logical_conditions = []
-
-        if operator == "NOT":
-            # NOT takes a single condition
-            if isinstance(conditions_list, dict):
-                # Recursively convert the NOT condition
-                not_sql = self._convert_dict_where_to_sql(
-                    conditions_list, view_name, table_columns, jsonb_column
-                )
-                if not_sql:
-                    logical_conditions.append(build_not_sql(not_sql))  # type: ignore[arg-type]
-        # OR and AND take a list of conditions
-        elif isinstance(conditions_list, list):
-            for condition_dict in conditions_list:
-                if isinstance(condition_dict, dict):
-                    # Recursively convert each condition in the list
-                    condition_sql = self._convert_dict_where_to_sql(
-                        condition_dict, view_name, table_columns, jsonb_column
-                    )
-                    if condition_sql:
-                        logical_conditions.append(condition_sql)
-
-            # Combine all conditions with the logical operator
-            if logical_conditions:
-                if operator == "AND":
-                    combined = build_and_sql(logical_conditions)
-                    return [combined]
-                if operator == "OR":
-                    combined = build_or_sql(logical_conditions)
-                    return [combined]
-
-        return logical_conditions
-
-    def _handle_nested_logical_operator(
-        self,
-        parent_field: str,
-        operator: str,
-        conditions: list[dict] | dict,
-        table_columns: set[str] | None = None,
-        jsonb_column: str | None = None,
-    ) -> list[Composed | SQL]:
-        """Handle nested logical operators.
-
-        Example: {device: {OR: [{is_active: {eq: true}}, {name: {contains: "router"}}]}}
-
-        Args:
-            parent_field: The parent field name (e.g., "device")
-            operator: The logical operator ("OR", "AND", or "NOT")
-            conditions: List of condition dicts for OR/AND, or single dict for NOT
-            table_columns: Optional set of table columns
-            jsonb_column: Optional JSONB column name
-
-        Returns:
-            List of SQL conditions to be combined with the logical operator
-        """
-        from fraiseql.sql.where.operators.logical import build_and_sql, build_not_sql, build_or_sql
-
-        nested_conditions = []
-
-        if operator == "NOT":
-            # NOT takes a single condition
-            if isinstance(conditions, dict):
-                # Recursively convert the NOT condition, but within the nested context
-                # For nested NOT, we need to build JSONB paths for the fields in the condition
-                not_conditions = self._convert_nested_condition_to_sql(
-                    parent_field, conditions, table_columns, jsonb_column
-                )
-                if not_conditions:
-                    # Combine the NOT conditions and apply NOT
-                    if len(not_conditions) == 1:
-                        nested_conditions.append(build_not_sql(not_conditions[0]))
-                    else:
-                        # Multiple conditions: NOT(condition1 AND condition2)
-                        combined = build_and_sql(not_conditions)
-                        nested_conditions.append(build_not_sql(combined))
-        # OR and AND take a list of conditions
-        elif isinstance(conditions, list):
-            for condition_dict in conditions:
-                if isinstance(condition_dict, dict):
-                    # Convert each condition within the nested context
-                    condition_sql_list = self._convert_nested_condition_to_sql(
-                        parent_field, condition_dict, table_columns, jsonb_column
-                    )
-                    if condition_sql_list:
-                        # Combine multiple conditions for this item with AND
-                        if len(condition_sql_list) == 1:
-                            nested_conditions.append(condition_sql_list[0])
-                        else:
-                            combined = build_and_sql(condition_sql_list)
-                            nested_conditions.append(combined)
-
-            # Combine all conditions with the logical operator
-            if nested_conditions:
-                if operator == "AND":
-                    combined = build_and_sql(nested_conditions)
-                    return [combined]
-                if operator == "OR":
-                    combined = build_or_sql(nested_conditions)
-                    return [combined]
-
-        return nested_conditions
-
-    def _convert_nested_condition_to_sql(
-        self,
-        parent_field: str,
-        condition_dict: dict,
-        table_columns: set[str] | None = None,
-        jsonb_column: str | None = None,
-    ) -> list[Composed | SQL]:
-        """Convert a nested condition dict to SQL conditions with JSONB paths.
-
-        For example, converts {"is_active": {"eq": True}} within {device: {...}}
-        to conditions using data->'device'->>'is_active'
-
-        Also handles nested logical operators recursively.
-
-        Args:
-            parent_field: The parent field name (e.g., "device")
-            condition_dict: The condition dict (e.g., {"is_active": {"eq": True}})
-                          or nested logical (e.g., {"AND": [...]})
-            table_columns: Optional set of table columns
-            jsonb_column: Optional JSONB column name
-
-        Returns:
-            List of SQL conditions
-        """
-        conditions = []
-
-        LOGICAL_OPERATORS = {"OR", "AND", "NOT"}
-
-        for nested_field, nested_filter in condition_dict.items():
-            if nested_filter is None:
-                continue
-
-            # Check if this is a nested logical operator
-            if nested_field in LOGICAL_OPERATORS:
-                # Handle nested logical operators recursively
-                nested_logical_conditions = self._handle_nested_logical_operator(
-                    parent_field=parent_field,
-                    operator=nested_field,
-                    conditions=nested_filter,
-                    table_columns=table_columns,
-                    jsonb_column=jsonb_column,
-                )
-                if nested_logical_conditions:
-                    conditions.extend(nested_logical_conditions)
-                continue
-
-            # Validate that nested_filter contains operator keys
-            if not isinstance(nested_filter, dict) or not nested_filter:
-                logger.warning(
-                    f"Dict WHERE: Nested condition for {parent_field}.{nested_field} "
-                    f"has invalid structure: {nested_filter}. Skipping."
-                )
-                continue
-
-            # Build nested JSONB path
-            nested_path = self._build_nested_jsonb_path(parent_field, nested_field)
-
-            # Build condition for each operator using the pre-built nested path
-            for operator, value in nested_filter.items():
-                if value is None:
-                    continue
-
-                try:
-                    # Use the operator strategy system directly with the pre-built path
-                    from fraiseql.sql.operator_strategies import get_operator_registry
-
-                    registry = get_operator_registry()
-                    strategy = registry.get_strategy(operator, field_type=None)
-
-                    if strategy:
-                        # Build SQL condition using the pre-built nested JSONB path
-                        condition_sql = strategy.build_sql(
-                            nested_path, operator, value, field_type=None
-                        )
-                        if condition_sql:
-                            conditions.append(condition_sql)
-                    else:
-                        logger.warning(f"No strategy found for operator: {operator}")
-
-                except Exception as e:
-                    logger.warning(
-                        f"Operator strategy failed for nested condition "
-                        f"{parent_field}.{nested_field} {operator} {value}: {e}"
-                    )
-                    # Fallback to basic condition building
-                    condition_sql = self._build_basic_condition_with_path(
-                        nested_path, operator, value
-                    )
-                    if condition_sql:
-                        conditions.append(condition_sql)
-
-        return conditions
-
-    def _build_basic_condition_with_path(
-        self, path_sql: Composed, operator: str, value: Any
-    ) -> Composed | None:
-        """Build basic WHERE condition using a pre-built SQL path.
-
-        This is a fallback method for building conditions when the operator
-        strategy system fails, specifically for nested JSONB paths.
-        """
-        from psycopg.sql import SQL, Composed, Literal
-
-        # Basic operator templates for fallback scenarios
-        basic_operators = {
-            "eq": lambda path, val: Composed([path, SQL(" = "), Literal(val)]),
-            "neq": lambda path, val: Composed([path, SQL(" != "), Literal(val)]),
-            "gt": lambda path, val: Composed([path, SQL(" > "), Literal(val)]),
-            "gte": lambda path, val: Composed([path, SQL(" >= "), Literal(val)]),
-            "lt": lambda path, val: Composed([path, SQL(" < "), Literal(val)]),
-            "lte": lambda path, val: Composed([path, SQL(" <= "), Literal(val)]),
-            "ilike": lambda path, val: Composed([path, SQL(" ILIKE "), Literal(val)]),
-            "like": lambda path, val: Composed([path, SQL(" LIKE "), Literal(val)]),
-            "isnull": lambda path, val: Composed(
-                [path, SQL(" IS NULL" if val else " IS NOT NULL")]
-            ),
-        }
-
-        if operator not in basic_operators:
-            logger.warning(f"Unsupported operator in nested filter: {operator}")
-            return None
-
-        try:
-            return basic_operators[operator](path_sql, value)
-        except Exception as e:
-            logger.warning(f"Failed to build basic condition for nested path: {e}")
-            return None
-
     def _build_dict_where_condition(
         self,
         field_name: str,
@@ -2616,7 +1812,7 @@ class FraiseQLRepository:
         """
         from psycopg.sql import SQL, Composed, Identifier, Literal
 
-        from fraiseql.sql.operator_strategies import get_operator_registry
+        from fraiseql.sql.operators import get_default_registry as get_operator_registry
 
         try:
             # Get the operator strategy registry (contains the v0.7.1 IP filtering fixes)
@@ -2662,7 +1858,13 @@ class FraiseQLRepository:
 
             # Use the strategy to build intelligent SQL with type detection
             # This is where the IP filtering fixes from v0.7.1 are applied
-            sql_condition = strategy.build_sql(path_sql, operator, value, field_type=None)
+            sql_condition = strategy.build_sql(
+                operator=operator,
+                value=value,
+                path_sql=path_sql,
+                field_type=None,
+                jsonb_column=jsonb_column if use_jsonb_path else None,
+            )
 
             return sql_condition
 
@@ -2867,57 +2069,6 @@ class FraiseQLRepository:
         use_jsonb = field_name not in REGULAR_COLUMNS
         self._field_path_cache[cache_key] = use_jsonb
         return use_jsonb
-
-    def _where_obj_to_dict(self, where_obj: Any, table_columns: set[str]) -> dict[str, Any] | None:
-        """Convert a WHERE object to a dictionary for hybrid table processing.
-
-        This method examines a WHERE object and converts it to a dictionary format
-        that can be processed by our dict-based WHERE handler, which knows how to
-        handle nested objects in hybrid tables correctly.
-
-        Args:
-            where_obj: The WHERE object with to_sql() method
-            table_columns: Set of actual table column names
-
-        Returns:
-            Dictionary representation of the WHERE clause, or None if conversion fails
-        """
-        result = {}
-
-        # Iterate through attributes of the where object
-        if hasattr(where_obj, "__dict__"):
-            for field_name, field_value in where_obj.__dict__.items():
-                if field_value is None:
-                    continue
-
-                # Skip special fields
-                if field_name.startswith("_"):
-                    continue
-
-                # Check if this is a nested object filter
-                if hasattr(field_value, "__dict__"):
-                    # Check if it has an 'id' field with filter operators
-                    id_value = getattr(field_value, "id", None)
-                    if hasattr(field_value, "id") and isinstance(id_value, dict):
-                        # This is a nested object filter, convert to dict format
-                        result[field_name] = {"id": id_value}
-                    else:
-                        # Try to convert recursively
-                        nested_dict = {
-                            nested_field: nested_value
-                            for nested_field, nested_value in field_value.__dict__.items()
-                            if nested_value is not None and not nested_field.startswith("_")
-                        }
-                        if nested_dict:
-                            result[field_name] = nested_dict
-                elif isinstance(field_value, dict):
-                    # Direct dict value, use as-is
-                    result[field_name] = field_value
-                elif isinstance(field_value, (str, int, float, bool)):
-                    # Scalar value, wrap in eq operator
-                    result[field_name] = {"eq": field_value}
-
-        return result if result else None
 
     def _convert_field_name_to_database(self, field_name: str) -> str:
         """Convert GraphQL field name to database field name.

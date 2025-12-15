@@ -10,6 +10,7 @@ use serde_json::{json, Map, Value};
 ///
 /// This is the main entry point that dispatches to success or error builders
 /// based on the mutation status.
+#[allow(clippy::too_many_arguments)]
 pub fn build_graphql_response(
     result: &MutationResult,
     field_name: &str,
@@ -19,10 +20,10 @@ pub fn build_graphql_response(
     _entity_type: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<&Vec<String>>,
+    error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-    // v1.8.0: Only TRUE success returns Success type
-    // All errors (noop, failed, conflict, etc.) return Error type
+    // Success status returns Success type, all others return Error type
     let response_obj = if result.status.is_success() {
         build_success_response(
             result,
@@ -34,10 +35,12 @@ pub fn build_graphql_response(
         )?
     } else {
         // NEW: Error response includes REST-like code
+        // For error responses, use error_type_fields for field selection
         build_error_response_with_code(
             result,
             error_type,
             auto_camel_case,
+            error_type_fields, // Use error type field selection
             cascade_selections,
         )?
     };
@@ -94,18 +97,40 @@ pub fn build_success_response(
 ) -> Result<Value, String> {
     let mut obj = Map::new();
 
-    // Add __typename
+    // Add __typename (always included, special GraphQL field)
     obj.insert("__typename".to_string(), json!(success_type));
 
-    // Add id from entity_id if present
-    if let Some(ref entity_id) = result.entity_id {
-        obj.insert("id".to_string(), json!(entity_id));
+    // Check if field selection filtering is active
+    let should_filter = success_type_fields.is_some();
+    let empty_vec = Vec::new();
+    let selected_fields = success_type_fields.unwrap_or(&empty_vec);
+
+    // Helper function to check if field is selected
+    let is_selected = |field_name: &str| -> bool {
+        !should_filter || selected_fields.contains(&field_name.to_string())
+    };
+
+    // Add id from entity_id if present AND selected
+    if is_selected("id") {
+        if let Some(ref entity_id) = result.entity_id {
+            obj.insert("id".to_string(), json!(entity_id));
+        }
     }
 
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
+    // Add message if selected
+    if is_selected("message") {
+        obj.insert("message".to_string(), json!(result.message));
+    }
 
-    // v1.8.0: SUCCESS MUST HAVE ENTITY (non-null guarantee)
+    // Add status if selected
+    if is_selected("status") {
+        obj.insert("status".to_string(), json!(result.status.to_string()));
+    }
+
+    // Success types do not have errors field
+    // Only Error types include errors array
+
+    // Success type requires non-null entity
     if result.entity.is_none() {
         return Err(format!(
             "Success type '{}' requires non-null entity. \
@@ -113,11 +138,11 @@ pub fn build_success_response(
              This indicates a logic error: non-success statuses (noop:*, failed:*, etc.) \
              should return Error type, not Success type.",
             success_type,
-            result.status.to_string()
+            result.status
         ));
     }
 
-    // Add entity with __typename and camelCase keys
+    // Add entity with __typename and camelCase keys ONLY if selected
     if let Some(entity) = &result.entity {
         let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
 
@@ -140,48 +165,52 @@ pub fn build_success_response(
                 }
             });
 
-        // Check if entity is a wrapper object containing entity_field_name
-        // This happens when Python entity_flattener skips flattening (CASCADE case)
-        // The entity looks like: {"post": {...}, "message": "..."}
-        let actual_entity = if let Value::Object(entity_map) = entity {
-            // Check if the entity wrapper contains a field matching entity_field_name
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
-                    // Found nested entity - extract it
-                    nested_entity
+        // Only add entity if the field is selected
+        if is_selected(&field_name) {
+            // Check if entity is a wrapper object containing entity_field_name
+            // This happens when Python entity_flattener skips flattening (CASCADE case)
+            // The entity looks like: {"post": {...}, "message": "..."}
+            let actual_entity = if let Value::Object(entity_map) = entity {
+                // Check if the entity wrapper contains a field matching entity_field_name
+                if let Some(entity_field_name_raw) = entity_field_name {
+                    if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
+                        // Found nested entity - extract it
+                        nested_entity
+                    } else {
+                        // No nested field, use entire entity
+                        entity
+                    }
                 } else {
-                    // No nested field, use entire entity
+                    // No entity_field_name hint, use entire entity
                     entity
                 }
             } else {
-                // No entity_field_name hint, use entire entity
+                // Entity is not an object (array or primitive), use as-is
                 entity
-            }
-        } else {
-            // Entity is not an object (array or primitive), use as-is
-            entity
-        };
+            };
 
-        let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
-        obj.insert(field_name, transformed);
+            let transformed = transform_entity(actual_entity, entity_type, auto_camel_case);
+            obj.insert(field_name, transformed);
 
-        // If entity was a wrapper, copy other fields from it (like "message")
-        if let Value::Object(entity_map) = entity {
-            if let Some(entity_field_name_raw) = entity_field_name {
-                if entity_map.contains_key(entity_field_name_raw) {
-                    // Entity was a wrapper - copy other fields
-                    for (key, value) in entity_map {
-                        if key != entity_field_name_raw && key != "entity" && key != "cascade" {
-                            // Don't copy the entity field itself, nested "entity", or CASCADE
-                            // CASCADE must only appear at success type level, never in entity
-                            let field_key = if auto_camel_case {
-                                to_camel_case(key)
-                            } else {
-                                key.clone()
-                            };
-                            // Only add if not already present (message might be at top level)
-                            if !obj.contains_key(&field_key) {
-                                obj.insert(field_key, transform_value(value, auto_camel_case));
+            // If entity was a wrapper, copy other fields from it (like "message")
+            // But only if those fields are also selected
+            if let Value::Object(entity_map) = entity {
+                if let Some(entity_field_name_raw) = entity_field_name {
+                    if entity_map.contains_key(entity_field_name_raw) {
+                        // Entity was a wrapper - copy other fields
+                        for (key, value) in entity_map {
+                            if key != entity_field_name_raw && key != "entity" && key != "cascade" {
+                                // Don't copy the entity field itself, nested "entity", or CASCADE
+                                // CASCADE must only appear at success type level, never in entity
+                                let field_key = if auto_camel_case {
+                                    to_camel_case(key)
+                                } else {
+                                    key.clone()
+                                };
+                                // Only add if not already present AND field is selected
+                                if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                                    obj.insert(field_key, transform_value(value, auto_camel_case));
+                                }
                             }
                         }
                     }
@@ -190,19 +219,21 @@ pub fn build_success_response(
         }
     }
 
-    // Add updatedFields (convert to camelCase)
-    if let Some(fields) = &result.updated_fields {
-        let transformed_fields: Vec<Value> = fields
-            .iter()
-            .map(|f| {
-                json!(if auto_camel_case {
-                    to_camel_case(f)
-                } else {
-                    f.to_string()
+    // Add updatedFields (convert to camelCase) if selected
+    if is_selected("updatedFields") {
+        if let Some(fields) = &result.updated_fields {
+            let transformed_fields: Vec<Value> = fields
+                .iter()
+                .map(|f| {
+                    json!(if auto_camel_case {
+                        to_camel_case(f)
+                    } else {
+                        f.to_string()
+                    })
                 })
-            })
-            .collect();
-        obj.insert("updatedFields".to_string(), json!(transformed_fields));
+                .collect();
+            obj.insert("updatedFields".to_string(), json!(transformed_fields));
+        }
     }
 
     // Add cascade if present AND requested in selection
@@ -259,26 +290,98 @@ pub fn build_error_response_with_code(
     result: &MutationResult,
     error_type: &str,
     auto_camel_case: bool,
+    error_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
+    // DEBUG: Log function call and parameters
+    eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
+    eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
+    eprintln!("╠══════════════════════════════════════════════════════════════╣");
+    eprintln!("  error_type: {}", error_type);
+    eprintln!("  auto_camel_case: {}", auto_camel_case);
+    eprintln!("  error_type_fields: {:?}", error_type_fields);
+    eprintln!("  result.status: {}", result.status);
+    eprintln!("  result.message: {:?}", result.message);
+    eprintln!(
+        "  result.entity: {}",
+        if result.entity.is_some() {
+            "Some(...)"
+        } else {
+            "None"
+        }
+    );
+    eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
+
     let mut obj = Map::new();
 
-    // Add __typename
+    // Add __typename (always included, special GraphQL field)
     obj.insert("__typename".to_string(), json!(error_type));
 
-    // Add REST-like code field (application-level, NOT HTTP status)
-    let code = map_status_to_code(&result.status);
+    // Check if field selection filtering is active
+    let should_filter = error_type_fields.is_some();
+    let empty_vec = Vec::new();
+    let selected_fields = error_type_fields.unwrap_or(&empty_vec);
+
+    eprintln!("  ├─ should_filter: {}", should_filter);
+    eprintln!("  └─ selected_fields: {:?}", selected_fields);
+
+    // Helper function to check if field is selected
+    let is_selected = |field_name: &str| -> bool {
+        let result = !should_filter || selected_fields.contains(&field_name.to_string());
+        eprintln!("    is_selected(\"{}\"): {}", field_name, result);
+        result
+    };
+
+    // Add REST-like code field (always included for compatibility)
+    // The code field is required by mutation response spec
+    // Even if not explicitly selected in GraphQL query, we must include it
+    let code = result.status.application_code();
     obj.insert("code".to_string(), json!(code));
+    eprintln!("    ✓ Added 'code': {}", code);
 
-    // Add status (domain semantics)
-    obj.insert("status".to_string(), json!(result.status.to_string()));
+    // Add status if selected
+    if is_selected("status") {
+        obj.insert("status".to_string(), json!(result.status.to_string()));
+        eprintln!("    ✓ Added 'status': {}", result.status);
+    } else {
+        eprintln!("    ✗ Skipped 'status' (not selected)");
+    }
 
-    // Add message
-    obj.insert("message".to_string(), json!(result.message));
+    // Add message if selected
+    if is_selected("message") {
+        obj.insert("message".to_string(), json!(result.message));
+        eprintln!("    ✓ Added 'message': {:?}", result.message);
+    } else {
+        eprintln!("    ✗ Skipped 'message' (not selected)");
+    }
 
-    // Add errors array (auto-generated or explicit)
-    let errors = generate_errors_array(result, code)?;
-    obj.insert("errors".to_string(), errors);
+    // Add errors array if selected
+    if is_selected("errors") {
+        let errors = generate_errors_array(result, result.status.application_code())?;
+        obj.insert("errors".to_string(), errors);
+    }
+
+    // Extract entity fields from wrapper (same pattern as Success types)
+    // For Error types, copy all fields from entity wrapper to root level
+    // This enables patterns like: conflict_machine, current_user, etc.
+    if let Some(Value::Object(entity_map)) = &result.entity {
+        // Copy all fields from wrapper (excluding special fields)
+        for (key, value) in entity_map {
+            if key != "entity" && key != "cascade" {
+                // Don't copy nested "entity" or CASCADE
+                // CASCADE must only appear at error type level, never in entity
+                let field_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
+                // Only add if not already present AND field is selected
+                if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                    obj.insert(field_key, transform_value(value, auto_camel_case));
+                }
+            }
+        }
+    }
 
     // Add cascade if present AND requested in selection
     add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
@@ -313,13 +416,14 @@ pub fn generate_errors_array(result: &MutationResult, code: i32) -> Result<Value
 /// Extract error identifier from mutation status
 ///
 /// Examples:
-/// - "noop:not_found" -> "not_found"
-/// - "failed:validation" -> "validation"
+/// - "noop:already_exists" -> "already_exists"
+/// - "validation:invalid_input" -> "invalid_input"
+/// - "not_found:user_missing" -> "user_missing"
 /// - "failed" -> "general_error"
 pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
     match status {
         MutationStatus::Noop(reason) => {
-            // Extract part after colon: "noop:not_found" -> "not_found"
+            // Extract part after colon: "noop:already_exists" -> "already_exists"
             if let Some((_prefix, identifier)) = reason.split_once(':') {
                 identifier.to_string()
             } else {
@@ -327,7 +431,7 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
             }
         }
         MutationStatus::Error(reason) => {
-            // Extract part after colon: "failed:validation" -> "validation"
+            // Extract part after colon: "validation:invalid_input" -> "invalid_input"
             if let Some((_prefix, identifier)) = reason.split_once(':') {
                 identifier.to_string()
             } else {
@@ -339,63 +443,6 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
             "unexpected_success".to_string()
         }
     }
-}
-
-/// Map mutation status to REST-like code (application-level only)
-///
-/// These codes are for DX and categorization only.
-/// HTTP response is always 200 OK (GraphQL convention).
-fn map_status_to_code(status: &MutationStatus) -> i32 {
-    match status {
-        MutationStatus::Success(_) => {
-            // Should never reach here (only errors call this function)
-            500
-        }
-        MutationStatus::Noop(_) => {
-            // Validation failure or business rule rejection
-            422 // Unprocessable Entity
-        }
-        MutationStatus::Error(reason) => {
-            let reason_lower = reason.to_lowercase();
-
-            // Map error reasons to codes
-            if reason_lower.starts_with("not_found:") {
-                404 // Not Found
-            } else if reason_lower.starts_with("unauthorized:") {
-                401 // Unauthorized
-            } else if reason_lower.starts_with("forbidden:") {
-                403 // Forbidden
-            } else if reason_lower.starts_with("conflict:") {
-                409 // Conflict
-            } else if reason_lower.starts_with("timeout:") {
-                408 // Request Timeout
-            } else if reason_lower.starts_with("failed:") {
-                500 // Internal Server Error
-            } else {
-                // Unknown error type
-                500
-            }
-        }
-    }
-}
-
-/// Build error response object
-///
-/// Key behaviors:
-/// - Extract error code from status string (part after ':')
-/// - Auto-generate errors array if not in metadata
-/// - Map status to HTTP code
-#[deprecated(
-    since = "1.8.0",
-    note = "Use build_error_response_with_code instead"
-)]
-pub fn build_error_response(
-    result: &MutationResult,
-    error_type: &str,
-    auto_camel_case: bool,
-) -> Result<Value, String> {
-    // Delegate to new function
-    build_error_response_with_code(result, error_type, auto_camel_case, None)
 }
 
 /// Transform entity: add __typename and convert keys to camelCase
@@ -452,10 +499,6 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
     }
 }
 
-/// Transform error object to camelCase
-fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
-    transform_value(error, auto_camel_case)
-}
 
 #[cfg(test)]
 mod tests {
@@ -549,7 +592,7 @@ mod tests {
     #[test]
     fn test_build_error() {
         let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
+            status: MutationStatus::Error("validation:invalid_email".to_string()),
             message: "Validation failed".to_string(),
             entity_id: None,
             entity_type: None,
@@ -562,12 +605,12 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
+        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserError");
         assert_eq!(obj["message"], "Validation failed");
-        assert_eq!(obj["status"], "failed:validation");
+        assert_eq!(obj["status"], "validation:invalid_email");
         assert_eq!(obj["code"], 422); // HTTP code for validation error
 
         let errors = obj["errors"].as_array().unwrap();
@@ -579,7 +622,7 @@ mod tests {
     #[test]
     fn test_error_code_extraction() {
         let result = MutationResult {
-            status: MutationStatus::Error("failed:validation".to_string()),
+            status: MutationStatus::Error("validation:invalid_input".to_string()),
             message: "Validation failed".to_string(),
             entity_id: None,
             entity_type: None,
@@ -590,27 +633,27 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
+        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // Auto-generated error with extracted code
         let errors = obj["errors"].as_array().unwrap();
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0]["code"], "validation");
+        assert_eq!(errors[0]["code"], "invalid_input");
         assert_eq!(errors[0]["message"], "Validation failed");
     }
 
     #[test]
     fn test_http_code_mapping() {
-        // Test various error types map to correct HTTP codes
+        // Test semantic prefixes map to correct HTTP codes
         let test_cases = vec![
-            ("failed:not_found", 404),
-            ("unauthorized:token", 401),
-            ("forbidden:access", 403),
-            ("conflict:duplicate", 409),
-            ("failed:validation", 422),
-            ("timeout:database", 408),
-            ("failed:unknown", 500),
+            ("not_found:user_missing", 404),
+            ("validation:invalid_input", 422),
+            ("unauthorized:token_expired", 401),
+            ("forbidden:insufficient_permissions", 403),
+            ("conflict:duplicate_email", 409),
+            ("timeout:database_timeout", 408),
+            ("failed:database_error", 500),
         ];
 
         for (status_str, expected_code) in test_cases {
@@ -626,7 +669,7 @@ mod tests {
                 is_simple_format: false,
             };
 
-            let response = build_error_response(&result, "TestError", true).unwrap();
+            let response = build_error_response_with_code(&result, "TestError", true, None, None).unwrap();
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,
@@ -634,5 +677,71 @@ mod tests {
                 status_str, expected_code
             );
         }
+    }
+
+    #[test]
+    fn test_error_response_with_code_field_injection() {
+        // Test that code field is correctly injected into error responses
+        let result = MutationResult {
+            status: MutationStatus::Error("validation:invalid_input".to_string()),
+            message: "Validation failed".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        // Test with field selection that includes 'code'
+        let response = build_error_response_with_code(
+            &result,
+            "CreatePostError",
+            true,
+            Some(&vec!["code".to_string(), "message".to_string()]),
+            None,
+        )
+        .unwrap();
+
+        let obj = response.as_object().unwrap();
+
+        // Verify code field is present and correct
+        assert!(
+            obj.contains_key("code"),
+            "Error response must have 'code' field"
+        );
+        assert_eq!(obj["code"], 422, "Validation error should map to 422");
+        assert_eq!(obj["message"], "Validation failed");
+        assert_eq!(obj["__typename"], "CreatePostError");
+    }
+
+    #[test]
+    fn test_not_found_maps_to_404() {
+        // Specific test for not_found: semantic prefix
+        let result = MutationResult {
+            status: MutationStatus::Error("not_found:author_missing".to_string()),
+            message: "Author not found".to_string(),
+            entity_id: None,
+            entity_type: None,
+            entity: None,
+            updated_fields: None,
+            cascade: None,
+            metadata: None,
+            is_simple_format: false,
+        };
+
+        let response = build_error_response_with_code(
+            &result,
+            "CreatePostError",
+            true,
+            Some(&vec!["code".to_string(), "message".to_string()]),
+            None,
+        )
+        .unwrap();
+
+        let obj = response.as_object().unwrap();
+
+        assert_eq!(obj["code"], 404, "not_found: should map to 404");
     }
 }

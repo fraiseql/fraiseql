@@ -6,12 +6,10 @@
 use super::*;
 use serde_json::{json, Value};
 
-// Test modules
-mod format_tests;
-mod validation_tests;
-mod status_tests;
-mod integration_tests;
-mod edge_case_tests;
-mod composite_tests;
-mod property_tests;
-mod error_array_generation;
+// Test modules - organized by pipeline stage
+mod classification; // Stage 2: Status taxonomy
+mod integration; // Stage 4: End-to-end
+mod parsing; // Stage 1: JSON → MutationResult
+mod properties; // Property-based tests
+mod response_building; // Stage 3: MutationResult → JSON
+mod test_multiple_entities; // Multiple entity fields pattern (PrintOptim)

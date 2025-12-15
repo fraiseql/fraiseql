@@ -1,0 +1,54 @@
+Integration Tests Cleanup - Audit Summary
+==========================================
+Date: 2025-12-13
+
+SCOPE OF WORK:
+--------------
+1. Consolidate 2 groups of duplicate test files
+2. Rename 21 test files to remove process hints
+3. Review 6 files with incomplete/placeholder tests
+4. Clean content in ~50 test files
+
+DUPLICATE FILE GROUPS:
+----------------------
+- Field Authorization: 4 files → 1 file (merge 3 into 1)
+- Validators: 2 files → 1 file (merge 1 into 1)
+
+RENAME CATEGORIES:
+------------------
+- Remove "_fix" suffix: 5 files
+- Remove "_regression" suffix: 2 files
+- Remove "_simple/_extended/_complex" suffix: 7 files
+- Improve name clarity: 2 files
+- Standardize naming: 5 files
+
+CONTENT CLEANUP:
+----------------
+Patterns to remove from all files:
+- WP-XXX references (3 found)
+- Phase markers (30 found)
+- TDD cycle markers (0 found)
+- Regression/fix comments (13 found)
+- Version numbers
+- Historical explanations
+- Placeholder comments
+
+FILES TO REVIEW:
+----------------
+- test_role_hierarchy.py (placeholder test)
+- test_dataloader_field_decorator.py (placeholder test)
+- test_connection_jsonb_integration.py (placeholder test)
+- test_mutation_rust_pipeline.py (placeholder test)
+- test_full_stack_e2e.py (placeholder test)
+- test_performance_regression.py (placeholder test)
+
+NEXT STEPS:
+-----------
+1. Proceed to Phase 2: Consolidate duplicates
+2. Then Phase 3: Rename files
+3. Then Phase 4: Clean content
+4. Finally Phase 5: Verify and QA
+
+ESTIMATED EFFORT:
+-----------------
+Total: ~7 hours across all phases

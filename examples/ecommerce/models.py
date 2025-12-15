@@ -310,7 +310,7 @@ class AuthSuccess:
     message: str = "Authentication successful"
 
 
-@fraiseql.failure
+@fraiseql.error
 class AuthError:
     """Authentication error."""
 
@@ -326,7 +326,7 @@ class CartSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CartError:
     """Cart operation error."""
 
@@ -342,7 +342,7 @@ class OrderSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class OrderError:
     """Order operation error."""
 
@@ -358,7 +358,7 @@ class AddressSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class AddressError:
     """Address operation error."""
 
@@ -374,7 +374,7 @@ class ReviewSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class ReviewError:
     """Review operation error."""
 

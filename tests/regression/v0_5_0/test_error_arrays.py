@@ -56,7 +56,7 @@ class CreateAuthorSuccess:
     errors: list[ValidationError] = []
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateAuthorError:
     message: str
     errors: list[ValidationError]

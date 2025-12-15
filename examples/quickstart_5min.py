@@ -127,7 +127,7 @@ class CreateNoteSuccess:
     message: str = "Note created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class ValidationError:
     """Validation error."""
 

@@ -1,5 +1,4 @@
-"""
-Comprehensive test coverage for nested filter id field handling.
+"""Comprehensive test coverage for nested filter id field handling.
 
 This test suite validates that nested filters on related entity 'id' fields work correctly
 across different scenarios: FK-based, JSONB-based, and mixed filtering.
@@ -15,6 +14,7 @@ Related issues: #124
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 
@@ -270,6 +270,7 @@ class TestNestedFilterIdField:
                 "data",
             },
             has_jsonb_data=True,
+            fk_relationships={"machine": "machine_id"},
         )
 
         repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
@@ -460,3 +461,131 @@ class TestNestedFilterIdField:
 
         doc = results[0]
         assert doc["metadata"]["id"] == "doc-123", "Should match the filtered id"
+
+    async def test_whereinput_nested_filter_generates_fk_sql(
+        self, class_db_pool, setup_hybrid_table, caplog
+    ):
+        """Verify WhereInput nested filters generate FK SQL, not JSONB SQL."""
+        test_data = setup_hybrid_table
+
+        register_type_for_view(
+            "tv_allocation",
+            Allocation,
+            table_columns={
+                "id",
+                "machine_id",
+                "device_id",
+                "status",
+                "tenant_id",
+                "created_at",
+                "data",
+            },
+            has_jsonb_data=True,
+        )
+
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
+
+        MachineWhereInput = create_graphql_where_input(Machine)
+        AllocationWhereInput = create_graphql_where_input(Allocation)
+
+        where_input = AllocationWhereInput(
+            machine=MachineWhereInput(id=UUIDFilter(eq=test_data["machine2_id"]))
+        )
+
+        # Capture debug logs to verify FK detection
+        with caplog.at_level(logging.DEBUG):
+            result = await repo.find("tv_allocation", where=where_input)
+
+        # Should see FK detection log
+        fk_logs = [
+            r
+            for r in caplog.records
+            if "FK nested object filter" in r.message or "FK nested filter" in r.message
+        ]
+        assert len(fk_logs) > 0, "Should detect FK column for machine.id filter"
+
+        # Should NOT see operator strategy failure warning
+        warnings = [r for r in caplog.records if "Operator strategy failed" in r.message]
+        assert len(warnings) == 0, f"Should not fail with operator warning: {warnings}"
+
+        # Should NOT see "Unsupported operator: id" warning
+        unsupported_logs = [r for r in caplog.records if "Unsupported operator: id" in r.message]
+        assert len(unsupported_logs) == 0, "Should not try to use JSONB path for id field"
+
+        # Verify correct results
+        results = extract_graphql_data(result, "tv_allocation")
+        assert len(results) == test_data["machine2_count"]
+
+    async def test_dict_and_whereinput_generate_identical_sql(
+        self, class_db_pool, setup_hybrid_table
+    ):
+        """Verify dict and WhereInput generate identical SQL queries."""
+        test_data = setup_hybrid_table
+
+        register_type_for_view(
+            "tv_allocation",
+            Allocation,
+            table_columns={
+                "id",
+                "machine_id",
+                "device_id",
+                "status",
+                "tenant_id",
+                "created_at",
+                "data",
+            },
+            has_jsonb_data=True,
+        )
+
+        repo = FraiseQLRepository(class_db_pool, context={"tenant_id": "test"})
+
+        # Normalize both inputs
+        where_dict = {"machine": {"id": {"eq": test_data["machine2_id"]}}}
+
+        MachineWhereInput = create_graphql_where_input(Machine)
+        AllocationWhereInput = create_graphql_where_input(Allocation)
+        where_input = AllocationWhereInput(
+            machine=MachineWhereInput(id=UUIDFilter(eq=test_data["machine2_id"]))
+        )
+
+        # Get table columns
+        table_columns = {
+            "id",
+            "machine_id",
+            "device_id",
+            "status",
+            "tenant_id",
+            "created_at",
+            "data",
+        }
+
+        # Normalize both
+        clause_dict = repo._normalize_where(where_dict, "tv_allocation", table_columns)
+        clause_input = repo._normalize_where(where_input, "tv_allocation", table_columns)
+
+        # Should produce identical WhereClause
+        assert len(clause_dict.conditions) == len(clause_input.conditions)
+        assert clause_dict.conditions[0].field_path == clause_input.conditions[0].field_path
+        assert clause_dict.conditions[0].operator == clause_input.conditions[0].operator
+        assert clause_dict.conditions[0].value == clause_input.conditions[0].value
+        assert (
+            clause_dict.conditions[0].lookup_strategy == clause_input.conditions[0].lookup_strategy
+        )
+        assert clause_dict.conditions[0].target_column == clause_input.conditions[0].target_column
+
+        # Generate SQL from both
+        sql_dict, params_dict = clause_dict.to_sql()
+        sql_input, params_input = clause_input.to_sql()
+
+        # SQL should be identical
+        from psycopg.sql import Composed
+
+        assert isinstance(sql_dict, Composed)
+        assert isinstance(sql_input, Composed)
+        assert sql_dict.as_string(None) == sql_input.as_string(None)  # type: ignore
+        assert params_dict == params_input
+
+        # SQL should use FK column, not JSONB path
+        sql_str = sql_dict.as_string(None)  # type: ignore
+        assert "machine_id" in sql_str
+        assert "data->'machine'" not in sql_str

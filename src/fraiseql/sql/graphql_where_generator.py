@@ -3,18 +3,61 @@
 This module provides utilities to dynamically generate GraphQL input types
 that support operator-based filtering. These types can be used directly in
 GraphQL resolvers and are automatically converted to SQL where types.
+
+Custom Scalar WHERE Filter Support
+===================================
+
+This module extends FraiseQL's WHERE clause generation to support custom
+GraphQL scalar types. Previously, all custom scalars defaulted to StringFilter,
+causing type mismatches in GraphQL queries.
+
+Key Features:
+- Automatic detection of GraphQLScalarType instances
+- Generation of type-specific filters (CIDRFilter, EmailFilter, etc.)
+- Standard operators: eq, ne, in, notIn, contains, startsWith, endsWith
+- Caching to prevent duplicate filter generation
+- Full GraphQL schema integration
+
+Example:
+    @fraise_type
+    class NetworkDevice:
+        ip_address: CIDRScalar
+
+    # Generates:
+    input NetworkDeviceWhereInput {
+        ipAddress: CIDRFilter
+    }
+
+    input CIDRFilter {
+        eq: CIDR
+        ne: CIDR
+        in: [CIDR!]
+        notIn: [CIDR!]
+        contains: CIDR
+        startsWith: CIDR
+        endsWith: CIDR
+    }
 """
 
+import logging
 from dataclasses import make_dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
+
+# Import GraphQL types for custom scalar detection
+from graphql import GraphQLScalarType
+
+# Type alias for better readability
+FilterFieldSpec = tuple[type, Any, str | None]  # (field_type, default_value, graphql_name)
 
 from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
 from fraiseql.sql.where_generator import safe_create_where_type
 from fraiseql.types.scalars.vector import HalfVectorField, QuantizedVectorField, SparseVectorField
+
+logger = logging.getLogger(__name__)
 
 # Type variable for generic filter types
 T = TypeVar("T")
@@ -23,6 +66,8 @@ T = TypeVar("T")
 _where_input_cache: dict[type, type] = {}
 # Stack to track types being generated to detect circular references
 _generation_stack: set[type] = set()
+# Cache for custom scalar filter types
+_custom_scalar_filter_cache: dict[GraphQLScalarType, type] = {}
 
 
 # Base operator filter types for GraphQL inputs
@@ -33,34 +78,72 @@ class StringFilter:
     eq: str | None = None
     neq: str | None = None
     contains: str | None = None
+    icontains: str | None = None
     startswith: str | None = None
+    istartswith: str | None = None
     endswith: str | None = None
+    iendswith: str | None = None
+    like: str | None = None
+    ilike: str | None = None
     matches: str | None = None
     imatches: str | None = None
     not_matches: str | None = None
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
+    notin: list[str] | None = None  # Alias for nin
     isnull: bool | None = None
 
 
 @fraise_input
 class ArrayFilter:
-    """Array field filter operations."""
+    """Array field filter operations.
 
+    Provides comprehensive array filtering with PostgreSQL array operators:
+    - Equality: eq, neq
+    - Containment: contains, contained_by, strictly_contains
+    - Overlap: overlaps
+    - Length: len_eq, len_neq, len_gt, len_gte, len_lt, len_lte
+    - Element matching: any_eq, all_eq, in_array
+
+    Prefixed versions (array_*) are aliases for consistency with other codebases.
+    """
+
+    # Basic equality
     eq: list | None = None
     neq: list | None = None
     isnull: bool | None = None
-    contains: list | None = None
-    contained_by: list | None = None
-    overlaps: list | None = None
+
+    # Containment operators
+    contains: list | None = None  # Array contains all elements
+    contained_by: list | None = None  # Array is contained by
+    strictly_contains: list | None = None  # Array strictly contains (proper superset)
+    overlaps: list | None = None  # Arrays have common elements
+
+    # Length operators
     len_eq: int | None = None
     len_neq: int | None = None
     len_gt: int | None = None
     len_gte: int | None = None
     len_lt: int | None = None
     len_lte: int | None = None
-    any_eq: str | None = None
-    all_eq: str | None = None
+
+    # Element matching
+    any_eq: str | None = None  # Any element equals value
+    all_eq: str | None = None  # All elements equal value
+    in_array: str | None = None  # Value is in array (reverse of contains)
+
+    # Prefixed aliases for compatibility
+    array_eq: list | None = None
+    array_neq: list | None = None
+    array_contains: list | None = None
+    array_contained_by: list | None = None
+    array_overlaps: list | None = None
+    array_length_eq: int | None = None
+    array_length_gt: int | None = None
+    array_length_gte: int | None = None
+    array_length_lt: int | None = None
+    array_any_eq: str | None = None
+    array_all_eq: str | None = None
 
 
 @fraise_input
@@ -192,6 +275,18 @@ class NetworkAddressFilter:
     isIPv4: bool | None = None  # IPv4 address  # noqa: N815
     isIPv6: bool | None = None  # IPv6 address  # noqa: N815
 
+    # Lowercase aliases for network operations
+    insubnet: str | None = None  # Alias for inSubnet
+    inrange: IPRange | None = None  # Alias for inRange
+    isprivate: bool | None = None  # Alias for isPrivate
+    ispublic: bool | None = None  # Alias for isPublic
+    isipv4: bool | None = None  # Alias for isIPv4
+    isipv6: bool | None = None  # Alias for isIPv6
+
+    # CIDR positioning operators
+    strictleft: str | None = None  # << operator - strictly left of
+    strictright: str | None = None  # >> operator - strictly right of
+
     # Advanced network classification (v0.6.1+)
     isLoopback: bool | None = None  # Loopback address (127.0.0.1, ::1)  # noqa: N815
     isMulticast: bool | None = None  # Multicast address (224.0.0.0/4, ff00::/8)  # noqa: N815
@@ -229,6 +324,20 @@ class LTreeFilter:
 
     Provides both basic comparison operators and PostgreSQL ltree-specific
     hierarchical operators for path ancestry, descendancy, and pattern matching.
+
+    PostgreSQL ltree operators:
+    - @> (ancestor_of): path @> 'a.b' - Is ancestor of path
+    - <@ (descendant_of): path <@ 'a.b' - Is descendant of path
+    - ~ (matches_lquery): path ~ '*.b.*' - Matches lquery pattern
+    - ? (matches_ltxtquery): path ? 'b' - Matches ltxtquery text pattern
+    - ? ANY() (matches_any_lquery): path ? ANY('{*.a.*, *.b.*}') - Matches any lquery
+
+    PostgreSQL ltree functions:
+    - nlevel(path): Returns number of labels in path
+    - subpath(path, offset, len): Extract subpath
+    - index(path, item): Position of item in path
+    - lca(paths): Lowest common ancestor
+    - path || value: Concatenate paths
     """
 
     # Basic comparison operators
@@ -241,10 +350,35 @@ class LTreeFilter:
     # LTree-specific hierarchical operators
     ancestor_of: str | None = None  # @> - Is ancestor of path
     descendant_of: str | None = None  # <@ - Is descendant of path
+    isdescendant: str | None = None  # Alias for descendant_of
     matches_lquery: str | None = None  # ~ - Matches lquery pattern
     matches_ltxtquery: str | None = None  # ? - Matches ltxtquery text pattern
+    matches_any_lquery: list[str] | None = None  # ? ANY(lquery[]) - Matches any lquery
 
-    # Intentionally excludes: contains, startswith, endswith (use ltree operators instead)
+    # Level/depth operators (nlevel() function)
+    nlevel: int | None = None  # Exact level count: nlevel(path) = value
+    nlevel_eq: int | None = None  # nlevel(path) = value
+    nlevel_gt: int | None = None  # nlevel(path) > value
+    nlevel_gte: int | None = None  # nlevel(path) >= value
+    nlevel_lt: int | None = None  # nlevel(path) < value
+    nlevel_lte: int | None = None  # nlevel(path) <= value
+    nlevel_neq: int | None = None  # nlevel(path) != value
+
+    # Depth aliases (same semantics as nlevel)
+    depth_eq: int | None = None  # Alias for nlevel_eq
+    depth_gt: int | None = None  # Alias for nlevel_gt
+    depth_gte: int | None = None  # Alias for nlevel_gte
+    depth_lt: int | None = None  # Alias for nlevel_lt
+    depth_lte: int | None = None  # Alias for nlevel_lte
+    depth_neq: int | None = None  # Alias for nlevel_neq
+
+    # Path manipulation operators
+    subpath: str | None = None  # subpath(path, offset, len) comparison
+    index: int | None = None  # index(path, item) - position of item
+    index_eq: int | None = None  # index(path, item) = value
+    index_gte: int | None = None  # index(path, item) >= value
+    lca: list[str] | None = None  # Lowest Common Ancestor of paths
+    concat: str | None = None  # path || value - concatenation
 
 
 @fraise_input
@@ -335,6 +469,35 @@ class JSONBFilter:
     path_match: str | None = None  # @@ operator
 
 
+# Input type for sparse vectors
+@fraise_input
+class SparseVectorInput:
+    """Sparse vector input with indices and values."""
+
+    indices: list[int]
+    values: list[float]
+
+
+# Input type for vector distance operations (supports both dense and sparse)
+@fraise_input
+class VectorDistanceInput:
+    """Input for vector distance operations.
+
+    Supports both dense vectors (as list of floats) and sparse vectors.
+    Exactly one of 'dense' or 'sparse' must be provided.
+
+    Examples:
+        # Dense vector:
+        { dense: [0.1, 0.2, 0.3, 0.4] }
+
+        # Sparse vector:
+        { sparse: { indices: [1, 3, 5], values: [0.1, 0.2, 0.3] } }
+    """
+
+    dense: list[float] | None = None
+    sparse: SparseVectorInput | None = None
+
+
 @fraise_input
 class VectorFilter:
     """PostgreSQL pgvector field filter operations.
@@ -348,9 +511,9 @@ class VectorFilter:
     - inner_product: Negative inner product (more negative = more similar)
 
     Sparse Vector Operators (sparsevec):
-    - cosine_distance: Sparse cosine distance (accepts sparse vector dict)
-    - l2_distance: Sparse L2 distance (accepts sparse vector dict)
-    - inner_product: Sparse inner product (accepts sparse vector dict)
+    - cosine_distance: Sparse cosine distance (accepts sparse vector input)
+    - l2_distance: Sparse L2 distance (accepts sparse vector input)
+    - inner_product: Sparse inner product (accepts sparse vector input)
 
     Binary Vector Operators (bit):
     - hamming_distance: Hamming distance for bit vectors (count differing bits)
@@ -360,36 +523,99 @@ class VectorFilter:
     Requires pgvector extension: CREATE EXTENSION vector;
 
     Example:
+        # Dense vector distance:
         documents(
-            where: { embedding: { l1_distance: [0.1, 0.2, ...] } }
-            orderBy: { embedding: { hamming_distance: "101010" } }
+            where: { embedding: { cosine_distance: { dense: [0.1, 0.2, 0.3] } } }
             limit: 10
         )
-        # Sparse vector example:
+        # Sparse vector distance:
         documents(
             where: {
-                sparse_embedding: { cosine_distance: { indices: [1,3,5], values: [0.1,0.2,0.3] } }
+                sparse_embedding: {
+                    cosine_distance: { sparse: { indices: [1,3,5], values: [0.1,0.2,0.3] } }
+                }
             }
+        )
+        # Binary vector distance:
+        documents(
+            where: { binary_embedding: { hamming_distance: "101010" } }
         )
     """
 
-    # Float vector operators (accept both dense and sparse formats)
-    cosine_distance: list[float] | Dict[str, Any] | None = None
-    l2_distance: list[float] | Dict[str, Any] | None = None
-    l1_distance: list[float] | Dict[str, Any] | None = None
-    inner_product: list[float] | Dict[str, Any] | None = None
+    # Float vector operators (accept VectorDistanceInput for both dense and sparse)
+    cosine_distance: VectorDistanceInput | None = None
+    l2_distance: VectorDistanceInput | None = None
+    l1_distance: VectorDistanceInput | None = None
+    inner_product: VectorDistanceInput | None = None
 
-    # Custom distance operators
-    custom_distance: Dict[str, Any] | None = (
-        None  # {function: "my_distance_func", parameters: [...]}
-    )
-    vector_norm: Any | None = None  # For norm calculations
+    # Distance threshold filter (maximum distance to include)
+    distance_within: float | None = None
 
-    # Binary vector operators
-    hamming_distance: str | None = None  # bit string like "101010"
-    jaccard_distance: str | None = None  # bit string like "111000"
+    # Binary vector operators (bit string like "101010")
+    hamming_distance: str | None = None
+    jaccard_distance: str | None = None
 
     isnull: bool | None = None
+
+
+def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
+    """Create a filter type for a custom GraphQL scalar.
+
+    Generates a filter with standard operators (eq, ne, in, notIn, contains,
+    startsWith, endsWith) that accept the scalar type instead of String.
+
+    This enables type-safe WHERE filtering for custom scalars like CIDR,
+    Email, Color, etc.
+
+    Args:
+        scalar_type: The GraphQL scalar type to create a filter for
+
+    Returns:
+        A new dataclass decorated with @fraise_input for GraphQL input types
+
+    Example:
+        _create_custom_scalar_filter(CIDRScalar) -> CIDRFilter class
+    """
+    # Check cache first to avoid duplicate filter generation
+    if scalar_type in _custom_scalar_filter_cache:
+        return _custom_scalar_filter_cache[scalar_type]
+
+    # Generate filter name (e.g., CIDRScalar -> CIDRFilter)
+    scalar_name = scalar_type.name
+    if scalar_name.endswith("Scalar"):
+        filter_name = scalar_name.replace("Scalar", "Filter")
+    else:
+        filter_name = f"{scalar_name}Filter"
+
+    # Create the filter class with standard operators
+    # We use manual class creation since make_dataclass can't handle fraise_field
+    class CustomScalarFilter:
+        """Filter operations for custom scalar types."""
+
+        # Equality and comparison operators
+        eq: Optional[scalar_type] = None
+        ne: Optional[scalar_type] = None
+
+        # List membership operators (with GraphQL name mapping)
+        in_: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="in")
+        not_in: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="notIn")
+
+        # String pattern matching operators (may be useful for custom scalars)
+        contains: Optional[scalar_type] = None
+        starts_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="startsWith")
+        ends_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="endsWith")
+
+    # Set the class name dynamically
+    CustomScalarFilter.__name__ = filter_name
+    CustomScalarFilter.__qualname__ = filter_name
+
+    # Mark as FraiseQL input type for GraphQL schema generation
+    filter_class = fraise_input(CustomScalarFilter)
+
+    # Cache it to prevent regeneration for the same scalar type
+    _custom_scalar_filter_cache[scalar_type] = filter_class
+
+    return filter_class
 
 
 def _get_filter_type_for_field(
@@ -522,6 +748,32 @@ def _get_filter_type_for_field(
         dict: JSONBFilter,  # JSONB fields are typically dict type in Python
     }
 
+    # Check for GraphQL scalar types that should use specialized filters
+    # These need to be checked before the generic GraphQLScalarType handling
+    if isinstance(field_type, GraphQLScalarType):
+        try:
+            from fraiseql.types.scalars import (
+                CIDRScalar,
+                IpAddressScalar,
+                LTreeScalar,
+                MacAddressScalar,
+            )
+
+            graphql_scalar_mapping = {
+                IpAddressScalar: NetworkAddressFilter,
+                CIDRScalar: NetworkAddressFilter,
+                MacAddressScalar: MacAddressFilter,
+                LTreeScalar: LTreeFilter,
+            }
+
+            if field_type in graphql_scalar_mapping:
+                return graphql_scalar_mapping[field_type]
+        except ImportError:
+            pass
+
+        # Fall back to generic custom scalar filter
+        return _create_custom_scalar_filter(field_type)
+
     return type_mapping.get(field_type, StringFilter)  # Default to StringFilter
 
 
@@ -543,6 +795,21 @@ def _convert_filter_to_dict(filter_obj: Any) -> dict[str, Any]:
     result = {}
     # Check if it's a FraiseQL type with __gql_fields__
     if hasattr(filter_obj, "__gql_fields__"):
+        # Map long names to short names for array operators
+        ARRAY_OPERATOR_ALIASES = {
+            "array_eq": "eq",
+            "array_neq": "neq",
+            "array_contains": "contains",
+            "array_contained_by": "contained_by",
+            "array_overlaps": "overlaps",
+            "array_length_eq": "len_eq",
+            "array_length_gt": "len_gt",
+            "array_length_gte": "len_gte",
+            "array_length_lt": "len_lt",
+            "array_any_eq": "any_eq",
+            "array_all_eq": "all_eq",
+        }
+
         for field_name in filter_obj.__gql_fields__:
             value = getattr(filter_obj, field_name)
             if value is not None:
@@ -550,16 +817,35 @@ def _convert_filter_to_dict(filter_obj: Any) -> dict[str, Any]:
                 if field_name == "in_":
                     result["in"] = value
                 else:
-                    result[field_name] = value
+                    # Map long names to short names
+                    normalized_field = ARRAY_OPERATOR_ALIASES.get(field_name, field_name)
+                    result[normalized_field] = value
     # Fallback for regular objects - use __dict__
     elif hasattr(filter_obj, "__dict__"):
+        # Map long names to short names for array operators
+        ARRAY_OPERATOR_ALIASES = {
+            "array_eq": "eq",
+            "array_neq": "neq",
+            "array_contains": "contains",
+            "array_contained_by": "contained_by",
+            "array_overlaps": "overlaps",
+            "array_length_eq": "len_eq",
+            "array_length_gt": "len_gt",
+            "array_length_gte": "len_gte",
+            "array_length_lt": "len_lt",
+            "array_any_eq": "any_eq",
+            "array_all_eq": "all_eq",
+        }
+
         for field_name, value in filter_obj.__dict__.items():
             if value is not None:
                 # Handle 'in_' field mapping to 'in'
                 if field_name == "in_":
                     result["in"] = value
                 else:
-                    result[field_name] = value
+                    # Map long names to short names
+                    normalized_field = ARRAY_OPERATOR_ALIASES.get(field_name, field_name)
+                    result[normalized_field] = value
 
     return result
 
@@ -685,6 +971,10 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
     # Add to generation stack to detect circular references
     _generation_stack.add(cls)
 
+    def _is_fraise_type(field_type: Any) -> bool:
+        """Check if a type is a FraiseQL type (has __fraiseql_definition__)."""
+        return hasattr(field_type, "__fraiseql_definition__")
+
     try:
         # Get type hints from the class
         try:
@@ -765,29 +1055,208 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
                 ]
                 # Update the dataclass field
                 if hasattr(WhereInputClass, "__dataclass_fields__"):
-                    from dataclasses import MISSING, Field
+                    # Update the type in place to preserve the Field's internal attributes
+                    existing_field = WhereInputClass.__dataclass_fields__.get(field_name)
+                    if existing_field is not None:
+                        existing_field.type = Optional[_where_input_cache[field_type]]
 
-                    field = Field(
-                        default=None,
-                        default_factory=MISSING,
-                        init=True,
-                        repr=True,
-                        hash=None,
-                        compare=True,
-                        metadata={},
-                    )
-                    field.name = field_name
-                    field.type = Optional[_where_input_cache[field_type]]
-                    WhereInputClass.__dataclass_fields__[field_name] = field
+        # Update AND/OR field types to use self-referential WhereInput type
+        # This enables proper GraphQL schema generation for logical operators
+        for logical_field in ("AND", "OR"):
+            if logical_field in WhereInputClass.__annotations__:
+                # The correct type for AND/OR is list of the WhereInput type itself
+                self_ref_list_type = Optional[list[WhereInputClass]]
+
+                # Update annotation
+                WhereInputClass.__annotations__[logical_field] = self_ref_list_type
+
+                # Update __gql_type_hints__ (used by GraphQL type converter)
+                if hasattr(WhereInputClass, "__gql_type_hints__"):
+                    WhereInputClass.__gql_type_hints__[logical_field] = self_ref_list_type
+
+                # Update __gql_fields__ (used by GraphQL type converter)
+                if hasattr(WhereInputClass, "__gql_fields__"):
+                    from fraiseql.fields import fraise_field
+
+                    # Create a FraiseQLField with the correct type
+                    gql_field = fraise_field(default=None)
+                    gql_field.name = logical_field
+                    gql_field.field_type = self_ref_list_type
+                    WhereInputClass.__gql_fields__[logical_field] = gql_field
+
+                # Update dataclass field type - only update the type attribute
+                # to preserve the Field's internal _field_type attribute needed by asdict()
+                if hasattr(WhereInputClass, "__dataclass_fields__"):
+                    existing_field = WhereInputClass.__dataclass_fields__.get(logical_field)
+                    if existing_field is not None:
+                        # Update the type in place - don't replace the entire field
+                        existing_field.type = self_ref_list_type
 
         # Add conversion method
         WhereInputClass._target_class = cls
         WhereInputClass._to_sql_where = lambda self: _convert_graphql_input_to_where_type(self, cls)
 
-        # Add helpful docstring
-        WhereInputClass.__doc__ = (
-            f"GraphQL where input type for {cls.__name__} with operator-based filtering."
-        )
+        # Add dict conversion method for normalization
+        def _to_whereinput_dict(self: Any) -> dict[str, Any]:
+            """Convert WhereInput to normalized dict format.
+
+            This method recursively extracts all filter values from the WhereInput
+            object and its nested objects/filters, converting them to a plain dict
+            structure that can be normalized to WhereClause.
+
+            Returns:
+                Dict representation with filter operators extracted
+
+            Examples:
+                # WhereInput with UUIDFilter
+                AllocationWhereInput(
+                    machine=MachineWhereInput(
+                        id=UUIDFilter(eq=UUID("123"))
+                    )
+                )._to_whereinput_dict()
+
+                # Returns:
+                {
+                    "machine": {
+                        "id": {
+                            "eq": UUID("123")
+                        }
+                    }
+                }
+            """
+            result = {}
+
+            for field_name, field_value in self.__dict__.items():
+                # Skip None values and private fields
+                if field_value is None or field_name.startswith("_"):
+                    continue
+
+                # Handle logical operators (OR, AND, NOT)
+                if field_name in ("OR", "AND", "NOT"):
+                    if field_name in ("OR", "AND") and isinstance(field_value, list):
+                        # OR/AND: list of WhereInput objects
+                        result[field_name] = [
+                            item._to_whereinput_dict()
+                            if hasattr(item, "_to_whereinput_dict")
+                            else item
+                            for item in field_value
+                        ]
+                    elif field_name == "NOT" and hasattr(field_value, "_to_whereinput_dict"):
+                        # NOT: single WhereInput object
+                        result[field_name] = field_value._to_whereinput_dict()
+                    else:
+                        result[field_name] = field_value
+                    continue
+
+                # Handle nested WhereInput objects
+                if hasattr(field_value, "_to_whereinput_dict"):
+                    nested_dict = field_value._to_whereinput_dict()
+                    if nested_dict:
+                        result[field_name] = nested_dict
+                # Handle Filter objects (UUIDFilter, StringFilter, etc.)
+                elif hasattr(field_value, "__dict__") and _is_filter_object(field_value):
+                    # Extract non-None operators from filter
+                    filter_dict = {
+                        op: val
+                        for op, val in field_value.__dict__.items()
+                        if val is not None and not op.startswith("_")
+                    }
+                    if filter_dict:
+                        result[field_name] = filter_dict
+                # Handle plain dicts
+                elif isinstance(field_value, dict):
+                    result[field_name] = field_value
+                # Handle scalar values
+                elif isinstance(field_value, (str, int, float, bool, UUID, date, datetime)):
+                    result[field_name] = {"eq": field_value}
+
+            return result
+
+        def _is_filter_object(obj: Any) -> bool:
+            """Check if object is a Filter type (has operator fields)."""
+            if not hasattr(obj, "__dict__"):
+                return False
+
+            # Filter objects have operator fields
+            operator_fields = {
+                "eq",
+                "neq",
+                "in_",
+                "nin",
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "contains",
+                "icontains",
+                "startswith",
+                "endswith",
+                "istartswith",
+                "iendswith",
+                "isnull",
+                "matches",
+                "imatches",
+                "not_matches",
+            }
+            obj_fields = set(obj.__dict__.keys())
+
+            # If it has at least one operator field, it's a Filter
+            return bool(operator_fields & obj_fields)
+
+        WhereInputClass._to_whereinput_dict = _to_whereinput_dict
+
+        # Get FK relationships from metadata
+        from fraiseql.db import _table_metadata
+
+        sql_source = getattr(cls, "__sql_source__", None) or getattr(cls, "_table_name", None)
+        fk_relationships = {}
+
+        if sql_source and sql_source in _table_metadata:
+            fk_relationships = _table_metadata[sql_source].get("fk_relationships", {})
+
+        # Attach metadata to class
+        WhereInputClass.__table_name__ = sql_source
+        WhereInputClass.__fk_relationships__ = fk_relationships
+
+        # Validate FK relationships at generation time
+        if sql_source and sql_source in _table_metadata:
+            metadata = _table_metadata[sql_source]
+            table_columns = metadata.get("columns", set())
+
+            # Validate declared FKs exist
+            for field_name, fk_column in fk_relationships.items():
+                if table_columns and fk_column not in table_columns:
+                    logger.warning(
+                        f"FK relationship {field_name} → {fk_column} declared "
+                        f"but {fk_column} not in registered columns for {sql_source}"
+                    )
+
+            # Check for undeclared FK candidates
+            type_hints = get_type_hints(cls)
+            for field_name, field_type in type_hints.items():
+                if _is_fraise_type(field_type):
+                    potential_fk = f"{field_name}_id"
+                    if (
+                        field_name not in fk_relationships
+                        and table_columns
+                        and potential_fk in table_columns
+                    ):
+                        logger.info(
+                            f"Field {cls.__name__}.{field_name} looks like FK relationship "
+                            f"(column {potential_fk} exists) but not declared in fk_relationships. "
+                            f"Using convention-based detection."
+                        )
+
+        # Add helpful docstring with FK info
+        docstring = f"GraphQL where input type for {cls.__name__} with operator-based filtering."
+
+        if fk_relationships:
+            fk_doc = "\n".join(
+                f"    - {field} → FK column '{col}'" for field, col in fk_relationships.items()
+            )
+            docstring += f"\n\nFK Relationships:\n{fk_doc}"
+
+        WhereInputClass.__doc__ = docstring
 
         return WhereInputClass
 

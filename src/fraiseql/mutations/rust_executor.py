@@ -40,6 +40,7 @@ async def execute_mutation_rust(
     config: Any | None = None,
     success_type_class: Type | None = None,
     success_type_fields: list[str] | None = None,
+    error_type_fields: list[str] | None = None,
 ) -> RustResponseBytes:
     """Execute mutation via Rust-first pipeline.
 
@@ -61,6 +62,7 @@ async def execute_mutation_rust(
         success_type_class: Python Success type class for entity flattening.
             If provided, will flatten entity JSONB fields to match Success type schema.
         success_type_fields: List of field names expected in Success type for validation.
+        error_type_fields: List of field names expected in Error type for field selection.
 
     Returns:
         RustResponseBytes ready for HTTP response
@@ -127,6 +129,8 @@ async def execute_mutation_rust(
             entity_type,
             None,  # cascade_selections
             auto_camel_case,  # Pass config flag
+            success_type_fields,  # Success type field list
+            error_type_fields,  # Error type field list
         )
         return RustResponseBytes(response_bytes)
 
@@ -207,9 +211,10 @@ async def execute_mutation_rust(
         cascade_selections,
         auto_camel_case,  # Pass config flag
         success_type_fields,  # Pass field list for schema validation
+        error_type_fields,  # Pass error type field list for auto-injection
     )
 
-    # v1.8.0: Validate Rust response structure
+    # Validate Rust response structure
     # Parse the response to check for required fields
     try:
         response_dict = json.loads(response_bytes.decode("utf-8"))
@@ -229,12 +234,12 @@ async def execute_mutation_rust(
                         f"Validation failures should return Error type, not Success type."
                     )
 
-            # Error type: code field must be present (v1.8.0)
+            # Error type: code field must be present
             elif typename == error_type:
                 if "code" not in mutation_result:
                     raise ValueError(
                         f"Error type '{typename}' missing required 'code' field. "
-                        f"Ensure Rust pipeline is updated to v1.8.0."
+                        f"Ensure Rust pipeline includes code field."
                     )
                 if not isinstance(mutation_result["code"], int):
                     raise ValueError(

@@ -5,9 +5,9 @@ import os
 from typing import List, Optional
 from uuid import UUID
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import uvicorn
 
 # FraiseQL imports - CORRECTED
 import fraiseql
@@ -16,9 +16,9 @@ from fraiseql.types.scalars import UUID as FraiseUUID
 
 # LangChain imports - UPDATED to langchain_openai
 try:
-    from langchain_openai import OpenAIEmbeddings, ChatOpenAI
     from langchain.chains import RetrievalQA
     from langchain.docstore.document import Document
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 except ImportError:
     print("⚠️  LangChain not installed. Install with: pip install langchain langchain-openai")
     OpenAIEmbeddings = None
@@ -220,7 +220,7 @@ class RAGService:
         else:
             print("ℹ️  Using OpenAI models...")
             try:
-                from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+                from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
                 self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
                 self.llm = ChatOpenAI(openai_api_key=openai_api_key)
@@ -247,7 +247,6 @@ class RAGService:
             query_embedding = await asyncio.to_thread(self.embeddings.embed_query, query)
 
         # Use psycopg directly for vector search
-        import psycopg
 
         conn = await psycopg.AsyncConnection.connect(self.database_url)
         try:
@@ -304,7 +303,6 @@ class RAGService:
             embedding = await asyncio.to_thread(self.embeddings.embed_query, content)
 
         # Use psycopg to call the function
-        import psycopg
 
         conn = await psycopg.AsyncConnection.connect(self.database_url)
         try:
@@ -468,7 +466,7 @@ if __name__ == "__main__":
     print("   • POST /api/documents/search - Semantic search")
     print("   • POST /api/rag/ask - RAG question answering")
     print("   • POST /api/documents/embed - Create with embedding")
-    print(f"   • GET /health - Health check")
+    print("   • GET /health - Health check")
     print("\n⚙️  Environment variables:")
     print("   • DATABASE_URL - PostgreSQL connection")
     print("   • OPENAI_API_KEY - For OpenAI embeddings (optional)")

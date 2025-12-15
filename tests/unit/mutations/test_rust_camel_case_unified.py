@@ -5,7 +5,6 @@ in the Rust build_mutation_response function.
 """
 
 import json
-import pytest
 
 
 def test_rust_build_mutation_response_with_camel_case_true():

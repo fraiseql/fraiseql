@@ -49,7 +49,7 @@ class CreateUserSuccess:
     name: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     """Error response for user creation."""
 
@@ -63,7 +63,7 @@ class CreateUserMutation:
 
     input: CreateUserInput
     success: CreateUserSuccess
-    failure: CreateUserError
+    error: CreateUserError
 
 
 class TestV0717GraphQLValidationBypassRegression:

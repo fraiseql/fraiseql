@@ -108,7 +108,7 @@ config = ComplexityConfig(
 - **+ TurboRouter**: Additional 2-3x speedup (bypasses GraphQL entirely)
 - **Total**: Up to 6-9x faster for registered queries
 
-See `benchmarks/BENCHMARK_RESULTS.md` for detailed performance tests and reproducibility instructions.
+See `benchmarks/benchmark-results.md` for detailed performance tests and reproducibility instructions.
 
 ## Optimization Tips
 

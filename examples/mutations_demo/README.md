@@ -1,6 +1,6 @@
 # FraiseQL Mutations Demo
 
-This demo shows how to use FraiseQL's PostgreSQL function-based mutation system.
+This demo shows how to use FraiseQL's PostgreSQL function-based mutation system with the **modern `mutation_response` type** (8 fields).
 
 ## Features Demonstrated
 
@@ -9,6 +9,7 @@ This demo shows how to use FraiseQL's PostgreSQL function-based mutation system.
 - Success/Error union types with proper parsing
 - Complex object instantiation from JSONB
 - Real-world error handling patterns
+- **Modern mutation_response format** with cascade support
 
 ## Setup
 
@@ -17,15 +18,25 @@ This demo shows how to use FraiseQL's PostgreSQL function-based mutation system.
    docker-compose up -d
    ```
 
-2. Install dependencies (if not already installed):
+2. Apply the database schema:
+   ```bash
+   psql -h localhost -U fraiseql -d postgres -f setup.sql
+   psql -h localhost -U fraiseql -d postgres -f mutation_functions.sql
+   ```
+
+3. Install dependencies (if not already installed):
    ```bash
    pip install psycopg[async]
    ```
 
-3. Run the demo:
+4. Run the demo:
    ```bash
    python examples/mutations_demo/demo.py
    ```
+
+## Migration Note
+
+This example uses the **modern `mutation_response` type** (8 fields) introduced in FraiseQL v1.8.0.
 
 ## What It Does
 
@@ -44,7 +55,7 @@ The demo performs these operations:
 
 All mutations are implemented as PostgreSQL functions that:
 - Accept JSONB input
-- Return a standardized `mutation_result` type
+- Return a standardized `mutation_response` type (8 fields: status, message, entity_id, entity_type, entity, updated_fields, cascade, metadata)
 - Handle all business logic in the database
 - Provide rich error information
 

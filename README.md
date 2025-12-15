@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.0-beta.5) - Beta Release**
+**📍 You are here: Main FraiseQL Framework (v1.8.1) - Stable Release**
 
-**Current Version**: v1.8.0b5 | **Status**: Beta | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.1 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -47,6 +47,7 @@ app = create_fraiseql_app(
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
+- ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 - 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 
@@ -379,7 +380,7 @@ class UserCreated:
     user_id: str  # AI sees success response
     message: str
 
-@failure
+@error
 class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"
@@ -517,15 +518,15 @@ async def users(info) -> list[User]:
 ### Mutations with Business Logic
 
 ```sql
-CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id INT) RETURNS JSONB AS $$
+CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id UUID) RETURNS JSONB AS $$
 DECLARE
     v_post RECORD;
 BEGIN
-    -- Get post with user info
+    -- Get post with user info (Trinity pattern: JOIN on pk_user)
     SELECT p.*, u.email as user_email
     INTO v_post
     FROM tb_post p
-    JOIN tb_user u ON p.user_id = u.id
+    JOIN tb_user u ON p.fk_user = u.pk_user  -- ✅ Trinity: INTEGER FK to pk_user
     WHERE p.id = p_post_id;
 
     -- Validate post exists
@@ -542,6 +543,9 @@ BEGIN
     UPDATE tb_post
     SET published_at = NOW()
     WHERE id = p_post_id;
+
+    -- Sync projection table
+    PERFORM fn_sync_tv_post(p_post_id);
 
     -- Log event
     INSERT INTO audit_log (action, details)

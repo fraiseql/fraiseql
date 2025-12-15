@@ -36,7 +36,7 @@ class CreateNetworkConfigurationSuccess:
     message: str = "Network configuration created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateNetworkConfigurationError:
     """Error response for network configuration creation."""
 
@@ -50,7 +50,7 @@ class CreateNetworkConfiguration:
 
     input: CreateNetworkConfigurationInput
     success: CreateNetworkConfigurationSuccess
-    failure: CreateNetworkConfigurationError
+    error: CreateNetworkConfigurationError
 
 
 # Mock database function execution to capture the actual parameters being passed
@@ -181,8 +181,9 @@ class MockDatabase:
 class MockInfo:
     """Mock GraphQL info object."""
 
-    def __init__(self, db: MockDatabase) -> None:
+    def __init__(self, db: MockDatabase, field_nodes=None) -> None:
         self.context = {"db": db}
+        self.field_nodes = field_nodes or []
 
 
 @pytest.fixture(autouse=True)
@@ -271,7 +272,7 @@ async def test_various_underscore_number_id_patterns() -> None:
     class TestSuccess:
         result: dict[str, Any]
 
-    @fraiseql.failure
+    @fraiseql.error
     class TestError:
         message: str
 
@@ -279,7 +280,7 @@ async def test_various_underscore_number_id_patterns() -> None:
     class TestMutation:
         input: TestInput
         success: TestSuccess
-        failure: TestError
+        error: TestError
 
     # Create test UUIDs
     server_1_uuid = uuid.uuid4()

@@ -37,7 +37,7 @@ $$ LANGUAGE plpgsql;
 | `'created'` | 201 | - | INSERT success |
 | `'updated'` | 200 | - | UPDATE success |
 | `'deleted'` | 200 | - | DELETE success |
-| `'failed:validation'` | 422 | `validation` | Invalid input |
+| `'validation:'` | 422 | `validation` | Invalid input |
 | `'failed:permission'` | 403 | `permission` | Access denied |
 | `'not_found:user'` | 404 | `user` | Resource missing |
 | `'conflict:duplicate'` | 409 | `duplicate` | Unique constraint |
@@ -52,7 +52,7 @@ $$ LANGUAGE plpgsql;
 ### Pattern 1: Auto-Generated (Simple)
 ```sql
 -- Just set status and message
-result.status := 'failed:validation';
+result.status := 'validation:';
 result.message := 'Email is required';
 -- Rust auto-generates: errors[{code: 422, identifier: "validation", ...}]
 ```
@@ -60,7 +60,7 @@ result.message := 'Email is required';
 ### Pattern 2: Explicit Multiple Errors
 ```sql
 -- Build errors array manually
-result.status := 'failed:validation';
+result.status := 'validation:';
 result.message := 'Multiple validation errors';
 result.metadata := jsonb_build_object(
     'errors', jsonb_build_array(
@@ -89,7 +89,7 @@ result.metadata := jsonb_build_object(
 -- Extract and validate
 user_email := input_payload->>'email';
 IF user_email IS NULL OR user_email !~ '@' THEN
-    result.status := 'failed:validation';
+    result.status := 'validation:';
     result.message := 'Valid email required';
     RETURN result;
 END IF;
@@ -201,7 +201,7 @@ result.metadata := jsonb_build_object(
     "createUser": {
       "__typename": "CreateUserError",
       "code": 422,              // ← Root: Quick access
-      "status": "failed:validation",
+      "status": "validation:",
       "message": "Email required",
       "errors": [{             // ← Array: Structured iteration
         "code": 422,

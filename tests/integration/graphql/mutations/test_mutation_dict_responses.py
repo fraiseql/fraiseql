@@ -1,7 +1,5 @@
 """Test that mutations return dicts in non-HTTP mode."""
 
-import pytest
-
 import fraiseql
 
 
@@ -17,7 +15,7 @@ class CreateUserSuccess:
     message: str
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateUserError:
     message: str
     code: str
@@ -32,8 +30,7 @@ class CreateUserMutation:
 
 def test_class_based_mutation_registered():
     """Test that class-based mutations are registered correctly."""
-    # This is a regression test for the Rust pipeline migration
-    # Class-based mutations now return dicts instead of typed objects
+    # Class-based mutations return dict structures
 
     # Verify the mutation has the correct metadata
     assert hasattr(CreateUserMutation, "__fraiseql_mutation__")
@@ -43,5 +40,4 @@ def test_class_based_mutation_registered():
     resolver = CreateUserMutation.__fraiseql_resolver__
     assert callable(resolver)
 
-    # This test ensures the decorator still works after Phase 4 changes
     # Actual execution testing would require database setup

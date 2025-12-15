@@ -42,7 +42,7 @@ class CreateDnsServerSuccess:
     message: str = "DNS server created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateDnsServerError:
     """Error response for DNS server creation."""
 
@@ -59,7 +59,7 @@ class CreateDnsServer:
 
     input: CreateDnsServerInput
     success: CreateDnsServerSuccess
-    failure: CreateDnsServerError
+    error: CreateDnsServerError
 
 
 @fraiseql.query
@@ -206,7 +206,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
     class ServerConfigSuccess:
         message: str = "Server configured successfully"
 
-    @fraiseql.failure
+    @fraiseql.error
     class ServerConfigError:
         message: str
 
@@ -220,7 +220,7 @@ def test_multiple_ip_address_field_name_conversions() -> None:
 
         input: ServerConfigInput
         success: ServerConfigSuccess
-        failure: ServerConfigError
+        error: ServerConfigError
 
     @fraiseql.query
     @pytest.mark.asyncio

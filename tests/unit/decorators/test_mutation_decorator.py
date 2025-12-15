@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 import fraiseql
-from fraiseql.mutations.decorators import failure, success
+from fraiseql.mutations.decorators import error, success
 from fraiseql.mutations.mutation_decorator import MutationDefinition, mutation
 from fraiseql.types.fraise_input import fraise_input
 from tests.mocks import MockDatabase, MockRustResponseBytes
@@ -30,7 +30,7 @@ class SampleSuccess:
     user: User
 
 
-@failure
+@error
 class SampleError:
     message: str
     code: str = "ERROR"

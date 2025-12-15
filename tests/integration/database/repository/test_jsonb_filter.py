@@ -10,10 +10,9 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
-from tests.unit.utils.test_response_utils import extract_graphql_data
 
 import fraiseql
-from fraiseql.db import FraiseQLRepository, register_type_for_view
+from fraiseql.db import register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
 
 

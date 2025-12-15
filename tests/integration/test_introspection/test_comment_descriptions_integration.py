@@ -16,12 +16,6 @@ from fraiseql.introspection.postgres_introspector import (
 )
 from fraiseql.introspection.type_generator import TypeGenerator
 from fraiseql.introspection.type_mapper import TypeMapper
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.database, pytest.mark.integration]
 
@@ -206,7 +200,7 @@ class TestCommentDescriptionsIntegration:
         annotation = MutationAnnotation(
             name="createUser",
             success_type="User",
-            failure_type="ValidationError",
+            error_type="ValidationError",
         )
 
         # Generate input type first

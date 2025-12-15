@@ -1,7 +1,6 @@
 """Test fraiseql_rs JSON parsing and transformation.
 
-Phase 3, TDD Cycle 3.1 - RED: Test direct JSON → transformed JSON
-These tests should FAIL initially because the function doesn't exist yet.
+Test direct JSON to transformed JSON functionality.
 """
 
 import json

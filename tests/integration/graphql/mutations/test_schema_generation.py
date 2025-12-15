@@ -1,6 +1,8 @@
-import pytest
 from typing import Any
-from fraiseql.schema.mutation_schema_generator import generate_mutation_schema, MutationSchema
+
+import pytest
+
+from fraiseql.schema.mutation_schema_generator import MutationSchema, generate_mutation_schema
 from fraiseql.schema.validator import SchemaValidator
 
 

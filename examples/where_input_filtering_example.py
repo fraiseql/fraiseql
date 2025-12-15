@@ -95,7 +95,7 @@ class UpdateNoteSuccess:
     message: str = "Note updated successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class NoteError:
     """Error response for note operations."""
 

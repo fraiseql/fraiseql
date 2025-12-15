@@ -59,7 +59,22 @@ class CreatePostWithEntitySuccess:
 
 @fraiseql.type
 class CreatePostError:
-    code: str
+    code: int
+    message: str
+
+
+@fraiseql.type
+class UpdatePostTitleSuccess:
+    """Success type for update mutation - returns empty CASCADE."""
+
+    id: str
+    message: str
+    cascade: Cascade
+
+
+@fraiseql.type
+class UpdatePostTitleError:
+    code: int
     message: str
 
 
@@ -78,6 +93,15 @@ class CreatePostWithEntity:
     input: CreatePostInput
     success: CreatePostWithEntitySuccess
     error: CreatePostError
+
+
+@mutation(enable_cascade=True, function="update_post_title")
+class UpdatePostTitle:
+    """Mutation that may return empty CASCADE when no side effects occur."""
+
+    input: CreatePostInput  # Reuse same input for simplicity
+    success: UpdatePostTitleSuccess
+    error: UpdatePostTitleError
 
 
 # Test query (required for GraphQL schema)
@@ -365,6 +389,59 @@ async def cascade_db_schema(
             $$ LANGUAGE plpgsql;
         """)
 
+        # Create PostgreSQL function that returns empty CASCADE
+        # This simulates a mutation with no side effects
+        await conn.execute("""
+            CREATE OR REPLACE FUNCTION public.update_post_title(input_data JSONB)
+            RETURNS mutation_response AS $$
+            DECLARE
+                p_title TEXT;
+                p_post_id TEXT;
+                v_cascade JSONB;
+            BEGIN
+                -- Extract input parameters
+                p_title := input_data->>'title';
+                p_post_id := 'post-existing';  -- Hardcoded for test
+
+                -- Validate input
+                IF p_title = '' OR p_title IS NULL THEN
+                    RETURN ROW(
+                        'failed:validation',
+                        'Title cannot be empty',
+                        NULL, NULL, NULL, NULL, NULL,
+                        jsonb_build_object('field', 'title')
+                    )::mutation_response;
+                END IF;
+
+                -- Build empty cascade (no side effects)
+                v_cascade := jsonb_build_object(
+                    'updated', jsonb_build_array(),
+                    'deleted', jsonb_build_array(),
+                    'invalidations', jsonb_build_array(),
+                    'metadata', jsonb_build_object(
+                        'timestamp', NOW()::text,
+                        'affectedCount', 0
+                    )
+                );
+
+                -- Return success with empty cascade
+                RETURN ROW(
+                    'updated',
+                    'Post title updated (no side effects)',
+                    p_post_id,
+                    'Post',
+                    jsonb_build_object(
+                        'id', p_post_id,
+                        'title', p_title
+                    ),
+                    NULL::text[],
+                    v_cascade,
+                    NULL
+                )::mutation_response;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+
         # Insert test user (no schema prefix - uses search_path)
         await conn.execute("""
             INSERT INTO tb_user (id, name, post_count)
@@ -397,9 +474,11 @@ def cascade_app(cascade_db_schema, create_fraiseql_app_with_db) -> FastAPI:
             CreatePostSuccess,
             CreatePostWithEntitySuccess,
             CreatePostError,
+            UpdatePostTitleSuccess,
+            UpdatePostTitleError,
         ],
         queries=[get_post],
-        mutations=[CreatePost, CreatePostWithEntity],
+        mutations=[CreatePost, CreatePostWithEntity, UpdatePostTitle],
     )
     return app
 

@@ -54,7 +54,7 @@ class CreatePublicAddressSuccess:
     message: str = "Address created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreatePublicAddressError:
     """Error response for address creation."""
 
@@ -71,7 +71,7 @@ class CreateLocationSuccess:
     message: str = "Location created successfully"
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateLocationError:
     """Error response for location creation."""
 

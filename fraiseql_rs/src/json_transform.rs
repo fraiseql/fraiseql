@@ -402,7 +402,11 @@ fn transform_with_aliases(
                 };
 
                 // Field projection: skip fields not in allowed set (only at root level)
-                if current_path.is_empty() && !allowed_fields.contains(key) {
+                // Check both snake_case key (from JSON) and camelCase version (for cases like dns_1/dns1)
+                if current_path.is_empty()
+                    && !allowed_fields.contains(key)
+                    && !allowed_fields.contains(&to_camel_case(key))
+                {
                     continue;
                 }
 

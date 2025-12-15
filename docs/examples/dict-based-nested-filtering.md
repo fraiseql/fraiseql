@@ -55,7 +55,7 @@ results = await repo.find("assignments", where=where_dict)
 ```sql
 SELECT * FROM assignments
 WHERE data->'device'->>'is_active' = 'true'
-  AND data->'device'->>'name' ILIKE '%router%'
+  AND data->'device'->>'name' ILIKE '%router%'  -- icontains operator (case-insensitive)
 ```
 
 ### Mixed Scalar and Nested Filters
@@ -95,7 +95,7 @@ where_dict = {
 
 # Automatically converts to snake_case in SQL
 # data->'device'->>'is_active' = 'true'
-# data->'device'->>'device_name' ILIKE '%router%'
+# data->'device'->>'device_name' ILIKE '%router%'  -- icontains operator
 ```
 
 ## Foreign Key Filtering
@@ -254,42 +254,42 @@ Malformed filters are gracefully handled:
 {"device": {"invalid_field": "not_an_operator"}}
 ```
 
-## Migration Guide
+## Choosing Between WhereType and Dict Syntax
 
-### Upgrading from Basic Filters
+Both syntaxes are equally powerful - choose based on your use case.
 
-If you're currently using only top-level filters, you can now add nested filtering:
+### Combining Top-Level and Nested Filters
+
+You can mix scalar and nested filters freely:
 
 ```python
-# Before - only top-level filters
+# Top-level filter only
 where = {"status": {"eq": "active"}}
 
-# After - add nested filters seamlessly
+# Combined top-level and nested filters
 where = {
     "status": {"eq": "active"},
     "device": {"is_active": {"eq": True}}
 }
 ```
 
-**No breaking changes**: Existing filters continue to work unchanged.
+### Comparing WhereType and Dict Approaches
 
-### From GraphQL Where Inputs
-
-If migrating resolver logic from GraphQL where inputs to dict-based filters:
+Both approaches produce identical SQL:
 
 ```python
 import fraiseql
 
-# GraphQL where input approach (still supported)
+# GraphQL where input approach (type-safe)
 @fraiseql.query
 async def assignments(info, where: AssignmentWhereInput = None):
-    where_input = AssignmentWhereInput(
+    db = info.context["db"]
+    where_filter = AssignmentWhereInput(
         device=DeviceWhereInput(is_active=BooleanFilter(eq=True))
     )
-    sql_where = where_input._to_sql_where()
-    return await db.find("assignments", where=sql_where)
+    return await db.find("assignments", where=where_filter)
 
-# Equivalent dict-based approach (new capability)
+# Dict-based approach (flexible)
 @fraiseql.query
 async def assignments(info, device_active: bool = None):
     where_dict = {}
@@ -318,9 +318,9 @@ where_dict = {"device": {"isActive": {"eq": True}}}
 # Converts to: data->'device'->>'is_active' = 'true'
 ```
 
-### Index Migration
+### Recommended Indexes
 
-Add GIN indexes for nested filtering performance:
+For optimal nested filtering performance, create GIN indexes:
 
 ```sql
 -- Run during deployment
@@ -332,18 +332,18 @@ CREATE INDEX CONCURRENTLY idx_table_device_active
 ON table_name USING gin ((data->'device'->'is_active'));
 ```
 
-### Testing Migration
+### Testing Nested Filters
 
-Update existing tests to include nested filtering:
+Example test cases for nested filtering:
 
 ```python
-# Before
 def test_find_active_assignments(self):
+    """Test basic top-level filter."""
     results = await repo.find("assignments", where={"status": {"eq": "active"}})
     assert len(results) == 5
 
-# After - add nested filter tests
 def test_find_active_assignments_with_active_devices(self):
+    """Test combined top-level and nested filters."""
     where = {
         "status": {"eq": "active"},
         "device": {"is_active": {"eq": True}}

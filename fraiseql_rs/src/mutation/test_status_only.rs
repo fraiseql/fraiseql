@@ -134,7 +134,7 @@ mod test_status_taxonomy {
         assert!(!status.is_noop(), "timeout:expired should not be Noop");
     }
 
-    // NOOP PREFIX (validation/business rule failure) - should be Noop variant AND Error type
+    // NOOP PREFIX (validation/business rule error) - should be Noop variant AND Error type
     #[test]
     fn test_noop_prefix_unchanged() {
         let status = MutationStatus::from_str("noop:unchanged");
@@ -151,7 +151,10 @@ mod test_status_taxonomy {
             !status.is_success(),
             "noop:no_changes should not be Success"
         );
-        assert!(status.is_error(), "noop:no_changes should be Error (v1.8.0)"); // NEW
+        assert!(
+            status.is_error(),
+            "noop:no_changes should be Error (v1.8.0)"
+        ); // NEW
     }
 
     // CASE INSENSITIVITY - should handle mixed case

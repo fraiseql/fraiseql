@@ -4,8 +4,6 @@
 //! For up to 128 fields, we use bitmaps for ultra-fast lookup.
 //! For more fields, we fall back to HashSet.
 
-
-
 /// Field set for projection (bitmap-based)
 ///
 /// Instead of HashMap<String, bool>, use a bitmap:

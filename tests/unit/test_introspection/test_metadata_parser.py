@@ -56,7 +56,7 @@ expose_fields:
         comment = """@fraiseql:mutation
 name: createUser
 success_type: User
-failure_type: ValidationError
+error_type: ValidationError
 description: Create a new user"""
 
         result = parser.parse_mutation_annotation(comment)
@@ -64,7 +64,7 @@ description: Create a new user"""
         assert result is not None
         assert result.name == "createUser"
         assert result.success_type == "User"
-        assert result.failure_type == "ValidationError"
+        assert result.error_type == "ValidationError"
         assert result.description == "Create a new user"
 
     def test_parse_mutation_annotation_missing_required(self) -> None:
@@ -145,7 +145,7 @@ description: Create a new user"""
         @fraiseql:mutation
         name: qualifyLead
         success_type: Contact
-        failure_type: ContactError
+        error_type: ContactError
         context_params: [auth_tenant_id, auth_user_id]
         """
 
@@ -165,7 +165,7 @@ description: Create a new user"""
         @fraiseql:mutation
         name: getStatus
         success_type: Status
-        failure_type: StatusError
+        error_type: StatusError
         """
 
         # When: Parse annotation

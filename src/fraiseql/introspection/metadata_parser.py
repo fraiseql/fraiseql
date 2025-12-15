@@ -28,7 +28,7 @@ class MutationAnnotation:
 
     name: str
     success_type: str
-    failure_type: str
+    error_type: str
     description: Optional[str] = None
     input_type: Optional[str] = None
     context_params: Optional[list[str]] = None  # NEW: Explicit context params
@@ -119,7 +119,7 @@ class MetadataParser:
             @fraiseql:mutation
             name: createContact
             success_type: Contact
-            failure_type: ContactError
+            error_type: ContactError
             context_params: [auth_tenant_id, auth_user_id]  # NEW
         """
         if not comment or "@fraiseql:mutation" not in comment:
@@ -152,9 +152,9 @@ class MetadataParser:
             # Required fields
             name = data.get("name")
             success_type = data.get("success_type")
-            failure_type = data.get("failure_type")
+            error_type = data.get("error_type")
 
-            if not all([name, success_type, failure_type]):
+            if not all([name, success_type, error_type]):
                 return None
 
             # Optional fields
@@ -166,7 +166,7 @@ class MetadataParser:
                 name=name,
                 description=description,
                 success_type=success_type,
-                failure_type=failure_type,
+                error_type=error_type,
                 input_type=input_type,
                 context_params=context_params,  # NEW
             )

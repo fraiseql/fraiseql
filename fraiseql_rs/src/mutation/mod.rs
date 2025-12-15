@@ -2,7 +2,6 @@
 //!
 //! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
 
-
 mod entity_processor;
 mod parser;
 mod postgres_composite;
@@ -16,7 +15,7 @@ pub use entity_processor::{
 };
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
-pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
+pub use response_builder::{build_graphql_response, build_success_response};
 pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
@@ -45,6 +44,8 @@ use serde_json::Value;
 /// * `cascade_selections` - Optional cascade field selections JSON
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
+/// * `error_type_fields` - Optional list of expected fields in error type for field selection
+#[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -55,6 +56,7 @@ pub fn build_mutation_response(
     cascade_selections: Option<&str>,
     auto_camel_case: bool,
     success_type_fields: Option<Vec<String>>,
+    error_type_fields: Option<Vec<String>>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
     let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
@@ -80,6 +82,7 @@ pub fn build_mutation_response(
         entity_type,
         auto_camel_case,
         success_type_fields.as_ref(),
+        error_type_fields.as_ref(),
         cascade_selections,
     )?;
 
@@ -103,6 +106,7 @@ mod integration_tests {
             Some("User"),
             None,
             true,
+            None,
             None,
         )
         .unwrap();
@@ -134,6 +138,7 @@ mod integration_tests {
             Some("User"),
             None,
             true,
+            None,
             None,
         )
         .unwrap();
@@ -186,15 +191,17 @@ impl MutationStatus {
     /// # Examples
     /// ```
     /// assert!(MutationStatus::from_str("success").is_success());
-    /// assert!(MutationStatus::from_str("failed:validation").is_error());
+    /// assert!(MutationStatus::from_str("validation:invalid_input").is_error());
     /// assert!(MutationStatus::from_str("noop:unchanged").is_noop());
     /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
     /// ```
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
         // ERROR PREFIXES - Return Error type with full status string
         if status_lower.starts_with("failed:")
+            || status_lower.starts_with("validation:")
             || status_lower.starts_with("unauthorized:")
             || status_lower.starts_with("forbidden:")
             || status_lower.starts_with("not_found:")
@@ -231,14 +238,14 @@ impl MutationStatus {
 
     /// Returns true if this status should return Error type
     ///
-    /// v1.8.0: Both Noop and Error return Error type
+    /// Both Noop and Error return Error type
     pub fn is_error(&self) -> bool {
         matches!(self, MutationStatus::Error(_) | MutationStatus::Noop(_))
     }
 
     /// Returns true if this status should return Success type
     ///
-    /// v1.8.0: Only Success(_) returns Success type
+    /// Only Success(_) returns Success type
     pub fn is_graphql_success(&self) -> bool {
         matches!(self, MutationStatus::Success(_))
     }
@@ -261,8 +268,11 @@ impl MutationStatus {
             MutationStatus::Noop(_) => 422, // Validation/business rule
             MutationStatus::Error(reason) => {
                 let reason_lower = reason.to_lowercase();
+                // Map error reasons to HTTP-like codes
                 if reason_lower.starts_with("not_found:") {
                     404
+                } else if reason_lower.starts_with("validation:") {
+                    422
                 } else if reason_lower.starts_with("unauthorized:") {
                     401
                 } else if reason_lower.starts_with("forbidden:") {
@@ -277,8 +287,6 @@ impl MutationStatus {
             }
         }
     }
-
-
 }
 
 /// Parsed mutation result from PostgreSQL

@@ -84,7 +84,7 @@ jsonb_build_object(
 result.status := 'failed_validation';  -- → identifier: "general_error"
 
 -- ✅ CORRECT: Use colon
-result.status := 'failed:validation';  -- → identifier: "validation"
+result.status := 'validation:';  -- → identifier: "validation"
 ```
 
 ### Solution

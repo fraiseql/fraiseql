@@ -12,13 +12,13 @@ class FraiseQLTypeDefinition:
     """Internal marker for FraiseQL-annotated types.
 
     This class is attached to any class decorated with `@fraise_type`, `@fraise_input`,
-    `@success`, or `@failure`, and stores runtime metadata needed for schema generation,
+    `@success`, or `@error`, and stores runtime metadata needed for schema generation,
     SQL modeling, and execution.
 
     Attributes:
         python_type (type): The actual user-defined Python class.
         is_input (bool): True if this type is meant for input (e.g., arguments).
-        kind (str): 'input', 'type', 'success', or 'failure'.
+        kind (str): 'input', 'type', 'success', or 'error'.
         sql_source (str | None): Optional SQL table/view this type is bound to.
         jsonb_column (str | None): Optional JSONB column name for data extraction.
         resolve_nested (bool): If True, resolve nested instances via separate queries.

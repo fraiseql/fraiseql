@@ -160,6 +160,11 @@ async def test_rustresponsebytes_non_null_still_works(postgres_url) -> None:
     import psycopg_pool
 
     from fraiseql.core.rust_pipeline import RustResponseBytes
+    from fraiseql.db import _table_metadata
+
+    # Clear any existing metadata for test_users from previous tests
+    # to avoid using stale jsonb_column settings
+    _table_metadata.pop("test_users", None)
 
     # Create a temporary pool for this test
     pool = psycopg_pool.AsyncConnectionPool(

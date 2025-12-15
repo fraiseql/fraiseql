@@ -257,8 +257,8 @@ class Query:
 # GraphQL (more powerful filtering)
 query {
   users(where: {
-    email: { _like: "%example.com" }
-    created_at: { _gte: "2025-01-01" }
+    email: { endswith: "@example.com" }
+    created_at: { gte: "2025-01-01" }
   }) {
     id
     email
@@ -268,11 +268,15 @@ query {
 ```
 
 **FraiseQL Filter Operators:**
-- `_eq`, `_ne` (equals, not equals)
-- `_lt`, `_lte`, `_gt`, `_gte` (comparisons)
-- `_like`, `_ilike` (pattern matching)
-- `_in`, `_nin` (array membership)
-- `_is_null` (null checks)
+- `eq`, `neq` (equals, not equals)
+- `lt`, `lte`, `gt`, `gte` (comparisons)
+- `contains`, `icontains` (substring matching - case-sensitive and case-insensitive)
+- `startswith`, `endswith`, `istartswith`, `iendswith` (pattern matching)
+- `in`, `nin` (array membership)
+- `isnull` (null checks)
+- `like`, `ilike` (SQL LIKE with explicit wildcards)
+
+See [Filter Operators Reference](../advanced/filter-operators.md) for complete list
 
 ---
 

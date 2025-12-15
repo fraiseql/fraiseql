@@ -78,7 +78,7 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
     # Debug: print the response
     import json
 
-    print(f"\n\n=== CASCADE WITH ENTITY FIELD RESPONSE ===")
+    print("\n\n=== CASCADE WITH ENTITY FIELD RESPONSE ===")
     print(json.dumps(data, indent=2))
     print("=" * 50)
 
@@ -121,14 +121,14 @@ async def test_cascade_with_nested_entity_fields(cascade_http_client):
     post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
     assert post_entity is not None
     assert post_entity["operation"] == "CREATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
     # Since we didn't query entity field, it won't be present
 
     # Find User entity in CASCADE
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1
@@ -327,13 +327,13 @@ async def test_cascade_end_to_end(cascade_http_client):
     post_entity = next((u for u in cascade["updated"] if u["__typename"] == "Post"), None)
     assert post_entity is not None
     assert post_entity["operation"] == "CREATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Find User entity
     user_entity = next((u for u in cascade["updated"] if u["__typename"] == "User"), None)
     assert user_entity is not None
     assert user_entity["operation"] == "UPDATED"
-    # v1.8.0: entity field requires explicit selection (CASCADE selection filtering)
+    # Entity field requires explicit selection (CASCADE selection filtering)
 
     # Verify invalidations
     assert len(cascade["invalidations"]) >= 1
@@ -625,9 +625,9 @@ def validate_cascade_structure(cascade: Dict[str, Any]) -> bool:
 async def test_schema_validation_with_success_type_fields(cascade_http_client):
     """Test that Rust schema validation works with success_type_fields parameter.
 
-    This test verifies Phase 3: Rust Schema Validation is working correctly.
-    The Rust transformer should validate that all expected fields from the Success type
-    are present in the mutation response, and warn about missing/extra fields.
+    Validates that the Rust transformer correctly validates that all expected fields
+    from the Success type are present in the mutation response, and warns about
+    missing or extra fields.
     """
     # This test uses the existing CreatePostWithEntity mutation which has:
     # - Success type: CreatePostWithEntitySuccess with fields: post, message, cascade

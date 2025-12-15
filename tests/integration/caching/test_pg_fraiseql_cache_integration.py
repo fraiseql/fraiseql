@@ -3,11 +3,11 @@
 This module tests the automatic cache invalidation provided by the
 pg_fraiseql_cache PostgreSQL extension.
 
-Test Phases:
-- Phase 4.1: Extension Detection
-- Phase 4.2: Domain Version Checking
-- Phase 4.3: CASCADE Rule Generation
-- Phase 4.4: Automatic Trigger Setup
+Tests cover:
+- Extension detection and availability
+- Domain version checking for cache invalidation
+- CASCADE rule generation for automatic invalidation
+- Automatic trigger setup for watched tables
 """
 
 import json
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class TestExtensionDetection:
-    """Phase 4.1: Test automatic detection of pg_fraiseql_cache extension."""
+    """Test automatic detection of pg_fraiseql_cache extension."""
 
     @pytest.fixture
     def mock_pool(self) -> None:
@@ -264,7 +264,7 @@ class TestExtensionDetection:
 
 
 class TestTenantIdInCacheKeys:
-    """Phase 4.2.1: Test that cache keys include tenant_id for security isolation."""
+    """Test that cache keys include tenant_id for security isolation."""
 
     @pytest.fixture
     def mock_pool(self) -> None:
@@ -464,7 +464,7 @@ class TestTenantIdInCacheKeys:
 
 
 class TestCacheValueStructure:
-    """Phase 4.2.2: Test cache value structure with version metadata."""
+    """Test cache value structure with version metadata."""
 
     @pytest.fixture
     def mock_pool(self) -> None:
@@ -524,7 +524,7 @@ class TestCacheValueStructure:
 
 
 class TestVersionChecking:
-    """Phase 4.2.3: Test domain version checking for cache invalidation."""
+    """Test domain version checking for cache invalidation."""
 
     @pytest.fixture
     def mock_pool(self) -> None:
@@ -750,7 +750,7 @@ class TestVersionChecking:
 
 
 class TestCascadeRules:
-    """Phase 4.3: Test CASCADE rule registration for automatic invalidation.
+    """Test CASCADE rule registration for automatic invalidation.
 
     CASCADE rules define domain dependencies - when source_domain changes,
     target_domain caches are invalidated automatically by the extension.
@@ -869,7 +869,7 @@ class TestCascadeRules:
 
 
 class TestTriggerSetup:
-    """Phase 4.4: Test automatic trigger setup for watched tables.
+    """Test automatic trigger setup for watched tables.
 
     Automatic trigger setup calls fraiseql_cache.setup_table_invalidation()
     for tables to enable automatic cache invalidation on data changes.

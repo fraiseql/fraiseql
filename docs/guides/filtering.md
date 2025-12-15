@@ -86,7 +86,7 @@ results = await repo.find("assignments", where=where_dict)
 SELECT * FROM assignments
 WHERE data->>'status' = 'active'
   AND data->'device'->>'is_active' = 'true'
-  AND data->'device'->>'name' ILIKE '%router%'
+  AND data->'device'->>'name' ILIKE '%router%'  -- icontains operator (case-insensitive)
 ```
 
 ### CamelCase Support

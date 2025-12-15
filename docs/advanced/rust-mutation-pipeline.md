@@ -124,7 +124,7 @@ Cascade data represents side effects of mutations:
   "data": {
     "createUser": {
       "__typename": "CreateUserError",
-      "status": "failed:validation",
+      "status": "validation:",
       "message": "Email already exists",
       "code": 422,
       "errors": [

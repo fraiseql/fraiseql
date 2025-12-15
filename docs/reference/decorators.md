@@ -383,7 +383,7 @@ class CreateOrder:
 
 **See Also**: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
 
-### @success / @failure / @result
+### @success / @error / @result
 
 **Purpose**: Helper decorators for mutation result types
 
@@ -396,7 +396,7 @@ class CreateUserSuccess:
     user: User
     message: str
 
-@failure
+@error
 class CreateUserError:
     code: str
     message: str

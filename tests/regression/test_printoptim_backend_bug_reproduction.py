@@ -62,7 +62,7 @@ class CreateNetworkConfigurationSuccess:
     network_configuration: dict[str, Any]
 
 
-@fraiseql.failure
+@fraiseql.error
 class CreateNetworkConfigurationError:
     message: str
     conflict_network_configuration: dict[str, Any] | None = None
@@ -81,7 +81,7 @@ class CreateNetworkConfiguration:
 
     input: CreateNetworkConfigurationInput
     success: CreateNetworkConfigurationSuccess
-    failure: CreateNetworkConfigurationError
+    error: CreateNetworkConfigurationError
 
 
 @patch("fraiseql.config.schema_config.SchemaConfig.get_instance")

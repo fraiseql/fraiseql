@@ -6,8 +6,6 @@ FraiseQL provides automatic generation of GraphQL Where input types that enable 
 
 FraiseQL supports **two syntaxes** for defining where clauses. Both support the same operators and capabilities, including nested object filtering.
 
-> **✨ Recent Enhancement (v1.2.0):** Dict-based nested object filtering is now fully supported! Previously only available in WhereType syntax, you can now filter on nested object properties using plain dictionaries. This includes automatic camelCase→snake_case conversion, multiple nested fields per object, and logical operators (AND/OR/NOT). All 23 integration tests passing! 🎉
-
 ### Quick Comparison
 
 | Feature | WhereType (Preferred) | Dict-Based |
@@ -15,7 +13,7 @@ FraiseQL supports **two syntaxes** for defining where clauses. Both support the 
 | **Use Case** | GraphQL queries, resolvers | Repository methods, programmatic queries |
 | **Type Safety** | ✅ Full IDE autocomplete | ⚠️ Runtime validation only |
 | **Syntax** | `UserWhereInput(name=StringFilter(eq="John"))` | `{"name": {"eq": "John"}}` |
-| **Nested Objects** | ✅ Fully supported | ✅ Fully supported (since v1.2.0) |
+| **Nested Objects** | ✅ Fully supported | ✅ Fully supported |
 | **CamelCase → snake_case** | ✅ Automatic | ✅ Automatic |
 | **IDE Support** | ✅ Full autocomplete | ❌ No autocomplete |
 | **When to Use** | GraphQL queries, type-safe code | Repository methods, dynamic queries |
@@ -124,7 +122,7 @@ assignments = await db.find("assignments", where=where_dict)
 SELECT * FROM assignments
 WHERE data->>'status' = 'active'
   AND data->'device'->>'is_active' = 'true'
-  AND data->'device'->>'name' ILIKE '%server%'
+  AND data->'device'->>'name' ILIKE '%server%'  -- icontains operator (case-insensitive)
 ```
 
 ### Multiple Nested Fields (Dict)

@@ -292,7 +292,7 @@ async def delete_note(info, id: UUID) -> DeleteNoteSuccess | DeleteNoteError:
         )
 ```
 
-**Why this pattern?** Using `@success` and `@failure` decorators creates a proper GraphQL union type, allowing clients to handle success and error cases explicitly in their queries.
+**Why this pattern?** Using `@success` and `@error` decorators creates a proper GraphQL union type, allowing clients to handle success and error cases explicitly in their queries.
 
 **Restart your server** to register the updated mutation with new types.
 

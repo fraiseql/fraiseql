@@ -193,6 +193,16 @@ Available fixtures: `test_config`, `development_config`, `production_config`, `c
 
 See [docs/testing/config-fixtures.md](docs/testing/config-fixtures.md) for details.
 
+#### Integration Test Structure
+
+Integration tests for WHERE clause functionality are organized by operator type:
+- `tests/integration/database/sql/where/network/` - Network operators (IP, MAC addresses)
+- `tests/integration/database/sql/where/specialized/` - PostgreSQL types (LTree, JSONB)
+- `tests/integration/database/sql/where/temporal/` - Time-related operators (DateRange, DateTime)
+- `tests/integration/database/sql/where/spatial/` - Spatial operators (coordinates, distance)
+
+See `tests/integration/database/sql/where/README.md` for details.
+
 ## Documentation
 
 - Update README.md if adding major features
@@ -221,3 +231,105 @@ By contributing, you agree that your contributions will be licensed under the sa
 ---
 
 Thank you for contributing to FraiseQL!
+
+## Adding Examples
+
+FraiseQL examples must follow the [Trinity Pattern](docs/guides/trinity-pattern-guide.md) for consistency, security, and performance.
+
+### Example Guidelines
+
+1. **Use the template** for guaranteed compliance:
+   ```bash
+   cp -r examples/_TEMPLATE examples/my-example
+   ```
+
+2. **Follow the Trinity Pattern checklist** in `examples/_TEMPLATE/README.md`
+
+3. **Run verification** before submitting:
+   ```bash
+   python .phases/verify-examples-compliance/verify.py examples/my-example/
+   # Should show: ✅ Compliance: 100%
+   ```
+
+4. **Include comprehensive tests** and documentation
+
+5. **Update examples/README.md** with your new example
+
+### Trinity Pattern Requirements
+
+All examples must implement:
+- **Tables**: `pk_* INTEGER GENERATED`, `id UUID`, `identifier TEXT` (optional)
+- **Views**: Direct `id` column, JSONB without `pk_*` fields
+- **Functions**: Proper sync calls, consistent variable naming
+- **Python Types**: Match JSONB structure exactly
+
+See [Trinity Pattern Guide](docs/guides/trinity-pattern-guide.md) for complete details.
+
+### CI Verification
+
+Examples are automatically verified in CI. PRs with pattern violations will be blocked until fixed.
+
+## Adding Integration Tests
+
+### WHERE Clause Tests
+When adding new WHERE clause integration tests, place them in the appropriate category:
+
+#### Network Operators
+```bash
+# Location: tests/integration/database/sql/where/network/
+# For: IP, MAC, hostname, email, port operators
+tests/integration/database/sql/where/network/test_new_network_feature.py
+```
+
+#### Specialized PostgreSQL Types
+```bash
+# Location: tests/integration/database/sql/where/specialized/
+# For: ltree, fulltext, and other PostgreSQL-specific operators
+tests/integration/database/sql/where/specialized/test_new_pg_type.py
+```
+
+#### Temporal Operators
+```bash
+# Location: tests/integration/database/sql/where/temporal/
+# For: date, datetime, daterange operators
+tests/integration/database/sql/where/temporal/test_new_time_feature.py
+```
+
+#### Spatial Operators
+```bash
+# Location: tests/integration/database/sql/where/spatial/
+# For: coordinate, distance, geometry operators
+tests/integration/database/sql/where/spatial/test_new_spatial_feature.py
+```
+
+#### Cross-Cutting Tests
+```bash
+# Location: tests/integration/database/sql/where/ (root)
+# For: tests involving multiple operator types
+tests/integration/database/sql/where/test_mixed_operators.py
+```
+
+### Test Naming Conventions
+
+- **End-to-end tests:** `test_<type>_filtering.py` (e.g., `test_ip_filtering.py`)
+- **Operator tests:** `test_<type>_operations.py` (e.g., `test_mac_operations.py`)
+- **Bug regressions:** `test_<type>_bugs.py` or `test_production_bugs.py`
+- **Consistency tests:** `test_<type>_consistency.py`
+
+### Running Tests
+
+```bash
+# Run all WHERE integration tests
+uv run pytest tests/integration/database/sql/where/
+
+# Run specific category
+uv run pytest tests/integration/database/sql/where/network/
+
+# Run single test file
+uv run pytest tests/integration/database/sql/where/network/test_ip_filtering.py
+
+# Run with pattern
+uv run pytest tests/integration/database/sql/where/ -k "ltree"
+```
+
+See `tests/integration/database/sql/where/README.md` for detailed documentation.

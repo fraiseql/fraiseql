@@ -64,7 +64,7 @@ class TestDefaultSchemaIntegration:
         class CreateTest:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         # Verify the mutation uses the default schema
         definition = CreateTest.__fraiseql_mutation__
@@ -86,21 +86,21 @@ class TestDefaultSchemaIntegration:
         class CreateDefault:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         # Mutation with explicit schema override
         @mutation(function="create_custom", schema="custom")
         class CreateCustom:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         # Mutation with explicit public schema
         @mutation(function="create_public", schema="public")
         class CreatePublic:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         # Verify each mutation uses the correct schema
         assert CreateDefault.__fraiseql_mutation__.schema == "app"
@@ -118,7 +118,7 @@ class TestDefaultSchemaIntegration:
         class TestDefault:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         # Should fall back to "public"
         assert TestDefault.__fraiseql_mutation__.schema == "public"
@@ -134,7 +134,7 @@ class TestDefaultSchemaIntegration:
         class FirstMutation:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         assert FirstMutation.__fraiseql_mutation__.schema == "public"
 
@@ -149,7 +149,7 @@ class TestDefaultSchemaIntegration:
         class SecondMutation:
             input: CreateTestInput
             success: SuccessType
-            failure: ErrorType
+            error: ErrorType
 
         assert SecondMutation.__fraiseql_mutation__.schema == "custom_schema"
 

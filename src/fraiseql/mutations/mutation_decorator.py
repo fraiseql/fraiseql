@@ -16,6 +16,85 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
+def _extract_fields_from_selection_set(selection_set: Any, field_set: set[str]) -> None:
+    """Helper to extract field names from selection set recursively."""
+    for field_selection in selection_set.selections:
+        if hasattr(field_selection, "name"):
+            field_name = field_selection.name.value
+            if field_name != "__typename":
+                field_set.add(field_name)
+
+
+def _extract_mutation_selected_fields(info: GraphQLResolveInfo, type_name: str) -> list[str] | None:
+    """Extract fields selected on a mutation response type from GraphQL query.
+
+    Supports both inline fragments (... on Type) and named fragments (...FragmentName).
+
+    For mutations with union types, looks for fragments on the specific type.
+    Returns None if no specific selection found (= return all fields for backward compat).
+
+    Example query (inline fragment):
+        mutation {
+            createMachine(input: $input) {
+                ... on CreateMachineSuccess {
+                    status
+                    machine { id }
+                }
+            }
+        }
+
+    Example query (named fragment):
+        fragment MachineFields on CreateMachineSuccess {
+            status
+            machine { id }
+        }
+        mutation {
+            createMachine(input: $input) {
+                ...MachineFields
+            }
+        }
+
+    Extracts: ["status", "machine"] for type_name="CreateMachineSuccess"
+    """
+    if not info or not info.field_nodes:
+        return None
+
+    selected_fields = set()
+
+    # Mutations typically have one field_node (the mutation field)
+    for field_node in info.field_nodes:
+        if not field_node.selection_set:
+            continue
+
+        # Look through selections for fragments matching our type
+        for selection in field_node.selection_set.selections:
+            # InlineFragment with type condition (e.g., "... on CreateMachineSuccess")
+            if hasattr(selection, "type_condition") and selection.type_condition:
+                fragment_type = selection.type_condition.name.value
+
+                if fragment_type == type_name and selection.selection_set:
+                    # Extract fields from this inline fragment
+                    _extract_fields_from_selection_set(selection.selection_set, selected_fields)
+
+            # Named fragment spread (e.g., "...FragmentName")
+            elif hasattr(selection, "name") and hasattr(info, "fragments"):
+                fragment_name = selection.name.value
+                fragment = info.fragments.get(fragment_name)
+
+                if fragment and hasattr(fragment, "type_condition"):
+                    fragment_type = fragment.type_condition.name.value
+
+                    if fragment_type == type_name:
+                        # Extract fields from this named fragment
+                        _extract_fields_from_selection_set(fragment.selection_set, selected_fields)
+
+    if not selected_fields:
+        return None
+
+    result = list(selected_fields)
+    return result
+
+
 class MutationDefinition:
     """Definition of a PostgreSQL-backed mutation."""
 
@@ -34,8 +113,8 @@ class MutationDefinition:
         # Store the provided schema for lazy resolution
         self._provided_schema = schema
         self._resolved_schema = None  # Will be resolved lazily
-        self._provided_error_config = error_config  # <-- NEW: Store provided value
-        self._resolved_error_config = None  # <-- NEW: Lazy resolution
+        self._provided_error_config = error_config  # Store provided value
+        self._resolved_error_config = None  # Lazy resolution
 
         self.context_params = context_params or {}
         self.enable_cascade = enable_cascade
@@ -44,9 +123,7 @@ class MutationDefinition:
         hints = get_type_hints(mutation_class)
         self.input_type = hints.get("input")
         self.success_type = hints.get("success")
-        self.error_type = hints.get("error") or hints.get(
-            "failure",
-        )  # Support both 'error' and 'failure'
+        self.error_type = hints.get("error")
 
         # Derive function name from class name if not provided
         if function_name:
@@ -221,19 +298,9 @@ class MutationDefinition:
 
         error_annotations = self.error_type.__annotations__
 
-        # Error must have code field (v1.8.0)
-        if "code" not in error_annotations:
-            raise ValueError(
-                f"Error type {error_type_name} must have 'code: int' field. "
-                f"v1.8.0 requires Error types to include REST-like error codes."
-            )
-
-        # Code must be int
-        code_type = error_annotations["code"]
-        if code_type != int:  # noqa: E721
-            raise ValueError(
-                f"Error type {error_type_name} has wrong 'code' type: {code_type}. Expected 'int'."
-            )
+        # NOTE: code field validation REMOVED (v1.8.1)
+        # The 'code' field is now auto-injected by @fraiseql.error decorator
+        # No manual definition required - automatically added to all Error types
 
         # Error must have status field
         if "status" not in error_annotations:
@@ -345,11 +412,12 @@ class MutationDefinition:
                 logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
                 logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
 
-                # Extract success type fields for schema validation
-                success_type_fields = None
-                if self.success_type:
-                    success_type_fields = list(self.success_type.__annotations__.keys())
-                    logger.debug(f"Success type fields for validation: {success_type_fields}")
+                # Extract selected fields from GraphQL query for field filtering
+                # Returns None if no specific selection found (backward compat: return all fields)
+                success_type_fields = _extract_mutation_selected_fields(info, success_type_name)
+                error_type_fields = _extract_mutation_selected_fields(info, error_type_name)
+                logger.debug(f"Selected success fields from query: {success_type_fields}")
+                logger.debug(f"Selected error fields from query: {error_type_fields}")
 
                 # Extract CASCADE selections from GraphQL query
                 cascade_selections_json = self._get_cascade_selections(info)
@@ -368,6 +436,7 @@ class MutationDefinition:
                         cascade_selections=cascade_selections_json,
                         success_type_class=self.success_type,
                         success_type_fields=success_type_fields,
+                        error_type_fields=error_type_fields,
                     )
                     logger.debug(f"Mutation {self.name} executed successfully")
                 except Exception as e:

@@ -13,14 +13,6 @@ from uuid import UUID
 
 import pytest
 import pytest_asyncio
-from tests.fixtures.database.database_conftest import (
-    class_db_pool,
-    clear_registry_class,
-    pgvector_available,
-    postgres_container,
-    postgres_url,
-    test_schema,
-)
 from tests.unit.utils.test_response_utils import extract_graphql_data
 
 from fraiseql.db import FraiseQLRepository
@@ -185,7 +177,9 @@ async def test_vector_filter_cosine_distance(class_db_pool, test_schema, vector_
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381  # Same as first document
 
     result = await repo.find(
-        "test_documents", where={"embedding": {"cosine_distance": query_embedding}}, limit=5
+        "test_documents",
+        where={"embedding": {"cosine_distance": {"vector": query_embedding, "threshold": 0.5}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")
@@ -193,6 +187,24 @@ async def test_vector_filter_cosine_distance(class_db_pool, test_schema, vector_
     # Should return documents ordered by cosine distance (most similar first)
     assert len(results) > 0
     # First result should be the identical document (distance = 0.0)
+    assert results[0]["title"] == "Python Programming"
+
+
+@pytest.mark.asyncio
+async def test_vector_filter_tuple_format(class_db_pool, test_schema, vector_test_setup) -> None:
+    """Test filtering with tuple format (vector, threshold)."""
+    repo = FraiseQLRepository(class_db_pool)
+    query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
+
+    # Use tuple format instead of dict
+    result = await repo.find(
+        "test_documents",
+        where={"embedding": {"cosine_distance": (query_embedding, 0.5)}},
+        limit=5,
+    )
+
+    results = extract_graphql_data(result, "test_documents")
+    assert len(results) > 0
     assert results[0]["title"] == "Python Programming"
 
 
@@ -230,7 +242,7 @@ async def test_vector_with_other_filters(class_db_pool, test_schema, vector_test
     result = await repo.find(
         "test_documents",
         where={
-            "embedding": {"cosine_distance": query_embedding},
+            "embedding": {"cosine_distance": (query_embedding, 0.5)},
             "title": {
                 "contains": "Python"  # Additional filter
             },
@@ -248,7 +260,9 @@ async def test_vector_l1_distance_filter(class_db_pool, test_schema, vector_test
     query_embedding = [0.1, 0.2, 0.3] + [0.0] * 381
 
     result = await repo.find(
-        "test_documents", where={"embedding": {"l1_distance": query_embedding}}, limit=5
+        "test_documents",
+        where={"embedding": {"l1_distance": (query_embedding, 10.0)}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")
@@ -286,7 +300,7 @@ async def test_vector_l1_distance_combined(class_db_pool, test_schema, vector_te
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"l1_distance": query_embedding}},
+        where={"embedding": {"l1_distance": {"vector": query_embedding, "threshold": 10.0}}},
         order_by={"embedding": VectorOrderBy(l1_distance=query_embedding)},
         limit=3,
     )
@@ -305,7 +319,9 @@ async def test_binary_vector_hamming_distance_filter(
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
-        "test_fingerprints", where={"fingerprint": {"hamming_distance": query_fingerprint}}, limit=5
+        "test_fingerprints",
+        where={"fingerprint": {"hamming_distance": {"vector": query_fingerprint, "threshold": 10}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_fingerprints")
@@ -322,7 +338,11 @@ async def test_binary_vector_jaccard_distance_filter(
     query_fingerprint = "1111000011110000111100001111000011110000111100001111000011110000"
 
     result = await repo.find(
-        "test_fingerprints", where={"fingerprint": {"jaccard_distance": query_fingerprint}}, limit=5
+        "test_fingerprints",
+        where={
+            "fingerprint": {"jaccard_distance": {"vector": query_fingerprint, "threshold": 0.3}}
+        },
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_fingerprints")
@@ -381,7 +401,7 @@ async def test_vector_limit_results(class_db_pool, test_schema, vector_test_setu
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"l2_distance": query_embedding}},
+        where={"embedding": {"l2_distance": {"vector": query_embedding, "threshold": 10.0}}},
         limit=2,
     )
 
@@ -400,17 +420,15 @@ async def test_vector_dimension_mismatch_error(
     repo = FraiseQLRepository(class_db_pool)
     wrong_dimension_embedding = [0.1, 0.2]  # Only 2 dimensions vs required 384
 
-    # This should NOT raise an exception in FraiseQL - dimension validation happens in PostgreSQL
-    result = await repo.find(
-        "test_documents",
-        where={"embedding": {"cosine_distance": wrong_dimension_embedding}},
-    )
+    # PostgreSQL will catch the dimension mismatch and raise an exception
+    # FraiseQL should not reject the query upfront - validation happens in PostgreSQL
+    from psycopg import errors as psycopg_errors
 
-    # PostgreSQL will catch the dimension mismatch and return an error
-    # The result should indicate the error from PostgreSQL
-    # For now, we just verify that FraiseQL doesn't reject the query upfront
-    # (The actual PostgreSQL error would be caught in the Rust pipeline)
-    assert result is not None  # Query was accepted by FraiseQL
+    with pytest.raises(psycopg_errors.DataException, match="different vector dimensions"):
+        await repo.find(
+            "test_documents",
+            where={"embedding": {"cosine_distance": {"vector": wrong_dimension_embedding, "threshold": 0.5}}},
+        )
 
 
 @pytest.mark.asyncio
@@ -422,8 +440,8 @@ async def test_vector_hnsw_index_performance(class_db_pool, test_schema, vector_
 
     result = await repo.find(
         "test_documents",
-        where={"embedding": {"cosine_distance": query_embedding}},
-        limit=1,
+        where={"embedding": {"cosine_distance": {"vector": query_embedding, "threshold": 0.5}}},
+        limit=5,
     )
 
     results = extract_graphql_data(result, "test_documents")
