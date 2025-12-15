@@ -15,7 +15,7 @@ pub use entity_processor::{
 };
 pub use parser::parse_mutation_response;
 pub use postgres_composite::PostgresMutationResponse;
-pub use response_builder::{build_error_response, build_graphql_response, build_success_response};
+pub use response_builder::{build_graphql_response, build_success_response};
 pub use types::{FullResponse, MutationResponse, SimpleResponse, StatusKind};
 
 #[cfg(test)]
@@ -45,6 +45,7 @@ use serde_json::Value;
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
 /// * `error_type_fields` - Optional list of expected fields in error type for field selection
+#[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
@@ -194,6 +195,7 @@ impl MutationStatus {
     /// assert!(MutationStatus::from_str("noop:unchanged").is_noop());
     /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
     /// ```
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 

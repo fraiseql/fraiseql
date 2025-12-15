@@ -10,6 +10,7 @@ use serde_json::{json, Map, Value};
 ///
 /// This is the main entry point that dispatches to success or error builders
 /// based on the mutation status.
+#[allow(clippy::too_many_arguments)]
 pub fn build_graphql_response(
     result: &MutationResult,
     field_name: &str,
@@ -39,7 +40,7 @@ pub fn build_graphql_response(
             result,
             error_type,
             auto_camel_case,
-            error_type_fields,  // Use error type field selection
+            error_type_fields, // Use error type field selection
             cascade_selections,
         )?
     };
@@ -94,8 +95,6 @@ pub fn build_success_response(
     success_type_fields: Option<&Vec<String>>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
-
-
     let mut obj = Map::new();
 
     // Add __typename (always included, special GraphQL field)
@@ -106,14 +105,10 @@ pub fn build_success_response(
     let empty_vec = Vec::new();
     let selected_fields = success_type_fields.unwrap_or(&empty_vec);
 
-
-
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
         !should_filter || selected_fields.contains(&field_name.to_string())
     };
-
-
 
     // Add id from entity_id if present AND selected
     if is_selected("id") {
@@ -143,7 +138,7 @@ pub fn build_success_response(
              This indicates a logic error: non-success statuses (noop:*, failed:*, etc.) \
              should return Error type, not Success type.",
             success_type,
-            result.status.to_string()
+            result.status
         ));
     }
 
@@ -307,7 +302,14 @@ pub fn build_error_response_with_code(
     eprintln!("  error_type_fields: {:?}", error_type_fields);
     eprintln!("  result.status: {}", result.status);
     eprintln!("  result.message: {:?}", result.message);
-    eprintln!("  result.entity: {}", if result.entity.is_some() { "Some(...)" } else { "None" });
+    eprintln!(
+        "  result.entity: {}",
+        if result.entity.is_some() {
+            "Some(...)"
+        } else {
+            "None"
+        }
+    );
     eprintln!("╚══════════════════════════════════════════════════════════════╝\n");
 
     let mut obj = Map::new();
@@ -362,22 +364,20 @@ pub fn build_error_response_with_code(
     // Extract entity fields from wrapper (same pattern as Success types)
     // For Error types, copy all fields from entity wrapper to root level
     // This enables patterns like: conflict_machine, current_user, etc.
-    if let Some(entity) = &result.entity {
-        if let Value::Object(entity_map) = entity {
-            // Copy all fields from wrapper (excluding special fields)
-            for (key, value) in entity_map {
-                if key != "entity" && key != "cascade" {
-                    // Don't copy nested "entity" or CASCADE
-                    // CASCADE must only appear at error type level, never in entity
-                    let field_key = if auto_camel_case {
-                        to_camel_case(key)
-                    } else {
-                        key.clone()
-                    };
-                    // Only add if not already present AND field is selected
-                    if !obj.contains_key(&field_key) && is_selected(&field_key) {
-                        obj.insert(field_key, transform_value(value, auto_camel_case));
-                    }
+    if let Some(Value::Object(entity_map)) = &result.entity {
+        // Copy all fields from wrapper (excluding special fields)
+        for (key, value) in entity_map {
+            if key != "entity" && key != "cascade" {
+                // Don't copy nested "entity" or CASCADE
+                // CASCADE must only appear at error type level, never in entity
+                let field_key = if auto_camel_case {
+                    to_camel_case(key)
+                } else {
+                    key.clone()
+                };
+                // Only add if not already present AND field is selected
+                if !obj.contains_key(&field_key) && is_selected(&field_key) {
+                    obj.insert(field_key, transform_value(value, auto_camel_case));
                 }
             }
         }
@@ -445,22 +445,6 @@ pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
     }
 }
 
-/// Build error response object
-///
-/// Key behaviors:
-/// - Extract error code from status string (part after ':')
-/// - Auto-generate errors array if not in metadata
-/// - Map status to HTTP code
-#[deprecated(note = "Use build_error_response_with_code")]
-pub fn build_error_response(
-    result: &MutationResult,
-    error_type: &str,
-    auto_camel_case: bool,
-) -> Result<Value, String> {
-    // Delegate to new function
-    build_error_response_with_code(result, error_type, auto_camel_case, None, None)
-}
-
 /// Transform entity: add __typename and convert keys to camelCase
 fn transform_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) -> Value {
     match entity {
@@ -515,10 +499,6 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
     }
 }
 
-/// Transform error object to camelCase
-fn transform_error(error: &Value, auto_camel_case: bool) -> Value {
-    transform_value(error, auto_camel_case)
-}
 
 #[cfg(test)]
 mod tests {
@@ -625,7 +605,7 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
+        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserError");
@@ -653,7 +633,7 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response(&result, "CreateUserError", true).unwrap();
+        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // Auto-generated error with extracted code
@@ -689,7 +669,7 @@ mod tests {
                 is_simple_format: false,
             };
 
-            let response = build_error_response(&result, "TestError", true).unwrap();
+            let response = build_error_response_with_code(&result, "TestError", true, None, None).unwrap();
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,
@@ -727,7 +707,10 @@ mod tests {
         let obj = response.as_object().unwrap();
 
         // Verify code field is present and correct
-        assert!(obj.contains_key("code"), "Error response must have 'code' field");
+        assert!(
+            obj.contains_key("code"),
+            "Error response must have 'code' field"
+        );
         assert_eq!(obj["code"], 422, "Validation error should map to 422");
         assert_eq!(obj["message"], "Validation failed");
         assert_eq!(obj["__typename"], "CreatePostError");

@@ -309,6 +309,7 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 ///     ValueError: If JSON is malformed or transformation fails
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
+#[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
     field_name: &str,
