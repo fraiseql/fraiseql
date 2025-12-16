@@ -204,6 +204,86 @@ make test-collect
 
 ---
 
+## 🚀 Pre-commit with prek (Rust)
+
+FraiseQL uses **prek** - a Rust-based replacement for pre-commit that's **7-10x faster** with zero Python dependencies.
+
+### Installation
+
+```bash
+# macOS (via Homebrew)
+brew install j178/tap/prek
+
+# Linux/macOS (via Rust)
+cargo install prek
+
+# Verify installation
+prek --version
+```
+
+### Setup
+
+```bash
+# Install git hooks
+prek install
+
+# Run hooks on all files
+prek run --all
+
+# Run hooks on staged files (default)
+prek run
+```
+
+### Why prek?
+
+✅ **7-10x faster** than pre-commit (Rust vs Python)
+✅ **Single binary** - no Python dependencies
+✅ **Drop-in compatible** - same `.pre-commit-config.yaml` format
+✅ **Built-in hooks** in Rust (faster than Python equivalents)
+✅ **Monorepo support** - multiple `.pre-commit-config.yaml` files
+
+### Available Hooks
+
+FraiseQL's prek configuration includes:
+- **File checks**: trailing whitespace, file endings, YAML/JSON/TOML validation
+- **Large files**: prevents committing large binaries
+- **Merge conflicts**: detects unresolved merge conflicts
+- **Debug statements**: finds leftover print() and debugging code
+- **Linting**: ruff check with auto-fix
+- **Formatting**: ruff format for consistent code style
+- **Kubernetes validation**: yamllint for K8s manifests
+- **Custom hooks**: pre-push pytest validation
+
+### Commands
+
+```bash
+# Run all prek hooks
+prek run --all
+
+# Run specific hook
+prek run ruff
+
+# Update hook versions
+prek update
+
+# Get hook list
+prek list
+```
+
+### Integration with Development
+
+```bash
+# Format + lint code
+make format && make lint
+
+# Or use prek directly
+prek run --all
+
+# The Makefile automatically uses prek for all quality checks
+```
+
+---
+
 ## 📝 Code Standards
 
 ### Python
