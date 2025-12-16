@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (Empty - ready for next development)
 
+## [1.8.3] - 2025-12-16
+
+### Bug Fixes
+
+#### WHERE Clause Filtering on Hybrid Tables (Issue #124)
+
+Fixed critical bug where WHERE clause filters were silently ignored on hybrid
+tables with both SQL columns and JSONB data, returning all records instead of
+filtered results.
+
+**Root Cause**: Two interconnected bugs:
+1. Type re-registration during schema building overwrote `table_columns` metadata
+2. FK detection used `if table_columns and ...` instead of explicit None check,
+   causing empty sets to fail FK detection
+
+**Solution**:
+- Preserve metadata during schema building re-registration (registry.py)
+- Use explicit None checks instead of truthiness checks (where_normalization.py)
+- Ensure table_columns fallback from metadata (db.py)
+
+**Impact**:
+- All WHERE clause filtering now works correctly on hybrid tables
+- FK relationships detected and used for SQL column filtering
+- 5991+ tests pass with zero regressions
+
 ## [1.8.2] - 2025-12-15
 
 ### Features
