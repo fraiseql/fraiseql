@@ -116,7 +116,19 @@ class SchemaRegistry:
                 sql_source,
                 jsonb_column,
             )
-            register_type_for_view(sql_source, typ, jsonb_column=jsonb_column)
+
+            # CRITICAL FIX for Issue #124: Don't overwrite existing metadata
+            # If table_columns were already registered via register_type_for_view(),
+            # preserve them. Only register if metadata doesn't exist yet.
+            from fraiseql.db import _table_metadata
+
+            if sql_source not in _table_metadata:
+                # First time seeing this type - register with minimal metadata
+                register_type_for_view(sql_source, typ, jsonb_column=jsonb_column)
+            else:
+                # Type already registered - only register the type class, not the metadata
+                # This prevents overwriting table_columns that were explicitly set
+                register_type_for_view(sql_source, typ)
 
     def register_enum(self, enum_cls: type, graphql_enum: GraphQLEnumType) -> None:
         """Register a Python Enum class as a GraphQL enum type.
