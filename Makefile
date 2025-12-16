@@ -125,10 +125,33 @@ test-watch: ## Run tests in watch mode (requires pytest-watch)
 	@echo -e "$(GREEN)Running tests in watch mode...$(NC)"
 	ptw -- -xvs
 
-.PHONY: lint
+.PHONY: lint prek-install prek-run prek-update prek-list
 lint: ## Run linting with ruff
 	@echo -e "$(GREEN)Running ruff linter...$(NC)"
 	ruff check src/
+
+prek-install: ## Install prek git hooks (faster pre-commit in Rust)
+	@echo -e "$(GREEN)Installing prek hooks...$(NC)"
+	@command -v prek >/dev/null 2>&1 || { echo -e "$(RED)prek not installed$(NC)"; echo -e "$(YELLOW)Install with: brew install j178/tap/prek$(NC)"; exit 1; }
+	prek install
+	@echo -e "$(GREEN)✅ prek hooks installed$(NC)"
+
+prek-run: ## Run prek hooks on staged files
+	@echo -e "$(GREEN)Running prek hooks...$(NC)"
+	prek run
+
+prek-run-all: ## Run prek hooks on all files
+	@echo -e "$(GREEN)Running prek hooks on all files...$(NC)"
+	prek run --all
+
+prek-update: ## Update prek hooks to latest versions
+	@echo -e "$(GREEN)Updating prek hooks...$(NC)"
+	prek update
+	@echo -e "$(GREEN)✅ prek hooks updated$(NC)"
+
+prek-list: ## List all prek hooks and their status
+	@echo -e "$(GREEN)prek hooks:$(NC)"
+	prek list
 
 .PHONY: lint-fix
 lint-fix: ## Fix linting issues automatically

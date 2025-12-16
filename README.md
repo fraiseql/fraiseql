@@ -1086,10 +1086,32 @@ We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 - Architecture decisions and patterns
 - Code style and review process
 
+### Quick Start
+
 ```bash
 git clone https://github.com/fraiseql/fraiseql
 cd fraiseql && make setup-dev
 ```
+
+### Pre-commit with prek (7-10x faster)
+
+FraiseQL uses **prek** - a Rust-based replacement for pre-commit:
+
+```bash
+# Install prek (faster than pre-commit)
+brew install j178/tap/prek      # macOS
+cargo install prek              # or via Rust
+
+# Setup git hooks
+prek install
+
+# Run before committing
+prek run --all
+```
+
+Why prek? ⚡ **7-10x faster** than pre-commit, single binary, zero Python dependencies.
+
+For more details: See `.claude/CLAUDE.md` or run `make prek-list`
 
 ---
 
