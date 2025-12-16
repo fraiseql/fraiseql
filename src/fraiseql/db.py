@@ -1560,11 +1560,22 @@ class FraiseQLRepository:
 
         if where_obj:
             # Get table columns for normalization
+            # CRITICAL: table_columns must be provided for hybrid table FK detection
             table_columns = None
+
+            # Try introspection cache first
             if hasattr(self, "_introspected_columns") and view_name in self._introspected_columns:
                 table_columns = self._introspected_columns[view_name]
-            elif view_name in _table_metadata and "columns" in _table_metadata[view_name]:
-                table_columns = _table_metadata[view_name]["columns"]
+            # Then try registered metadata
+            elif view_name in _table_metadata:
+                metadata = _table_metadata[view_name]
+                if "columns" in metadata:
+                    table_columns = metadata.get("columns")
+                if not table_columns:
+                    logger.warning(
+                        f"No table_columns registered for {view_name} - "
+                        f"FK detection may be disabled. Call register_type_for_view()."
+                    )
 
             # SINGLE CODE PATH: Normalize to WhereClause
             try:

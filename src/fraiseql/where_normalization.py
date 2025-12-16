@@ -61,12 +61,17 @@ def normalize_dict_where(
         raise ValueError("WHERE clause cannot be empty dict")
 
     # Get metadata if not provided
+    # CRITICAL FIX for Issue #124: Always retrieve table_columns if available from metadata
     from fraiseql.db import _table_metadata
 
     if table_columns is None and view_name in _table_metadata:
         metadata = _table_metadata[view_name]
+        # Use metadata columns if available, otherwise use empty set
+        # Empty set signals that metadata exists but no columns were registered
         if "columns" in metadata:
-            table_columns = set(metadata["columns"])
+            table_columns = set(metadata["columns"]) if metadata["columns"] else set()
+        else:
+            table_columns = set()
 
     conditions = []
     nested_clauses = []
@@ -343,7 +348,9 @@ def _is_nested_object_filter(
             fk_column = fk_relationships[field_name]
 
             # Verify FK column exists
-            if table_columns and fk_column in table_columns:
+            # CRITICAL FIX for Issue #124: Check if table_columns is not None (not just truthy)
+            # Empty set is falsy but valid, so use explicit None check
+            if table_columns is not None and fk_column in table_columns:
                 logger.debug(f"Using explicit FK relationship: {field_name} → {fk_column}")
                 return True, True
             error_msg = (
@@ -365,7 +372,9 @@ def _is_nested_object_filter(
         # Check if FK column exists
         potential_fk_column = f"{field_name}_id"
 
-        if table_columns and potential_fk_column in table_columns:
+        # CRITICAL FIX for Issue #124: Check if table_columns is not None (not just truthy)
+        # Empty set is falsy but valid, so use explicit None check
+        if table_columns is not None and potential_fk_column in table_columns:
             # FK column exists, use it
             logger.debug(
                 f"Dict WHERE: Detected FK nested object filter for {field_name} "
