@@ -275,29 +275,92 @@ test-commit-safety: ## Test the commit safety hooks
 	@echo -e "$(GREEN)🧪 Testing commit safety mechanisms...$(NC)"
 	@bash -c 'source .git/hooks/pre-push && echo "Pre-push hook would have run successfully"'
 
-# Package distribution commands
-.PHONY: build
-build: ## Build distribution packages
-	@echo -e "$(GREEN)Building distribution packages...$(NC)"
-	rm -rf dist/ build/ *.egg-info src/*.egg-info
-	python -m build
-	@echo -e "$(GREEN)Build complete. Files in dist/:$(NC)"
-	@ls -la dist/
-
-.PHONY: publish-test
-publish-test: ## Publish to TestPyPI (for testing)
-	@echo -e "$(YELLOW)Publishing to TestPyPI...$(NC)"
-	@bash scripts/publish.sh --test-pypi
-
-.PHONY: publish
-publish: ## Publish to PyPI (production)
-	@echo -e "$(RED)Publishing to PyPI (Production)...$(NC)"
-	@bash scripts/publish.sh
 
 .PHONY: check-publish
 check-publish: ## Check package before publishing
 	@echo -e "$(GREEN)Checking package...$(NC)"
 	python -m twine check dist/*
+
+# =============================================================================
+# VERSION MANAGEMENT (Multi-file: Python, Rust, Documentation)
+# =============================================================================
+
+.PHONY: version-show version-patch version-minor version-major version-dry-run
+
+version-show: ## Show current version information
+	@echo -e "$(GREEN)📊 FraiseQL Version Information$(NC)"
+	@uv run python scripts/version_manager.py show
+
+version-patch: ## Bump patch version (1.8.2 → 1.8.3)
+	@echo -e "$(GREEN)📈 Bumping patch version$(NC)"
+	@uv run python scripts/version_manager.py patch
+
+version-minor: ## Bump minor version (1.8.2 → 1.9.0)
+	@echo -e "$(GREEN)📈 Bumping minor version$(NC)"
+	@uv run python scripts/version_manager.py minor
+
+version-major: ## Bump major version (1.8.2 → 2.0.0)
+	@echo -e "$(GREEN)📈 Bumping major version$(NC)"
+	@uv run python scripts/version_manager.py major
+
+version-dry-run: ## Preview version bump without changes
+	@echo -e "$(YELLOW)🧪 Version Bump Preview (dry-run)$(NC)"
+	@echo "Patch version:" && uv run python scripts/version_manager.py patch --dry-run
+	@echo ""
+	@echo "Minor version:" && uv run python scripts/version_manager.py minor --dry-run
+	@echo ""
+	@echo "Major version:" && uv run python scripts/version_manager.py major --dry-run
+
+# =============================================================================
+# PULL REQUEST COMMANDS - Modern 2025 GitHub native auto-merge
+# =============================================================================
+
+.PHONY: pr-ship pr-ship-patch pr-ship-minor pr-ship-major pr-ship-help pr-status
+
+pr-ship: pr-ship-patch ## Default PR workflow with patch version bump
+
+pr-ship-patch: ## Automated PR workflow with patch version bump
+	@echo -e "$(YELLOW)🚀 FraiseQL PR Ship with Patch Version Bump$(NC)"
+	@echo -e "$(YELLOW)════════════════════════════════════════════════$(NC)"
+	@uv run python scripts/pr_ship.py patch
+
+pr-ship-minor: ## Automated PR workflow with minor version bump
+	@echo -e "$(YELLOW)🚀 FraiseQL PR Ship with Minor Version Bump$(NC)"
+	@echo -e "$(YELLOW)════════════════════════════════════════════════$(NC)"
+	@uv run python scripts/pr_ship.py minor
+
+pr-ship-major: ## Automated PR workflow with major version bump (use with caution!)
+	@echo -e "$(YELLOW)🚀 FraiseQL PR Ship with Major Version Bump$(NC)"
+	@echo -e "$(YELLOW)════════════════════════════════════════════════$(NC)"
+	@uv run python scripts/pr_ship.py major
+
+pr-ship-help: help ## Alias to show help
+
+pr-status: ## Check status of current branch's PR
+	@echo -e "$(GREEN)📊 Checking PR status$(NC)"
+	@current_branch=$$(git branch --show-current); \
+	if gh pr view --json state,url,statusCheckRollup,autoMergeRequest >/dev/null 2>&1; then \
+		echo -e "$(YELLOW)📋 Branch: $$current_branch$(NC)"; \
+		gh pr view; \
+	else \
+		echo -e "$(YELLOW)⚠️  No PR found for branch: $$current_branch$(NC)"; \
+		echo -e "$(YELLOW)💡 Create one with: make pr-ship$(NC)"; \
+	fi
+
+# =============================================================================
+# RELEASE WORKFLOWS (Multi-phase automated process)
+# =============================================================================
+
+.PHONY: release-patch release-minor release-major
+
+release-patch: test pr-ship-patch ## Full patch release workflow (test + ship)
+	@echo -e "$(GREEN)✅ Patch release complete$(NC)"
+
+release-minor: test pr-ship-minor ## Full minor release workflow (test + ship)
+	@echo -e "$(GREEN)✅ Minor release complete$(NC)"
+
+release-major: test pr-ship-major ## Full major release workflow (test + ship)
+	@echo -e "$(YELLOW)⚠️  Major release complete - verify all changes$(NC)"
 
 # Default target
 .DEFAULT_GOAL := help
