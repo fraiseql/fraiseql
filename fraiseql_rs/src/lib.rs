@@ -119,7 +119,8 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     ...     type_name="User",
 ///     ...     field_paths=None,
 ///     ...     field_selections=None,
-///     ...     is_list=True
+///     ...     is_list=True,
+///     ...     include_graphql_wrapper=True
 ///     ... )
 ///     >>> result.decode('utf-8')
 ///     '{"data":{"users":[{"__typename":"User","userId":1},{"__typename":"User","userId":2}]}}'
@@ -131,11 +132,12 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     field_paths: Optional field projection paths (DEPRECATED - use field_selections)
 ///     field_selections: Optional field selections JSON string with aliases and type info
 ///     is_list: True for list responses (always array), False for single object responses
+///     include_graphql_wrapper: True to wrap in {"data":{"field_name":...}} (default), False for field-only mode
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
 #[pyfunction]
-#[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None, is_list=None))]
+#[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None, is_list=None, include_graphql_wrapper=None))]
 pub fn build_graphql_response(
     json_strings: Vec<String>,
     field_name: &str,
@@ -143,6 +145,7 @@ pub fn build_graphql_response(
     field_paths: Option<Vec<Vec<String>>>,
     field_selections: Option<String>,
     is_list: Option<bool>,
+    include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
     // Parse field_selections JSON string if provided
     let selections_json = match field_selections {
@@ -170,6 +173,7 @@ pub fn build_graphql_response(
         field_paths,
         selections_opt,
         is_list,
+        include_graphql_wrapper,
     )
 }
 

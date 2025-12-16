@@ -694,6 +694,11 @@ class FraiseQLRepository:
             field_name = info.field_name
 
         # 5. Execute via Rust pipeline (ALWAYS)
+        # Check if this is part of a multi-field query to use field-only mode
+        include_wrapper = True
+        if info and hasattr(info, "context") and isinstance(info.context, dict):
+            include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
+
         async with self._pool.connection() as conn:
             result = await execute_via_rust_pipeline(
                 conn,
@@ -704,6 +709,7 @@ class FraiseQLRepository:
                 is_list=True,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
                 field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
+                include_graphql_wrapper=include_wrapper,  # Field-only mode for multi-field
             )
 
             # Store RustResponseBytes in context for direct path
@@ -804,6 +810,11 @@ class FraiseQLRepository:
             field_name = info.field_name
 
         # 5. Execute via Rust pipeline (ALWAYS)
+        # Check if this is part of a multi-field query to use field-only mode
+        include_wrapper = True
+        if info and hasattr(info, "context") and isinstance(info.context, dict):
+            include_wrapper = not info.context.get("__has_multiple_root_fields__", False)
+
         async with self._pool.connection() as conn:
             result = await execute_via_rust_pipeline(
                 conn,
@@ -814,6 +825,7 @@ class FraiseQLRepository:
                 is_list=False,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
                 field_selections=field_selections_json,  # NEW: Pass field selections with aliases!
+                include_graphql_wrapper=include_wrapper,  # Field-only mode for multi-field
             )
 
             # NEW: Check if result is null (empty array from Rust)

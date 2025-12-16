@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from graphql import GraphQLSchema
+from graphql import FieldNode, GraphQLSchema, OperationDefinitionNode, parse
 from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
@@ -28,6 +28,44 @@ from fraiseql.optimization.n_plus_one_detector import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _count_root_query_fields(query_string: str, operation_name: str | None = None) -> int:
+    """Count root-level query fields in GraphQL query.
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+
+    Returns:
+        Number of root-level query fields
+    """
+    try:
+        document = parse(query_string)
+
+        for definition in document.definitions:
+            if not isinstance(definition, OperationDefinitionNode):
+                continue
+            if definition.operation.value != "query":
+                continue
+            if operation_name and definition.name and definition.name.value != operation_name:
+                continue
+
+            return sum(
+                1
+                for selection in definition.selection_set.selections
+                if isinstance(selection, FieldNode)
+                and hasattr(selection, "name")
+                and selection.name
+                and selection.name.value
+                and not selection.name.value.startswith("__")
+            )
+    except Exception as e:
+        logger.warning(f"Failed to count query fields: {e}")
+        return 0
+
+    return 0
+
 
 # Module-level dependency singletons to avoid B008
 _default_context_dependency = Depends(build_graphql_context)
@@ -330,6 +368,12 @@ def create_graphql_router(
                     context["db"].context["json_passthrough"] = True
                     context["db"].mode = mode
 
+            # Detect multi-field queries to handle RustResponseBytes pass-through correctly
+            has_multiple_root_fields = (
+                request.query and _count_root_query_fields(request.query, request.operationName) > 1
+            )
+            context["__has_multiple_root_fields__"] = has_multiple_root_fields
+
             # Use unified executor if available
             if unified_executor:
                 # Add execution metadata if in development
@@ -345,7 +389,8 @@ def create_graphql_router(
 
                 # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
                 # Check if UnifiedExecutor returned RustResponseBytes directly (zero-copy path)
-                if isinstance(result, RustResponseBytes):
+                # Only use fast path for single-field queries to avoid dropping fields
+                if isinstance(result, RustResponseBytes) and not has_multiple_root_fields:
                     logger.info("🚀 Direct path: Returning RustResponseBytes from unified executor")
                     return Response(
                         content=bytes(result),
@@ -403,7 +448,8 @@ def create_graphql_router(
             # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Fallback Executor):
             # Check if execute_graphql() returned RustResponseBytes directly (zero-copy path)
             # This happens when Phase 1 middleware captures RustResponseBytes from resolvers
-            if isinstance(result, RustResponseBytes):
+            # Only use fast path for single-field queries to avoid dropping fields
+            if isinstance(result, RustResponseBytes) and not has_multiple_root_fields:
                 logger.info("🚀 Direct path: Returning RustResponseBytes from fallback executor")
                 return Response(
                     content=bytes(result),
@@ -441,7 +487,8 @@ def create_graphql_router(
                             )
 
             # 2. Check if result contains RustResponseBytes (fallback path)
-            if result.data and isinstance(result.data, dict):
+            # Only use fast path for single-field queries to avoid dropping fields
+            if result.data and isinstance(result.data, dict) and not has_multiple_root_fields:
                 for value in result.data.values():
                     if isinstance(value, RustResponseBytes):
                         # Return Rust bytes directly to HTTP
