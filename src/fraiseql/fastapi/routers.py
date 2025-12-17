@@ -1,5 +1,6 @@
 """Unified adaptive GraphQL router for all environments."""
 
+import inspect
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -700,27 +701,59 @@ async def execute_multi_field_query(
 
             info = MinimalInfo(field_name, context, field_node)
 
-            # Execute resolver (assuming it's async)
-            # Check resolver signature - some expect (info), others expect (root, info)
-            import inspect
+            # Execute resolver
+            # Resolvers can have different signatures:
+            # 1. Test resolvers: (info, **kwargs)
+            # 2. GraphQL-wrapped resolvers: (root, info, **kwargs)
 
             sig = inspect.signature(resolver)
-            param_count = len(sig.parameters)
 
-            if inspect.iscoroutinefunction(resolver):
-                if param_count == 1:
-                    result = await resolver(info)
-                elif param_count == 2:
-                    result = await resolver(None, info)
-                else:
-                    # Resolver expects (root, info, **kwargs)
+            # Filter out VAR_POSITIONAL and VAR_KEYWORD params
+            positional_params = [
+                name
+                for name, param in sig.parameters.items()
+                if param.kind
+                in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+
+            is_async = inspect.iscoroutinefunction(resolver)
+
+            # Determine if first positional param is 'root'
+            has_root_param = positional_params and positional_params[0] in ("root", "self")
+
+            # If no positional params but we have VAR_POSITIONAL + VAR_KEYWORD,
+            # this is likely a wrapped resolver: (root, info, **kwargs)
+            # Try calling with (root, info, **kwargs) format
+            has_var_positional = any(
+                param.kind == inspect.Parameter.VAR_POSITIONAL for param in sig.parameters.values()
+            )
+            has_var_keyword = any(
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
+            )
+
+            if len(positional_params) == 0 and has_var_positional and has_var_keyword:
+                # Wrapped resolver format: (*args, **kwargs) which accepts (root, info, **kwargs)
+                if is_async:
                     result = await resolver(None, info, **field_args)
-            elif param_count == 1:
-                result = resolver(info)
-            elif param_count == 2:
-                result = resolver(None, info)
+                else:
+                    result = resolver(None, info, **field_args)
+            elif len(positional_params) == 1:
+                # Single parameter - likely just (info)
+                if is_async:
+                    result = await resolver(info)
+                else:
+                    result = resolver(info)
+            elif len(positional_params) >= 2 and has_root_param:
+                # Has root parameter - standard GraphQL resolver: (root, info, **kwargs)
+                if is_async:
+                    result = await resolver(None, info, **field_args)
+                else:
+                    result = resolver(None, info, **field_args)
+            # Fallback - try with just info + field_args
+            elif is_async:
+                result = await resolver(info, **field_args)
             else:
-                result = resolver(None, info, **field_args)
+                result = resolver(info, **field_args)
 
             # If result is RustResponseBytes, extract the raw data
             if isinstance(result, RustResponseBytes):
