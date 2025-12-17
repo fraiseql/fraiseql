@@ -67,14 +67,83 @@ def _count_root_query_fields(query_string: str, operation_name: str | None = Non
     return 0
 
 
+def _should_include_field(field_node: Any, variables: dict[str, Any] | None) -> bool:
+    """Evaluate @skip and @include directives to determine if field should be included.
+
+    GraphQL spec:
+    - @skip(if: Boolean!): Skip field if condition is true
+    - @include(if: Boolean!): Include field only if condition is true
+    - If both directives present, @skip takes precedence
+
+    Args:
+        field_node: GraphQL FieldNode with potential directives
+        variables: Query variables for directive condition evaluation
+
+    Returns:
+        True if field should be included, False if it should be skipped
+    """
+    if not hasattr(field_node, "directives") or not field_node.directives:
+        return True  # No directives, include by default
+
+    variables = variables or {}
+
+    # Check for @skip directive first (takes precedence)
+    for directive in field_node.directives:
+        if directive.name.value == "skip":
+            # Extract the 'if' argument value
+            for arg in directive.arguments:
+                if arg.name.value == "if":
+                    # Evaluate the condition
+                    condition = _evaluate_directive_condition(arg.value, variables)
+                    if condition:
+                        return False  # Skip this field
+
+    # Check for @include directive
+    for directive in field_node.directives:
+        if directive.name.value == "include":
+            # Extract the 'if' argument value
+            for arg in directive.arguments:
+                if arg.name.value == "if":
+                    # Evaluate the condition
+                    condition = _evaluate_directive_condition(arg.value, variables)
+                    if not condition:
+                        return False  # Don't include this field
+
+    return True  # Include by default
+
+
+def _evaluate_directive_condition(value_node: Any, variables: dict[str, Any]) -> bool:
+    """Evaluate a directive condition value (supports variables and literals).
+
+    Args:
+        value_node: GraphQL value node (Variable or BooleanValue)
+        variables: Query variables
+
+    Returns:
+        Boolean condition result
+    """
+    from graphql import BooleanValueNode, VariableNode
+
+    if isinstance(value_node, BooleanValueNode):
+        # Literal boolean value
+        return value_node.value
+    if isinstance(value_node, VariableNode):
+        # Variable reference
+        var_name = value_node.name.value
+        return bool(variables.get(var_name, False))
+    # Unknown type, default to False
+    return False
+
+
 def _extract_root_query_fields(
-    query_string: str, operation_name: str | None = None
+    query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
-    """Extract root-level query fields with their selections.
+    """Extract root-level query fields with their selections, applying directive filtering.
 
     Args:
         query_string: GraphQL query string
         operation_name: Optional operation name for multi-operation queries
+        variables: Query variables for directive evaluation
 
     Returns:
         List of dicts with field info:
@@ -107,6 +176,10 @@ def _extract_root_query_fields(
                 if selection.name.value.startswith("__"):
                     continue
 
+                # Check @skip and @include directives on root field
+                if not _should_include_field(selection, variables):
+                    continue  # Skip this field based on directives
+
                 # Extract root field name and alias
                 # For `allUsers: users`, selection.name.value = "users"
                 # selection.alias.value = "allUsers"
@@ -116,11 +189,15 @@ def _extract_root_query_fields(
                     selection.alias.value if selection.alias else field_name
                 )  # Response key
 
-                # Extract sub-field selections with aliases
+                # Extract sub-field selections with aliases and directives
                 sub_selections = []
                 if hasattr(selection, "selection_set") and selection.selection_set:
                     for sub_sel in selection.selection_set.selections:
                         if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                            # Check @skip and @include directives on sub-field
+                            if not _should_include_field(sub_sel, variables):
+                                continue  # Skip this sub-field based on directives
+
                             # Extract field name and optional alias
                             sub_field_name = sub_sel.name.value
                             sub_alias = sub_sel.alias.value if sub_sel.alias else None
@@ -178,8 +255,8 @@ async def execute_multi_field_query(
     """
     from fraiseql.core.rust_pipeline import fraiseql_rs
 
-    # Extract all root fields
-    fields_info = _extract_root_query_fields(query_string, None)
+    # Extract all root fields (with directive evaluation using variables)
+    fields_info = _extract_root_query_fields(query_string, None, variables)
 
     if not fields_info:
         raise ValueError("No root query fields found in multi-field query")
