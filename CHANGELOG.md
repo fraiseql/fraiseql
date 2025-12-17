@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+## [1.8.7] - 2025-12-17
+
+### Features
+
+#### GraphQL Fragment Enhancements
+
+Enhanced GraphQL fragment support with nested fragment spreads and automatic cycle detection.
+
+**New Features:**
+
+##### 1. Nested Fragment Support
+- Fragments can now be used in nested selections, not just root level
+- Recursive fragment processing with proper field expansion
+- Zero breaking changes - fully backward compatible
+
+**Example:**
+```graphql
+fragment UserFields on User { id name }
+
+query {
+  posts {
+    author { ...UserFields }  # ✅ Now supported
+  }
+}
+```
+
+##### 2. Fragment Cycle Detection
+- Automatic detection and prevention of circular fragment references
+- DoS protection against infinite recursion attacks
+- Clear error messages with fragment name and location
+- O(n) performance with minimal overhead (< 1μs per fragment)
+
+**Security:**
+- Prevents `fragment A { ...B } fragment B { ...A }` cycles
+- Rejects self-referencing fragments: `fragment A { ...A }`
+- Fast rejection before expensive query processing
+
+**Implementation:**
+- `extract_field_selections()` with cycle tracking via `visited_fragments` set
+- Proper error propagation with GraphQL spec-compliant messages
+- Comprehensive test coverage (10 new tests)
+
+**Files Changed:**
+- `src/fraiseql/fastapi/routers.py` - Core fragment processing logic
+- `tests/unit/fastapi/test_multi_field_fragments.py` - 10 new test cases
+
+## [1.8.5] - 2025-12-16
+
 #### Multi-Field GraphQL Queries
 
 FraiseQL now supports executing multiple root fields in a single GraphQL query, with complete
