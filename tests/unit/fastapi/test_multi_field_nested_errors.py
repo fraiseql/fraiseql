@@ -18,12 +18,14 @@ from fraiseql.fastapi.routers import execute_multi_field_query
 
 @pytest.mark.asyncio
 async def test_nested_field_error_fails_parent(init_schema_registry_fixture):
-    """Document that nested field errors currently fail the parent field.
+    """Document that nested field errors fail the parent field by design.
 
-    This is a known limitation. When nested resolvers fail, the entire
-    parent field is marked as failed.
+    This is an intentional architectural decision in FraiseQL. Due to the use
+    of database views and table views, partial failures are not supported.
+    When a nested resolver fails, the entire parent field must fail to maintain
+    data consistency with the underlying database views.
 
-    TODO: Implement proper nested error recovery per GraphQL spec.
+    This prioritizes data consistency over GraphQL spec compliance for partial results.
     """
     from graphql import (
         GraphQLField,

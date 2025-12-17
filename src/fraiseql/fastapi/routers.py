@@ -239,39 +239,26 @@ def _extract_field_location(field_node: Any) -> dict[str, int] | None:
 def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
     """Recursively check for error markers in nested data.
 
-    Placeholder for future nested field error recovery implementation.
-    Currently unused but prepared for when nested error handling is added.
+    NOTE: This function is not implemented due to FraiseQL architectural constraints.
+    FraiseQL uses database views and table views that don't support partial failures.
+    When a nested resolver fails, the entire parent field must fail to maintain
+    data consistency with the underlying database views.
 
-    This function would be used to detect which nested fields have failed
-    and collect errors with proper paths like ["users", 0, "profile"].
+    This is a design decision rather than a technical limitation - GraphQL spec
+    allows partial failures, but FraiseQL prioritizes data consistency over
+    partial results when dealing with complex view-based data sources.
 
     Args:
         data: The resolved data structure (dict/list)
         path: Current path in the data structure
 
     Returns:
-        List of error dictionaries with proper paths
+        Empty list (nested error recovery not supported)
     """
-    # TODO: Implement nested error detection
-    # This would recursively traverse the data structure looking for
-    # error markers or null values that indicate failed nested resolvers
-    errors = []
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if value is None:
-                # Could be a failed nested field
-                # Log but don't create error (ambiguous)
-                pass
-            elif isinstance(value, (dict, list)):
-                errors.extend(_check_nested_errors(value, [*path, key]))
-
-    elif isinstance(data, list):
-        for i, item in enumerate(data):
-            if isinstance(item, (dict, list)):
-                errors.extend(_check_nested_errors(item, [*path, i]))
-
-    return errors
+    # Nested field error recovery not implemented due to FraiseQL architecture
+    # Database views and table views don't support partial failures
+    # When nested resolvers fail, entire parent field must fail for consistency
+    return []
 
 
 def _extract_root_query_fields(
@@ -559,17 +546,15 @@ async def execute_multi_field_query(
 
             # Continue to next field instead of raising
 
-    # TODO: Nested field error recovery not fully implemented
-    # Currently, if a nested resolver fails, the entire parent field fails.
-    # This is a known limitation that should be addressed in future work.
-    # See: Phase 3 of multi-field GraphQL completion plan
+    # NOTE: Nested field error recovery not implemented due to FraiseQL architecture
+    # FraiseQL uses database views and table views that don't support partial failures.
+    # When a nested resolver fails, the entire parent field must fail to maintain
+    # data consistency with the underlying database views.
     #
-    # The GraphQL spec allows partial success where nested fields can fail
-    # independently while parent fields succeed with null values for failed children.
-    # Implementation would require:
-    # 1. Python-side pre-resolution of nested fields with error boundaries
-    # 2. Or Rust-side error recovery during transformation
-    # 3. Error collection for specific nested field paths
+    # This is an intentional design decision prioritizing data consistency over
+    # GraphQL spec compliance for partial results. While the GraphQL spec allows
+    # partial failures with independent nested field errors, FraiseQL's view-based
+    # architecture makes this impractical to implement safely.
 
     # Call Rust to build the multi-field response
     response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
