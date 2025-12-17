@@ -68,6 +68,27 @@ class _FraiseQLRs:
             _FraiseQLRs._module = _get_fraiseql_rs()
         return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)
 
+    @staticmethod
+    def build_multi_field_response(*args: Any, **kwargs: Any) -> Any:
+        """Lazy-load and call the Rust build_multi_field_response function.
+
+        This method loads the Rust extension on first call and then delegates
+        to the actual Rust implementation for optimal performance.
+
+        Handles multi-field GraphQL queries entirely in Rust, bypassing
+        graphql-core to avoid type validation errors.
+
+        Args:
+            *args: Arguments to pass to the Rust function
+            **kwargs: Keyword arguments to pass to the Rust function
+
+        Returns:
+            The result from the Rust build_multi_field_response function
+        """
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.build_multi_field_response(*args, **kwargs)
+
 
 fraiseql_rs = _FraiseQLRs()
 

@@ -273,3 +273,112 @@ fn estimate_arena_size(json_rows: &[String]) -> usize {
     let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
     (total_input_size / 4).clamp(8192, 65536)
 }
+
+/// Build complete multi-field GraphQL response from PostgreSQL JSON rows
+///
+/// This function handles multi-field queries entirely in Rust, bypassing graphql-core
+/// to avoid type validation errors. It processes multiple root fields and combines
+/// them into a single {"data": {...}} response.
+///
+/// Pipeline:
+/// ```
+/// Fields: [
+///   ("dnsServers", "DnsServer", [...rows...], selections),
+///   ("gateways", "Gateway", [...rows...], selections)
+/// ]
+///     ↓
+/// For each field:
+///   - Parse field_selections JSON
+///   - Transform rows with schema
+///   - Build field array/object
+///     ↓
+/// Combine into: {"data": {"dnsServers": [...], "gateways": [...]}}
+///     ↓
+/// Return as UTF-8 bytes
+/// ```
+///
+/// Args:
+///     fields: List of (field_name, type_name, json_rows, field_selections, is_list)
+///
+/// Returns:
+///     Complete GraphQL response as UTF-8 bytes
+pub fn build_multi_field_response(
+    fields: Vec<(String, String, Vec<String>, Option<String>, Option<bool>)>,
+) -> PyResult<Vec<u8>> {
+    let registry = schema_registry::get_registry();
+
+    // Build the response object
+    let mut data_obj = serde_json::Map::new();
+
+    // Process each field
+    for (field_name, type_name, json_rows, field_selections, is_list) in fields {
+        // Parse field selections if provided
+        let selections_json = match field_selections {
+            Some(json_str) if !json_str.is_empty() => {
+                serde_json::from_str::<Vec<Value>>(&json_str).map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Invalid field_selections JSON for field '{}': {}",
+                        field_name, e
+                    ))
+                })?
+            }
+            _ => Vec::new(),
+        };
+
+        let selections_opt = if selections_json.is_empty() {
+            None
+        } else {
+            Some(selections_json)
+        };
+
+        // Transform rows for this field
+        let transformed_items: Result<Vec<Value>, _> = json_rows
+            .iter()
+            .map(|row_str| {
+                serde_json::from_str::<Value>(row_str)
+                    .map_err(|e| {
+                        pyo3::exceptions::PyValueError::new_err(format!(
+                            "Failed to parse JSON for field '{}': {}",
+                            field_name, e
+                        ))
+                    })
+                    .map(|value| {
+                        if let Some(ref selections) = selections_opt {
+                            json_transform::transform_with_selections(
+                                &value,
+                                &type_name,
+                                selections,
+                                &registry,
+                            )
+                        } else {
+                            json_transform::transform_with_schema(&value, &type_name, &registry)
+                        }
+                    })
+            })
+            .collect();
+
+        let transformed_items = transformed_items?;
+
+        // Build field data (array or single object based on is_list)
+        let field_data = if is_list.unwrap_or(true) {
+            Value::Array(transformed_items)
+        } else if !transformed_items.is_empty() {
+            transformed_items.first().cloned().unwrap_or(Value::Null)
+        } else {
+            Value::Null
+        };
+
+        // Add to response data
+        data_obj.insert(field_name, field_data);
+    }
+
+    // Build complete response: {"data": {...}}
+    let response = json!({
+        "data": Value::Object(data_obj)
+    });
+
+    // Serialize to UTF-8 bytes
+    serde_json::to_vec(&response).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize multi-field response: {}", e))
+    })
+}

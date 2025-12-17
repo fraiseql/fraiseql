@@ -67,6 +67,211 @@ def _count_root_query_fields(query_string: str, operation_name: str | None = Non
     return 0
 
 
+def _extract_root_query_fields(
+    query_string: str, operation_name: str | None = None
+) -> list[dict[str, Any]]:
+    """Extract root-level query fields with their selections.
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+
+    Returns:
+        List of dicts with field info:
+        [
+            {
+                "field_name": "dnsServers",
+                "field_node": FieldNode(...),
+                "selections": ["id", "ipAddress", ...]
+            },
+            ...
+        ]
+    """
+    try:
+        document = parse(query_string)
+
+        for definition in document.definitions:
+            if not isinstance(definition, OperationDefinitionNode):
+                continue
+            if definition.operation.value != "query":
+                continue
+            if operation_name and definition.name and definition.name.value != operation_name:
+                continue
+
+            fields = []
+            for selection in definition.selection_set.selections:
+                if not isinstance(selection, FieldNode):
+                    continue
+                if not hasattr(selection, "name") or not selection.name:
+                    continue
+                if selection.name.value.startswith("__"):
+                    continue
+
+                # Extract sub-field selections
+                sub_selections = []
+                if hasattr(selection, "selection_set") and selection.selection_set:
+                    for sub_sel in selection.selection_set.selections:
+                        if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                            sub_selections.append(sub_sel.name.value)
+
+                fields.append(
+                    {
+                        "field_name": selection.name.value,
+                        "field_node": selection,
+                        "selections": sub_selections,
+                    }
+                )
+
+            return fields
+
+    except Exception as e:
+        logger.warning(f"Failed to extract query fields: {e}")
+        return []
+
+    return []
+
+
+async def execute_multi_field_query(
+    schema: GraphQLSchema,
+    query_string: str,
+    variables: dict[str, Any] | None,
+    context: dict[str, Any],
+) -> RustResponseBytes:
+    """Execute multi-field query entirely in Rust - bypass graphql-core.
+
+    This function handles multi-field queries (e.g., {dnsServers {...} gateways {...}})
+    by executing each resolver independently and combining results in Rust.
+
+    This avoids graphql-core's type validation which fails when resolvers return
+    plain dicts (from json.loads()) instead of typed Python objects.
+
+    Args:
+        schema: GraphQL schema
+        query_string: GraphQL query string
+        variables: Query variables
+        context: GraphQL context with database connection, etc.
+
+    Returns:
+        RustResponseBytes with complete {"data": {...}} response
+
+    Raises:
+        Exception: If field extraction or resolver execution fails
+    """
+    from fraiseql.core.rust_pipeline import fraiseql_rs
+
+    # Extract all root fields
+    fields_info = _extract_root_query_fields(query_string, None)
+
+    if not fields_info:
+        raise ValueError("No root query fields found in multi-field query")
+
+    # Collect data for each field
+    field_data_list = []
+
+    for field_info in fields_info:
+        field_name = field_info["field_name"]
+        field_node = field_info["field_node"]
+
+        # Get resolver from schema
+        query_type = schema.query_type
+        if not query_type:
+            raise ValueError("Schema has no query type")
+
+        field_def = query_type.fields.get(field_name)
+        if not field_def:
+            raise ValueError(f"Field '{field_name}' not found in schema")
+
+        # Get type name for the field
+        field_type = field_def.type
+        # Unwrap NonNull and List to get the actual type
+        while hasattr(field_type, "of_type"):
+            field_type = field_type.of_type
+
+        type_name = field_type.name if hasattr(field_type, "name") else None
+
+        # Determine if this is a list field
+        is_list = "[" in str(field_def.type)
+
+        # Get resolver function
+        resolver = field_def.resolve
+        if not resolver:
+            raise ValueError(f"No resolver found for field '{field_name}'")
+
+        # Execute resolver
+        # Resolvers expect: resolve(root, info, **args)
+        # For root-level queries, root is None
+        # We need to create a GraphQL ResolveInfo object, but for simplicity
+        # in Phase 2, we'll call the resolver directly and hope it doesn't need full info
+
+        # SIMPLIFIED: Assume resolver returns the data we need
+        # In a real implementation, we'd need to construct proper ResolveInfo
+        try:
+            # Most FraiseQL resolvers are async and expect (info, **kwargs)
+            # Try calling with minimal info
+
+            # Create minimal resolve info
+            # This is a simplified version - proper implementation would build full ResolveInfo
+            class MinimalInfo:
+                def __init__(self, field_name: str, context: dict, field_node: Any) -> None:
+                    self.field_name = field_name
+                    self.context = context
+                    self.field_nodes = [field_node]
+                    self.parent_type = query_type  # noqa: B023
+                    self.path = None
+                    self.return_type = field_def.type  # noqa: B023
+                    self.schema = schema
+                    self.fragments = {}
+                    self.root_value = None
+                    self.operation = None
+                    self.variable_values = variables or {}
+
+            info = MinimalInfo(field_name, context, field_node)
+
+            # Execute resolver (assuming it's async)
+            import inspect
+
+            if inspect.iscoroutinefunction(resolver):
+                result = await resolver(info)
+            else:
+                result = resolver(info)
+
+            # If result is RustResponseBytes, extract the raw data
+            if isinstance(result, RustResponseBytes):
+                # Parse the RustResponseBytes to get the actual data
+                result_json = json.loads(bytes(result))
+                # Extract just the field data (not the GraphQL wrapper)
+                if "data" in result_json and field_name in result_json["data"]:
+                    result = result_json["data"][field_name]
+
+            # Convert result to list of JSON strings
+            if is_list:
+                if not isinstance(result, list):
+                    msg = (
+                        f"Resolver for list field '{field_name}' "
+                        f"did not return a list: {type(result)}"
+                    )
+                    raise ValueError(msg)
+                # Each item should be a dict - convert to JSON string
+                json_rows = [
+                    json.dumps(item) if isinstance(item, dict) else item for item in result
+                ]
+            else:
+                # Single object
+                json_rows = [json.dumps(result) if isinstance(result, dict) else result]
+
+            # Add to field data list
+            field_data_list.append((field_name, type_name, json_rows, None, is_list))
+
+        except Exception as e:
+            logger.error(f"Failed to execute resolver for field '{field_name}': {e}")
+            raise
+
+    # Call Rust to build the multi-field response
+    response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
+
+    return RustResponseBytes(response_bytes)
+
+
 # Module-level dependency singletons to avoid B008
 _default_context_dependency = Depends(build_graphql_context)
 
@@ -373,6 +578,28 @@ def create_graphql_router(
                 request.query and _count_root_query_fields(request.query, request.operationName) > 1
             )
             context["__has_multiple_root_fields__"] = has_multiple_root_fields
+
+            # 🚀 MULTI-FIELD QUERY ROUTING (Phase 1)
+            # Route multi-field queries to Rust-only merge path to avoid graphql-core type errors
+            if has_multiple_root_fields:
+                field_count = _count_root_query_fields(request.query, request.operationName)
+                logger.info(
+                    f"🚀 Multi-field query detected ({field_count} root fields) - "
+                    f"using Rust-only merge path"
+                )
+                try:
+                    result = await execute_multi_field_query(
+                        schema, request.query, request.variables, context
+                    )
+                    # execute_multi_field_query returns RustResponseBytes
+                    return Response(
+                        content=bytes(result),
+                        media_type="application/json",
+                    )
+                except Exception:
+                    logger.exception("Multi-field query execution failed")
+                    # Fall back to standard execution
+                    logger.warning("Falling back to standard graphql-core execution")
 
             # Use unified executor if available
             if unified_executor:

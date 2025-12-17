@@ -372,6 +372,41 @@ pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }
 
+/// Build complete multi-field GraphQL response from PostgreSQL JSON rows
+///
+/// This function handles multi-field queries entirely in Rust, bypassing graphql-core
+/// to avoid type validation errors. It processes multiple root fields and combines
+/// them into a single {"data": {...}} response.
+///
+/// Examples:
+///     >>> # Query: { dnsServers { id } gateways { id } }
+///     >>> result = build_multi_field_response([
+///     ...     ("dnsServers", "DnsServer", ['{"id": 1}', '{"id": 2}'], '["id"]', True),
+///     ...     ("gateways", "Gateway", ['{"id": 10}'], '["id"]', True)
+///     ... ])
+///     >>> result.decode('utf-8')
+///     '{"data":{"dnsServers":[{"__typename":"DnsServer","id":1},{"__typename":"DnsServer","id":2}],"gateways":[{"__typename":"Gateway","id":10}]}}'
+///
+/// Args:
+///     fields: List of tuples, each containing:
+///         - field_name (str): GraphQL field name (e.g., "dnsServers")
+///         - type_name (str): GraphQL type name (e.g., "DnsServer")
+///         - json_rows (list[str]): List of JSON strings from database
+///         - field_selections (str): JSON string with field selections info
+///         - is_list (bool): True for list fields, False for single object fields
+///
+/// Returns:
+///     UTF-8 encoded GraphQL response bytes: {"data": {"field1": [...], "field2": [...]}}
+///
+/// Raises:
+///     ValueError: If field data is malformed or transformation fails
+#[pyfunction]
+pub fn build_multi_field_response(
+    fields: Vec<(String, String, Vec<String>, Option<String>, Option<bool>)>,
+) -> PyResult<Vec<u8>> {
+    pipeline::builder::build_multi_field_response(fields)
+}
+
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
 /// This module provides:
@@ -404,6 +439,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "transform_json",
             "test_function",
             "build_graphql_response",
+            "build_multi_field_response",
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
@@ -418,6 +454,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add zero-copy pipeline exports
     m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
+    m.add_function(wrap_pyfunction!(build_multi_field_response, m)?)?;
 
     // Add schema registry initialization
     m.add_function(wrap_pyfunction!(initialize_schema_registry, m)?)?;
