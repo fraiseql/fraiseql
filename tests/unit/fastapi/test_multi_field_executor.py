@@ -129,6 +129,7 @@ def test_extract_root_query_fields_with_aliases():
     assert fields[0]["field_name"] == "users"  # Actual field name for resolver lookup
     assert fields[0]["response_key"] == "allUsers"  # Alias for response
     assert len(fields[0]["selections"]) == 3
+    # Field selections use field_name, not materialized_path (conversion happens later)
     assert fields[0]["selections"][0] == {"field_name": "id", "alias": "userId"}
     assert fields[0]["selections"][1] == {"field_name": "name", "alias": "fullName"}
     assert fields[0]["selections"][2] == {"field_name": "email", "alias": None}
@@ -141,7 +142,6 @@ def test_extract_root_query_fields_with_aliases():
     assert fields[1]["selections"][1] == {"field_name": "title", "alias": None}
 
 
-@pytest.mark.skip(reason="TODO: Rust needs to apply field selections - currently just extracts/passes them")
 @pytest.mark.asyncio
 async def test_execute_multi_field_query_basic(init_schema_registry_fixture):
     """Test basic multi-field query execution.

@@ -322,16 +322,17 @@ fn build_alias_map(
     let mut allowed_fields = std::collections::HashSet::new();
 
     for selection in selections {
-        if let (Some(path), Some(alias)) = (
-            selection.get("materialized_path").and_then(|v| v.as_str()),
-            selection.get("alias").and_then(|v| v.as_str()),
-        ) {
-            alias_map.insert(path.to_string(), alias.to_string());
-
-            // Extract root-level field name for field projection
+        // Extract materialized_path (required)
+        if let Some(path) = selection.get("materialized_path").and_then(|v| v.as_str()) {
+            // Extract root-level field name for field projection (always add to allowed_fields)
             // e.g., "profile.bio" -> "profile", "id" -> "id"
             if let Some(first_segment) = path.split('.').next() {
                 allowed_fields.insert(first_segment.to_string());
+            }
+
+            // Extract alias (optional) - only add to alias_map if present
+            if let Some(alias) = selection.get("alias").and_then(|v| v.as_str()) {
+                alias_map.insert(path.to_string(), alias.to_string());
             }
         }
     }

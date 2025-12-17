@@ -280,9 +280,19 @@ async def execute_multi_field_query(
                 json_rows = [json.dumps(result) if isinstance(result, dict) else result]
 
             # Convert field selections to JSON string for Rust
+            # Rust expects format: [{materialized_path: "field_name", alias: "alias_name"}, ...]
             field_selections_json = None
             if field_info.get("selections"):
-                field_selections_json = json.dumps(field_info["selections"])
+                # Convert from {field_name, alias} to {materialized_path, alias}
+                rust_selections = []
+                for sel in field_info["selections"]:
+                    # For root-level fields, materialized_path = field_name
+                    rust_sel = {
+                        "materialized_path": sel["field_name"],
+                        "alias": sel["alias"],
+                    }
+                    rust_selections.append(rust_sel)
+                field_selections_json = json.dumps(rust_selections)
 
             # Add to field data list (use response_key for the response field name)
             field_data_list.append(
