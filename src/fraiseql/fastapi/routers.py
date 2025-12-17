@@ -8,7 +8,14 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from graphql import FieldNode, GraphQLSchema, OperationDefinitionNode, parse
+from graphql import (
+    FieldNode,
+    FragmentSpreadNode,
+    GraphQLSchema,
+    InlineFragmentNode,
+    OperationDefinitionNode,
+    parse,
+)
 from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
@@ -288,6 +295,165 @@ def _extract_variable_defaults(
     return defaults
 
 
+def _expand_fragment_spread(
+    spread_node: Any,
+    document: Any,
+    variables: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Expand a fragment spread into a list of root fields.
+
+    Example:
+        fragment UserData on Query {
+            users { id name }
+            posts { id }
+        }
+
+        query {
+            ...UserData  # Expands to users + posts
+        }
+
+    Args:
+        spread_node: FragmentSpreadNode from AST
+        document: Full GraphQL document (contains fragment definitions)
+        parent_selection_set: Parent selection set for context
+        variables: Query variables for directive evaluation
+
+    Returns:
+        List of field dicts (same format as _extract_root_query_fields)
+    """
+    from graphql import FieldNode, FragmentDefinitionNode
+
+    fragment_name = spread_node.name.value
+
+    # Find the fragment definition in the document
+    fragment_def = None
+    for definition in document.definitions:
+        if (
+            isinstance(definition, FragmentDefinitionNode)
+            and definition.name.value == fragment_name
+        ):
+            fragment_def = definition
+            break
+
+    if not fragment_def:
+        # Fragment not found - skip
+        return []
+
+    # Check directives on fragment spread
+    if not _should_include_field(spread_node, variables):
+        return []
+
+    # Extract fields from fragment's selection set
+    fields = []
+    for selection in fragment_def.selection_set.selections:
+        if not isinstance(selection, FieldNode):
+            continue
+
+        if not _should_include_field(selection, variables):
+            continue
+
+        # Extract field info (same as main extraction logic)
+        field_name = selection.name.value
+        response_key = selection.alias.value if selection.alias else field_name
+
+        # Extract sub-selections
+        sub_selections = []
+        if hasattr(selection, "selection_set") and selection.selection_set:
+            for sub_sel in selection.selection_set.selections:
+                if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                    if not _should_include_field(sub_sel, variables):
+                        continue
+
+                    sub_field_name = sub_sel.name.value
+                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                    sub_selections.append(
+                        {
+                            "field_name": sub_field_name,
+                            "alias": sub_alias,
+                        }
+                    )
+
+        fields.append(
+            {
+                "field_name": field_name,
+                "response_key": response_key,
+                "field_node": selection,
+                "selections": sub_selections,
+            }
+        )
+
+    return fields
+
+
+def _expand_inline_fragment(
+    inline_fragment_node: Any,
+    variables: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Expand an inline fragment into a list of root fields.
+
+    Example:
+        query {
+            ... on Query {
+                users { id }
+            }
+        }
+
+    Args:
+        inline_fragment_node: InlineFragmentNode from AST
+        variables: Query variables for directive evaluation
+
+    Returns:
+        List of field dicts
+    """
+    from graphql import FieldNode
+
+    # Check directives on inline fragment itself
+    if not _should_include_field(inline_fragment_node, variables):
+        return []
+
+    fields = []
+
+    for selection in inline_fragment_node.selection_set.selections:
+        if not isinstance(selection, FieldNode):
+            continue
+
+        if not _should_include_field(selection, variables):
+            continue
+
+        field_name = selection.name.value
+        response_key = selection.alias.value if selection.alias else field_name
+
+        # Extract sub-selections (same logic as before)
+        sub_selections = []
+        if hasattr(selection, "selection_set") and selection.selection_set:
+            for sub_sel in selection.selection_set.selections:
+                if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                    if not _should_include_field(sub_sel, variables):
+                        continue
+
+                    sub_field_name = sub_sel.name.value
+                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                    sub_selections.append(
+                        {
+                            "field_name": sub_field_name,
+                            "alias": sub_alias,
+                        }
+                    )
+
+        fields.append(
+            {
+                "field_name": field_name,
+                "response_key": response_key,
+                "field_node": selection,
+                "selections": sub_selections,
+            }
+        )
+
+    return fields
+
+
 def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
     """Recursively check for error markers in nested data.
 
@@ -347,6 +513,21 @@ def _extract_root_query_fields(
 
             fields = []
             for selection in definition.selection_set.selections:
+                # Handle fragment spreads
+                if isinstance(selection, FragmentSpreadNode):
+                    # Fragment spread like: ...UserFields
+                    expanded_fields = _expand_fragment_spread(selection, document, variables)
+                    fields.extend(expanded_fields)
+                    continue
+
+                # Handle inline fragments
+                if isinstance(selection, InlineFragmentNode):
+                    # Inline fragment like: ... on Query { users { id } }
+                    expanded_fields = _expand_inline_fragment(selection, variables)
+                    fields.extend(expanded_fields)
+                    continue
+
+                # Handle regular fields
                 if not isinstance(selection, FieldNode):
                     continue
                 if not hasattr(selection, "name") or not selection.name:
