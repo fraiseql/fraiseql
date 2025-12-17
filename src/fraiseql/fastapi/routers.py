@@ -135,6 +135,70 @@ def _evaluate_directive_condition(value_node: Any, variables: dict[str, Any]) ->
     return False
 
 
+def _evaluate_argument_value(value_node: Any, variables: dict[str, Any] | None) -> Any:
+    """Evaluate a field argument value (supports variables, literals, and complex types).
+
+    GraphQL argument values can be:
+    - Variables: $userId
+    - Scalars: 10, "hello", true, null
+    - Lists: [1, 2, 3]
+    - Objects: {key: "value"}
+
+    Args:
+        value_node: GraphQL value node from argument
+        variables: Query variables for variable resolution
+
+    Returns:
+        Python value (int, str, bool, None, list, dict)
+    """
+    from graphql import (
+        BooleanValueNode,
+        EnumValueNode,
+        FloatValueNode,
+        IntValueNode,
+        ListValueNode,
+        NullValueNode,
+        ObjectValueNode,
+        StringValueNode,
+        VariableNode,
+    )
+
+    variables = variables or {}
+
+    # Handle variable references
+    if isinstance(value_node, VariableNode):
+        var_name = value_node.name.value
+        return variables.get(var_name)
+
+    # Handle scalar literals
+    if isinstance(value_node, IntValueNode):
+        return int(value_node.value)
+    if isinstance(value_node, FloatValueNode):
+        return float(value_node.value)
+    if isinstance(value_node, StringValueNode):
+        return value_node.value
+    if isinstance(value_node, BooleanValueNode):
+        return value_node.value
+    if isinstance(value_node, NullValueNode):
+        return None
+    if isinstance(value_node, EnumValueNode):
+        return value_node.value
+
+    # Handle list values
+    if isinstance(value_node, ListValueNode):
+        return [_evaluate_argument_value(item, variables) for item in value_node.values]
+
+    # Handle object values
+    if isinstance(value_node, ObjectValueNode):
+        return {
+            field.name.value: _evaluate_argument_value(field.value, variables)
+            for field in value_node.fields
+        }
+
+    # Unknown type
+    return None
+
+
 def _extract_root_query_fields(
     query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -261,13 +325,22 @@ async def execute_multi_field_query(
     if not fields_info:
         raise ValueError("No root query fields found in multi-field query")
 
-    # Collect data for each field
+    # Collect data for each field and errors
     field_data_list = []
+    errors = []
 
     for field_info in fields_info:
         field_name = field_info["field_name"]  # For resolver lookup
         response_key = field_info["response_key"]  # For response building (alias or field_name)
         field_node = field_info["field_node"]
+
+        # Extract field arguments from the GraphQL AST
+        field_args = {}
+        if hasattr(field_node, "arguments") and field_node.arguments:
+            for arg_node in field_node.arguments:
+                arg_name = arg_node.name.value
+                arg_value = _evaluate_argument_value(arg_node.value, variables)
+                field_args[arg_name] = arg_value
 
         # Get resolver from schema (use actual field_name, not alias)
         query_type = schema.query_type
@@ -325,12 +398,26 @@ async def execute_multi_field_query(
             info = MinimalInfo(field_name, context, field_node)
 
             # Execute resolver (assuming it's async)
+            # Check resolver signature - some expect (info), others expect (root, info)
             import inspect
 
+            sig = inspect.signature(resolver)
+            param_count = len(sig.parameters)
+
             if inspect.iscoroutinefunction(resolver):
-                result = await resolver(info)
-            else:
+                if param_count == 1:
+                    result = await resolver(info)
+                elif param_count == 2:
+                    result = await resolver(None, info)
+                else:
+                    # Resolver expects (root, info, **kwargs)
+                    result = await resolver(None, info, **field_args)
+            elif param_count == 1:
                 result = resolver(info)
+            elif param_count == 2:
+                result = resolver(None, info)
+            else:
+                result = resolver(None, info, **field_args)
 
             # If result is RustResponseBytes, extract the raw data
             if isinstance(result, RustResponseBytes):
@@ -378,10 +465,27 @@ async def execute_multi_field_query(
 
         except Exception as e:
             logger.error(f"Failed to execute resolver for field '{field_name}': {e}")
-            raise
+
+            # Add null field data for failed field
+            field_data_list.append((response_key, type_name, [], None, is_list))
+
+            # Collect error with GraphQL spec format
+            error_dict = {
+                "message": str(e),
+                "path": [response_key],
+            }
+            errors.append(error_dict)
+
+            # Continue to next field instead of raising
 
     # Call Rust to build the multi-field response
     response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
+
+    # If there are errors, inject them into the response
+    if errors:
+        response_json = json.loads(bytes(response_bytes))
+        response_json["errors"] = errors
+        return RustResponseBytes(json.dumps(response_json).encode("utf-8"))
 
     return RustResponseBytes(response_bytes)
 
