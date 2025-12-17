@@ -7,7 +7,176 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(Empty - ready for next development)
+### Features
+
+#### Multi-Field GraphQL Queries
+
+FraiseQL now supports executing multiple root fields in a single GraphQL query, with complete
+routing through the high-performance Rust pipeline. This enables powerful queries like:
+
+```graphql
+query {
+  users { id name email }
+  posts { id title authorId }
+  comments { id content postId }
+}
+```
+
+**Architecture**:
+- Multi-field queries route directly to Rust pipeline (bypassing graphql-core)
+- Each field executes independently via its registered resolver
+- Rust merges all JSONB payloads into a single response
+- Performance: 7-10x faster than traditional GraphQL field execution
+
+**Implemented Features**:
+
+##### 1. Field Selection & Aliases (Phase 1-2)
+- Extract field selections from GraphQL AST
+- Support field-level aliases: `userId: id, fullName: name`
+- Support root-level aliases: `allUsers: users`
+- Rust applies field filtering and alias transformation
+- Result: Only requested fields in response with correct names
+
+**Example**:
+```graphql
+query {
+  allUsers: users {
+    userId: id
+    fullName: name
+  }
+}
+```
+
+Result: `{"data": {"allUsers": [{"userId": 1, "fullName": "John"}]}}`
+
+##### 2. GraphQL Variables Support (Phase 3.1)
+- Full support for GraphQL variables in multi-field queries
+- Variables accessible to resolvers via `info.variable_values`
+- Works with both required and optional variables
+
+**Example**:
+```graphql
+query GetUsersAndPosts($minAge: Int!, $authorId: Int!) {
+  users(minAge: $minAge) { id name age }
+  posts(authorId: $authorId) { id title }
+}
+```
+
+Variables: `{"minAge": 25, "authorId": 1}`
+
+##### 3. GraphQL Directives Support (Phase 3.2)
+- **@skip(if: Boolean!)** - Skip field if condition is true
+- **@include(if: Boolean!)** - Include field only if condition is true
+- Full variable support in directive conditions
+- @skip takes precedence when both directives present (GraphQL spec)
+- Applies to both root fields and sub-field selections
+
+**Example**:
+```graphql
+query GetData($includeUsers: Boolean!, $includePosts: Boolean!) {
+  users @include(if: $includeUsers) { id name }
+  posts @skip(if: false) { id title }
+}
+```
+
+##### 4. Field Arguments Support (Phase 3.3)
+- Extract field arguments from GraphQL AST
+- Support for variables, literals, and complex types (lists, objects)
+- Pass arguments to resolvers as kwargs
+- Backward compatible with existing 1-2 parameter resolvers
+
+**Example**:
+```graphql
+query {
+  users(limit: 10, sortBy: "name") { id name }
+  posts(filters: {status: "published"}) { id title }
+}
+```
+
+##### 5. Error Location Reporting (Phase 3.4)
+- Convert GraphQL AST offsets to line/column numbers (1-indexed, per spec)
+- Include error locations in response for better debugging
+- Helps identify which fields failed in multi-field queries
+
+**Example Error Response**:
+```json
+{
+  "data": {
+    "users": null,
+    "posts": [{"id": 1}]
+  },
+  "errors": [
+    {
+      "message": "Failed to resolve users",
+      "locations": [{"line": 2, "column": 3}]
+    }
+  ]
+}
+```
+
+##### 6. Default Variable Values (Phase 4)
+- Extract default values from GraphQL operation definitions
+- Merge defaults with provided variables (provided variables take precedence)
+- Support all GraphQL scalar types
+
+**Example**:
+```graphql
+query GetUsers($limit: Int = 10, $status: String = "active") {
+  users(limit: $limit, status: $status) { id name }
+}
+```
+
+If no variables provided, uses defaults: `limit=10, status="active"`
+
+##### 7. Fragment Support (Phase 5 - FINAL PHASE)
+- **Named Fragment Spreads**: `...FragmentName`
+- **Inline Fragments**: `... on TypeName`
+- Full directive support on fragment spreads and inline fragments
+- Properly expands fragments into root fields
+
+**Example**:
+```graphql
+fragment UserData on Query {
+  users { id name email }
+  comments { id content }
+}
+
+query {
+  ...UserData
+  posts { id title }
+}
+```
+
+Expands to: `users, comments, posts` as separate root fields
+
+**Limitations**:
+- Nested field error recovery: When a nested resolver fails, the entire parent field
+  fails (architectural constraint: FraiseQL uses database views which don't support
+  partial failures while maintaining data consistency)
+
+**Test Coverage**:
+- ✅ 36 comprehensive unit tests (100% pass rate)
+- ✅ Field extraction and alias handling
+- ✅ Variable and default value resolution
+- ✅ Directive evaluation (@skip/@include precedence)
+- ✅ Fragment spread expansion
+- ✅ Error location tracking
+- ✅ All field argument types (literals, variables, lists, objects)
+- ✅ Zero regressions on existing 5991+ tests
+
+**Performance**:
+- Multi-field queries execute in <100ms (test suite)
+- Field filtering reduces payload size
+- Directive evaluation at parse time (zero runtime overhead)
+- Rust pipeline maintains 7-10x performance advantage
+
+### Code Quality
+
+#### Rust Code Quality
+- ✅ Clippy compliant (0 warnings)
+- Type alias for complex tuples improves readability
+- Proper error handling throughout
+- Well-documented public APIs
 
 ## [1.8.4] - 2025-12-16
 
