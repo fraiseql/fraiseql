@@ -236,6 +236,58 @@ def _extract_field_location(field_node: Any) -> dict[str, int] | None:
     return {"line": line, "column": column}
 
 
+def _extract_variable_defaults(
+    query_string: str, operation_name: str | None = None
+) -> dict[str, Any]:
+    """Extract default values for variables from operation definition.
+
+    Example:
+        query GetUsers($limit: Int = 10, $status: String = "active") {
+            # $limit defaults to 10 if not provided
+            # $status defaults to "active" if not provided
+        }
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+
+    Returns:
+        Dict mapping variable names to their default values
+    """
+    from graphql import OperationDefinitionNode, parse
+
+    try:
+        document = parse(query_string)
+    except Exception:
+        return {}
+
+    defaults = {}
+
+    for definition in document.definitions:
+        # Only process operation definitions
+        if not isinstance(definition, OperationDefinitionNode):
+            continue
+
+        # Skip if operation name doesn't match
+        if operation_name and (not definition.name or definition.name.value != operation_name):
+            continue
+
+        # Extract variable definitions
+        if not hasattr(definition, "variable_definitions") or not definition.variable_definitions:
+            continue
+
+        for var_def in definition.variable_definitions:
+            var_name = var_def.variable.name.value
+
+            # Check if default value is specified
+            if hasattr(var_def, "default_value") and var_def.default_value:
+                # Evaluate the default value
+                default_val = _evaluate_argument_value(var_def.default_value, {})
+                defaults[var_name] = default_val
+
+    return defaults
+
+
 def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
     """Recursively check for error markers in nested data.
 
@@ -380,6 +432,14 @@ async def execute_multi_field_query(
         Exception: If field extraction or resolver execution fails
     """
     from fraiseql.core.rust_pipeline import fraiseql_rs
+
+    # Extract variable defaults from operation definition
+    variable_defaults = _extract_variable_defaults(query_string, None)
+
+    # Merge defaults with provided variables (provided variables take precedence)
+    if variable_defaults:
+        merged_variables = {**variable_defaults, **(variables or {})}
+        variables = merged_variables
 
     # Extract all root fields (with directive evaluation using variables)
     fields_info = _extract_root_query_fields(query_string, None, variables)
