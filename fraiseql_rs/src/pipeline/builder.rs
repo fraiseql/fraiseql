@@ -11,6 +11,16 @@ use crate::schema_registry;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
 
+/// Type alias for multi-field response field definition.
+///
+/// Represents a single field in a multi-field GraphQL query response:
+/// - String: field_name (e.g., "users")
+/// - String: type_name (e.g., "User")
+/// - Vec<String>: json_rows (raw JSON from database)
+/// - Option<String>: field_selections (JSON-encoded field selection metadata)
+/// - Option<bool>: is_list (whether field returns list or single object)
+type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
+
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
 /// This is the TOP-LEVEL API called from lib.rs (FFI layer):
@@ -85,6 +95,12 @@ pub fn build_graphql_response(
     build_zero_copy(json_rows, field_name, type_name, field_paths, is_list, include_graphql_wrapper)
 }
 
+/// Transform JSON rows using schema registry and build GraphQL response.
+///
+/// This internal function handles schema-aware transformation with optional
+/// field selections. The parameters are grouped as received from the caller
+/// (build_graphql_response) to maintain API clarity.
+#[allow(clippy::too_many_arguments)]
 fn build_with_schema(
     json_rows: Vec<String>,
     field_name: &str,
@@ -303,7 +319,7 @@ fn estimate_arena_size(json_rows: &[String]) -> usize {
 /// Returns:
 ///     Complete GraphQL response as UTF-8 bytes
 pub fn build_multi_field_response(
-    fields: Vec<(String, String, Vec<String>, Option<String>, Option<bool>)>,
+    fields: Vec<MultiFieldDef>,
 ) -> PyResult<Vec<u8>> {
     let registry = schema_registry::get_registry();
 

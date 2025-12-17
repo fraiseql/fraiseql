@@ -13,6 +13,16 @@ pub mod schema_registry;
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Type alias for multi-field response field definition.
+///
+/// Represents a single field in a multi-field GraphQL query response:
+/// - String: field_name (e.g., "users")
+/// - String: type_name (e.g., "User")
+/// - Vec<String>: json_rows (raw JSON from database)
+/// - Option<String>: field_selections (JSON-encoded field selection metadata)
+/// - Option<bool>: is_list (whether field returns list or single object)
+type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
+
 /// Convert a snake_case string to camelCase
 ///
 /// Examples:
@@ -402,7 +412,7 @@ pub fn is_schema_registry_initialized() -> bool {
 ///     ValueError: If field data is malformed or transformation fails
 #[pyfunction]
 pub fn build_multi_field_response(
-    fields: Vec<(String, String, Vec<String>, Option<String>, Option<bool>)>,
+    fields: Vec<MultiFieldDef>,
 ) -> PyResult<Vec<u8>> {
     pipeline::builder::build_multi_field_response(fields)
 }
