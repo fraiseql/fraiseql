@@ -4482,9 +4482,9 @@
 <p>A: Yes, for non-regulated applications with non-sensitive data. However, we recommend REGULATED profile for any production application handling user data.</p>
 <p><strong>Q: How much does KMS integration cost?</strong></p>
 <p>A: KMS costs vary by provider:
-- AWS KMS: ~<span class="arithmatex">\(1/month per key + <span class="arithmatex">\(0.03 per 10,000 requests
+- AWS KMS: ~$1/month per key + <span class="arithmatex">\(0.03 per 10,000 requests
 - Azure Key Vault: ~\)</span>0.03 per 10,000 operations
-- GCP KMS: ~\)</span>0.03 per 10,000 operations
+- GCP KMS: ~$0.03 per 10,000 operations
 - HashiCorp Vault: Self-hosted (infrastructure costs)</p>
 <p><strong>Q: Can I switch profiles without downtime?</strong></p>
 <p>A: Switching from STANDARD → REGULATED or REGULATED → RESTRICTED requires configuration changes (KMS setup, audit initialization) that need planned downtime. Use blue-green deployment to minimize impact.</p>

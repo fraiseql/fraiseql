@@ -3324,14 +3324,14 @@
 <h4 id="error-states">Error States<a class="headerlink" href="#error-states" title="Permanent link">&para;</a></h4>
 <p>FraiseQL recognizes specific error prefixes that map to HTTP status codes:</p>
 <ul>
-<li><code>failed:&lt;type&gt;</code> - Generic failure (500) - e.g., <code>failed:validation</code>, <code>failed:database_error</code></li>
+<li><code>failed:&lt;type&gt;</code> - Generic failure (500) - e.g., <code>validation:</code>, <code>failed:database_error</code></li>
 <li><code>unauthorized:&lt;type&gt;</code> - Authentication required (401) - e.g., <code>unauthorized:token_expired</code></li>
 <li><code>forbidden:&lt;type&gt;</code> - Insufficient permissions (403) - e.g., <code>forbidden:admin_only</code></li>
 <li><code>not_found:&lt;type&gt;</code> - Resource doesn't exist (404) - e.g., <code>not_found:user_missing</code></li>
 <li><code>conflict:&lt;type&gt;</code> - Resource conflict (409) - e.g., <code>conflict:duplicate_email</code></li>
 <li><code>timeout:&lt;type&gt;</code> - Operation timeout (408/504) - e.g., <code>timeout:external_api</code></li>
 </ul>
-<p><strong>Note</strong>: All status matching is case-insensitive (<code>FAILED:validation</code> = <code>failed:validation</code>).</p>
+<p><strong>Note</strong>: All status matching is case-insensitive (<code>FAILED:validation</code> = <code>validation:</code>).</p>
 <h3 id="sql-helper-functions">SQL Helper Functions<a class="headerlink" href="#sql-helper-functions" title="Permanent link">&para;</a></h3>
 <p>Use these helper functions to construct v2 responses:</p>
 <h4 id="success-helpers">Success Helpers<a class="headerlink" href="#success-helpers" title="Permanent link">&para;</a></h4>
@@ -3437,7 +3437,7 @@
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">&quot;createUser&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">      </span><span class="nt">&quot;__typename&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CreateUserError&quot;</span><span class="p">,</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;failed:validation&quot;</span><span class="p">,</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;validation:&quot;</span><span class="p">,</span>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">422</span><span class="p">,</span>
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">      </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Email already exists&quot;</span><span class="p">,</span>
 </span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">      </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -3506,7 +3506,7 @@
 <td>Duplicate key, version conflict</td>
 </tr>
 <tr>
-<td><code>failed:validation</code>, <code>failed:invalid</code></td>
+<td><code>validation:</code>, <code>failed:invalid</code></td>
 <td>422</td>
 <td>Unprocessable Entity</td>
 <td>Invalid input data</td>
@@ -3593,7 +3593,7 @@
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="p">{</span>
 </span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">      </span><span class="nt">&quot;field&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">      </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;validation&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// Derived from status &quot;failed:validation&quot;</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">      </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;validation&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// Derived from status &quot;validation:&quot;</span>
 </span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">      </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Email already exists&quot;</span>
 </span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="p">}</span>
 </span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="p">]</span>

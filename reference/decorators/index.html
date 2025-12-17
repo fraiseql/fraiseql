@@ -2612,10 +2612,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#success-failure-result" class="md-nav__link">
+  <a href="#success-error-result" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @success / @failure / @result
+        @success / @error / @result
       
     </span>
   </a>
@@ -3305,10 +3305,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#success-failure-result" class="md-nav__link">
+  <a href="#success-error-result" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @success / @failure / @result
+        @success / @error / @result
       
     </span>
   </a>
@@ -3936,7 +3936,7 @@
 <li><strong>Consistency</strong>: Context injection happens automatically on every mutation</li>
 </ul>
 <p><strong>See Also</strong>: <a href="../../core/queries-and-mutations/#mutation-decorator">Queries and Mutations</a></p>
-<h3 id="success-failure-result">@success / @failure / @result<a class="headerlink" href="#success-failure-result" title="Permanent link">&para;</a></h3>
+<h3 id="success-error-result">@success / @error / @result<a class="headerlink" href="#success-error-result" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose</strong>: Helper decorators for mutation result types</p>
 <p><strong>Usage</strong>:
 <div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.mutations.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">success</span><span class="p">,</span> <span class="n">failure</span><span class="p">,</span> <span class="n">result</span>
@@ -3946,7 +3946,7 @@
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">User</span>
 </span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
-</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="nd">@failure</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="nd">@error</span>
 </span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateUserError</span><span class="p">:</span>
 </span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>

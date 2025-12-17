@@ -2855,10 +2855,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-noop-prefix-success-with-no-changes" class="md-nav__link">
+  <a href="#3-noop-prefix-business-rules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Noop Prefix (Success with No Changes)
+        3. Noop Prefix (Business Rules)
       
     </span>
   </a>
@@ -2943,10 +2943,49 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#semantic-prefix-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Semantic Prefix Philosophy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Semantic Prefix Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#migration-from-old-patterns" class="md-nav__link">
     <span class="md-ellipsis">
       
         Migration from Old Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exception-handlers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exception Handlers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#http-code-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTP Code Reference
       
     </span>
   </a>
@@ -2979,7 +3018,7 @@
 
 
 <h1 id="fraiseql-status-string-conventions">FraiseQL Status String Conventions<a class="headerlink" href="#fraiseql-status-string-conventions" title="Permanent link">&para;</a></h1>
-<p>FraiseQL uses status strings in PostgreSQL functions to indicate mutation outcomes. These strings are parsed by the Rust layer and mapped to GraphQL Success/Error types.</p>
+<p>FraiseQL uses status strings in PostgreSQL functions to indicate mutation outcomes. These strings are parsed by the Rust layer and mapped to GraphQL Success/Error types with HTTP-like status codes.</p>
 <h2 id="status-categories">Status Categories<a class="headerlink" href="#status-categories" title="Permanent link">&para;</a></h2>
 <h3 id="1-success-statuses-no-colon">1. Success Statuses (No Colon)<a class="headerlink" href="#1-success-statuses-no-colon" title="Permanent link">&para;</a></h3>
 <p>Simple keywords indicating successful operations:</p>
@@ -2989,6 +3028,7 @@
 <th>Status</th>
 <th>Meaning</th>
 <th>GraphQL Type</th>
+<th>HTTP Code</th>
 </tr>
 </thead>
 <tbody>
@@ -2996,21 +3036,25 @@
 <td><code>success</code></td>
 <td>Generic success</td>
 <td>Success</td>
+<td>200</td>
 </tr>
 <tr>
 <td><code>created</code></td>
 <td>Entity created</td>
 <td>Success</td>
+<td>200</td>
 </tr>
 <tr>
 <td><code>updated</code></td>
 <td>Entity modified</td>
 <td>Success</td>
+<td>200</td>
 </tr>
 <tr>
 <td><code>deleted</code></td>
 <td>Entity removed</td>
 <td>Success</td>
+<td>200</td>
 </tr>
 </tbody>
 </table>
@@ -3018,7 +3062,7 @@
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;created&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;User created successfully&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">v_user_id</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;User&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">v_user_json</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
 </span></code></pre></div></p>
 <h3 id="2-error-prefixes-colon-separated">2. Error Prefixes (Colon-Separated)<a class="headerlink" href="#2-error-prefixes-colon-separated" title="Permanent link">&para;</a></h3>
-<p>Prefixes indicating operation failures. These map to the Error type in GraphQL.</p>
+<p>Semantic prefixes indicating operation failures. These map to the Error type in GraphQL with specific HTTP-like codes.</p>
 <table>
 <thead>
 <tr>
@@ -3030,22 +3074,10 @@
 </thead>
 <tbody>
 <tr>
-<td><code>failed:</code></td>
-<td>Generic failure</td>
-<td>500</td>
-<td><code>failed:validation_error</code></td>
-</tr>
-<tr>
-<td><code>unauthorized:</code></td>
-<td>Authentication required</td>
-<td>401</td>
-<td><code>unauthorized:token_expired</code></td>
-</tr>
-<tr>
-<td><code>forbidden:</code></td>
-<td>Insufficient permissions</td>
-<td>403</td>
-<td><code>forbidden:admin_only</code></td>
+<td><code>validation:</code></td>
+<td>Input validation failure</td>
+<td>422</td>
+<td><code>validation:invalid_email</code></td>
 </tr>
 <tr>
 <td><code>not_found:</code></td>
@@ -3060,53 +3092,84 @@
 <td><code>conflict:duplicate_email</code></td>
 </tr>
 <tr>
+<td><code>unauthorized:</code></td>
+<td>Authentication required</td>
+<td>401</td>
+<td><code>unauthorized:token_expired</code></td>
+</tr>
+<tr>
+<td><code>forbidden:</code></td>
+<td>Insufficient permissions</td>
+<td>403</td>
+<td><code>forbidden:admin_only</code></td>
+</tr>
+<tr>
 <td><code>timeout:</code></td>
 <td>Operation timeout</td>
 <td>408</td>
 <td><code>timeout:external_api</code></td>
 </tr>
+<tr>
+<td><code>failed:</code></td>
+<td>System/database failure</td>
+<td>500</td>
+<td><code>failed:database_error</code></td>
+</tr>
 </tbody>
 </table>
-<p><strong>Example:</strong>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">IF</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v_email</span><span class="p">)</span><span class="w"> </span><span class="k">THEN</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;conflict:duplicate_email&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Email already exists&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
+<p><strong>Examples:</strong>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">-- Validation error</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">IF</span><span class="w"> </span><span class="n">v_email</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">v_email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="k">THEN</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;validation:invalid_email&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Email is required&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">-- Not found error</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">FOUND</span><span class="w"> </span><span class="k">THEN</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;not_found:user_missing&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;User not found&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">-- Conflict error</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">IF</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v_email</span><span class="p">)</span><span class="w"> </span><span class="k">THEN</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;conflict:duplicate_email&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Email already exists&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
 </span></code></pre></div></p>
-<h3 id="3-noop-prefix-success-with-no-changes">3. Noop Prefix (Success with No Changes)<a class="headerlink" href="#3-noop-prefix-success-with-no-changes" title="Permanent link">&para;</a></h3>
-<p>Indicates no change was made, but it's not an error. Maps to Success type.</p>
+<h3 id="3-noop-prefix-business-rules">3. Noop Prefix (Business Rules)<a class="headerlink" href="#3-noop-prefix-business-rules" title="Permanent link">&para;</a></h3>
+<p>Indicates no change was made due to business rules, but it's not an error. Maps to Error type with 422 code.</p>
 <table>
 <thead>
 <tr>
 <th>Prefix</th>
 <th>Meaning</th>
 <th>GraphQL Type</th>
+<th>HTTP Code</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>noop:</code></td>
 <td>No operation performed</td>
-<td>Success</td>
+<td>Error</td>
+<td>422</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Common noop reasons:</strong>
-- <code>noop:duplicate</code> - Entity already exists (idempotent operation)
-- <code>noop:unchanged</code> - No fields changed
-- <code>noop:blocked</code> - Blocked by business rules</p>
+- <code>noop:already_exists</code> - Entity already exists (idempotent operation)
+- <code>noop:no_changes</code> - No fields changed
+- <code>noop:already_deleted</code> - Entity already soft-deleted</p>
 <p><strong>Example:</strong>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">subscriptions</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span><span class="w"> </span><span class="n">plan_id</span><span class="p">)</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="n">v_user_id</span><span class="p">,</span><span class="w"> </span><span class="n">v_plan_id</span><span class="p">)</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">NOTHING</span><span class="p">;</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">FOUND</span><span class="w"> </span><span class="k">THEN</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;noop:duplicate&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Already subscribed&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">v_user_id</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;noop:already_exists&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Already subscribed&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">v_user_id</span><span class="p">,</span><span class="w"> </span><span class="p">...)::</span><span class="n">mutation_response</span><span class="p">;</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">END</span><span class="w"> </span><span class="k">IF</span><span class="p">;</span>
 </span></code></pre></div></p>
 <h2 id="case-insensitivity">Case Insensitivity<a class="headerlink" href="#case-insensitivity" title="Permanent link">&para;</a></h2>
 <p>All status strings are matched <strong>case-insensitively</strong>:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="s1">&#39;SUCCESS&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;success&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Success&#39;</span><span class="w">  </span><span class="err">✅</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s1">&#39;FAILED:validation&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;failed:validation&#39;</span><span class="w">  </span><span class="err">✅</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s1">&#39;VALIDATION:invalid&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;validation:invalid&#39;</span><span class="w">  </span><span class="err">✅</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s1">&#39;Conflict:DUPLICATE&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;conflict:duplicate&#39;</span><span class="w">  </span><span class="err">✅</span>
 </span></code></pre></div>
 <h2 id="complete-example">Complete Example<a class="headerlink" href="#complete-example" title="Permanent link">&para;</a></h2>
@@ -3122,7 +3185,7 @@
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="c1">-- Validation error</span>
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="k">IF</span><span class="w"> </span><span class="n">v_email</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">v_email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="k">THEN</span>
 </span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">        </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">            </span><span class="s1">&#39;failed:validation_error&#39;</span><span class="p">,</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">            </span><span class="s1">&#39;validation:invalid_email&#39;</span><span class="p">,</span>
 </span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">            </span><span class="s1">&#39;Email is required&#39;</span><span class="p">,</span>
 </span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">            </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span>
 </span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">        </span><span class="p">)::</span><span class="n">mutation_response</span><span class="p">;</span>
@@ -3161,7 +3224,7 @@
 <tr>
 <th>PostgreSQL Status</th>
 <th>GraphQL Type</th>
-<th>HTTP</th>
+<th>HTTP Code</th>
 <th>Example Response</th>
 </tr>
 </thead>
@@ -3173,79 +3236,185 @@
 <td><code>{ "__typename": "CreateUserSuccess", ... }</code></td>
 </tr>
 <tr>
-<td><code>failed:validation</code></td>
+<td><code>validation:invalid_email</code></td>
 <td>Error</td>
 <td>422</td>
-<td><code>{ "__typename": "CreateUserError", ... }</code></td>
+<td><code>{ "__typename": "CreateUserError", code: 422, ... }</code></td>
+</tr>
+<tr>
+<td><code>not_found:user_missing</code></td>
+<td>Error</td>
+<td>404</td>
+<td><code>{ "__typename": "CreateUserError", code: 404, ... }</code></td>
 </tr>
 <tr>
 <td><code>conflict:duplicate</code></td>
 <td>Error</td>
 <td>409</td>
-<td><code>{ "__typename": "CreateUserError", ... }</code></td>
+<td><code>{ "__typename": "CreateUserError", code: 409, ... }</code></td>
 </tr>
 <tr>
-<td><code>noop:duplicate</code></td>
-<td>Success</td>
-<td>200</td>
-<td><code>{ "__typename": "CreateUserSuccess", ... }</code></td>
+<td><code>noop:already_exists</code></td>
+<td>Error</td>
+<td>422</td>
+<td><code>{ "__typename": "CreateUserError", code: 422, ... }</code></td>
 </tr>
 <tr>
 <td><code>timeout:database</code></td>
 <td>Error</td>
 <td>408</td>
-<td><code>{ "__typename": "CreateUserError", ... }</code></td>
+<td><code>{ "__typename": "CreateUserError", code: 408, ... }</code></td>
+</tr>
+<tr>
+<td><code>failed:database_error</code></td>
+<td>Error</td>
+<td>500</td>
+<td><code>{ "__typename": "CreateUserError", code: 500, ... }</code></td>
 </tr>
 </tbody>
 </table>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <h3 id="do">✅ DO<a class="headerlink" href="#do" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Use specific error prefixes (<code>conflict:</code>, <code>not_found:</code>) over generic <code>failed:</code></li>
-<li>Include descriptive reasons after the colon: <code>failed:email_format_invalid</code></li>
+<li>Use specific semantic prefixes (<code>validation:</code>, <code>not_found:</code>, <code>conflict:</code>) over generic <code>failed:</code></li>
+<li>Include descriptive reasons after the colon: <code>validation:invalid_email_format</code></li>
 <li>Use <code>noop:</code> for idempotent operations that encounter existing data</li>
 <li>Return appropriate entity data even for noop/error cases when available</li>
+<li>Use <code>failed:</code> only for system/database errors in exception handlers</li>
 </ul>
 <h3 id="dont">❌ DON'T<a class="headerlink" href="#dont" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Don't use <code>duplicate:</code> as a prefix - use <code>conflict:duplicate</code> (error) or <code>noop:duplicate</code> (success)</li>
-<li>Don't mix prefix categories: <code>failed:noop:...</code> is confusing</li>
+<li>Don't use old patterns like <code>failed:validation</code> or <code>failed:not_found</code> (use semantic prefixes directly)</li>
+<li>Don't use <code>validation_error:</code> (legacy - use <code>validation:</code> instead)</li>
+<li>Don't create custom prefixes - use the standard semantic ones</li>
+<li>Don't mix prefix categories: <code>failed:noop:...</code> is invalid</li>
 <li>Don't include sensitive information in status strings (use message field)</li>
-<li>Don't create custom prefixes - use the standard ones</li>
 </ul>
-<h2 id="migration-from-old-patterns">Migration from Old Patterns<a class="headerlink" href="#migration-from-old-patterns" title="Permanent link">&para;</a></h2>
-<p>If you have existing functions using custom statuses:</p>
+<h2 id="semantic-prefix-philosophy">Semantic Prefix Philosophy<a class="headerlink" href="#semantic-prefix-philosophy" title="Permanent link">&para;</a></h2>
+<p><strong>"One Obvious Way"</strong> (Zen of Python):</p>
+<ul>
+<li>Each error category has ONE semantic prefix</li>
+<li>Status string directly indicates the HTTP-like error code</li>
+<li>Self-documenting: <code>not_found:</code> → 404, <code>validation:</code> → 422</li>
+<li>Follows industry standards (Stripe, GitHub, AWS APIs)</li>
+</ul>
+<h3 id="migration-from-old-patterns">Migration from Old Patterns<a class="headerlink" href="#migration-from-old-patterns" title="Permanent link">&para;</a></h3>
+<p>If you have legacy code using old patterns:</p>
 <table>
 <thead>
 <tr>
-<th>Old Pattern</th>
-<th>New Pattern</th>
+<th>Old Pattern (❌ Don't Use)</th>
+<th>New Pattern (✅ Use)</th>
 <th>Type</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>validation:field_required</code></td>
-<td><code>failed:validation_error</code></td>
-<td>Error</td>
+<td><code>failed:validation</code></td>
+<td><code>validation:invalid_input</code></td>
+<td>Error (422)</td>
 </tr>
 <tr>
-<td><code>error:database</code></td>
-<td><code>failed:database_error</code></td>
-<td>Error</td>
+<td><code>failed:invalid_*</code></td>
+<td><code>validation:invalid_*</code></td>
+<td>Error (422)</td>
 </tr>
 <tr>
-<td><code>duplicate:email</code></td>
-<td><code>conflict:duplicate_email</code></td>
-<td>Error</td>
+<td><code>failed:not_found</code></td>
+<td><code>not_found:*</code></td>
+<td>Error (404)</td>
 </tr>
 <tr>
-<td><code>already_exists</code></td>
-<td><code>noop:duplicate</code></td>
-<td>Success</td>
+<td><code>failed:*_not_found</code></td>
+<td><code>not_found:*</code></td>
+<td>Error (404)</td>
+</tr>
+<tr>
+<td><code>failed:duplicate</code></td>
+<td><code>conflict:duplicate</code></td>
+<td>Error (409)</td>
+</tr>
+<tr>
+<td><code>failed:*_exists</code></td>
+<td><code>conflict:*_exists</code></td>
+<td>Error (409)</td>
+</tr>
+<tr>
+<td><code>validation_error:*</code></td>
+<td><code>validation:*</code></td>
+<td>Error (422)</td>
+</tr>
+<tr>
+<td><code>already_exists</code> (bare)</td>
+<td><code>noop:already_exists</code></td>
+<td>Error (422)</td>
 </tr>
 </tbody>
 </table>
+<h2 id="exception-handlers">Exception Handlers<a class="headerlink" href="#exception-handlers" title="Permanent link">&para;</a></h2>
+<p>Always use <code>failed:</code> prefix for system errors in exception blocks:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">EXCEPTION</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="k">WHEN</span><span class="w"> </span><span class="n">OTHERS</span><span class="w"> </span><span class="k">THEN</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">        </span><span class="k">RETURN</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">            </span><span class="s1">&#39;failed:database_error&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">-- System error (500)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">            </span><span class="s1">&#39;Database error: &#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">SQLERRM</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">            </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="k">NULL</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">        </span><span class="p">)::</span><span class="n">mutation_response</span><span class="p">;</span>
+</span></code></pre></div>
+<h2 id="http-code-reference">HTTP Code Reference<a class="headerlink" href="#http-code-reference" title="Permanent link">&para;</a></h2>
+<p>FraiseQL maps semantic prefixes to HTTP-like codes for better developer experience:</p>
+<table>
+<thead>
+<tr>
+<th>HTTP Code</th>
+<th>Prefix</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200</td>
+<td><em>(no prefix)</em></td>
+<td>Success</td>
+</tr>
+<tr>
+<td>401</td>
+<td><code>unauthorized:</code></td>
+<td>Authentication failure</td>
+</tr>
+<tr>
+<td>403</td>
+<td><code>forbidden:</code></td>
+<td>Permission denied</td>
+</tr>
+<tr>
+<td>404</td>
+<td><code>not_found:</code></td>
+<td>Resource missing</td>
+</tr>
+<tr>
+<td>408</td>
+<td><code>timeout:</code></td>
+<td>Operation timeout</td>
+</tr>
+<tr>
+<td>409</td>
+<td><code>conflict:</code></td>
+<td>Resource conflict</td>
+</tr>
+<tr>
+<td>422</td>
+<td><code>validation:</code>, <code>noop:</code></td>
+<td>Validation failure or business rule</td>
+</tr>
+<tr>
+<td>500</td>
+<td><code>failed:</code></td>
+<td>System error</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> GraphQL always returns HTTP 200 at the transport layer. These codes are application-level metadata for categorization and client-side handling.</p>
 
 
 

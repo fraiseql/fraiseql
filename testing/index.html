@@ -12,7 +12,7 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.dev/api-reference/">
+        <link rel="canonical" href="https://fraiseql.dev/testing/">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>API Reference - FraiseQL Documentation</title>
+        <title>FraiseQL Testing Guide - FraiseQL Documentation</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#api-reference" class="md-skip">
+        <a href="#fraiseql-testing-guide" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              API Reference
+              FraiseQL Testing Guide
             
           </span>
         </div>
@@ -2821,22 +2821,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-decorators" class="md-nav__link">
+  <a href="#dynamic-schema-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Decorators
+        Dynamic Schema Refresh
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Core Decorators">
+    <nav class="md-nav" aria-label="Dynamic Schema Refresh">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#type-system" class="md-nav__link">
+  <a href="#problem" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type System
+        Problem
       
     </span>
   </a>
@@ -2844,10 +2844,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#query-mutation-decorators" class="md-nav__link">
+  <a href="#solution-apprefresh_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query &amp; Mutation Decorators
+        Solution: app.refresh_schema()
       
     </span>
   </a>
@@ -2855,10 +2855,43 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#authorization" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authorization
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Considerations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Example
       
     </span>
   </a>
@@ -2871,22 +2904,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#database-api" class="md-nav__link">
+  <a href="#schema-testing-utilities" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Database API
+        Schema Testing Utilities
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Database API">
+    <nav class="md-nav" aria-label="Schema Testing Utilities">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#connection-management" class="md-nav__link">
+  <a href="#clear_fraiseql_caches" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Management
+        clear_fraiseql_caches()
       
     </span>
   </a>
@@ -2894,10 +2927,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#query-execution" class="md-nav__link">
+  <a href="#clear_fraiseql_state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query Execution
+        clear_fraiseql_state()
       
     </span>
   </a>
@@ -2905,10 +2938,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#where-input-types" class="md-nav__link">
+  <a href="#validate_schema_refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where Input Types
+        validate_schema_refresh()
       
     </span>
   </a>
@@ -2921,33 +2954,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
+  <a href="#best-practices" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuration
+        Best Practices
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#advanced-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced Features
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Advanced Features">
+    <nav class="md-nav" aria-label="Best Practices">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#caching" class="md-nav__link">
+  <a href="#1-minimize-refresh-calls" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Caching
+        1. Minimize Refresh Calls
       
     </span>
   </a>
@@ -2955,10 +2977,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#monitoring-error-tracking" class="md-nav__link">
+  <a href="#2-create-functions-before-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Monitoring &amp; Error Tracking
+        2. Create Functions Before Refresh
       
     </span>
   </a>
@@ -2966,10 +2988,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#apq-automatic-persisted-queries" class="md-nav__link">
+  <a href="#3-clean-up-is-automatic" class="md-nav__link">
     <span class="md-ellipsis">
       
-        APQ (Automatic Persisted Queries)
+        3. Clean Up is Automatic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-debug-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Enable Debug Logging
       
     </span>
   </a>
@@ -2982,22 +3015,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#utilities" class="md-nav__link">
+  <a href="#limitations-and-caveats" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Utilities
+        Limitations and Caveats
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Utilities">
+    <nav class="md-nav" aria-label="Limitations and Caveats">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#trinity-identifiers" class="md-nav__link">
+  <a href="#auto-discovery-patterns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Trinity Identifiers
+        Auto-Discovery Patterns
       
     </span>
   </a>
@@ -3005,10 +3038,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#type-operators" class="md-nav__link">
+  <a href="#rust-registry-singleton" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type Operators
+        Rust Registry Singleton
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#production-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production Usage
       
     </span>
   </a>
@@ -3021,10 +3065,71 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto-generated-documentation" class="md-nav__link">
+  <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Auto-Generated Documentation
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#functions-not-discovered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Functions Not Discovered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema-validation-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Validation Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional Resources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future Enhancements
       
     </span>
   </a>
@@ -3048,7 +3153,7 @@
 
 
   
-    <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/api-reference/README.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/fraiseql/fraiseql/edit/main/docs/testing.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -3056,102 +3161,293 @@
   
 
 
-<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
-<p>Complete API documentation for FraiseQL decorators, classes, and functions.</p>
-<h2 id="core-decorators">Core Decorators<a class="headerlink" href="#core-decorators" title="Permanent link">&para;</a></h2>
-<h3 id="type-system">Type System<a class="headerlink" href="#type-system" title="Permanent link">&para;</a></h3>
+<h1 id="fraiseql-testing-guide">FraiseQL Testing Guide<a class="headerlink" href="#fraiseql-testing-guide" title="Permanent link">&para;</a></h1>
+<h2 id="dynamic-schema-refresh">Dynamic Schema Refresh<a class="headerlink" href="#dynamic-schema-refresh" title="Permanent link">&para;</a></h2>
+<h3 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h3>
+<p>FraiseQL builds its GraphQL schema once during app initialization by introspecting the database. This static schema approach provides excellent performance and safety, but makes it challenging to test features that require dynamically created database functions or views.</p>
+<p><strong>Example scenario</strong>: You want to test that mutations properly handle error cases by creating test-specific database functions that return error responses.</p>
+<h3 id="solution-apprefresh_schema">Solution: <code>app.refresh_schema()</code><a class="headerlink" href="#solution-apprefresh_schema" title="Permanent link">&para;</a></h3>
+<p>The <code>refresh_schema()</code> method allows you to rebuild the GraphQL schema after making database changes. This is primarily useful for testing scenarios where you need to create database objects dynamically.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">app_with_custom_mutations</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;App with dynamically created mutations.&quot;&quot;&quot;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="c1"># Create database functions</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">AsyncConnection</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">db_url</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s2">            CREATE FUNCTION my_test_mutation()</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s2">            RETURNS mutation_response</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s2">            LANGUAGE plpgsql AS $$</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s2">            BEGIN</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s2">                RETURN mutation_success(NULL::integer);</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s2">            END;</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s2">            $$;</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s2">        &quot;&quot;&quot;</span><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="c1"># Refresh schema to discover new function</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span></code></pre></div>
+<h3 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<p>When you call <code>app.refresh_schema()</code>, FraiseQL:</p>
+<ol>
+<li><strong>Clears all caches</strong> - Python GraphQL type cache, type registries, Rust schema registry</li>
+<li><strong>Re-runs auto-discovery</strong> - If enabled, scans database for new views and functions</li>
+<li><strong>Rebuilds GraphQL schema</strong> - Creates new schema with discovered types</li>
+<li><strong>Reinitializes Rust registry</strong> - Updates the execution engine with new schema</li>
+<li><strong>Updates TurboRegistry cache</strong> - Clears execution plans</li>
+<li><strong>Replaces GraphQL route</strong> - Updates FastAPI router with new schema</li>
+</ol>
+<p>The entire process takes ~50-200ms depending on schema complexity.</p>
+<h3 id="when-to-use">When to Use<a class="headerlink" href="#when-to-use" title="Permanent link">&para;</a></h3>
+<p><strong>✅ Use schema refresh when</strong>:
+- Testing features that create database functions dynamically
+- Creating test-specific mutations that shouldn't be in production schema
+- Verifying auto-discovery behavior
+- Developing plugins that add GraphQL types at runtime</p>
+<p><strong>❌ Don't use schema refresh when</strong>:
+- Testing existing schema (no dynamic functions needed)
+- Performance is critical (refresh adds ~50-200ms overhead)
+- Functions can be added to example app's <code>init.sql</code> instead
+- In production code (restart the app instead)</p>
+<h3 id="performance-considerations">Performance Considerations<a class="headerlink" href="#performance-considerations" title="Permanent link">&para;</a></h3>
+<p>Schema refresh is an expensive operation:
+- Database introspection queries (~20-50ms)
+- GraphQL schema rebuilding (~20-80ms)
+- Rust registry re-initialization (~10-40ms)
+- Router replacement (~5-10ms)</p>
+<p><strong>Total</strong>: ~50-200ms per refresh</p>
+<p><strong>Recommended pattern</strong>: Use class-scoped fixtures to refresh once per test class, not per test function.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;class&quot;</span><span class="p">)</span>  <span class="c1"># ← Class scope, not function</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">app_with_mutations</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="c1"># Setup...</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span></code></pre></div>
+<h3 id="complete-example">Complete Example<a class="headerlink" href="#complete-example" title="Permanent link">&para;</a></h3>
+<p>Here's a complete example of using schema refresh in tests:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># tests/integration/test_my_feature.py</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseQuery</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;class&quot;</span><span class="p">)</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">app_with_test_mutations</span><span class="p">(</span><span class="n">blog_simple_app</span><span class="p">,</span> <span class="n">blog_simple_db_url</span><span class="p">):</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create test mutations and refresh schema.&quot;&quot;&quot;</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="c1"># Create test database function</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">AsyncConnection</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">blog_simple_db_url</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="s2">            CREATE OR REPLACE FUNCTION test_error_handling()</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="s2">            RETURNS mutation_response</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="s2">            LANGUAGE plpgsql AS $$</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="s2">            BEGIN</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="s2">                RETURN mutation_validation_error(</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="s2">                    &#39;Test error message&#39;,</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="s2">                    &#39;TestEntity&#39;,</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="s2">                    NULL</span>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="s2">                );</span>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="s2">            END;</span>
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="s2">            $$;</span>
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="s2">        &quot;&quot;&quot;</span><span class="p">)</span>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>    <span class="c1"># Define Python wrapper mutation</span>
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.mutations</span><span class="w"> </span><span class="kn">import</span> <span class="n">mutation</span>
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>
+</span><span id="__span-2-32"><a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>    <span class="nd">@mutation</span>
+</span><span id="__span-2-33"><a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_error_handling</span><span class="p">(</span><span class="n">info</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-2-34"><a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Test mutation that calls the database function.&quot;&quot;&quot;</span>
+</span><span id="__span-2-35"><a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>        <span class="n">db</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">context</span><span class="p">[</span><span class="s2">&quot;db&quot;</span><span class="p">]</span>
+</span><span id="__span-2-36"><a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>        <span class="n">query</span> <span class="o">=</span> <span class="n">DatabaseQuery</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM test_error_handling()&quot;</span><span class="p">,</span> <span class="p">[])</span>
+</span><span id="__span-2-37"><a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+</span><span id="__span-2-38"><a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>        <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="p">{}</span>
+</span><span id="__span-2-39"><a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>
+</span><span id="__span-2-40"><a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>    <span class="c1"># Add to refresh config and refresh</span>
+</span><span id="__span-2-41"><a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">blog_simple_app</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="s2">&quot;_fraiseql_refresh_config&quot;</span><span class="p">):</span>
+</span><span id="__span-2-42"><a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a>        <span class="n">blog_simple_app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">_fraiseql_refresh_config</span><span class="p">[</span><span class="s2">&quot;original_mutations&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+</span><span id="__span-2-43"><a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a>            <span class="n">test_error_handling</span>
+</span><span id="__span-2-44"><a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a>        <span class="p">)</span>
+</span><span id="__span-2-45"><a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a>
+</span><span id="__span-2-46"><a id="__codelineno-2-46" name="__codelineno-2-46" href="#__codelineno-2-46"></a>    <span class="k">await</span> <span class="n">blog_simple_app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-2-47"><a id="__codelineno-2-47" name="__codelineno-2-47" href="#__codelineno-2-47"></a>
+</span><span id="__span-2-48"><a id="__codelineno-2-48" name="__codelineno-2-48" href="#__codelineno-2-48"></a>    <span class="k">yield</span> <span class="n">blog_simple_app</span>
+</span><span id="__span-2-49"><a id="__codelineno-2-49" name="__codelineno-2-49" href="#__codelineno-2-49"></a>
+</span><span id="__span-2-50"><a id="__codelineno-2-50" name="__codelineno-2-50" href="#__codelineno-2-50"></a>
+</span><span id="__span-2-51"><a id="__codelineno-2-51" name="__codelineno-2-51" href="#__codelineno-2-51"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestErrorHandling</span><span class="p">:</span>
+</span><span id="__span-2-52"><a id="__codelineno-2-52" name="__codelineno-2-52" href="#__codelineno-2-52"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test error handling with dynamic mutations.&quot;&quot;&quot;</span>
+</span><span id="__span-2-53"><a id="__codelineno-2-53" name="__codelineno-2-53" href="#__codelineno-2-53"></a>
+</span><span id="__span-2-54"><a id="__codelineno-2-54" name="__codelineno-2-54" href="#__codelineno-2-54"></a>    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+</span><span id="__span-2-55"><a id="__codelineno-2-55" name="__codelineno-2-55" href="#__codelineno-2-55"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_mutation_error_response</span><span class="p">(</span>
+</span><span id="__span-2-56"><a id="__codelineno-2-56" name="__codelineno-2-56" href="#__codelineno-2-56"></a>        <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-2-57"><a id="__codelineno-2-57" name="__codelineno-2-57" href="#__codelineno-2-57"></a>        <span class="n">app_with_test_mutations</span><span class="p">,</span>
+</span><span id="__span-2-58"><a id="__codelineno-2-58" name="__codelineno-2-58" href="#__codelineno-2-58"></a>        <span class="n">blog_simple_graphql_client</span><span class="p">,</span>
+</span><span id="__span-2-59"><a id="__codelineno-2-59" name="__codelineno-2-59" href="#__codelineno-2-59"></a>    <span class="p">):</span>
+</span><span id="__span-2-60"><a id="__codelineno-2-60" name="__codelineno-2-60" href="#__codelineno-2-60"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Test that mutations return proper error structure.&quot;&quot;&quot;</span>
+</span><span id="__span-2-61"><a id="__codelineno-2-61" name="__codelineno-2-61" href="#__codelineno-2-61"></a>        <span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+</span><span id="__span-2-62"><a id="__codelineno-2-62" name="__codelineno-2-62" href="#__codelineno-2-62"></a><span class="s2">            mutation {</span>
+</span><span id="__span-2-63"><a id="__codelineno-2-63" name="__codelineno-2-63" href="#__codelineno-2-63"></a><span class="s2">                testErrorHandling {</span>
+</span><span id="__span-2-64"><a id="__codelineno-2-64" name="__codelineno-2-64" href="#__codelineno-2-64"></a><span class="s2">                    status</span>
+</span><span id="__span-2-65"><a id="__codelineno-2-65" name="__codelineno-2-65" href="#__codelineno-2-65"></a><span class="s2">                    message</span>
+</span><span id="__span-2-66"><a id="__codelineno-2-66" name="__codelineno-2-66" href="#__codelineno-2-66"></a><span class="s2">                }</span>
+</span><span id="__span-2-67"><a id="__codelineno-2-67" name="__codelineno-2-67" href="#__codelineno-2-67"></a><span class="s2">            }</span>
+</span><span id="__span-2-68"><a id="__codelineno-2-68" name="__codelineno-2-68" href="#__codelineno-2-68"></a><span class="s2">        &quot;&quot;&quot;</span>
+</span><span id="__span-2-69"><a id="__codelineno-2-69" name="__codelineno-2-69" href="#__codelineno-2-69"></a>
+</span><span id="__span-2-70"><a id="__codelineno-2-70" name="__codelineno-2-70" href="#__codelineno-2-70"></a>        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">blog_simple_graphql_client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+</span><span id="__span-2-71"><a id="__codelineno-2-71" name="__codelineno-2-71" href="#__codelineno-2-71"></a>
+</span><span id="__span-2-72"><a id="__codelineno-2-72" name="__codelineno-2-72" href="#__codelineno-2-72"></a>        <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;errors&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+</span><span id="__span-2-73"><a id="__codelineno-2-73" name="__codelineno-2-73" href="#__codelineno-2-73"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="s2">&quot;testErrorHandling&quot;</span><span class="p">]</span>
+</span><span id="__span-2-74"><a id="__codelineno-2-74" name="__codelineno-2-74" href="#__codelineno-2-74"></a>        <span class="k">assert</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;validation:&quot;</span>
+</span><span id="__span-2-75"><a id="__codelineno-2-75" name="__codelineno-2-75" href="#__codelineno-2-75"></a>        <span class="k">assert</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;message&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;Test error message&quot;</span>
+</span></code></pre></div>
+<h2 id="schema-testing-utilities">Schema Testing Utilities<a class="headerlink" href="#schema-testing-utilities" title="Permanent link">&para;</a></h2>
+<p>FraiseQL provides utilities in <code>fraiseql.testing</code> for schema manipulation during tests.</p>
+<h3 id="clear_fraiseql_caches"><code>clear_fraiseql_caches()</code><a class="headerlink" href="#clear_fraiseql_caches" title="Permanent link">&para;</a></h3>
+<p>Clears all internal caches without recreating the schema. Useful for testing cache behavior.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">clear_fraiseql_caches</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">clear_fraiseql_caches</span><span class="p">()</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># All caches cleared:</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># - Python GraphQL type cache</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># - Type registries</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># - Rust schema registry</span>
+</span></code></pre></div>
+<h3 id="clear_fraiseql_state"><code>clear_fraiseql_state()</code><a class="headerlink" href="#clear_fraiseql_state" title="Permanent link">&para;</a></h3>
+<p>Complete cleanup including caches and FastAPI dependencies. Use this for thorough teardown in test fixtures.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">clear_fraiseql_state</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">,</span> <span class="n">autouse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_after_tests</span><span class="p">():</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="k">yield</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">clear_fraiseql_state</span><span class="p">()</span>
+</span></code></pre></div>
+<h3 id="validate_schema_refresh"><code>validate_schema_refresh()</code><a class="headerlink" href="#validate_schema_refresh" title="Permanent link">&para;</a></h3>
+<p>Verify that schema refresh preserved existing elements and optionally added new ones.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_schema_refresh</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">old_schema</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graphql_schema</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">new_schema</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graphql_schema</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">validate_schema_refresh</span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">old_schema</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">new_schema</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">expect_new_types</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Verify new types were added</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">)</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;lost_types&quot;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>  <span class="c1"># No types lost</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;new_types&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span>    <span class="c1"># New types discovered</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;preserved_types&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="c1"># Existing types kept</span>
+</span></code></pre></div>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<h3 id="1-minimize-refresh-calls">1. Minimize Refresh Calls<a class="headerlink" href="#1-minimize-refresh-calls" title="Permanent link">&para;</a></h3>
+<p>Each refresh costs ~50-200ms. Use class-scoped fixtures:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># ✅ GOOD: Refresh once per class</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;class&quot;</span><span class="p">)</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">app_with_mutations</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># ❌ BAD: Refresh for every test</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;function&quot;</span><span class="p">)</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">app_with_mutations</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>  <span class="c1"># Called 10 times for 10 tests!</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span></code></pre></div>
+<h3 id="2-create-functions-before-refresh">2. Create Functions Before Refresh<a class="headerlink" href="#2-create-functions-before-refresh" title="Permanent link">&para;</a></h3>
+<p>Schema refresh only discovers what exists in the database at refresh time:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># ✅ GOOD: Create then refresh</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE FUNCTION my_func() ...&quot;</span><span class="p">)</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>  <span class="c1"># Discovers my_func</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># ❌ BAD: Refresh then create</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE FUNCTION my_func() ...&quot;</span><span class="p">)</span>  <span class="c1"># Not in schema!</span>
+</span></code></pre></div>
+<h3 id="3-clean-up-is-automatic">3. Clean Up is Automatic<a class="headerlink" href="#3-clean-up-is-automatic" title="Permanent link">&para;</a></h3>
+<p>Database fixtures handle cleanup automatically. No need to drop functions manually:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># ✅ GOOD: Let fixture handle cleanup</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">my_fixture</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE FUNCTION ...&quot;</span><span class="p">)</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="c1"># Database dropped automatically</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># ❌ UNNECESSARY: Manual cleanup</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">my_fixture</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db_url</span><span class="p">):</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE FUNCTION test_func() ...&quot;</span><span class="p">)</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="k">await</span> <span class="n">app</span><span class="o">.</span><span class="n">refresh_schema</span><span class="p">()</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="k">yield</span> <span class="n">app</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DROP FUNCTION test_func()&quot;</span><span class="p">)</span>  <span class="c1"># Not needed</span>
+</span></code></pre></div>
+<h3 id="4-enable-debug-logging">4. Enable Debug Logging<a class="headerlink" href="#4-enable-debug-logging" title="Permanent link">&para;</a></h3>
+<p>Schema refresh includes validation in debug mode:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;fraiseql&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Now refresh will log:</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># - Cache clearing operations</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># - Auto-discovery results</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># - Schema validation (types preserved/added/lost)</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># - Router replacement</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1"># - Timing information</span>
+</span></code></pre></div>
+<h2 id="limitations-and-caveats">Limitations and Caveats<a class="headerlink" href="#limitations-and-caveats" title="Permanent link">&para;</a></h2>
+<h3 id="auto-discovery-patterns">Auto-Discovery Patterns<a class="headerlink" href="#auto-discovery-patterns" title="Permanent link">&para;</a></h3>
+<p>Auto-discovery looks for specific naming patterns:
+- Views: <code>v_%</code> (e.g., <code>v_users</code>)
+- Functions: <code>fn_%</code> (e.g., <code>fn_create_user</code>)</p>
+<p>Test functions with other names won't be auto-discovered. You'll need to either:
+1. Rename them to match the pattern
+2. Provide Python wrapper functions and add them to <code>original_mutations</code></p>
+<h3 id="rust-registry-singleton">Rust Registry Singleton<a class="headerlink" href="#rust-registry-singleton" title="Permanent link">&para;</a></h3>
+<p>The Rust schema registry is a global singleton. If you see warnings like "Re-initialization is not allowed", this is expected. The refresh mechanism handles this by calling <code>reset_schema_registry_for_testing()</code> before re-initialization.</p>
+<h3 id="production-usage">Production Usage<a class="headerlink" href="#production-usage" title="Permanent link">&para;</a></h3>
+<p>Schema refresh is designed for <strong>testing only</strong>. In production:
+- Restart the application to pick up schema changes
+- Don't call <code>refresh_schema()</code> during request handling
+- Schema refresh is not thread-safe</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="functions-not-discovered">Functions Not Discovered<a class="headerlink" href="#functions-not-discovered" title="Permanent link">&para;</a></h3>
+<p><strong>Problem</strong>: Created function but it's not in schema after refresh.</p>
+<p><strong>Solutions</strong>:
+1. Check function naming matches auto-discovery pattern (<code>fn_%</code>)
+2. Verify function created before calling <code>refresh_schema()</code>
+3. Check function has proper return type
+4. Enable DEBUG logging to see what was discovered</p>
+<h3 id="schema-validation-errors">Schema Validation Errors<a class="headerlink" href="#schema-validation-errors" title="Permanent link">&para;</a></h3>
+<p><strong>Problem</strong>: <code>AssertionError: Schema refresh lost X types</code></p>
+<p><strong>Solutions</strong>:
+1. Check that <code>original_types</code> in refresh config is correct
+2. Verify manual types are being preserved
+3. Use <code>validate_schema_refresh()</code> to debug what changed</p>
+<h3 id="performance-issues">Performance Issues<a class="headerlink" href="#performance-issues" title="Permanent link">&para;</a></h3>
+<p><strong>Problem</strong>: Tests are slow due to many refreshes.</p>
+<p><strong>Solutions</strong>:
+1. Change fixture scope from <code>function</code> to <code>class</code>
+2. Batch function creation (create multiple, refresh once)
+3. Consider pre-creating functions in template database instead</p>
+<h2 id="additional-resources">Additional Resources<a class="headerlink" href="#additional-resources" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../core/types-and-schema/#type-decorator">@type</a></strong> - Map PostgreSQL views to GraphQL types</li>
-<li>Parameters: <code>sql_source</code>, <code>jsonb_column</code>, <code>table_view</code>, <code>pk_column</code></li>
-<li><strong><a href="../core/types-and-schema/#input-types">@input</a></strong> - Define GraphQL input types for mutations</li>
-<li><strong><a href="../core/queries-and-mutations/#success-failure-pattern">@success</a></strong> - Define success response types</li>
-<li><strong><a href="../core/queries-and-mutations/#success-failure-pattern">@error</a></strong> - Define failure/error response types</li>
+<li><strong>Schema Refresh Implementation</strong>: <code>src/fraiseql/fastapi/app.py</code> (<code>refresh_schema()</code> method)</li>
+<li><strong>Testing Utilities</strong>: <code>src/fraiseql/testing/schema_utils.py</code></li>
+<li><strong>Test Architecture</strong>: <code>/home/lionel/.claude/skills/fraiseql-testing.md</code></li>
+<li><strong>Example Tests</strong>: <code>tests/unit/fastapi/test_schema_refresh.py</code></li>
 </ul>
-<h3 id="query-mutation-decorators">Query &amp; Mutation Decorators<a class="headerlink" href="#query-mutation-decorators" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../core/queries-and-mutations/#query-decorator">@query</a></strong> - Define GraphQL queries</li>
-<li>Auto-generates <code>get_&lt;name&gt;</code> and <code>list_&lt;name&gt;</code> resolvers</li>
-<li><strong><a href="../core/queries-and-mutations/#mutation-decorator">@mutation</a></strong> - Define GraphQL mutations</li>
-<li>Supports success/failure patterns with explicit error handling</li>
-</ul>
-<h3 id="authorization">Authorization<a class="headerlink" href="#authorization" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../advanced/authentication/#authorization-decorator">@authorized</a></strong> - Protect queries/mutations with role-based access</li>
-<li>Parameters: <code>roles</code>, <code>permissions</code>, <code>custom_check</code></li>
-</ul>
-<h2 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h2>
-<h3 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="database/#connection-pool">Database Pool</a></strong> - PostgreSQL connection pooling</li>
-<li><code>create_pool()</code> - Initialize connection pool</li>
-<li><code>acquire()</code> - Get connection from pool</li>
-<li><code>close()</code> - Cleanup connections</li>
-</ul>
-<h3 id="query-execution">Query Execution<a class="headerlink" href="#query-execution" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="database/#calling-functions">call_function()</a></strong> - Execute PostgreSQL functions</li>
-<li><strong><a href="database/#raw-queries">execute_query()</a></strong> - Run raw SQL queries</li>
-<li><strong><a href="database/#fetching-data">fetch_one() / fetch_all()</a></strong> - Retrieve query results</li>
-</ul>
-<h3 id="where-input-types">Where Input Types<a class="headerlink" href="#where-input-types" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../advanced/where-input-types/">create_graphql_where_input()</a></strong> - Generate filtering types</li>
-<li>Standard operators: <code>eq</code>, <code>neq</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>in</code>, <code>isnull</code></li>
-<li>Specialized operators: Network types, ltree hierarchy, date ranges</li>
-<li>Nested array filtering: <code>AND</code>, <code>OR</code>, <code>NOT</code> logical operators</li>
-</ul>
-<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><a href="../core/configuration/">FraiseQLConfig</a></strong> - Application configuration</li>
-<li>Database connection settings</li>
-<li>APQ (Automatic Persisted Queries) configuration</li>
-<li>Caching backend selection</li>
-<li>Security and CORS settings</li>
-</ul>
-<h2 id="advanced-features">Advanced Features<a class="headerlink" href="#advanced-features" title="Permanent link">&para;</a></h2>
-<h3 id="caching">Caching<a class="headerlink" href="#caching" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../performance/#postgresql-caching">PostgresCache</a></strong> - PostgreSQL-based caching</li>
-<li><code>set()</code>, <code>get()</code>, <code>delete()</code>, <code>clear()</code> - Standard cache operations</li>
-<li><code>set_many()</code>, <code>get_many()</code> - Batch operations</li>
-<li>TTL-based expiration</li>
-</ul>
-<h3 id="monitoring-error-tracking">Monitoring &amp; Error Tracking<a class="headerlink" href="#monitoring-error-tracking" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../production/monitoring/#error-tracking">init_error_tracker()</a></strong> - Configure error tracking</li>
-<li>Automatic error fingerprinting and grouping</li>
-<li>Stack trace capture</li>
-<li>OpenTelemetry trace correlation</li>
-</ul>
-<h3 id="apq-automatic-persisted-queries">APQ (Automatic Persisted Queries)<a class="headerlink" href="#apq-automatic-persisted-queries" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../performance/apq-optimization-guide/">APQConfig</a></strong> - Configure APQ</li>
-<li>Storage backends: memory, PostgreSQL</li>
-<li>Query hash validation</li>
-<li>Multi-instance coordination</li>
-</ul>
-<h2 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">&para;</a></h2>
-<h3 id="trinity-identifiers">Trinity Identifiers<a class="headerlink" href="#trinity-identifiers" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../database/trinity-identifiers/">Trinity Pattern</a></strong> - Three-tier ID system</li>
-<li><code>pk_*</code> - Internal integer IDs for fast joins</li>
-<li><code>id</code> - Public UUID for API stability</li>
-<li><code>identifier</code> - Human-readable slugs for SEO</li>
-</ul>
-<h3 id="type-operators">Type Operators<a class="headerlink" href="#type-operators" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="../architecture/type-operator-architecture/">Type Operator Architecture</a></strong> - Advanced filtering</li>
-<li>Network operators: <code>inet_eq</code>, <code>cidr_contains</code></li>
-<li>Hierarchy operators: <code>ancestor_of</code>, <code>descendant_of</code></li>
-<li>Range operators: <code>overlaps</code>, <code>contains</code></li>
-</ul>
-<h2 id="auto-generated-documentation">Auto-Generated Documentation<a class="headerlink" href="#auto-generated-documentation" title="Permanent link">&para;</a></h2>
-<p>Full API reference with function signatures and parameter details:</p>
-<p><strong>Coming Soon</strong>: Auto-generated docs from source code docstrings (mkdocstrings)</p>
-<p>For now, refer to:
-- <strong><a href="../../src/fraiseql/">Source Code</a></strong> - Comprehensive inline documentation
-- <strong><a href="../core/">Core Concepts Guide</a></strong> - Detailed explanations with examples
-- <strong><a href="../../examples/">Examples Directory</a></strong> - Real-world usage patterns</p>
+<h2 id="future-enhancements">Future Enhancements<a class="headerlink" href="#future-enhancements" title="Permanent link">&para;</a></h2>
+<p>Once the schema refresh API is mature, it could enable:</p>
+<ol>
+<li><strong>Hot-reloading in development</strong> - Watch SQL files, auto-refresh on changes</li>
+<li><strong>Dynamic plugin systems</strong> - Load GraphQL types from plugins at runtime</li>
+<li><strong>Multi-tenant schemas</strong> - Different schema per tenant database</li>
+<li><strong>Migration testing</strong> - Apply migration, refresh, verify GraphQL changes</li>
+</ol>
+<p>These are not currently implemented but represent possible future directions.</p>
 
 
 

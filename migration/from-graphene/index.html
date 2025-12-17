@@ -3555,8 +3555,8 @@
 </span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1"># GraphQL (more powerful filtering)</span>
 </span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="n">query</span> <span class="p">{</span>
 </span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>  <span class="n">users</span><span class="p">(</span><span class="n">where</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">email</span><span class="p">:</span> <span class="p">{</span> <span class="n">_like</span><span class="p">:</span> <span class="s2">&quot;</span><span class="si">%e</span><span class="s2">xample.com&quot;</span> <span class="p">}</span>
-</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>    <span class="n">created_at</span><span class="p">:</span> <span class="p">{</span> <span class="n">_gte</span><span class="p">:</span> <span class="s2">&quot;2025-01-01&quot;</span> <span class="p">}</span>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">email</span><span class="p">:</span> <span class="p">{</span> <span class="n">endswith</span><span class="p">:</span> <span class="s2">&quot;@example.com&quot;</span> <span class="p">}</span>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>    <span class="n">created_at</span><span class="p">:</span> <span class="p">{</span> <span class="n">gte</span><span class="p">:</span> <span class="s2">&quot;2025-01-01&quot;</span> <span class="p">}</span>
 </span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>  <span class="p">})</span> <span class="p">{</span>
 </span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>    <span class="nb">id</span>
 </span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>    <span class="n">email</span>
@@ -3565,11 +3565,14 @@
 </span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="p">}</span>
 </span></code></pre></div></p>
 <p><strong>FraiseQL Filter Operators:</strong>
-- <code>_eq</code>, <code>_ne</code> (equals, not equals)
-- <code>_lt</code>, <code>_lte</code>, <code>_gt</code>, <code>_gte</code> (comparisons)
-- <code>_like</code>, <code>_ilike</code> (pattern matching)
-- <code>_in</code>, <code>_nin</code> (array membership)
-- <code>_is_null</code> (null checks)</p>
+- <code>eq</code>, <code>neq</code> (equals, not equals)
+- <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> (comparisons)
+- <code>contains</code>, <code>icontains</code> (substring matching - case-sensitive and case-insensitive)
+- <code>startswith</code>, <code>endswith</code>, <code>istartswith</code>, <code>iendswith</code> (pattern matching)
+- <code>in</code>, <code>nin</code> (array membership)
+- <code>isnull</code> (null checks)
+- <code>like</code>, <code>ilike</code> (SQL LIKE with explicit wildcards)</p>
+<p>See <a href="../../advanced/filter-operators/">Filter Operators Reference</a> for complete list</p>
 <hr />
 <h2 id="step-4-mutation-migration-2-3-days">Step 4: Mutation Migration (2-3 days)<a class="headerlink" href="#step-4-mutation-migration-2-3-days" title="Permanent link">&para;</a></h2>
 <h3 id="41-simple-mutations">4.1 Simple Mutations<a class="headerlink" href="#41-simple-mutations" title="Permanent link">&para;</a></h3>

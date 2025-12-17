@@ -3235,7 +3235,7 @@
 <li><strong>V2 Format</strong> (v1.7+): Structured <code>mutation_response</code> type with comprehensive error handling</li>
 </ul>
 <p>See <a href="../mutation-result-reference/">Mutation Result Reference</a> for complete format specifications.</p>
-<p><strong>Error Detection</strong>: FraiseQL's Rust layer automatically detects errors using a <a href="../../mutations/status-strings/">comprehensive status taxonomy</a>. Status strings like <code>failed:validation</code>, <code>unauthorized:token_expired</code>, <code>conflict:duplicate</code>, etc. are automatically mapped to appropriate error types and HTTP status codes.</p>
+<p><strong>Error Detection</strong>: FraiseQL's Rust layer automatically detects errors using a <a href="../../mutations/status-strings/">comprehensive status taxonomy</a>. Status strings like <code>validation:</code>, <code>unauthorized:token_expired</code>, <code>conflict:duplicate</code>, etc. are automatically mapped to appropriate error types and HTTP status codes.</p>
 <p><strong>Note</strong>: The legacy format continues to work but the v2 format is recommended for new implementations.</p>
 <h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
 <ul>
@@ -3502,9 +3502,14 @@
 <p>Additional metadata about the mutation:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">jsonb_build_object</span><span class="p">(</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="s1">&#39;timestamp&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span><span class="w">                    </span><span class="c1">-- When mutation occurred</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="s1">&#39;affectedCount&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="w">                     </span><span class="c1">-- Number of entities affected</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="p">)</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="s1">&#39;affected_count&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w">                   </span><span class="c1">-- Number of entities affected</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="s1">&#39;depth&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">                            </span><span class="c1">-- Relationship depth traversed</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="s1">&#39;transaction_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">txid_current</span><span class="p">()::</span><span class="nb">text</span><span class="w"> </span><span class="c1">-- Optional: for debugging</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
 </span></code></pre></div>
+<blockquote>
+<p><strong>Note</strong>: Use snake_case in PostgreSQL (<code>affected_count</code>, <code>transaction_id</code>). FraiseQL's Rust layer automatically converts to camelCase (<code>affectedCount</code>, <code>transactionId</code>) in GraphQL responses.</p>
+</blockquote>
 <hr />
 <h2 id="complete-examples">Complete Examples<a class="headerlink" href="#complete-examples" title="Permanent link">&para;</a></h2>
 <h3 id="example-1-create-post-with-author-update">Example 1: Create Post with Author Update<a class="headerlink" href="#example-1-create-post-with-author-update" title="Permanent link">&para;</a></h3>
@@ -3585,12 +3590,14 @@
 </span><span id="__span-11-74"><a id="__codelineno-11-74" name="__codelineno-11-74" href="#__codelineno-11-74"></a><span class="w">            </span><span class="p">),</span>
 </span><span id="__span-11-75"><a id="__codelineno-11-75" name="__codelineno-11-75" href="#__codelineno-11-75"></a><span class="w">            </span><span class="s1">&#39;metadata&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span>
 </span><span id="__span-11-76"><a id="__codelineno-11-76" name="__codelineno-11-76" href="#__codelineno-11-76"></a><span class="w">                </span><span class="s1">&#39;timestamp&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span>
-</span><span id="__span-11-77"><a id="__codelineno-11-77" name="__codelineno-11-77" href="#__codelineno-11-77"></a><span class="w">                </span><span class="s1">&#39;affectedCount&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span>
-</span><span id="__span-11-78"><a id="__codelineno-11-78" name="__codelineno-11-78" href="#__codelineno-11-78"></a><span class="w">            </span><span class="p">)</span>
-</span><span id="__span-11-79"><a id="__codelineno-11-79" name="__codelineno-11-79" href="#__codelineno-11-79"></a><span class="w">        </span><span class="p">)</span>
-</span><span id="__span-11-80"><a id="__codelineno-11-80" name="__codelineno-11-80" href="#__codelineno-11-80"></a><span class="w">    </span><span class="p">);</span>
-</span><span id="__span-11-81"><a id="__codelineno-11-81" name="__codelineno-11-81" href="#__codelineno-11-81"></a><span class="k">END</span><span class="p">;</span>
-</span><span id="__span-11-82"><a id="__codelineno-11-82" name="__codelineno-11-82" href="#__codelineno-11-82"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
+</span><span id="__span-11-77"><a id="__codelineno-11-77" name="__codelineno-11-77" href="#__codelineno-11-77"></a><span class="w">                </span><span class="s1">&#39;affected_count&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-11-78"><a id="__codelineno-11-78" name="__codelineno-11-78" href="#__codelineno-11-78"></a><span class="w">                </span><span class="s1">&#39;depth&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-11-79"><a id="__codelineno-11-79" name="__codelineno-11-79" href="#__codelineno-11-79"></a><span class="w">                </span><span class="s1">&#39;transaction_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">txid_current</span><span class="p">()::</span><span class="nb">text</span>
+</span><span id="__span-11-80"><a id="__codelineno-11-80" name="__codelineno-11-80" href="#__codelineno-11-80"></a><span class="w">            </span><span class="p">)</span>
+</span><span id="__span-11-81"><a id="__codelineno-11-81" name="__codelineno-11-81" href="#__codelineno-11-81"></a><span class="w">        </span><span class="p">)</span>
+</span><span id="__span-11-82"><a id="__codelineno-11-82" name="__codelineno-11-82" href="#__codelineno-11-82"></a><span class="w">    </span><span class="p">);</span>
+</span><span id="__span-11-83"><a id="__codelineno-11-83" name="__codelineno-11-83" href="#__codelineno-11-83"></a><span class="k">END</span><span class="p">;</span>
+</span><span id="__span-11-84"><a id="__codelineno-11-84" name="__codelineno-11-84" href="#__codelineno-11-84"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
 </span></code></pre></div>
 <p><strong>GraphQL Response (after Rust transformation):</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
@@ -3640,12 +3647,14 @@
 </span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45" href="#__codelineno-12-45"></a><span class="w">        </span><span class="p">],</span>
 </span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46" href="#__codelineno-12-46"></a><span class="w">        </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47" href="#__codelineno-12-47"></a><span class="w">          </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-11-11T10:30:00Z&quot;</span><span class="p">,</span>
-</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48" href="#__codelineno-12-48"></a><span class="w">          </span><span class="nt">&quot;affectedCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
-</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49" href="#__codelineno-12-49"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50" href="#__codelineno-12-50"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51" href="#__codelineno-12-51"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52" href="#__codelineno-12-52"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53" href="#__codelineno-12-53"></a><span class="p">}</span>
+</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48" href="#__codelineno-12-48"></a><span class="w">          </span><span class="nt">&quot;affectedCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49" href="#__codelineno-12-49"></a><span class="w">          </span><span class="nt">&quot;depth&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50" href="#__codelineno-12-50"></a><span class="w">          </span><span class="nt">&quot;transactionId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;123456789&quot;</span>
+</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51" href="#__codelineno-12-51"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52" href="#__codelineno-12-52"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53" href="#__codelineno-12-53"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-54"><a id="__codelineno-12-54" name="__codelineno-12-54" href="#__codelineno-12-54"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-12-55"><a id="__codelineno-12-55" name="__codelineno-12-55" href="#__codelineno-12-55"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="example-2-delete-post-with-cascade-deletes">Example 2: Delete Post with Cascade Deletes<a class="headerlink" href="#example-2-delete-post-with-cascade-deletes" title="Permanent link">&para;</a></h3>
 <p>Soft-deleting a post and all its comments:</p>
@@ -3737,12 +3746,14 @@
 </span><span id="__span-13-86"><a id="__codelineno-13-86" name="__codelineno-13-86" href="#__codelineno-13-86"></a><span class="w">            </span><span class="p">),</span>
 </span><span id="__span-13-87"><a id="__codelineno-13-87" name="__codelineno-13-87" href="#__codelineno-13-87"></a><span class="w">            </span><span class="s1">&#39;metadata&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span>
 </span><span id="__span-13-88"><a id="__codelineno-13-88" name="__codelineno-13-88" href="#__codelineno-13-88"></a><span class="w">                </span><span class="s1">&#39;timestamp&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span>
-</span><span id="__span-13-89"><a id="__codelineno-13-89" name="__codelineno-13-89" href="#__codelineno-13-89"></a><span class="w">                </span><span class="s1">&#39;affectedCount&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">array_length</span><span class="p">(</span><span class="n">v_deleted_comment_ids</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-</span><span id="__span-13-90"><a id="__codelineno-13-90" name="__codelineno-13-90" href="#__codelineno-13-90"></a><span class="w">            </span><span class="p">)</span>
-</span><span id="__span-13-91"><a id="__codelineno-13-91" name="__codelineno-13-91" href="#__codelineno-13-91"></a><span class="w">        </span><span class="p">)</span>
-</span><span id="__span-13-92"><a id="__codelineno-13-92" name="__codelineno-13-92" href="#__codelineno-13-92"></a><span class="w">    </span><span class="p">);</span>
-</span><span id="__span-13-93"><a id="__codelineno-13-93" name="__codelineno-13-93" href="#__codelineno-13-93"></a><span class="k">END</span><span class="p">;</span>
-</span><span id="__span-13-94"><a id="__codelineno-13-94" name="__codelineno-13-94" href="#__codelineno-13-94"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
+</span><span id="__span-13-89"><a id="__codelineno-13-89" name="__codelineno-13-89" href="#__codelineno-13-89"></a><span class="w">                </span><span class="s1">&#39;affected_count&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">array_length</span><span class="p">(</span><span class="n">v_deleted_comment_ids</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">),</span>
+</span><span id="__span-13-90"><a id="__codelineno-13-90" name="__codelineno-13-90" href="#__codelineno-13-90"></a><span class="w">                </span><span class="s1">&#39;depth&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-13-91"><a id="__codelineno-13-91" name="__codelineno-13-91" href="#__codelineno-13-91"></a><span class="w">                </span><span class="s1">&#39;transaction_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">txid_current</span><span class="p">()::</span><span class="nb">text</span>
+</span><span id="__span-13-92"><a id="__codelineno-13-92" name="__codelineno-13-92" href="#__codelineno-13-92"></a><span class="w">            </span><span class="p">)</span>
+</span><span id="__span-13-93"><a id="__codelineno-13-93" name="__codelineno-13-93" href="#__codelineno-13-93"></a><span class="w">        </span><span class="p">)</span>
+</span><span id="__span-13-94"><a id="__codelineno-13-94" name="__codelineno-13-94" href="#__codelineno-13-94"></a><span class="w">    </span><span class="p">);</span>
+</span><span id="__span-13-95"><a id="__codelineno-13-95" name="__codelineno-13-95" href="#__codelineno-13-95"></a><span class="k">END</span><span class="p">;</span>
+</span><span id="__span-13-96"><a id="__codelineno-13-96" name="__codelineno-13-96" href="#__codelineno-13-96"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
 </span></code></pre></div>
 <h3 id="example-3-simple-update-without-cascade">Example 3: Simple Update Without Cascade<a class="headerlink" href="#example-3-simple-update-without-cascade" title="Permanent link">&para;</a></h3>
 <p>For mutations that don't need cascade data, simply omit the <code>_cascade</code> field:</p>
@@ -3826,7 +3837,7 @@
 <p>Provide accurate counts and timestamps:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="s1">&#39;metadata&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span>
 </span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">    </span><span class="s1">&#39;timestamp&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">now</span><span class="p">(),</span><span class="w">                           </span><span class="c1">-- Current timestamp</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="s1">&#39;affectedCount&#39;</span><span class="p">,</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="s1">&#39;affected_count&#39;</span><span class="p">,</span>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">        </span><span class="n">array_length</span><span class="p">(</span><span class="n">v_updated_ids</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w">          </span><span class="c1">-- Count all affected</span>
 </span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">        </span><span class="n">array_length</span><span class="p">(</span><span class="n">v_deleted_ids</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
 </span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="p">)</span>

@@ -3493,9 +3493,6 @@
 <p>FraiseQL provides automatic generation of GraphQL Where input types that enable powerful, type-safe filtering across your API. This feature transforms simple type definitions into comprehensive filtering interfaces.</p>
 <h2 id="two-ways-to-filter-wheretype-vs-dict">Two Ways to Filter: WhereType vs Dict<a class="headerlink" href="#two-ways-to-filter-wheretype-vs-dict" title="Permanent link">&para;</a></h2>
 <p>FraiseQL supports <strong>two syntaxes</strong> for defining where clauses. Both support the same operators and capabilities, including nested object filtering.</p>
-<blockquote>
-<p><strong>✨ Recent Enhancement (v1.2.0):</strong> Dict-based nested object filtering is now fully supported! Previously only available in WhereType syntax, you can now filter on nested object properties using plain dictionaries. This includes automatic camelCase→snake_case conversion, multiple nested fields per object, and logical operators (AND/OR/NOT). All 23 integration tests passing! 🎉</p>
-</blockquote>
 <h3 id="quick-comparison">Quick Comparison<a class="headerlink" href="#quick-comparison" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3524,7 +3521,7 @@
 <tr>
 <td><strong>Nested Objects</strong></td>
 <td>✅ Fully supported</td>
-<td>✅ Fully supported (since v1.2.0)</td>
+<td>✅ Fully supported</td>
 </tr>
 <tr>
 <td><strong>CamelCase → snake_case</strong></td>
@@ -3625,7 +3622,7 @@
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">assignments</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">WHERE</span><span class="w"> </span><span class="k">data</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;status&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;active&#39;</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">data</span><span class="o">-&gt;</span><span class="s1">&#39;device&#39;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;is_active&#39;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;true&#39;</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">data</span><span class="o">-&gt;</span><span class="s1">&#39;device&#39;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;name&#39;</span><span class="w"> </span><span class="k">ILIKE</span><span class="w"> </span><span class="s1">&#39;%server%&#39;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">data</span><span class="o">-&gt;</span><span class="s1">&#39;device&#39;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;name&#39;</span><span class="w"> </span><span class="k">ILIKE</span><span class="w"> </span><span class="s1">&#39;%server%&#39;</span><span class="w">  </span><span class="c1">-- icontains operator (case-insensitive)</span>
 </span></code></pre></div></p>
 <h3 id="multiple-nested-fields-dict">Multiple Nested Fields (Dict)<a class="headerlink" href="#multiple-nested-fields-dict" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Filter by multiple properties of the same nested object</span>

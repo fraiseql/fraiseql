@@ -4009,7 +4009,7 @@
 </span><span id="__span-23-16"><a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>    <span class="k">assert</span> <span class="s2">&quot;departments.engineering.backend&quot;</span> <span class="ow">in</span> <span class="n">sql_str</span>
 </span></code></pre></div></p>
 <h3 id="62-integration-tests">6.2 Integration Tests<a class="headerlink" href="#62-integration-tests" title="Permanent link">&para;</a></h3>
-<p>Located in: <code>/home/lionel/code/fraiseql/tests/integration/database/sql/test_*_filter_operations.py</code></p>
+<p>Located in: <code>/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/test_*_operations.py</code></p>
 <p>Test actual database execution with:
 - End-to-end IP filtering
 - LTree hierarchical queries
@@ -4155,7 +4155,7 @@
 </span></code></pre></div>
 <h3 id="step-7-add-tests">Step 7: Add Tests<a class="headerlink" href="#step-7-add-tests" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># tests/unit/sql/where/test_my_type_operators_sql_building.py</span>
-</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="c1"># tests/integration/database/sql/test_my_type_filter_operations.py</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="c1"># tests/integration/database/sql/where/{category}/test_my_type_operations.py</span>
 </span></code></pre></div>
 <hr />
 <h2 id="9-file-reference-summary">9. File Reference Summary<a class="headerlink" href="#9-file-reference-summary" title="Permanent link">&para;</a></h2>
@@ -4179,7 +4179,7 @@
 <h3 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>/home/lionel/code/fraiseql/tests/unit/sql/where/test_*_operators_sql_building.py</code> - Operator unit tests</li>
-<li><code>/home/lionel/code/fraiseql/tests/integration/database/sql/test_*_filter_operations.py</code> - Integration tests</li>
+<li><code>/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/</code> - Integration tests (organized by operator category)</li>
 <li><code>/home/lionel/code/fraiseql/tests/unit/sql/test_all_operator_strategies_coverage.py</code> - Strategy coverage tests</li>
 </ul>
 <hr />
