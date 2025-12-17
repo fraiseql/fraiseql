@@ -236,6 +236,44 @@ def _extract_field_location(field_node: Any) -> dict[str, int] | None:
     return {"line": line, "column": column}
 
 
+def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
+    """Recursively check for error markers in nested data.
+
+    Placeholder for future nested field error recovery implementation.
+    Currently unused but prepared for when nested error handling is added.
+
+    This function would be used to detect which nested fields have failed
+    and collect errors with proper paths like ["users", 0, "profile"].
+
+    Args:
+        data: The resolved data structure (dict/list)
+        path: Current path in the data structure
+
+    Returns:
+        List of error dictionaries with proper paths
+    """
+    # TODO: Implement nested error detection
+    # This would recursively traverse the data structure looking for
+    # error markers or null values that indicate failed nested resolvers
+    errors = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if value is None:
+                # Could be a failed nested field
+                # Log but don't create error (ambiguous)
+                pass
+            elif isinstance(value, (dict, list)):
+                errors.extend(_check_nested_errors(value, [*path, key]))
+
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            if isinstance(item, (dict, list)):
+                errors.extend(_check_nested_errors(item, [*path, i]))
+
+    return errors
+
+
 def _extract_root_query_fields(
     query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -520,6 +558,18 @@ async def execute_multi_field_query(
             errors.append(error_dict)
 
             # Continue to next field instead of raising
+
+    # TODO: Nested field error recovery not fully implemented
+    # Currently, if a nested resolver fails, the entire parent field fails.
+    # This is a known limitation that should be addressed in future work.
+    # See: Phase 3 of multi-field GraphQL completion plan
+    #
+    # The GraphQL spec allows partial success where nested fields can fail
+    # independently while parent fields succeed with null values for failed children.
+    # Implementation would require:
+    # 1. Python-side pre-resolution of nested fields with error boundaries
+    # 2. Or Rust-side error recovery during transformation
+    # 3. Error collection for specific nested field paths
 
     # Call Rust to build the multi-field response
     response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
