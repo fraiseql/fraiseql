@@ -199,6 +199,43 @@ def _evaluate_argument_value(value_node: Any, variables: dict[str, Any] | None) 
     return None
 
 
+def _extract_field_location(field_node: Any) -> dict[str, int] | None:
+    """Extract line and column location from a GraphQL field node.
+
+    Args:
+        field_node: GraphQL FieldNode with location info
+
+    Returns:
+        Dict with 'line' and 'column' (1-indexed), or None if unavailable
+    """
+    if not hasattr(field_node, "loc") or not field_node.loc:
+        return None
+
+    loc = field_node.loc
+    if not hasattr(loc, "source") or not loc.source:
+        return None
+
+    # Get the source text and starting offset
+    source_body = loc.source.body
+    start_offset = loc.start
+
+    # Calculate line and column (both 1-indexed per GraphQL spec)
+    line = 1
+    column = 1
+
+    for i, char in enumerate(source_body):
+        if i >= start_offset:
+            break
+
+        if char == "\n":
+            line += 1
+            column = 1
+        else:
+            column += 1
+
+    return {"line": line, "column": column}
+
+
 def _extract_root_query_fields(
     query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -474,6 +511,12 @@ async def execute_multi_field_query(
                 "message": str(e),
                 "path": [response_key],
             }
+
+            # Add location info if available
+            location = _extract_field_location(field_node)
+            if location:
+                error_dict["locations"] = [location]
+
             errors.append(error_dict)
 
             # Continue to next field instead of raising
