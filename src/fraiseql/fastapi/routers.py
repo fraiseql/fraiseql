@@ -107,16 +107,35 @@ def _extract_root_query_fields(
                 if selection.name.value.startswith("__"):
                     continue
 
-                # Extract sub-field selections
+                # Extract root field name and alias
+                # For `allUsers: users`, selection.name.value = "users"
+                # selection.alias.value = "allUsers"
+                # Response key is alias if present, otherwise field name
+                field_name = selection.name.value  # Actual field name (for resolver lookup)
+                response_key = (
+                    selection.alias.value if selection.alias else field_name
+                )  # Response key
+
+                # Extract sub-field selections with aliases
                 sub_selections = []
                 if hasattr(selection, "selection_set") and selection.selection_set:
                     for sub_sel in selection.selection_set.selections:
                         if isinstance(sub_sel, FieldNode) and sub_sel.name:
-                            sub_selections.append(sub_sel.name.value)
+                            # Extract field name and optional alias
+                            sub_field_name = sub_sel.name.value
+                            sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                            sub_selections.append(
+                                {
+                                    "field_name": sub_field_name,
+                                    "alias": sub_alias,
+                                }
+                            )
 
                 fields.append(
                     {
-                        "field_name": selection.name.value,
+                        "field_name": field_name,  # For resolver lookup
+                        "response_key": response_key,  # For response building
                         "field_node": selection,
                         "selections": sub_selections,
                     }
@@ -169,10 +188,11 @@ async def execute_multi_field_query(
     field_data_list = []
 
     for field_info in fields_info:
-        field_name = field_info["field_name"]
+        field_name = field_info["field_name"]  # For resolver lookup
+        response_key = field_info["response_key"]  # For response building (alias or field_name)
         field_node = field_info["field_node"]
 
-        # Get resolver from schema
+        # Get resolver from schema (use actual field_name, not alias)
         query_type = schema.query_type
         if not query_type:
             raise ValueError("Schema has no query type")
@@ -259,8 +279,15 @@ async def execute_multi_field_query(
                 # Single object
                 json_rows = [json.dumps(result) if isinstance(result, dict) else result]
 
-            # Add to field data list
-            field_data_list.append((field_name, type_name, json_rows, None, is_list))
+            # Convert field selections to JSON string for Rust
+            field_selections_json = None
+            if field_info.get("selections"):
+                field_selections_json = json.dumps(field_info["selections"])
+
+            # Add to field data list (use response_key for the response field name)
+            field_data_list.append(
+                (response_key, type_name, json_rows, field_selections_json, is_list)
+            )
 
         except Exception as e:
             logger.error(f"Failed to execute resolver for field '{field_name}': {e}")
