@@ -178,7 +178,7 @@ Expands to: `users, comments, posts` as separate root fields
 - Proper error handling throughout
 - Well-documented public APIs
 
-## [1.8.4] - 2025-12-16
+## [1.8.5] - 2025-12-16
 
 ### Bug Fixes
 

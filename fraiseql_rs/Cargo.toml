@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql_rs"
-version = "1.8.4"
+version = "1.8.5"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Ultra-fast GraphQL JSON transformation in Rust for FraiseQL"
