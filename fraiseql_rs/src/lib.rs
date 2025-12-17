@@ -13,6 +13,16 @@ pub mod schema_registry;
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Type alias for multi-field response field definition.
+///
+/// Represents a single field in a multi-field GraphQL query response:
+/// - String: field_name (e.g., "users")
+/// - String: type_name (e.g., "User")
+/// - Vec<String>: json_rows (raw JSON from database)
+/// - Option<String>: field_selections (JSON-encoded field selection metadata)
+/// - Option<bool>: is_list (whether field returns list or single object)
+type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
+
 /// Convert a snake_case string to camelCase
 ///
 /// Examples:
@@ -119,7 +129,8 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     ...     type_name="User",
 ///     ...     field_paths=None,
 ///     ...     field_selections=None,
-///     ...     is_list=True
+///     ...     is_list=True,
+///     ...     include_graphql_wrapper=True
 ///     ... )
 ///     >>> result.decode('utf-8')
 ///     '{"data":{"users":[{"__typename":"User","userId":1},{"__typename":"User","userId":2}]}}'
@@ -131,11 +142,12 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     field_paths: Optional field projection paths (DEPRECATED - use field_selections)
 ///     field_selections: Optional field selections JSON string with aliases and type info
 ///     is_list: True for list responses (always array), False for single object responses
+///     include_graphql_wrapper: True to wrap in {"data":{"field_name":...}} (default), False for field-only mode
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
 #[pyfunction]
-#[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None, is_list=None))]
+#[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None, is_list=None, include_graphql_wrapper=None))]
 pub fn build_graphql_response(
     json_strings: Vec<String>,
     field_name: &str,
@@ -143,6 +155,7 @@ pub fn build_graphql_response(
     field_paths: Option<Vec<Vec<String>>>,
     field_selections: Option<String>,
     is_list: Option<bool>,
+    include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
     // Parse field_selections JSON string if provided
     let selections_json = match field_selections {
@@ -170,6 +183,7 @@ pub fn build_graphql_response(
         field_paths,
         selections_opt,
         is_list,
+        include_graphql_wrapper,
     )
 }
 
@@ -368,6 +382,41 @@ pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }
 
+/// Build complete multi-field GraphQL response from PostgreSQL JSON rows
+///
+/// This function handles multi-field queries entirely in Rust, bypassing graphql-core
+/// to avoid type validation errors. It processes multiple root fields and combines
+/// them into a single {"data": {...}} response.
+///
+/// Examples:
+///     >>> # Query: { dnsServers { id } gateways { id } }
+///     >>> result = build_multi_field_response([
+///     ...     ("dnsServers", "DnsServer", ['{"id": 1}', '{"id": 2}'], '["id"]', True),
+///     ...     ("gateways", "Gateway", ['{"id": 10}'], '["id"]', True)
+///     ... ])
+///     >>> result.decode('utf-8')
+///     '{"data":{"dnsServers":[{"__typename":"DnsServer","id":1},{"__typename":"DnsServer","id":2}],"gateways":[{"__typename":"Gateway","id":10}]}}'
+///
+/// Args:
+///     fields: List of tuples, each containing:
+///         - field_name (str): GraphQL field name (e.g., "dnsServers")
+///         - type_name (str): GraphQL type name (e.g., "DnsServer")
+///         - json_rows (list[str]): List of JSON strings from database
+///         - field_selections (str): JSON string with field selections info
+///         - is_list (bool): True for list fields, False for single object fields
+///
+/// Returns:
+///     UTF-8 encoded GraphQL response bytes: {"data": {"field1": [...], "field2": [...]}}
+///
+/// Raises:
+///     ValueError: If field data is malformed or transformation fails
+#[pyfunction]
+pub fn build_multi_field_response(
+    fields: Vec<MultiFieldDef>,
+) -> PyResult<Vec<u8>> {
+    pipeline::builder::build_multi_field_response(fields)
+}
+
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
 /// This module provides:
@@ -400,6 +449,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "transform_json",
             "test_function",
             "build_graphql_response",
+            "build_multi_field_response",
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
@@ -414,6 +464,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add zero-copy pipeline exports
     m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
+    m.add_function(wrap_pyfunction!(build_multi_field_response, m)?)?;
 
     // Add schema registry initialization
     m.add_function(wrap_pyfunction!(initialize_schema_registry, m)?)?;

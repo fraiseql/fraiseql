@@ -6,7 +6,6 @@
 //! - Status parsing edge cases
 //! - Format detection determinism
 
-use super::*;
 // Temporarily disabled proptest due to missing dependency
 // use proptest::prelude::*;
 

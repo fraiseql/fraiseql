@@ -1,5 +1,6 @@
 """Unified adaptive GraphQL router for all environments."""
 
+import inspect
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -8,7 +9,14 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from graphql import GraphQLSchema
+from graphql import (
+    FieldNode,
+    FragmentSpreadNode,
+    GraphQLSchema,
+    InlineFragmentNode,
+    OperationDefinitionNode,
+    parse,
+)
 from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
@@ -28,6 +36,811 @@ from fraiseql.optimization.n_plus_one_detector import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _count_root_query_fields(query_string: str, operation_name: str | None = None) -> int:
+    """Count root-level query fields in GraphQL query.
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+
+    Returns:
+        Number of root-level query fields
+    """
+    try:
+        document = parse(query_string)
+
+        for definition in document.definitions:
+            if not isinstance(definition, OperationDefinitionNode):
+                continue
+            if definition.operation.value != "query":
+                continue
+            if operation_name and definition.name and definition.name.value != operation_name:
+                continue
+
+            return sum(
+                1
+                for selection in definition.selection_set.selections
+                if isinstance(selection, FieldNode)
+                and hasattr(selection, "name")
+                and selection.name
+                and selection.name.value
+                and not selection.name.value.startswith("__")
+            )
+    except Exception as e:
+        logger.warning(f"Failed to count query fields: {e}")
+        return 0
+
+    return 0
+
+
+def _should_include_field(field_node: Any, variables: dict[str, Any] | None) -> bool:
+    """Evaluate @skip and @include directives to determine if field should be included.
+
+    GraphQL spec:
+    - @skip(if: Boolean!): Skip field if condition is true
+    - @include(if: Boolean!): Include field only if condition is true
+    - If both directives present, @skip takes precedence
+
+    Args:
+        field_node: GraphQL FieldNode with potential directives
+        variables: Query variables for directive condition evaluation
+
+    Returns:
+        True if field should be included, False if it should be skipped
+    """
+    if not hasattr(field_node, "directives") or not field_node.directives:
+        return True  # No directives, include by default
+
+    variables = variables or {}
+
+    # Check for @skip directive first (takes precedence)
+    for directive in field_node.directives:
+        if directive.name.value == "skip":
+            # Extract the 'if' argument value
+            for arg in directive.arguments:
+                if arg.name.value == "if":
+                    # Evaluate the condition
+                    condition = _evaluate_directive_condition(arg.value, variables)
+                    if condition:
+                        return False  # Skip this field
+
+    # Check for @include directive
+    for directive in field_node.directives:
+        if directive.name.value == "include":
+            # Extract the 'if' argument value
+            for arg in directive.arguments:
+                if arg.name.value == "if":
+                    # Evaluate the condition
+                    condition = _evaluate_directive_condition(arg.value, variables)
+                    if not condition:
+                        return False  # Don't include this field
+
+    return True  # Include by default
+
+
+def _evaluate_directive_condition(value_node: Any, variables: dict[str, Any]) -> bool:
+    """Evaluate a directive condition value (supports variables and literals).
+
+    Args:
+        value_node: GraphQL value node (Variable or BooleanValue)
+        variables: Query variables
+
+    Returns:
+        Boolean condition result
+    """
+    from graphql import BooleanValueNode, VariableNode
+
+    if isinstance(value_node, BooleanValueNode):
+        # Literal boolean value
+        return value_node.value
+    if isinstance(value_node, VariableNode):
+        # Variable reference
+        var_name = value_node.name.value
+        return bool(variables.get(var_name, False))
+    # Unknown type, default to False
+    return False
+
+
+def _evaluate_argument_value(value_node: Any, variables: dict[str, Any] | None) -> Any:
+    """Evaluate a field argument value (supports variables, literals, and complex types).
+
+    GraphQL argument values can be:
+    - Variables: $userId
+    - Scalars: 10, "hello", true, null
+    - Lists: [1, 2, 3]
+    - Objects: {key: "value"}
+
+    Args:
+        value_node: GraphQL value node from argument
+        variables: Query variables for variable resolution
+
+    Returns:
+        Python value (int, str, bool, None, list, dict)
+    """
+    from graphql import (
+        BooleanValueNode,
+        EnumValueNode,
+        FloatValueNode,
+        IntValueNode,
+        ListValueNode,
+        NullValueNode,
+        ObjectValueNode,
+        StringValueNode,
+        VariableNode,
+    )
+
+    variables = variables or {}
+
+    # Handle variable references
+    if isinstance(value_node, VariableNode):
+        var_name = value_node.name.value
+        return variables.get(var_name)
+
+    # Handle scalar literals
+    if isinstance(value_node, IntValueNode):
+        return int(value_node.value)
+    if isinstance(value_node, FloatValueNode):
+        return float(value_node.value)
+    if isinstance(value_node, StringValueNode):
+        return value_node.value
+    if isinstance(value_node, BooleanValueNode):
+        return value_node.value
+    if isinstance(value_node, NullValueNode):
+        return None
+    if isinstance(value_node, EnumValueNode):
+        return value_node.value
+
+    # Handle list values
+    if isinstance(value_node, ListValueNode):
+        return [_evaluate_argument_value(item, variables) for item in value_node.values]
+
+    # Handle object values
+    if isinstance(value_node, ObjectValueNode):
+        return {
+            field.name.value: _evaluate_argument_value(field.value, variables)
+            for field in value_node.fields
+        }
+
+    # Unknown type
+    return None
+
+
+def _extract_field_location(field_node: Any) -> dict[str, int] | None:
+    """Extract line and column location from a GraphQL field node.
+
+    Args:
+        field_node: GraphQL FieldNode with location info
+
+    Returns:
+        Dict with 'line' and 'column' (1-indexed), or None if unavailable
+    """
+    if not hasattr(field_node, "loc") or not field_node.loc:
+        return None
+
+    loc = field_node.loc
+    if not hasattr(loc, "source") or not loc.source:
+        return None
+
+    # Get the source text and starting offset
+    source_body = loc.source.body
+    start_offset = loc.start
+
+    # Calculate line and column (both 1-indexed per GraphQL spec)
+    line = 1
+    column = 1
+
+    for i, char in enumerate(source_body):
+        if i >= start_offset:
+            break
+
+        if char == "\n":
+            line += 1
+            column = 1
+        else:
+            column += 1
+
+    return {"line": line, "column": column}
+
+
+def _extract_variable_defaults(
+    query_string: str, operation_name: str | None = None
+) -> dict[str, Any]:
+    """Extract default values for variables from operation definition.
+
+    Example:
+        query GetUsers($limit: Int = 10, $status: String = "active") {
+            # $limit defaults to 10 if not provided
+            # $status defaults to "active" if not provided
+        }
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+
+    Returns:
+        Dict mapping variable names to their default values
+    """
+    from graphql import OperationDefinitionNode, parse
+
+    try:
+        document = parse(query_string)
+    except Exception:
+        return {}
+
+    defaults = {}
+
+    for definition in document.definitions:
+        # Only process operation definitions
+        if not isinstance(definition, OperationDefinitionNode):
+            continue
+
+        # Skip if operation name doesn't match
+        if operation_name and (not definition.name or definition.name.value != operation_name):
+            continue
+
+        # Extract variable definitions
+        if not hasattr(definition, "variable_definitions") or not definition.variable_definitions:
+            continue
+
+        for var_def in definition.variable_definitions:
+            var_name = var_def.variable.name.value
+
+            # Check if default value is specified
+            if hasattr(var_def, "default_value") and var_def.default_value:
+                # Evaluate the default value
+                default_val = _evaluate_argument_value(var_def.default_value, {})
+                defaults[var_name] = default_val
+
+    return defaults
+
+
+def _expand_fragment_spread(
+    spread_node: Any,
+    document: Any,
+    variables: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Expand a fragment spread into a list of root fields.
+
+    Example:
+        fragment UserData on Query {
+            users { id name }
+            posts { id }
+        }
+
+        query {
+            ...UserData  # Expands to users + posts
+        }
+
+    Args:
+        spread_node: FragmentSpreadNode from AST
+        document: Full GraphQL document (contains fragment definitions)
+        parent_selection_set: Parent selection set for context
+        variables: Query variables for directive evaluation
+
+    Returns:
+        List of field dicts (same format as _extract_root_query_fields)
+    """
+    from graphql import FieldNode, FragmentDefinitionNode
+
+    fragment_name = spread_node.name.value
+
+    # Find the fragment definition in the document
+    fragment_def = None
+    for definition in document.definitions:
+        if (
+            isinstance(definition, FragmentDefinitionNode)
+            and definition.name.value == fragment_name
+        ):
+            fragment_def = definition
+            break
+
+    if not fragment_def:
+        # Fragment not found - skip
+        return []
+
+    # Check directives on fragment spread
+    if not _should_include_field(spread_node, variables):
+        return []
+
+    # Extract fields from fragment's selection set
+    fields = []
+    for selection in fragment_def.selection_set.selections:
+        if not isinstance(selection, FieldNode):
+            continue
+
+        if not _should_include_field(selection, variables):
+            continue
+
+        # Extract field info (same as main extraction logic)
+        field_name = selection.name.value
+        response_key = selection.alias.value if selection.alias else field_name
+
+        # Extract sub-selections
+        sub_selections = []
+        if hasattr(selection, "selection_set") and selection.selection_set:
+            for sub_sel in selection.selection_set.selections:
+                if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                    if not _should_include_field(sub_sel, variables):
+                        continue
+
+                    sub_field_name = sub_sel.name.value
+                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                    sub_selections.append(
+                        {
+                            "field_name": sub_field_name,
+                            "alias": sub_alias,
+                        }
+                    )
+
+        fields.append(
+            {
+                "field_name": field_name,
+                "response_key": response_key,
+                "field_node": selection,
+                "selections": sub_selections,
+            }
+        )
+
+    return fields
+
+
+def _expand_inline_fragment(
+    inline_fragment_node: Any,
+    variables: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Expand an inline fragment into a list of root fields.
+
+    Example:
+        query {
+            ... on Query {
+                users { id }
+            }
+        }
+
+    Args:
+        inline_fragment_node: InlineFragmentNode from AST
+        variables: Query variables for directive evaluation
+
+    Returns:
+        List of field dicts
+    """
+    from graphql import FieldNode
+
+    # Check directives on inline fragment itself
+    if not _should_include_field(inline_fragment_node, variables):
+        return []
+
+    fields = []
+
+    for selection in inline_fragment_node.selection_set.selections:
+        if not isinstance(selection, FieldNode):
+            continue
+
+        if not _should_include_field(selection, variables):
+            continue
+
+        field_name = selection.name.value
+        response_key = selection.alias.value if selection.alias else field_name
+
+        # Extract sub-selections (same logic as before)
+        sub_selections = []
+        if hasattr(selection, "selection_set") and selection.selection_set:
+            for sub_sel in selection.selection_set.selections:
+                if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                    if not _should_include_field(sub_sel, variables):
+                        continue
+
+                    sub_field_name = sub_sel.name.value
+                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                    sub_selections.append(
+                        {
+                            "field_name": sub_field_name,
+                            "alias": sub_alias,
+                        }
+                    )
+
+        fields.append(
+            {
+                "field_name": field_name,
+                "response_key": response_key,
+                "field_node": selection,
+                "selections": sub_selections,
+            }
+        )
+
+    return fields
+
+
+def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
+    """Recursively check for error markers in nested data.
+
+    NOTE: This function is not implemented due to FraiseQL architectural constraints.
+    FraiseQL uses database views and table views that don't support partial failures.
+    When a nested resolver fails, the entire parent field must fail to maintain
+    data consistency with the underlying database views.
+
+    This is a design decision rather than a technical limitation - GraphQL spec
+    allows partial failures, but FraiseQL prioritizes data consistency over
+    partial results when dealing with complex view-based data sources.
+
+    Args:
+        data: The resolved data structure (dict/list)
+        path: Current path in the data structure
+
+    Returns:
+        Empty list (nested error recovery not supported)
+    """
+    # Nested field error recovery not implemented due to FraiseQL architecture
+    # Database views and table views don't support partial failures
+    # When nested resolvers fail, entire parent field must fail for consistency
+    return []
+
+
+def _extract_root_query_fields(
+    query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Extract root-level query fields with their selections, applying directive filtering.
+
+    Args:
+        query_string: GraphQL query string
+        operation_name: Optional operation name for multi-operation queries
+        variables: Query variables for directive evaluation
+
+    Returns:
+        List of dicts with field info:
+        [
+            {
+                "field_name": "dnsServers",
+                "field_node": FieldNode(...),
+                "selections": ["id", "ipAddress", ...]
+            },
+            ...
+        ]
+    """
+    try:
+        document = parse(query_string)
+
+        for definition in document.definitions:
+            if not isinstance(definition, OperationDefinitionNode):
+                continue
+            if definition.operation.value != "query":
+                continue
+            if operation_name and definition.name and definition.name.value != operation_name:
+                continue
+
+            fields = []
+            for selection in definition.selection_set.selections:
+                # Handle fragment spreads
+                if isinstance(selection, FragmentSpreadNode):
+                    # Fragment spread like: ...UserFields
+                    expanded_fields = _expand_fragment_spread(selection, document, variables)
+                    fields.extend(expanded_fields)
+                    continue
+
+                # Handle inline fragments
+                if isinstance(selection, InlineFragmentNode):
+                    # Inline fragment like: ... on Query { users { id } }
+                    expanded_fields = _expand_inline_fragment(selection, variables)
+                    fields.extend(expanded_fields)
+                    continue
+
+                # Handle regular fields
+                if not isinstance(selection, FieldNode):
+                    continue
+                if not hasattr(selection, "name") or not selection.name:
+                    continue
+                if selection.name.value.startswith("__"):
+                    continue
+
+                # Check @skip and @include directives on root field
+                if not _should_include_field(selection, variables):
+                    continue  # Skip this field based on directives
+
+                # Extract root field name and alias
+                # For `allUsers: users`, selection.name.value = "users"
+                # selection.alias.value = "allUsers"
+                # Response key is alias if present, otherwise field name
+                field_name = selection.name.value  # Actual field name (for resolver lookup)
+                response_key = (
+                    selection.alias.value if selection.alias else field_name
+                )  # Response key
+
+                # Extract sub-field selections with aliases and directives
+                sub_selections = []
+                if hasattr(selection, "selection_set") and selection.selection_set:
+                    for sub_sel in selection.selection_set.selections:
+                        if isinstance(sub_sel, FieldNode) and sub_sel.name:
+                            # Check @skip and @include directives on sub-field
+                            if not _should_include_field(sub_sel, variables):
+                                continue  # Skip this sub-field based on directives
+
+                            # Extract field name and optional alias
+                            sub_field_name = sub_sel.name.value
+                            sub_alias = sub_sel.alias.value if sub_sel.alias else None
+
+                            sub_selections.append(
+                                {
+                                    "field_name": sub_field_name,
+                                    "alias": sub_alias,
+                                }
+                            )
+
+                fields.append(
+                    {
+                        "field_name": field_name,  # For resolver lookup
+                        "response_key": response_key,  # For response building
+                        "field_node": selection,
+                        "selections": sub_selections,
+                    }
+                )
+
+            return fields
+
+    except Exception as e:
+        logger.warning(f"Failed to extract query fields: {e}")
+        return []
+
+    return []
+
+
+async def execute_multi_field_query(
+    schema: GraphQLSchema,
+    query_string: str,
+    variables: dict[str, Any] | None,
+    context: dict[str, Any],
+) -> RustResponseBytes:
+    """Execute multi-field query entirely in Rust - bypass graphql-core.
+
+    This function handles multi-field queries (e.g., {dnsServers {...} gateways {...}})
+    by executing each resolver independently and combining results in Rust.
+
+    This avoids graphql-core's type validation which fails when resolvers return
+    plain dicts (from json.loads()) instead of typed Python objects.
+
+    Args:
+        schema: GraphQL schema
+        query_string: GraphQL query string
+        variables: Query variables
+        context: GraphQL context with database connection, etc.
+
+    Returns:
+        RustResponseBytes with complete {"data": {...}} response
+
+    Raises:
+        Exception: If field extraction or resolver execution fails
+    """
+    from fraiseql.core.rust_pipeline import fraiseql_rs
+
+    # Extract variable defaults from operation definition
+    variable_defaults = _extract_variable_defaults(query_string, None)
+
+    # Merge defaults with provided variables (provided variables take precedence)
+    if variable_defaults:
+        merged_variables = {**variable_defaults, **(variables or {})}
+        variables = merged_variables
+
+    # Extract all root fields (with directive evaluation using variables)
+    fields_info = _extract_root_query_fields(query_string, None, variables)
+
+    if not fields_info:
+        raise ValueError("No root query fields found in multi-field query")
+
+    # Collect data for each field and errors
+    field_data_list = []
+    errors = []
+
+    for field_info in fields_info:
+        field_name = field_info["field_name"]  # For resolver lookup
+        response_key = field_info["response_key"]  # For response building (alias or field_name)
+        field_node = field_info["field_node"]
+
+        # Extract field arguments from the GraphQL AST
+        field_args = {}
+        if hasattr(field_node, "arguments") and field_node.arguments:
+            for arg_node in field_node.arguments:
+                arg_name = arg_node.name.value
+                arg_value = _evaluate_argument_value(arg_node.value, variables)
+                field_args[arg_name] = arg_value
+
+        # Get resolver from schema (use actual field_name, not alias)
+        query_type = schema.query_type
+        if not query_type:
+            raise ValueError("Schema has no query type")
+
+        field_def = query_type.fields.get(field_name)
+        if not field_def:
+            raise ValueError(f"Field '{field_name}' not found in schema")
+
+        # Get type name for the field
+        field_type = field_def.type
+        # Unwrap NonNull and List to get the actual type
+        while hasattr(field_type, "of_type"):
+            field_type = field_type.of_type
+
+        type_name = field_type.name if hasattr(field_type, "name") else None
+
+        # Determine if this is a list field
+        is_list = "[" in str(field_def.type)
+
+        # Get resolver function
+        resolver = field_def.resolve
+        if not resolver:
+            raise ValueError(f"No resolver found for field '{field_name}'")
+
+        # Execute resolver
+        # Resolvers expect: resolve(root, info, **args)
+        # For root-level queries, root is None
+        # We need to create a GraphQL ResolveInfo object, but for simplicity
+        # in Phase 2, we'll call the resolver directly and hope it doesn't need full info
+
+        # SIMPLIFIED: Assume resolver returns the data we need
+        # In a real implementation, we'd need to construct proper ResolveInfo
+        try:
+            # Most FraiseQL resolvers are async and expect (info, **kwargs)
+            # Try calling with minimal info
+
+            # Create minimal resolve info
+            # This is a simplified version - proper implementation would build full ResolveInfo
+            class MinimalInfo:
+                def __init__(self, field_name: str, context: dict, field_node: Any) -> None:
+                    self.field_name = field_name
+                    self.context = context
+                    self.field_nodes = [field_node]
+                    self.parent_type = query_type  # noqa: B023
+                    self.path = None
+                    self.return_type = field_def.type  # noqa: B023
+                    self.schema = schema
+                    self.fragments = {}
+                    self.root_value = None
+                    self.operation = None
+                    self.variable_values = variables or {}
+
+            info = MinimalInfo(field_name, context, field_node)
+
+            # Execute resolver
+            # Resolvers can have different signatures:
+            # 1. Test resolvers: (info, **kwargs)
+            # 2. GraphQL-wrapped resolvers: (root, info, **kwargs)
+
+            sig = inspect.signature(resolver)
+
+            # Filter out VAR_POSITIONAL and VAR_KEYWORD params
+            positional_params = [
+                name
+                for name, param in sig.parameters.items()
+                if param.kind
+                in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+
+            is_async = inspect.iscoroutinefunction(resolver)
+
+            # Determine if first positional param is 'root'
+            has_root_param = positional_params and positional_params[0] in ("root", "self")
+
+            # If no positional params but we have VAR_POSITIONAL + VAR_KEYWORD,
+            # this is likely a wrapped resolver: (root, info, **kwargs)
+            # Try calling with (root, info, **kwargs) format
+            has_var_positional = any(
+                param.kind == inspect.Parameter.VAR_POSITIONAL for param in sig.parameters.values()
+            )
+            has_var_keyword = any(
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
+            )
+
+            if len(positional_params) == 0 and has_var_positional and has_var_keyword:
+                # Wrapped resolver format: (*args, **kwargs) which accepts (root, info, **kwargs)
+                if is_async:
+                    result = await resolver(None, info, **field_args)
+                else:
+                    result = resolver(None, info, **field_args)
+            elif len(positional_params) == 1:
+                # Single parameter - likely just (info)
+                if is_async:
+                    result = await resolver(info)
+                else:
+                    result = resolver(info)
+            elif len(positional_params) >= 2 and has_root_param:
+                # Has root parameter - standard GraphQL resolver: (root, info, **kwargs)
+                if is_async:
+                    result = await resolver(None, info, **field_args)
+                else:
+                    result = resolver(None, info, **field_args)
+            # Fallback - try with just info + field_args
+            elif is_async:
+                result = await resolver(info, **field_args)
+            else:
+                result = resolver(info, **field_args)
+
+            # If result is RustResponseBytes, extract the raw data
+            if isinstance(result, RustResponseBytes):
+                # Parse the RustResponseBytes to get the actual data
+                result_json = json.loads(bytes(result))
+                # Extract just the field data (not the GraphQL wrapper)
+                if "data" in result_json and field_name in result_json["data"]:
+                    result = result_json["data"][field_name]
+
+            # Convert result to list of JSON strings
+            if is_list:
+                if not isinstance(result, list):
+                    msg = (
+                        f"Resolver for list field '{field_name}' "
+                        f"did not return a list: {type(result)}"
+                    )
+                    raise ValueError(msg)
+                # Each item should be a dict - convert to JSON string
+                json_rows = [
+                    json.dumps(item) if isinstance(item, dict) else item for item in result
+                ]
+            else:
+                # Single object
+                json_rows = [json.dumps(result) if isinstance(result, dict) else result]
+
+            # Convert field selections to JSON string for Rust
+            # Rust expects format: [{materialized_path: "field_name", alias: "alias_name"}, ...]
+            field_selections_json = None
+            if field_info.get("selections"):
+                # Convert from {field_name, alias} to {materialized_path, alias}
+                rust_selections = []
+                for sel in field_info["selections"]:
+                    # For root-level fields, materialized_path = field_name
+                    rust_sel = {
+                        "materialized_path": sel["field_name"],
+                        "alias": sel["alias"],
+                    }
+                    rust_selections.append(rust_sel)
+                field_selections_json = json.dumps(rust_selections)
+
+            # Add to field data list (use response_key for the response field name)
+            field_data_list.append(
+                (response_key, type_name, json_rows, field_selections_json, is_list)
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to execute resolver for field '{field_name}': {e}")
+
+            # Add null field data for failed field
+            field_data_list.append((response_key, type_name, [], None, is_list))
+
+            # Collect error with GraphQL spec format
+            error_dict = {
+                "message": str(e),
+                "path": [response_key],
+            }
+
+            # Add location info if available
+            location = _extract_field_location(field_node)
+            if location:
+                error_dict["locations"] = [location]
+
+            errors.append(error_dict)
+
+            # Continue to next field instead of raising
+
+    # NOTE: Nested field error recovery not implemented due to FraiseQL architecture
+    # FraiseQL uses database views and table views that don't support partial failures.
+    # When a nested resolver fails, the entire parent field must fail to maintain
+    # data consistency with the underlying database views.
+    #
+    # This is an intentional design decision prioritizing data consistency over
+    # GraphQL spec compliance for partial results. While the GraphQL spec allows
+    # partial failures with independent nested field errors, FraiseQL's view-based
+    # architecture makes this impractical to implement safely.
+
+    # Call Rust to build the multi-field response
+    response_bytes = fraiseql_rs.build_multi_field_response(field_data_list)
+
+    # If there are errors, inject them into the response
+    if errors:
+        response_json = json.loads(bytes(response_bytes))
+        response_json["errors"] = errors
+        return RustResponseBytes(json.dumps(response_json).encode("utf-8"))
+
+    return RustResponseBytes(response_bytes)
+
 
 # Module-level dependency singletons to avoid B008
 _default_context_dependency = Depends(build_graphql_context)
@@ -330,6 +1143,34 @@ def create_graphql_router(
                     context["db"].context["json_passthrough"] = True
                     context["db"].mode = mode
 
+            # Detect multi-field queries to handle RustResponseBytes pass-through correctly
+            has_multiple_root_fields = (
+                request.query and _count_root_query_fields(request.query, request.operationName) > 1
+            )
+            context["__has_multiple_root_fields__"] = has_multiple_root_fields
+
+            # 🚀 MULTI-FIELD QUERY ROUTING (Phase 1)
+            # Route multi-field queries to Rust-only merge path to avoid graphql-core type errors
+            if has_multiple_root_fields:
+                field_count = _count_root_query_fields(request.query, request.operationName)
+                logger.info(
+                    f"🚀 Multi-field query detected ({field_count} root fields) - "
+                    f"using Rust-only merge path"
+                )
+                try:
+                    result = await execute_multi_field_query(
+                        schema, request.query, request.variables, context
+                    )
+                    # execute_multi_field_query returns RustResponseBytes
+                    return Response(
+                        content=bytes(result),
+                        media_type="application/json",
+                    )
+                except Exception:
+                    logger.exception("Multi-field query execution failed")
+                    # Fall back to standard execution
+                    logger.warning("Falling back to standard graphql-core execution")
+
             # Use unified executor if available
             if unified_executor:
                 # Add execution metadata if in development
@@ -345,7 +1186,8 @@ def create_graphql_router(
 
                 # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Unified Executor):
                 # Check if UnifiedExecutor returned RustResponseBytes directly (zero-copy path)
-                if isinstance(result, RustResponseBytes):
+                # Only use fast path for single-field queries to avoid dropping fields
+                if isinstance(result, RustResponseBytes) and not has_multiple_root_fields:
                     logger.info("🚀 Direct path: Returning RustResponseBytes from unified executor")
                     return Response(
                         content=bytes(result),
@@ -403,7 +1245,8 @@ def create_graphql_router(
             # 🚀 RUST RESPONSE BYTES PASS-THROUGH (Fallback Executor):
             # Check if execute_graphql() returned RustResponseBytes directly (zero-copy path)
             # This happens when Phase 1 middleware captures RustResponseBytes from resolvers
-            if isinstance(result, RustResponseBytes):
+            # Only use fast path for single-field queries to avoid dropping fields
+            if isinstance(result, RustResponseBytes) and not has_multiple_root_fields:
                 logger.info("🚀 Direct path: Returning RustResponseBytes from fallback executor")
                 return Response(
                     content=bytes(result),
@@ -441,7 +1284,8 @@ def create_graphql_router(
                             )
 
             # 2. Check if result contains RustResponseBytes (fallback path)
-            if result.data and isinstance(result.data, dict):
+            # Only use fast path for single-field queries to avoid dropping fields
+            if result.data and isinstance(result.data, dict) and not has_multiple_root_fields:
                 for value in result.data.values():
                     if isinstance(value, RustResponseBytes):
                         # Return Rust bytes directly to HTTP

@@ -68,6 +68,27 @@ class _FraiseQLRs:
             _FraiseQLRs._module = _get_fraiseql_rs()
         return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)
 
+    @staticmethod
+    def build_multi_field_response(*args: Any, **kwargs: Any) -> Any:
+        """Lazy-load and call the Rust build_multi_field_response function.
+
+        This method loads the Rust extension on first call and then delegates
+        to the actual Rust implementation for optimal performance.
+
+        Handles multi-field GraphQL queries entirely in Rust, bypassing
+        graphql-core to avoid type validation errors.
+
+        Args:
+            *args: Arguments to pass to the Rust function
+            **kwargs: Keyword arguments to pass to the Rust function
+
+        Returns:
+            The result from the Rust build_multi_field_response function
+        """
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.build_multi_field_response(*args, **kwargs)
+
 
 fraiseql_rs = _FraiseQLRs()
 
@@ -232,7 +253,8 @@ async def execute_via_rust_pipeline(
     is_list: bool = True,
     field_paths: Optional[list[list[str]]] = None,
     field_selections: Optional[list[dict[str, Any]]] = None,
-) -> RustResponseBytes:
+    include_graphql_wrapper: bool = True,
+) -> RustResponseBytes | list | dict:
     """Execute query and build HTTP response entirely in Rust.
 
     This is the FASTEST path: PostgreSQL → Rust → HTTP bytes.
@@ -250,13 +272,20 @@ async def execute_via_rust_pipeline(
         is_list: True for arrays, False for single objects
         field_paths: Optional field paths for projection (e.g., [["id"], ["firstName"]])
         field_selections: Optional field selections with aliases and type info (NEW for Phase 3)
+        include_graphql_wrapper: If True (default), wraps result in {"data":{"field_name":...}}.
+                                 If False, returns just the field data (for multi-field queries).
 
     Returns:
-        RustResponseBytes ready for HTTP response
+        If include_graphql_wrapper=True: RustResponseBytes with complete GraphQL response
+        If include_graphql_wrapper=False: Raw field data (list or dict) for graphql-core to merge
 
     Note:
         field_selections parameter is for Phase 3 aliasing support. Currently passed but not yet
         used by Rust until Task 3.4 (Update FFI) is complete. Maintains backward compatibility.
+
+        When include_graphql_wrapper=False (multi-field queries), Rust still transforms the data
+        (camelCase, __typename, projections) but returns just the array/object without the GraphQL
+        wrapper. This allows graphql-core to merge multiple fields efficiently.
     """
     async with conn.cursor() as cursor:
         # Handle statement execution based on type and parameter presence
@@ -282,8 +311,12 @@ async def execute_via_rust_pipeline(
                     type_name=None,
                     field_paths=None,
                     is_list=True,
+                    include_graphql_wrapper=include_graphql_wrapper,
                 )
-                return RustResponseBytes(response_bytes)
+                if include_graphql_wrapper:
+                    return RustResponseBytes(response_bytes)
+                # Field-only mode: return empty list
+                return json.loads(response_bytes)
 
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
@@ -298,9 +331,14 @@ async def execute_via_rust_pipeline(
                 field_paths=field_paths,
                 field_selections=field_selections_json,
                 is_list=True,
+                include_graphql_wrapper=include_graphql_wrapper,
             )
 
-            return RustResponseBytes(response_bytes)
+            if include_graphql_wrapper:
+                return RustResponseBytes(response_bytes)
+            # Field-only mode: return parsed list/dict for graphql-core to merge
+            return json.loads(response_bytes)
+
         # Single object
         row = await cursor.fetchone()
 
@@ -311,8 +349,12 @@ async def execute_via_rust_pipeline(
                 type_name=None,
                 field_paths=None,
                 is_list=False,
+                include_graphql_wrapper=include_graphql_wrapper,
             )
-            return RustResponseBytes(response_bytes)
+            if include_graphql_wrapper:
+                return RustResponseBytes(response_bytes)
+            # Field-only mode: return empty list
+            return json.loads(response_bytes)
 
         json_string = row[0]
 
@@ -326,6 +368,10 @@ async def execute_via_rust_pipeline(
             field_paths=field_paths,
             field_selections=field_selections_json,
             is_list=False,
+            include_graphql_wrapper=include_graphql_wrapper,
         )
 
-        return RustResponseBytes(response_bytes)
+        if include_graphql_wrapper:
+            return RustResponseBytes(response_bytes)
+        # Field-only mode: return parsed dict for graphql-core to merge
+        return json.loads(response_bytes)
