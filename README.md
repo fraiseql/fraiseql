@@ -13,11 +13,11 @@
 
 ---
 
-## **The Fastest GraphQL Framework That's Still a Joy to Use**
+## **Sub-Millisecond Performance Without Compromise**
 
-**0.83ms latency on standard cloud hardware. Sub-millisecond. Proven.**
+**0.83ms latency by default on standard cloud hardware.**
 
-FraiseQL is the only GraphQL framework in Tier 1 performance (< 2ms) that maintains a developer-friendly Python API.
+FraiseQL achieves top-tier performance (< 2ms) while maintaining a developer-friendly Python API. No exotic setup, no custom resolvers needed.
 
 ```python
 # Complete GraphQL API in ~15 lines
@@ -46,18 +46,22 @@ app = create_fraiseql_app(
 
 ## 🏆 Unique Value Proposition
 
-**Rust Performance + Python Productivity**
+**Performance as Default, Not Optimization**
 
-### Performance That Matters
+### The Key Difference
 
-| Metric | FraiseQL | Strawberry | Graphene | Hasura |
-|--------|----------|-----------|----------|--------|
-| Single Row Latency | **0.83ms** | ~45ms | ~50ms | 64-824ms |
-| 100 Rows Latency | **2.59ms** | 2,500 RPS plateau | 1,200 RPS plateau | Variable |
-| Complex Nested | **0.70ms** | Resolver overhead | Resolver overhead | Variable |
-| Scaling Pattern | **Linear** | Plateau | Plateau | Non-deterministic |
+FraiseQL achieves competitive performance **by architecture**, not by tuning.
 
-**42-991x faster than alternatives.** Measured on standard AWS t3.large (2 vCPU, 8GB RAM).
+| Scenario | FraiseQL | Strawberry/Graphene | Hasura |
+|----------|----------|-------------------|--------|
+| Default setup | 0.83ms ✅ | 45-50ms (needs custom SQL) | 64-824ms |
+| After optimization | 0.83ms | ~5-10ms (with direct SQL) | ~30-50ms |
+| Setup time | Minutes ⚡ | Hours (custom resolvers) | Hours (configuration) |
+| Maintenance | None | Medium (resolver code) | High (config complexity) |
+
+**Key insight**: Strawberry/Graphene *can* reach competitive speed with direct SQL and custom resolvers, but FraiseQL gets there by default with less code.
+
+Measured on standard AWS t3.large (2 vCPU, 8GB RAM).
 
 ### Exclusive Rust Pipeline
 
@@ -108,11 +112,11 @@ class User:
 
 ### Three Core Advantages
 
-**1. Performance Without Compromise**
-- Sub-millisecond single queries (0.83ms proven)
-- Linear scaling to 1000+ rows (not exponential)
-- P99 latency only 1.7x average (excellent under load)
-- No performance cliff on large result sets
+**1. Performance by Default**
+- Sub-millisecond single queries (0.83ms without tuning)
+- Linear scaling to 1000+ rows as the architecture baseline
+- P99 latency only 1.7x average (excellent consistency under load)
+- No performance cliffs—same speed for small and large queries
 
 **2. Security by Architecture**
 - Explicit field contracts prevent data leaks
@@ -130,14 +134,18 @@ class User:
 
 ### Comparison with Major Frameworks
 
-| Aspect | FraiseQL | Strawberry | Graphene | Hasura | PostGraphile |
+| Aspect | FraiseQL | Strawberry* | Graphene* | Hasura | PostGraphile |
 |--------|----------|-----------|----------|--------|--------------|
-| Latency | ✅ **0.83ms** | ⚠️ 45ms | ⚠️ 50ms | ❌ 64-824ms | ⚠️ 30-50ms |
-| Scaling | ✅ Linear | ❌ Plateau | ❌ Plateau | ⚠️ Variable | ⚠️ Variable |
-| N+1 Protection | ✅ Built-in | ⚠️ DataLoader | ⚠️ DataLoader | ✅ Built-in | ✅ Built-in |
+| Default Latency | ✅ **0.83ms** | ⚠️ 45ms (ORM) | ⚠️ 50ms (ORM) | ❌ 64-824ms | ⚠️ 30-50ms |
+| Best Possible Latency | ✅ **0.83ms** | ✅ ~5-10ms** | ✅ ~5-10ms** | ⚠️ 30-50ms | ⚠️ ~10-20ms |
+| Scaling | ✅ Linear | ✅ Linear (direct SQL) | ✅ Linear (direct SQL) | ⚠️ Variable | ⚠️ Variable |
+| N+1 Protection | ✅ By design | ⚠️ Requires DataLoader | ⚠️ Requires DataLoader | ✅ Built-in | ✅ Built-in |
 | Security | ✅ Explicit | ⚠️ ORM risk | ⚠️ ORM risk | ⚠️ Complex | ⚠️ Plugin-based |
-| AI-Friendly | ✅ Yes | ⚠️ Partial | ⚠️ Partial | ⚠️ Config-driven | ⚠️ Config-driven |
-| Python | ✅ Native | ✅ Native | ✅ Native | ❌ Haskell | ⚠️ JavaScript |
+| Setup Complexity | ✅ Simple | ❌ Resolvers required | ❌ Resolvers required | ❌ High config | ❌ High config |
+| Python Native | ✅ Yes | ✅ Yes | ✅ Yes | ❌ Haskell | ⚠️ JavaScript |
+
+*With direct SQL instead of ORM
+**Requires writing custom direct SQL resolvers for each query
 
 ---
 
@@ -146,15 +154,19 @@ class User:
 ### For Performance Teams
 ```
 Problem: "Our GraphQL API is slow"
-Solution: FraiseQL delivers 0.83ms latency
-Compared to: Strawberry (54x slower), Hasura (77-991x slower)
+Solution: FraiseQL delivers 0.83ms latency by default
+Benefit: No resolver overhead, no N+1 queries, linear scaling
+Note: Strawberry/Graphene with direct SQL can be competitive,
+      but FraiseQL gets there without writing custom resolvers
 ```
 
 ### For Python Teams
 ```
-Problem: "We want speed without learning new languages"
+Problem: "We want GraphQL speed without exotic infrastructure"
 Solution: Type-safe Python API + Rust pipeline
-Benefit: 45-60x faster than pure Python alternatives
+Benefit: Fast performance without managing ORM complexity
+Note: Well-tuned ORMs can work, but FraiseQL achieves speed
+      as the default, not through careful optimization
 ```
 
 ### For Startups
