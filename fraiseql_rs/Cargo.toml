@@ -85,14 +85,30 @@ mockall = "0.12"                      # Mock objects for unit tests
 # Property testing
 proptest = "1.0"                      # Generate test cases
 
+# Benchmarking infrastructure (Phase 0.3)
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+deadpool-postgres = "0.10"            # Connection pooling for benchmarks
+
 # Testing
 pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
 
-# Benchmarking infrastructure (Phase 0)
-criterion = { version = "0.5", features = ["html_reports"] }
+# Legacy benchmarking infrastructure
 dhat = "0.3"  # Heap profiling
 
-# Benchmark targets (Phase 0)
+# Benchmark targets (Phase 0.3)
+[[bench]]
+name = "connection_pool"
+harness = false
+
+[[bench]]
+name = "query_execution"
+harness = false
+
+[[bench]]
+name = "streaming"
+harness = false
+
+# Legacy benchmarks (keep for now)
 [[bench]]
 name = "pipeline"
 harness = false

@@ -155,6 +155,46 @@ test-rust-verbose:
 	cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
 	@echo -e "$(GREEN)✅ Verbose Rust test run complete$(NC)"
 
+# ============================================================================
+# Benchmarking Targets (Phase 0.3)
+# ============================================================================
+
+.PHONY: bench bench-pool bench-queries bench-streaming bench-baseline bench-compare
+
+## bench: Run all benchmarks
+bench:
+	@echo -e "$(GREEN)🚀 Running all benchmarks...$(NC)"
+	cd fraiseql_rs && cargo bench --all
+	@echo -e "$(GREEN)✅ Benchmarks complete$(NC)"
+
+## bench-pool: Benchmark connection pool
+bench-pool:
+	@echo -e "$(GREEN)🏊 Benchmarking connection pool...$(NC)"
+	cd fraiseql_rs && cargo bench --bench connection_pool
+	@echo -e "$(GREEN)✅ Pool benchmark complete$(NC)"
+
+## bench-queries: Benchmark query execution
+bench-queries:
+	@echo -e "$(GREEN)🔍 Benchmarking query execution...$(NC)"
+	cd fraiseql_rs && cargo bench --bench query_execution
+	@echo -e "$(GREEN)✅ Query benchmark complete$(NC)"
+
+## bench-streaming: Benchmark streaming performance
+bench-streaming:
+	@echo -e "$(GREEN)🌊 Benchmarking streaming performance...$(NC)"
+	cd fraiseql_rs && cargo bench --bench streaming
+	@echo -e "$(GREEN)✅ Streaming benchmark complete$(NC)"
+
+## bench-baseline: Capture performance baseline
+bench-baseline:
+	@echo -e "$(GREEN)📊 Capturing performance baseline...$(NC)"
+	bash scripts/benchmark_baseline.sh
+
+## bench-compare: Compare against previous baseline
+bench-compare:
+	@echo -e "$(GREEN)📈 Comparing against baseline...$(NC)"
+	bash scripts/check_performance.sh
+
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode (requires pytest-watch)
 	@command -v ptw >/dev/null 2>&1 || { echo -e "$(RED)pytest-watch not installed. Run: pip install pytest-watch$(NC)"; exit 1; }
