@@ -32,7 +32,7 @@ repos:
         exclude: ^(examples|tools|conftest\.py|experimental_tests)/
 
   # Rust linting with prek
-  - repo: https://github.com/hadialqattan/prek
+  - repo: https://github.com/j178/prek
     rev: v0.1.0
     hooks:
       - id: clippy
