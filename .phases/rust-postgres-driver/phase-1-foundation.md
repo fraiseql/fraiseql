@@ -829,6 +829,153 @@ uv run pytest tests/ -v -k "not rust" --tb=short
 
 ---
 
+## 🧪 Testing Strategy for Phase 1
+
+**Key Principle**: Don't port existing tests - keep them working, add Rust unit tests.
+
+### What Tests Should Pass
+
+#### ✅ **Existing Python Tests** (~5991 tests)
+```bash
+# All existing tests continue to pass
+# They test through the Python API wrapper
+# Backend (Python or Rust) is invisible to them
+
+# Run them with Rust backend:
+FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
+# Expected: All 5991+ tests PASS
+
+# Or with Python backend (fallback):
+FRAISEQL_DB_BACKEND=python uv run pytest tests/ -v
+# Expected: All 5991+ tests PASS
+```
+
+**Why they pass**: Tests call `schema.execute()` or HTTP endpoints. They don't care which backend (Python or Rust) handles the query.
+
+#### ✅ **New Rust Unit Tests** (~50 tests)
+```bash
+# Add tests for connection pool implementation
+# These test Rust code directly
+
+cargo test --lib db::pool
+# Expected: 50+ new Rust tests PASS
+```
+
+#### ✅ **New Rust Integration Tests** (~20 tests)
+```bash
+# Test connection pool with actual database
+
+cargo test --test '*pool*'
+# Expected: Integration tests PASS
+```
+
+#### ✅ **Parity Tests** (~10 tests)
+```bash
+# Verify Rust pool matches Python pool behavior
+
+FRAISEQL_PARITY_TESTING=true cargo test
+# Expected: Rust connections == Python connections
+```
+
+### Testing Checklist for Phase 1
+
+- [ ] **Python tests pass with Rust backend**
+  ```bash
+  FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
+  # Should see: "5991 passed"
+  ```
+
+- [ ] **Rust unit tests for pool pass**
+  ```bash
+  cargo test --lib db::pool --verbose
+  # Should see: "test result: ok. ~50 passed"
+  ```
+
+- [ ] **Integration tests pass**
+  ```bash
+  cargo test --test '*'
+  # Should see: all integration tests pass
+  ```
+
+- [ ] **Parity tests pass** (both backends match)
+  ```bash
+  FRAISEQL_PARITY_TESTING=true cargo test regression::parity
+  # Should see: "test result: ok"
+  ```
+
+- [ ] **No regressions**
+  ```bash
+  # Verify performance baseline
+  cargo bench --benchmark connection_pool -- --save-baseline phase-1
+  # Compare against Phase 0 baseline (< 10% overhead acceptable)
+  ```
+
+- [ ] **Feature flags work**
+  ```bash
+  # Test each backend independently
+  cargo build --no-default-features --features python-db
+  # Test Rust backend
+  cargo build --no-default-features --features rust-db
+  ```
+
+### What Should NOT Be Changed
+
+❌ **Don't port existing Python tests**
+- The 5991 existing Python tests test the Python API layer
+- They don't care which backend handles database operations
+- Just keep them running as-is
+- In Phase 5, remove tests that specifically test psycopg
+
+❌ **Don't remove psycopg yet**
+- It's still the fallback in Phase 1
+- Feature flags keep both backends active
+- We'll remove it in Phase 5 (Deprecation phase)
+
+### Test Count Summary for Phase 1
+
+| Category | Count | Status |
+|----------|-------|--------|
+| Python API tests (unchanged) | 5991 | ✅ PASS |
+| Rust pool unit tests (NEW) | ~50 | ✅ PASS |
+| Rust integration tests (NEW) | ~20 | ✅ PASS |
+| Parity tests (NEW) | ~10 | ✅ PASS |
+| **Total** | **~6071** | **✅ ALL PASS** |
+
+### Verification Command
+
+```bash
+# Run this to verify Phase 1 testing is complete:
+
+echo "1. Testing Python API with Rust backend..."
+FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -q
+# Should see: "5991 passed"
+
+echo ""
+echo "2. Testing Rust implementation..."
+cargo test --lib db::pool --quiet
+# Should see: "test result: ok"
+
+echo ""
+echo "3. Testing integration..."
+cargo test --test '*' --quiet
+# Should see: all integration tests pass
+
+echo ""
+echo "4. Testing parity (both backends match)..."
+FRAISEQL_PARITY_TESTING=true cargo test regression::parity --quiet
+# Should see: parity tests pass
+
+echo ""
+echo "5. Checking performance (< 10% overhead)..."
+cargo bench --benchmark connection_pool --quiet
+# Compare to baseline - should be close
+
+echo ""
+echo "✅ Phase 1 Testing Complete!"
+```
+
+---
+
 ## Troubleshooting
 
 ### Issue: `error: could not compile 'fraiseql_rs'`

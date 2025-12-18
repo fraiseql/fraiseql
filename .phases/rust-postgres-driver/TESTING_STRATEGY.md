@@ -736,6 +736,245 @@ jobs:
 
 ---
 
+## 🔄 Test Migration Strategy: Handling 5991+ Existing Python Tests
+
+**Key Principle**: Don't port all tests - replace them as Rust code replaces Python code.
+
+### Test Categorization
+
+**~80% of tests stay as-is** (Integration & E2E tests):
+```python
+# These work through the Python API wrapper
+# Backend (Python or Rust) is invisible to them
+
+def test_graphql_query():
+    """This test doesn't care if backend is Python or Rust"""
+    result = schema.execute("{ users { id, name } }")
+    assert result.data['users'][0]['name'] == 'Alice'
+    # Works in Phase 0-4 (with feature flags)
+    # Works in Phase 5 (Rust-only)
+```
+
+**~20% need updating or removal** (Unit tests of Python-specific code):
+```python
+# These test Python internals being replaced
+
+from fraiseql.core.db import DatabaseConnection  # Removed in Phase 5
+from fraiseql.where_builder import build_where  # Replaced by Rust in Phase 2
+
+# These tests either:
+# 1. Get removed when Python code is deleted (Phase 5)
+# 2. Get updated to test Rust backend instead
+# 3. Get replaced with Rust equivalents
+```
+
+### Migration by Phase
+
+#### **Phase 0: Foundation**
+```
+Existing Python Tests: ✅ ALL 5991+ PASS
+├─ No changes to Python code yet
+├─ Rust infrastructure only (Clippy, benchmarks, tests)
+└─ Both backends available via feature flags
+```
+
+#### **Phase 1: Connection Pool**
+```
+New Rust Tests: ✅ Connection pool unit tests (Rust)
+Existing Python Tests: ✅ 5991+ PASS
+├─ Python pool tests still run
+├─ Feature flags: can test both backends
+├─ Parity tests: Rust pool == psycopg pool
+└─ Result: 5991+ + ~50 new Rust tests
+
+Changes: None (Python code unchanged)
+```
+
+#### **Phase 2: Query Execution**
+```
+New Rust Tests: ✅ WHERE clause tests (Rust)
+Existing Python Tests: ⚠️ 5991+ PASS (some redundant)
+├─ Python WHERE tests still run (unchanged)
+├─ Rust WHERE tests verify Rust implementation
+├─ Parity tests: Rust WHERE == Python WHERE
+├─ Python-only WHERE tests now redundant (but still pass)
+└─ Result: 5991+ + ~100 new Rust tests
+
+Changes: None (Python code still there, feature-flagged)
+```
+
+#### **Phase 3: Result Streaming**
+```
+New Rust Tests: ✅ Streaming unit tests (Rust)
+Existing Python Tests: ⚠️ 5991+ PASS (some redundant)
+├─ Python streaming tests still run
+├─ Rust streaming tests verify Rust implementation
+├─ Parity tests: Rust results == Python results
+└─ Result: 5991+ + ~100 new Rust tests
+
+Changes: None (Python code still there, feature-flagged)
+```
+
+#### **Phase 4: Full Integration**
+```
+New Rust Tests: ✅ GraphQL E2E tests (testing Rust backend)
+Existing Python Tests: ✅ ALL 5991+ PASS (all backends tested)
+├─ All integration tests work with Rust backend
+├─ Parity tests: Full pipeline Rust == Python
+├─ Both backends fully tested side-by-side
+└─ Result: 5991+ Python integration tests + Rust unit/integration tests
+
+Changes: None (Python code still there, feature-flagged)
+
+**Critical**: All 5991+ existing tests pass with Rust backend
+```
+
+#### **Phase 5: Deprecation & Cleanup**
+```
+Removed Python Code:
+├─ src/fraiseql/db.py (replaced by Rust)
+├─ src/fraiseql/where_builder.py (replaced by Rust)
+├─ src/fraiseql/streaming.py (replaced by Rust)
+└─ Feature flags (only Rust backend now)
+
+Tests Removed: ~50-100 tests
+├─ psycopg-specific tests
+├─ Python db.py unit tests
+├─ Python WHERE builder unit tests
+└─ Feature flag tests (no longer needed)
+
+Tests Kept: ~5900 tests
+├─ All GraphQL integration tests (work with Rust)
+├─ All E2E tests (work with Rust)
+├─ All schema tests (work with Rust)
+└─ All API tests (work with Rust)
+
+Result: Same coverage, all Rust-backed
+```
+
+### Test Count Summary
+
+| Phase | Python Tests | Rust Tests | Total | Notes |
+|-------|-------------|-----------|-------|-------|
+| Phase 0 | 5991 | 0 | 5991 | No changes |
+| Phase 1 | 5991 | ~50 | 6041 | Pool tests added |
+| Phase 2 | 5991 | ~150 | 6141 | WHERE tests added |
+| Phase 3 | 5991 | ~250 | 6241 | Streaming tests added |
+| Phase 4 | 5991 | ~350 | 6341 | GraphQL E2E added |
+| Phase 5 | 5900 | ~350 | 6250 | psycopg tests removed |
+
+### Why We Don't Port All Python Tests
+
+❌ **Porting would be wasteful** because:
+
+1. **Integration tests work through API**
+   - 80% of tests call `schema.execute()` or HTTP endpoints
+   - They don't care about backend
+   - No code changes needed - they just work
+
+2. **Unit tests should be native to their language**
+   - Python tests test Python code (being replaced)
+   - Rust tests test Rust code (being added)
+   - Different test paradigms, different testing libraries
+   - Translation would be lossy
+
+3. **Test pyramid changes**
+   - Python pyramid: mostly tests of Python db.py internals
+   - Rust pyramid: tests of Rust internals
+   - Structure is different - can't just copy-paste
+
+4. **Gradual replacement is safer**
+   - Feature flags let both backends run simultaneously
+   - Python tests validate Python path (until Phase 5)
+   - Rust tests validate Rust path (starting Phase 1)
+   - Parity tests verify they match
+   - No abrupt "migration" - smooth transition
+
+### Handling Python-Specific Unit Tests
+
+**Example: WHERE clause builder tests**
+
+Phase 0-4:
+```python
+# Python WHERE tests
+def test_python_where_simple():
+    from fraiseql.where_builder import build_where  # Python
+    sql, params = build_where("users", {"id": {"eq": 42}})
+    assert sql == "id = $1"
+    assert params == [42]
+    # ✅ Still passes (Python code still there)
+
+# Rust WHERE tests (NEW in Phase 2)
+#[test]
+fn test_rust_where_simple() {
+    let (sql, params) = build_where_rust("users", json!({"id": {"eq": 42}}));
+    assert_eq!(sql, "id = $1");
+    assert_eq!(params, vec![42]);
+    // ✅ New Rust implementation tested
+}
+
+# Parity test (NEW in Phase 2)
+#[test]
+fn test_where_parity() {
+    let python_result = call_python_where(...);
+    let rust_result = build_where_rust(...);
+    assert_eq!(python_result, rust_result);  // ✅ Must match
+}
+```
+
+Phase 5 (after removing Python db.py):
+```python
+# Python WHERE tests removed (Python code deleted)
+# Rust WHERE tests kept (Rust code remains)
+# No parity tests (only one implementation now)
+```
+
+### Testing Both Backends (Phases 1-4)
+
+**Use feature flags to test both**:
+
+```bash
+# Test Rust backend
+FRAISEQL_DB_BACKEND=rust cargo test
+
+# Test Python backend (fallback)
+FRAISEQL_DB_BACKEND=python cargo test
+
+# Test both backends match (parity testing)
+FRAISEQL_PARITY_TESTING=true cargo test
+```
+
+### Success Criteria by Phase
+
+| Phase | Python Tests | Rust Tests | Parity | Performance |
+|-------|-------------|-----------|--------|-------------|
+| 0 | 5991 pass | N/A | N/A | baseline |
+| 1 | 5991 pass | 50 pass | ✓ pools match | < 10% overhead |
+| 2 | 5991 pass | 150 pass | ✓ WHERE match | < 10% overhead |
+| 3 | 5991 pass | 250 pass | ✓ results match | < 10% overhead |
+| 4 | 5991 pass | 350 pass | ✓ all match | 20-30% faster |
+| 5 | 5900 pass | 350 pass | N/A (Rust only) | 20-30% faster |
+
+### Common Questions
+
+**Q: Do I need to port test X to Rust?**
+
+A: Ask these questions:
+- Does it test Python `db.py` internals? → Remove in Phase 5
+- Does it test the Python API wrapper? → Keep as-is (works with Rust backend)
+- Does it test database functionality? → Keep as-is (parity guaranteed)
+- Is it a GraphQL/HTTP test? → Keep as-is
+
+**Q: Why do tests still pass if I'm replacing Python code?**
+
+A: Because feature flags keep both backends running. Tests can choose which to use.
+
+**Q: When do I remove the Python tests?**
+
+A: Phase 5, when you delete the Python code they test. If a test doesn't test Python internals, keep it!
+
+---
+
 ## Test Execution Timeline
 
 ### Phase 1: Foundation

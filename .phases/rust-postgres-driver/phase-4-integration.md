@@ -744,6 +744,140 @@ Use `cargo flamegraph` to identify bottlenecks.
 
 ---
 
+## 🧪 Testing Strategy for Phase 4
+
+**Critical Phase**: All 5991+ existing tests MUST PASS before proceeding to Phase 5.
+
+### What Tests Should Pass
+
+#### ✅ **ALL Python Tests** (5991 tests) - NO EXCEPTIONS
+```bash
+# All existing Python tests must pass with Rust backend
+FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
+
+# Expected output: "5991 passed"
+# If even ONE test fails, Phase 4 is not complete!
+```
+
+#### ✅ **Rust Unit Tests** (~350 tests)
+```bash
+# All Rust code must be fully tested
+cargo test --lib --verbose
+
+# Expected: 350+ tests pass
+```
+
+#### ✅ **Rust Integration Tests** (~200 tests)
+```bash
+# All modules must integrate correctly
+cargo test --test '*' --verbose
+
+# Expected: 200+ tests pass
+```
+
+#### ✅ **Parity Tests** (Exact Match) - CRITICAL
+```bash
+# Rust output MUST EXACTLY match psycopg output
+FRAISEQL_PARITY_TESTING=true uv run pytest tests/regression/parity/ -v
+
+# Every test must pass:
+# - Query results identical
+# - Mutation results identical
+# - Error messages match
+# - NULL handling consistent
+# - JSONB formatting identical
+```
+
+#### ✅ **Performance Tests**
+```bash
+# Performance must meet 20-30% improvement target
+cargo bench --bench query_execution
+cargo bench --bench mutation_execution
+cargo bench --bench result_streaming
+
+# Compare against Phase 0 baseline:
+# - Should be 20-30% faster than psycopg
+# - Should be < 10% variance from baseline
+```
+
+### Critical: Full Test Run for Phase 4
+
+```bash
+#!/bin/bash
+# Run this comprehensive test suite
+
+echo "==== PHASE 4 FINAL VALIDATION ===="
+echo ""
+
+echo "1️⃣ Python API Tests (all 5991)..."
+FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -q 2>&1 | tail -5
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "❌ FAILED: Python tests did not pass!"
+    exit 1
+fi
+
+echo ""
+echo "2️⃣ Rust Unit Tests..."
+cargo test --lib --quiet 2>&1 | tail -3
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "❌ FAILED: Rust unit tests did not pass!"
+    exit 1
+fi
+
+echo ""
+echo "3️⃣ Rust Integration Tests..."
+cargo test --test '*' --quiet 2>&1 | tail -3
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "❌ FAILED: Integration tests did not pass!"
+    exit 1
+fi
+
+echo ""
+echo "4️⃣ Parity Tests (Rust == psycopg)..."
+FRAISEQL_PARITY_TESTING=true uv run pytest tests/regression/parity/ -q
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "❌ FAILED: Parity tests did not pass!"
+    exit 1
+fi
+
+echo ""
+echo "5️⃣ Performance Validation..."
+cargo bench --benchmark query_execution --quiet 2>&1 | grep -E "time:|throughput:"
+echo "Expected: 20-30% faster than Phase 0 baseline"
+
+echo ""
+echo "✅ ALL TESTS PASSED - Ready for Phase 5 Deprecation!"
+```
+
+### Test Count for Phase 4
+
+| Category | Count | Status | Notes |
+|----------|-------|--------|-------|
+| Python API tests | 5991 | ✅ **PASS** | ALL 5991 must pass |
+| Rust unit tests | ~350 | ✅ PASS | Full coverage of Rust |
+| Rust integration tests | ~200 | ✅ PASS | Module integration |
+| Parity tests | ~100 | ✅ PASS | Output matches exactly |
+| Performance benchmarks | ~50 | ✅ PASS | 20-30% improvement |
+| **Total** | **6691** | **✅ ALL PASS** | Ready for Phase 5 |
+
+### CRITICAL: Don't Proceed to Phase 5 If
+
+❌ Any of these are true:
+- [ ] ANY Python test fails
+- [ ] ANY parity test fails
+- [ ] Performance is < 15% improvement (should be 20-30%)
+- [ ] Memory usage increased > 10%
+- [ ] Code coverage < 85%
+
+If any of these are true:
+1. **STOP** - Don't proceed
+2. Debug the issue
+3. Fix in Phase 4
+4. Retest until ALL pass
+5. Then proceed to Phase 5
+
+---
+
 ## 👥 Review Checkpoint for Junior Engineers
 
 **After completing Phase 4, request comprehensive code review**:

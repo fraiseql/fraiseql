@@ -666,6 +666,168 @@ The codebase is now Rust-native with no technical debt from dual backends. Futur
 
 ---
 
+## 🧪 Testing Strategy for Phase 5
+
+**Goal**: Remove Python db layer while keeping all integration tests passing.
+
+### Tests That STAY (5900+ tests)
+```bash
+# All GraphQL integration tests stay - they work with Rust backend now
+FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
+
+# Expected: 5900+ tests PASS
+# (Some psycopg-specific tests removed, but 95% of tests remain)
+```
+
+**Examples of tests that stay**:
+```python
+# GraphQL queries (backend-agnostic)
+def test_graphql_simple_query()
+def test_graphql_with_filters()
+def test_graphql_with_sorting()
+def test_graphql_with_pagination()
+
+# GraphQL mutations (backend-agnostic)
+def test_graphql_mutation_insert()
+def test_graphql_mutation_update()
+def test_graphql_mutation_delete()
+
+# API endpoints (backend-agnostic)
+def test_api_get_users()
+def test_api_create_user()
+
+# Schema validation (backend-agnostic)
+def test_schema_introspection()
+def test_column_type_detection()
+
+# Error handling (backend-agnostic)
+def test_api_404_handling()
+def test_api_error_response()
+
+# All these just work - they don't care about backend
+```
+
+### Tests That GET REMOVED (~50-100 tests)
+```bash
+# Tests that specifically test psycopg or Python db.py
+
+# These should be removed in Phase 5:
+```
+
+**Examples of tests to remove**:
+```python
+# ❌ Tests of deleted Python code
+def test_psycopg_connection_pool()       # psycopg doesn't exist anymore
+def test_psycopg_parameter_conversion()  # Python code deleted
+def test_python_where_clause_building()  # Moved to Rust
+
+# ❌ Feature flag tests (no longer needed)
+def test_backend_fallback_to_psycopg()   # Feature flags removed
+def test_feature_flag_backend_switch()   # Feature flags removed
+
+# ❌ Python-specific implementation tests
+def test_python_db_connection()
+def test_python_pool_lifecycle()
+```
+
+### Test Removal Process
+
+**Step 1: Identify Python-Specific Tests**
+```bash
+# Find tests that import Python db modules
+grep -r "from fraiseql.db import" tests/
+grep -r "from fraiseql.where_builder import" tests/
+grep -r "psycopg" tests/
+
+# Mark these for removal
+```
+
+**Step 2: Remove Tests**
+```bash
+# Remove or comment out ~50-100 tests
+# These are tests of code being deleted
+
+# Use your IDE to search/replace:
+# search: "from fraiseql.db import" → DELETE
+# search: "psycopg" in tests → DELETE
+# search: "FRAISEQL_DB_BACKEND=python" → DELETE
+```
+
+**Step 3: Verify Remaining Tests**
+```bash
+# All remaining tests should pass with Rust-only backend
+uv run pytest tests/ -v
+
+# Expected: 5900+ tests PASS (down from 5991)
+# Missing: ~50-100 tests that tested deleted Python code
+```
+
+### Test Count Summary for Phase 5
+
+| Category | Before Phase 5 | After Phase 5 | Status |
+|----------|---|---|---|
+| Python API tests | 5991 | 5900 | ✅ Keep |
+| Python-only tests | ~50 | 0 | ❌ Removed |
+| Rust unit tests | ~350 | ~350 | ✅ Keep |
+| Rust integration tests | ~200 | ~200 | ✅ Keep |
+| Parity tests | ~100 | 0 | ❌ Removed (Rust only now) |
+| **Total** | **6691** | **6450** | **✅ All pass** |
+
+### Final Verification for Phase 5
+
+```bash
+#!/bin/bash
+# Final validation that Phase 5 complete
+
+echo "==== PHASE 5 FINAL VALIDATION ===="
+echo ""
+
+echo "1️⃣ Verify psycopg completely removed..."
+grep -r "psycopg" src/ fraiseql_rs/ && echo "❌ FAILED: psycopg still found!" || echo "✅ PASS: psycopg removed"
+
+echo ""
+echo "2️⃣ Verify feature flags removed..."
+grep -r "FRAISEQL_DB_BACKEND" src/ fraiseql_rs/ && echo "❌ FAILED: Feature flags still found!" || echo "✅ PASS: Feature flags removed"
+
+echo ""
+echo "3️⃣ Run all tests..."
+uv run pytest tests/ -q
+
+if [ ${PIPESTATUS[0]} -eq 0 ]; then
+    echo "✅ PASS: All tests passed"
+else
+    echo "❌ FAILED: Some tests failed"
+    exit 1
+fi
+
+echo ""
+echo "4️⃣ Run Rust tests..."
+cargo test --lib --quiet
+cargo test --test '*' --quiet
+
+echo ""
+echo "5️⃣ Check no remaining Python-specific code..."
+find src/fraiseql -name "*.py" -exec grep -l "psycopg\|python_db\|feature.*python" {} \; && echo "❌ Found Python-specific code!" || echo "✅ PASS: No Python-specific code"
+
+echo ""
+echo "✅ PHASE 5 COMPLETE - Rust-only deployment!"
+```
+
+### Important: Don't Remove Tests Yet!
+
+**During Phases 1-4**:
+- ✅ Keep ALL 5991 tests
+- ✅ Add Rust tests
+- ✅ Run parity tests
+- ✅ Make sure everything passes
+
+**Only in Phase 5**:
+- ✅ Remove Python-specific tests (~50-100)
+- ✅ Remove feature flag tests (~10)
+- ✅ Keep integration/API/E2E tests (~5900)
+
+---
+
 ## 👥 Final Review Checkpoint
 
 **Before merging Phase 5 to dev, request sign-off from**:
