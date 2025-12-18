@@ -1,6 +1,24 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+// ============================================================================
+// CLIPPY SUPPRESSION POLICY
+// ============================================================================
+
+// Allow specific exceptions at module level with justification
+#[allow(
+    // Justification: Required by PyO3 FFI bindings
+    unsafe_code,
+)]
+
+// Deny specific anti-patterns
+#[deny(
+    // Force completion of placeholder code
+    clippy::todo,
+)]
+
+// Warn on everything else (configured in Cargo.toml)
+
 // Sub-modules
 mod camel_case;
 pub mod cascade;
@@ -484,4 +502,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(is_schema_registry_initialized, m)?)?;
 
     Ok(())
+}
+
+// Integration test modules (only compiled when running tests)
+#[cfg(test)]
+mod tests {
+    include!("../tests/common/mod.rs");
 }

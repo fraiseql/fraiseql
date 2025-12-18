@@ -119,11 +119,77 @@ test-coverage: ## Run tests with coverage report
 	@echo -e "$(GREEN)Running tests with coverage...$(NC)"
 	pytest --cov=src/fraiseql --cov-report=html --cov-report=term
 
+# ============================================================================
+# RUST TEST TARGETS (Phase 0.2)
+# ============================================================================
+
+.PHONY: test-rust test-rust-unit test-rust-integration test-rust-all test-rust-verbose
+
+## test-rust: Run all Rust tests (unit + integration)
+test-rust:
+	@echo -e "$(GREEN)🧪 Running Rust tests...$(NC)"
+	cd fraiseql_rs && cargo test --lib --test '*'
+	@echo -e "$(GREEN)✅ All Rust tests passed$(NC)"
+
+## test-rust-unit: Run only Rust unit tests (fast)
+test-rust-unit:
+	@echo -e "$(GREEN)⚡ Running Rust unit tests...$(NC)"
+	cd fraiseql_rs && cargo test --lib
+	@echo -e "$(GREEN)✅ Rust unit tests passed$(NC)"
+
+## test-rust-integration: Run only Rust integration tests (requires DB)
+test-rust-integration:
+	@echo -e "$(GREEN)🗄️  Running Rust integration tests...$(NC)"
+	cd fraiseql_rs && cargo test --test '*'
+	@echo -e "$(GREEN)✅ Rust integration tests passed$(NC)"
+
+## test-rust-all: Run all Rust tests including e2e and examples
+test-rust-all: test-rust
+	@echo -e "$(GREEN)🧪 Running all Rust tests including examples...$(NC)"
+	cd fraiseql_rs && cargo test --all
+	@echo -e "$(GREEN)✅ All Rust tests passed including examples$(NC)"
+
+## test-rust-verbose: Run Rust tests with verbose output
+test-rust-verbose:
+	@echo -e "$(GREEN)📢 Running Rust tests with verbose output...$(NC)"
+	cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
+	@echo -e "$(GREEN)✅ Verbose Rust test run complete$(NC)"
+
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode (requires pytest-watch)
 	@command -v ptw >/dev/null 2>&1 || { echo -e "$(RED)pytest-watch not installed. Run: pip install pytest-watch$(NC)"; exit 1; }
 	@echo -e "$(GREEN)Running tests in watch mode...$(NC)"
 	ptw -- -xvs
+
+.PHONY: lint lint-rust clippy rustfmt lint-fix lint-check
+lint: lint-rust ## Run all linting (Rust + Python)
+	@echo -e "$(GREEN)✅ All linting checks passed$(NC)"
+
+lint-rust: clippy rustfmt ## Run Rust linting (Clippy + rustfmt)
+	@echo -e "$(GREEN)✅ Rust linting checks passed$(NC)"
+
+clippy: ## Run Clippy linter with strict warnings
+	@echo -e "$(GREEN)🔍 Running Clippy...$(NC)"
+	cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings
+	@echo -e "$(GREEN)✅ Clippy checks passed$(NC)"
+
+rustfmt: ## Auto-format Rust code
+	@echo -e "$(GREEN)📝 Formatting Rust code...$(NC)"
+	cd fraiseql_rs && cargo fmt --all
+	@echo -e "$(GREEN)✅ Rust code formatted$(NC)"
+
+lint-fix: ## Fix linting issues automatically (Rust + Python)
+	@echo -e "$(GREEN)🔧 Fixing linting issues...$(NC)"
+	cd fraiseql_rs && cargo clippy --fix --allow-staged --allow-dirty
+	cd fraiseql_rs && cargo fmt --all
+	ruff check src/ --fix
+	@echo -e "$(GREEN)✅ Linting issues fixed$(NC)"
+
+lint-check: ## Check formatting without changes (Rust + Python)
+	@echo -e "$(GREEN)📋 Checking code formatting...$(NC)"
+	cd fraiseql_rs && cargo fmt --all -- --check
+	ruff format --check src/ tests/
+	@echo -e "$(GREEN)✅ Code formatting is correct$(NC)"
 
 .PHONY: lint prek-install prek-run prek-update prek-list
 lint: ## Run linting with ruff
@@ -175,7 +241,7 @@ type-check: ## Run type checking with ruff
 
 
 .PHONY: qa
-qa: format lint type-check test ## Run all quality checks (format, lint, type-check, test)
+qa: lint-check lint-rust type-check test ## Run all quality checks (format, lint, type-check, test)
 	@echo -e "$(GREEN)All quality checks passed!$(NC)"
 
 .PHONY: qa-fast

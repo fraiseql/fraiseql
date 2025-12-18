@@ -4,14 +4,14 @@
 //! for maximum performance with SIMD optimizations.
 //!
 //! NOTE: `cargo test` does not work directly for this crate because it uses
-//! PyO3 with the `extension-module` feature, which prevents linking to libpython.
+//! `PyO3` with the `extension-module` feature, which prevents linking to libpython.
 //! Tests should be run via pytest after `maturin develop`.
 
 use std::process::Command;
 
 fn main() {
     // Detect target architecture
-    let target = std::env::var("TARGET").unwrap();
+    let target = std::env::var("TARGET").expect("TARGET environment variable not set");
 
     println!("cargo:rerun-if-env-changed=TARGET");
 
@@ -46,7 +46,7 @@ fn main() {
 
     // Print optimization info
     println!("cargo:warning=FraiseQL: Building with SIMD optimizations enabled");
-    println!("cargo:warning=FraiseQL: Target architecture: {}", target);
+    println!("cargo:warning=FraiseQL: Target architecture: {target}");
 
     // Rebuild if CPU features change (though this is rare)
     println!("cargo:rerun-if-changed=/proc/cpuinfo");

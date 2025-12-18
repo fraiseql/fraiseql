@@ -1,9 +1,12 @@
 # Complete Implementation Guide - Master Index
 
 **Status**: ✅ COMPLETE & READY FOR IMPLEMENTATION
-**Version**: 2.0 (Greenfield - Fully Enhanced)
-**Total Documentation**: 16,000+ lines across 15 documents
+**Version**: 3.0 (Full Rust Pipeline - Extended)
+**Total Documentation**: 24,000+ lines across 19 documents
 **Last Updated**: 2025-12-18
+
+**NEW in v3.0**: Phases 6-9 for complete GraphQL → SQL pipeline in Rust
+See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 
 ---
 
@@ -241,9 +244,13 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 
 ---
 
-### **Implementation Phases (1-5)**
+### **Implementation Phases (1-9)**
 
-#### **Phase 1: Foundation** (8 hours)
+#### **Phases 1-5: Rust Database Driver Foundation** (56 hours)
+
+Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
+
+##### **Phase 1: Foundation** (8 hours)
 - 🎯 Set up connection pool + async/PyO3 bridge
 - 🔗 Async & PyO3 integration (see POC-pyo3-async-bridge.md)
 - 🗄️ Connection pool with deadpool-postgres
@@ -253,7 +260,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 
 ---
 
-#### **Phase 2: Query Execution** (12 hours)
+##### **Phase 2: Query Execution** (12 hours)
 - 🎯 Implement WHERE clauses, SQL generation, transactions
 - 🔄 Transaction support module
 - 🔍 WHERE clause builder (fully recursive)
@@ -264,7 +271,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 
 ---
 
-#### **Phase 3: Result Streaming** (10 hours)
+##### **Phase 3: Result Streaming** (10 hours)
 - 🎯 Zero-copy streaming database → HTTP
 - 📤 Streaming response builder
 - 📝 JSON transformation (snake_case → camelCase)
@@ -274,7 +281,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 
 ---
 
-#### **Phase 4: Integration** (8 hours)
+##### **Phase 4: Integration** (8 hours)
 - 🎯 Complete GraphQL pipeline integration
 - 🔄 Query execution pipeline (full GraphQL)
 - 📝 Mutation execution with transactions
@@ -285,7 +292,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 
 ---
 
-#### **Phase 5: Deprecation & Finalization** (6 hours)
+##### **Phase 5: Deprecation & Finalization** (6 hours)
 - 🎯 Remove psycopg, achieve evergreen state
 - ❌ Remove Python database fallback paths
 - 📦 Remove psycopg dependencies
@@ -293,6 +300,53 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 - ✨ Clean up code & documentation
 - 📊 Final performance validation
 - 🔑 Prerequisite: Phases 1-4 complete + all tests passing
+
+---
+
+#### **Phases 6-9: Complete GraphQL Pipeline in Rust** (24 hours)
+
+Move entire GraphQL execution (parsing → SQL building → caching) to Rust for maximum performance.
+
+##### **Phase 6: GraphQL Parsing in Rust** (8 hours)
+- 🎯 Parse GraphQL queries with `graphql-parser` crate
+- 📝 Create Rust AST structures
+- 🔗 Python ↔ Rust bridge via PyO3
+- 🧪 Parity testing with graphql-core
+- ✅ All 5991+ tests pass
+- 🔑 Prerequisite: Phase 5 complete
+
+---
+
+##### **Phase 7: Query Building in Rust** (12 hours)
+- 🎯 Move all SQL generation to Rust
+- 🔍 WHERE clause building (recursive)
+- 📝 ORDER BY, LIMIT, OFFSET handling
+- 💾 Field selection resolution
+- ⚡ 10-80x faster query building (2-4ms → 50-200µs)
+- ✅ Identical SQL generation to Python version
+- 🔑 Prerequisite: Phase 6 complete
+
+---
+
+##### **Phase 8: Query Plan Caching** (6-8 hours)
+- 🎯 Cache compiled query plans by signature
+- 💾 LRU cache (5000 plans max)
+- 📊 Cache statistics and monitoring
+- 🔄 Auto-invalidation on schema changes
+- ⚡ 5-10x speedup for repeated queries (150µs → 1µs)
+- 📈 Hit rate: 60-80% in typical workloads
+- 🔑 Prerequisite: Phase 7 complete
+
+---
+
+##### **Phase 9: Full Integration & Cleanup** (8 hours)
+- 🎯 Unified Rust pipeline end-to-end
+- 📞 Single entry point: `execute_graphql_query()`
+- ❌ Remove all Python database code (2900+ lines)
+- 📦 Remove psycopg dependency (if not used elsewhere)
+- ✨ Simplify FastAPI routers
+- 📊 Final performance validation (5-10x overall improvement)
+- 🔑 Prerequisite: Phases 6-8 complete
 
 ---
 
@@ -362,6 +416,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 |----------|-------|---------|
 | README.md | 800 | Architecture overview |
 | IMPLEMENTATION_SUMMARY.md | 500 | Quick reference |
+| **FULL-RUST-PIPELINE.md** | **2000** | **Complete 9-phase overview (NEW)** |
 | Phase 0.1: Clippy | 400 | Code quality |
 | Phase 0.2: Tests | 600 | Test infrastructure |
 | Phase 0.3: Benchmarks | 550 | Performance tracking |
@@ -375,8 +430,12 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 | phase-3-result-streaming.md | 500 | Streaming |
 | phase-4-integration.md | 400 | GraphQL pipeline |
 | phase-5-deprecation.md | 400 | Cleanup |
+| **phase-6-graphql-parsing.md** | **800** | **GraphQL parsing in Rust (NEW)** |
+| **phase-7-query-building.md** | **900** | **SQL generation in Rust (NEW)** |
+| **phase-8-query-caching.md** | **600** | **Query plan caching (NEW)** |
+| **phase-9-full-integration.md** | **800** | **Full integration (NEW)** |
 | TESTING_STRATEGY.md | 600 | Testing approach |
-| **TOTAL** | **9,650** | **Complete Plan** |
+| **TOTAL** | **14,850+** | **Extended Plan (v3.0)** |
 
 ---
 

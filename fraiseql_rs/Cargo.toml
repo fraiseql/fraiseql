@@ -9,6 +9,31 @@ repository = "https://github.com/fraiseql/fraiseql"
 license = "MIT"
 keywords = ["graphql", "json", "performance", "pyo3", "rust"]
 categories = ["web-programming", "api-bindings"]
+publish = false
+
+# ============================================================================
+# LINTING CONFIGURATION - Phase 0.1: Basic Quality Enforcement
+# ============================================================================
+[lints.clippy]
+# Core quality lints (allow some flexibility initially)
+todo = "deny"                     # FORCE completion before merge
+unwrap_used = "warn"              # Catch unwrap() calls
+expect_used = "warn"              # Catch expect() calls
+panic = "warn"                    # Catch panic!() calls
+unimplemented = "warn"            # Catch unimplemented!()
+dbg_macro = "warn"                # Catch debug macros
+
+# Performance basics
+redundant_clone = "warn"
+vec_init_then_push = "warn"
+
+# Code clarity basics
+too_many_arguments = "warn"       # Enforce function argument limits
+cognitive_complexity = "warn"     # Detect overly complex functions
+
+[lints.rust]
+unsafe_code = "warn"              # Track all unsafe blocks
+missing_docs = "warn"             # Require docs on public items
 
 [lib]
 name = "fraiseql_rs"
@@ -39,9 +64,29 @@ arc-swap = "1.6"
 once_cell = "1.0"
 
 [dev-dependencies]
+# Testing framework
+tokio-test = "0.4"                    # Async runtime for tests
+tokio = { version = "1.0", features = ["full"] }
+
+# Test database containers
+testcontainers = "0.15"               # Docker containers for tests
+testcontainers-modules = { version = "0.2", features = ["postgres"] }
+
+# PostgreSQL client for testing
+tokio-postgres = "0.7"
+
+# Assertions and matchers
+assert_matches = "1.5"                # Pattern matching in assertions
+pretty_assertions = "1.4"             # Pretty-print assertion failures
+
+# Mocking
+mockall = "0.12"                      # Mock objects for unit tests
+
+# Property testing
+proptest = "1.0"                      # Generate test cases
+
 # Testing
 pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
-proptest = "1.0"
 
 # Benchmarking infrastructure (Phase 0)
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -89,6 +134,16 @@ lto = "fat"
 codegen-units = 1
 overflow-checks = false
 incremental = false
+
+# Test profile configuration
+[profile.test]
+opt-level = 1                    # Some optimization for faster tests
+incremental = true               # Faster rebuild during test development
+
+# Keep debug info for better error messages
+debug = true
+debug-assertions = true
+overflow-checks = true
 
 [build-dependencies]
 # Detect CPU features at compile time

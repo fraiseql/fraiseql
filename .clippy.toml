@@ -1,0 +1,20 @@
+# ============================================================================
+# CLIPPY CONFIGURATION - Thresholds and Exceptions
+# ============================================================================
+
+# Function complexity thresholds
+too-many-arguments-threshold = 8
+cognitive-complexity-threshold = 30
+type-complexity-threshold = 500
+excessive-nesting-threshold = 5
+
+# Exceptions for test code (only in tests/)
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true
+
+# Exceptions for FFI boundaries (PyO3 code)
+# Note: unsafe_code is allowed at module level in lib.rs
+
+# Allow some patterns that are intentional
+single-char-binding-names-threshold = 5  # Single-letter vars in closures
