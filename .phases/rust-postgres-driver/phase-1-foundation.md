@@ -890,6 +890,38 @@ uv run pytest tests/performance/ -v 2>&1 | tee baseline_phase1.txt
 
 ---
 
+## 👥 Review Checkpoint for Junior Engineers
+
+**After completing Phase 1, request code review**:
+
+- [ ] Connection pool implementation looks correct?
+- [ ] Async/await patterns used properly?
+- [ ] Error handling across FFI boundary correct?
+- [ ] Schema registry integration makes sense?
+- [ ] Tests cover main code paths?
+- [ ] No unused .unwrap() or .expect() calls?
+
+**Why**: Phase 1 is foundational. Wrong patterns here cascade through all other phases.
+
+**What to show reviewer**:
+```bash
+# Run all tests to show they pass
+cargo test --lib phase_1
+
+# Show the connection pool code
+git diff HEAD~1 fraiseql_rs/src/db/pool.rs
+
+# Show test coverage
+cargo test --lib -- --nocapture
+```
+
+**What NOT to worry about yet**:
+- Performance optimization (comes in Phase 3)
+- Full SQL generation (covered in Phase 2)
+- Result streaming (Phase 3 focus)
+
+---
+
 ## Completion Checklist
 
 - [ ] Step 1-10 completed

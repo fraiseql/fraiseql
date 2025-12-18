@@ -544,6 +544,47 @@ Once PoC succeeds, copy patterns to Phase 1:
 
 ---
 
+## 🚨 Critical Review Checkpoint
+
+**⚠️ MANDATORY: Get senior code review BEFORE Phase 1**
+
+This PoC is the most complex technical component. Do not proceed without approval.
+
+**Senior reviewer should verify**:
+- [ ] Rust async bridge compiles and runs
+- [ ] All 12 tests pass (not just 10-11)
+- [ ] No memory leaks or segfaults
+- [ ] Performance acceptable (< 5% overhead)
+- [ ] Error handling correct across FFI boundary
+- [ ] Code patterns can be extended to Phase 1
+
+**Failure handling**:
+If PoC tests fail, **STOP here**. Do not proceed to Phase 1.
+
+**Debug first**:
+- Add `println!()` debugging (OK in PoC)
+- Check error messages carefully
+- Ask for help from Rust expert if stuck > 2 hours
+
+**Preparation for review**:
+```bash
+# Document results
+cargo test --verbose 2>&1 | tee poc_test_results.txt
+cargo build --release 2>&1 | tee poc_build_results.txt
+
+# Show senior these files:
+# - POC test results
+# - Your PoC code modifications
+# - Any debugging notes
+
+# They should be able to run:
+cd fraiseql_rs
+cargo test --test '*pyo3*'
+# And see: "test result: ok. 12 passed"
+```
+
+---
+
 ## Timeline
 
 **Estimated**: 4-6 hours

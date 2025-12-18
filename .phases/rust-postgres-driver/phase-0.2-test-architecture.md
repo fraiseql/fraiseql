@@ -742,6 +742,29 @@ tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;  // Increased
 
 ---
 
+## 👥 Review Checkpoint for Junior Engineers
+
+**After completing Phase 0.2, ask a senior developer to review**:
+
+- [ ] Test directory structure looks reasonable?
+- [ ] TestDatabase implementation follows best practices?
+- [ ] Docker container management is correct?
+- [ ] Async test setup looks good?
+
+**Why**: Test infrastructure is foundational. Getting feedback now prevents problems in all future phases.
+
+**What to prepare for review**:
+```bash
+# Show your work
+git add fraiseql_rs/tests/
+git status  # Show all test files
+
+# Run tests so reviewer can verify
+cargo test --lib
+```
+
+---
+
 **Estimated Duration**: 1.5 hours
 - Create directories: 10 min
 - Write TestDatabase: 30 min

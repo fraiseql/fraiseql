@@ -9,6 +9,17 @@
 
 ## 🎯 Start Here: Quick Navigation
 
+### ⭐ For Junior Engineers (New to Rust?) - START HERE! (1-2 days)
+1. **PREREQUISITES.md** (30 min) - Verify your Rust/PostgreSQL knowledge
+2. **ENVIRONMENT_SETUP.md** (45 min) - Install all tools
+3. **GLOSSARY.md** (reference) - Understand terminology as you read
+4. **JUNIOR_GUIDE.md** (reference) - Common mistakes & debugging
+5. Then: Phase 0.1 (Clippy)
+
+**How long?** If you know Rust: 1.5 hours. If new to Rust: 2-3 days prep + 56 hours implementation.
+
+---
+
 ### For Decision Makers (30 min)
 → **README.md** - Is this feasible? What are the risks?
 
@@ -18,7 +29,7 @@
 3. POC-pyo3-async-bridge.md (risk assessment)
 4. FEATURE-FLAGS.md (rollout strategy)
 
-### For Developers (56+ hours total)
+### For Experienced Developers (56+ hours total)
 1. **Pre-implementation** (16 hours):
    - Phase 0.1-0.5 (6 hours setup)
    - PyO3 PoC (4-6 hours validation)
@@ -67,6 +78,54 @@
 - 📊 Risk/benefit analysis
 
 **Key Addition**: References all new supporting documents for deep dives
+
+---
+
+### **🆕 Junior-Friendly Resources**
+
+#### **PREREQUISITES.md** (For Beginners)
+- 📋 Quick self-assessment (know Rust? async? SQL?)
+- 🎓 Recommended learning paths (1 day vs 3 days)
+- 📚 Rust concepts explained (ownership, borrowing, async)
+- 🗄️ PostgreSQL fundamentals (types, constraints, JSONB)
+- ⚡ PyO3 basics (FFI, type conversion)
+- ✅ Pre-flight checklist before starting
+- 🆘 Red flags for when to ask for help
+
+**Who should read**: Anyone new to Rust or Async
+
+---
+
+#### **ENVIRONMENT_SETUP.md** (Installation Guide)
+- 🔧 Step-by-step tool installation (Rust, PostgreSQL, Docker)
+- ✅ Verification checklist after each step
+- 🚨 Troubleshooting common setup issues
+- 📊 Expected disk space requirements
+- 🎨 Optional IDE setup (VS Code, CLion)
+
+**Who should read**: Everyone (skip if tools already installed)
+
+---
+
+#### **GLOSSARY.md** (Technical Reference)
+- 📖 150+ technical terms defined
+- 🔗 Cross-references between concepts
+- 📚 External resources for each topic
+- 🎯 Quick reference by phase
+- 📋 Common abbreviations
+
+**When to use**: Whenever you encounter unfamiliar terms
+
+---
+
+#### **JUNIOR_GUIDE.md** (Common Mistakes & Debugging)
+- ❌ Common mistakes per phase (with fixes)
+- 🐛 Debugging strategies (5-minute troubleshooting process)
+- 📖 How to read Rust compiler errors
+- 💡 When to ask for help vs solve alone
+- 🔄 Getting unstuck checklist
+
+**When to use**: When something breaks or you're confused
 
 ---
 

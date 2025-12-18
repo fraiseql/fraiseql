@@ -744,6 +744,48 @@ Use `cargo flamegraph` to identify bottlenecks.
 
 ---
 
+## 👥 Review Checkpoint for Junior Engineers
+
+**After completing Phase 4, request comprehensive code review**:
+
+This is the integration phase - everything comes together. Review is critical.
+
+**Senior reviewer should verify**:
+- [ ] GraphQL query execution end-to-end works?
+- [ ] GraphQL mutation execution end-to-end works?
+- [ ] All 5991+ tests pass?
+- [ ] Parity tests 100% match Rust vs psycopg?
+- [ ] Performance meets 20-30% improvement target?
+- [ ] No panics or memory leaks under load?
+- [ ] Error handling correct throughout pipeline?
+- [ ] Code ready for Phase 5 deprecation?
+
+**Performance validation before review**:
+```bash
+# Run parity tests
+FRAISEQL_PARITY_TESTING=true cargo test --test parity_tests
+
+# Run performance tests
+cargo bench --bench query_execution > phase4_perf.txt
+
+# Show results to reviewer
+cat phase4_perf.txt | grep -E "time:|throughput:"
+```
+
+**If performance not met**:
+- Don't proceed to Phase 5 yet
+- Profile with `cargo flamegraph`
+- Identify bottleneck
+- Optimize and retest
+
+**Reviewer checklist**:
+- [ ] Has junior profiled performance?
+- [ ] All parity tests passing?
+- [ ] Code is production-ready (no debug prints)?
+- [ ] Ready for feature flag testing?
+
+---
+
 ## Success Definition
 
 ✅ Phase 4 complete when:
