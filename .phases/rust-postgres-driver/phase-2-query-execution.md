@@ -72,43 +72,156 @@ HTTP Response
 
 ## Implementation Steps
 
-### Step 1: Implement Async Pool Functions
+### Step 1: Add Dependencies
+
+**File**: `fraiseql_rs/Cargo.toml`
+
+Add if not already present:
+```toml
+[dependencies]
+thiserror = "1.0"      # Better error handling
+futures = "0.3"        # For boxed futures
+tokio = { version = "1.0", features = ["time"] }
+```
+
+### Step 2: Create Transaction Support Module
+
+**File**: `fraiseql_rs/src/db/transaction.rs` (NEW)
+
+```rust
+//! Transaction management for mutations.
+
+use tokio_postgres::Client;
+use super::types::DatabaseError;
+
+/// Represents an active transaction.
+pub struct Transaction<'a> {
+    client: &'a mut Client,
+    active: bool,
+}
+
+impl<'a> Transaction<'a> {
+    /// Begin a new transaction.
+    pub async fn begin(client: &'a mut Client) -> Result<Self, DatabaseError> {
+        client.execute("BEGIN", &[])
+            .await
+            .map_err(|e| DatabaseError::QueryError(format!("Failed to begin transaction: {}", e)))?;
+
+        Ok(Transaction {
+            client,
+            active: true,
+        })
+    }
+
+    /// Commit the transaction.
+    pub async fn commit(mut self) -> Result<(), DatabaseError> {
+        if self.active {
+            self.client.execute("COMMIT", &[])
+                .await
+                .map_err(|e| DatabaseError::QueryError(format!("Failed to commit: {}", e)))?;
+            self.active = false;
+        }
+        Ok(())
+    }
+
+    /// Rollback the transaction.
+    pub async fn rollback(mut self) -> Result<(), DatabaseError> {
+        if self.active {
+            self.client.execute("ROLLBACK", &[])
+                .await
+                .map_err(|e| DatabaseError::QueryError(format!("Failed to rollback: {}", e)))?;
+            self.active = false;
+        }
+        Ok(())
+    }
+
+    /// Create a savepoint for nested transactions.
+    pub async fn savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
+        self.client.execute(&format!("SAVEPOINT {}", name), &[])
+            .await
+            .map_err(|e| DatabaseError::QueryError(format!("Savepoint failed: {}", e)))?;
+        Ok(())
+    }
+
+    /// Rollback to a savepoint.
+    pub async fn rollback_to_savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
+        self.client.execute(&format!("ROLLBACK TO {}", name), &[])
+            .await
+            .map_err(|e| DatabaseError::QueryError(format!("Rollback to savepoint failed: {}", e)))?;
+        Ok(())
+    }
+}
+
+impl<'a> Drop for Transaction<'a> {
+    fn drop(&mut self) {
+        // Auto-rollback if not committed
+        if self.active {
+            // Can't await in drop, so we just log a warning
+            eprintln!("Warning: Transaction dropped without explicit commit/rollback");
+        }
+    }
+}
+```
+
+### Step 3: Implement Async Pool Functions (COMPLETE)
 
 **File**: `fraiseql_rs/src/db/pool.rs`
 
-Replace the stub implementation with async connection handling:
+Update the acquire_connection implementation to handle connection wrapping:
 
 ```rust
-use pyo3_asyncio::tokio;
-use tokio_postgres::Client;
+/// Connection wrapper that can be passed to Python and used for queries.
+#[pyclass]
+pub struct Connection {
+    conn: Arc<Mutex<tokio_postgres::Client>>,
+}
+
+#[pymethods]
+impl Connection {
+    /// Execute raw SQL (used by query executor).
+    async fn execute_raw(
+        &self,
+        sql: String,
+        params: Vec<String>,
+    ) -> PyResult<String> {
+        // Stub - Phase 2 will implement query execution
+        Ok("{}".to_string())
+    }
+}
 
 #[pymethods]
 impl DatabasePool {
-    /// Acquire a connection from the pool (async).
+    /// Acquire a connection from the pool (ASYNC - returns Python coroutine).
     #[pyo3_asyncio::tokio::main]
-    async fn acquire_connection(&self, py: Python) -> PyResult<PyObject> {
-        // Implementation in Phase 2
-        let _ = py;  // unused for now
-        todo!("Implement async connection acquisition")
-    }
+    async fn acquire_connection(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let pool = self.pool.clone();
+        let timeout_ms = self.config.connection_timeout;
 
-    /// Check pool health asynchronously.
-    #[pyo3_asyncio::tokio::main]
-    async fn health_check_async(&self, py: Python) -> PyResult<bool> {
-        // Try to acquire and release a connection
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            self.pool.get(),
-        )
-        .await
-        {
-            Ok(Ok(_)) => Ok(true),
-            Ok(Err(e)) => {
-                eprintln!("Health check failed: {}", e);
-                Ok(false)
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(timeout_ms),
+                pool.get(),
+            ).await
+            {
+                Ok(Ok(client)) => {
+                    // Wrap in Connection object for Python
+                    let conn = Connection {
+                        conn: Arc::new(Mutex::new(client)),
+                    };
+                    Ok(conn)
+                }
+                Ok(Err(e)) => {
+                    Err(PyErr::new::<pyo3::exceptions::RuntimeError, _>(
+                        format!("Failed to acquire connection: {}", e)
+                    ))
+                }
+                Err(_) => {
+                    Err(PyErr::new::<pyo3::exceptions::TimeoutError, _>(
+                        format!("Connection timeout after {}ms", timeout_ms)
+                    ))
+                }
             }
-            Err(_) => Ok(false),  // Timeout
-        }
+        })
     }
 }
 ```
@@ -270,15 +383,75 @@ fn build_field_condition(
             Ok((condition, vec![]))
         }
 
-        // Nested AND/OR logic
+        // Nested AND logic: {"and": [{"eq": value1}, {"gt": value2}]}
         Value::Object(obj) if obj.contains_key("and") => {
-            // Implementation for complex nested filters
-            todo!("Implement AND clause nesting")
+            let and_conditions = obj
+                .get("and")
+                .ok_or("Missing 'and' value")?
+                .as_array()
+                .ok_or("'and' must be an array")?;
+
+            let mut nested_conditions = Vec::new();
+            for condition in and_conditions {
+                let (cond_str, cond_params) =
+                    build_field_condition(field_name, condition, param_counter)?;
+                nested_conditions.push(cond_str);
+                params.extend(cond_params);
+            }
+
+            if nested_conditions.is_empty() {
+                Err("'and' array is empty".to_string())
+            } else {
+                let condition = format!("({})", nested_conditions.join(" AND "));
+                Ok((condition, params))
+            }
         }
 
+        // Nested OR logic: {"or": [{"eq": value1}, {"gt": value2}]}
         Value::Object(obj) if obj.contains_key("or") => {
-            // Implementation for OR clause nesting
-            todo!("Implement OR clause nesting")
+            let or_conditions = obj
+                .get("or")
+                .ok_or("Missing 'or' value")?
+                .as_array()
+                .ok_or("'or' must be an array")?;
+
+            let mut nested_conditions = Vec::new();
+            for condition in or_conditions {
+                let (cond_str, cond_params) =
+                    build_field_condition(field_name, condition, param_counter)?;
+                nested_conditions.push(cond_str);
+                params.extend(cond_params);
+            }
+
+            if nested_conditions.is_empty() {
+                Err("'or' array is empty".to_string())
+            } else {
+                let condition = format!("({})", nested_conditions.join(" OR "));
+                Ok((condition, params))
+            }
+        }
+
+        // NOT logic: {"not": {"eq": value}}
+        Value::Object(obj) if obj.contains_key("not") => {
+            let not_filter = obj
+                .get("not")
+                .ok_or("Missing 'not' value")?;
+
+            let (inner_condition, inner_params) =
+                build_field_condition(field_name, not_filter, param_counter)?;
+
+            // For NOT, we need to negate the condition
+            let negated = if inner_condition.contains("IS NULL") {
+                inner_condition.replace("IS NULL", "IS NOT NULL")
+            } else if inner_condition.contains("IS NOT NULL") {
+                inner_condition.replace("IS NOT NULL", "IS NULL")
+            } else if inner_condition.contains("IN (") {
+                inner_condition.replace("IN", "NOT IN")
+            } else {
+                format!("NOT ({})", inner_condition)
+            };
+
+            Ok((negated, inner_params))
         }
 
         _ => Err(format!("Unsupported filter format for field '{}'", field_name)),

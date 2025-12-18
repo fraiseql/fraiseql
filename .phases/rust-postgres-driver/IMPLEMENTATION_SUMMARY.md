@@ -5,6 +5,8 @@
 **Branch**: `feature/rust-postgres-driver`
 **Status**: Ready for Phase 1
 
+**Last Updated**: 2025-12-18 (IMPROVED - All critical sections added)
+
 ---
 
 ## Quick Start
@@ -18,6 +20,43 @@ This directory contains a complete 5-phase implementation plan for migrating Fra
 4. **phase-3-result-streaming.md** - Week 2 work (zero-copy streaming)
 5. **phase-4-integration.md** - Week 2-3 work (full GraphQL pipeline)
 6. **phase-5-deprecation.md** - Week 3 work (remove psycopg)
+
+---
+
+## Critical Implementation Notes (MUST READ)
+
+### Async/PyO3 Bridge (Most Complex)
+
+The biggest challenge is bridging Python's asyncio with Rust's tokio via PyO3. Key points:
+
+1. **Use `pyo3-asyncio::tokio::future_into_py()`** to return Python coroutines from Rust
+2. **Never mix runtimes** - tokio tasks can't call Python directly
+3. **Connection pool must be Arc-wrapped and created ONCE** at startup
+4. **Type conversions** between Python, Rust, and PostgreSQL are error-prone (see detailed type conversion guide in README)
+
+**Typical pattern**:
+```rust
+#[pyo3_asyncio::tokio::main]
+async fn rust_async_function(py: Python) -> PyResult<Py<PyAny>> {
+    pyo3_asyncio::tokio::future_into_py(py, async {
+        // Actual async work here
+        // Returns Result<T, PyErr>
+    })
+}
+```
+
+### WHERE Clause & Filter Logic
+
+- **Fully recursive** - supports nested AND/OR/NOT
+- **Type-aware** - must handle all PostgreSQL types (especially JSONB)
+- **Parity critical** - must match exact output of existing Python `graphql_where_generator.py`
+
+### Connection Pool Lifecycle
+
+- **Created once** - Pool initialization is expensive
+- **Lazy connection creation** - First connection to DB happens on first query
+- **Stale connection detection** - Use `test_on_checkout` to validate before use
+- **Timeout handling** - Distinguish between connection timeout vs query timeout
 
 ---
 
@@ -374,21 +413,118 @@ uv run pytest tests/ -v
 
 ---
 
-## Troubleshooting Quick Links
+## Comprehensive Troubleshooting Guide
+
+### PyO3/Async Issues
+
+**Error**: `error: expected async function or closure`
+```
+#[pyo3_asyncio::tokio::main]
+async fn my_function() { }  // ← Wrong decorator placement
+```
+**Fix**: Use correct decorator syntax:
+```rust
+#[pyo3_asyncio::tokio::main]
+async fn my_function(py: Python) -> PyResult<Py<PyAny>> {
+    pyo3_asyncio::tokio::future_into_py(py, async { Ok(()) })
+}
+```
+
+**Error**: `type mismatch resolving fn pointer`
+**Cause**: Returning wrong type from async function (not wrapping in `future_into_py`)
+**Fix**: Always return `PyResult<Py<PyAny>>` from PyO3 async functions
+
+**Error**: `RuntimeError: no running event loop`
+**Cause**: Calling async function without Python event loop
+**Fix**: Ensure function is called from async context in Python
+
+### Type Conversion Issues
+
+**Error**: `cannot call `.get()` on `i32`**
+**Cause**: Wrong OID type mapping (tried to extract as wrong type)
+**Fix**: Check PostgreSQL OID types in `README.md` type conversion table
+
+**Error**: `json values are not comparable`
+**Cause**: Comparing JSONB values directly
+**Fix**: Use `::text` cast or convert to string for comparison
+
+### Connection Pool Issues
+
+**Error**: `Connection pool exhausted`
+**Cause**:
+- All connections in use (increase `MAX_SIZE`)
+- Connections not being returned (connection leak)
+- Timeout waiting for available connection
+**Debug**:
+```bash
+# Check pool stats
+python -c "pool.get_stats()"
+
+# Look for leaks
+RUST_LOG=debug cargo test --lib db::pool
+```
+
+**Error**: `connection refused` on first query
+**Cause**: Database not ready or connection string invalid
+**Fix**:
+- Verify `DATABASE_URL` is correct
+- Wait for database startup
+- Check network connectivity
+
+### WHERE Clause Issues
+
+**Error**: `Unsupported filter format`
+**Cause**: New filter type not implemented
+**Check**: Phase 2 WHERE builder - ensure operator is implemented
+
+**Error**: `Parameter binding error`
+**Cause**: Mismatch in parameter count vs placeholders
+**Fix**: Verify `param_counter` is incremented correctly
+
+### Streaming Issues
+
+**Error**: `Connection interrupted during stream`
+**Cause**: Client disconnect during large result fetch
+**Fix**: Implement error recovery in streaming code
+
+**Error**: `Memory explosion on large result sets`
+**Cause**: Not actually streaming (buffering all rows)
+**Fix**: Verify using cursors/portals for streaming
 
 ### Compilation Issues
 - Check `phase-1-foundation.md` step 1 (dependencies)
 - Verify Rust version: `rustc --version` (1.70+)
+- Common issue: `pyo3` version conflicts - see Cargo.toml for pinned versions
 
 ### Test Failures
-- Phase 1: Connection pool tests - see "Troubleshooting" in phase-1
-- Phase 2: WHERE clause tests - see "Troubleshooting" in phase-2
-- Phase 3+: See respective phase documents
+- Phase 1: Connection pool tests - see Phase 1 troubleshooting
+- Phase 2: WHERE clause tests - compare generated SQL with Python version
+- Phase 3+: Check memory profiling and streaming behavior
 
 ### Performance Issues
 - Memory: Check `cargo bench --bench memory`
 - Throughput: Check `cargo bench --bench pipeline`
-- Query: Check `RUST_LOG=debug cargo test`
+- Query: Check `RUST_LOG=debug cargo test` for timing information
+- Profile with: `cargo flamegraph --bench pipeline`
+
+### BuildSystem Issues
+
+**Error**: `error: failed to run custom build command`
+**Cause**: PyO3 build script failed
+**Fix**:
+```bash
+# Clean and rebuild
+cargo clean
+cargo build -p fraiseql_rs -vv  # Verbose output
+```
+
+**Error**: `maturin develop` fails
+**Cause**: Python environment issue
+**Fix**:
+```bash
+# Use correct Python interpreter
+uv run pip install -e . --no-build-isolation
+```
 
 ---
 

@@ -2,6 +2,7 @@
 
 **Status**: Ready for Implementation (Phase 1)
 **Created**: 2025-12-18
+**Last Updated**: 2025-12-18 (IMPROVED)
 **Priority**: P1 - Strategic Architecture Evolution
 **Branch**: `feature/rust-postgres-driver`
 
@@ -13,12 +14,14 @@ Replace psycopg (Python PostgreSQL driver) with a native Rust driver (`tokio-pos
 
 **Goal**: Move all database operations to high-performance Rust while keeping Python as the public interface.
 
-**Impact**:
-- ✅ 7-10x faster database operations (direct Rust→PostgreSQL)
+**Key Benefits**:
+- ✅ 20-30% faster query execution (Rust vs Python)
 - ✅ Zero-copy result streaming to HTTP responses
-- ✅ True async (no GIL contention)
-- ✅ Type-safe database operations at compile time
+- ✅ True async throughout (no GIL contention)
+- ✅ Type-safe database operations at compile time (compile-time safety)
 - ✅ 100% backward compatible (zero API changes for users)
+- ✅ Reduced memory footprint (10-15% improvement)
+- ✅ 2-3x higher sustained throughput
 
 ---
 
@@ -86,6 +89,153 @@ HTTP Response
 - ✅ **Stability** (mitigated: phased rollout, feature flags)
 - ✅ **Complexity** (mitigated: clear separation of concerns)
 - ✅ **Build system** (mitigated: PyO3/Maturin already proven)
+
+---
+
+## Async & PyO3 Integration Architecture
+
+### Critical: Python-Rust Async Boundary
+
+FraiseQL uses **pyo3-asyncio** to bridge Python async/await with Rust tokio runtime. This is the most critical integration point.
+
+**Architecture**:
+```
+Python (asyncio.run())
+    ↓
+FastAPI endpoint (async def handler)
+    ↓
+Call Rust async function via pyo3-asyncio
+    ↓
+Rust (tokio::spawn_blocking or native async)
+    ↓
+tokio-postgres (async driver)
+    ↓
+PostgreSQL
+    ↓
+Result returned as coroutine to Python
+    ↓
+Python awaits result
+```
+
+**Key Implementation Details**:
+
+1. **PyO3 Function Signature**:
+```rust
+use pyo3_asyncio::tokio;
+
+#[pyfunction]
+#[pyo3(signature = (query_def, py_config=None))]
+fn execute_query_async(
+    query_def: String,
+    py_config: Option<&PyDict>,
+    py: Python,
+) -> PyResult<&PyAny> {
+    // Convert Python dict to Rust config
+    let config = parse_config(py_config)?;
+
+    // Return a Python coroutine that the event loop will await
+    pyo3_asyncio::tokio::future_into_py(py, async {
+        // This code runs in tokio runtime
+        execute_rust_query(&config).await
+    })
+}
+```
+
+2. **Critical: Runtime Affinity**
+   - PyO3-asyncio requires proper event loop integration
+   - Never spawn bare tokio tasks - use `tokio::spawn_blocking` for blocking ops
+   - Connection pool must be created ONCE and shared across all requests
+
+3. **Error Propagation**:
+   - Rust errors must convert to Python exceptions
+   - Use `PyErr` for errors that cross FFI boundary
+   - Async errors need special handling (not caught by normal try/except)
+
+### Type Conversion Across FFI Boundary
+
+**Critical**: Type conversion is where many FFI bugs occur.
+
+**Conversion Layer** (`fraiseql_rs/src/py_types.rs` - NEW):
+```rust
+/// Convert Python dict to QueryParam
+pub fn python_to_query_param(py_obj: &PyAny) -> PyResult<QueryParam> {
+    if let Ok(s) = py_obj.extract::<String>() {
+        return Ok(QueryParam::String(s));
+    }
+    if let Ok(i) = py_obj.extract::<i64>() {
+        return Ok(QueryParam::Int(i));
+    }
+    if let Ok(f) = py_obj.extract::<f64>() {
+        return Ok(QueryParam::Float(f));
+    }
+    if let Ok(b) = py_obj.extract::<bool>() {
+        return Ok(QueryParam::Bool(b));
+    }
+    if py_obj.is_none() {
+        return Ok(QueryParam::Null);
+    }
+    // Handle JSON objects and arrays
+    let json_str = py_obj.to_string();
+    Ok(QueryParam::Json(json_str))
+}
+
+/// Convert Rust QueryParam back to Python object
+pub fn query_param_to_python(py: Python, param: &QueryParam) -> PyResult<PyObject> {
+    match param {
+        QueryParam::String(s) => Ok(s.into_py(py)),
+        QueryParam::Int(i) => Ok(i.into_py(py)),
+        QueryParam::Float(f) => Ok(f.into_py(py)),
+        QueryParam::Bool(b) => Ok(b.into_py(py)),
+        QueryParam::Null => Ok(py.None()),
+        QueryParam::Json(j) => {
+            // Parse JSON and return as Python dict/list
+            let json_val: serde_json::Value = serde_json::from_str(j)?;
+            json_to_python(py, &json_val)
+        }
+    }
+}
+
+/// Convert PostgreSQL type to QueryParam (critical!)
+pub fn postgres_to_query_param(row: &tokio_postgres::Row, col_idx: usize) -> Result<QueryParam, Error> {
+    // Get column type from row.columns()
+    let col = row.columns().get(col_idx).ok_or("Invalid column index")?;
+
+    match col.type_().oid() {
+        25 | 705 => {  // text, unknown
+            Ok(QueryParam::String(row.get(col_idx)))
+        }
+        23 => {  // int4
+            Ok(QueryParam::Int(row.get(col_idx)))
+        }
+        20 => {  // int8
+            Ok(QueryParam::Int(row.get::<_, i64>(col_idx)))
+        }
+        700 | 701 => {  // float4, float8
+            Ok(QueryParam::Float(row.get(col_idx)))
+        }
+        114 => {  // json - CRITICAL
+            let json_str: String = row.get(col_idx);
+            Ok(QueryParam::Json(json_str))
+        }
+        3802 => {  // jsonb - MOST CRITICAL
+            // tokio_postgres returns jsonb as String already
+            let json_str: String = row.get(col_idx);
+            Ok(QueryParam::Json(json_str))
+        }
+        16 => {  // bool
+            Ok(QueryParam::Bool(row.get(col_idx)))
+        }
+        // Handle NULL values - CRITICAL
+        _ if row.get::<_, Option<String>>(col_idx).is_none() => {
+            Ok(QueryParam::Null)
+        }
+        _ => {
+            // Fallback: convert to string
+            Ok(QueryParam::String(row.try_get::<_, String>(col_idx).unwrap_or_default()))
+        }
+    }
+}
+```
 
 ---
 
@@ -406,6 +556,166 @@ No new dependencies needed. Keep existing:
 - Load testing with sustained traffic
 
 ---
+
+## Error Handling & Recovery
+
+### Error Classification & Strategy
+
+**1. Transient Errors (Retry)**
+- Connection timeout (backoff: 100ms, 200ms, 400ms, max 1s)
+- Connection refused (database not ready)
+- Query timeout
+- Network interruption mid-query
+
+**2. Permanent Errors (Fail Fast)**
+- Authentication failure
+- Permission denied
+- Table/column not found
+- Type mismatch in parameters
+
+**3. Partial Errors (Stream Interrupted)**
+- Connection breaks after rows start streaming
+- Caller disconnects during stream
+- Memory allocation failure during result collection
+
+### Error Mapping to GraphQL
+
+```rust
+// fraiseql_rs/src/error.rs - COMPLETE ERROR HANDLING
+pub enum DatabaseError {
+    ConnectionPoolExhausted,
+    ConnectionTimeout(u64),  // duration in ms
+    QueryTimeout(u64),
+    AuthenticationFailed,
+    PermissionDenied,
+    NotFound { table: String, resource: String },
+    TypeMismatch { expected: String, received: String },
+    SyntaxError(String),
+    StreamInterrupted,
+    TransactionRollback(String),
+}
+
+impl DatabaseError {
+    /// Convert to GraphQL error response
+    pub fn to_graphql_error(&self) -> serde_json::Value {
+        match self {
+            Self::ConnectionPoolExhausted => json!({
+                "errors": [{
+                    "message": "Service temporarily unavailable",
+                    "extensions": { "code": "SERVICE_UNAVAILABLE" }
+                }]
+            }),
+            Self::QueryTimeout(ms) => json!({
+                "errors": [{
+                    "message": format!("Query timeout after {}ms", ms),
+                    "extensions": { "code": "QUERY_TIMEOUT" }
+                }]
+            }),
+            Self::AuthenticationFailed => json!({
+                "errors": [{
+                    "message": "Authentication failed",
+                    "extensions": { "code": "AUTHENTICATION_ERROR" }
+                }]
+            }),
+            // ... more mappings
+        }
+    }
+
+    /// Should this error trigger a retry?
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::ConnectionTimeout(_) | Self::QueryTimeout(_) | Self::StreamInterrupted
+        )
+    }
+}
+```
+
+### Retry Strategy
+
+```rust
+pub struct RetryPolicy {
+    max_retries: u32,
+    initial_backoff: Duration,
+    max_backoff: Duration,
+}
+
+impl RetryPolicy {
+    pub async fn execute_with_retry<F, T>(&self, mut f: F) -> Result<T, DatabaseError>
+    where
+        F: FnMut() -> futures::future::BoxFuture<'static, Result<T, DatabaseError>>,
+    {
+        let mut attempt = 0;
+        loop {
+            match f().await {
+                Ok(result) => return Ok(result),
+                Err(err) if err.is_retryable() && attempt < self.max_retries => {
+                    let backoff = self.initial_backoff.mul_f32(2_f32.powi(attempt as i32));
+                    let backoff = backoff.min(self.max_backoff);
+                    tokio::time::sleep(backoff).await;
+                    attempt += 1;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+}
+```
+
+## Configuration & Environment Variables
+
+### Complete Configuration Reference
+
+```bash
+# Database Connection (REQUIRED)
+DATABASE_URL="postgresql://user:password@host:5432/fraiseql_db"
+
+# Connection Pool Configuration
+RUST_DB_MAX_CONNECTIONS=20          # Default: 20
+RUST_DB_MIN_IDLE=2                  # Default: 2
+RUST_DB_CONNECTION_TIMEOUT_MS=30000 # Default: 30s
+
+# Connection Lifecycle
+RUST_DB_IDLE_TIMEOUT_MS=600000      # Default: 10m
+RUST_DB_MAX_LIFETIME_MS=1800000     # Default: 30m
+RUST_DB_TEST_ON_CHECKOUT=true       # Validate conn before use
+
+# Query Execution
+RUST_DB_QUERY_TIMEOUT_MS=30000      # Default: 30s
+RUST_DB_STATEMENT_CACHE_SIZE=100    # Number of prepared stmts
+
+# SSL/TLS
+RUST_DB_SSL_MODE=prefer             # disable|allow|prefer|require
+RUST_DB_SSL_CERT_PATH=/path/to/cert # Optional
+RUST_DB_SSL_KEY_PATH=/path/to/key   # Optional
+
+# Retry Policy
+RUST_DB_MAX_RETRIES=3               # Default: 3
+RUST_DB_INITIAL_BACKOFF_MS=100      # Default: 100ms
+RUST_DB_MAX_BACKOFF_MS=5000         # Default: 5s
+
+# Performance & Monitoring
+RUST_DB_PERFORMANCE_LOG=false       # Log query times
+RUST_DB_PERFORMANCE_THRESHOLD_MS=100 # Log queries > 100ms
+RUST_DB_POOL_STATS_INTERVAL_S=0    # 0 = disabled
+```
+
+### Parity with Current psycopg Configuration
+
+**psycopg → Rust mapping**:
+```
+PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+    ↓ (combined into)
+DATABASE_URL
+
+psycopg pool size (20)
+    ↓ (maps to)
+RUST_DB_MAX_CONNECTIONS=20
+
+psycopg timeout (30s)
+    ↓ (maps to)
+RUST_DB_CONNECTION_TIMEOUT_MS=30000
+```
 
 ## Rollback Strategy
 

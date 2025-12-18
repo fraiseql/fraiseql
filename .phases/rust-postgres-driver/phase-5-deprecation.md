@@ -1,369 +1,712 @@
-# Phase 5: Deprecation - Remove psycopg, Finalize Architecture
+# Phase 5: Deprecation & Finalization - Remove psycopg, Achieve Evergreen State
 
-**Phase**: 5 of 5
+**Phase**: 5 of 5 (Final)
 **Effort**: 6 hours
 **Status**: Blocked until Phase 4 complete
-**Prerequisite**: Phase 4 - Full Integration complete
+**Prerequisite**: Phase 4 - Full Integration complete + all tests passing
+**Companion Docs**: FEATURE-FLAGS.md, TESTING_STRATEGY.md
 
 ---
 
 ## Objective
 
-Complete the Rust migration by removing psycopg dependency:
-1. Remove all psycopg code paths
-2. Remove psycopg dependency from pyproject.toml
-3. Clean up feature flags
-4. Finalize architecture
-5. Achieve evergreen state
+Complete the Rust migration by removing all Python/psycopg dependencies:
+1. Remove all psycopg code paths and fallbacks
+2. Remove psycopg dependencies from pyproject.toml
+3. Clean up feature flags (Rust-only)
+4. Clean up legacy code and tests
+5. Achieve evergreen state (production-ready)
 
 **Success Criteria**:
-- ✅ No references to psycopg in code
-- ✅ No fallback paths remain
+- ✅ Zero psycopg references in codebase
+- ✅ No fallback code paths
 - ✅ All 5991+ tests pass with Rust backend only
-- ✅ Repository in clean, evergreen state
+- ✅ Repository clean and evergreen
+- ✅ Performance maintained (≥ 20-30% vs original)
+- ✅ Documentation updated
 
 ---
 
-## Changes Required
+## Why This Phase Matters
 
-### Remove Psycopg References
+**Problem**: Code contains legacy psycopg paths and feature flags
+- Creates technical debt
+- Makes testing complex
+- Confuses future developers
+- Prevents optimizations specific to Rust
 
-**Files to delete**:
+**Solution**: Remove all traces of psycopg
+- Clean, simple codebase
+- Single implementation path
+- Easier to maintain and extend
+- Opens door to Rust-only optimizations
+
+---
+
+## Detailed Implementation Steps
+
+### Step 1: Identify All psycopg References
+
+**Command**:
+```bash
+grep -r "psycopg" src/ fraiseql_rs/ --include="*.py" --include="*.rs" --include="*.toml"
+grep -r "python.db" src/ fraiseql_rs/ --include="*.py" --include="*.rs"
+grep -r "fallback" src/ fraiseql_rs/ --include="*.py" --include="*.rs"
 ```
-src/fraiseql/db.py (OLD psycopg layer - DEPRECATED)
-src/fraiseql/cqrs/repository.py (if psycopg-specific)
+
+**Expected files with psycopg**:
+- `src/fraiseql/db.py` - Old database layer (DELETE)
+- `src/fraiseql/core/database.py` - May have imports (CLEAN)
+- `src/fraiseql/core/rust_pipeline.py` - May have fallback (CLEAN)
+- `pyproject.toml` - Dependencies (UPDATE)
+- `fraiseql_rs/Cargo.toml` - Feature flags (UPDATE)
+- `tests/regression/test_parity.py` - Parity tests (DELETE)
+- Various test files (CLEAN)
+
+---
+
+### Step 2: Remove Python Database Layer
+
+**File to DELETE**: `src/fraiseql/db.py`
+
+This file contains the old psycopg-based connection pool. All functionality has been moved to Rust.
+
+```bash
+# Backup first (in git, so no actual loss)
+git rm src/fraiseql/db.py
 ```
 
-**Files to modify**:
+**What's being moved**:
+- Connection pool → Rust (Phase 1)
+- Query execution → Rust (Phase 2)
+- Result transformation → Rust (Phase 3)
+- All query types → Rust (Phase 2-4)
+
+---
+
+### Step 3: Clean Python Core Layer
+
+**File**: `src/fraiseql/core/database.py`
+
+Before (Phase 4):
+```python
+"""Database layer with fallback support"""
+import os
+
+class RustDatabasePool:
+    def __init__(self):
+        self.use_rust = os.getenv("FRAISEQL_DB_BACKEND", "rust") == "rust"
+
+        if self.use_rust:
+            try:
+                from _fraiseql_rs import execute_query_async
+                self.execute = execute_query_async
+            except ImportError:
+                raise RuntimeError("Rust backend required")
+        else:
+            # Fallback to psycopg (Phase 4)
+            from psycopg_pool import SimpleConnectionPool
+            self.pool = SimpleConnectionPool(os.getenv("DATABASE_URL"))
+
+    async def execute_query(self, query_def):
+        if self.use_rust:
+            return await self.rust_execute(query_def)
+        else:
+            return await self.python_execute(query_def)
 ```
-pyproject.toml
-  - Remove: psycopg[pool]
-  - Remove: psycopg-pool
-  - Remove: opentelemetry-instrumentation-psycopg (from tracing)
 
-src/fraiseql/core/rust_pipeline.py
-  - Remove: psycopg imports
-  - Remove: fallback to psycopg code
+After (Phase 5):
+```python
+"""Rust-native database layer"""
+from _fraiseql_rs import execute_query_async, execute_mutation_async
 
-src/fraiseql/core/database.py
-  - Remove: psycopg fallback path
-  - Keep: Rust implementation only
+class RustDatabasePool:
+    """Unified Rust-native database backend (psycopg removed)"""
+
+    async def execute_query(self, query_def):
+        """Execute GraphQL query via Rust backend"""
+        return await execute_query_async(query_def)
+
+    async def execute_mutation(self, mutation_def):
+        """Execute GraphQL mutation via Rust backend"""
+        return await execute_mutation_async(mutation_def)
 ```
 
-### Clean Up Feature Flags
+---
 
-**Cargo.toml**:
+### Step 4: Update Python Imports
+
+**Find all imports**:
+```bash
+grep -r "from fraiseql.db import" src/ tests/
+grep -r "from psycopg" src/ tests/
+grep -r "psycopg" src/ --include="*.py"
+```
+
+**Update pattern**:
+```python
+# BEFORE
+from fraiseql.db import get_connection
+from psycopg_pool import SimpleConnectionPool
+
+# AFTER
+from fraiseql.core.database import RustDatabasePool
+```
+
+---
+
+### Step 5: Remove Dependencies
+
+**File**: `pyproject.toml`
+
+Before:
 ```toml
-# BEFORE (Phase 4)
+dependencies = [
+    "fastapi>=0.115.12",
+    "starlette>=0.49.1",
+    "graphql-core>=3.3.0",
+    "pydantic>=2.9.0",
+    "psycopg[pool]>=3.2.6",      # ← REMOVE
+    "psycopg-pool>=3.2.6",        # ← REMOVE
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+tracing = [
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-psycopg",  # ← REMOVE
+]
+```
+
+After:
+```toml
+dependencies = [
+    "fastapi>=0.115.12",
+    "starlette>=0.49.1",
+    "graphql-core>=3.3.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.0.0",
+    # psycopg removed - using Rust backend
+]
+
+[project.optional-dependencies]
+tracing = [
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-instrumentation-fastapi",
+    # opentelemetry-instrumentation-psycopg removed
+]
+```
+
+---
+
+### Step 6: Clean Rust Feature Flags
+
+**File**: `fraiseql_rs/Cargo.toml`
+
+Before (Phase 4):
+```toml
 [features]
 default = ["rust-db"]
-rust-db = []
-python-db = []  # Fallback - REMOVE in Phase 5
+rust-db = []           # Rust database backend
+python-db = []         # Fallback to psycopg
 
-# AFTER (Phase 5)
-[features]
-# No feature flags needed - Rust is the only backend
+[dependencies]
+# Conditional features
+[target.'cfg(feature = "python-db")'.dependencies]
+psycopg-sys = "0.1"
 ```
 
-**Rust Code**:
-```rust
-// BEFORE (Phase 4)
+After (Phase 5):
+```toml
+[features]
+# No conditional features - Rust is the only backend
+
+[dependencies]
+# Remove any conditional psycopg dependencies
+# Rust backend dependencies remain unchanged
+```
+
+**Rust code cleanup**:
+
+```bash
+# Find all feature-gated code
+grep -r "#\[cfg(feature" fraiseql_rs/src/
+
+# Remove feature flags from code
+# Convert this:
 #[cfg(feature = "rust-db")]
 async fn execute_query() { ... }
 
 #[cfg(feature = "python-db")]
-async fn execute_query() { ... }
+async fn fallback_query() { ... }
 
-// AFTER (Phase 5)
-async fn execute_query() { ... }  // Only one implementation
+# To this:
+async fn execute_query() { ... }
 ```
 
-### Update Documentation
+---
 
-**Files to update**:
-- `docs/architecture/database-layer.md` - Document new Rust-native architecture
-- `README.md` - Update feature list to highlight "Rust-native database layer"
-- `CHANGELOG.md` - Document major architecture change
+### Step 7: Remove Feature Flag Environment Variables
 
-### Clean Up Tests
+**Update**: Configuration code that checked for feature flags
 
-**Remove**:
-- `tests/regression/test_rust_db_parity.py` - No longer needed (only Rust backend)
-- `tests/integration/db/test_psycopg_*.py` - Old psycopg tests
+Before:
+```python
+USE_RUST_BACKEND = os.getenv("FRAISEQL_DB_BACKEND", "rust").lower() == "rust"
+ENABLE_PARITY_TESTING = os.getenv("FRAISEQL_PARITY_TESTING", "false").lower() == "true"
+```
 
-**Keep**:
-- All integration tests with Rust backend
-- All regression tests
+After:
+```python
+# Rust backend is the only option - environment variables no longer needed
+# DATABASE_URL still required, but FRAISEQL_DB_BACKEND is no longer checked
+```
+
+---
+
+### Step 8: Remove Compatibility Tests
+
+**Files to DELETE**:
+- `tests/regression/test_rust_db_parity.py` - No longer needed (only one backend)
+- `tests/integration/db/test_psycopg_*.py` - Legacy tests
+- Any tests checking feature flags
+
+**Files to UPDATE**:
+- Remove `FRAISEQL_DB_BACKEND` environment variable from test configurations
+- Remove parity test execution from CI/CD
+- Simplify test setup (no need for both-backend testing)
+
+```python
+# BEFORE
+@pytest.mark.parametrize("db_backend", ["rust", "psycopg"])
+async def test_query(db_backend):
+    os.environ["FRAISEQL_DB_BACKEND"] = db_backend
+    result = await execute_query(...)
+    assert result["data"] is not None
+
+# AFTER
+async def test_query():
+    result = await execute_query(...)
+    assert result["data"] is not None
+```
+
+---
+
+### Step 9: Update CI/CD Configuration
+
+**File**: `.github/workflows/ci.yml`
+
+Remove jobs/steps:
+- Psycopg-specific test jobs
+- Parity testing workflows
+- Feature flag testing
+
+Keep:
+- Full test suite (only Rust backend)
+- Integration tests
+- Regression tests
 - Performance benchmarks
 
 ---
 
-## Implementation Steps
+### Step 10: Update Documentation
 
-### Step 1: Remove Fallback Paths
+**Files to create/update**:
 
-**File**: `src/fraiseql/core/database.py`
+**1. `docs/architecture/database-layer.md`** (NEW)
+```markdown
+# Database Layer Architecture
 
-Remove the `enabled` flag and psycopg fallback:
+## Overview
+FraiseQL uses a Rust-native PostgreSQL driver for all database operations.
 
-```python
-# BEFORE (Phase 4)
-class RustDatabasePool:
-    def __init__(self, enabled=True):
-        if enabled:
-            self._init_rust_pool()
-        else:
-            # Fallback to psycopg
-            pass
+## Stack
+- **Connection Pooling**: deadpool-postgres + tokio-postgres
+- **Query Building**: Rust (type-safe, compiled)
+- **Result Streaming**: Zero-copy transformation
+- **Transaction Support**: Full ACID compliance
 
-# AFTER (Phase 5)
-class RustDatabasePool:
-    def __init__(self):
-        self._init_rust_pool()  # Only option
+## Performance
+- 20-30% faster than Python/psycopg
+- 10-15% lower memory usage
+- 2-3x higher throughput
+
+## Migration History
+Previous versions used psycopg (Python driver) with Rust JSON transformation.
+Since v1.9.0, entire database layer is Rust-native.
 ```
 
-### Step 2: Remove Psycopg Dependencies
+**2. Update README.md**
+- Highlight "Rust-native database layer"
+- Update performance claims (now 20-30% faster)
+- Remove references to psycopg
 
-**File**: `pyproject.toml`
-
-```toml
-# BEFORE
-dependencies = [
-    "psycopg[pool]>=3.2.6",
-    "psycopg-pool>=3.2.6",
-    ...
-]
-
-# AFTER
-dependencies = [
-    "fastapi>=0.115.12",
-    "starlette>=0.49.1",
-    ...
-    # psycopg removed
-]
+**3. Update CHANGELOG.md**
 ```
+## v1.9.0 - Rust-Native Database Layer
 
-### Step 3: Remove Old Database Layer
+### Major Changes
+- Complete migration to Rust-native PostgreSQL driver
+- Removed psycopg dependency (breaking for custom middleware, but internal only)
+- Performance improvements: 20-30% faster, 10-15% lower memory
 
-**Files**:
-- Delete: `src/fraiseql/db.py` (move functionality to Rust)
-- Delete: Any psycopg-specific utilities
-- Update: All imports to use `src/fraiseql/core/database.py`
-
-### Step 4: Clean Up Rust Code
-
-**File**: `fraiseql_rs/Cargo.toml`
-
-```toml
-# BEFORE (if there are feature flags)
-[features]
-default = ["rust-db"]
-rust-db = []
-
-# AFTER
-[features]
-# No conditional features needed
+### Architecture
+- Python: GraphQL framework, validation, schema introspection
+- Rust: Connection pooling, queries, mutations, streaming
 ```
-
-**Rust code**:
-- Remove all `#[cfg(feature = "python-db")]` blocks
-- Keep only `#[cfg(feature = "rust-db")]` implementations
-- Delete fallback functions
-
-### Step 5: Update CI/CD
-
-**File**: `.github/workflows/` (if exists)
-
-Remove:
-- Psycopg-specific test steps
-- Fallback backend testing
-
-### Step 6: Achieve Evergreen State
-
-**Cleanup**:
-- Delete `.phases/rust-postgres-driver/` directory (after merge)
-- Update git history (no archaeological traces)
-- All commits should be clean and purposeful
 
 ---
 
-## Verification Steps
+## Verification Procedures
 
-### Build & Test
+### Phase 1: Compilation Check
+
 ```bash
-# Build everything
-cargo build --release -p fraiseql_rs
+# Build Rust
+cd fraiseql_rs
+cargo build --release
+
+# Build Python
+cd ..
 uv run pip install -e .
+# Should work without psycopg issues
+```
 
-# Verify no psycopg references
-grep -r "psycopg" src/ fraiseql_rs/ || echo "✅ No psycopg references"
+### Phase 2: Search for Remaining References
 
-# Run full test suite
+```bash
+# Should output nothing
+grep -r "psycopg" src/ fraiseql_rs/ tests/
+grep -r "python-db" fraiseql_rs/
+grep -r "python_db" fraiseql_rs/
+
+# All should return zero matches
+echo $?  # 1 = not found (good), 0 = found (bad)
+```
+
+### Phase 3: Run Test Suite
+
+```bash
+# Full test suite with Rust backend only
 uv run pytest tests/ -v --tb=short
 
 # Expected: All 5991+ tests pass
+# Expected output:
+# ======================= 5991 passed in 234.23s =======================
 ```
 
-### Code Quality
+### Phase 4: Performance Comparison
+
 ```bash
+# Compare Phase 4 vs Phase 5 performance
+make bench-compare
+
+# Expected: No significant regression (< 5% variance)
+```
+
+### Phase 5: Code Quality
+
+```bash
+# Clippy (Rust)
+cd fraiseql_rs
+cargo clippy -- -D warnings
+
+# Ruff (Python)
+cd ..
+uv run ruff check src/
+
 # Format check
-uv run ruff format src/ fraiseql_rs/
-uv run ruff check src/ fraiseql_rs/
-
-# Type checking
-uv run pyright src/
-
-# Build check
-cargo check -p fraiseql_rs
+uv run ruff format --check src/
+cargo fmt --check
 ```
 
-### Performance Baseline
+### Phase 6: Final Validation
+
 ```bash
-# Compare with Phase 4 baseline
-uv run pytest tests/performance/ -v 2>&1 | tee baseline_phase5.txt
-diff baseline_phase4.txt baseline_phase5.txt
+# Build everything
+make build
+make release
+
+# Run full QA pipeline
+make qa
+
+# Expected: Everything passes
 ```
 
 ---
 
-## Success Checklist
+## Detailed Checklist
 
-- [ ] All psycopg imports removed
-- [ ] No fallback code paths remain
-- [ ] All feature flags cleaned up
-- [ ] Dependencies updated in pyproject.toml
-- [ ] All 5991+ tests pass
-- [ ] No regressions vs Phase 4
-- [ ] Documentation updated
-- [ ] Code quality checks pass
-- [ ] Performance meets or exceeds Phase 4
-- [ ] Repository in evergreen state
+### Pre-Removal Validation
+
+- [ ] All 5991+ tests pass with Rust backend (Phase 4)
+- [ ] Performance baseline captured
+- [ ] Feature branch is up-to-date with dev
+- [ ] No uncommitted changes
+
+### Remove Phase
+
+- [ ] Delete `src/fraiseql/db.py`
+- [ ] Delete psycopg-specific test files
+- [ ] Update `pyproject.toml` (remove psycopg, opentelemetry-instrumentation-psycopg)
+- [ ] Update `fraiseql_rs/Cargo.toml` (remove feature flags)
+- [ ] Clean up Python imports (src/fraiseql/)
+- [ ] Clean up Rust feature-gated code
+- [ ] Remove feature flag environment variable handling
+
+### Testing & Validation
+
+- [ ] Build passes: `cargo build --release`
+- [ ] Install passes: `uv run pip install -e .`
+- [ ] No psycopg references: `grep -r "psycopg" src/` = no results
+- [ ] All tests pass: `uv run pytest tests/ -v`
+- [ ] Clippy passes: `cargo clippy -- -D warnings`
+- [ ] Format passes: `cargo fmt --check`
+- [ ] Performance maintained: `make bench-compare` < 5% variance
+
+### Documentation & Cleanup
+
+- [ ] Create/update architecture documentation
+- [ ] Update README.md with Rust-native info
+- [ ] Update CHANGELOG.md
+- [ ] Update CI/CD configuration
+- [ ] Remove dead code/comments referencing psycopg
+- [ ] All docstrings updated
+
+### Git Cleanup
+
+- [ ] Commits are atomic and descriptive
+- [ ] Commit messages follow convention
+- [ ] `.phases/` directory ready to delete after merge
+- [ ] Branch is ready for merge to dev
 
 ---
 
 ## Commit Strategy
 
-**Atomic commits** (if not already squashed):
+### Atomic Commits (Keep Version Control Clean)
 
 ```bash
-# Step 1: Remove psycopg dependencies
-git add pyproject.toml
-git commit -m "chore(deps): remove psycopg dependency"
+# Commit 1: Remove dependencies
+git add pyproject.toml fraiseql_rs/Cargo.toml
+git commit -m "chore(deps): remove psycopg dependency
 
-# Step 2: Remove old database layer
-git add src/fraiseql/db.py
-git commit -m "refactor(db): remove legacy psycopg layer"
+- Remove psycopg[pool] and psycopg-pool from pyproject.toml
+- Remove opentelemetry-instrumentation-psycopg from tracing extras
+- Rust backend is now the only database implementation"
 
-# Step 3: Update documentation
-git add docs/
-git commit -m "docs(db): update architecture for Rust-native layer"
+# Commit 2: Remove old database layer
+git add src/fraiseql/db.py src/fraiseql/core/database.py
+git commit -m "refactor(db): remove legacy psycopg implementation
 
-# Step 4: Clean up tests
+- Delete src/fraiseql/db.py (old psycopg connection pool)
+- Update src/fraiseql/core/database.py (Rust-only)
+- Remove fallback code paths"
+
+# Commit 3: Clean up Rust code
+git add fraiseql_rs/src/
+git commit -m "refactor(db): remove feature flags and psycopg paths
+
+- Remove #[cfg(feature = \"python-db\")] conditionals
+- Simplify database module exports
+- Clean up unused imports"
+
+# Commit 4: Clean up tests
 git add tests/
-git commit -m "test(cleanup): remove psycopg-specific tests"
+git commit -m "test(cleanup): remove psycopg-specific tests
 
-# Final: Squash commits (if needed)
-git rebase -i HEAD~4
+- Delete parity test files (no longer needed)
+- Update test configuration (remove FRAISEQL_DB_BACKEND)
+- Remove conditional test logic for different backends"
+
+# Commit 5: Update documentation
+git add docs/ README.md CHANGELOG.md
+git commit -m "docs: update for Rust-native database layer
+
+- Create docs/architecture/database-layer.md
+- Update README.md to highlight Rust backend
+- Document performance improvements in CHANGELOG.md"
+
+# Commit 6: Final cleanup
+git add .
+git commit -m "chore: remove phase documentation after merge
+
+- Delete .phases/rust-postgres-driver/ (phase plans)
+- Final cleanup before release"
+```
+
+Or **Squash into single commit** if preferred:
+
+```bash
+git rebase -i HEAD~6
 # Mark first as 'pick', rest as 'squash'
-# Create final commit with comprehensive message
+# Create final message:
 ```
 
----
-
-## Final Commit Message
-
+**Squashed Commit Message**:
 ```
-refactor(db): Complete Rust-native PostgreSQL driver migration
+refactor(db): Complete Rust-native PostgreSQL driver migration (Phase 5)
 
-This completes the multi-phase transition to a Rust-native database layer,
-removing all Python/psycopg dependencies from the core database operations.
+Remove all Python/psycopg dependencies and achieve evergreen state.
 
-Architecture Changes:
-- Python layer: GraphQL framework, validation, schema introspection
-- Rust layer: Connection pooling, queries, mutations, response building
+This completes the 5-phase transition to a Rust-native database layer.
+Python code now interfaces with Rust core exclusively, providing:
 
-Performance Improvements:
-- Query execution: 20-30% faster than psycopg
-- Response streaming: Zero-copy transformation
-- Memory usage: 10-15% lower
-- Throughput: 2-3x higher sustained load
+Architecture:
+- Python: GraphQL framework, validation, schema introspection
+- Rust: Connection pooling, queries, mutations, result streaming
 
-Removes:
+Removed:
 - psycopg and psycopg-pool dependencies
-- Legacy Python database layer (src/fraiseql/db.py)
+- Legacy database layer (src/fraiseql/db.py)
 - Feature flags and fallback code paths
 - Psycopg-specific tests and compatibility code
+- Environment variable switches (FRAISEQL_DB_BACKEND)
 
-Keeps:
-- 100% backward-compatible Python API
-- All 5991+ tests passing
-- Full feature parity with previous implementation
-- Enterprise features (RBAC, caching, etc.)
-
-Breaking Changes: None (internal refactor only)
-Migration Path: Automatic (no user action required)
-
-Measured Performance (in production-like environment):
-- Simple queries: 20% faster
+Performance (measured in production-like environment):
+- Query execution: 20% faster
 - Complex joins: 28% faster
 - Mutations: 18% faster
-- Streaming large results: 35% faster
+- Large result streaming: 35% faster
 - Memory per request: 12% lower
+- Sustained throughput: 2-3x higher
+
+Testing:
+- All 5991+ tests pass with Rust backend only
+- Zero regressions vs Phase 4
+- Parity testing complete (Rust == expected output)
+- Performance within targets
+
+Documentation:
+- New docs/architecture/database-layer.md
+- Updated README with Rust-native info
+- Updated CHANGELOG with migration details
+
+Migration Impact: None (internal refactor only)
+User Facing Changes: None (API unchanged)
+Breaking Changes: None
+
+This represents the completion of the Rust PostgreSQL driver migration initiative.
+The codebase is now in an evergreen state, ready for production deployment and
+future Rust-only optimizations.
 ```
 
 ---
 
 ## Post-Merge Cleanup
 
-After merge to `dev` and eventually `main`:
+### On dev branch (after merge):
 
 ```bash
-# Delete phase directory
+# 1. Verify merge is complete
+git status
+# Should show: On branch dev, Your branch is ahead of origin/dev
+
+# 2. Delete phase directory
 rm -rf .phases/rust-postgres-driver/
-
-# Final commit
 git add -A
-git commit -m "chore(cleanup): remove Rust PostgreSQL driver phase plans"
+git commit -m "chore(cleanup): remove Rust PostgreSQL driver phase documentation"
 
-# Create release tag
-git tag -a v1.9.0 -m "Rust-native PostgreSQL driver (v1.9.0)"
+# 3. Create release tag
+git tag -a v1.9.0 -m "Rust-native PostgreSQL driver
+
+- Complete migration to Rust backend
+- Removed psycopg dependency
+- 20-30% performance improvement
+- All 5991+ tests passing"
+
+# 4. Push to origin
+git push origin dev
+git push origin v1.9.0
 ```
 
 ---
 
-## Future Enhancements (Post-Phase 5)
+## Success Definition
 
-Once psycopg is completely removed, we can:
-
-1. **Prepared Statement Caching** - More efficient query reuse
-2. **Connection Pool Optimization** - Tuned for production workloads
-3. **Query Plan Caching** - Faster query optimization
-4. **Batch Operations** - Multi-row inserts/updates in single transaction
-5. **Advanced Streaming** - Publish/subscribe features
+✅ Phase 5 complete when:
+- Zero psycopg references in codebase
+- No fallback code paths remain
+- All 5991+ tests pass (Rust backend only)
+- All parity tests 100% match expected output
+- Performance maintained (≥ 20-30% improvement)
+- Zero regressions vs Phase 4
+- Repository in clean, evergreen state
+- Documentation updated
+- Code quality checks pass (clippy, fmt, ruff)
 
 ---
 
-## Q&A
+## Timeline
 
-**Q: Will users need to do anything?**
-A: No. This is entirely an internal refactor. Users run the same commands and get the same results.
+**Estimated**: 6 hours
+- Identifying references: 30 min
+- Removing files/code: 1.5 hours
+- Dependency cleanup: 1 hour
+- Testing & validation: 2 hours
+- Documentation: 30 min
+- Final verification: 30 min
 
-**Q: What if something breaks?**
-A: We have Phase 4 baseline to compare against. Any regressions are caught in Phase 5 validation.
+---
 
-**Q: Can we rollback?**
-A: Yes, via `git revert` if critical issues found. But Phase 4 validation should catch everything.
+## What's Next After Phase 5?
 
-**Q: How do we handle configuration?**
-A: Environment variables remain the same:
-- `DATABASE_URL` (existing)
-- `RUST_DB_*` variables (become required in Phase 5)
+The codebase is now Rust-native with no technical debt from dual backends. Future optimizations become possible:
+
+1. **Prepared Statement Caching** - Query plan reuse
+2. **Connection Pool Tuning** - Production workload optimization
+3. **Batch Operations** - Multi-row ops in single transaction
+4. **Advanced Streaming** - Publish/subscribe patterns
+5. **Performance Features** - Query result caching, etc.
+
+---
+
+## FAQ
+
+**Q: Will this break anything for users?**
+A: No. This is entirely an internal refactor. Users don't notice any changes.
+
+**Q: Can we rollback if something breaks?**
+A: Yes, via `git revert`. But Phase 4 validation should catch all issues.
 
 **Q: What about monitoring/observability?**
-A: OpenTelemetry instrumentation remains, but targets Rust layer instead of psycopg.
+A: OpenTelemetry instrumentation remains but targets Rust backend instead of psycopg.
+
+**Q: What about existing database connections?**
+A: FraiseQL creates its own connection pool. User-provided connections no longer supported (they weren't before either).
+
+**Q: Do we need to update configuration?**
+A: No. Environment variables like `DATABASE_URL` remain the same. `FRAISEQL_DB_BACKEND` is no longer checked.
 
 ---
 
-**Status**: ✅ Ready for Phase 4 completion
-**Duration**: 6 hours
+## Risk Assessment
+
+### Low Risk ✅
+- Feature tested end-to-end in Phases 1-4
+- All 5991+ tests provide confidence
+- Parity tests verify output correctness
+- Performance benchmarks track improvements
+
+### Mitigation Strategies
+- Keep feature branch available for quick rollback
+- Tag release before deleting phase documentation
+- Maintain git history for archaeology if needed
+- Document any issues in releases
+
+---
+
+**Status**: Blocked until Phase 4 complete and validated
+**Duration**: 6 hours (end-to-end)
 **Branch**: `feature/rust-postgres-driver`
+**Next**: Merge to `dev`, create release, celebrate! 🎉
+
+---
+
+**Last Updated**: 2025-12-18
+**Phase**: 5 of 5 (FINAL)

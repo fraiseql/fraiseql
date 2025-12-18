@@ -241,26 +241,25 @@ cargo test -p fraiseql_rs --lib db::types
 
 **File**: `fraiseql_rs/src/db/pool.rs` (NEW)
 
-```rust
-//! PostgreSQL connection pool management.
+**CRITICAL**: This step implements the async/PyO3 bridge. Study this carefully.
 
-use deadpool_postgres::{Config, Runtime};
+```rust
+//! PostgreSQL connection pool management with async/PyO3 integration.
+
+use deadpool_postgres::{Config, Runtime, Pool as DeadpoolPool, Object};
 use pyo3::prelude::*;
+use pyo3_asyncio::tokio;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use super::types::{DatabaseError, PoolConfig};
 
-/// PostgreSQL connection pool.
+/// PostgreSQL connection pool (wrapped in Arc for thread-safety across FFI).
 ///
-/// Manages connections to PostgreSQL database with:
-/// - Automatic connection pooling (deadpool)
-/// - Connection timeout and idle management
-/// - Health checking
-/// - Connection state initialization
+/// CRITICAL: Pool must be created ONCE and shared across all requests.
+/// Using Arc<Mutex<>> would add lock contention - deadpool handles this internally.
 #[pyclass]
 pub struct DatabasePool {
-    pool: Arc<deadpool_postgres::Pool>,
+    pool: Arc<DeadpoolPool>,
     config: PoolConfig,
 }
 
@@ -268,64 +267,60 @@ pub struct DatabasePool {
 impl DatabasePool {
     /// Create a new database pool.
     ///
+    /// SYNC function (runs on Python thread), returns immediately.
+    /// Pool initialization happens asynchronously when first connection is needed.
+    ///
     /// # Arguments
     /// * `url` - PostgreSQL connection URL (e.g., "postgres://user:pass@host/db")
     /// * `config_dict` - Python dict with pool configuration
     ///
     /// # Example
     /// ```python
+    /// # This is SYNC and returns immediately
     /// pool = DatabasePool(
     ///     "postgres://user:pass@localhost/fraiseql",
     ///     {
     ///         "max_size": 20,
     ///         "min_idle": 2,
-    ///         "connection_timeout": 30000,
+    ///         "connection_timeout_ms": 30000,
     ///     }
     /// )
     /// ```
     #[new]
-    fn new(py: Python, url: String, config_dict: Option<&PyAny>) -> PyResult<Self> {
-        // Parse configuration
-        let config = match config_dict {
-            Some(dict) => {
-                PoolConfig {
-                    max_size: dict.getattr("max_size")
-                        .ok()
-                        .and_then(|v| v.extract().ok())
-                        .unwrap_or(20),
-                    min_idle: dict.getattr("min_idle")
-                        .ok()
-                        .and_then(|v| v.extract().ok())
-                        .unwrap_or(2),
-                    connection_timeout: dict.getattr("connection_timeout")
-                        .ok()
-                        .and_then(|v| v.extract().ok())
-                        .unwrap_or(30_000),
-                    idle_timeout: dict.getattr("idle_timeout")
-                        .ok()
-                        .and_then(|v| v.extract().ok())
-                        .unwrap_or(600_000),
-                    max_lifetime: dict.getattr("max_lifetime")
-                        .ok()
-                        .and_then(|v| v.extract().ok())
-                        .unwrap_or(1_800_000),
-                }
-            }
-            None => PoolConfig::default(),
-        };
+    fn new(py: Python, url: String, config_dict: Option<&PyDict>) -> PyResult<Self> {
+        // Parse configuration from Python dict
+        let config = parse_config_from_dict(config_dict)?;
 
-        // Create pool configuration
-        let cfg = Config {
-            dbname: Some("fraiseql".to_string()),
-            user: Some("postgres".to_string()),
-            password: None,
-            host: Some("localhost".to_string()),
-            port: Some(5432),
+        // Parse PostgreSQL connection URL
+        let pg_config = url.parse::<tokio_postgres::config::Config>()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Invalid database URL: {}", e)
+            ))?;
+
+        // Build deadpool config
+        let mut deadpool_cfg = deadpool_postgres::Config {
+            dbname: pg_config.get_dbname().map(|s| s.to_string()),
+            user: pg_config.get_user().map(|s| s.to_string()),
+            password: pg_config.get_password().map(|p| p.to_string()),
+            host: pg_config.get_hosts().and_then(|hosts| {
+                hosts.first().and_then(|h| h.as_str().map(|s| s.to_string()))
+            }),
+            port: pg_config.get_ports().and_then(|ports| ports.first().copied()),
             ..Default::default()
         };
 
-        // Parse URL and create pool
-        let pool = cfg
+        // Set pool size
+        deadpool_cfg.pool = Some(deadpool_postgres::PoolConfig {
+            max_size: config.max_size as usize,
+            timeouts: deadpool_postgres::Timeouts {
+                wait: Some(std::time::Duration::from_millis(config.connection_timeout)),
+                create: Some(std::time::Duration::from_secs(5)),
+                recycle: Some(std::time::Duration::from_secs(5)),
+            },
+        });
+
+        // Create pool (doesn't connect yet - lazy initialization)
+        let pool = deadpool_cfg
             .create_pool(Some(Runtime::Tokio1))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 format!("Failed to create pool: {}", e)
@@ -337,43 +332,135 @@ impl DatabasePool {
         })
     }
 
-    /// Get a connection from the pool.
+    /// Acquire a connection from the pool (ASYNC).
     ///
-    /// This method acquires a connection from the pool. If no connections
-    /// are available, it waits up to connection_timeout milliseconds.
+    /// CRITICAL IMPLEMENTATION:
+    /// - This returns a Python coroutine that Python can await
+    /// - The actual async work happens in tokio runtime
+    /// - Connection is automatically returned to pool when dropped
     ///
-    /// # Errors
-    /// - `PoolError` if the pool is exhausted
-    /// - `Timeout` if connection acquisition times out
-    fn acquire_connection(&self, py: Python) -> PyResult<Py<PyAny>> {
-        // This will be implemented in Phase 2 with async support
-        Ok(py.None())
+    /// Usage from Python:
+    /// ```python
+    /// async def my_handler():
+    ///     conn = await pool.acquire_connection()
+    ///     # Use connection
+    ///     # Automatically returned when scope exits
+    /// ```
+    #[pyo3_asyncio::tokio::main]
+    async fn acquire_connection(&self, py: Python) -> PyResult<Py<PyAny>> {
+        // Clone arc so we own a reference
+        let pool = self.pool.clone();
+
+        // Return Python coroutine wrapping the async work
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            // This code runs in tokio runtime
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(self.config.connection_timeout),
+                pool.get(),
+            )
+            .await
+            {
+                Ok(Ok(_conn)) => {
+                    // Connection acquired successfully
+                    // Note: We don't return the connection here - Phase 2 handles this
+                    // For now, just confirm success
+                    Ok(py.None())
+                }
+                Ok(Err(e)) => {
+                    Err(PyErr::new::<pyo3::exceptions::RuntimeError, _>(
+                        format!("Failed to acquire connection: {}", e)
+                    ))
+                }
+                Err(_) => {
+                    Err(PyErr::new::<pyo3::exceptions::TimeoutError, _>(
+                        format!("Connection acquisition timeout after {}ms", self.config.connection_timeout)
+                    ))
+                }
+            }
+        })
     }
 
-    /// Check pool health.
+    /// Check pool health (ASYNC).
     ///
-    /// Returns True if the pool is healthy, False otherwise.
-    fn health_check(&self) -> PyResult<bool> {
-        // This will be implemented in Phase 2 with async support
-        Ok(true)
+    /// Tries to acquire and immediately release a connection.
+    /// Returns True if successful, False if pool is unhealthy.
+    #[pyo3_asyncio::tokio::main]
+    async fn health_check(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let pool = self.pool.clone();
+        let timeout_ms = self.config.connection_timeout;
+
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(timeout_ms),
+                pool.get(),
+            )
+            .await
+            {
+                Ok(Ok(_)) => Ok(true),
+                _ => Ok(false),
+            }
+        })
     }
 
-    /// Get pool statistics.
+    /// Get pool statistics (SYNC).
     ///
-    /// Returns a dict with:
-    /// - `connections`: total connections in pool
-    /// - `idle_connections`: currently idle connections
-    /// - `active_connections`: currently active connections
+    /// Returns current pool state. These are approximate values.
     fn get_stats(&self) -> PyResult<PyObject> {
-        let gil = unsafe { pyo3::Python::assume_gil_acquired() };
+        Python::with_gil(|py| {
+            let stats = self.pool.state();
 
-        // Create a simple dict for now
-        let dict = pyo3::types::PyDict::new(gil);
-        dict.set_item("connections", 0)?;
-        dict.set_item("idle_connections", 0)?;
-        dict.set_item("active_connections", 0)?;
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("connections", stats.connections)?;
+            dict.set_item("idle_connections", stats.idle_connections)?;
+            dict.set_item("active_connections", stats.connections - stats.idle_connections)?;
 
-        Ok(dict.into())
+            Ok(dict.into())
+        })
+    }
+
+    /// Get pool configuration (for debugging).
+    fn get_config(&self) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("max_size", self.config.max_size)?;
+            dict.set_item("min_idle", self.config.min_idle)?;
+            dict.set_item("connection_timeout_ms", self.config.connection_timeout)?;
+            dict.set_item("idle_timeout_ms", self.config.idle_timeout)?;
+            dict.set_item("max_lifetime_ms", self.config.max_lifetime)?;
+
+            Ok(dict.into())
+        })
+    }
+}
+
+/// Helper: Parse pool config from Python dict
+fn parse_config_from_dict(dict_opt: Option<&PyDict>) -> PyResult<PoolConfig> {
+    match dict_opt {
+        Some(dict) => {
+            Ok(PoolConfig {
+                max_size: dict
+                    .get_item("max_size")
+                    .and_then(|v| v.extract::<u32>().ok())
+                    .unwrap_or(20),
+                min_idle: dict
+                    .get_item("min_idle")
+                    .and_then(|v| v.extract::<u32>().ok())
+                    .unwrap_or(2),
+                connection_timeout: dict
+                    .get_item("connection_timeout_ms")
+                    .and_then(|v| v.extract::<u64>().ok())
+                    .unwrap_or(30_000),
+                idle_timeout: dict
+                    .get_item("idle_timeout_ms")
+                    .and_then(|v| v.extract::<u64>().ok())
+                    .unwrap_or(600_000),
+                max_lifetime: dict
+                    .get_item("max_lifetime_ms")
+                    .and_then(|v| v.extract::<u64>().ok())
+                    .unwrap_or(1_800_000),
+            })
+        }
+        None => Ok(PoolConfig::default()),
     }
 }
 
