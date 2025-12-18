@@ -499,7 +499,7 @@ FraiseQL is the result:
 
 ---
 
-**Ready to build the fastest GraphQL API in Python?**
+**Ready to build a high-performance GraphQL API in Python?**
 
 ```bash
 pip install fraiseql && fraiseql init my-api
