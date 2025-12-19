@@ -93,7 +93,7 @@ class PostgresIntrospector:
                 - If use_regex=False (default): SQL LIKE pattern (%, _)
                 - If use_regex=True: PostgreSQL regex pattern
             use_regex: If True, use PostgreSQL ~ operator for regex matching.
-                If False (default), use LIKE operator.
+                case_insensitive: If True, use case-insensitive matching (ILIKE or ~*).             If False (default), use LIKE operator.
             schemas: List of schemas to search. Defaults to ['public'].
 
         Returns:
@@ -122,23 +122,23 @@ class PostgresIntrospector:
                 raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
 
         async with self.pool.connection() as conn:
-            # Build query with appropriate operator
+            # Determine the operator             if use_regex:                 operator = "~*" if case_insensitive else "~"             else:                 operator = "ILIKE" if case_insensitive else "LIKE"              # Build query with appropriate operator
             if use_regex:
                 # PostgreSQL ~ operator for regex
-                views_query = """
+                views_query = f"""
                     SELECT schemaname, viewname, definition
                     FROM pg_views
                     WHERE schemaname = ANY(%s)
-                      AND viewname ~ %s
+                      AND viewname {operator} %s
                     ORDER BY schemaname, viewname
                 """
             else:
                 # SQL LIKE operator (default behavior)
-                views_query = """
+                views_query = f"""
                     SELECT schemaname, viewname, definition
                     FROM pg_views
                     WHERE schemaname = ANY(%s)
-                      AND viewname LIKE %s
+                      
                     ORDER BY schemaname, viewname
                 """
             cursor = await conn.execute(views_query, (schemas, pattern))
@@ -149,7 +149,7 @@ class PostgresIntrospector:
                 schema_name, view_name, definition = row
 
                 # Get comment
-                comment_query = """
+                comment_query = f"""
                     SELECT obj_description(c.oid, 'pg_class') as comment
                     FROM pg_class c
                     WHERE c.relname = %s AND c.relkind = 'v'
@@ -159,7 +159,7 @@ class PostgresIntrospector:
                 comment = comment_row[0] if comment_row else None
 
                 # Get columns from pg_attribute
-                columns_query = """
+                columns_query = f"""
                     SELECT
                         a.attname as column_name,
                         t.typname as pg_type,
@@ -211,7 +211,7 @@ class PostgresIntrospector:
                 - If use_regex=False (default): SQL LIKE pattern (%, _)
                 - If use_regex=True: PostgreSQL regex pattern
             use_regex: If True, use PostgreSQL ~ operator for regex matching.
-                If False (default), use LIKE operator.
+                case_insensitive: If True, use case-insensitive matching (ILIKE or ~*).             If False (default), use LIKE operator.
             schemas: List of schemas to search. Defaults to ['public'].
 
         Returns:
@@ -239,10 +239,10 @@ class PostgresIntrospector:
                 raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
 
         async with self.pool.connection() as conn:
-            # Build query with appropriate operator
+            # Determine the operator             if use_regex:                 operator = "~*" if case_insensitive else "~"             else:                 operator = "ILIKE" if case_insensitive else "LIKE"              # Build query with appropriate operator
             if use_regex:
                 # PostgreSQL ~ operator for regex
-                query = """
+                query = f"""
                 SELECT
                     n.nspname as schema_name,
                     p.proname as function_name,
@@ -254,12 +254,12 @@ class PostgresIntrospector:
                 JOIN pg_namespace n ON n.oid = p.pronamespace
                 JOIN pg_language l ON l.oid = p.prolang
                 WHERE n.nspname = ANY(%s)
-                  AND p.proname ~ %s
+                  AND p.proname {operator} %s
                 ORDER BY n.nspname, p.proname
                 """
             else:
                 # SQL LIKE operator (default behavior)
-                query = """
+                query = f"""
                 SELECT
                     n.nspname as schema_name,
                     p.proname as function_name,
@@ -271,7 +271,7 @@ class PostgresIntrospector:
                 JOIN pg_namespace n ON n.oid = p.pronamespace
                 JOIN pg_language l ON l.oid = p.prolang
                 WHERE n.nspname = ANY(%s)
-                  AND p.proname LIKE %s
+                  
                 ORDER BY n.nspname, p.proname
                 """
             cursor = await conn.execute(query, (schemas, pattern))
@@ -318,7 +318,7 @@ class PostgresIntrospector:
         """
         async with self.pool.connection() as conn:
             # Step 1: Get type-level metadata (comment)
-            type_query = """
+            type_query = f"""
                 SELECT
                     t.typname AS type_name,
                     n.nspname AS schema_name,
@@ -337,7 +337,7 @@ class PostgresIntrospector:
                 return None  # Composite type not found
 
             # Step 2: Get attribute-level metadata (fields)
-            attr_query = """
+            attr_query = f"""
                 SELECT
                     a.attname AS attribute_name,
                     format_type(a.atttypid, a.atttypmod) AS pg_type,
