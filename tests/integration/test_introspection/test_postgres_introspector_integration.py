@@ -580,3 +580,44 @@ class TestPostgresIntrospectorIntegration:
         complex_func = next(f for f in functions if f.function_name == func_name)
         assert "TABLE" in complex_func.return_type.upper()
         assert complex_func.return_type != "TABLE"  # Should have column specifications
+
+
+    @pytest.mark.asyncio
+    async def test_discover_views_regex(self, introspector, test_view, test_schema) -> None:
+        """Test view discovery with regex patterns."""
+        # Match exactly the test view name using regex
+        pattern = f"^{test_view}$"
+        views = await introspector.discover_views(pattern=pattern, use_regex=True, schemas=[test_schema])
+        assert len(views) == 1
+        assert views[0].view_name == test_view
+
+    @pytest.mark.asyncio
+    async def test_discover_views_case_insensitive(self, introspector, test_view, test_schema) -> None:
+        """Test case-insensitive view discovery."""
+        # Use uppercase name with ILIKE
+        pattern = test_view.upper()
+        views = await introspector.discover_views(pattern=pattern, case_insensitive=True, schemas=[test_schema])
+        assert len(views) >= 1
+        assert any(v.view_name == test_view for v in views)
+
+        # Use uppercase name with case-insensitive regex (~*)
+        pattern = f"^{test_view.upper()}$"
+        views = await introspector.discover_views(pattern=pattern, use_regex=True, case_insensitive=True, schemas=[test_schema])
+        assert len(views) == 1
+        assert views[0].view_name == test_view
+
+    @pytest.mark.asyncio
+    async def test_discover_functions_regex(self, introspector, test_function, test_schema) -> None:
+        """Test function discovery with regex patterns."""
+        pattern = f"^{test_function}$"
+        functions = await introspector.discover_functions(pattern=pattern, use_regex=True, schemas=[test_schema])
+        assert len(functions) == 1
+        assert functions[0].function_name == test_function
+
+    @pytest.mark.asyncio
+    async def test_discover_functions_case_insensitive(self, introspector, test_function, test_schema) -> None:
+        """Test case-insensitive function discovery."""
+        pattern = test_function.upper()
+        functions = await introspector.discover_functions(pattern=pattern, case_insensitive=True, schemas=[test_schema])
+        assert len(functions) >= 1
+        assert any(f.function_name == test_function for f in functions)
