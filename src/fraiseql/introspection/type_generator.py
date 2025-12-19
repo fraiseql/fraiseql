@@ -1,11 +1,10 @@
 """Dynamic GraphQL type generation for AutoFraiseQL.
-
 This module provides the TypeGenerator class that creates FraiseQL @type classes
 dynamically from PostgreSQL view metadata and @fraiseql annotations.
 """
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any, Type
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -14,11 +13,10 @@ from .type_mapper import TypeMapper
 
 logger = logging.getLogger(__name__)
 
-
 class TypeGenerator:
     """Generate FraiseQL @type classes dynamically."""
 
-    def __init__(self, type_mapper: Optional[TypeMapper] = None):
+    def __init__(self, type_mapper: TypeMapper | None = None):
         self.type_mapper = type_mapper or TypeMapper()
 
     async def generate_type_class(
@@ -83,7 +81,7 @@ class TypeGenerator:
 
     async def _introspect_jsonb_column(
         self, view_name: str, schema_name: str, db_pool: Any
-    ) -> dict[str, dict]:
+    ) -> dict[str, dict[str, Any]]:
         """Introspect JSONB data column structure.
 
         Strategy:
@@ -117,18 +115,16 @@ class TypeGenerator:
             # Parse JSONB structure
             data = row[0]  # psycopg returns tuple, not dict
             fields = {}
-
             for field_name, field_value in data.items():
                 fields[field_name] = {
                     "type": self._infer_pg_type_from_value(field_value),
                     "nullable": field_value is None,
                 }
-
             return fields
 
     async def _introspect_view_definition(
         self, view_name: str, schema_name: str, conn: Any
-    ) -> dict[str, dict]:
+    ) -> dict[str, dict[str, Any]]:
         """Introspect view definition when no data is available.
 
         This is a fallback that parses the view definition to extract
@@ -154,7 +150,6 @@ class TypeGenerator:
             if column_name == "data":  # Skip the JSONB data column
                 continue
             fields[column_name] = {"type": data_type, "nullable": is_nullable == "YES"}
-
         return fields
 
     def _infer_pg_type_from_value(self, value: Any) -> str:
@@ -185,6 +180,7 @@ class TypeGenerator:
             name = name[3:]  # Remove 'tv_'
         elif name.startswith("v_"):
             name = name[2:]  # Remove 'v_'
+
         # Split on underscore, capitalize each part
         parts = name.split("_")
         return "".join(part.capitalize() for part in parts)
@@ -196,12 +192,10 @@ class TypeGenerator:
 
         # Apply decorator with appropriate parameters
         decorated_cls = fraiseql_type(sql_source=sql_source, jsonb_column="data")(cls)
-
         return decorated_cls
 
-    def _register_type(self, cls: Type):
+    def _register_type(self, cls: Type) -> None:
         """Register the type in FraiseQL's type registry."""
         # Import here to avoid circular imports
         from fraiseql.db import _type_registry
-
         _type_registry[cls.__name__] = cls
