@@ -1,14 +1,12 @@
 """Type mapping utilities for AutoFraiseQL.
-
 This module provides utilities to map PostgreSQL database types to Python types
 for dynamic GraphQL type generation.
 """
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, List
+from typing import Any
 from uuid import UUID
-
 
 class TypeMapper:
     """Map PostgreSQL types to Python types."""
@@ -43,9 +41,9 @@ class TypeMapper:
         "real": float,
         "float4": float,
         # Array types
-        "text[]": List[str],
-        "integer[]": List[int],
-        "uuid[]": List[UUID],
+        "text[]": list[str],
+        "integer[]": list[int],
+        "uuid[]": list[UUID],
         # Custom types (extensible)
     }
 
@@ -57,7 +55,7 @@ class TypeMapper:
             nullable: Whether the column is nullable
 
         Returns:
-            Python type (with Optional[] if nullable)
+            Python type (with Union | None if nullable)
         """
         # Normalize type name
         pg_type_clean = pg_type.lower().strip()
@@ -66,17 +64,16 @@ class TypeMapper:
         if pg_type_clean.endswith("[]"):
             base_type = pg_type_clean[:-2]
             element_type = self.PG_TO_PYTHON.get(base_type, str)
-            python_type = List[element_type]
+            python_type = list[element_type]
         else:
             python_type = self.PG_TO_PYTHON.get(pg_type_clean, str)
 
         # Add Optional if nullable
         if nullable:
-            from typing import Optional
+            return python_type | None
 
-            return Optional[python_type]
         return python_type
 
     def register_custom_type(self, pg_type: str, python_type: type) -> None:
-        """Register custom type mapping."""
-        self.PG_TO_PYTHON[pg_type.lower()] = python_type
+        """Register a custom PostgreSQL type mapping."""
+        self.PG_TO_PYTHON[pg_type.lower().strip()] = python_type
