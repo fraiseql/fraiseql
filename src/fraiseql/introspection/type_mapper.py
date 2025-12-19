@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+
 class TypeMapper:
     """Map PostgreSQL types to Python types."""
 

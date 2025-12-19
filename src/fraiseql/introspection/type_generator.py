@@ -13,6 +13,7 @@ from .type_mapper import TypeMapper
 
 logger = logging.getLogger(__name__)
 
+
 class TypeGenerator:
     """Generate FraiseQL @type classes dynamically."""
 
@@ -198,4 +199,5 @@ class TypeGenerator:
         """Register the type in FraiseQL's type registry."""
         # Import here to avoid circular imports
         from fraiseql.db import _type_registry
+
         _type_registry[cls.__name__] = cls

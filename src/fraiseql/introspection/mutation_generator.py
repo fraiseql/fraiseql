@@ -2,8 +2,10 @@
 This module provides utilities to generate GraphQL mutations from PostgreSQL
 functions with automatic Union return type handling.
 """
+
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Type
+
 from .input_generator import InputGenerator
 from .metadata_parser import MutationAnnotation
 from .postgres_introspector import FunctionMetadata
@@ -12,6 +14,7 @@ if TYPE_CHECKING:
     from .postgres_introspector import PostgresIntrospector
 
 logger = logging.getLogger(__name__)
+
 
 class MutationGenerator:
     """Generate mutations from PostgreSQL functions."""
@@ -57,10 +60,10 @@ class MutationGenerator:
         try:
             # Step 1: Extract context parameters
             context_params = self._extract_context_params(function_metadata, annotation)
-            
+
             # Step 2: Handle input types if needed
             # ... rest of implementation (simplified for brevity in this example)
-            
+
             # This is a mock implementation of the generation logic
             async def mutation_fn(root: Any, info: Any, **kwargs: Any) -> Any:
                 """Generated mutation handler."""
@@ -70,5 +73,7 @@ class MutationGenerator:
             mutation_fn.__name__ = annotation.name
             return mutation_fn
         except Exception as e:
-            logger.warning(f"Failed to generate mutation for {function_metadata.function_name}: {e}")
+            logger.warning(
+                f"Failed to generate mutation for {function_metadata.function_name}: {e}"
+            )
             return None

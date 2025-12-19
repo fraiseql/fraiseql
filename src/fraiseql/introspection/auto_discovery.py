@@ -2,9 +2,12 @@
 This module provides the main AutoDiscovery class that orchestrates
 the complete discovery pipeline from PostgreSQL metadata to GraphQL schema.
 """
+
 import logging
 from typing import Any, Callable, Type
+
 import psycopg_pool
+
 from .input_generator import InputGenerator
 from .metadata_parser import MetadataParser
 from .mutation_generator import MutationGenerator
@@ -14,6 +17,7 @@ from .type_generator import TypeGenerator
 from .type_mapper import TypeMapper
 
 logger = logging.getLogger(__name__)
+
 
 class AutoDiscovery:
     """Orchestrate auto-discovery from PostgreSQL metadata to GraphQL schema."""
@@ -43,12 +47,14 @@ class AutoDiscovery:
         schemas: list[str] | None = None,
     ) -> dict[str, list[Any]]:
         """Full discovery pipeline.
+
         Args:
             view_pattern: Pattern for view discovery (default: "v_%")
             function_pattern: Pattern for function discovery (default: "fn_%")
             use_regex: If True, use regex patterns for discovery (default: False)
             case_insensitive: If True, use case-insensitive matching (default: False)
             schemas: List of schemas to search (default: ["public"])
+
         Returns:
             Dictionary with discovered components:
             {
@@ -66,13 +72,13 @@ class AutoDiscovery:
             pattern=view_pattern,
             use_regex=use_regex,
             case_insensitive=case_insensitive,
-            schemas=schemas
+            schemas=schemas,
         )
         functions = await self.introspector.discover_functions(
             pattern=function_pattern,
             use_regex=use_regex,
             case_insensitive=case_insensitive,
-            schemas=schemas
+            schemas=schemas,
         )
 
         logger.info(f"Discovered {len(views)} views and {len(functions)} functions")
@@ -137,6 +143,7 @@ class AutoDiscovery:
 
             # Create mock annotation for query generation
             from .metadata_parser import TypeAnnotation
+
             annotation = TypeAnnotation()
 
             queries = self.query_generator.generate_queries_for_type(

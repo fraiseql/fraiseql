@@ -11,6 +11,7 @@ from .metadata_parser import TypeAnnotation
 
 logger = logging.getLogger(__name__)
 
+
 class QueryGenerator:
     """Generate standard queries for auto-discovered types."""
 
@@ -36,20 +37,14 @@ class QueryGenerator:
         queries = []
 
         # 1. Generate find_one query
-        queries.append(
-            self._generate_find_one_query(type_class, view_name, schema_name)
-        )
+        queries.append(self._generate_find_one_query(type_class, view_name, schema_name))
 
         # 2. Generate find_all query
-        queries.append(
-            self._generate_find_all_query(type_class, view_name, schema_name)
-        )
+        queries.append(self._generate_find_all_query(type_class, view_name, schema_name))
 
         # 3. Generate connection query (optional, for Relay)
         if annotation.filter_config:
-            queries.append(
-                self._generate_connection_query(type_class, view_name, schema_name)
-            )
+            queries.append(self._generate_connection_query(type_class, view_name, schema_name))
 
         return queries
 
@@ -57,6 +52,7 @@ class QueryGenerator:
         self, type_class: Any, view_name: str, schema_name: str
     ) -> Callable:
         """Generate find_one(id) query."""
+
         # Create query function dynamically
         async def find_one_impl(info: Any, id: UUID) -> Any | None:
             """Get a single item by ID."""
@@ -67,10 +63,9 @@ class QueryGenerator:
 
         # Apply @query decorator
         from fraiseql import query
+
         decorated_query = query(
-            name=f"find_{type_class.__name__.lower()}_by_id",
-            returns=type_class,
-            nullable=True
+            name=f"find_{type_class.__name__.lower()}_by_id", returns=type_class, nullable=True
         )(find_one_impl)
 
         return decorated_query
@@ -79,29 +74,26 @@ class QueryGenerator:
         self, type_class: Any, view_name: str, schema_name: str
     ) -> Callable:
         """Generate find_all query."""
+
         async def find_all_impl(
             info: Any,
             where: dict[str, Any] | None = None,
             order_by: list[str] | None = None,
             limit: int | None = None,
-            offset: int | None = None
+            offset: int | None = None,
         ) -> list[Any]:
             """Get multiple items."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
             results = await db.find_all(
-                sql_source,
-                where=where,
-                order_by=order_by,
-                limit=limit,
-                offset=offset
+                sql_source, where=where, order_by=order_by, limit=limit, offset=offset
             )
             return results
 
         from fraiseql import query
+
         decorated_query = query(
-            name=f"all_{type_class.__name__.lower()}s",
-            returns=list[type_class]
+            name=f"all_{type_class.__name__.lower()}s", returns=list[type_class]
         )(find_all_impl)
 
         return decorated_query
@@ -110,11 +102,12 @@ class QueryGenerator:
         self, type_class: Any, view_name: str, schema_name: str
     ) -> Callable:
         """Generate connection query for Relay pagination."""
+
         async def connection_impl(
             info: Any,
             first: int | None = None,
             after: str | None = None,
-            where: dict[str, Any] | None = None
+            where: dict[str, Any] | None = None,
         ) -> Any:
             """Get items with Relay pagination."""
             db = info.context["db"]
@@ -123,9 +116,10 @@ class QueryGenerator:
             return None
 
         from fraiseql import query
+
         decorated_query = query(
             name=f"{type_class.__name__.lower()}_connection",
-            returns=Any  # Connection type would be generated
+            returns=Any,  # Connection type would be generated
         )(connection_impl)
 
         return decorated_query

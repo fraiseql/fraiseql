@@ -1,6 +1,8 @@
 """Input type generation for AutoFraiseQL mutations."""
+
 import logging
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Type
+
 from .metadata_parser import MetadataParser, MutationAnnotation
 from .postgres_introspector import FunctionMetadata, ParameterInfo
 from .type_mapper import TypeMapper
@@ -9,6 +11,7 @@ if TYPE_CHECKING:
     from .postgres_introspector import PostgresIntrospector
 
 logger = logging.getLogger(__name__)
+
 
 class InputGenerator:
     """Generate GraphQL input types from PostgreSQL function parameters."""

@@ -2,30 +2,37 @@
 This module parses YAML-formatted metadata from database object comments
 to extract FraiseQL configuration for auto-discovery.
 """
+
 import logging
 from dataclasses import dataclass
+
 import yaml
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TypeAnnotation:
     """Parsed @fraiseql:type annotation."""
+
     trinity: bool = False
     use_projection: bool = False
     description: str | None = None
     expose_fields: list[str] | None = None
     filter_config: dict | None = None
 
+
 @dataclass
 class MutationAnnotation:
     """Parsed @fraiseql:mutation annotation."""
+
     name: str
     success_type: str
     error_type: str
     description: str | None = None
     input_type: str | None = None
     context_params: list[str] | None = None  # NEW: Explicit context params
+
 
 class MetadataParser:
     """Parse @fraiseql annotations from PostgreSQL comments."""
@@ -43,7 +50,7 @@ class MetadataParser:
             # Extract YAML content after the header
             parts = comment.split("@fraiseql:type")
             yaml_content = parts[1].strip() if len(parts) > 1 else ""
-            
+
             if not yaml_content:
                 return TypeAnnotation()
 
@@ -75,7 +82,7 @@ class MetadataParser:
             # Extract YAML content after the header
             parts = comment.split("@fraiseql:mutation")
             yaml_content = parts[1].strip() if len(parts) > 1 else ""
-            
+
             if not yaml_content:
                 return None
 
