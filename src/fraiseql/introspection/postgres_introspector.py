@@ -134,11 +134,11 @@ class PostgresIntrospector:
                 """
             else:
                 # SQL LIKE operator (default behavior)
-                views_query = f"""
+                views_query = """
                     SELECT schemaname, viewname, definition
                     FROM pg_views
                     WHERE schemaname = ANY(%s)
-                      
+
                     ORDER BY schemaname, viewname
                 """
             cursor = await conn.execute(views_query, (schemas, pattern))
@@ -149,7 +149,7 @@ class PostgresIntrospector:
                 schema_name, view_name, definition = row
 
                 # Get comment
-                comment_query = f"""
+                comment_query = """
                     SELECT obj_description(c.oid, 'pg_class') as comment
                     FROM pg_class c
                     WHERE c.relname = %s AND c.relkind = 'v'
@@ -159,7 +159,7 @@ class PostgresIntrospector:
                 comment = comment_row[0] if comment_row else None
 
                 # Get columns from pg_attribute
-                columns_query = f"""
+                columns_query = """
                     SELECT
                         a.attname as column_name,
                         t.typname as pg_type,
@@ -259,7 +259,7 @@ class PostgresIntrospector:
                 """
             else:
                 # SQL LIKE operator (default behavior)
-                query = f"""
+                query = """
                 SELECT
                     n.nspname as schema_name,
                     p.proname as function_name,
@@ -271,7 +271,7 @@ class PostgresIntrospector:
                 JOIN pg_namespace n ON n.oid = p.pronamespace
                 JOIN pg_language l ON l.oid = p.prolang
                 WHERE n.nspname = ANY(%s)
-                  
+
                 ORDER BY n.nspname, p.proname
                 """
             cursor = await conn.execute(query, (schemas, pattern))
@@ -318,7 +318,7 @@ class PostgresIntrospector:
         """
         async with self.pool.connection() as conn:
             # Step 1: Get type-level metadata (comment)
-            type_query = f"""
+            type_query = """
                 SELECT
                     t.typname AS type_name,
                     n.nspname AS schema_name,
@@ -337,7 +337,7 @@ class PostgresIntrospector:
                 return None  # Composite type not found
 
             # Step 2: Get attribute-level metadata (fields)
-            attr_query = f"""
+            attr_query = """
                 SELECT
                     a.attname AS attribute_name,
                     format_type(a.atttypid, a.atttypmod) AS pg_type,
