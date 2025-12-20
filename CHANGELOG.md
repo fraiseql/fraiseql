@@ -9,6 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+## [1.8.9] - 2025-12-20
+
+### Fixed
+
+#### Input Type Docstrings in GraphQL Introspection (Issue #192)
+
+Fixed a bug where docstrings on `@fraiseql.input` decorated classes were not exposed in GraphQL schema introspection, while docstrings on other decorators (`@fraiseql.type`, `@fraiseql.success`, `@fraiseql.error`) worked correctly.
+
+**Problem:**
+- Input type descriptions returned `null` in introspection queries
+- API documentation tools (GraphiQL, GraphQL Playground, Apollo Studio) could not display input type documentation
+
+**Root Cause:**
+- `GraphQLInputObjectType` was created without a `description` parameter
+- `GraphQLInputField` was created without field descriptions
+
+**Solution:**
+- Added `description=_clean_docstring(typ.__doc__)` to `GraphQLInputObjectType`
+- Added `description=field.description` to `GraphQLInputField`
+
+**Impact:**
+- Input types now have parity with output types for documentation
+- Both class-level and field-level descriptions are properly exposed
+- API consumers can now see comprehensive documentation in introspection tools
+
+**Example:**
+```python
+@fraise_input
+class CreateUserInput:
+    """Input for creating a new user."""
+
+    name: str = fraise_field(description="User's full name")
+    email: str = fraise_field(description="User's email address")
+```
+
+Now exposes both the class docstring and field descriptions in GraphQL introspection.
+
+**Files Changed:**
+- `src/fraiseql/core/graphql_type.py` - Added description parameters (2 lines)
+- `tests/regression/issue_192/test_input_type_docstring_introspection.py` - Added 4 comprehensive regression tests
+- `tests/unit/utils/test_where_clause_descriptions.py` - Updated test to work with new behavior
+
+**Testing:** 6054 tests pass (including 4 new regression tests)
+
+### Security
+
+#### CVE Updates
+- **PR #187**: Remove fixed CVEs from `.trivyignore` (@purvanshjoshi) 🙏
+
+### Features
+
+#### GraphQL Fragment Enhancements (v1.8.7)
+
+Enhanced GraphQL fragment support with nested fragment spreads and automatic cycle detection.
+
+**New Features:**
+
+##### 1. Nested Fragment Support
+- Fragments can now be used in nested selections, not just root level
+- Recursive fragment processing with proper field expansion
+- Zero breaking changes - fully backward compatible
+
+**Example:**
+```graphql
+fragment UserFields on User { id name }
+
+query {
+  posts {
+    author { ...UserFields }  # ✅ Now supported
+  }
+}
+```
+
+##### 2. Fragment Cycle Detection
+- Automatic detection and prevention of circular fragment references
+- DoS protection against infinite recursion attacks
+- Clear error messages with fragment name and location
+- O(n) performance with minimal overhead (< 1μs per fragment)
+
+**Security:**
+- Prevents `fragment A { ...B } fragment B { ...A }` cycles
+- Rejects self-referencing fragments: `fragment A { ...A }`
+- Fast rejection before expensive query processing
+
+**Implementation:**
+- `extract_field_selections()` with cycle tracking via `visited_fragments` set
+- Proper error propagation with GraphQL spec-compliant messages
+- Comprehensive test coverage (10 new tests)
+
+**Files Changed:**
+- `src/fraiseql/fastapi/routers.py` - Core fragment processing logic
+- `tests/unit/fastapi/test_multi_field_fragments.py` - 10 new test cases
+
+## [1.8.5] - 2025-12-16
+
 #### Multi-Field GraphQL Queries
 
 FraiseQL now supports executing multiple root fields in a single GraphQL query, with complete

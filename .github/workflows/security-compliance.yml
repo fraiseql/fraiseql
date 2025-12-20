@@ -137,7 +137,7 @@ jobs:
          docker build \
            --file ${{ matrix.dockerfile.path }} \
            --tag ${{ matrix.dockerfile.tag }} \
-           --target production \
+           --target runtime \
            .
 
      - name: Scan container with Trivy (SARIF for GitHub)

@@ -358,23 +358,10 @@ def _expand_fragment_spread(
         field_name = selection.name.value
         response_key = selection.alias.value if selection.alias else field_name
 
-        # Extract sub-selections
-        sub_selections = []
-        if hasattr(selection, "selection_set") and selection.selection_set:
-            for sub_sel in selection.selection_set.selections:
-                if isinstance(sub_sel, FieldNode) and sub_sel.name:
-                    if not _should_include_field(sub_sel, variables):
-                        continue
-
-                    sub_field_name = sub_sel.name.value
-                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
-
-                    sub_selections.append(
-                        {
-                            "field_name": sub_field_name,
-                            "alias": sub_alias,
-                        }
-                    )
+        # Extract sub-selections using recursive field extraction
+        sub_selections = extract_field_selections(
+            selection.selection_set, document, variables, None
+        )
 
         fields.append(
             {
@@ -390,6 +377,7 @@ def _expand_fragment_spread(
 
 def _expand_inline_fragment(
     inline_fragment_node: Any,
+    document: Any,
     variables: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Expand an inline fragment into a list of root fields.
@@ -403,6 +391,7 @@ def _expand_inline_fragment(
 
     Args:
         inline_fragment_node: InlineFragmentNode from AST
+        document: Full GraphQL document containing fragment definitions
         variables: Query variables for directive evaluation
 
     Returns:
@@ -414,8 +403,8 @@ def _expand_inline_fragment(
     if not _should_include_field(inline_fragment_node, variables):
         return []
 
+    # Extract fields from inline fragment's selection set
     fields = []
-
     for selection in inline_fragment_node.selection_set.selections:
         if not isinstance(selection, FieldNode):
             continue
@@ -426,23 +415,10 @@ def _expand_inline_fragment(
         field_name = selection.name.value
         response_key = selection.alias.value if selection.alias else field_name
 
-        # Extract sub-selections (same logic as before)
-        sub_selections = []
-        if hasattr(selection, "selection_set") and selection.selection_set:
-            for sub_sel in selection.selection_set.selections:
-                if isinstance(sub_sel, FieldNode) and sub_sel.name:
-                    if not _should_include_field(sub_sel, variables):
-                        continue
-
-                    sub_field_name = sub_sel.name.value
-                    sub_alias = sub_sel.alias.value if sub_sel.alias else None
-
-                    sub_selections.append(
-                        {
-                            "field_name": sub_field_name,
-                            "alias": sub_alias,
-                        }
-                    )
+        # Extract sub-selections using recursive field extraction
+        sub_selections = extract_field_selections(
+            selection.selection_set, document, variables, None
+        )
 
         fields.append(
             {
@@ -481,6 +457,105 @@ def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
     return []
 
 
+def extract_field_selections(
+    selection_set: Any,
+    document: Any,
+    variables: dict[str, Any] | None = None,
+    visited_fragments: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Recursively extract field selections from a selection set, expanding fragments.
+
+    This returns the flat list of field descriptors expected by the Rust layer:
+    [{"field_name": "...", "alias": "..."}, ...]
+
+    Args:
+        selection_set: SelectionSet node from GraphQL AST
+        document: Full GraphQL document containing fragment definitions
+        variables: Query variables for directive evaluation
+        visited_fragments: Set of fragment names currently being processed (for cycle detection)
+
+    Returns:
+        List of field descriptors with field_name and alias
+    """
+    from graphql import FieldNode, FragmentSpreadNode, InlineFragmentNode
+
+    fields = []
+
+    if not selection_set or not hasattr(selection_set, "selections"):
+        return fields
+
+    # Initialize visited fragments set if not provided
+    if visited_fragments is None:
+        visited_fragments = set()
+
+    for selection in selection_set.selections:
+        # Handle fragment spreads - expand recursively with cycle detection
+        if isinstance(selection, FragmentSpreadNode):
+            if not _should_include_field(selection, variables):
+                continue
+
+            # Find and expand the fragment
+            fragment_name = selection.name.value
+
+            # Check for cycle
+            if fragment_name in visited_fragments:
+                raise ValueError(f"Circular fragment reference: {fragment_name}")
+
+            fragment_def = None
+            for definition in document.definitions:
+                if (
+                    hasattr(definition, "__class__")
+                    and definition.__class__.__name__ == "FragmentDefinitionNode"
+                    and definition.name.value == fragment_name
+                ):
+                    fragment_def = definition
+                    break
+
+            if fragment_def:
+                # Add to visited set and recursively extract fields from fragment
+                updated_visited = visited_fragments | {fragment_name}
+                fragment_fields = extract_field_selections(
+                    fragment_def.selection_set, document, variables, updated_visited
+                )
+                fields.extend(fragment_fields)
+            continue
+
+        # Handle inline fragments - expand recursively
+        if isinstance(selection, InlineFragmentNode):
+            if not _should_include_field(selection, variables):
+                continue
+
+            # Recursively extract fields from inline fragment
+            inline_fields = extract_field_selections(selection.selection_set, document, variables)
+            fields.extend(inline_fields)
+            continue
+
+        # Handle regular fields
+        if not isinstance(selection, FieldNode):
+            continue
+        if not hasattr(selection, "name") or not selection.name:
+            continue
+        if selection.name.value.startswith("__"):
+            continue
+
+        # Check @skip and @include directives
+        if not _should_include_field(selection, variables):
+            continue
+
+        # Extract field name and alias
+        field_name = selection.name.value
+        alias = selection.alias.value if selection.alias else None
+
+        fields.append(
+            {
+                "field_name": field_name,
+                "alias": alias,
+            }
+        )
+
+    return fields
+
+
 def _extract_root_query_fields(
     query_string: str, operation_name: str | None = None, variables: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -513,6 +588,7 @@ def _extract_root_query_fields(
             if operation_name and definition.name and definition.name.value != operation_name:
                 continue
 
+            # Use the recursive selection processor
             fields = []
             for selection in definition.selection_set.selections:
                 # Handle fragment spreads
@@ -525,7 +601,7 @@ def _extract_root_query_fields(
                 # Handle inline fragments
                 if isinstance(selection, InlineFragmentNode):
                     # Inline fragment like: ... on Query { users { id } }
-                    expanded_fields = _expand_inline_fragment(selection, variables)
+                    expanded_fields = _expand_inline_fragment(selection, document, variables)
                     fields.extend(expanded_fields)
                     continue
 
@@ -551,24 +627,9 @@ def _extract_root_query_fields(
                 )  # Response key
 
                 # Extract sub-field selections with aliases and directives
-                sub_selections = []
-                if hasattr(selection, "selection_set") and selection.selection_set:
-                    for sub_sel in selection.selection_set.selections:
-                        if isinstance(sub_sel, FieldNode) and sub_sel.name:
-                            # Check @skip and @include directives on sub-field
-                            if not _should_include_field(sub_sel, variables):
-                                continue  # Skip this sub-field based on directives
-
-                            # Extract field name and optional alias
-                            sub_field_name = sub_sel.name.value
-                            sub_alias = sub_sel.alias.value if sub_sel.alias else None
-
-                            sub_selections.append(
-                                {
-                                    "field_name": sub_field_name,
-                                    "alias": sub_alias,
-                                }
-                            )
+                sub_selections = extract_field_selections(
+                    selection.selection_set, document, variables, None
+                )
 
                 fields.append(
                     {
@@ -581,6 +642,12 @@ def _extract_root_query_fields(
 
             return fields
 
+    except ValueError as e:
+        # Re-raise ValueError for critical issues like circular fragments
+        if "Circular fragment reference" in str(e):
+            raise
+        logger.warning(f"Failed to extract query fields: {e}")
+        return []
     except Exception as e:
         logger.warning(f"Failed to extract query fields: {e}")
         return []
