@@ -343,7 +343,9 @@ class TestApolloStudioIntegration:
 
         # Check that the type itself has description
         if gql_type.description:
-            expected_desc_parts = ["filtering operations"]
+            # UserFilter's docstring ends with "operations." so it gets auto-generated
+            # The generated docstring is "UserFilter operations.\n\nFields:\n..."
+            expected_desc_parts = ["userfilter operations", "fields:"]
             for part in expected_desc_parts:
                 assert part in gql_type.description.lower()
 
