@@ -53,6 +53,16 @@ graphql-parser = "0.4"
 anyhow = "1.0"
 pyo3-async-runtimes = { version = "0.25", features = ["tokio-runtime"] }
 
+# Query building (Phase 7)
+regex = "1.10"              # Field name transformations
+lazy_static = "1.4"         # Static regex
+itertools = "0.12"          # String utilities
+
+# Query caching (Phase 8)
+lru = "0.12"                # LRU cache
+linked-hash-map = "0.5"     # For LRU implementation
+sha2 = "0.10"               # Hashing for signatures
+
 [profile.release]
 opt-level = 3
 lto = "fat"

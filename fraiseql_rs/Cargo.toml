@@ -110,6 +110,11 @@ regex = "1.10"              # Field name transformations
 lazy_static = "1.4"         # Static regex
 itertools = "0.12"          # String utilities
 
+# Query caching (Phase 8)
+lru = "0.12"                # LRU cache
+linked-hash-map = "0.5"     # For LRU implementation
+sha2 = "0.10"               # Hashing for signatures
+
 [dev-dependencies]
 # Testing framework
 tokio-test = "0.4"                    # Async runtime for tests

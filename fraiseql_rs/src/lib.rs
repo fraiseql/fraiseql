@@ -12,6 +12,7 @@ use pyo3::types::PyDict;
 // Warn on everything else (configured in Cargo.toml)
 // Sub-modules
 mod camel_case;
+pub mod cache;
 pub mod cascade;
 pub mod core;
 pub mod db;
@@ -562,6 +563,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "execute_query_async",
             "parse_graphql_query",
             "build_sql_query",
+            "build_sql_query_cached",
             "DatabasePool",
         ],
     )?;
@@ -598,6 +600,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add query building functions (Phase 7)
     m.add_function(wrap_pyfunction!(query::build_sql_query, m)?)?;
+    m.add_function(wrap_pyfunction!(query::build_sql_query_cached, m)?)?;
+    m.add_function(wrap_pyfunction!(query::get_cache_stats, m)?)?;
+    m.add_function(wrap_pyfunction!(query::clear_cache, m)?)?;
     m.add_class::<query::GeneratedQuery>()?;
     m.add_class::<query::schema::TableSchema>()?;
 

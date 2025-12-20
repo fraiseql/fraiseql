@@ -815,6 +815,9 @@ def create_fraiseql_app(
                 schema_ir = serializer.serialize_schema(new_schema)
                 schema_json = json.dumps(schema_ir)
                 _fraiseql_rs.initialize_schema_registry(schema_json)
+
+                # Clear query plan cache when schema changes
+                _fraiseql_rs.clear_cache()
                 logger.debug("Reinitialized Rust schema registry")
             except Exception as e:
                 logger.warning(f"Failed to reinitialize Rust registry: {e}")
