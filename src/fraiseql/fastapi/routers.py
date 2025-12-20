@@ -21,6 +21,7 @@ from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
+from fraiseql.core.graphql_parser import RustGraphQLParser
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
@@ -1219,6 +1220,20 @@ def create_graphql_router(
             # Fallback to standard execution
             # Generate unique request ID for N+1 detection
             request_id = str(uuid4())
+
+            # Phase 6: Parse query with Rust parser for performance
+            # This sets up query info for Phase 7 (query building in Rust)
+            if request.query:
+                parser = RustGraphQLParser()
+                parsed_query = await parser.parse(request.query)
+
+                # Extract query info for Phase 7
+                context["rust_parsed_query"] = {
+                    "operation_type": parsed_query.operation_type,
+                    "root_field": parsed_query.root_field,
+                    "selections": parsed_query.selections,
+                    "variables": parsed_query.variables,
+                }
 
             # Execute with N+1 detection in non-production
             if not is_production_env:

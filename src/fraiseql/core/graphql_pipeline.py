@@ -73,8 +73,8 @@ class RustGraphQLPipeline:
             result_json = await self._rust.execute_query_async(query_json)
             result = json.loads(result_json)
 
-            # Return standardized GraphQL response format
-            return {"data": result, "errors": None}
+            # Rust backend already returns standardized GraphQL response format
+            return result
 
         except Exception as e:
             # Return GraphQL error format

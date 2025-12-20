@@ -1,0 +1,235 @@
+//! GraphQL query parser using graphql-parser crate.
+
+use graphql_parser::query::{self, Document, OperationDefinition, Selection};
+use crate::graphql::types::*;
+use anyhow::{anyhow, Result};
+
+/// Parse GraphQL query string into Rust AST.
+pub fn parse_query(source: &str) -> Result<ParsedQuery> {
+    // Use graphql-parser to parse query string
+    let doc: Document<String> = query::parse_query(source)
+        .map_err(|e| anyhow!("Failed to parse GraphQL query: {}", e))?;
+
+    // Extract first operation (ignore multiple operations for now)
+    let operation = doc.definitions.iter()
+        .find_map(|def| match def {
+            query::Definition::Operation(op) => Some(op),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("No query or mutation operation found"))?;
+
+    // Extract operation details
+    let (operation_type, operation_name, root_field, selections, variables) =
+        extract_operation(operation)?;
+
+    Ok(ParsedQuery {
+        operation_type,
+        operation_name,
+        root_field,
+        selections,
+        variables,
+        source: source.to_string(),
+    })
+}
+
+/// Extract operation details from GraphQL operation definition.
+fn extract_operation(
+    operation: &OperationDefinition<String>,
+) -> Result<(String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>)> {
+    let operation_type = match operation {
+        OperationDefinition::Query(_) => "query",
+        OperationDefinition::Mutation(_) => "mutation",
+        OperationDefinition::Subscription(_) => "subscription",
+        OperationDefinition::SelectionSet(_) => "query", // Anonymous query
+    }.to_string();
+
+    let (name, selection_set, var_defs) = match operation {
+        OperationDefinition::Query(q) => {
+            (&q.name, &q.selection_set, &q.variable_definitions)
+        }
+        OperationDefinition::Mutation(m) => {
+            (&m.name, &m.selection_set, &m.variable_definitions)
+        }
+        OperationDefinition::Subscription(s) => {
+            (&s.name, &s.selection_set, &s.variable_definitions)
+        }
+        OperationDefinition::SelectionSet(sel_set) => {
+            (&None, sel_set, &Vec::new())
+        }
+    };
+
+    // Parse selection set (recursive)
+    let selections = parse_selection_set(selection_set)?;
+
+    // Get root field name (first field in selection set)
+    let root_field = selections.first()
+        .map(|s| s.name.clone())
+        .ok_or_else(|| anyhow!("No fields in selection set"))?;
+
+    // Parse variable definitions
+    let variables = var_defs.iter().map(|var_def| {
+        VariableDefinition {
+            name: var_def.name.clone(),
+            var_type: format!("{}", var_def.var_type),  // GraphQL type string
+            default_value: var_def.default_value.as_ref()
+                .map(|v| serialize_value(v)),
+        }
+    }).collect();
+
+    Ok((operation_type, name.clone(), root_field, selections, variables))
+}
+
+/// Parse GraphQL selection set recursively.
+fn parse_selection_set(
+    selection_set: &query::SelectionSet<String>,
+) -> Result<Vec<FieldSelection>> {
+    let mut fields = Vec::new();
+
+    for selection in &selection_set.items {
+        match selection {
+            Selection::Field(field) => {
+                // Parse field arguments
+                let arguments = field.arguments.iter().map(|(name, value)| {
+                    GraphQLArgument {
+                        name: name.clone(),
+                        value_type: value_type_string(value),
+                        value_json: serialize_value(value),
+                    }
+                }).collect();
+
+                // Parse nested selection set (recursive)
+                let nested_fields = parse_selection_set(&field.selection_set)?;
+
+                fields.push(FieldSelection {
+                    name: field.name.clone(),
+                    alias: field.alias.clone(),
+                    arguments,
+                    nested_fields,
+                    directives: field.directives.iter()
+                        .map(|d| d.name.clone())
+                        .collect(),
+                });
+            }
+            Selection::InlineFragment(_frag) => {
+                // For now, skip inline fragments (not supported)
+                // TODO: Implement proper inline fragment handling
+            }
+            Selection::FragmentSpread(spread) => {
+                // For now, treat fragment spreads as error
+                // (would need fragment definitions support)
+                return Err(anyhow!(
+                    "Fragment spreads not yet supported: {}",
+                    spread.fragment_name
+                ));
+            }
+        }
+    }
+
+    Ok(fields)
+}
+
+/// Get type of GraphQL value for classification.
+fn value_type_string(value: &query::Value<String>) -> String {
+    match value {
+        query::Value::String(_) => "string".to_string(),
+        query::Value::Int(_) => "int".to_string(),
+        query::Value::Float(_) => "float".to_string(),
+        query::Value::Boolean(_) => "boolean".to_string(),
+        query::Value::Null => "null".to_string(),
+        query::Value::Enum(_) => "enum".to_string(),
+        query::Value::List(_) => "list".to_string(),
+        query::Value::Object(_) => "object".to_string(),
+        query::Value::Variable(_) => "variable".to_string(),
+    }
+}
+
+/// Serialize GraphQL value to JSON string.
+fn serialize_value(value: &query::Value<String>) -> String {
+    match value {
+        query::Value::String(s) => format!("\"{}\"", s.replace("\"", "\\\"")),
+        query::Value::Int(i) => {
+            // SAFETY: graphql_parser::Number is a transparent wrapper around i64
+            // This is safe because Number is repr(transparent) with single i64 field
+            // TODO: File issue with graphql-parser to expose value or implement Display
+            unsafe {
+                let ptr = i as *const query::Number as *const i64;
+                (*ptr).to_string()
+            }
+        },
+        query::Value::Float(f) => format!("{}", f),
+        query::Value::Boolean(b) => b.to_string(),
+        query::Value::Null => "null".to_string(),
+        query::Value::Enum(e) => format!("\"{}\"", e),
+        query::Value::List(items) => {
+            let serialized: Vec<_> = items.iter()
+                .map(serialize_value)
+                .collect();
+            format!("[{}]", serialized.join(","))
+        }
+        query::Value::Object(obj) => {
+            let pairs: Vec<_> = obj.iter()
+                .map(|(k, v)| format!("\"{}\":{}", k, serialize_value(v)))
+                .collect();
+            format!("{{{}}}", pairs.join(","))
+        }
+        query::Value::Variable(v) => format!("\"${}\"", v),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_simple_query() {
+        let query = "query { users { id name } }";
+        let parsed = parse_query(query).unwrap();
+
+        assert_eq!(parsed.operation_type, "query");
+        assert_eq!(parsed.root_field, "users");
+        assert_eq!(parsed.selections.len(), 1);
+        assert_eq!(parsed.selections[0].nested_fields.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_query_with_arguments() {
+        let query = r#"
+            query {
+                users(where: {status: "active"}, limit: 10) {
+                    id
+                    name
+                }
+            }
+        "#;
+        let parsed = parse_query(query).unwrap();
+
+        let first_field = &parsed.selections[0];
+        assert_eq!(first_field.arguments.len(), 2);
+        assert_eq!(first_field.arguments[0].name, "where");
+        assert_eq!(first_field.arguments[1].name, "limit");
+    }
+
+    #[test]
+    fn test_parse_mutation() {
+        let query = "mutation { createUser(input: {}) { id } }";
+        let parsed = parse_query(query).unwrap();
+
+        assert_eq!(parsed.operation_type, "mutation");
+        assert_eq!(parsed.root_field, "createUser");
+    }
+
+    #[test]
+    fn test_parse_query_with_variables() {
+        let query = r#"
+            query GetUsers($where: UserWhere!) {
+                users(where: $where) {
+                    id
+                }
+            }
+        "#;
+        let parsed = parse_query(query).unwrap();
+
+        assert_eq!(parsed.variables.len(), 1);
+        assert_eq!(parsed.variables[0].name, "where");
+    }
+}

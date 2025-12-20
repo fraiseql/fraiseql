@@ -15,6 +15,7 @@ mod camel_case;
 pub mod cascade;
 pub mod core;
 pub mod db;
+pub mod graphql;
 pub mod json_transform;
 pub mod mutation;
 pub mod mutations;
@@ -559,6 +560,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "build_mutation_response",
             "execute_query_async",
             "execute_mutation_async",
+            "parse_graphql_query",
             "DatabasePool",
         ],
     )?;
@@ -585,6 +587,13 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add GraphQL execution functions (Phase 4)
     m.add_function(wrap_pyfunction!(execute_query_async, m)?)?;
     m.add_function(wrap_pyfunction!(execute_mutation_async, m)?)?;
+
+    // Add GraphQL parsing functions (Phase 6)
+    m.add_function(wrap_pyfunction!(graphql::parse_graphql_query, m)?)?;
+    m.add_class::<graphql::types::ParsedQuery>()?;
+    m.add_class::<graphql::types::FieldSelection>()?;
+    m.add_class::<graphql::types::GraphQLArgument>()?;
+    m.add_class::<graphql::types::VariableDefinition>()?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
