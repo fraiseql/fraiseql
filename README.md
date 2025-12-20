@@ -1013,10 +1013,10 @@ fraiseql dev
 
 ### Next Steps
 
-**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
-**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
-**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
-**📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
+- **📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
+- **🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
+- **⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
+- **📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
 
 ### Prerequisites
 
@@ -1135,11 +1135,15 @@ FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evol
 
 ### The Origin Story
 
-I built FraiseQL out of frustration with a stupid inefficiency: **PostgreSQL returns JSON → Python deserializes to objects → GraphQL serializes back to JSON.**
+I built FraiseQL after discovering something that changed everything: **PostgreSQL views returning JSONB could eliminate SQLAlchemy's N+1 query problem and lazy loading chaos.**
 
-Why are we doing this roundtrip?
+After years struggling with Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, I realized the ORM approach was fundamentally flawed. Every relationship meant another query, and even with careful eager loading, the complexity exploded.
 
-After years moving through Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, I realized the entire approach was wrong. **Just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping.**
+Then I tried something simple: **What if PostgreSQL composed the entire data structure as JSONB in a single query?** No ORM relationships. No lazy loading. No N+1 queries. Just one view that returns everything.
+
+It worked beautifully. But there was still that stupid inefficiency: **PostgreSQL returns JSON → Python deserializes to objects → GraphQL serializes back to JSON.** Why are we doing this roundtrip?
+
+**Skip the ORM. Skip the object mapping. Let PostgreSQL return the JSON directly.**
 
 But I also wanted something designed for the **LLM era**. SQL and Python are two of the most massively trained languages—LLMs understand them natively. Why not make a framework where AI can easily get context and generate correct code?
 
@@ -1178,9 +1182,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.8.7-beta.5** | Root level | Beta | Security hardening + documentation improvements | ✅ Production Ready |
+| **v1.8.7** | Root level | Stable | Current production release | ✅ Production Ready |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.8.7+ | ✅ Stable |
-| **v1.8.7** | Superseded | Legacy | Use v1.8.7-beta.5 or wait for v1.8.7 stable | ⚠️ Upgrade |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
