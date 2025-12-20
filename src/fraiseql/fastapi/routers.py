@@ -1489,6 +1489,42 @@ def create_graphql_router(
 
         return await graphql_endpoint(request_obj, http_request, context)
 
+    # Phase 9: Add simplified unified Rust pipeline endpoint
+    @router.post("/graphql/rust", response_class=Response)
+    async def graphql_endpoint_rust(
+        request: GraphQLRequest,
+        http_request: Request,
+        context: dict[str, Any] = context_dependency,
+    ) -> Response:
+        """Execute GraphQL query using unified Rust pipeline (Phase 9).
+
+        This endpoint demonstrates the dramatic simplification achieved by
+        moving all database operations to Rust. All work happens in a
+        single Rust function call.
+        """
+        # Import the unified Rust function
+        from fraiseql._fraiseql_rs import execute_graphql_query
+
+        # Extract user context for authorization
+        user_context = {
+            "user_id": context.get("user", {}).get("id"),
+            "permissions": context.get("user", {}).get("permissions", []),
+            "roles": context.get("user", {}).get("roles", []),
+        }
+
+        # Call unified Rust pipeline - all work done in Rust!
+        result_bytes = await execute_graphql_query(
+            query_string=request.query or "",
+            variables=request.variables or {},
+            user_context=user_context,
+        )
+
+        # Return bytes directly (no Python JSON processing)
+        return Response(
+            content=result_bytes,
+            media_type="application/json",
+        )
+
     # Add metrics endpoint if enabled
     if hasattr(unified_executor, "get_metrics") and not is_production_env:
 

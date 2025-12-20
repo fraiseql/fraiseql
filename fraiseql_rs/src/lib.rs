@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use lazy_static::lazy_static;
+use std::sync::{Arc, Mutex};
 
 // ============================================================================
 // CLIPPY SUPPRESSION POLICY
@@ -28,6 +30,12 @@ pub mod schema_registry;
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Global unified GraphQL pipeline instance (Phase 9).
+lazy_static! {
+    static ref GLOBAL_PIPELINE: Arc<Mutex<Option<pipeline::unified::PyGraphQLPipeline>>> =
+        Arc::new(Mutex::new(None));
+}
+
 /// Type alias for multi-field response field definition.
 ///
 /// Represents a single field in a multi-field GraphQL query response:
@@ -37,6 +45,31 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// - Option<String>: field_selections (JSON-encoded field selection metadata)
 /// - Option<bool>: is_list (whether field returns list or single object)
 type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
+
+/// Initialize the global GraphQL pipeline (called from Python on startup).
+#[pyfunction]
+pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
+    let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
+    *GLOBAL_PIPELINE.lock().unwrap() = Some(pipeline);
+    Ok(())
+}
+
+/// Execute GraphQL query using global pipeline (Phase 9 unified interface).
+#[pyfunction]
+pub fn execute_graphql_query(
+    py: Python,
+    query_string: String,
+    variables: Bound<'_, PyDict>,
+    user_context: Bound<'_, PyDict>,
+) -> PyResult<PyObject> {
+    let pipeline_guard = GLOBAL_PIPELINE.lock().unwrap();
+    match &*pipeline_guard {
+        Some(pipeline) => pipeline.execute_py(py, query_string, &variables, &user_context),
+        None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+            "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first."
+        )),
+    }
+}
 
 /// Convert a snake_case string to camelCase
 ///
@@ -605,6 +638,11 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(query::clear_cache, m)?)?;
     m.add_class::<query::GeneratedQuery>()?;
     m.add_class::<query::schema::TableSchema>()?;
+
+    // Add unified pipeline functions (Phase 9)
+    m.add_function(wrap_pyfunction!(initialize_graphql_pipeline, m)?)?;
+    m.add_function(wrap_pyfunction!(execute_graphql_query, m)?)?;
+    m.add_class::<pipeline::unified::PyGraphQLPipeline>()?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
