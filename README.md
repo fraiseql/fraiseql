@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.7) - Stable Release**
+**📍 You are here: Main FraiseQL Framework (v1.8.8) - Stable Release**
 
-**Current Version**: v1.8.7 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.8.8 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -867,7 +867,7 @@ query {
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
-- IPv1.8.7, IPv1.8.7, CIDR, MACAddress - Network addresses with subnet operations
+- IPv1.8.8, IPv1.8.8, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
@@ -894,7 +894,7 @@ query {
 from fraiseql import type
 from fraiseql.types import (
     EmailAddress, PhoneNumber, Money, Percentage,
-    CUSIP, ISIN, IPv1.8.7, MACAddress, LTree, DateRange
+    CUSIP, ISIN, IPv1.8.8, MACAddress, LTree, DateRange
 )
 
 @fraiseql.type(sql_source="v_financial_data")
@@ -909,7 +909,7 @@ class FinancialRecord:
 @fraiseql.type(sql_source="v_network_devices")
 class NetworkDevice:
     id: int
-    ip_address: IPv1.8.7             # IPv1.8.7 addresses with subnet operations
+    ip_address: IPv1.8.8             # IPv1.8.8 addresses with subnet operations
     mac_address: MACAddress      # MAC addresses with validation
     location: LTree              # Hierarchical location paths
     maintenance_window: DateRange # Date ranges with overlap queries
@@ -1182,8 +1182,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.8.7** | Root level | Stable | Current production release | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.8.7+ | ✅ Stable |
+| **v1.8.8** | Root level | Stable | Current production release | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.8.8+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
