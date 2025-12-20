@@ -254,12 +254,19 @@ def convert_type_to_graphql_input(
 
                     gql_input_type = GraphQLNonNull(gql_input_type)
 
-                gql_fields[graphql_field_name] = GraphQLInputField(gql_input_type)
+                gql_fields[graphql_field_name] = GraphQLInputField(
+                    gql_input_type,
+                    description=field.description,
+                )
             return gql_fields
 
         # Create the type with a thunk and cache it BEFORE resolving fields
         # This enables self-referential types like AND/OR in WhereInput
-        gql_type = GraphQLInputObjectType(name=typ.__name__, fields=make_fields_thunk)
+        gql_type = GraphQLInputObjectType(
+            name=typ.__name__,
+            fields=make_fields_thunk,
+            description=_clean_docstring(typ.__doc__),
+        )
         _graphql_type_cache[cache_key] = gql_type
         return gql_type
 
