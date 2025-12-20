@@ -25,6 +25,9 @@ Navigate to: Settings → Branches → Add rule
   - `test / test (3.13)`
   - `test / lint`
   - `test / type-check`
+  - `rust-quality / Run Rust tests`
+  - `rust-quality / Run Clippy`
+  - `rust-quality / Check formatting`
 
 #### 3. Conversation resolution
 - [x] **Require conversation resolution before merging**

@@ -21,6 +21,7 @@ use pyo3::types::PyDict;
 mod camel_case;
 pub mod cascade;
 pub mod core;
+pub mod db;
 pub mod json_transform;
 pub mod mutation;
 pub mod pipeline;
@@ -467,6 +468,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
+            "DatabasePool",
         ],
     )?;
 
@@ -488,6 +490,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add mutation response building
     m.add_function(wrap_pyfunction!(build_mutation_response, m)?)?;
+
+    // Add database pool (Phase 1)
+    m.add_class::<db::pool::DatabasePool>()?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;

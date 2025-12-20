@@ -74,9 +74,24 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 
+# PostgreSQL client and connection pooling (Phase 1)
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
+deadpool-postgres = "0.14"
+deadpool = "0.12"
+async-trait = "0.1"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID support
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
 # Fast string operations
 # Note: Will add for Phase 2 (camelCase optimization)
 # smallvec = "1.13"
+
+# Byte buffer for ToSql implementation
+bytes = "1.0"
 
 # SIMD support (disabled due to compatibility issues)
 # packed_simd = { version = "0.3", optional = true }
@@ -94,9 +109,6 @@ tokio = { version = "1.0", features = ["full"] }
 testcontainers = "0.15"               # Docker containers for tests
 testcontainers-modules = { version = "0.2", features = ["postgres"] }
 
-# PostgreSQL client for testing
-tokio-postgres = "0.7"
-
 # Assertions and matchers
 assert_matches = "1.5"                # Pattern matching in assertions
 pretty_assertions = "1.4"             # Pretty-print assertion failures
@@ -109,10 +121,12 @@ proptest = "1.0"                      # Generate test cases
 
 # Benchmarking infrastructure (Phase 0.3)
 criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
-deadpool-postgres = "0.10"            # Connection pooling for benchmarks
 
 # Testing
 pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
+
+# PyO3 async support - will add in Phase 1.5 when needed
+# pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 
 # Legacy benchmarking infrastructure
 dhat = "0.3"  # Heap profiling

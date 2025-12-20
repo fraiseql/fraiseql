@@ -285,6 +285,32 @@ jobs:
     - name: Run ruff format check
       run: uv run ruff format --check .
 
+  rust-quality:
+    name: Rust Quality
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: clippy,rustfmt
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Run Rust tests
+      working-directory: fraiseql_rs
+      run: cargo test --lib
+
+    - name: Run Clippy
+      working-directory: fraiseql_rs
+      run: cargo clippy --lib -- -D warnings
+
+    - name: Check formatting
+      working-directory: fraiseql_rs
+      run: cargo fmt --all -- --check
+
   security:
     name: Security
     runs-on: ubuntu-latest
@@ -427,7 +453,7 @@ jobs:
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-postgres, lint, security, performance]
+    needs: [unit-tests, rust-quality, integration-postgres, lint, security, performance]
     if: always()
     steps:
       - name: Check quality gate status
