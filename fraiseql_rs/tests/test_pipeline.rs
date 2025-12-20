@@ -19,6 +19,7 @@ fn main() {
         None, // No field projection
         None, // No field selections
         None, // Use default is_list
+        None, // Use default include_graphql_wrapper
     ) {
         Ok(bytes) => {
             let result_str = String::from_utf8_lossy(&bytes);

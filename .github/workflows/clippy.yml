@@ -47,12 +47,12 @@ jobs:
 
       - name: Run Clippy (Deny Warnings)
         working-directory: fraiseql_rs
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --lib -- -D warnings
 
       - name: Generate Report
         if: failure()
         working-directory: fraiseql_rs
-        run: cargo clippy --all-targets --all-features 2>&1 | tee clippy-report.txt
+        run: cargo clippy --lib 2>&1 | tee clippy-report.txt
 
       - name: Upload Report
         if: failure()

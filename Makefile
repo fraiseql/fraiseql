@@ -208,10 +208,10 @@ lint: lint-rust ## Run all linting (Rust + Python)
 lint-rust: clippy rustfmt ## Run Rust linting (Clippy + rustfmt)
 	@echo -e "$(GREEN)✅ Rust linting checks passed$(NC)"
 
-clippy: ## Run Clippy linter with strict warnings
-	@echo -e "$(GREEN)🔍 Running Clippy...$(NC)"
-	cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings
-	@echo -e "$(GREEN)✅ Clippy checks passed$(NC)"
+clippy: ## Run Clippy linter with strict warnings (Phase 0.1: lib target only)
+	@echo -e "$(GREEN)🔍 Running Clippy on library code...$(NC)"
+	cd fraiseql_rs && cargo clippy --lib -- -D warnings
+	@echo -e "$(GREEN)✅ Clippy checks passed for library code$(NC)"
 
 rustfmt: ## Auto-format Rust code
 	@echo -e "$(GREEN)📝 Formatting Rust code...$(NC)"

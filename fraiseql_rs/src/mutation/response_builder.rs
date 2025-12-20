@@ -137,8 +137,7 @@ pub fn build_success_response(
              Status '{}' returned null entity. \
              This indicates a logic error: non-success statuses (noop:*, failed:*, etc.) \
              should return Error type, not Success type.",
-            success_type,
-            result.status
+            success_type, result.status
         ));
     }
 
@@ -499,7 +498,6 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,7 +603,8 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
+        let response =
+            build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         assert_eq!(obj["__typename"], "CreateUserError");
@@ -633,7 +632,8 @@ mod tests {
             is_simple_format: false,
         };
 
-        let response = build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
+        let response =
+            build_error_response_with_code(&result, "CreateUserError", true, None, None).unwrap();
         let obj = response.as_object().unwrap();
 
         // Auto-generated error with extracted code
@@ -669,7 +669,8 @@ mod tests {
                 is_simple_format: false,
             };
 
-            let response = build_error_response_with_code(&result, "TestError", true, None, None).unwrap();
+            let response =
+                build_error_response_with_code(&result, "TestError", true, None, None).unwrap();
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,

@@ -10,13 +10,11 @@ use pyo3::types::PyDict;
     // Justification: Required by PyO3 FFI bindings
     unsafe_code,
 )]
-
 // Deny specific anti-patterns
 #[deny(
     // Force completion of placeholder code
     clippy::todo,
 )]
-
 // Warn on everything else (configured in Cargo.toml)
 
 // Sub-modules
@@ -429,9 +427,7 @@ pub fn is_schema_registry_initialized() -> bool {
 /// Raises:
 ///     ValueError: If field data is malformed or transformation fails
 #[pyfunction]
-pub fn build_multi_field_response(
-    fields: Vec<MultiFieldDef>,
-) -> PyResult<Vec<u8>> {
+pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     pipeline::builder::build_multi_field_response(fields)
 }
 

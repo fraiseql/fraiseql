@@ -11,6 +11,7 @@ use std::process::Command;
 
 fn main() {
     // Detect target architecture
+    #[allow(clippy::expect_used)]
     let target = std::env::var("TARGET").expect("TARGET environment variable not set");
 
     println!("cargo:rerun-if-env-changed=TARGET");

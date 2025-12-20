@@ -1,10 +1,10 @@
-// Common test utilities and fixtures
-//
-// This module provides:
-// - TestDatabase container management
-// - Test fixtures and sample data
-// - Custom assertions
-// - Connection helpers
+/// Common test utilities and fixtures
+///
+/// This module provides:
+/// - TestDatabase container management
+/// - Test fixtures and sample data
+/// - Custom assertions
+/// - Connection helpers
 
 pub mod database;
 pub mod fixtures;

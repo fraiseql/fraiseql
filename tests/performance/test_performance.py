@@ -66,18 +66,10 @@ class TimingBreakdown:
             "result_row_count": self.result_row_count,
             "query_description": self.query_description,
             "breakdown_percentages": {
-                "pool_acquire": round(
-                    100 * self.pool_acquire_ms / self.total_request_ms, 1
-                ),
-                "postgresql": round(
-                    100 * self.postgresql_ms / self.total_request_ms, 1
-                ),
-                "driver_overhead": round(
-                    100 * self.driver_overhead_ms / self.total_request_ms, 1
-                ),
-                "rust_pipeline": round(
-                    100 * self.rust_ms / self.total_request_ms, 1
-                ),
+                "pool_acquire": round(100 * self.pool_acquire_ms / self.total_request_ms, 1),
+                "postgresql": round(100 * self.postgresql_ms / self.total_request_ms, 1),
+                "driver_overhead": round(100 * self.driver_overhead_ms / self.total_request_ms, 1),
+                "rust_pipeline": round(100 * self.rust_ms / self.total_request_ms, 1),
             },
         }
 
@@ -103,9 +95,7 @@ class RealisticPerformanceAssessment:
             )
 
             # Create indices (as per FraiseQL pattern)
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_tv_user_id ON tv_user(id)"
-            )
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_user_id ON tv_user(id)")
             await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tv_user_tenant_id ON tv_user(tenant_id)"
             )
@@ -134,9 +124,7 @@ class RealisticPerformanceAssessment:
             )
 
             # Create indices
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_tv_post_id ON tv_post(id)"
-            )
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_post_id ON tv_post(id)")
             await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tv_post_tenant_id ON tv_post(tenant_id)"
             )
@@ -200,9 +188,7 @@ class RealisticPerformanceAssessment:
         }
 
     @classmethod
-    def _generate_post_payload(
-        cls, post_id: str, post_num: int, author_id: str
-    ) -> dict:
+    def _generate_post_payload(cls, post_id: str, post_num: int, author_id: str) -> dict:
         """Generate realistic post JSONB payload with nested author and comments (25KB)."""
         return {
             "id": post_id,
@@ -217,9 +203,7 @@ class RealisticPerformanceAssessment:
                 "fullName": f"User {post_num % 10}",
                 "avatar": f"https://api.example.com/avatars/user_{post_num % 10}.png",
             },
-            "tags": [
-                f"tag-{i}" for i in range(10)
-            ],  # 10 tags per post
+            "tags": [f"tag-{i}" for i in range(10)],  # 10 tags per post
             "comments": [
                 {
                     "id": str(uuid.uuid4()),
@@ -302,12 +286,7 @@ class RealisticPerformanceAssessment:
         postgresql_ms = query_execution_ms
         rust_ms = rust_pipeline_ms
 
-        total_request_ms = (
-            pool_acquire_ms
-            + query_execution_ms
-            + result_fetch_ms
-            + rust_pipeline_ms
-        )
+        total_request_ms = pool_acquire_ms + query_execution_ms + result_fetch_ms + rust_pipeline_ms
 
         # Result metadata
         result_size_bytes = len(json_str.encode("utf-8"))
@@ -347,9 +326,7 @@ class TestRealisticPerformance:
 
         async with class_db_pool.connection() as conn:
             # Insert realistic user data
-            user_payload = RealisticPerformanceAssessment._generate_user_payload(
-                str(user_id), 1
-            )
+            user_payload = RealisticPerformanceAssessment._generate_user_payload(str(user_id), 1)
             await conn.execute(
                 "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
                 [user_id, tenant_id, "user_1", json.dumps(user_payload)],
@@ -388,10 +365,8 @@ class TestRealisticPerformance:
         async with class_db_pool.connection() as conn:
             for i in range(100):
                 user_id = uuid.uuid4()
-                user_payload = (
-                    RealisticPerformanceAssessment._generate_user_payload(
-                        str(user_id), i
-                    )
+                user_payload = RealisticPerformanceAssessment._generate_user_payload(
+                    str(user_id), i
                 )
                 await conn.execute(
                     "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
@@ -430,10 +405,8 @@ class TestRealisticPerformance:
 
         # Insert realistic post with nested data
         async with class_db_pool.connection() as conn:
-            post_payload = (
-                RealisticPerformanceAssessment._generate_post_payload(
-                    str(post_id), 1, str(author_id)
-                )
+            post_payload = RealisticPerformanceAssessment._generate_post_payload(
+                str(post_id), 1, str(author_id)
             )
             await conn.execute(
                 "INSERT INTO tv_post (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
@@ -470,9 +443,7 @@ class TestRealisticPerformance:
 
         # Insert test data
         async with class_db_pool.connection() as conn:
-            user_payload = RealisticPerformanceAssessment._generate_user_payload(
-                str(user_id), 1
-            )
+            user_payload = RealisticPerformanceAssessment._generate_user_payload(str(user_id), 1)
             await conn.execute(
                 "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
                 [user_id, tenant_id, "user_1", json.dumps(user_payload)],
@@ -507,10 +478,8 @@ class TestRealisticPerformance:
         async with class_db_pool.connection() as conn:
             for i in range(1000):
                 user_id = uuid.uuid4()
-                user_payload = (
-                    RealisticPerformanceAssessment._generate_user_payload(
-                        str(user_id), i
-                    )
+                user_payload = RealisticPerformanceAssessment._generate_user_payload(
+                    str(user_id), i
                 )
                 await conn.execute(
                     "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
@@ -558,10 +527,8 @@ class TestRealisticPerformance:
                 user_ids = []
                 for i in range(10):
                     user_id = uuid.uuid4()
-                    user_payload = (
-                        RealisticPerformanceAssessment._generate_user_payload(
-                            str(user_id), global_user_idx
-                        )
+                    user_payload = RealisticPerformanceAssessment._generate_user_payload(
+                        str(user_id), global_user_idx
                     )
                     await conn.execute(
                         "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
@@ -640,9 +607,7 @@ class TestRealisticProfile:
 
         # Insert realistic data
         async with class_db_pool.connection() as conn:
-            user_payload = RealisticPerformanceAssessment._generate_user_payload(
-                str(user_id), 1
-            )
+            user_payload = RealisticPerformanceAssessment._generate_user_payload(str(user_id), 1)
             await conn.execute(
                 "INSERT INTO tv_user (id, tenant_id, identifier, data) VALUES (%s, %s, %s, %s)",
                 [user_id, tenant_id, "user_1", json.dumps(user_payload)],

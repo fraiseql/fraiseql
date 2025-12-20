@@ -13,8 +13,5 @@ allow-expect-in-tests = true
 allow-unwrap-in-tests = true
 allow-panic-in-tests = true
 
-# Exceptions for FFI boundaries (PyO3 code)
-# Note: unsafe_code is allowed at module level in lib.rs
-
 # Allow some patterns that are intentional
 single-char-binding-names-threshold = 5  # Single-letter vars in closures

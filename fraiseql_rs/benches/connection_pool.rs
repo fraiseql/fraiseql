@@ -3,7 +3,7 @@
 //! Note: These benchmarks simulate connection pool operations.
 //! Real database benchmarks will be added in Phase 1 when database code exists.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
 /// Benchmark pool configuration overhead
