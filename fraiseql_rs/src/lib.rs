@@ -24,6 +24,7 @@ pub mod core;
 pub mod db;
 pub mod json_transform;
 pub mod mutation;
+mod mutations;
 pub mod pipeline;
 pub mod response;
 pub mod schema_registry;
@@ -400,6 +401,46 @@ pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }
 
+/// Execute GraphQL query via Rust backend
+///
+/// Args:
+///     query_def: JSON string containing query definition
+///
+/// Returns:
+///     JSON string with query results
+#[pyfunction]
+pub fn execute_query_async(query_def: String) -> PyResult<String> {
+    // Parse the query definition
+    let _query_def: serde_json::Value = serde_json::from_str(&query_def)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {}", e)))?;
+
+    // For now, return a placeholder response
+    // In Phase 4, this would execute the actual query
+    let response = serde_json::json!([{"id": 1, "name": "Test User"}]);
+    serde_json::to_string(&response)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e)))
+}
+
+/// Execute GraphQL mutation via Rust backend
+///
+/// Args:
+///     mutation_def: JSON string containing mutation definition
+///
+/// Returns:
+///     JSON string with mutation results
+#[pyfunction]
+pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
+    // Parse the mutation definition
+    let _mutation_def: serde_json::Value = serde_json::from_str(&mutation_def)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {}", e)))?;
+
+    // For now, return a placeholder response
+    // In Phase 4, this would execute the actual mutation
+    let response = serde_json::json!({"id": 1, "name": "Created User"});
+    serde_json::to_string(&response)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e)))
+}
+
 /// Build complete multi-field GraphQL response from PostgreSQL JSON rows
 ///
 /// This function handles multi-field queries entirely in Rust, bypassing graphql-core
@@ -469,6 +510,8 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
+            "execute_query_async",
+            "execute_mutation_async",
             "DatabasePool",
         ],
     )?;
@@ -491,6 +534,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add mutation response building
     m.add_function(wrap_pyfunction!(build_mutation_response, m)?)?;
+
+    // Add GraphQL execution functions (Phase 4)
+    m.add_function(wrap_pyfunction!(execute_query_async, m)?)?;
+    m.add_function(wrap_pyfunction!(execute_mutation_async, m)?)?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
