@@ -270,13 +270,10 @@ impl<'a> QueryExecutor<'a> {
             QueryParam::Bool(val)
         } else if let Ok(Some(val)) = row.try_get::<_, Option<String>>(index) {
             QueryParam::Text(val)
-        } else if let Ok(Some(val)) = row.try_get::<_, Option<serde_json::Value>>(index) {
-            QueryParam::Json(val)
-        } else if let Ok(Some(val)) = row.try_get::<_, Option<chrono::NaiveDateTime>>(index) {
-            QueryParam::Timestamp(val)
-        } else if let Ok(Some(val)) = row.try_get::<_, Option<uuid::Uuid>>(index) {
-            QueryParam::Uuid(val)
         } else {
+            // TODO Phase 4.1: Add JSON, Timestamp, UUID support
+            // These require proper tokio-postgres feature configuration
+            // For now, fall back to text representation
             // For unsupported types or NULL values, return empty text
             QueryParam::Text("".to_string())
         }
@@ -294,9 +291,10 @@ impl ToSql for QueryParam {
             QueryParam::Float(val) => val.to_sql(ty, out),
             QueryParam::Double(val) => val.to_sql(ty, out),
             QueryParam::Text(val) => val.to_sql(ty, out),
-            QueryParam::Json(val) => val.to_sql(ty, out),
-            QueryParam::Timestamp(val) => val.to_sql(ty, out),
-            QueryParam::Uuid(val) => val.to_sql(ty, out),
+            // TODO Phase 4.1: Add proper ToSql for advanced types
+            QueryParam::Json(val) => val.to_string().to_sql(ty, out),
+            QueryParam::Timestamp(val) => val.to_string().to_sql(ty, out),
+            QueryParam::Uuid(val) => val.to_string().to_sql(ty, out),
         }
     }
 

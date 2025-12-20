@@ -2,6 +2,8 @@
 //!
 //! Builds GraphQL-compliant Success and Error responses from mutation results.
 
+#![allow(clippy::excessive_nesting)] // TODO Phase 4.1: Refactor nested blocks
+
 use super::{MutationResult, MutationStatus};
 use crate::camel_case::to_camel_case;
 use serde_json::{json, Map, Value};

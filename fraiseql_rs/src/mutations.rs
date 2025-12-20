@@ -11,7 +11,7 @@ pub enum MutationType {
 }
 
 impl MutationType {
-    pub fn from_str(s: &str) -> Result<Self, DatabaseError> {
+    pub fn parse(s: &str) -> Result<Self, DatabaseError> {
         match s {
             "insert" => Ok(MutationType::Insert),
             "update" => Ok(MutationType::Update),
@@ -106,9 +106,10 @@ async fn delete_record(
     table: &str,
     filters: Option<&Value>,
 ) -> Result<Value, DatabaseError> {
-    let sql = build_delete_sql(table, filters)?;
+    let (sql, params) = build_delete_sql_with_params(table, filters)?;
 
-    let rows = client.execute(&sql, &[])
+    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+    let rows = client.execute(&sql, &sql_params)
         .await
         .map_err(|e| DatabaseError::Query(format!("DELETE failed: {}", e)))?;
 
@@ -155,63 +156,58 @@ fn build_update_sql(table: &str, input: &Value, filters: Option<&Value>) -> Resu
     let mut sql = format!("UPDATE {} SET {}", table, sets_str);
 
     // Add WHERE clause if filters provided
-    if let Some(filter_obj) = filters {
-        if let Value::Object(filter_map) = filter_obj {
-            if let Some(field) = filter_map.get("field") {
-                if let Some(operator) = filter_map.get("operator") {
-                    if let Some(value) = filter_map.get("value") {
-                        if let (Value::String(field_str), Value::String(op_str), _) = (field, operator, value) {
-                            let op = match op_str.as_str() {
-                                "eq" => "=",
-                                "ne" => "!=",
-                                "gt" => ">",
-                                "gte" => ">=",
-                                "lt" => "<",
-                                "lte" => "<=",
-                                "like" => "LIKE",
-                                _ => "=",
-                            };
-                            sql.push_str(&format!(" WHERE {} {} ${}", field_str, op, param_index));
-                            params.push(value_to_query_param(value));
-                        }
-                    }
-                }
-            }
-        }
+    if let Some(where_clause) = build_where_clause(filters, param_index) {
+        sql.push_str(&where_clause.0);
+        params.extend(where_clause.1);
     }
 
     Ok((sql, params))
 }
 
-fn build_delete_sql(table: &str, filters: Option<&Value>) -> Result<String, DatabaseError> {
+fn build_delete_sql_with_params(table: &str, filters: Option<&Value>) -> Result<(String, Vec<QueryParam>), DatabaseError> {
     let mut sql = format!("DELETE FROM {}", table);
+    let mut params = Vec::new();
 
     // Add WHERE clause if filters provided
-    if let Some(filter_obj) = filters {
-        if let Value::Object(filter_map) = filter_obj {
-            if let Some(field) = filter_map.get("field") {
-                if let Some(operator) = filter_map.get("operator") {
-                    if let Some(value) = filter_map.get("value") {
-                        if let (Value::String(field_str), Value::String(op_str), _) = (field, operator, value) {
-                            let op = match op_str.as_str() {
-                                "eq" => "=",
-                                "ne" => "!=",
-                                "gt" => ">",
-                                "gte" => ">=",
-                                "lt" => "<",
-                                "lte" => "<=",
-                                "like" => "LIKE",
-                                _ => "=",
-                            };
-                            sql.push_str(&format!(" WHERE {} {} '{}'", field_str, op, value));
-                        }
-                    }
-                }
-            }
-        }
+    if let Some(where_clause) = build_where_clause(filters, params.len() + 1) {
+        sql.push_str(&where_clause.0);
+        params.extend(where_clause.1);
     }
 
-    Ok(sql)
+    Ok((sql, params))
+}
+
+
+
+fn build_where_clause(filters: Option<&Value>, param_index: usize) -> Option<(String, Vec<QueryParam>)> {
+    let filter_obj = filters?;
+    let Value::Object(filter_map) = filter_obj else {
+        return None;
+    };
+
+    let field = filter_map.get("field")?;
+    let operator = filter_map.get("operator")?;
+    let value = filter_map.get("value")?;
+
+    let (Value::String(field_str), Value::String(op_str)) = (field, operator) else {
+        return None;
+    };
+
+    let op = match op_str.as_str() {
+        "eq" => "=",
+        "ne" => "!=",
+        "gt" => ">",
+        "gte" => ">=",
+        "lt" => "<",
+        "lte" => "<=",
+        "like" => "LIKE",
+        _ => "=",
+    };
+
+    let sql = format!(" WHERE {} {} ${}", field_str, op, param_index);
+    let params = vec![value_to_query_param(value)];
+
+    Some((sql, params))
 }
 
 fn value_to_query_param(value: &Value) -> QueryParam {
@@ -239,11 +235,11 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_mutation_type_from_str() {
-        assert!(matches!(MutationType::from_str("insert").unwrap(), MutationType::Insert));
-        assert!(matches!(MutationType::from_str("update").unwrap(), MutationType::Update));
-        assert!(matches!(MutationType::from_str("delete").unwrap(), MutationType::Delete));
-        assert!(MutationType::from_str("invalid").is_err());
+    fn test_mutation_type_parse() {
+        assert!(matches!(MutationType::parse("insert").unwrap(), MutationType::Insert));
+        assert!(matches!(MutationType::parse("update").unwrap(), MutationType::Update));
+        assert!(matches!(MutationType::parse("delete").unwrap(), MutationType::Delete));
+        assert!(MutationType::parse("invalid").is_err());
     }
 
     #[test]
