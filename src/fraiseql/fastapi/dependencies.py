@@ -7,10 +7,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.auth.base import AuthProvider, UserContext
+from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi.config import FraiseQLConfig
-
-# Import RustGraphQLPipeline (runtime import due to static analysis issues)
-from fraiseql.core.graphql_pipeline import RustGraphQLPipeline  # type: ignore
 from fraiseql.optimization.registry import LoaderRegistry
 
 # Global instances (will be set by create_app)
@@ -65,15 +63,22 @@ def set_fraiseql_config(config: FraiseQLConfig) -> None:
 security = HTTPBearer(auto_error=False)
 
 
-def get_db():  # type: ignore
-    """Get the database connection for the current request.
+async def get_db() -> FraiseQLRepository:
+    """Get database repository instance."""
+    pool = get_db_pool()
+    config = get_fraiseql_config()
 
-    This creates a RustGraphQLPipeline for GraphQL operations.
-    """
-    # Import here to avoid static analysis issues
-    from fraiseql.core.graphql_pipeline import RustGraphQLPipeline  # type: ignore
+    # Create repository with timeout from config
+    context = {}
+    if config:
+        context["config"] = config
 
-    return RustGraphQLPipeline()
+        if hasattr(config, "query_timeout"):
+            context["query_timeout"] = config.query_timeout
+        if hasattr(config, "jsonb_field_limit_threshold"):
+            context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
+
+    return FraiseQLRepository(pool=pool, context=context)
 
 
 async def get_token(
@@ -149,7 +154,7 @@ def require_role(role: str) -> Callable:
 
 # Context builders for GraphQL
 async def build_graphql_context(
-    db: Annotated[Any, Depends(get_db)],  # type: ignore
+    db: Annotated[FraiseQLRepository, Depends(get_db)],
     user: Annotated[UserContext | None, Depends(get_current_user_optional)],
 ) -> dict[str, Any]:
     """Build GraphQL context with database and user info."""

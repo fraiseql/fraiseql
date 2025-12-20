@@ -46,11 +46,11 @@ app = create_fraiseql_app(
 
 ## 🏆 Unique Value Proposition
 
-**Rust-Native Database Layer - Performance as Default, Not Optimization**
+**Performance as Default, Not Optimization**
 
 ### The Key Difference
 
-FraiseQL achieves **20-30% faster performance** through Rust-native PostgreSQL implementation.
+FraiseQL achieves competitive performance **by architecture**, not by tuning.
 
 | Scenario | FraiseQL | Strawberry/Graphene | Hasura |
 |----------|----------|-------------------|--------|
