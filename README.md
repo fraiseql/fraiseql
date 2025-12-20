@@ -867,7 +867,7 @@ query {
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
-- IPv1.8.9, IPv1.8.9, CIDR, MACAddress - Network addresses with subnet operations
+- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
@@ -894,7 +894,7 @@ query {
 from fraiseql import type
 from fraiseql.types import (
     EmailAddress, PhoneNumber, Money, Percentage,
-    CUSIP, ISIN, IPv1.8.9, MACAddress, LTree, DateRange
+    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
 )
 
 @fraiseql.type(sql_source="v_financial_data")
@@ -909,7 +909,7 @@ class FinancialRecord:
 @fraiseql.type(sql_source="v_network_devices")
 class NetworkDevice:
     id: int
-    ip_address: IPv1.8.9             # IPv1.8.9 addresses with subnet operations
+    ip_address: IPv4             # IPv4 addresses with subnet operations
     mac_address: MACAddress      # MAC addresses with validation
     location: LTree              # Hierarchical location paths
     maintenance_window: DateRange # Date ranges with overlap queries
