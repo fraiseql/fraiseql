@@ -25,6 +25,7 @@ pub mod db;
 pub mod json_transform;
 pub mod mutation;
 pub mod pipeline;
+pub mod response;
 pub mod schema_registry;
 
 /// Version of the fraiseql_rs module
