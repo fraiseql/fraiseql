@@ -16,10 +16,11 @@ Actual Behavior:
     docstrings are present in the Python code.
 """
 
+from typing import Any
 from uuid import UUID
 
 import pytest
-from graphql import graphql_sync
+from graphql import GraphQLSchema, graphql_sync
 
 import fraiseql
 from fraiseql import fraise_input, fraise_type
@@ -28,18 +29,40 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.mutations import mutation
 
 
+@pytest.fixture
+def registry(clear_registry):
+    """Get a clean schema registry for each test."""
+    return SchemaRegistry.get_instance()
+
+
+def execute_introspection(schema: GraphQLSchema, query_string: str) -> dict[str, Any]:
+    """Execute a GraphQL introspection query and return the data.
+
+    Args:
+        schema: The GraphQL schema to query
+        query_string: The introspection query
+
+    Returns:
+        The query result data
+
+    Raises:
+        AssertionError: If the query has errors
+    """
+    result = graphql_sync(schema, query_string)
+    assert not result.errors, f"Introspection query failed: {result.errors}"
+    assert result.data is not None
+    return result.data
+
+
 @pytest.mark.regression
 class TestInputTypeDocstringIntrospection:
     """Test that input type docstrings are exposed in GraphQL schema introspection."""
 
-    def test_input_type_docstring_in_introspection(self, clear_registry) -> None:
+    def test_input_type_docstring_in_introspection(self, registry) -> None:
         """Test that @fraiseql.input docstrings appear in GraphQL introspection.
 
         This is the main regression test for issue #192.
         """
-        # Get schema registry
-        registry = SchemaRegistry.get_instance()
-
         # Define input type with comprehensive docstring
         @fraise_input
         class CreateMachineInput:
@@ -75,35 +98,27 @@ class TestInputTypeDocstringIntrospection:
         @mutation
         async def create_machine(info, input: CreateMachineInput) -> Machine:
             """Create a new machine."""
-            # Mock implementation
             return None  # type: ignore
 
         # Build schema
         schema = registry.build_schema()
 
-        # GraphQL introspection query
-        introspection_query = """
-        {
-          inputType: __type(name: "CreateMachineInput") {
-            name
-            description
-          }
-          objectType: __type(name: "Machine") {
-            name
-            description
-          }
-        }
-        """
-
-        # Execute introspection
-        result = graphql_sync(schema, introspection_query)
-
-        # Check for errors
-        assert not result.errors, f"Introspection query failed: {result.errors}"
-
-        # Verify results
-        data = result.data
-        assert data is not None
+        # Execute introspection query
+        data = execute_introspection(
+            schema,
+            """
+            {
+              inputType: __type(name: "CreateMachineInput") {
+                name
+                description
+              }
+              objectType: __type(name: "Machine") {
+                name
+                description
+              }
+            }
+            """,
+        )
 
         # Check object type description (this should already work)
         object_type = data["objectType"]
@@ -111,22 +126,17 @@ class TestInputTypeDocstringIntrospection:
         assert object_type["description"] is not None
         assert "Printing device tracked in the system" in object_type["description"]
 
-        # Check input type description (THIS IS THE BUG - currently returns null)
+        # Check input type description (THIS IS THE BUG FIX)
         input_type = data["inputType"]
         assert input_type["name"] == "CreateMachineInput"
-
-        # This assertion will FAIL until the bug is fixed
         assert input_type["description"] is not None, (
             "Input type description should not be null. "
             "The docstring from @fraiseql.input should be exposed in GraphQL introspection."
         )
         assert "Input for creating a new printing machine" in input_type["description"]
 
-    def test_all_decorator_types_preserve_docstrings(self, clear_registry) -> None:
+    def test_all_decorator_types_preserve_docstrings(self, registry) -> None:
         """Test that all FraiseQL decorators preserve and expose docstrings."""
-        # Get schema registry
-        registry = SchemaRegistry.get_instance()
-
         # Define types with each decorator
         @fraise_type
         class User:
@@ -165,54 +175,45 @@ class TestInputTypeDocstringIntrospection:
             """Create a new user."""
             return None  # type: ignore
 
-        # Build schema
+        # Build schema and execute introspection
         schema = registry.build_schema()
-
-        # Introspection query for all types
-        introspection_query = """
-        {
-          userType: __type(name: "User") {
-            name
-            description
-          }
-          inputType: __type(name: "CreateUserInput") {
-            name
-            description
-          }
-          successType: __type(name: "CreateUserSuccess") {
-            name
-            description
-          }
-          errorType: __type(name: "CreateUserError") {
-            name
-            description
-          }
-        }
-        """
-
-        # Execute introspection
-        result = graphql_sync(schema, introspection_query)
-        assert not result.errors, f"Introspection query failed: {result.errors}"
-
-        data = result.data
-        assert data is not None
+        data = execute_introspection(
+            schema,
+            """
+            {
+              userType: __type(name: "User") {
+                name
+                description
+              }
+              inputType: __type(name: "CreateUserInput") {
+                name
+                description
+              }
+              successType: __type(name: "CreateUserSuccess") {
+                name
+                description
+              }
+              errorType: __type(name: "CreateUserError") {
+                name
+                description
+              }
+            }
+            """,
+        )
 
         # All types should have descriptions
         assert data["userType"]["description"] == "A user in the system."
         assert data["successType"]["description"] == "Successful user creation result."
         assert data["errorType"]["description"] == "Error during user creation."
 
-        # Input type should also have description (currently fails)
+        # Input type should also have description
         assert data["inputType"]["description"] is not None, (
             "@fraiseql.input should preserve docstrings like other decorators"
         )
         assert data["inputType"]["description"] == "Input for creating a new user."
 
-    def test_input_type_without_docstring(self, clear_registry) -> None:
+    def test_input_type_without_docstring(self, registry) -> None:
         """Test that input types without docstrings have null description."""
-        # Get schema registry
-        registry = SchemaRegistry.get_instance()
-
         # Define input type WITHOUT docstring
         @fraise_input
         class SimpleInput:
@@ -233,38 +234,29 @@ class TestInputTypeDocstringIntrospection:
         async def simple_mutation(info, input: SimpleInput) -> SimpleOutput:
             return None  # type: ignore
 
-        # Build schema
+        # Build schema and execute introspection
         schema = registry.build_schema()
-
-        # Introspection query
-        introspection_query = """
-        {
-          inputType: __type(name: "SimpleInput") {
-            name
-            description
-          }
-        }
-        """
-
-        # Execute introspection
-        result = graphql_sync(schema, introspection_query)
-        assert not result.errors
-
-        data = result.data
-        assert data is not None
+        data = execute_introspection(
+            schema,
+            """
+            {
+              inputType: __type(name: "SimpleInput") {
+                name
+                description
+              }
+            }
+            """,
+        )
 
         # Input type without docstring should have null description
         assert data["inputType"]["description"] is None
 
-    def test_input_type_field_descriptions(self, clear_registry) -> None:
+    def test_input_type_field_descriptions(self, registry) -> None:
         """Test that input type field descriptions work correctly.
 
         While the class-level docstring may be missing, field descriptions
         should still work via fraise_field annotations.
         """
-        # Get schema registry
-        registry = SchemaRegistry.get_instance()
-
         from fraiseql import fraise_field
 
         @fraise_input
@@ -288,36 +280,30 @@ class TestInputTypeDocstringIntrospection:
         async def detailed_mutation(info, input: DetailedInput) -> SimpleOutput:
             return None  # type: ignore
 
-        # Build schema
+        # Build schema and execute introspection
         schema = registry.build_schema()
-
-        # Introspection query for input fields
-        introspection_query = """
-        {
-          inputType: __type(name: "DetailedInput") {
-            name
-            description
-            inputFields {
-              name
-              description
+        data = execute_introspection(
+            schema,
+            """
+            {
+              inputType: __type(name: "DetailedInput") {
+                name
+                description
+                inputFields {
+                  name
+                  description
+                }
+              }
             }
-          }
-        }
-        """
+            """,
+        )
 
-        # Execute introspection
-        result = graphql_sync(schema, introspection_query)
-        assert not result.errors
-
-        data = result.data
-        assert data is not None
-
-        # Check field descriptions (these should work)
+        # Check field descriptions
         input_fields = {field["name"]: field for field in data["inputType"]["inputFields"]}
         assert input_fields["name"]["description"] == "The name of the entity"
         assert input_fields["value"]["description"] == "The numeric value"
 
-        # Check class-level description (this is the bug)
+        # Check class-level description
         assert data["inputType"]["description"] is not None, (
             "Input type class-level docstring should be exposed"
         )
