@@ -20,6 +20,7 @@ pub mod json_transform;
 pub mod mutation;
 pub mod mutations;
 pub mod pipeline;
+pub mod query;
 pub mod response;
 pub mod schema_registry;
 
@@ -559,8 +560,8 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "filter_cascade_data",
             "build_mutation_response",
             "execute_query_async",
-            "execute_mutation_async",
             "parse_graphql_query",
+            "build_sql_query",
             "DatabasePool",
         ],
     )?;
@@ -594,6 +595,11 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graphql::types::FieldSelection>()?;
     m.add_class::<graphql::types::GraphQLArgument>()?;
     m.add_class::<graphql::types::VariableDefinition>()?;
+
+    // Add query building functions (Phase 7)
+    m.add_function(wrap_pyfunction!(query::build_sql_query, m)?)?;
+    m.add_class::<query::GeneratedQuery>()?;
+    m.add_class::<query::schema::TableSchema>()?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
