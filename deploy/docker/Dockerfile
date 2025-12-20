@@ -45,8 +45,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cargo/git \
     python -m build --wheel
 
-# Stage 2: Production
-FROM python:3.13-slim AS production
+# Stage 2: Runtime
+FROM python:3.13-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team"
