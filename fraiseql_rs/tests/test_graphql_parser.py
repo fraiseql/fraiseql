@@ -129,3 +129,63 @@ async def test_is_cacheable(parser):
     query2 = "query GetUsers($where: UserWhere!) { users(where: $where) { id } }"
     result2 = await parser.parse(query2)
     assert not result2.is_cacheable()
+
+
+@pytest.mark.asyncio
+async def test_parse_integer_arguments(parser):
+    """Test parsing integer arguments (verifies unsafe Number conversion)."""
+    query = """
+        query {
+            users(limit: 42, offset: 100) {
+                id
+            }
+        }
+    """
+    result = await parser.parse(query)
+
+    users_field = result.selections[0]
+    assert len(users_field.arguments) == 2
+
+    # Verify integer serialization works correctly
+    assert users_field.arguments[0].name == "limit"
+    assert users_field.arguments[0].value_type == "int"
+    assert users_field.arguments[0].value_json == "42"
+
+    assert users_field.arguments[1].name == "offset"
+    assert users_field.arguments[1].value_type == "int"
+    assert users_field.arguments[1].value_json == "100"
+
+
+@pytest.mark.asyncio
+async def test_inline_fragment_error(parser):
+    """Test that inline fragments return proper error."""
+    query = """
+        query {
+            users {
+                id
+                ... on Admin {
+                    permissions
+                }
+            }
+        }
+    """
+    with pytest.raises(SyntaxError) as exc_info:
+        await parser.parse(query)
+
+    assert "Inline fragments not yet supported" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_fragment_spread_error(parser):
+    """Test that fragment spreads return proper error."""
+    query = """
+        query {
+            users {
+                ...UserFields
+            }
+        }
+    """
+    with pytest.raises(SyntaxError) as exc_info:
+        await parser.parse(query)
+
+    assert "Fragment spreads not yet supported" in str(exc_info.value)

@@ -110,9 +110,16 @@ fn parse_selection_set(
                         .collect(),
                 });
             }
-            Selection::InlineFragment(_frag) => {
-                // For now, skip inline fragments (not supported)
-                // TODO: Implement proper inline fragment handling
+            Selection::InlineFragment(frag) => {
+                // Inline fragments not yet supported (would need type condition evaluation)
+                // TODO Phase 9: Implement proper inline fragment handling
+                let type_name = frag.type_condition.as_ref()
+                    .map(|t| format!("{}", t))
+                    .unwrap_or_else(|| "(unknown)".to_string());
+                return Err(anyhow!(
+                    "Inline fragments not yet supported: ... on {}",
+                    type_name
+                ));
             }
             Selection::FragmentSpread(spread) => {
                 // For now, treat fragment spreads as error
@@ -231,5 +238,63 @@ mod tests {
 
         assert_eq!(parsed.variables.len(), 1);
         assert_eq!(parsed.variables[0].name, "where");
+    }
+
+    #[test]
+    fn test_parse_query_with_integer_argument() {
+        // This test verifies the unsafe Number -> i64 conversion works correctly
+        let query = r#"
+            query {
+                users(limit: 42, offset: 100) {
+                    id
+                }
+            }
+        "#;
+        let parsed = parse_query(query).unwrap();
+
+        let first_field = &parsed.selections[0];
+        assert_eq!(first_field.arguments.len(), 2);
+
+        // Verify integer serialization works (tests unsafe code block)
+        assert_eq!(first_field.arguments[0].name, "limit");
+        assert_eq!(first_field.arguments[0].value_type, "int");
+        assert_eq!(first_field.arguments[0].value_json, "42");
+
+        assert_eq!(first_field.arguments[1].name, "offset");
+        assert_eq!(first_field.arguments[1].value_type, "int");
+        assert_eq!(first_field.arguments[1].value_json, "100");
+    }
+
+    #[test]
+    fn test_parse_query_with_inline_fragment_fails() {
+        // Inline fragments should return error (not silently skip)
+        let query = r#"
+            query {
+                users {
+                    id
+                    ... on Admin {
+                        permissions
+                    }
+                }
+            }
+        "#;
+        let result = parse_query(query);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Inline fragments not yet supported"));
+    }
+
+    #[test]
+    fn test_parse_query_with_fragment_spread_fails() {
+        // Fragment spreads should return error
+        let query = r#"
+            query {
+                users {
+                    ...UserFields
+                }
+            }
+        "#;
+        let result = parse_query(query);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Fragment spreads not yet supported"));
     }
 }
