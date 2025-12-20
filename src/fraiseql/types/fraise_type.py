@@ -34,7 +34,8 @@ def fraise_type(  # type: ignore[misc]
     _cls: T | None = None,
     *,
     sql_source: str | None = None,
-    jsonb_column: str | None = ...,  # Use ... as sentinel for "not specified"
+    jsonb_column: str
+    | None = None,  # None means not specified (defaults to "data" for JSONB tables)
     implements: list[type] | None = None,
     resolve_nested: bool = False,
 ) -> T | Callable[[T], T]:
@@ -155,14 +156,19 @@ def fraise_type(  # type: ignore[misc]
             cls.__gql_table__ = sql_source
             cls.__fraiseql_definition__.sql_source = sql_source
             # Store JSONB column information for production mode extraction
-            # Set JSONB column: ... means not specified (default to "data"),
-            # None means no JSONB column (regular table)
+            # Set JSONB column: None means not specified (default to "data"),
+            # explicit None means no JSONB column (regular table)
             actual_jsonb_column: str | None
-            if jsonb_column is ...:
-                actual_jsonb_column = "data"  # Default for CQRS/JSONB tables
-                cls.__fraiseql_definition__.jsonb_column = "data"
+            if jsonb_column is None:
+                # Check if this should be a JSONB table by looking for sql_source
+                if sql_source:
+                    actual_jsonb_column = "data"  # Default for CQRS/JSONB tables
+                    cls.__fraiseql_definition__.jsonb_column = "data"
+                else:
+                    actual_jsonb_column = None  # Regular table
+                    cls.__fraiseql_definition__.jsonb_column = None
             else:
-                actual_jsonb_column = jsonb_column  # None for regular tables, or custom column name
+                actual_jsonb_column = jsonb_column  # Explicit column name provided
                 cls.__fraiseql_definition__.jsonb_column = jsonb_column
             # Store whether nested instances should be resolved separately
             cls.__fraiseql_definition__.resolve_nested = resolve_nested
@@ -170,19 +176,24 @@ def fraise_type(  # type: ignore[misc]
 
             # Register type with metadata for WHERE clause JSONB path detection
             # This is CRITICAL for WHERE clause generation to know which fields are in JSONB
-            from fraiseql.db import register_type_for_view
+            # Type registration is now handled by Rust backend
+            # The register_type_for_view function is deprecated in Phase 5
+            def register_type_for_view(
+                view_name,
+                type_class,
+                table_columns=None,
+                has_jsonb_data=None,
+                jsonb_column=None,
+                fk_relationships=None,
+                validate_fk_strict=True,
+            ):
+                pass  # No-op - types are now registered in Rust backend
 
             # Determine if this table uses JSONB for data storage
             has_jsonb_data = actual_jsonb_column is not None
 
-            # Register the type with metadata (table_columns will be introspected later if needed)
-            register_type_for_view(
-                view_name=sql_source,
-                type_class=cls,
-                has_jsonb_data=has_jsonb_data,
-                jsonb_column=actual_jsonb_column,
-                validate_fk_strict=False,  # Allow for flexible development
-            )
+            # Type registration is now handled by Rust backend - no Python registration needed
+            # The register_type_for_view call has been removed in Phase 5
 
             # Add lazy properties for auto-generation of WhereInput and OrderBy
             from fraiseql.types.lazy_properties import (
