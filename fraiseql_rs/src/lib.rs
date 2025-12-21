@@ -1,6 +1,6 @@
+use lazy_static::lazy_static;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex};
 
 // ============================================================================
@@ -14,8 +14,8 @@ use std::sync::{Arc, Mutex};
 // Warn on everything else (configured in Cargo.toml)
 // Sub-modules
 pub mod auth;
-mod camel_case;
 pub mod cache;
+mod camel_case;
 pub mod cascade;
 pub mod core;
 pub mod db;
@@ -67,7 +67,7 @@ pub fn execute_graphql_query(
     match &*pipeline_guard {
         Some(pipeline) => pipeline.execute_py(py, query_string, &variables, &user_context),
         None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-            "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first."
+            "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
         )),
     }
 }
@@ -441,14 +441,16 @@ pub fn is_schema_registry_initialized() -> bool {
 #[pyfunction]
 pub fn execute_query_async(query_def: String) -> PyResult<String> {
     // Parse the query definition
-    let _query_def: serde_json::Value = serde_json::from_str(&query_def)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {}", e)))?;
+    let _query_def: serde_json::Value = serde_json::from_str(&query_def).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {}", e))
+    })?;
 
     // For now, return a placeholder response
     // In Phase 4, this would execute the actual query
     let response = serde_json::json!([{"id": 1, "name": "Test User"}]);
-    serde_json::to_string(&response)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e)))
+    serde_json::to_string(&response).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+    })
 }
 
 /// Execute GraphQL mutation via Rust backend
@@ -461,30 +463,44 @@ pub fn execute_query_async(query_def: String) -> PyResult<String> {
 #[pyfunction]
 pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
     // Parse the mutation definition
-    let mutation_def: serde_json::Value = serde_json::from_str(&mutation_def)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {}", e)))?;
+    let mutation_def: serde_json::Value = serde_json::from_str(&mutation_def).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {}", e))
+    })?;
 
     // Extract mutation parameters
-    let mutation_type = mutation_def.get("type")
+    let mutation_type = mutation_def
+        .get("type")
         .and_then(|v| v.as_str())
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Missing mutation type"))?;
 
-    let _table = mutation_def.get("table")
+    let _table = mutation_def
+        .get("table")
         .and_then(|v| v.as_str())
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Missing table"))?;
 
     let _input = mutation_def.get("input");
     let _filters = mutation_def.get("filters");
-    let _return_fields = mutation_def.get("return_fields")
+    let _return_fields = mutation_def
+        .get("return_fields")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect::<Vec<_>>());
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        });
 
     // Convert mutation type
     let mutation_type = match mutation_type {
         "insert" => crate::mutations::MutationType::Insert,
         "update" => crate::mutations::MutationType::Update,
         "delete" => crate::mutations::MutationType::Delete,
-        _ => return Err(pyo3::exceptions::PyValueError::new_err(format!("Unknown mutation type: {}", mutation_type))),
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Unknown mutation type: {}",
+                mutation_type
+            )))
+        }
     };
 
     // Phase 4: Demonstrate pipeline integration with mock database
@@ -521,8 +537,9 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
         }
     };
 
-    serde_json::to_string(&response)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e)))
+    serde_json::to_string(&response).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+    })
 }
 
 /// Build complete multi-field GraphQL response from PostgreSQL JSON rows
@@ -599,6 +616,8 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "build_sql_query",
             "build_sql_query_cached",
             "DatabasePool",
+            "PyAuthProvider",
+            "PyUserContext",
         ],
     )?;
 
@@ -644,6 +663,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initialize_graphql_pipeline, m)?)?;
     m.add_function(wrap_pyfunction!(execute_graphql_query, m)?)?;
     m.add_class::<pipeline::unified::PyGraphQLPipeline>()?;
+
+    // Add authentication (Phase 10)
+    m.add_class::<auth::PyAuthProvider>()?;
+    m.add_class::<auth::PyUserContext>()?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;

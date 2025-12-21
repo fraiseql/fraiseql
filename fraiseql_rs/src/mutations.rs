@@ -1,8 +1,8 @@
 //! Mutation execution module (INSERT, UPDATE, DELETE)
 
-use tokio_postgres::Client;
-use serde_json::Value;
 use crate::db::types::{DatabaseError, QueryParam};
+use serde_json::Value;
+use tokio_postgres::Client;
 
 pub enum MutationType {
     Insert,
@@ -16,7 +16,10 @@ impl MutationType {
             "insert" => Ok(MutationType::Insert),
             "update" => Ok(MutationType::Update),
             "delete" => Ok(MutationType::Delete),
-            _ => Err(DatabaseError::Query(format!("Unknown mutation type: {}", s))),
+            _ => Err(DatabaseError::Query(format!(
+                "Unknown mutation type: {}",
+                s
+            ))),
         }
     }
 }
@@ -42,12 +45,17 @@ async fn insert_record(
     input: Option<&Value>,
     return_fields: Option<&Vec<String>>,
 ) -> Result<Value, DatabaseError> {
-    let input = input.ok_or_else(|| DatabaseError::Query("Input required for INSERT".to_string()))?;
+    let input =
+        input.ok_or_else(|| DatabaseError::Query("Input required for INSERT".to_string()))?;
 
     let (sql, params) = build_insert_sql(table, input)?;
 
-    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
-    let rows = client.execute(&sql, &sql_params)
+    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+        .iter()
+        .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+    let rows = client
+        .execute(&sql, &sql_params)
         .await
         .map_err(|e| DatabaseError::Query(format!("INSERT failed: {}", e)))?;
 
@@ -65,9 +73,14 @@ async fn insert_record(
         }
         Ok(Value::Object(result))
     } else {
-        Ok(Value::Object(serde_json::json!({
-            "affected_rows": rows
-        }).as_object().unwrap().clone()))
+        Ok(Value::Object(
+            serde_json::json!({
+                "affected_rows": rows
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        ))
     }
 }
 
@@ -78,12 +91,17 @@ async fn update_record(
     filters: Option<&Value>,
     return_fields: Option<&Vec<String>>,
 ) -> Result<Value, DatabaseError> {
-    let input = input.ok_or_else(|| DatabaseError::Query("Input required for UPDATE".to_string()))?;
+    let input =
+        input.ok_or_else(|| DatabaseError::Query("Input required for UPDATE".to_string()))?;
 
     let (sql, params) = build_update_sql(table, input, filters)?;
 
-    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
-    let rows = client.execute(&sql, &sql_params)
+    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+        .iter()
+        .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+    let rows = client
+        .execute(&sql, &sql_params)
         .await
         .map_err(|e| DatabaseError::Query(format!("UPDATE failed: {}", e)))?;
 
@@ -91,13 +109,23 @@ async fn update_record(
     if let Some(_fields) = return_fields {
         // For simplicity, return affected row count
         // In a full implementation, we'd use RETURNING clause
-        Ok(Value::Object(serde_json::json!({
-            "affected_rows": rows
-        }).as_object().unwrap().clone()))
+        Ok(Value::Object(
+            serde_json::json!({
+                "affected_rows": rows
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        ))
     } else {
-        Ok(Value::Object(serde_json::json!({
-            "affected_rows": rows
-        }).as_object().unwrap().clone()))
+        Ok(Value::Object(
+            serde_json::json!({
+                "affected_rows": rows
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        ))
     }
 }
 
@@ -108,18 +136,30 @@ async fn delete_record(
 ) -> Result<Value, DatabaseError> {
     let (sql, params) = build_delete_sql_with_params(table, filters)?;
 
-    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
-    let rows = client.execute(&sql, &sql_params)
+    let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+        .iter()
+        .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+    let rows = client
+        .execute(&sql, &sql_params)
         .await
         .map_err(|e| DatabaseError::Query(format!("DELETE failed: {}", e)))?;
 
-    Ok(Value::Object(serde_json::json!({
-        "affected_rows": rows,
-        "success": true
-    }).as_object().unwrap().clone()))
+    Ok(Value::Object(
+        serde_json::json!({
+            "affected_rows": rows,
+            "success": true
+        })
+        .as_object()
+        .unwrap()
+        .clone(),
+    ))
 }
 
-fn build_insert_sql(table: &str, input: &Value) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+fn build_insert_sql(
+    table: &str,
+    input: &Value,
+) -> Result<(String, Vec<QueryParam>), DatabaseError> {
     let mut columns = Vec::new();
     let mut values = Vec::new();
     let mut params = Vec::new();
@@ -134,12 +174,19 @@ fn build_insert_sql(table: &str, input: &Value) -> Result<(String, Vec<QueryPara
 
     let columns_str = columns.join(", ");
     let values_str = values.join(", ");
-    let sql = format!("INSERT INTO {} ({}) VALUES ({})", table, columns_str, values_str);
+    let sql = format!(
+        "INSERT INTO {} ({}) VALUES ({})",
+        table, columns_str, values_str
+    );
 
     Ok((sql, params))
 }
 
-fn build_update_sql(table: &str, input: &Value, filters: Option<&Value>) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+fn build_update_sql(
+    table: &str,
+    input: &Value,
+    filters: Option<&Value>,
+) -> Result<(String, Vec<QueryParam>), DatabaseError> {
     let mut sets = Vec::new();
     let mut params = Vec::new();
     let mut param_index = 1;
@@ -164,7 +211,10 @@ fn build_update_sql(table: &str, input: &Value, filters: Option<&Value>) -> Resu
     Ok((sql, params))
 }
 
-fn build_delete_sql_with_params(table: &str, filters: Option<&Value>) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+fn build_delete_sql_with_params(
+    table: &str,
+    filters: Option<&Value>,
+) -> Result<(String, Vec<QueryParam>), DatabaseError> {
     let mut sql = format!("DELETE FROM {}", table);
     let mut params = Vec::new();
 
@@ -177,9 +227,10 @@ fn build_delete_sql_with_params(table: &str, filters: Option<&Value>) -> Result<
     Ok((sql, params))
 }
 
-
-
-fn build_where_clause(filters: Option<&Value>, param_index: usize) -> Option<(String, Vec<QueryParam>)> {
+fn build_where_clause(
+    filters: Option<&Value>,
+    param_index: usize,
+) -> Option<(String, Vec<QueryParam>)> {
     let filter_obj = filters?;
     let Value::Object(filter_map) = filter_obj else {
         return None;
@@ -236,18 +287,41 @@ mod tests {
 
     #[test]
     fn test_mutation_type_parse() {
-        assert!(matches!(MutationType::parse("insert").unwrap(), MutationType::Insert));
-        assert!(matches!(MutationType::parse("update").unwrap(), MutationType::Update));
-        assert!(matches!(MutationType::parse("delete").unwrap(), MutationType::Delete));
+        assert!(matches!(
+            MutationType::parse("insert").unwrap(),
+            MutationType::Insert
+        ));
+        assert!(matches!(
+            MutationType::parse("update").unwrap(),
+            MutationType::Update
+        ));
+        assert!(matches!(
+            MutationType::parse("delete").unwrap(),
+            MutationType::Delete
+        ));
         assert!(MutationType::parse("invalid").is_err());
     }
 
     #[test]
     fn test_value_to_query_param() {
-        assert!(matches!(value_to_query_param(&json!(null)), QueryParam::Null));
-        assert!(matches!(value_to_query_param(&json!(true)), QueryParam::Bool(true)));
-        assert!(matches!(value_to_query_param(&json!(42)), QueryParam::BigInt(42)));
-        assert!(matches!(value_to_query_param(&json!(3.14)), QueryParam::Double(3.14)));
-        assert!(matches!(value_to_query_param(&json!("hello")), QueryParam::Text(s) if s == "hello"));
+        assert!(matches!(
+            value_to_query_param(&json!(null)),
+            QueryParam::Null
+        ));
+        assert!(matches!(
+            value_to_query_param(&json!(true)),
+            QueryParam::Bool(true)
+        ));
+        assert!(matches!(
+            value_to_query_param(&json!(42)),
+            QueryParam::BigInt(42)
+        ));
+        assert!(matches!(
+            value_to_query_param(&json!(3.14)),
+            QueryParam::Double(3.14)
+        ));
+        assert!(
+            matches!(value_to_query_param(&json!("hello")), QueryParam::Text(s) if s == "hello")
+        );
     }
 }

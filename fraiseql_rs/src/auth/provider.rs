@@ -1,9 +1,9 @@
 //! Authentication provider trait and implementations.
 
-use async_trait::async_trait;
 use crate::auth::errors::AuthError;
 use crate::auth::jwt::JWTValidator;
 use crate::pipeline::unified::UserContext;
+use async_trait::async_trait;
 
 type Result<T> = std::result::Result<T, AuthError>;
 

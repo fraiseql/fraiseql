@@ -32,7 +32,7 @@ impl<W: Write> ResponseStream<W> {
     /// Write a single row (automatically formatted as JSON)
     pub fn write_row(&mut self, row: &Value) -> std::io::Result<()> {
         if self.row_count > 0 {
-            self.writer.write_all(b",")?;  // Comma separator
+            self.writer.write_all(b",")?; // Comma separator
         }
 
         // Write row as compact JSON directly to writer (zero-copy)
@@ -45,7 +45,7 @@ impl<W: Write> ResponseStream<W> {
 
     /// Finish the response
     pub fn finish(&mut self) -> std::io::Result<()> {
-        self.writer.write_all(b"]}}")?;  // Close array and response
+        self.writer.write_all(b"]}}")?; // Close array and response
         self.writer.flush()?;
         Ok(())
     }
@@ -79,7 +79,10 @@ impl ChunkedWriter {
         if self.buffer.is_empty() {
             return None;
         }
-        Some(std::mem::replace(&mut self.buffer, Vec::with_capacity(self.chunk_size)))
+        Some(std::mem::replace(
+            &mut self.buffer,
+            Vec::with_capacity(self.chunk_size),
+        ))
     }
 
     pub fn total_written(&self) -> usize {
@@ -128,7 +131,10 @@ mod tests {
         }
 
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, r#"{"data":{"items":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}}"#);
+        assert_eq!(
+            result,
+            r#"{"data":{"items":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}}"#
+        );
     }
 
     #[test]

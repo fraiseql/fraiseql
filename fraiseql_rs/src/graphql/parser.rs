@@ -1,17 +1,19 @@
 //! GraphQL query parser using graphql-parser crate.
 
-use graphql_parser::query::{self, Document, OperationDefinition, Selection};
 use crate::graphql::types::*;
 use anyhow::{anyhow, Result};
+use graphql_parser::query::{self, Document, OperationDefinition, Selection};
 
 /// Parse GraphQL query string into Rust AST.
 pub fn parse_query(source: &str) -> Result<ParsedQuery> {
     // Use graphql-parser to parse query string
-    let doc: Document<String> = query::parse_query(source)
-        .map_err(|e| anyhow!("Failed to parse GraphQL query: {}", e))?;
+    let doc: Document<String> =
+        query::parse_query(source).map_err(|e| anyhow!("Failed to parse GraphQL query: {}", e))?;
 
     // Extract first operation (ignore multiple operations for now)
-    let operation = doc.definitions.iter()
+    let operation = doc
+        .definitions
+        .iter()
         .find_map(|def| match def {
             query::Definition::Operation(op) => Some(op),
             _ => None,
@@ -35,67 +37,77 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
 /// Extract operation details from GraphQL operation definition.
 fn extract_operation(
     operation: &OperationDefinition<String>,
-) -> Result<(String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>)> {
+) -> Result<(
+    String,
+    Option<String>,
+    String,
+    Vec<FieldSelection>,
+    Vec<VariableDefinition>,
+)> {
     let operation_type = match operation {
         OperationDefinition::Query(_) => "query",
         OperationDefinition::Mutation(_) => "mutation",
         OperationDefinition::Subscription(_) => "subscription",
         OperationDefinition::SelectionSet(_) => "query", // Anonymous query
-    }.to_string();
+    }
+    .to_string();
 
     let (name, selection_set, var_defs) = match operation {
-        OperationDefinition::Query(q) => {
-            (&q.name, &q.selection_set, &q.variable_definitions)
-        }
-        OperationDefinition::Mutation(m) => {
-            (&m.name, &m.selection_set, &m.variable_definitions)
-        }
+        OperationDefinition::Query(q) => (&q.name, &q.selection_set, &q.variable_definitions),
+        OperationDefinition::Mutation(m) => (&m.name, &m.selection_set, &m.variable_definitions),
         OperationDefinition::Subscription(s) => {
             (&s.name, &s.selection_set, &s.variable_definitions)
         }
-        OperationDefinition::SelectionSet(sel_set) => {
-            (&None, sel_set, &Vec::new())
-        }
+        OperationDefinition::SelectionSet(sel_set) => (&None, sel_set, &Vec::new()),
     };
 
     // Parse selection set (recursive)
     let selections = parse_selection_set(selection_set)?;
 
     // Get root field name (first field in selection set)
-    let root_field = selections.first()
+    let root_field = selections
+        .first()
         .map(|s| s.name.clone())
         .ok_or_else(|| anyhow!("No fields in selection set"))?;
 
     // Parse variable definitions
-    let variables = var_defs.iter().map(|var_def| {
-        VariableDefinition {
-            name: var_def.name.clone(),
-            var_type: format!("{}", var_def.var_type),  // GraphQL type string
-            default_value: var_def.default_value.as_ref()
-                .map(|v| serialize_value(v)),
-        }
-    }).collect();
+    let variables = var_defs
+        .iter()
+        .map(|var_def| {
+            VariableDefinition {
+                name: var_def.name.clone(),
+                var_type: format!("{}", var_def.var_type), // GraphQL type string
+                default_value: var_def.default_value.as_ref().map(|v| serialize_value(v)),
+            }
+        })
+        .collect();
 
-    Ok((operation_type, name.clone(), root_field, selections, variables))
+    Ok((
+        operation_type,
+        name.clone(),
+        root_field,
+        selections,
+        variables,
+    ))
 }
 
 /// Parse GraphQL selection set recursively.
-fn parse_selection_set(
-    selection_set: &query::SelectionSet<String>,
-) -> Result<Vec<FieldSelection>> {
+fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Vec<FieldSelection>> {
     let mut fields = Vec::new();
 
     for selection in &selection_set.items {
         match selection {
             Selection::Field(field) => {
                 // Parse field arguments
-                let arguments = field.arguments.iter().map(|(name, value)| {
-                    GraphQLArgument {
+                let arguments = field
+                    .arguments
+                    .iter()
+                    .map(|(name, value)| GraphQLArgument {
                         name: name.clone(),
                         value_type: value_type_string(value),
                         value_json: serialize_value(value),
-                    }
-                }).collect();
+                    })
+                    .collect();
 
                 // Parse nested selection set (recursive)
                 let nested_fields = parse_selection_set(&field.selection_set)?;
@@ -105,15 +117,15 @@ fn parse_selection_set(
                     alias: field.alias.clone(),
                     arguments,
                     nested_fields,
-                    directives: field.directives.iter()
-                        .map(|d| d.name.clone())
-                        .collect(),
+                    directives: field.directives.iter().map(|d| d.name.clone()).collect(),
                 });
             }
             Selection::InlineFragment(frag) => {
                 // Inline fragments not yet supported (would need type condition evaluation)
                 // TODO Phase 9: Implement proper inline fragment handling
-                let type_name = frag.type_condition.as_ref()
+                let type_name = frag
+                    .type_condition
+                    .as_ref()
                     .map(|t| format!("{}", t))
                     .unwrap_or_else(|| "(unknown)".to_string());
                 return Err(anyhow!(
@@ -162,19 +174,18 @@ fn serialize_value(value: &query::Value<String>) -> String {
                 let ptr = i as *const query::Number as *const i64;
                 (*ptr).to_string()
             }
-        },
+        }
         query::Value::Float(f) => format!("{}", f),
         query::Value::Boolean(b) => b.to_string(),
         query::Value::Null => "null".to_string(),
         query::Value::Enum(e) => format!("\"{}\"", e),
         query::Value::List(items) => {
-            let serialized: Vec<_> = items.iter()
-                .map(serialize_value)
-                .collect();
+            let serialized: Vec<_> = items.iter().map(serialize_value).collect();
             format!("[{}]", serialized.join(","))
         }
         query::Value::Object(obj) => {
-            let pairs: Vec<_> = obj.iter()
+            let pairs: Vec<_> = obj
+                .iter()
                 .map(|(k, v)| format!("\"{}\":{}", k, serialize_value(v)))
                 .collect();
             format!("{{{}}}", pairs.join(","))
@@ -280,7 +291,10 @@ mod tests {
         "#;
         let result = parse_query(query);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Inline fragments not yet supported"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Inline fragments not yet supported"));
     }
 
     #[test]
@@ -295,6 +309,9 @@ mod tests {
         "#;
         let result = parse_query(query);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Fragment spreads not yet supported"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Fragment spreads not yet supported"));
     }
 }

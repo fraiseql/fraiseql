@@ -2,8 +2,8 @@
 //!
 //! Provides ACID transaction support for mutations and complex queries.
 
-use tokio_postgres::Client;
 use crate::db::types::DatabaseError;
+use tokio_postgres::Client;
 
 /// Represents an active database transaction.
 pub struct Transaction<'a> {
@@ -14,9 +14,9 @@ pub struct Transaction<'a> {
 impl<'a> Transaction<'a> {
     /// Begin a new transaction.
     pub async fn begin(client: &'a mut Client) -> Result<Self, DatabaseError> {
-        client.execute("BEGIN", &[])
-            .await
-            .map_err(|e| DatabaseError::Transaction(format!("Failed to begin transaction: {}", e)))?;
+        client.execute("BEGIN", &[]).await.map_err(|e| {
+            DatabaseError::Transaction(format!("Failed to begin transaction: {}", e))
+        })?;
 
         Ok(Transaction {
             client,
@@ -27,7 +27,8 @@ impl<'a> Transaction<'a> {
     /// Commit the transaction.
     pub async fn commit(mut self) -> Result<(), DatabaseError> {
         if self.active {
-            self.client.execute("COMMIT", &[])
+            self.client
+                .execute("COMMIT", &[])
                 .await
                 .map_err(|e| DatabaseError::Transaction(format!("Failed to commit: {}", e)))?;
             self.active = false;
@@ -38,7 +39,8 @@ impl<'a> Transaction<'a> {
     /// Rollback the transaction.
     pub async fn rollback(mut self) -> Result<(), DatabaseError> {
         if self.active {
-            self.client.execute("ROLLBACK", &[])
+            self.client
+                .execute("ROLLBACK", &[])
                 .await
                 .map_err(|e| DatabaseError::Transaction(format!("Failed to rollback: {}", e)))?;
             self.active = false;
@@ -48,7 +50,8 @@ impl<'a> Transaction<'a> {
 
     /// Create a savepoint for nested transactions.
     pub async fn savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
-        self.client.execute(&format!("SAVEPOINT {}", name), &[])
+        self.client
+            .execute(&format!("SAVEPOINT {}", name), &[])
             .await
             .map_err(|e| DatabaseError::Transaction(format!("Savepoint failed: {}", e)))?;
         Ok(())
@@ -56,9 +59,12 @@ impl<'a> Transaction<'a> {
 
     /// Rollback to a savepoint.
     pub async fn rollback_to_savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
-        self.client.execute(&format!("ROLLBACK TO {}", name), &[])
+        self.client
+            .execute(&format!("ROLLBACK TO {}", name), &[])
             .await
-            .map_err(|e| DatabaseError::Transaction(format!("Rollback to savepoint failed: {}", e)))?;
+            .map_err(|e| {
+                DatabaseError::Transaction(format!("Rollback to savepoint failed: {}", e))
+            })?;
         Ok(())
     }
 
@@ -68,7 +74,8 @@ impl<'a> Transaction<'a> {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<u64, DatabaseError> {
-        self.client.execute(sql, params)
+        self.client
+            .execute(sql, params)
             .await
             .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {}", e)))
     }
@@ -79,7 +86,8 @@ impl<'a> Transaction<'a> {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<Vec<tokio_postgres::Row>, DatabaseError> {
-        self.client.query(sql, params)
+        self.client
+            .query(sql, params)
             .await
             .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {}", e)))
     }

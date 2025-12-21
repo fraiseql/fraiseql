@@ -1,7 +1,7 @@
 //! Query signature generation for caching.
 
-use crate::graphql::types::{ParsedQuery, FieldSelection};
-use sha2::{Sha256, Digest};
+use crate::graphql::types::{FieldSelection, ParsedQuery};
+use sha2::{Digest, Sha256};
 
 /// Generate cache key from GraphQL query.
 pub fn generate_signature(parsed_query: &ParsedQuery) -> String {
@@ -65,7 +65,7 @@ pub fn is_cacheable(parsed_query: &ParsedQuery) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphql::types::{ParsedQuery, FieldSelection, GraphQLArgument, VariableDefinition};
+    use crate::graphql::types::{FieldSelection, GraphQLArgument, ParsedQuery, VariableDefinition};
 
     #[test]
     fn test_signature_generation() {

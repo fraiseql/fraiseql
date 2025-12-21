@@ -1,13 +1,13 @@
 //! JWT token validation with JWKS caching.
 
+use jsonwebtoken::jwk::{Jwk, JwkSet};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use jsonwebtoken::jwk::{JwkSet, Jwk};
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use lru::LruCache;
 
 use crate::auth::errors::AuthError;
 
@@ -16,13 +16,13 @@ type Result<T> = std::result::Result<T, AuthError>;
 /// JWT claims structure.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,                         // Subject (user ID)
-    pub iss: String,                         // Issuer
-    pub aud: Vec<String>,                    // Audience
-    pub exp: u64,                            // Expiration time
-    pub iat: u64,                            // Issued at
+    pub sub: String,      // Subject (user ID)
+    pub iss: String,      // Issuer
+    pub aud: Vec<String>, // Audience
+    pub exp: u64,         // Expiration time
+    pub iat: u64,         // Issued at
     #[serde(flatten)]
-    pub custom: HashMap<String, serde_json::Value>,  // Custom claims
+    pub custom: HashMap<String, serde_json::Value>, // Custom claims
 }
 
 /// JWT validator with JWKS caching.
@@ -66,9 +66,9 @@ impl JWTValidator {
         let header = decode_header(token)
             .map_err(|e| AuthError::InvalidToken(format!("Invalid header: {}", e)))?;
 
-        let kid = header.kid.ok_or_else(|| {
-            AuthError::InvalidToken("Missing kid in token header".to_string())
-        })?;
+        let kid = header
+            .kid
+            .ok_or_else(|| AuthError::InvalidToken("Missing kid in token header".to_string()))?;
 
         // Get JWK from cache or fetch
         let jwk = self
@@ -101,20 +101,13 @@ struct JWKSCache {
 impl JWKSCache {
     fn new() -> Self {
         Self {
-            cache: Arc::new(Mutex::new(
-                LruCache::new(NonZeroUsize::new(100).unwrap())
-            )),
+            cache: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap()))),
             ttl: Duration::from_secs(3600), // 1 hour
         }
     }
 
     /// Get a JWK by key ID, from cache or by fetching.
-    async fn get_jwk(
-        &self,
-        kid: &str,
-        jwks_url: &str,
-        client: &reqwest::Client,
-    ) -> Result<Jwk> {
+    async fn get_jwk(&self, kid: &str, jwks_url: &str, client: &reqwest::Client) -> Result<Jwk> {
         // Check cache with TTL validation
         {
             let mut cache = self.cache.lock().unwrap();
@@ -154,10 +147,7 @@ impl JWKSCache {
 
     /// Fetch JWKS from URL.
     async fn fetch_jwks(&self, url: &str, client: &reqwest::Client) -> Result<JwkSet> {
-        let response = client
-            .get(url)
-            .send()
-            .await?;
+        let response = client.get(url).send().await?;
 
         if !response.status().is_success() {
             return Err(AuthError::JwksFetchFailed(format!(

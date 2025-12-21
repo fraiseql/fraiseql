@@ -1,15 +1,15 @@
 //! Query building module.
 
+pub mod composer;
 pub mod schema;
 pub mod where_builder;
-pub mod composer;
 
-use pyo3::prelude::*;
-use lazy_static::lazy_static;
+use crate::cache::QueryPlanCache;
 use crate::graphql::types::ParsedQuery;
 use crate::query::composer::SQLComposer;
 use crate::query::schema::SchemaMetadata;
-use crate::cache::QueryPlanCache;
+use lazy_static::lazy_static;
+use pyo3::prelude::*;
 
 lazy_static! {
     static ref QUERY_PLAN_CACHE: QueryPlanCache = QueryPlanCache::new(5000);
@@ -23,18 +23,25 @@ pub fn build_sql_query(
     schema_json: String,
 ) -> PyResult<GeneratedQuery> {
     // Deserialize schema
-    let schema: SchemaMetadata = serde_json::from_str(&schema_json)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e)))?;
+    let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e))
+    })?;
 
     // Compose SQL
     let composer = SQLComposer::new(schema);
-    let composed = composer.compose(&parsed_query)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {}", e)))?;
+    let composed = composer.compose(&parsed_query).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "Query composition failed: {}",
+            e
+        ))
+    })?;
 
     // Return GeneratedQuery
     Ok(GeneratedQuery {
         sql: composed.sql,
-        parameters: composed.parameters.into_iter()
+        parameters: composed
+            .parameters
+            .into_iter()
             .map(|(name, value)| {
                 let value_str = match value {
                     where_builder::ParameterValue::String(s) => s,
@@ -65,21 +72,28 @@ pub fn build_sql_query_cached(
         // Cache hit - return cached plan
         return Ok(GeneratedQuery {
             sql: cached_plan.sql_template,
-            parameters: vec![],  // Parameters already bound
+            parameters: vec![], // Parameters already bound
         });
     }
 
     // Cache miss - build query normally
-    let schema: SchemaMetadata = serde_json::from_str(&schema_json)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e)))?;
+    let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e))
+    })?;
 
     let composer = SQLComposer::new(schema);
-    let composed = composer.compose(&parsed_query)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {}", e)))?;
+    let composed = composer.compose(&parsed_query).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "Query composition failed: {}",
+            e
+        ))
+    })?;
 
     let result = GeneratedQuery {
         sql: composed.sql.clone(),
-        parameters: composed.parameters.into_iter()
+        parameters: composed
+            .parameters
+            .into_iter()
             .map(|(name, value)| {
                 let value_str = match value {
                     where_builder::ParameterValue::String(s) => s,
@@ -115,8 +129,9 @@ pub fn build_sql_query_cached(
 /// Get cache statistics.
 #[pyfunction]
 pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
-    let stats = QUERY_PLAN_CACHE.stats()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache stats error: {}", e)))?;
+    let stats = QUERY_PLAN_CACHE.stats().map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache stats error: {}", e))
+    })?;
 
     let dict = pyo3::types::PyDict::new(_py);
     dict.set_item("hits", stats.hits)?;
@@ -131,8 +146,9 @@ pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
 /// Clear cache (for schema changes).
 #[pyfunction]
 pub fn clear_cache() -> PyResult<()> {
-    QUERY_PLAN_CACHE.clear()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache clear error: {}", e)))
+    QUERY_PLAN_CACHE.clear().map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache clear error: {}", e))
+    })
 }
 
 #[pyclass]

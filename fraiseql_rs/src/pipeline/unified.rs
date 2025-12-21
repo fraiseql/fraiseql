@@ -1,16 +1,16 @@
 //! Unified GraphQL execution pipeline (Phase 9).
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use serde_json::Value as JsonValue;
+use anyhow::Result;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
-use anyhow::Result;
+use serde_json::Value as JsonValue;
+use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::cache::{CachedQueryPlan, QueryPlanCache};
 use crate::graphql::types::ParsedQuery;
 use crate::query::composer::SQLComposer;
 use crate::query::schema::SchemaMetadata;
-use crate::cache::{QueryPlanCache, CachedQueryPlan};
 
 /// User context for authorization and personalization.
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ pub struct UserContext {
     pub user_id: Option<String>,
     pub permissions: Vec<String>,
     pub roles: Vec<String>,
-    pub exp: u64,  // Expiration timestamp for cache management
+    pub exp: u64, // Expiration timestamp for cache management
 }
 
 /// Complete unified GraphQL pipeline.
@@ -102,11 +102,14 @@ impl GraphQLPipeline {
         _variables: &HashMap<String, JsonValue>,
     ) -> Result<Vec<String>> {
         // Simple mock based on SQL content
-        if sql.contains("user") {  // Matches "users", "v_user", etc.
+        if sql.contains("user") {
+            // Matches "users", "v_user", etc.
             let limit = if sql.contains("LIMIT") {
                 // Extract limit from SQL (simplified)
                 if let Some(limit_part) = sql.split("LIMIT ").nth(1) {
-                    limit_part.split_whitespace().next()
+                    limit_part
+                        .split_whitespace()
+                        .next()
                         .and_then(|s| s.parse::<usize>().ok())
                         .unwrap_or(10)
                 } else {
@@ -191,7 +194,9 @@ impl PyGraphQLPipeline {
         let user = dict_to_user_context(user_context)?;
 
         // For Phase 9 demo, execute synchronously with mock data
-        let result_bytes = self.pipeline.execute_sync(&query_string, vars, user)
+        let result_bytes = self
+            .pipeline
+            .execute_sync(&query_string, vars, user)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(PyBytes::new(py, &result_bytes).into())
@@ -228,20 +233,21 @@ fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<JsonValue> {
 
 /// Convert PyDict to UserContext.
 fn dict_to_user_context(dict: &Bound<'_, PyDict>) -> PyResult<UserContext> {
-    let user_id = dict.get_item("user_id")?
-        .and_then(|v| {
-            if v.is_none() {
-                None
-            } else {
-                v.extract::<String>().ok()
-            }
-        });
+    let user_id = dict.get_item("user_id")?.and_then(|v| {
+        if v.is_none() {
+            None
+        } else {
+            v.extract::<String>().ok()
+        }
+    });
 
-    let permissions = dict.get_item("permissions")?
+    let permissions = dict
+        .get_item("permissions")?
         .and_then(|v| v.extract::<Vec<String>>().ok())
         .unwrap_or_default();
 
-    let roles = dict.get_item("roles")?
+    let roles = dict
+        .get_item("roles")?
         .and_then(|v| v.extract::<Vec<String>>().ok())
         .unwrap_or_default();
 
@@ -249,6 +255,6 @@ fn dict_to_user_context(dict: &Bound<'_, PyDict>) -> PyResult<UserContext> {
         user_id,
         permissions,
         roles,
-        exp: 0,  // Default for mock contexts
+        exp: 0, // Default for mock contexts
     })
 }

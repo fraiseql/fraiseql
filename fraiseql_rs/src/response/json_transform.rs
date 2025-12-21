@@ -1,6 +1,6 @@
 //! In-stream JSON transformation (snake_case → camelCase).
 
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 
 /// Convert snake_case to camelCase
 pub fn to_camel_case(snake: &str) -> String {
@@ -33,9 +33,7 @@ pub fn transform_row_keys(row: &Value) -> Value {
             }
             Value::Object(new_map)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(transform_row_keys).collect())
-        }
+        Value::Array(arr) => Value::Array(arr.iter().map(transform_row_keys).collect()),
         other => other.clone(),
     }
 }

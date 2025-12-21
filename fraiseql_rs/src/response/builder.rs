@@ -1,7 +1,7 @@
 //! Response builder for GraphQL responses.
 
+use crate::response::{transform_row_keys, ChunkedWriter, ResponseStream};
 use serde_json::Value;
-use crate::response::{ResponseStream, ChunkedWriter, transform_row_keys};
 
 /// Builder for GraphQL responses with streaming support
 pub struct ResponseBuilder {
@@ -92,7 +92,9 @@ mod tests {
         ];
 
         let mut buffer = Vec::new();
-        builder.build_streaming_response(&rows, &mut buffer).unwrap();
+        builder
+            .build_streaming_response(&rows, &mut buffer)
+            .unwrap();
 
         let result = String::from_utf8(buffer).unwrap();
         let expected = r#"{"data":{"items":[{"userId":1,"firstName":"Alice"},{"userId":2,"firstName":"Bob"}]}}"#;

@@ -2,17 +2,17 @@
 
 pub mod signature;
 
-use std::sync::{Arc, Mutex};
+use anyhow::{anyhow, Result};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use anyhow::{anyhow, Result};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedQueryPlan {
     pub signature: String,
     pub sql_template: String,
     pub parameters: Vec<ParamInfo>,
-    pub created_at: u64,  // Unix timestamp
+    pub created_at: u64, // Unix timestamp
     pub hit_count: u64,
 }
 
@@ -20,7 +20,7 @@ pub struct CachedQueryPlan {
 pub struct ParamInfo {
     pub name: String,
     pub position: usize,
-    pub expected_type: String,  // "string", "int", "float", "bool", "json"
+    pub expected_type: String, // "string", "int", "float", "bool", "json"
 }
 
 /// Thread-safe query plan cache.
@@ -44,7 +44,7 @@ impl QueryPlanCache {
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
-                std::num::NonZeroUsize::new(max_size).unwrap()
+                std::num::NonZeroUsize::new(max_size).unwrap(),
             ))),
             max_size,
             hits: Arc::new(Mutex::new(0)),
@@ -53,9 +53,10 @@ impl QueryPlanCache {
     }
 
     pub fn get(&self, signature: &str) -> Result<Option<CachedQueryPlan>> {
-        let mut cache = self.cache.lock().map_err(|e| {
-            anyhow!("Cache lock error: {}", e)
-        })?;
+        let mut cache = self
+            .cache
+            .lock()
+            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
 
         if let Some(plan) = cache.get_mut(signature) {
             plan.hit_count += 1;
@@ -68,17 +69,19 @@ impl QueryPlanCache {
     }
 
     pub fn put(&self, signature: String, plan: CachedQueryPlan) -> Result<()> {
-        let mut cache = self.cache.lock().map_err(|e| {
-            anyhow!("Cache lock error: {}", e)
-        })?;
+        let mut cache = self
+            .cache
+            .lock()
+            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
         cache.put(signature, plan);
         Ok(())
     }
 
     pub fn clear(&self) -> Result<()> {
-        let mut cache = self.cache.lock().map_err(|e| {
-            anyhow!("Cache lock error: {}", e)
-        })?;
+        let mut cache = self
+            .cache
+            .lock()
+            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
         cache.clear();
 
         // Reset counters
@@ -91,9 +94,11 @@ impl QueryPlanCache {
     pub fn stats(&self) -> Result<CacheStats> {
         let hits = *self.hits.lock().unwrap();
         let misses = *self.misses.lock().unwrap();
-        let size = self.cache.lock().map_err(|e| {
-            anyhow!("Cache lock error: {}", e)
-        })?.len();
+        let size = self
+            .cache
+            .lock()
+            .map_err(|e| anyhow!("Cache lock error: {}", e))?
+            .len();
 
         Ok(CacheStats {
             hits,
@@ -111,7 +116,7 @@ impl QueryPlanCache {
 
 impl Default for QueryPlanCache {
     fn default() -> Self {
-        Self::new(5000)  // 5000 cached plans by default
+        Self::new(5000) // 5000 cached plans by default
     }
 }
 
@@ -174,6 +179,6 @@ mod tests {
         }
 
         let stats = cache.stats().unwrap();
-        assert_eq!(stats.size, 3);  // Only 3 entries (LRU eviction)
+        assert_eq!(stats.size, 3); // Only 3 entries (LRU eviction)
     }
 }

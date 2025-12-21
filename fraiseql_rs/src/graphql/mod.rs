@@ -1,11 +1,11 @@
 //! GraphQL parsing module.
 
-pub mod types;
 pub mod parser;
+pub mod types;
 
-use pyo3::prelude::*;
 use crate::graphql::parser::parse_query;
 use crate::graphql::types::ParsedQuery;
+use pyo3::prelude::*;
 
 /// Parse GraphQL query string into structured AST.
 ///
@@ -15,7 +15,7 @@ pub fn parse_graphql_query(_py: Python, query_string: String) -> PyResult<Parsed
     match parse_query(&query_string) {
         Ok(parsed) => Ok(parsed),
         Err(e) => Err(PyErr::new::<pyo3::exceptions::PySyntaxError, _>(
-            e.to_string()
+            e.to_string(),
         )),
     }
 }

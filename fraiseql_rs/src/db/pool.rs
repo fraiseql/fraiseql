@@ -4,7 +4,7 @@ use deadpool_postgres::Pool;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::db::types::{DatabaseError, DatabaseResult, PoolConfig, ConnectionInfo};
+use crate::db::types::{ConnectionInfo, DatabaseError, DatabaseResult, PoolConfig};
 
 /// Database connection pool manager
 #[derive(Clone)]
@@ -26,12 +26,16 @@ impl DatabasePool {
 
         // Basic URL validation
         if !database_url.starts_with("postgresql://") {
-            return Err(DatabaseError::Config("Invalid PostgreSQL URL format".to_string()));
+            return Err(DatabaseError::Config(
+                "Invalid PostgreSQL URL format".to_string(),
+            ));
         }
 
         let url_part = &database_url["postgresql://".len()..];
         if !url_part.contains('@') || !url_part.contains('/') {
-            return Err(DatabaseError::Config("Invalid PostgreSQL URL structure".to_string()));
+            return Err(DatabaseError::Config(
+                "Invalid PostgreSQL URL structure".to_string(),
+            ));
         }
 
         // Return mock implementation with real config
@@ -50,12 +54,16 @@ impl DatabasePool {
 
         // Basic URL validation (same as before)
         if !database_url.starts_with("postgresql://") {
-            return Err(DatabaseError::Config("Invalid PostgreSQL URL format".to_string()));
+            return Err(DatabaseError::Config(
+                "Invalid PostgreSQL URL format".to_string(),
+            ));
         }
 
         let url_part = &database_url["postgresql://".len()..];
         if !url_part.contains('@') || !url_part.contains('/') {
-            return Err(DatabaseError::Config("Invalid PostgreSQL URL structure".to_string()));
+            return Err(DatabaseError::Config(
+                "Invalid PostgreSQL URL structure".to_string(),
+            ));
         }
 
         // Return mock implementation for now (real connections require async)
@@ -68,11 +76,13 @@ impl DatabasePool {
     /// Get a connection from the pool (Phase 1.5: Real connections)
     pub async fn get_connection(&self) -> DatabaseResult<deadpool_postgres::Object> {
         match &self.pool {
-            Some(pool) => {
-                pool.get().await
-                    .map_err(|e| DatabaseError::Connection(format!("Failed to get connection: {}", e)))
-            }
-            None => Err(DatabaseError::Connection("Pool not initialized".to_string())),
+            Some(pool) => pool
+                .get()
+                .await
+                .map_err(|e| DatabaseError::Connection(format!("Failed to get connection: {}", e))),
+            None => Err(DatabaseError::Connection(
+                "Pool not initialized".to_string(),
+            )),
         }
     }
 
@@ -81,16 +91,22 @@ impl DatabasePool {
         match &self.pool {
             Some(pool) => {
                 // Try to get a connection and execute a simple query
-                let conn = pool.get().await
-                    .map_err(|e| DatabaseError::Connection(format!("Health check failed to get connection: {}", e)))?;
+                let conn = pool.get().await.map_err(|e| {
+                    DatabaseError::Connection(format!(
+                        "Health check failed to get connection: {}",
+                        e
+                    ))
+                })?;
 
-                conn.simple_query("SELECT 1")
-                    .await
-                    .map_err(|e| DatabaseError::Query(format!("Health check query failed: {}", e)))?;
+                conn.simple_query("SELECT 1").await.map_err(|e| {
+                    DatabaseError::Query(format!("Health check query failed: {}", e))
+                })?;
 
                 Ok(())
             }
-            None => Err(DatabaseError::Connection("Pool not initialized for health check".to_string())),
+            None => Err(DatabaseError::Connection(
+                "Pool not initialized for health check".to_string(),
+            )),
         }
     }
 
@@ -100,10 +116,10 @@ impl DatabasePool {
             Some(pool) => {
                 let status = pool.status();
                 ConnectionInfo {
-                    host: "localhost".to_string(), // TODO: Extract from actual config
-                    port: 5432, // TODO: Extract from actual config
+                    host: "localhost".to_string(),    // TODO: Extract from actual config
+                    port: 5432,                       // TODO: Extract from actual config
                     database: "fraiseql".to_string(), // TODO: Extract from actual config
-                    user: "postgres".to_string(), // TODO: Extract from actual config
+                    user: "postgres".to_string(),     // TODO: Extract from actual config
                     connection_count: status.size as u32,
                     idle_count: status.available as u32,
                 }
@@ -130,8 +146,6 @@ impl DatabasePool {
     pub fn pool_config(&self) -> &PoolConfig {
         &self.config
     }
-
-
 }
 
 #[pymethods]
@@ -147,27 +161,34 @@ impl DatabasePool {
             PoolConfig::default()
         };
 
-        Self::new_sync(database_url, rust_config)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create pool: {}", e)))
+        Self::new_sync(database_url, rust_config).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create pool: {}", e))
+        })
     }
 
     /// Get pool statistics as a string
     pub fn get_stats(&self) -> String {
         let info = self.stats();
-        format!("Pool stats: {} connections, {} idle",
-                info.connection_count, info.idle_count)
+        format!(
+            "Pool stats: {} connections, {} idle",
+            info.connection_count, info.idle_count
+        )
     }
 
     /// Get pool configuration summary as a string
     pub fn get_config_summary(&self) -> String {
-        format!("Pool config: max_size={}, min_idle={}",
-                self.config.max_size, self.config.min_idle)
+        format!(
+            "Pool config: max_size={}, min_idle={}",
+            self.config.max_size, self.config.min_idle
+        )
     }
 
     /// Get a string representation for debugging
     pub fn __repr__(&self) -> String {
-        format!("DatabasePool(max_size={}, min_idle={})",
-                self.config.max_size, self.config.min_idle)
+        format!(
+            "DatabasePool(max_size={}, min_idle={})",
+            self.config.max_size, self.config.min_idle
+        )
     }
 }
 
@@ -211,8 +232,6 @@ impl DatabasePool {
         Ok(pool_config)
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

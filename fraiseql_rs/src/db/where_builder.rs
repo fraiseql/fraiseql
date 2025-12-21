@@ -56,7 +56,8 @@ impl WhereBuilder {
     /// Add an equality condition.
     pub fn eq<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Eq(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Eq(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -64,7 +65,8 @@ impl WhereBuilder {
     /// Add an inequality condition.
     pub fn ne<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Ne(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Ne(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -72,7 +74,8 @@ impl WhereBuilder {
     /// Add a greater than condition.
     pub fn gt<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Gt(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Gt(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -80,7 +83,8 @@ impl WhereBuilder {
     /// Add a greater than or equal condition.
     pub fn gte<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Gte(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Gte(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -88,7 +92,8 @@ impl WhereBuilder {
     /// Add a less than condition.
     pub fn lt<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Lt(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Lt(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -96,7 +101,8 @@ impl WhereBuilder {
     /// Add a less than or equal condition.
     pub fn lte<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
-        self.conditions.push(WhereCondition::Lte(field.to_string(), param.clone()));
+        self.conditions
+            .push(WhereCondition::Lte(field.to_string(), param.clone()));
         self.params.push(param);
         self
     }
@@ -104,37 +110,41 @@ impl WhereBuilder {
     /// Add an IN condition.
     pub fn in_list<T: Into<QueryParam>>(mut self, field: &str, values: Vec<T>) -> Self {
         let params: Vec<QueryParam> = values.into_iter().map(|v| v.into()).collect();
-        self.conditions.push(WhereCondition::In(field.to_string(), params.clone()));
+        self.conditions
+            .push(WhereCondition::In(field.to_string(), params.clone()));
         self.params.extend(params);
         self
     }
 
     /// Add a LIKE condition.
     pub fn like(mut self, field: &str, pattern: &str) -> Self {
-        self.conditions.push(WhereCondition::Like(field.to_string(), pattern.to_string()));
+        self.conditions
+            .push(WhereCondition::Like(field.to_string(), pattern.to_string()));
         self.params.push(QueryParam::Text(pattern.to_string()));
         self
     }
 
     /// Add an IS NULL condition.
     pub fn is_null(mut self, field: &str) -> Self {
-        self.conditions.push(WhereCondition::IsNull(field.to_string()));
+        self.conditions
+            .push(WhereCondition::IsNull(field.to_string()));
         self
     }
 
     /// Add an IS NOT NULL condition.
     pub fn is_not_null(mut self, field: &str) -> Self {
-        self.conditions.push(WhereCondition::IsNotNull(field.to_string()));
+        self.conditions
+            .push(WhereCondition::IsNotNull(field.to_string()));
         self
     }
 
     /// Combine with AND.
     pub fn and(mut self, other: WhereBuilder) -> Self {
-        if let (Some(left), Some(right)) = (self.conditions.pop(), other.conditions.first().cloned()) {
-            self.conditions.push(WhereCondition::And(
-                Box::new(left),
-                Box::new(right)
-            ));
+        if let (Some(left), Some(right)) =
+            (self.conditions.pop(), other.conditions.first().cloned())
+        {
+            self.conditions
+                .push(WhereCondition::And(Box::new(left), Box::new(right)));
         }
         self.params.extend(other.params);
         self
@@ -142,11 +152,11 @@ impl WhereBuilder {
 
     /// Combine with OR.
     pub fn or(mut self, other: WhereBuilder) -> Self {
-        if let (Some(left), Some(right)) = (self.conditions.pop(), other.conditions.first().cloned()) {
-            self.conditions.push(WhereCondition::Or(
-                Box::new(left),
-                Box::new(right)
-            ));
+        if let (Some(left), Some(right)) =
+            (self.conditions.pop(), other.conditions.first().cloned())
+        {
+            self.conditions
+                .push(WhereCondition::Or(Box::new(left), Box::new(right)));
         }
         self.params.extend(other.params);
         self
@@ -190,12 +200,16 @@ impl WhereBuilder {
             WhereCondition::Like(field, _) => format!("{} LIKE ${}", field, self.param_index),
             WhereCondition::IsNull(field) => format!("{} IS NULL", field),
             WhereCondition::IsNotNull(field) => format!("{} IS NOT NULL", field),
-            WhereCondition::And(left, right) => format!("({}) AND ({})",
+            WhereCondition::And(left, right) => format!(
+                "({}) AND ({})",
                 self.build_condition_sql(left),
-                self.build_condition_sql(right)),
-            WhereCondition::Or(left, right) => format!("({}) OR ({})",
+                self.build_condition_sql(right)
+            ),
+            WhereCondition::Or(left, right) => format!(
+                "({}) OR ({})",
                 self.build_condition_sql(left),
-                self.build_condition_sql(right)),
+                self.build_condition_sql(right)
+            ),
             WhereCondition::Not(cond) => format!("NOT ({})", self.build_condition_sql(cond)),
         }
     }
@@ -207,9 +221,7 @@ mod tests {
 
     #[test]
     fn test_where_builder_eq() {
-        let (sql, params) = WhereBuilder::new()
-            .eq("id", 42)
-            .build();
+        let (sql, params) = WhereBuilder::new().eq("id", 42).build();
 
         assert_eq!(sql, "WHERE id = $1");
         assert_eq!(params.len(), 1);

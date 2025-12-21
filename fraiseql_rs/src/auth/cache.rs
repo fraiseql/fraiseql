@@ -18,9 +18,9 @@ impl UserContextCache {
     /// Create a new user context cache.
     pub fn new(capacity: usize, ttl_seconds: u64) -> Self {
         Self {
-            cache: Arc::new(Mutex::new(
-                LruCache::new(NonZeroUsize::new(capacity).unwrap())
-            )),
+            cache: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(capacity).unwrap(),
+            ))),
             ttl: Duration::from_secs(ttl_seconds),
         }
     }

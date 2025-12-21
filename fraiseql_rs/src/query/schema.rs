@@ -1,8 +1,8 @@
 //! Schema metadata for query building.
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use pyo3::prelude::*;
 
 /// Schema metadata for all tables in FraiseQL.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,16 +16,16 @@ pub struct SchemaMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSchema {
     #[pyo3(get)]
-    pub view_name: String,  // e.g., "v_users"
+    pub view_name: String, // e.g., "v_users"
 
     #[pyo3(get)]
-    pub sql_columns: Vec<String>,  // Direct SQL columns ["id", "email", "status"]
+    pub sql_columns: Vec<String>, // Direct SQL columns ["id", "email", "status"]
 
     #[pyo3(get)]
-    pub jsonb_column: String,  // e.g., "data"
+    pub jsonb_column: String, // e.g., "data"
 
     #[pyo3(get)]
-    pub fk_mappings: HashMap<String, String>,  // Field name → FK column
+    pub fk_mappings: HashMap<String, String>, // Field name → FK column
 
     #[pyo3(get)]
     pub has_jsonb_data: bool,

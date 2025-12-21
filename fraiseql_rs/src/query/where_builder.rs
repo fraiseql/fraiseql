@@ -1,9 +1,9 @@
 //! WHERE clause building logic.
 
-use serde_json::{Value as JsonValue};
 use crate::graphql::types::GraphQLArgument;
 use crate::query::schema::SchemaMetadata;
 use anyhow::{anyhow, Result};
+use serde_json::Value as JsonValue;
 
 pub struct WhereClauseBuilder {
     schema: SchemaMetadata,
@@ -86,7 +86,9 @@ impl WhereClauseBuilder {
             format!("t.{}", fk_col)
         } else {
             // JSONB field
-            let table = self.schema.get_table(&self.view_name)
+            let table = self
+                .schema
+                .get_table(&self.view_name)
                 .ok_or_else(|| anyhow!("Table not found: {}", self.view_name))?;
             format!("t.{}->>'{}'", table.jsonb_column, field_name)
         };
@@ -96,16 +98,15 @@ impl WhereClauseBuilder {
             JsonValue::Object(ops) => {
                 let op_conditions: Vec<String> = ops
                     .iter()
-                    .map(|(op, val)| {
-                        self.build_operator_sql(&column_expr, op, val)
-                    })
+                    .map(|(op, val)| self.build_operator_sql(&column_expr, op, val))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(op_conditions.join(" AND "))
             }
             JsonValue::String(val) => {
                 // Simple equality
                 let param = self.next_param();
-                self.params.push((param.clone(), ParameterValue::String(val.clone())));
+                self.params
+                    .push((param.clone(), ParameterValue::String(val.clone())));
                 Ok(format!("{} = ${}", column_expr, self.param_counter))
             }
             _ => Err(anyhow!("Invalid field condition for {}", field_name)),
@@ -172,7 +173,8 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}%", s);
-                        self.params.push((param.clone(), ParameterValue::String(pattern)));
+                        self.params
+                            .push((param.clone(), ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("LIKE requires string value")),
@@ -183,7 +185,8 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("{}%", s);
-                        self.params.push((param.clone(), ParameterValue::String(pattern)));
+                        self.params
+                            .push((param.clone(), ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("startsWith requires string value")),
@@ -194,7 +197,8 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}", s);
-                        self.params.push((param.clone(), ParameterValue::String(pattern)));
+                        self.params
+                            .push((param.clone(), ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("endsWith requires string value")),

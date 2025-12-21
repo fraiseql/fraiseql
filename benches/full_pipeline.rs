@@ -1,8 +1,8 @@
 //! Benchmarks for unified Rust pipeline (Phase 9).
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::collections::HashMap;
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 
 /// Mock user context for benchmarks
 fn create_test_user() -> fraiseql_rs::pipeline::unified::UserContext {
@@ -26,7 +26,8 @@ fn create_test_schema() -> String {
             }
         },
         "types": {}
-    }"#.to_string()
+    }"#
+    .to_string()
 }
 
 fn benchmark_simple_query(c: &mut Criterion) {
@@ -35,14 +36,20 @@ fn benchmark_simple_query(c: &mut Criterion) {
         let schema_json = create_test_schema();
         fraiseql_rs::initialize_graphql_pipeline(schema_json).unwrap();
 
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            let result = fraiseql_rs::execute_graphql_query(
-                black_box("query { users { id } }".to_string()),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-            ).await;
-            black_box(result)
-        });
+        b.to_async(tokio::runtime::Runtime::new().unwrap())
+            .iter(|| async {
+                let result = fraiseql_rs::execute_graphql_query(
+                    black_box("query { users { id } }".to_string()),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                )
+                .await;
+                black_box(result)
+            });
     });
 }
 
@@ -67,14 +74,20 @@ fn benchmark_complex_where(c: &mut Criterion) {
             }
         "#;
 
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            let result = fraiseql_rs::execute_graphql_query(
-                black_box(query.to_string()),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-            ).await;
-            black_box(result)
-        });
+        b.to_async(tokio::runtime::Runtime::new().unwrap())
+            .iter(|| async {
+                let result = fraiseql_rs::execute_graphql_query(
+                    black_box(query.to_string()),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                )
+                .await;
+                black_box(result)
+            });
     });
 }
 
@@ -86,21 +99,32 @@ fn benchmark_cached_query(c: &mut Criterion) {
 
         let query = "query { users { id } }";
 
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            // Run query twice to test cache on second call
-            let _ = fraiseql_rs::execute_graphql_query(
-                black_box(query.to_string()),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-            ).await;
+        b.to_async(tokio::runtime::Runtime::new().unwrap())
+            .iter(|| async {
+                // Run query twice to test cache on second call
+                let _ = fraiseql_rs::execute_graphql_query(
+                    black_box(query.to_string()),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                )
+                .await;
 
-            let result = fraiseql_rs::execute_graphql_query(
-                black_box(query.to_string()),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-                black_box(pyo3::types::PyDict::new(pyo3::Python::acquire_gil().python())),
-            ).await;
-            black_box(result)
-        });
+                let result = fraiseql_rs::execute_graphql_query(
+                    black_box(query.to_string()),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                    black_box(pyo3::types::PyDict::new(
+                        pyo3::Python::acquire_gil().python(),
+                    )),
+                )
+                .await;
+                black_box(result)
+            });
     });
 }
 

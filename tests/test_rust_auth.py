@@ -5,10 +5,17 @@ These tests verify the Rust JWT validation, JWKS caching, and auth providers.
 
 import pytest
 
-# Skip all tests if Rust extension is not available
+# Phase 10 bindings are now exported - tests can run
+try:
+    from fraiseql._fraiseql_rs import PyAuthProvider, PyUserContext
+    HAS_RUST_AUTH = True
+except ImportError:
+    HAS_RUST_AUTH = False
+
+# Skip tests only if Rust bindings aren't available
 pytestmark = pytest.mark.skipif(
-    True,  # Always skip for now since PyO3 bindings are not exported
-    reason="Phase 10 Rust bindings not yet exported to Python (implementation complete)",
+    not HAS_RUST_AUTH,
+    reason="Phase 10 Rust bindings not available",
 )
 
 
@@ -16,28 +23,22 @@ class TestRustAuthAvailability:
     """Test that Rust auth module is available and properly configured."""
 
     def test_rust_auth_module_exists(self):
-        """Test that Rust auth module can be imported."""
-        try:
-            import _fraiseql_rs as rs
-            assert hasattr(rs, "auth"), "Rust auth module should exist"
-        except ImportError:
-            pytest.skip("Rust extension not available")
+        """Test that Rust auth module classes are available."""
+        assert HAS_RUST_AUTH, "PyAuthProvider and PyUserContext should be available"
+        assert PyAuthProvider is not None
+        assert PyUserContext is not None
 
     def test_auth0_provider_available(self):
-        """Test that Auth0 provider is available."""
-        try:
-            import _fraiseql_rs as rs
-            assert hasattr(rs.auth, "Auth0Provider"), "Auth0Provider should exist"
-        except (ImportError, AttributeError):
-            pytest.skip("Rust Auth0Provider not available")
+        """Test that Auth0 provider can be created."""
+        assert hasattr(PyAuthProvider, "auth0"), "Auth0 factory method should exist"
+        # Verify it's a static method
+        assert callable(PyAuthProvider.auth0)
 
     def test_custom_jwt_provider_available(self):
-        """Test that CustomJWT provider is available."""
-        try:
-            import _fraiseql_rs as rs
-            assert hasattr(rs.auth, "CustomJWTProvider"), "CustomJWTProvider should exist"
-        except (ImportError, AttributeError):
-            pytest.skip("Rust CustomJWTProvider not available")
+        """Test that CustomJWT provider can be created."""
+        assert hasattr(PyAuthProvider, "jwt"), "JWT factory method should exist"
+        # Verify it's a static method
+        assert callable(PyAuthProvider.jwt)
 
 
 class TestAuth0Provider:
@@ -45,11 +46,15 @@ class TestAuth0Provider:
 
     def test_auth0_provider_creation(self):
         """Test creating Auth0 provider."""
-        pytest.skip("PyO3 bindings not yet exported")
+        provider = PyAuthProvider.auth0("example.auth0.com", ["https://example.com"])
+        assert provider is not None
+        assert provider.provider_type() == "auth0"
 
     def test_auth0_https_validation(self):
         """Test that Auth0 provider validates HTTPS for JWKS."""
-        pytest.skip("PyO3 bindings not yet exported")
+        # Auth0 should succeed with valid domain
+        provider = PyAuthProvider.auth0("example.auth0.com", ["https://api.example.com"])
+        assert provider.provider_type() == "auth0"
 
     def test_auth0_token_validation(self):
         """Test Auth0 token validation."""
