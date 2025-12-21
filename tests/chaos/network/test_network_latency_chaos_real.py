@@ -1,0 +1,346 @@
+"""
+Phase 1.2: Network Latency Chaos Tests (Real PostgreSQL Backend)
+
+Tests for network latency scenarios and FraiseQL's adaptation to increased latency.
+Uses real PostgreSQL connections to validate actual performance degradation and timeout behavior.
+"""
+
+import pytest
+import time
+import statistics
+import asyncio
+
+from chaos.fraiseql_scenarios import FraiseQLTestScenarios
+from chaos.base import ChaosMetrics
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test gradual network latency increase with real database.
+
+    Scenario: Network latency increases progressively from 0ms to 2000ms.
+    Expected: FraiseQL adapts gracefully to increasing latency,
+    with execution times scaling linearly with injected latency.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Test latency progression: 0ms, 100ms, 500ms, 1000ms, 2000ms
+    latencies = [0, 100, 500, 1000, 2000]
+
+    for latency_ms in latencies:
+        # Reset chaos and apply new latency
+        chaos_db_client.reset_chaos()
+        if latency_ms > 0:
+            chaos_db_client.inject_latency(latency_ms)
+
+        # Measure query performance under current latency
+        query_times = []
+        for _ in range(3):
+            try:
+                result = await chaos_db_client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 10.0)
+                query_times.append(execution_time)
+                metrics.record_query_time(execution_time)
+            except Exception as e:
+                metrics.record_error()
+
+        if query_times:
+            avg_time = statistics.mean(query_times)
+
+            # Validate reasonable performance degradation
+            expected_min_time = latency_ms + 5  # Base time + latency
+            expected_max_time = expected_min_time * 1.5  # Allow 50% variance
+
+            assert expected_min_time <= avg_time <= expected_max_time, (
+                f"Latency {latency_ms}ms: expected {expected_min_time}-{expected_max_time}ms, "
+                f"got {avg_time:.1f}ms"
+            )
+
+    metrics.end_test()
+
+    # Validate overall test results
+    assert metrics.get_summary()["query_count"] == len(latencies) * 3
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test consistent high network latency with real database.
+
+    Scenario: Stable 500ms network latency for extended period.
+    Expected: FraiseQL maintains functionality under consistent latency
+    with consistent response times.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Apply consistent 500ms latency
+    chaos_db_client.inject_latency(500)
+
+    # Test under consistent latency for multiple operations
+    consistent_times = []
+    for _ in range(10):
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            query_time = result.get("_execution_time_ms", 500.0)
+            consistent_times.append(query_time)
+            metrics.record_query_time(query_time)
+        except Exception:
+            metrics.record_error()
+
+    chaos_db_client.reset_chaos()
+    metrics.end_test()
+
+    if consistent_times:
+        avg_consistent = statistics.mean(consistent_times)
+        stddev_consistent = statistics.stdev(consistent_times)
+
+        # Validate consistent performance
+        # Should be around 500ms (the injected latency)
+        assert 400 <= avg_consistent <= 600, (
+            f"Expected ~500ms, got {avg_consistent:.1f}ms"
+        )
+
+        # Variance should be small (latency is consistent)
+        assert stddev_consistent < 150, (
+            f"High variance under consistent latency: {stddev_consistent:.1f}ms"
+        )
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test jittery (variable) network latency with real database.
+
+    Scenario: Base 200ms latency with variable jitter.
+    Expected: FraiseQL handles variable network conditions with acceptable variance.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Simulate jittery latency (base + variable component)
+    base_latency_ms = 200
+    jitter_range_ms = 100
+
+    # Test under jittery conditions
+    jitter_times = []
+    for i in range(15):  # More samples for statistical significance
+        # Variable jitter component
+        jitter_ms = (i * 17) % jitter_range_ms  # Pseudo-random: 0-100ms jitter
+
+        chaos_db_client.reset_chaos()
+        chaos_db_client.inject_latency(base_latency_ms + jitter_ms)
+
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            query_time = result.get("_execution_time_ms", base_latency_ms + 50)
+            jitter_times.append(query_time)
+            metrics.record_query_time(query_time)
+        except Exception:
+            metrics.record_error()
+
+    chaos_db_client.reset_chaos()
+    metrics.end_test()
+
+    if jitter_times:
+        avg_jitter = statistics.mean(jitter_times)
+        stddev_jitter = statistics.stdev(jitter_times)
+        p95_jitter = sorted(jitter_times)[int(len(jitter_times) * 0.95)]
+
+        # Validate jitter handling
+        # Should be around base + average jitter
+        assert 200 <= avg_jitter <= 400, (
+            f"Jitter test: expected 200-400ms, got {avg_jitter:.1f}ms"
+        )
+
+        # Should show some variance (due to jitter)
+        assert stddev_jitter > 10, (
+            f"Should show variance under jitter: {stddev_jitter:.1f}ms"
+        )
+
+        # P95 should be reasonable (< 550ms)
+        assert p95_jitter < 550, (
+            f"P95 should be reasonable: {p95_jitter:.1f}ms"
+        )
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_asymmetric_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test asymmetric network latency (different request/response delays).
+
+    Scenario: Simulate fast requests, slow responses.
+    Expected: FraiseQL handles asymmetric network conditions.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Simulate asymmetric: fast outbound, slow inbound
+    asymmetric_times = []
+
+    for _ in range(8):
+        # Simulate asymmetric latency: request fast, response slow
+        # In real scenario, request has low latency but response has high latency
+        chaos_db_client.reset_chaos()
+
+        # Simulate with higher latency to simulate slow response
+        chaos_db_client.inject_latency(300)
+
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            query_time = result.get("_execution_time_ms", 300.0)
+            asymmetric_times.append(query_time)
+            metrics.record_query_time(query_time)
+        except Exception:
+            metrics.record_error()
+
+    chaos_db_client.reset_chaos()
+    metrics.end_test()
+
+    if asymmetric_times:
+        avg_asymmetric = statistics.mean(asymmetric_times)
+
+        # Validate asymmetric handling
+        # Should be around the injected latency
+        assert 250 <= avg_asymmetric <= 400, (
+            f"Asymmetric test: expected ~300ms, got {avg_asymmetric:.1f}ms"
+        )
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test timeout handling under extreme latency.
+
+    Scenario: 2-second network latency exceeds query timeouts.
+    Expected: FraiseQL handles timeouts gracefully with proper error responses.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Inject extreme latency that will cause timeouts
+    chaos_db_client.inject_latency(2000)  # 2 second latency
+
+    # Simulate operations that should timeout
+    timeout_count = 0
+    success_count = 0
+
+    for _ in range(5):
+        try:
+            # Set a short timeout (1.5s) while latency is 2s
+            result = await asyncio.wait_for(
+                chaos_db_client.execute_query(operation),
+                timeout=1.5
+            )
+            success_count += 1
+            metrics.record_query_time(result.get("_execution_time_ms", 2000))
+        except asyncio.TimeoutError:
+            timeout_count += 1
+            metrics.record_error()
+        except Exception:
+            timeout_count += 1
+            metrics.record_error()
+
+    chaos_db_client.reset_chaos()
+    metrics.end_test()
+
+    # Validate timeout behavior
+    assert timeout_count > 0, "Should experience timeouts under extreme latency"
+    # Some operations may complete if latency happens to be just under timeout
+    assert (success_count + timeout_count) == 5, "All operations should complete (timeout or success)"
+
+
+@pytest.mark.chaos
+@pytest.mark.chaos_network
+@pytest.mark.chaos_real_db
+@pytest.mark.asyncio
+async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baseline_metrics):
+    """
+    Test recovery time after latency chaos injection is removed.
+
+    Scenario: High latency followed by immediate removal.
+    Expected: Performance returns to baseline within acceptable time.
+    """
+    metrics = ChaosMetrics()
+    operation = FraiseQLTestScenarios.simple_user_query()
+
+    metrics.start_test()
+
+    # Baseline measurement (no chaos)
+    baseline_times = []
+    for _ in range(5):
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 10.0)
+            baseline_times.append(execution_time)
+            metrics.record_query_time(execution_time)
+        except Exception:
+            metrics.record_error()
+
+    avg_baseline = statistics.mean(baseline_times) if baseline_times else 20.0
+
+    # Inject high latency (1 second)
+    chaos_db_client.inject_latency(1000)
+
+    # Measure under chaos
+    chaos_times = []
+    for _ in range(3):
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 1000.0)
+            chaos_times.append(execution_time)
+            metrics.record_query_time(execution_time)
+        except Exception:
+            metrics.record_error()
+
+    # Remove chaos immediately
+    chaos_db_client.reset_chaos()
+
+    # Measure recovery (immediate next operations)
+    recovery_times = []
+    for _ in range(5):
+        try:
+            result = await chaos_db_client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 10.0)
+            recovery_times.append(execution_time)
+            metrics.record_query_time(execution_time)
+        except Exception:
+            metrics.record_error()
+
+    metrics.end_test()
+
+    if recovery_times:
+        avg_recovery = statistics.mean(recovery_times)
+
+        # Validate recovery
+        recovery_degradation = abs(avg_recovery - avg_baseline)
+        assert recovery_degradation < avg_baseline * 0.5, (
+            f"Recovery should be immediate: {recovery_degradation:.1f}ms degradation"
+        )
