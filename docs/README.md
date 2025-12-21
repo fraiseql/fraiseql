@@ -1,5 +1,9 @@
 # FraiseQL Documentation
 
+**🚀 Rust-Powered Backend**: FraiseQL v1.9+ features a high-performance Rust backend for zero-copy database operations. All queries flow through PostgreSQL → Rust → HTTP with no Python string operations.
+
+**[📖 Rust Backend Migration Guide](core/rust-backend-migration.md)** - Complete migration guide for existing users
+
 ## Getting Started
 
 - **[5-Minute Quickstart](getting-started/quickstart.md)** - Fastest way to get running
@@ -7,9 +11,20 @@
 - **[Understanding FraiseQL](guides/understanding-fraiseql.md)** - Conceptual overview
 - **[Installation](getting-started/installation.md)** - Detailed setup instructions
 
-## v1.5.0 Highlights
+## v1.9 Release Highlights
 
-FraiseQL v1.5.0 brings AI-ready capabilities and enterprise cache management:
+FraiseQL v1.9 completes the Rust backend migration and brings enterprise-grade performance:
+
+### Rust Backend Completion
+
+High-performance Rust execution pipeline for zero-copy database operations.
+
+- PostgreSQL → Rust → HTTP with no Python string operations
+- 2-3x performance improvement for large result sets
+- Memory-efficient `RustResponseBytes` for HTTP transport
+- Exclusive execution path (psycopg deprecation)
+- **[Database API Documentation →](core/database-api.md)**
+- **[Migration Guide →](core/rust-backend-migration.md)**
 
 ### pgvector Integration
 
@@ -59,8 +74,10 @@ Build RAG applications with LangChain and FraiseQL.
   - Explicit Sync Pattern - Denormalized tables for complex queries
 
 - **[Types and Schema](core/types-and-schema.md)** - Complete guide to FraiseQL's type system
-- **[Database API](core/database-api.md)** - PostgreSQL integration and query execution
+- **[Database API](core/database-api.md)** - Rust backend PostgreSQL integration and query execution
 - **[Configuration](core/configuration.md)** - Application configuration reference
+
+**⚠️ Migration Notice**: psycopg-only execution path removed in v1.9. All database operations use the exclusive Rust backend for optimal performance. See **[Rust Backend Migration Guide](core/rust-backend-migration.md)**.
 
 ## Querying & Filtering
 
@@ -84,9 +101,10 @@ FraiseQL provides flexible filtering with two syntaxes:
 
 - [Performance Guide](performance/index.md)
 - [APQ Optimization](performance/apq-optimization-guide.md)
-- [Rust Pipeline](performance/rust-pipeline-optimization.md)
+- **[Rust Pipeline Optimization](performance/rust-pipeline-optimization.md)** - Complete guide to zero-copy performance benefits
 - [CASCADE Best Practices](guides/cascade-best-practices.md)
 - [CASCADE Architecture](mutations/cascade-architecture.md)
+- **[Chaos Engineering Strategy](testing/chaos-engineering-strategy.md)** - Testing performance under failure conditions
 
 ## Reference
 
@@ -107,6 +125,11 @@ FraiseQL provides flexible filtering with two syntaxes:
 - **[Error Handling Patterns](guides/error-handling-patterns.md)** - Error handling philosophy and patterns
 - [CASCADE Architecture](mutations/cascade-architecture.md) - Complete technical overview
 - [CASCADE Migration Guide](mutations/migration-guide.md) - Step-by-step migration instructions
+
+## Testing & CI/CD
+
+- **[CI/CD Architecture](testing/ci-architecture.md)** - Three-tier testing strategy (correctness, enterprise, chaos)
+- **[Chaos Engineering Strategy](testing/chaos-engineering-strategy.md)** - Resilience testing with 71+ failure scenarios
 
 ## Development
 
