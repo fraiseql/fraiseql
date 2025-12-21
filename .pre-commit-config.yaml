@@ -31,9 +31,8 @@ repos:
       - id: ruff-format
         exclude: ^(examples|tools|conftest\.py|experimental_tests)/
 
-  # Rust linting with prek
-  - repo: https://github.com/j178/prek
-    rev: v0.1.0
+  # Rust linting (local hooks - prek not needed for this)
+  - repo: local
     hooks:
       - id: clippy
         name: Clippy Check
@@ -41,7 +40,6 @@ repos:
         language: system
         files: \.rs$
         pass_filenames: false
-        stages: [commit]
 
       - id: rustfmt
         name: Rustfmt
@@ -49,7 +47,6 @@ repos:
         language: system
         files: \.rs$
         pass_filenames: false
-        stages: [commit]
 
   # Temporarily disabled pytest hook for Marie Kondo cleanup PR
   # This is because pre-commit.ci has persistent issues detecting CI environment
