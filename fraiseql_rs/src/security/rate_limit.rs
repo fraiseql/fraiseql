@@ -40,6 +40,12 @@ pub struct RateLimiter {
     store: Arc<Mutex<RateLimitStore>>,
 }
 
+impl Default for RateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RateLimiter {
     pub fn new() -> Self {
         Self {
@@ -198,7 +204,6 @@ impl RateLimitStore {
             .entry(key.to_string())
             .or_insert_with(|| TokenBucket {
                 tokens: capacity,
-                capacity,
                 last_refill: current_timestamp(),
             })
     }
@@ -215,7 +220,7 @@ impl RateLimitStore {
     fn get_requests(&mut self, key: &str) -> &mut Vec<u64> {
         self.requests
             .entry(key.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
     }
 }
 
@@ -230,7 +235,6 @@ pub struct RateLimitStats {
 #[derive(Debug)]
 struct TokenBucket {
     tokens: usize,
-    capacity: usize,
     last_refill: u64,
 }
 

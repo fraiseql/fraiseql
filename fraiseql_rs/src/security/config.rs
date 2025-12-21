@@ -287,7 +287,7 @@ impl SecurityComponents {
             }
         };
 
-        let audit_stats = if let (Some(ref _logger), Some(ref _pool)) =
+        let audit_stats = if let (Some(ref _logger), Some(_pool)) =
             (&self.audit_logger, None::<&deadpool_postgres::Pool>)
         {
             // Note: We can't get audit stats without a pool reference

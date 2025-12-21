@@ -3,8 +3,8 @@
 //! This module implements GraphQL query complexity analysis with configurable
 //! cost limits and field weighting to prevent resource exhaustion attacks.
 
-use std::collections::HashMap;
 use crate::graphql::types::ParsedQuery;
+use std::collections::HashMap;
 
 /// Complexity analysis result
 pub struct ComplexityResult {
@@ -48,6 +48,12 @@ pub struct ComplexityAnalyzer {
     config: ComplexityConfig,
 }
 
+impl Default for ComplexityAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ComplexityAnalyzer {
     /// Create a new complexity analyzer with default config
     pub fn new() -> Self {
@@ -74,7 +80,10 @@ impl ComplexityAnalyzer {
     }
 
     /// Analyze query complexity with detailed breakdown
-    pub fn analyze_detailed(&self, query: &ParsedQuery) -> (ComplexityResult, std::collections::HashMap<String, u32>) {
+    pub fn analyze_detailed(
+        &self,
+        query: &ParsedQuery,
+    ) -> (ComplexityResult, std::collections::HashMap<String, u32>) {
         let result = self.analyze(query);
         let breakdown = self.get_complexity_breakdown(query);
         (result, breakdown)
@@ -95,7 +104,8 @@ impl ComplexityAnalyzer {
         // Calculate components
         let base_complexity = field_count.saturating_mul(self.config.field_cost);
         let depth_penalty = if max_depth > 0 {
-            (self.config.depth_multiplier.powi(max_depth as i32) * base_complexity as f32) as u32 - base_complexity
+            (self.config.depth_multiplier.powi(max_depth as i32) * base_complexity as f32) as u32
+                - base_complexity
         } else {
             0
         };
@@ -107,7 +117,12 @@ impl ComplexityAnalyzer {
         breakdown.insert("base_complexity".to_string(), base_complexity);
         breakdown.insert("depth_penalty".to_string(), depth_penalty);
         breakdown.insert("fragment_penalty".to_string(), fragment_penalty);
-        breakdown.insert("total".to_string(), base_complexity.saturating_add(depth_penalty).saturating_add(fragment_penalty));
+        breakdown.insert(
+            "total".to_string(),
+            base_complexity
+                .saturating_add(depth_penalty)
+                .saturating_add(fragment_penalty),
+        );
 
         breakdown
     }
@@ -134,9 +149,8 @@ impl ComplexityAnalyzer {
 
         // Calculate complexity from root selections
         for selection in &query.selections {
-            complexity = complexity.saturating_add(
-                self.calculate_selection_complexity(selection, 0)
-            );
+            complexity =
+                complexity.saturating_add(self.calculate_selection_complexity(selection, 0));
         }
 
         // Add complexity from fragments (they contribute through spreads)
@@ -150,11 +164,17 @@ impl ComplexityAnalyzer {
     }
 
     /// Calculate complexity for a field selection recursively
-    fn calculate_selection_complexity(&self, selection: &crate::graphql::types::FieldSelection, depth: u32) -> u32 {
+    fn calculate_selection_complexity(
+        &self,
+        selection: &crate::graphql::types::FieldSelection,
+        depth: u32,
+    ) -> u32 {
         let mut complexity = 0u32;
 
         // Base cost for this field
-        let field_cost = self.config.field_overrides
+        let field_cost = self
+            .config
+            .field_overrides
             .get(&selection.name)
             .copied()
             .unwrap_or(self.config.field_cost);
@@ -163,12 +183,15 @@ impl ComplexityAnalyzer {
 
         // Depth multiplier (exponential growth for deep queries)
         let depth_multiplier = (self.config.depth_multiplier.powi(depth as i32) * 100.0) as u32;
-        complexity = complexity.saturating_mul(depth_multiplier / 100).max(field_cost);
+        complexity = complexity
+            .saturating_mul(depth_multiplier / 100)
+            .max(field_cost);
 
         // Add complexity for nested fields
         let nested_count = selection.nested_fields.len() as u32;
         if nested_count > 0 {
-            let nested_complexity: u32 = selection.nested_fields
+            let nested_complexity: u32 = selection
+                .nested_fields
                 .iter()
                 .map(|nested| self.calculate_selection_complexity(nested, depth + 1))
                 .sum();
@@ -191,7 +214,9 @@ impl ComplexityAnalyzer {
         selection_count: u32,
     ) -> u32 {
         // Base field cost
-        let base_cost = self.config.field_overrides
+        let base_cost = self
+            .config
+            .field_overrides
             .get(field_name)
             .copied()
             .unwrap_or(self.config.field_cost);
@@ -207,7 +232,9 @@ impl ComplexityAnalyzer {
 
     /// Calculate complexity for a type
     fn calculate_type_complexity(&self, type_name: &str, base_complexity: u32) -> u32 {
-        let multiplier = self.config.type_multipliers
+        let multiplier = self
+            .config
+            .type_multipliers
             .get(type_name)
             .copied()
             .unwrap_or(1.0);
@@ -234,6 +261,12 @@ pub struct ComplexityDetector {
     analyzer: ComplexityAnalyzer,
 }
 
+impl Default for ComplexityDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ComplexityDetector {
     pub fn new() -> Self {
         Self {
@@ -256,8 +289,6 @@ impl ComplexityDetector {
         // - Or has very deep nesting (placeholder for now)
         result.score > (self.analyzer.config.max_complexity * 4) / 5
     }
-
-
 }
 
 #[cfg(test)]
@@ -325,23 +356,19 @@ mod tests {
                     name: "posts".to_string(),
                     alias: None,
                     arguments: vec![],
-                    nested_fields: vec![
-                        FieldSelection {
-                            name: "comments".to_string(),
+                    nested_fields: vec![FieldSelection {
+                        name: "comments".to_string(),
+                        alias: None,
+                        arguments: vec![],
+                        nested_fields: vec![FieldSelection {
+                            name: "author".to_string(),
                             alias: None,
                             arguments: vec![],
-                            nested_fields: vec![
-                                FieldSelection {
-                                    name: "author".to_string(),
-                                    alias: None,
-                                    arguments: vec![],
-                                    nested_fields: vec![],
-                                    directives: vec![],
-                                }
-                            ],
+                            nested_fields: vec![],
                             directives: vec![],
-                        }
-                    ],
+                        }],
+                        directives: vec![],
+                    }],
                     directives: vec![],
                 },
                 FieldSelection {
@@ -350,7 +377,7 @@ mod tests {
                     arguments: vec![],
                     nested_fields: vec![],
                     directives: vec![],
-                }
+                },
             ],
             directives: vec![],
         }];
@@ -363,7 +390,9 @@ mod tests {
     #[test]
     fn test_complexity_config_override() {
         let mut config = ComplexityConfig::default();
-        config.field_overrides.insert("expensive_field".to_string(), 10);
+        config
+            .field_overrides
+            .insert("expensive_field".to_string(), 10);
 
         let analyzer = ComplexityAnalyzer::with_config(config);
 

@@ -44,7 +44,7 @@
 
 use super::{
     cache::PermissionCache,
-    errors::{RbacError, Result},
+    errors::Result,
     hierarchy::RoleHierarchy,
     models::{Permission, UserRole},
 };

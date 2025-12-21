@@ -2,7 +2,10 @@
 
 use crate::graphql::types::*;
 use anyhow::{anyhow, Result};
-use graphql_parser::query::{self, Definition, Directive as GraphQLDirective, Document, FragmentDefinition, OperationDefinition, Selection, Type};
+use graphql_parser::query::{
+    self, Definition, Directive as GraphQLDirective, Document,
+    OperationDefinition, Selection,
+};
 
 /// Parse GraphQL query string into Rust AST.
 pub fn parse_query(source: &str) -> Result<ParsedQuery> {
@@ -39,7 +42,9 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
 }
 
 /// Extract fragment definitions from GraphQL document.
-fn extract_fragments(doc: &Document<String>) -> Result<Vec<crate::graphql::types::FragmentDefinition>> {
+fn extract_fragments(
+    doc: &Document<String>,
+) -> Result<Vec<crate::graphql::types::FragmentDefinition>> {
     let mut fragments = Vec::new();
 
     for def in &doc.definitions {
@@ -128,12 +133,10 @@ fn extract_operation(
     // Parse variable definitions
     let variables = var_defs
         .iter()
-        .map(|var_def| {
-            VariableDefinition {
-                name: var_def.name.clone(),
-                var_type: parse_graphql_type(&var_def.var_type),
-                default_value: var_def.default_value.as_ref().map(|v| serialize_value(v)),
-            }
+        .map(|var_def| VariableDefinition {
+            name: var_def.name.clone(),
+            var_type: parse_graphql_type(&var_def.var_type),
+            default_value: var_def.default_value.as_ref().map(|v| serialize_value(v)),
         })
         .collect();
 
@@ -167,7 +170,8 @@ fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Ve
                 // Parse nested selection set (recursive)
                 let nested_fields = parse_selection_set(&field.selection_set)?;
 
-                let directives = field.directives
+                let directives = field
+                    .directives
                     .iter()
                     .map(|d| parse_directive(d))
                     .collect::<Result<Vec<_>>>()?;
@@ -256,7 +260,8 @@ fn serialize_value(value: &query::Value<String>) -> String {
 
 /// Parse GraphQL directive from graphql-parser Directive.
 fn parse_directive(directive: &GraphQLDirective<String>) -> Result<Directive> {
-    let arguments = directive.arguments
+    let arguments = directive
+        .arguments
         .iter()
         .map(|(name, value)| GraphQLArgument {
             name: name.clone(),

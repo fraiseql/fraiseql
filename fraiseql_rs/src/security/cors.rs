@@ -143,7 +143,7 @@ impl CORSHandler {
                 request_headers.split(',').map(|s| s.trim()).collect();
             for header in &requested_headers {
                 if !self.config.is_header_allowed(header) {
-                    return Err(SecurityError::HeaderNotAllowed(header.to_string()));
+                    return Err(SecurityError::HeaderNotAllowed((*header).to_string()));
                 }
             }
             response_headers.push((

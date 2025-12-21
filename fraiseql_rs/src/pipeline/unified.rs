@@ -8,7 +8,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::cache::{CachedQueryPlan, QueryPlanCache};
-use crate::graphql::{complexity::{ComplexityAnalyzer, ComplexityConfig}, fragments::FragmentGraph, types::ParsedQuery, variables::VariableProcessor};
+use crate::graphql::{
+    complexity::{ComplexityAnalyzer, ComplexityConfig},
+    fragments::FragmentGraph,
+    types::ParsedQuery,
+    variables::VariableProcessor,
+};
 use crate::query::composer::SQLComposer;
 use crate::query::schema::SchemaMetadata;
 
@@ -106,7 +111,8 @@ impl GraphQLPipeline {
     ) -> Result<()> {
         // 1. Fragment cycle detection
         let fragment_graph = FragmentGraph::new(query);
-        fragment_graph.validate_fragments()
+        fragment_graph
+            .validate_fragments()
             .map_err(|e| anyhow::anyhow!("Fragment validation error: {}", e))?;
 
         // 2. Variable processing and validation
@@ -128,7 +134,8 @@ impl GraphQLPipeline {
             type_multipliers: HashMap::new(),
         };
         let analyzer = ComplexityAnalyzer::with_config(complexity_config);
-        analyzer.validate_complexity(query)
+        analyzer
+            .validate_complexity(query)
             .map_err(|e| anyhow::anyhow!("Complexity validation error: {}", e))?;
 
         Ok(())

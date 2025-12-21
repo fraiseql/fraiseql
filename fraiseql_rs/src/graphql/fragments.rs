@@ -3,8 +3,8 @@
 //! This module implements GraphQL fragment cycle detection using DFS-based
 //! cycle detection with backtracking to identify circular fragment dependencies.
 
+use crate::graphql::types::{FragmentDefinition, ParsedQuery};
 use std::collections::{HashMap, HashSet};
-use crate::graphql::types::{ParsedQuery, FragmentDefinition};
 
 /// Fragment dependency graph and cycle detection
 pub struct FragmentGraph {
@@ -98,12 +98,9 @@ impl FragmentGraph {
         if let Some(deps) = self.dependencies.get(fragment_name) {
             for dep in deps {
                 if !visited.contains(dep) {
-                    if let Some(cycle) = self.dfs_cycle_detect(
-                        dep,
-                        visited,
-                        recursion_stack,
-                        cycle_path,
-                    ) {
+                    if let Some(cycle) =
+                        self.dfs_cycle_detect(dep, visited, recursion_stack, cycle_path)
+                    {
                         return Some(cycle);
                     }
                 } else if recursion_stack.contains(dep) {
@@ -123,9 +120,7 @@ impl FragmentGraph {
     /// Validate all fragments in the query
     pub fn validate_fragments(&self) -> Result<(), String> {
         self.detect_cycles()
-            .map_err(|cycle| {
-                format!("Fragment cycle detected: {}", cycle.join(" -> "))
-            })
+            .map_err(|cycle| format!("Fragment cycle detected: {}", cycle.join(" -> ")))
     }
 }
 
@@ -196,9 +191,10 @@ mod tests {
     #[test]
     fn test_self_reference_cycle() {
         let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragA".to_string()])),
-            ]),
+            dependencies: HashMap::from([(
+                "FragA".to_string(),
+                HashSet::from(["FragA".to_string()]),
+            )]),
         };
         let result = graph.detect_cycles();
         assert!(result.is_err());

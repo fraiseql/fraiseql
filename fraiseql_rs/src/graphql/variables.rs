@@ -3,8 +3,8 @@
 //! This module implements GraphQL variable type validation, coercion,
 //! and default value handling according to the GraphQL specification.
 
+use crate::graphql::types::{GraphQLType, ParsedQuery, VariableDefinition};
 use std::collections::HashMap;
-use crate::graphql::types::{ParsedQuery, VariableDefinition, GraphQLType};
 
 /// Variable processing result
 pub struct VariableResult {
@@ -24,7 +24,9 @@ impl VariableProcessor {
     /// Create a new variable processor
     pub fn new(query: &ParsedQuery) -> Self {
         // Extract variable definitions from query
-        let definitions = query.variables.iter()
+        let definitions = query
+            .variables
+            .iter()
             .map(|var| (var.name.clone(), var.clone()))
             .collect();
 
@@ -51,7 +53,7 @@ impl VariableProcessor {
         }
 
         // Check for undefined variables
-        for (var_name, _) in input_variables {
+        for var_name in input_variables.keys() {
             if !self.definitions.contains_key(var_name) {
                 errors.push(format!("Variable '${}' is not defined in query", var_name));
             }
@@ -107,7 +109,10 @@ impl VariableProcessor {
             _ => {
                 // For custom types, just validate nullability
                 if value.is_null() && !expected_type.nullable {
-                    return Err(format!("Non-nullable type '{}' cannot be null", expected_type.name));
+                    return Err(format!(
+                        "Non-nullable type '{}' cannot be null",
+                        expected_type.name
+                    ));
                 }
                 Ok(value.clone())
             }
@@ -125,14 +130,11 @@ impl VariableProcessor {
 
     fn coerce_to_int(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
-            serde_json::Value::Number(n) if n.is_i64() => {
-                Ok(serde_json::Value::Number(n.clone()))
-            }
-            serde_json::Value::String(s) => {
-                s.parse::<i64>()
-                    .map(|n| serde_json::Value::Number(serde_json::Number::from(n)))
-                    .map_err(|_| "Cannot coerce string to Int".to_string())
-            }
+            serde_json::Value::Number(n) if n.is_i64() => Ok(serde_json::Value::Number(n.clone())),
+            serde_json::Value::String(s) => s
+                .parse::<i64>()
+                .map(|n| serde_json::Value::Number(serde_json::Number::from(n)))
+                .map_err(|_| "Cannot coerce string to Int".to_string()),
             _ => Err("Cannot coerce value to Int".to_string()),
         }
     }
@@ -140,15 +142,14 @@ impl VariableProcessor {
     fn coerce_to_float(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
             serde_json::Value::Number(n) => Ok(serde_json::Value::Number(n.clone())),
-            serde_json::Value::String(s) => {
-                s.parse::<f64>()
-                    .map(|n| {
-                        serde_json::Number::from_f64(n)
-                            .map(serde_json::Value::Number)
-                            .unwrap_or_else(|| serde_json::Value::String(s.clone()))
-                    })
-                    .map_err(|_| "Cannot coerce string to Float".to_string())
-            }
+            serde_json::Value::String(s) => s
+                .parse::<f64>()
+                .map(|n| {
+                    serde_json::Number::from_f64(n)
+                        .map(serde_json::Value::Number)
+                        .unwrap_or_else(|| serde_json::Value::String(s.clone()))
+                })
+                .map_err(|_| "Cannot coerce string to Float".to_string()),
             _ => Err("Cannot coerce value to Float".to_string()),
         }
     }
@@ -174,7 +175,7 @@ impl VariableProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphql::types::{VariableDefinition, GraphQLType};
+    use crate::graphql::types::{GraphQLType, VariableDefinition};
 
     #[test]
     fn test_string_coercion() {
@@ -191,12 +192,16 @@ mod tests {
         }];
         let processor = VariableProcessor::new(&query);
 
-        let result = processor.process_variables(&HashMap::from([
-            ("test".to_string(), serde_json::json!("hello"))
-        ]));
+        let result = processor.process_variables(&HashMap::from([(
+            "test".to_string(),
+            serde_json::json!("hello"),
+        )]));
 
         assert!(result.errors.is_empty());
-        assert_eq!(result.variables.get("test"), Some(&serde_json::json!("hello")));
+        assert_eq!(
+            result.variables.get("test"),
+            Some(&serde_json::json!("hello"))
+        );
     }
 
     #[test]
@@ -214,9 +219,11 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable("test", &var_def, &HashMap::from([
-            ("test".to_string(), serde_json::json!(42))
-        ]));
+        let result = processor.process_variable(
+            "test",
+            &var_def,
+            &HashMap::from([("test".to_string(), serde_json::json!(42))]),
+        );
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), serde_json::json!(42));
@@ -237,9 +244,11 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable("test", &var_def, &HashMap::from([
-            ("test".to_string(), serde_json::json!(123))
-        ]));
+        let result = processor.process_variable(
+            "test",
+            &var_def,
+            &HashMap::from([("test".to_string(), serde_json::json!(123))]),
+        );
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), serde_json::json!("123"));
@@ -260,9 +269,11 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable("test", &var_def, &HashMap::from([
-            ("test".to_string(), serde_json::json!(3.14))
-        ]));
+        let result = processor.process_variable(
+            "test",
+            &var_def,
+            &HashMap::from([("test".to_string(), serde_json::json!(3.14))]),
+        );
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), serde_json::json!(3.14));
@@ -283,9 +294,11 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable("test", &var_def, &HashMap::from([
-            ("test".to_string(), serde_json::json!(true))
-        ]));
+        let result = processor.process_variable(
+            "test",
+            &var_def,
+            &HashMap::from([("test".to_string(), serde_json::json!(true))]),
+        );
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), serde_json::json!(true));
@@ -309,7 +322,10 @@ mod tests {
         // Test with no variable provided - should use default
         let result = processor.process_variables(&HashMap::new());
         assert!(result.errors.is_empty());
-        assert_eq!(result.variables.get("test"), Some(&serde_json::json!("default_value")));
+        assert_eq!(
+            result.variables.get("test"),
+            Some(&serde_json::json!("default_value"))
+        );
     }
 
     #[test]
@@ -347,9 +363,11 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable("test", &var_def, &HashMap::from([
-            ("test".to_string(), serde_json::json!("not_a_number"))
-        ]));
+        let result = processor.process_variable(
+            "test",
+            &var_def,
+            &HashMap::from([("test".to_string(), serde_json::json!("not_a_number"))]),
+        );
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Int"));

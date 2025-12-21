@@ -50,7 +50,7 @@
 //! - All public methods are &self (no RefCell issues)
 //! - Safe to share via `Arc<PermissionCache>`
 
-use super::{errors::Result, models::Permission};
+use super::models::Permission;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::Mutex;

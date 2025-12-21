@@ -106,7 +106,7 @@ impl WhereClauseBuilder {
                 // Simple equality
                 let param = self.next_param();
                 self.params
-                    .push((param.clone(), ParameterValue::String(val.clone())));
+                    .push((param, ParameterValue::String(val.clone())));
                 Ok(format!("{} = ${}", column_expr, self.param_counter))
             }
             _ => Err(anyhow!("Invalid field condition for {}", field_name)),
@@ -123,32 +123,32 @@ impl WhereClauseBuilder {
         match operator {
             "eq" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} = ${}", column_expr, self.param_counter))
             }
             "neq" | "ne" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} != ${}", column_expr, self.param_counter))
             }
             "gt" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} > ${}", column_expr, self.param_counter))
             }
             "gte" | "ge" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} >= ${}", column_expr, self.param_counter))
             }
             "lt" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} < ${}", column_expr, self.param_counter))
             }
             "lte" | "le" => {
                 let param = self.next_param();
-                self.add_param(param.clone(), value)?;
+                self.add_param(param, value)?;
                 Ok(format!("{} <= ${}", column_expr, self.param_counter))
             }
             "in" => {
@@ -159,7 +159,7 @@ impl WhereClauseBuilder {
                             .iter()
                             .map(|item| {
                                 let param = self.next_param();
-                                self.add_param(param.clone(), item)?;
+                                self.add_param(param, item)?;
                                 Ok(format!("${}", self.param_counter))
                             })
                             .collect::<Result<Vec<_>>>()?;
@@ -174,7 +174,7 @@ impl WhereClauseBuilder {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}%", s);
                         self.params
-                            .push((param.clone(), ParameterValue::String(pattern)));
+                            .push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("LIKE requires string value")),
@@ -186,7 +186,7 @@ impl WhereClauseBuilder {
                     JsonValue::String(s) => {
                         let pattern = format!("{}%", s);
                         self.params
-                            .push((param.clone(), ParameterValue::String(pattern)));
+                            .push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("startsWith requires string value")),
@@ -198,7 +198,7 @@ impl WhereClauseBuilder {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}", s);
                         self.params
-                            .push((param.clone(), ParameterValue::String(pattern)));
+                            .push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("endsWith requires string value")),
