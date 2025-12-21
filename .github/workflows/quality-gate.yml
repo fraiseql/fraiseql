@@ -202,9 +202,11 @@ jobs:
         echo "ℹ️  Tests requiring Vault/Auth0 run in the optional 'enterprise-tests' workflow"
         echo ""
 
-        # Run integration tests that require database (not enterprise features)
+        # Run integration tests that require database (not enterprise features, not chaos tests)
+        # Chaos tests are slow (45-60 min) and validate resilience, not correctness
+        # They run separately in chaos-engineering-tests.yml workflow
         uv run pytest tests/integration/ \
-          -m 'not enterprise' \
+          -m 'not enterprise and not chaos' \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
@@ -258,7 +260,8 @@ jobs:
         FRAISEQL_LOG_LEVEL: INFO
       run: |
         echo "=== Running Example Integration Tests ==="
-        uv run pytest tests/integration/examples/ -v --tb=short || {
+        # Exclude chaos tests (not part of standard correctness validation)
+        uv run pytest tests/integration/examples/ -m 'not chaos' -v --tb=short || {
           echo "❌ Example integration tests failed"
           echo "This may indicate issues with example configurations or database setup"
           exit 1
