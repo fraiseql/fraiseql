@@ -16,6 +16,9 @@ from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
 from chaos.base import ChaosMetrics
 
+# Import chaos database fixtures
+pytest_plugins = ["chaos.database_fixtures"]
+
 
 @pytest.fixture
 def chaos_test_case():
