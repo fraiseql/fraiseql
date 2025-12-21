@@ -3,8 +3,7 @@
 use crate::graphql::types::*;
 use anyhow::{anyhow, Result};
 use graphql_parser::query::{
-    self, Definition, Directive as GraphQLDirective, Document,
-    OperationDefinition, Selection,
+    self, Definition, Directive as GraphQLDirective, Document, OperationDefinition, Selection,
 };
 
 /// Parse GraphQL query string into Rust AST.

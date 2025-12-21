@@ -218,9 +218,7 @@ impl RateLimitStore {
     }
 
     fn get_requests(&mut self, key: &str) -> &mut Vec<u64> {
-        self.requests
-            .entry(key.to_string())
-            .or_default()
+        self.requests.entry(key.to_string()).or_default()
     }
 }
 

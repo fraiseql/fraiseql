@@ -173,8 +173,7 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}%", s);
-                        self.params
-                            .push((param, ParameterValue::String(pattern)));
+                        self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("LIKE requires string value")),
@@ -185,8 +184,7 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("{}%", s);
-                        self.params
-                            .push((param, ParameterValue::String(pattern)));
+                        self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("startsWith requires string value")),
@@ -197,8 +195,7 @@ impl WhereClauseBuilder {
                 match value {
                     JsonValue::String(s) => {
                         let pattern = format!("%{}", s);
-                        self.params
-                            .push((param, ParameterValue::String(pattern)));
+                        self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("endsWith requires string value")),
