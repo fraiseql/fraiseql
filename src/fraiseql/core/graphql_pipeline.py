@@ -23,10 +23,12 @@ def _get_rust_functions():
             # Fallback implementations
             class FallbackRust:
                 async def execute_query_async(self, query_json: str) -> str:
-                    return '[{"id": 1, "name": "Fallback User"}]'
+                    return json.dumps(
+                        {"data": [{"id": 1, "name": "Fallback User"}], "errors": None}
+                    )
 
                 async def execute_mutation_async(self, mutation_json: str) -> str:
-                    return '{"id": 1, "name": "Created User"}'
+                    return json.dumps({"data": {"id": 1, "name": "Created User"}, "errors": None})
 
             _rust_functions = FallbackRust()
 
@@ -72,8 +74,8 @@ class RustGraphQLPipeline:
             result_json = await self._rust.execute_query_async(query_json)
             result = json.loads(result_json)
 
-            # Return standardized GraphQL response format
-            return {"data": result, "errors": None}
+            # Rust backend already returns standardized GraphQL response format
+            return result
 
         except Exception as e:
             # Return GraphQL error format
