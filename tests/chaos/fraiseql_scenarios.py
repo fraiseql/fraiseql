@@ -7,6 +7,7 @@ operations, making chaos engineering tests more valuable and representative.
 
 import time
 import json
+import random
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
@@ -191,6 +192,28 @@ class MockFraiseQLClient:
         self.base_url = base_url
         self.connection_pool_size = 10
         self.active_connections = 0
+        # Chaos simulation state
+        self.connection_disabled = False
+        self.latency_ms = 0
+        self.packet_loss_rate = 0.0
+
+    def inject_connection_failure(self):
+        """Simulate connection failure."""
+        self.connection_disabled = True
+
+    def inject_latency(self, latency_ms: int):
+        """Simulate network latency."""
+        self.latency_ms = latency_ms
+
+    def inject_packet_loss(self, loss_rate: float):
+        """Simulate packet loss."""
+        self.packet_loss_rate = loss_rate
+
+    def reset_chaos(self):
+        """Reset all chaos conditions."""
+        self.connection_disabled = False
+        self.latency_ms = 0
+        self.packet_loss_rate = 0.0
 
     def execute_query(self, operation: GraphQLOperation, timeout: float = 30.0) -> Dict[str, Any]:
         """
@@ -203,9 +226,22 @@ class MockFraiseQLClient:
         """
         start_time = time.time()
 
+        # Check for chaos conditions
+        if self.connection_disabled:
+            time.sleep(0.001)  # Fast failure
+            raise ConnectionError("Connection refused (chaos injection)")
+
+        if random.random() < self.packet_loss_rate:
+            time.sleep(0.001)  # Fast failure
+            raise ConnectionError("Packet loss (chaos injection)")
+
         try:
             # Simulate connection acquisition
             self._acquire_connection()
+
+            # Apply latency chaos
+            if self.latency_ms > 0:
+                time.sleep(self.latency_ms / 1000.0)
 
             # Simulate query execution based on complexity
             execution_time = self._calculate_execution_time(operation.expected_complexity)

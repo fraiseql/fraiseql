@@ -12,6 +12,7 @@ import statistics
 from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
 from chaos.plugin import chaos_inject, FailureType
+from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
 
 
 class TestPacketLossCorruptionChaos(ChaosTestCase):
@@ -29,6 +30,10 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         """
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
+        # Create FraiseQL client for testing
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
         self.metrics.start_test()
 
         # Baseline: No packet loss
@@ -36,10 +41,10 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         baseline_times = []
 
         for _ in range(10):
-            start = time.time()
-            # Simulate successful operation
-            time.sleep(0.010)
-            baseline_times.append((time.time() - start) * 1000)
+            result = client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 10.0)
+            baseline_times.append(execution_time)
+            self.metrics.record_query_time(execution_time)
             baseline_successes += 1
 
         avg_baseline = statistics.mean(baseline_times)

@@ -11,6 +11,7 @@ import statistics
 from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
 from chaos.plugin import chaos_inject, FailureType
+from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
 
 
 class TestNetworkLatencyChaos(ChaosTestCase):
@@ -27,26 +28,28 @@ class TestNetworkLatencyChaos(ChaosTestCase):
         """
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
+        # Create FraiseQL client for testing
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
         self.metrics.start_test()
 
         # Test latency progression: 0ms, 100ms, 500ms, 1000ms, 2000ms
         latencies = [0, 100, 500, 1000, 2000]
 
         for latency_ms in latencies:
-            # Remove previous toxic and add new one
-            toxiproxy.remove_all_toxics("fraiseql_postgres")
+            # Reset chaos and apply new latency
+            client.reset_chaos()
             if latency_ms > 0:
-                toxiproxy.add_latency_toxic("fraiseql_postgres", latency_ms)
+                client.inject_latency(latency_ms)
 
             # Measure query performance under current latency
             query_times = []
             for _ in range(3):
-                start = time.time()
-                # Simulate network operation with added latency
-                time.sleep((latency_ms + 10) / 1000.0)  # Base 10ms + network latency
-                query_time = (time.time() - start) * 1000
-                query_times.append(query_time)
-                self.metrics.record_query_time(query_time)
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 10.0)
+                query_times.append(execution_time)
+                self.metrics.record_query_time(execution_time)
 
             avg_time = statistics.mean(query_times)
             print(".1f")
