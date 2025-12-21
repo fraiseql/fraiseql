@@ -25,8 +25,10 @@ pub mod mutation;
 pub mod mutations;
 pub mod pipeline;
 pub mod query;
+pub mod rbac;
 pub mod response;
 pub mod schema_registry;
+pub mod security;
 
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -667,6 +669,13 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add authentication (Phase 10)
     m.add_class::<auth::PyAuthProvider>()?;
     m.add_class::<auth::PyUserContext>()?;
+
+    // Add RBAC (Phase 11)
+    m.add_class::<rbac::PyPermissionResolver>()?;
+    m.add_class::<rbac::PyFieldAuthChecker>()?;
+
+    // Add security (Phase 12)
+    // Note: Security components are integrated into the pipeline, not exposed as separate classes
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;

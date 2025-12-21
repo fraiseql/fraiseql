@@ -50,12 +50,12 @@
 //! - All public methods are &self (no RefCell issues)
 //! - Safe to share via `Arc<PermissionCache>`
 
+use super::{errors::Result, models::Permission};
 use lru::LruCache;
-use std::sync::Mutex;
 use std::num::NonZeroUsize;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use super::{errors::Result, models::Permission};
 
 /// Permission cache with TTL expiry and LRU eviction.
 ///

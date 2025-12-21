@@ -42,15 +42,15 @@
 //! - Database pool handles concurrent connections
 //! - Cache uses Mutex for atomic updates
 
-use uuid::Uuid;
+use super::{
+    cache::PermissionCache,
+    errors::{RbacError, Result},
+    hierarchy::RoleHierarchy,
+    models::{Permission, UserRole},
+};
 use deadpool_postgres::Pool;
 use std::sync::Arc;
-use super::{
-    errors::{Result, RbacError},
-    models::{Permission, UserRole},
-    hierarchy::RoleHierarchy,
-    cache::PermissionCache,
-};
+use uuid::Uuid;
 
 /// Permission resolver with caching and hierarchy support.
 ///
@@ -177,7 +177,9 @@ impl PermissionResolver {
         let client = self.pool.get().await?;
         let user_id_string = user_id.to_string();
         let tenant_id_string = tenant_id.map(|id| id.to_string());
-        let rows = client.query(sql, &[&user_id_string, &tenant_id_string]).await?;
+        let rows = client
+            .query(sql, &[&user_id_string, &tenant_id_string])
+            .await?;
         let user_roles: Vec<UserRole> = rows.into_iter().map(UserRole::from_row).collect();
 
         Ok(user_roles)

@@ -121,6 +121,13 @@ reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
 # pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }  # Python async bindings (requires pyo3 0.20, conflicts with 0.25)
 tokio = { version = "1.35", features = ["full"] }  # Async runtime
 
+# Security dependencies (Phase 12)
+rand = "0.8"                # Random number generation for CSRF
+hex = "0.4"                 # Hex encoding for tokens
+http = "0.2"                # HTTP types for CORS headers
+# serde_json already included above for JSON parsing
+# sha2 already included above for signatures
+
 [dev-dependencies]
 # Testing framework
 tokio-test = "0.4"                    # Async runtime for tests

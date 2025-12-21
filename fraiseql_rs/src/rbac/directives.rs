@@ -1,14 +1,19 @@
 //! GraphQL directive enforcement (@requiresRole, @requiresPermission).
 
-use crate::graphql::types::{ParsedQuery, FieldSelection};
-use super::{errors::{Result as RbacResult, RbacError}, field_auth::FieldPermissions};
+use super::{
+    errors::{RbacError, Result as RbacResult},
+    field_auth::FieldPermissions,
+};
+use crate::graphql::types::{FieldSelection, ParsedQuery};
 
 /// Extract RBAC directives from parsed query
 pub struct DirectiveExtractor;
 
 impl DirectiveExtractor {
     /// Extract all field permissions from parsed query
-    pub fn extract_field_permissions(query: &ParsedQuery) -> RbacResult<Vec<(String, FieldPermissions)>> {
+    pub fn extract_field_permissions(
+        query: &ParsedQuery,
+    ) -> RbacResult<Vec<(String, FieldPermissions)>> {
         let mut field_permissions = Vec::new();
 
         for selection in &query.selections {
@@ -61,7 +66,7 @@ impl DirectiveExtractor {
                     // For now, this is a placeholder for schema-level directives
                     // In full implementation: @requiresRole(role: "admin")
                     return Err(RbacError::DirectiveError(
-                        "requiresRole directive parsing not implemented yet".to_string()
+                        "requiresRole directive parsing not implemented yet".to_string(),
                     ));
                 }
                 "requiresPermission" => {
@@ -69,7 +74,7 @@ impl DirectiveExtractor {
                     // For now, this is a placeholder for schema-level directives
                     // In full implementation: @requiresPermission(permission: "user:read")
                     return Err(RbacError::DirectiveError(
-                        "requiresPermission directive parsing not implemented yet".to_string()
+                        "requiresPermission directive parsing not implemented yet".to_string(),
                     ));
                 }
                 _ => {

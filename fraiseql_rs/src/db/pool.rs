@@ -146,6 +146,11 @@ impl DatabasePool {
     pub fn pool_config(&self) -> &PoolConfig {
         &self.config
     }
+
+    /// Get the underlying pool (for internal use by RBAC/Security modules)
+    pub fn get_pool(&self) -> Option<&Pool> {
+        self.pool.as_ref()
+    }
 }
 
 #[pymethods]

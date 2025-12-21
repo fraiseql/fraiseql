@@ -53,11 +53,19 @@ impl Role {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
             name: row.get(1),
             description: row.get(2),
-            parent_role_id: row.get::<_, Option<String>>(3).and_then(|s| Uuid::parse_str(&s).ok()),
-            tenant_id: row.get::<_, Option<String>>(4).and_then(|s| Uuid::parse_str(&s).ok()),
+            parent_role_id: row
+                .get::<_, Option<String>>(3)
+                .and_then(|s| Uuid::parse_str(&s).ok()),
+            tenant_id: row
+                .get::<_, Option<String>>(4)
+                .and_then(|s| Uuid::parse_str(&s).ok()),
             is_system: row.get(5),
-            created_at: row.get::<_, chrono::NaiveDateTime>(6).and_utc(),
-            updated_at: row.get::<_, chrono::NaiveDateTime>(7).and_utc(),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6))
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now()),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(7))
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now()),
         }
     }
 }
@@ -127,8 +135,12 @@ impl Permission {
             resource: row.get(1),
             action: row.get(2),
             description: row.get(3),
-            constraints: row.get::<_, Option<String>>(4).and_then(|s| serde_json::from_str(&s).ok()),
-            created_at: row.get::<_, chrono::NaiveDateTime>(5).and_utc(),
+            constraints: row
+                .get::<_, Option<String>>(4)
+                .and_then(|s| serde_json::from_str(&s).ok()),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now()),
         }
     }
 }
@@ -195,10 +207,19 @@ impl UserRole {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
             user_id: Uuid::parse_str(&row.get::<_, String>(1)).unwrap_or_default(),
             role_id: Uuid::parse_str(&row.get::<_, String>(2)).unwrap_or_default(),
-            tenant_id: row.get::<_, Option<String>>(3).and_then(|s| Uuid::parse_str(&s).ok()),
-            granted_by: row.get::<_, Option<String>>(4).and_then(|s| Uuid::parse_str(&s).ok()),
-            granted_at: row.get::<_, chrono::NaiveDateTime>(5).and_utc(),
-            expires_at: row.get::<_, Option<chrono::NaiveDateTime>>(6).map(|dt| dt.and_utc()),
+            tenant_id: row
+                .get::<_, Option<String>>(3)
+                .and_then(|s| Uuid::parse_str(&s).ok()),
+            granted_by: row
+                .get::<_, Option<String>>(4)
+                .and_then(|s| Uuid::parse_str(&s).ok()),
+            granted_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now()),
+            expires_at: row
+                .get::<_, Option<String>>(6)
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc)),
         }
     }
 }

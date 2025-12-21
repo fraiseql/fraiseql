@@ -72,20 +72,20 @@
 //! - Audit logging framework
 //! - Cache invalidation optimization with reverse index
 
-pub mod errors;
-pub mod models;
-pub mod hierarchy;
-pub mod resolver;
 pub mod cache;
 pub mod directives;
+pub mod errors;
 pub mod field_auth;
+pub mod hierarchy;
+pub mod models;
 pub mod py_bindings;
+pub mod resolver;
 
-pub use errors::{RbacError, Result};
-pub use models::{Role, Permission, UserRole, RolePermission};
-pub use hierarchy::RoleHierarchy;
-pub use resolver::PermissionResolver;
-pub use cache::{PermissionCache, CacheInvalidation, CacheStats};
+pub use cache::{CacheInvalidation, CacheStats, PermissionCache};
 pub use directives::DirectiveExtractor;
+pub use errors::{RbacError, Result};
 pub use field_auth::{FieldAuthChecker, FieldPermissions};
-pub use py_bindings::{PyPermissionResolver, PyFieldAuthChecker};
+pub use hierarchy::RoleHierarchy;
+pub use models::{Permission, Role, RolePermission, UserRole};
+pub use py_bindings::{PyFieldAuthChecker, PyPermissionResolver};
+pub use resolver::PermissionResolver;

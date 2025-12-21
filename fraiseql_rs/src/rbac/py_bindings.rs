@@ -1,8 +1,9 @@
 //! Python bindings for RBAC components.
 
+use super::resolver::PermissionResolver;
 use pyo3::prelude::*;
 use std::sync::Arc;
-use super::resolver::PermissionResolver;
+use uuid::Uuid;
 
 /// Python wrapper for PermissionResolver
 #[pyclass]
@@ -16,10 +17,13 @@ impl PyPermissionResolver {
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {
             let db_pool = pool.borrow(py);
-            let rust_pool = db_pool.get_pool()
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "Database pool not initialized"
-                ))?
+            let rust_pool = db_pool
+                .get_pool()
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "Database pool not initialized",
+                    )
+                })?
                 .clone();
             let resolver = PermissionResolver::new(rust_pool, cache_capacity);
             Ok(Self {
@@ -29,13 +33,23 @@ impl PyPermissionResolver {
     }
 
     /// Get user permissions (placeholder - full async implementation needed)
-    pub fn get_user_permissions(&self, _user_id: String, _tenant_id: Option<String>) -> PyResult<String> {
+    pub fn get_user_permissions(
+        &self,
+        _user_id: String,
+        _tenant_id: Option<String>,
+    ) -> PyResult<String> {
         // TODO: Implement full async Python binding
         Ok("get_user_permissions not yet implemented".to_string())
     }
 
     /// Check specific permission (placeholder)
-    pub fn has_permission(&self, _user_id: String, _resource: String, _action: String, _tenant_id: Option<String>) -> PyResult<String> {
+    pub fn has_permission(
+        &self,
+        _user_id: String,
+        _resource: String,
+        _action: String,
+        _tenant_id: Option<String>,
+    ) -> PyResult<String> {
         // TODO: Implement full async Python binding
         Ok("has_permission not yet implemented".to_string())
     }
@@ -57,7 +71,10 @@ impl PyPermissionResolver {
     /// Get cache statistics
     pub fn cache_stats(&self) -> PyResult<String> {
         let stats = self.resolver.cache_stats();
-        Ok(format!("Cache stats: capacity={}, size={}, expired={}", stats.capacity, stats.size, stats.expired_count))
+        Ok(format!(
+            "Cache stats: capacity={}, size={}, expired={}",
+            stats.capacity, stats.size, stats.expired_count
+        ))
     }
 }
 
@@ -77,7 +94,14 @@ impl PyFieldAuthChecker {
     }
 
     /// Check field access (placeholder)
-    pub fn check_field_access(&self, _user_id: Option<String>, _roles: Vec<String>, _field_name: String, _field_permissions: PyObject, _tenant_id: Option<String>) -> PyResult<String> {
+    pub fn check_field_access(
+        &self,
+        _user_id: Option<String>,
+        _roles: Vec<String>,
+        _field_name: String,
+        _field_permissions: PyObject,
+        _tenant_id: Option<String>,
+    ) -> PyResult<String> {
         // TODO: Implement full async Python binding
         Ok("check_field_access not yet implemented".to_string())
     }

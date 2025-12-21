@@ -42,9 +42,9 @@
 //! - All methods are immutable (take &self)
 //! - Safe to share via `Arc<RoleHierarchy>`
 
-use uuid::Uuid;
-use deadpool_postgres::Pool;
 use super::{errors::Result, models::Role};
+use deadpool_postgres::Pool;
+use uuid::Uuid;
 
 /// Role hierarchy resolver using recursive CTEs.
 ///
@@ -105,7 +105,9 @@ impl RoleHierarchy {
         let client = self.pool.get().await?;
         let role_id_strings: Vec<String> = role_ids.iter().map(|id| id.to_string()).collect();
         let tenant_id_string = tenant_id.map(|id| id.to_string());
-        let rows = client.query(sql, &[&role_id_strings, &tenant_id_string]).await?;
+        let rows = client
+            .query(sql, &[&role_id_strings, &tenant_id_string])
+            .await?;
         let roles: Vec<Role> = rows.into_iter().map(Role::from_row).collect();
 
         Ok(roles)
@@ -138,7 +140,9 @@ impl RoleHierarchy {
         let client = self.pool.get().await?;
         let role_id_string = role_id.to_string();
         let tenant_id_string = tenant_id.map(|id| id.to_string());
-        let rows = client.query(sql, &[&role_id_string, &tenant_id_string]).await?;
+        let rows = client
+            .query(sql, &[&role_id_string, &tenant_id_string])
+            .await?;
         let roles: Vec<Role> = rows.into_iter().map(Role::from_row).collect();
 
         Ok(roles)
