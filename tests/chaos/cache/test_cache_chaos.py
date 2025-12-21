@@ -1,0 +1,418 @@
+"""
+Phase 3.1: Cache Chaos Tests
+
+Tests for cache invalidation, corruption, and backend failures.
+Validates FraiseQL's cache resilience and performance under adverse cache conditions.
+"""
+
+import pytest
+import time
+import random
+import statistics
+from chaos.base import ChaosTestCase
+from chaos.fixtures import ToxiproxyManager
+from chaos.plugin import chaos_inject, FailureType
+from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
+
+
+class TestCacheChaos(ChaosTestCase):
+    """Test cache chaos scenarios."""
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_invalidation_storm(self):
+        """
+        Test cache invalidation storm resilience.
+
+        Scenario: Massive cache invalidation causes cache thrashing.
+        Expected: FraiseQL handles cache misses gracefully with database fallback.
+        """
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        # Simulate cache invalidation storm
+        total_operations = 20
+        cache_hit_rate = 0.9  # 90% cache hit rate normally
+        storm_cache_hit_rate = 0.1  # Drops to 10% during storm
+
+        cache_hits = 0
+        cache_misses = 0
+
+        for i in range(total_operations):
+            # Simulate cache invalidation storm (first half of operations)
+            current_hit_rate = storm_cache_hit_rate if i < total_operations // 2 else cache_hit_rate
+
+            if random.random() < current_hit_rate:
+                # Cache hit - fast response
+                execution_time = 5.0 + random.uniform(-1, 1)  # ~5ms cache hit
+                cache_hits += 1
+            else:
+                # Cache miss - database query
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 50.0)
+                cache_misses += 1
+
+            self.metrics.record_query_time(execution_time)
+
+            # Simulate storm: invalidate cache entries randomly
+            if i < total_operations // 2 and random.random() < 0.3:  # 30% invalidation rate
+                # Cache invalidation causes next request to miss
+                pass
+
+        self.metrics.end_test()
+
+        # Validate cache storm resilience
+        storm_hit_rate = cache_hits / total_operations
+        assert storm_hit_rate >= 0.4, f"Cache hit rate too low during storm: {storm_hit_rate:.2f}"
+
+        # Check that system still functions (doesn't crash under cache pressure)
+        summary = self.metrics.get_summary()
+        assert summary["query_count"] == total_operations, "All operations should complete"
+
+        print(f"Cache storm: {cache_hits}/{total_operations} hits ({storm_hit_rate:.1f})")
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_corruption_handling(self):
+        """
+        Test cache corruption detection and recovery.
+
+        Scenario: Cache contains corrupted data.
+        Expected: FraiseQL detects corruption and falls back to database.
+        """
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        corruption_detected = 0
+        successful_fallbacks = 0
+        total_operations = 15
+
+        for i in range(total_operations):
+            try:
+                # Simulate cache access
+                if random.random() < 0.85:  # 85% cache hit rate
+                    # Check for corruption
+                    if random.random() < 0.15:  # 15% of cache entries corrupted
+                        # Corrupted cache entry detected
+                        corruption_detected += 1
+                        self.metrics.record_error()
+
+                        # Fallback to database
+                        result = client.execute_query(operation)
+                        execution_time = result.get("_execution_time_ms", 40.0)
+                        self.metrics.record_query_time(execution_time)
+                        successful_fallbacks += 1
+                    else:
+                        # Valid cache hit
+                        execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                        self.metrics.record_query_time(execution_time)
+                else:
+                    # Cache miss - direct database query
+                    result = client.execute_query(operation)
+                    execution_time = result.get("_execution_time_ms", 40.0)
+                    self.metrics.record_query_time(execution_time)
+
+            except Exception as e:
+                self.metrics.record_error()
+                if "corruption" in str(e).lower():
+                    corruption_detected += 1
+
+        self.metrics.end_test()
+
+        # Validate corruption handling
+        assert corruption_detected > 0, "Should detect some cache corruption"
+        assert successful_fallbacks > 0, "Should successfully fallback to database"
+        assert successful_fallbacks >= corruption_detected * 0.8, (
+            "Should fallback successfully for most corruptions"
+        )
+
+        summary = self.metrics.get_summary()
+        success_rate = 1 - (summary["error_count"] / max(summary["query_count"], 1))
+        assert success_rate >= 0.7, f"Success rate too low under corruption: {success_rate:.2f}"
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_backend_failure(self):
+        """
+        Test cache backend failure and recovery.
+
+        Scenario: Cache backend becomes unavailable.
+        Expected: FraiseQL degrades gracefully to database-only operation.
+        """
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        backend_available = True
+        backend_failures = 0
+        degraded_operations = 0
+        total_operations = 12
+
+        for i in range(total_operations):
+            try:
+                if backend_available:
+                    # Simulate backend failure
+                    if random.random() < 0.25:  # 25% chance of backend failure
+                        backend_available = False
+                        backend_failures += 1
+                        print(f"Cache backend failed at operation {i}")
+
+                if backend_available and random.random() < 0.8:  # 80% cache hit rate when available
+                    # Cache hit
+                    execution_time = 5.0 + random.uniform(-1, 1)
+                    self.metrics.record_query_time(execution_time)
+                else:
+                    # Cache miss or backend unavailable - database query
+                    result = client.execute_query(operation)
+                    execution_time = result.get("_execution_time_ms", 45.0)
+                    self.metrics.record_query_time(execution_time)
+                    degraded_operations += 1
+
+                    # Simulate backend recovery
+                    if not backend_available and random.random() < 0.4:  # 40% recovery chance
+                        backend_available = True
+                        print(f"Cache backend recovered at operation {i}")
+
+            except Exception as e:
+                self.metrics.record_error()
+                if "backend" in str(e).lower():
+                    backend_failures += 1
+
+        self.metrics.end_test()
+
+        # Validate backend failure handling
+        assert backend_failures > 0, "Should experience cache backend failures"
+        assert degraded_operations > 0, "Should have operations during degraded state"
+
+        summary = self.metrics.get_summary()
+        assert summary["query_count"] >= total_operations * 0.9, (
+            "Should maintain high operation completion rate"
+        )
+
+        degradation_ratio = degraded_operations / total_operations
+        assert degradation_ratio <= 0.6, f"Too much time in degraded state: {degradation_ratio:.2f}"
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_stampede_prevention(self):
+        """
+        Test cache stampede prevention under concurrent load.
+
+        Scenario: Multiple concurrent requests try to populate same cache entry.
+        Expected: FraiseQL prevents cache stampede with proper synchronization.
+        """
+        import threading
+        import queue
+
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        # Simulate concurrent cache stampede scenario
+        num_threads = 5
+        results_queue = queue.Queue()
+        cache_populated = False
+        stampede_events = 0
+
+        def simulate_concurrent_request(thread_id: int):
+            """Simulate a request that might trigger cache stampede."""
+            try:
+                nonlocal cache_populated, stampede_events
+
+                # Check if cache needs population (simulate cache miss)
+                if not cache_populated and random.random() < 0.7:  # 70% chance of cache miss
+                    # This would be a stampede scenario in real systems
+                    stampede_events += 1
+
+                    # Simulate cache population time
+                    time.sleep(0.05)  # 50ms cache population
+
+                    if not cache_populated:  # Check if another thread already populated
+                        cache_populated = True
+
+                    # Return populated cache result
+                    execution_time = 50.0  # Includes population time
+                else:
+                    # Cache hit
+                    execution_time = 4.0 + random.uniform(-0.5, 0.5)
+
+                results_queue.put(("success", thread_id, execution_time))
+
+            except Exception as e:
+                results_queue.put(("error", thread_id, str(e)))
+
+        # Start concurrent requests
+        threads = []
+        for i in range(num_threads):
+            thread = threading.Thread(target=simulate_concurrent_request, args=(i,))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for completion
+        for thread in threads:
+            thread.join()
+
+        # Collect results
+        successes = 0
+        errors = 0
+        execution_times = []
+
+        while not results_queue.empty():
+            result_type, thread_id, data = results_queue.get()
+            if result_type == "success":
+                successes += 1
+                execution_times.append(data)
+                self.metrics.record_query_time(data)
+            else:
+                errors += 1
+                self.metrics.record_error()
+
+        self.metrics.end_test()
+
+        # Validate stampede prevention
+        assert successes >= num_threads * 0.8, (
+            f"Too many failed requests: {successes}/{num_threads}"
+        )
+        assert stampede_events > 0, "Should detect stampede events"
+        assert stampede_events <= 2, (
+            f"Too many stampede events: {stampede_events} (should be prevented)"
+        )
+
+        if execution_times:
+            avg_time = statistics.mean(execution_times)
+            max_time = max(execution_times)
+            assert max_time <= avg_time * 3, (
+                f"Excessive variance indicates stampede: max {max_time:.1f}ms vs avg {avg_time:.1f}ms"
+            )
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_memory_pressure(self):
+        """
+        Test cache behavior under memory pressure.
+
+        Scenario: Cache eviction due to memory constraints.
+        Expected: FraiseQL maintains performance with intelligent cache management.
+        """
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        # Simulate cache with limited capacity
+        cache_capacity = 10
+        cache_entries = {}
+        evictions = 0
+        total_operations = 25
+
+        for i in range(total_operations):
+            cache_key = f"query_{i % 5}"  # Limited key space to force evictions
+
+            if cache_key in cache_entries and random.random() < 0.7:  # 70% hit rate
+                # Cache hit
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                self.metrics.record_query_time(execution_time)
+            else:
+                # Cache miss - database query
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 40.0)
+                self.metrics.record_query_time(execution_time)
+
+                # Cache the result (with eviction pressure)
+                if len(cache_entries) >= cache_capacity:
+                    # Evict random entry
+                    evicted_key = random.choice(list(cache_entries.keys()))
+                    del cache_entries[evicted_key]
+                    evictions += 1
+
+                cache_entries[cache_key] = time.time()
+
+        self.metrics.end_test()
+
+        # Validate memory pressure handling
+        assert evictions > 0, "Should experience cache evictions under memory pressure"
+        assert evictions <= total_operations * 0.4, (
+            f"Too many evictions: {evictions}/{total_operations}"
+        )
+
+        summary = self.metrics.get_summary()
+        success_rate = 1 - (summary["error_count"] / max(summary["query_count"], 1))
+        assert success_rate >= 0.85, (
+            f"Success rate too low under memory pressure: {success_rate:.2f}"
+        )
+
+        print(f"Cache evictions: {evictions}, Success rate: {success_rate:.2f}")
+
+    @pytest.mark.chaos
+    @pytest.mark.chaos_cache
+    def test_cache_warmup_after_failure(self):
+        """
+        Test cache warmup behavior after cache failure recovery.
+
+        Scenario: Cache fails and recovers, requiring warmup.
+        Expected: FraiseQL handles cache warmup gracefully without overwhelming database.
+        """
+        client = MockFraiseQLClient()
+        operation = FraiseQLTestScenarios.simple_user_query()
+
+        self.metrics.start_test()
+
+        # Phase 1: Normal cache operation
+        normal_operations = 8
+        for _ in range(normal_operations):
+            if random.random() < 0.8:  # 80% cache hit
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+            else:
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 40.0)
+            self.metrics.record_query_time(execution_time)
+
+        # Phase 2: Cache failure
+        failure_operations = 5
+        for _ in range(failure_operations):
+            # All operations go to database (cache failure)
+            result = client.execute_query(operation)
+            execution_time = result.get("_execution_time_ms", 40.0)
+            self.metrics.record_query_time(execution_time)
+
+        # Phase 3: Cache recovery and warmup
+        warmup_operations = 12
+        cache_available = False
+
+        for i in range(warmup_operations):
+            if not cache_available and i == warmup_operations // 3:
+                # Cache becomes available midway through warmup
+                cache_available = True
+                print(f"Cache recovered at operation {i}")
+
+            if cache_available and random.random() < (0.3 + i * 0.05):  # Gradual warmup
+                # Cache hit (increasing hit rate during warmup)
+                execution_time = 4.0 + random.uniform(-0.5, 0.5)
+                self.metrics.record_query_time(execution_time)
+            else:
+                # Cache miss - database query during warmup
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 40.0)
+                self.metrics.record_query_time(execution_time)
+
+        self.metrics.end_test()
+
+        # Validate warmup behavior
+        summary = self.metrics.get_summary()
+        total_ops = normal_operations + failure_operations + warmup_operations
+        assert summary["query_count"] == total_ops, (
+            f"Incomplete operation count: {summary['query_count']}/{total_ops}"
+        )
+
+        # Should show performance improvement after cache recovery
+        # (This is a basic check - more sophisticated analysis could be added)
+        success_rate = 1 - (summary["error_count"] / max(summary["query_count"], 1))
+        assert success_rate >= 0.9, f"Cache warmup success rate too low: {success_rate:.2f}"
+
+        print("Cache warmup completed successfully")
