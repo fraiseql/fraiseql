@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: clippy
         name: Clippy Check
-        entry: cargo clippy --lib -- -D warnings
+        entry: bash -c 'cargo update --quiet && cargo clippy --lib -- -D warnings'
         language: system
         files: \.rs$
         pass_filenames: false
