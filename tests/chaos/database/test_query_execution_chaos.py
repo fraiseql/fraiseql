@@ -19,8 +19,7 @@ class TestQueryExecutionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    @pytest.mark.parametrize("timeout_duration", [5000, 15000, 30000])  # 5s, 15s, 30s
-    def test_slow_query_timeout_handling(self, timeout_duration: int):
+    def test_slow_query_timeout_handling(self):
         """
         Test handling of slow queries that exceed timeout limits.
 
@@ -34,34 +33,37 @@ class TestQueryExecutionChaos(ChaosTestCase):
         self.metrics.start_test()
 
         # Test with different timeout thresholds
-        timeout_seconds = timeout_duration / 1000.0
+        timeout_durations = [5000, 15000, 30000]  # 5s, 15s, 30s
 
-        # Inject artificial slowness to simulate slow queries
-        client.inject_latency(timeout_duration // 2)  # Half the timeout duration
+        for timeout_duration in timeout_durations:
+            timeout_seconds = timeout_duration / 1000.0
 
-        try:
-            result = client.execute_query(operation, timeout=timeout_seconds)
-            execution_time = result.get("_execution_time_ms", 0)
+            # Inject artificial slowness to simulate slow queries
+            client.inject_latency(timeout_duration // 2)  # Half the timeout duration
 
-            if execution_time > timeout_duration:
-                # Query should have timed out
+            try:
+                result = client.execute_query(operation, timeout=timeout_seconds)
+                execution_time = result.get("_execution_time_ms", 0)
+
+                if execution_time > timeout_duration:
+                    # Query should have timed out
+                    self.metrics.record_error()
+                    assert False, (
+                        f"Query should have timed out: {execution_time:.1f}ms > {timeout_duration}ms"
+                    )
+                else:
+                    # Query completed within timeout
+                    self.metrics.record_query_time(execution_time)
+
+            except TimeoutError:
+                # Expected timeout behavior
                 self.metrics.record_error()
-                assert False, (
-                    f"Query should have timed out: {execution_time:.1f}ms > {timeout_duration}ms"
-                )
-            else:
-                # Query completed within timeout
-                self.metrics.record_query_time(execution_time)
+                assert True, f"Proper timeout handling for {timeout_duration}ms limit"
 
-        except TimeoutError:
-            # Expected timeout behavior
-            self.metrics.record_error()
-            assert True, f"Proper timeout handling for {timeout_duration}ms limit"
-
-        except Exception as e:
-            # Other errors should be handled gracefully
-            self.metrics.record_error()
-            assert False, f"Unexpected error: {e}"
+            except Exception as e:
+                # Other errors should be handled gracefully
+                self.metrics.record_error()
+                assert False, f"Unexpected error: {e}"
 
         self.metrics.end_test()
 

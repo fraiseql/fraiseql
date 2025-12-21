@@ -20,120 +20,121 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    @pytest.mark.parametrize("loss_percentage", [0.01, 0.05, 0.10])  # 1%, 5%, 10%
-    def test_packet_loss_recovery(self, toxiproxy: ToxiproxyManager, loss_percentage: float):
+    def test_packet_loss_recovery(self, toxiproxy: ToxiproxyManager):
         """
         Test recovery from packet loss at different severity levels.
 
         Scenario: Network drops packets at specified rate.
         Expected: FraiseQL handles packet loss with retries and timeouts.
         """
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        for loss_percentage in [0.01, 0.05, 0.1]:
+            proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
-        # Create FraiseQL client for testing
-        client = MockFraiseQLClient()
-        operation = FraiseQLTestScenarios.simple_user_query()
+            # Create FraiseQL client for testing
+            client = MockFraiseQLClient()
+            operation = FraiseQLTestScenarios.simple_user_query()
 
-        self.metrics.start_test()
+            self.metrics.start_test()
 
-        # Baseline: No packet loss
-        baseline_successes = 0
-        baseline_times = []
+            # Baseline: No packet loss
+            baseline_successes = 0
+            baseline_times = []
 
-        for _ in range(10):
-            result = client.execute_query(operation)
-            execution_time = result.get("_execution_time_ms", 10.0)
-            baseline_times.append(execution_time)
-            self.metrics.record_query_time(execution_time)
-            baseline_successes += 1
+            for _ in range(10):
+                result = client.execute_query(operation)
+                execution_time = result.get("_execution_time_ms", 10.0)
+                baseline_times.append(execution_time)
+                self.metrics.record_query_time(execution_time)
+                baseline_successes += 1
 
-        avg_baseline = statistics.mean(baseline_times)
+            avg_baseline = statistics.mean(baseline_times)
 
-        # Inject packet loss
-        toxiproxy.add_packet_loss_toxic("fraiseql_postgres", loss_percentage)
+            # Inject packet loss
+            toxiproxy.add_packet_loss_toxic("fraiseql_postgres", loss_percentage)
 
-        # Test under packet loss
-        chaos_successes = 0
-        chaos_failures = 0
-        chaos_times = []
-        retry_count = 0
+            # Test under packet loss
+            chaos_successes = 0
+            chaos_failures = 0
+            chaos_times = []
+            retry_count = 0
 
-        for _ in range(20):  # More samples for statistical significance
-            start = time.time()
-            try:
-                # Simulate operation that may fail due to packet loss
-                if random.random() < loss_percentage:
-                    # Packet loss - operation fails
-                    raise ConnectionError("Packet loss")
+            for _ in range(20):  # More samples for statistical significance
+                start = time.time()
+                try:
+                    # Simulate operation that may fail due to packet loss
+                    if random.random() < loss_percentage:
+                        # Packet loss - operation fails
+                        raise ConnectionError("Packet loss")
 
+                    time.sleep(0.010)
+                    chaos_times.append((time.time() - start) * 1000)
+                    chaos_successes += 1
+
+                except ConnectionError:
+                    chaos_failures += 1
+                    self.metrics.record_error()
+
+                    # Simulate retry logic
+                    retry_count += 1
+                    if random.random() < 0.7:  # 70% retry success rate
+                        time.sleep(0.050)  # Retry delay
+                        try:
+                            time.sleep(0.010)
+                            chaos_times.append((time.time() - start) * 1000)
+                            chaos_successes += 1
+                            retry_count -= 1  # Successful retry
+                        except:
+                            pass  # Retry failed
+
+            self.metrics.record_query_time(statistics.mean(chaos_times) if chaos_times else 1000.0)
+
+            # Remove chaos
+            toxiproxy.remove_all_toxics("fraiseql_postgres")
+
+            # Test recovery
+            recovery_successes = 0
+            recovery_times = []
+
+            for _ in range(10):
+                start = time.time()
                 time.sleep(0.010)
-                chaos_times.append((time.time() - start) * 1000)
-                chaos_successes += 1
+                recovery_times.append((time.time() - start) * 1000)
+                recovery_successes += 1
 
-            except ConnectionError:
-                chaos_failures += 1
-                self.metrics.record_error()
+            avg_recovery = statistics.mean(recovery_times)
 
-                # Simulate retry logic
-                retry_count += 1
-                if random.random() < 0.7:  # 70% retry success rate
-                    time.sleep(0.050)  # Retry delay
-                    try:
-                        time.sleep(0.010)
-                        chaos_times.append((time.time() - start) * 1000)
-                        chaos_successes += 1
-                        retry_count -= 1  # Successful retry
-                    except:
-                        pass  # Retry failed
+            self.metrics.end_test()
 
-        self.metrics.record_query_time(statistics.mean(chaos_times) if chaos_times else 1000.0)
+            # Validate packet loss behavior
+            expected_failures = int(20 * loss_percentage * 0.3)  # Account for retries
+            assert chaos_failures >= expected_failures, (
+                f"Expected ~{expected_failures} failures at {loss_percentage * 100}% loss, got {chaos_failures}"
+            )
 
-        # Remove chaos
-        toxiproxy.remove_all_toxics("fraiseql_postgres")
+            success_rate = chaos_successes / 20.0
+            min_success_rate = 1.0 - (loss_percentage * 2)  # Allow for retry effectiveness
+            assert success_rate >= min_success_rate, (
+                f"Success rate {success_rate:.2f} too low for {loss_percentage * 100}% loss"
+            )
 
-        # Test recovery
-        recovery_successes = 0
-        recovery_times = []
+            # Recovery should be near baseline
+            assert abs(avg_recovery - avg_baseline) < 5.0, (
+                f"Recovery time {avg_recovery:.1f}ms vs baseline {avg_baseline:.1f}ms"
+            )
 
-        for _ in range(10):
-            start = time.time()
-            time.sleep(0.010)
-            recovery_times.append((time.time() - start) * 1000)
-            recovery_successes += 1
-
-        avg_recovery = statistics.mean(recovery_times)
-
-        self.metrics.end_test()
-
-        # Validate packet loss behavior
-        expected_failures = int(20 * loss_percentage * 0.3)  # Account for retries
-        assert chaos_failures >= expected_failures, (
-            f"Expected ~{expected_failures} failures at {loss_percentage * 100}% loss, got {chaos_failures}"
-        )
-
-        success_rate = chaos_successes / 20.0
-        min_success_rate = 1.0 - (loss_percentage * 2)  # Allow for retry effectiveness
-        assert success_rate >= min_success_rate, (
-            f"Success rate {success_rate:.2f} too low for {loss_percentage * 100}% loss"
-        )
-
-        # Recovery should be near baseline
-        assert abs(avg_recovery - avg_baseline) < 5.0, (
-            f"Recovery time {avg_recovery:.1f}ms vs baseline {avg_baseline:.1f}ms"
-        )
-
-        print(".1f")
-        toxiproxy.delete_proxy("fraiseql_postgres")
+            print(".1f")
+            toxiproxy.delete_proxy("fraiseql_postgres")
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_packet_corruption_handling(self, toxiproxy: ToxiproxyManager):
+    def test_packet_corruption_handling(self):
         """
         Test handling of corrupted packets.
 
         Scenario: Network delivers corrupted data.
         Expected: FraiseQL detects corruption and handles appropriately.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
@@ -177,13 +178,14 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_out_of_order_delivery(self, toxiproxy: ToxiproxyManager):
+    def test_out_of_order_delivery(self):
         """
         Test handling of out-of-order packet delivery.
 
         Scenario: Network delivers packets in wrong order.
         Expected: FraiseQL handles reordering gracefully (TCP handles this).
         """
+        toxiproxy = ToxiproxyManager()
         # Note: Out-of-order delivery is primarily handled by TCP
         # This test simulates application-level reordering effects
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
@@ -220,13 +222,14 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_duplicate_packet_handling(self, toxiproxy: ToxiproxyManager):
+    def test_duplicate_packet_handling(self):
         """
         Test handling of duplicate packet delivery.
 
         Scenario: Network delivers duplicate packets.
         Expected: FraiseQL handles duplicates gracefully (TCP handles this).
         """
+        toxiproxy = ToxiproxyManager()
         # Note: Duplicate packets are primarily handled by TCP
         # This test simulates application-level duplicate handling
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
@@ -263,63 +266,64 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    @pytest.mark.parametrize("packet_loss_rate", [0.02, 0.08, 0.15])
-    def test_adaptive_retry_under_packet_loss(self, packet_loss_rate: float):
+    def test_adaptive_retry_under_packet_loss(self):
         """
         Test adaptive retry strategies under packet loss.
 
         Scenario: System adapts retry count based on packet loss conditions.
         Expected: FraiseQL implements intelligent retry logic.
         """
-        self.metrics.start_test()
+        for packet_loss_rate in [0.02, 0.08, 0.15]:
+            self.metrics.start_test()
 
-        # Simulate adaptive retry behavior
-        operations = 12
-        successful_operations = 0
-        total_retries = 0
+            # Simulate adaptive retry behavior
+            operations = 12
+            successful_operations = 0
+            total_retries = 0
 
-        for _ in range(operations):
-            retries = 0
-            success = False
+            for _ in range(operations):
+                retries = 0
+                success = False
 
-            while retries < 5 and not success:  # Max 5 retries
-                if random.random() >= packet_loss_rate:
-                    success = True
-                    successful_operations += 1
-                else:
-                    retries += 1
-                    total_retries += 1
-                    # Exponential backoff
-                    time.sleep(0.001 * (2**retries))
+                while retries < 5 and not success:  # Max 5 retries
+                    if random.random() >= packet_loss_rate:
+                        success = True
+                        successful_operations += 1
+                    else:
+                        retries += 1
+                        total_retries += 1
+                        # Exponential backoff
+                        time.sleep(0.001 * (2**retries))
 
-                self.metrics.record_query_time(10.0 * (retries + 1))
+                    self.metrics.record_query_time(10.0 * (retries + 1))
 
-        success_rate = successful_operations / operations
-        avg_retries_per_operation = total_retries / operations
+            success_rate = successful_operations / operations
+            avg_retries_per_operation = total_retries / operations
 
-        # Validate adaptive behavior
-        expected_success_rate = 1.0 - (packet_loss_rate**2)  # With retries
-        assert success_rate >= expected_success_rate * 0.8, (
-            f"Success rate {success_rate:.2f} too low for {packet_loss_rate * 100}% loss"
-        )
+            # Validate adaptive behavior
+            expected_success_rate = 1.0 - (packet_loss_rate**2)  # With retries
+            assert success_rate >= expected_success_rate * 0.8, (
+                f"Success rate {success_rate:.2f} too low for {packet_loss_rate * 100}% loss"
+            )
 
-        # Should use more retries under higher loss
-        expected_avg_retries = packet_loss_rate * 3  # Rough estimate
-        assert avg_retries_per_operation >= expected_avg_retries * 0.5, (
-            f"Too few retries: {avg_retries_per_operation:.1f} < {expected_avg_retries}"
-        )
+            # Should use more retries under higher loss
+            expected_avg_retries = packet_loss_rate * 3  # Rough estimate
+            assert avg_retries_per_operation >= expected_avg_retries * 0.5, (
+                f"Too few retries: {avg_retries_per_operation:.1f} < {expected_avg_retries}"
+            )
 
-        self.metrics.end_test()
+            self.metrics.end_test()
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_network_recovery_after_corruption(self, toxiproxy: ToxiproxyManager):
+    def test_network_recovery_after_corruption(self):
         """
         Test network recovery after corruption chaos.
 
         Scenario: Heavy packet corruption followed by network recovery.
         Expected: FraiseQL recovers quickly when network improves.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()

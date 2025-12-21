@@ -1,0 +1,14 @@
+{
+  "test_class": "TestConcurrencyChaos",
+  "timestamp": 1766317303.808667,
+  "metrics": {
+    "duration_ms": 75.01530647277832,
+    "query_count": 8,
+    "avg_query_time_ms": 10.78343391418457,
+    "p95_query_time_ms": null,
+    "error_count": 0,
+    "retry_count": 0,
+    "chaos_active_duration_ms": null
+  },
+  "chaos_active": false
+}

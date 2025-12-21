@@ -19,13 +19,14 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_connection_refused_recovery(self, toxiproxy: ToxiproxyManager):
+    def test_connection_refused_recovery(self):
         """
         Test recovery from database connection refused errors.
 
         Scenario: Database proxy rejects connections, then recovers.
         Expected: FraiseQL handles connection failures gracefully.
         """
+        toxiproxy = ToxiproxyManager()
         # Setup PostgreSQL proxy
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
@@ -98,13 +99,14 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_pool_exhaustion_recovery(self, toxiproxy: ToxiproxyManager):
+    def test_pool_exhaustion_recovery(self):
         """
         Test recovery from database connection pool exhaustion.
 
         Scenario: All database connections become slow/unavailable, then recover.
         Expected: FraiseQL handles pool exhaustion gracefully with queuing/recovery.
         """
+        toxiproxy = ToxiproxyManager()
         # Setup proxy
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
@@ -177,13 +179,14 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    def test_slow_connection_establishment(self, toxiproxy: ToxiproxyManager):
+    def test_slow_connection_establishment(self):
         """
         Test handling of slow database connection establishment.
 
         Scenario: Database connections take progressively longer to establish.
         Expected: FraiseQL adapts to slow connection times.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
@@ -236,57 +239,57 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_database
-    @pytest.mark.parametrize("drop_after_ms", [100, 500, 1000])
-    def test_mid_query_connection_drop(self, toxiproxy: ToxiproxyManager, drop_after_ms: int):
+    def test_mid_query_connection_drop(self, toxiproxy: ToxiproxyManager):
         """
         Test recovery from mid-query connection drops.
 
         Scenario: Connection drops partway through a query execution.
         Expected: FraiseQL handles partial query failures gracefully.
         """
-        proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
+        for drop_after_ms in [100, 500, 1000]:
+            proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
-        self.metrics.start_test()
+            self.metrics.start_test()
 
-        # Baseline successful queries
-        successful_queries = 0
-        for _ in range(5):
-            start = time.time()
-            time.sleep(0.020)  # 20ms query
-            successful_queries += 1
-            self.metrics.record_query_time((time.time() - start) * 1000)
+            # Baseline successful queries
+            successful_queries = 0
+            for _ in range(5):
+                start = time.time()
+                time.sleep(0.020)  # 20ms query
+                successful_queries += 1
+                self.metrics.record_query_time((time.time() - start) * 1000)
 
-        # Inject chaos: Connection drops after specified time
-        # This simulates network interruption mid-query
-        chaos_queries = 0
-        interrupted_queries = 0
+            # Inject chaos: Connection drops after specified time
+            # This simulates network interruption mid-query
+            chaos_queries = 0
+            interrupted_queries = 0
 
-        for _ in range(5):
-            start = time.time()
-            try:
-                # Simulate query that gets interrupted
-                time.sleep(drop_after_ms / 1000.0)
-                # At this point, connection would drop in real scenario
-                # We simulate this by raising an exception
-                if drop_after_ms < 500:  # Early drops cause failures
-                    raise ConnectionError("Connection dropped mid-query")
-                else:
-                    time.sleep(0.010)  # Complete the query
-                    chaos_queries += 1
-            except ConnectionError:
-                interrupted_queries += 1
-                self.metrics.record_error()
-                # Simulate retry delay
-                time.sleep(0.2)
+            for _ in range(5):
+                start = time.time()
+                try:
+                    # Simulate query that gets interrupted
+                    time.sleep(drop_after_ms / 1000.0)
+                    # At this point, connection would drop in real scenario
+                    # We simulate this by raising an exception
+                    if drop_after_ms < 500:  # Early drops cause failures
+                        raise ConnectionError("Connection dropped mid-query")
+                    else:
+                        time.sleep(0.010)  # Complete the query
+                        chaos_queries += 1
+                except ConnectionError:
+                    interrupted_queries += 1
+                    self.metrics.record_error()
+                    # Simulate retry delay
+                    time.sleep(0.2)
 
-        self.metrics.end_test()
+            self.metrics.end_test()
 
-        # Validate mid-query failure handling
-        assert interrupted_queries > 0, (
-            f"Should have interrupted queries with {drop_after_ms}ms drop time"
-        )
-        assert chaos_queries >= successful_queries * 0.6, (
-            "Should maintain reasonable success rate under chaos"
-        )
+            # Validate mid-query failure handling
+            assert interrupted_queries > 0, (
+                f"Should have interrupted queries with {drop_after_ms}ms drop time"
+            )
+            assert chaos_queries >= successful_queries * 0.6, (
+                "Should maintain reasonable success rate under chaos"
+            )
 
-        toxiproxy.delete_proxy("fraiseql_postgres")
+            toxiproxy.delete_proxy("fraiseql_postgres")

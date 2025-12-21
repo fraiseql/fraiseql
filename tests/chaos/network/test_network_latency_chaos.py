@@ -19,13 +19,14 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_gradual_latency_increase(self, toxiproxy: ToxiproxyManager):
+    def test_gradual_latency_increase(self):
         """
         Test gradual network latency increase.
 
         Scenario: Network latency increases progressively from 0ms to 2000ms.
         Expected: FraiseQL adapts gracefully to increasing latency.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         # Create FraiseQL client for testing
@@ -71,13 +72,14 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_consistent_high_latency(self, toxiproxy: ToxiproxyManager):
+    def test_consistent_high_latency(self):
         """
         Test consistent high network latency.
 
         Scenario: Stable 500ms network latency for extended period.
         Expected: FraiseQL maintains functionality under consistent latency.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
@@ -115,13 +117,14 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_jittery_latency(self, toxiproxy: ToxiproxyManager):
+    def test_jittery_latency(self):
         """
         Test jittery (variable) network latency.
 
         Scenario: Base 200ms latency with ±100ms jitter.
         Expected: FraiseQL handles variable network conditions.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
@@ -157,13 +160,14 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_asymmetric_latency(self, toxiproxy: ToxiproxyManager):
+    def test_asymmetric_latency(self):
         """
         Test asymmetric network latency (different up/down streams).
 
         Scenario: Fast requests, slow responses (simulated asymmetric routing).
         Expected: FraiseQL handles asymmetric network conditions.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
@@ -232,13 +236,14 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
     @pytest.mark.chaos
     @pytest.mark.chaos_network
-    def test_latency_recovery_time(self, toxiproxy: ToxiproxyManager):
+    def test_latency_recovery_time(self):
         """
         Test recovery time after latency chaos injection is removed.
 
         Scenario: High latency followed by immediate recovery.
         Expected: Performance returns to baseline within acceptable time.
         """
+        toxiproxy = ToxiproxyManager()
         proxy = toxiproxy.create_proxy("fraiseql_postgres", "0.0.0.0:5433", "postgres:5432")
 
         self.metrics.start_test()
