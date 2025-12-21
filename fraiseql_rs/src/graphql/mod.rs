@@ -1,7 +1,10 @@
-//! GraphQL parsing module.
+//! GraphQL parsing and advanced features module.
 
+pub mod complexity;
+pub mod fragments;
 pub mod parser;
 pub mod types;
+pub mod variables;
 
 use crate::graphql::parser::parse_query;
 use crate::graphql::types::ParsedQuery;

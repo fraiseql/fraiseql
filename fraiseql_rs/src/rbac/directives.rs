@@ -4,7 +4,7 @@ use super::{
     errors::{RbacError, Result as RbacResult},
     field_auth::FieldPermissions,
 };
-use crate::graphql::types::{FieldSelection, ParsedQuery};
+use crate::graphql::types::{Directive, FieldSelection, ParsedQuery};
 
 /// Extract RBAC directives from parsed query
 pub struct DirectiveExtractor;
@@ -48,37 +48,107 @@ impl DirectiveExtractor {
     }
 
     /// Parse directives into FieldPermissions
-    fn extract_directives(directives: &[String]) -> RbacResult<FieldPermissions> {
+    fn extract_directives(directives: &[Directive]) -> RbacResult<FieldPermissions> {
         let mut permissions = FieldPermissions::default();
 
-        // Note: Current FieldSelection.directives only contains names.
-        // This is a simplified implementation. Full implementation would need
-        // to extend the GraphQL parser to capture directive arguments.
-
-        // For Phase 11, we'll implement a basic version that assumes
-        // directives are applied at schema level, not query level.
-        // Phase 12 will add full directive parsing with arguments.
-
         for directive in directives {
-            match directive.as_str() {
+            match directive.name.as_str() {
                 "requiresRole" => {
-                    // TODO: Parse role argument from directive
-                    // For now, this is a placeholder for schema-level directives
-                    // In full implementation: @requiresRole(role: "admin")
-                    return Err(RbacError::DirectiveError(
-                        "requiresRole directive parsing not implemented yet".to_string(),
-                    ));
+                    // Parse role argument: @requiresRole(role: "admin")
+                    if let Some(role_arg) = directive.arguments.iter().find(|arg| arg.name == "role") {
+                        // Extract the role value from the JSON string
+                        let role_value = serde_json::from_str::<serde_json::Value>(&role_arg.value_json)
+                            .map_err(|_| RbacError::DirectiveError(
+                                "Invalid role argument format".to_string(),
+                            ))?;
+
+                        if let Some(role_str) = role_value.as_str() {
+                            permissions.required_roles.push(role_str.to_string());
+                        } else {
+                            return Err(RbacError::DirectiveError(
+                                "Role argument must be a string".to_string(),
+                            ));
+                        }
+                    } else {
+                        return Err(RbacError::DirectiveError(
+                            "@requiresRole directive must have a 'role' argument".to_string(),
+                        ));
+                    }
                 }
                 "requiresPermission" => {
-                    // TODO: Parse permission argument from directive
-                    // For now, this is a placeholder for schema-level directives
-                    // In full implementation: @requiresPermission(permission: "user:read")
-                    return Err(RbacError::DirectiveError(
-                        "requiresPermission directive parsing not implemented yet".to_string(),
-                    ));
+                    // Parse permission argument: @requiresPermission(permission: "user:read")
+                    if let Some(perm_arg) = directive.arguments.iter().find(|arg| arg.name == "permission") {
+                        // Extract the permission value from the JSON string
+                        let perm_value = serde_json::from_str::<serde_json::Value>(&perm_arg.value_json)
+                            .map_err(|_| RbacError::DirectiveError(
+                                "Invalid permission argument format".to_string(),
+                            ))?;
+
+                        if let Some(perm_str) = perm_value.as_str() {
+                            permissions.required_permissions.push(perm_str.to_string());
+                        } else {
+                            return Err(RbacError::DirectiveError(
+                                "Permission argument must be a string".to_string(),
+                            ));
+                        }
+                    } else {
+                        return Err(RbacError::DirectiveError(
+                            "@requiresPermission directive must have a 'permission' argument".to_string(),
+                        ));
+                    }
+                }
+                "requiresAllRoles" => {
+                    // Parse multiple roles: @requiresAllRoles(roles: ["admin", "moderator"])
+                    if let Some(roles_arg) = directive.arguments.iter().find(|arg| arg.name == "roles") {
+                        let roles_value = serde_json::from_str::<serde_json::Value>(&roles_arg.value_json)
+                            .map_err(|_| RbacError::DirectiveError(
+                                "Invalid roles argument format".to_string(),
+                            ))?;
+
+                        if let Some(roles_array) = roles_value.as_array() {
+                            for role_value in roles_array {
+                                if let Some(role_str) = role_value.as_str() {
+                                    permissions.required_roles.push(role_str.to_string());
+                                }
+                            }
+                        } else {
+                            return Err(RbacError::DirectiveError(
+                                "Roles argument must be an array of strings".to_string(),
+                            ));
+                        }
+                    } else {
+                        return Err(RbacError::DirectiveError(
+                            "@requiresAllRoles directive must have a 'roles' argument".to_string(),
+                        ));
+                    }
+                }
+                "requiresAnyPermission" => {
+                    // Parse multiple permissions: @requiresAnyPermission(permissions: ["user:read", "user:write"])
+                    if let Some(perms_arg) = directive.arguments.iter().find(|arg| arg.name == "permissions") {
+                        let perms_value = serde_json::from_str::<serde_json::Value>(&perms_arg.value_json)
+                            .map_err(|_| RbacError::DirectiveError(
+                                "Invalid permissions argument format".to_string(),
+                            ))?;
+
+                        if let Some(perms_array) = perms_value.as_array() {
+                            for perm_value in perms_array {
+                                if let Some(perm_str) = perm_value.as_str() {
+                                    permissions.required_permissions.push(perm_str.to_string());
+                                }
+                            }
+                        } else {
+                            return Err(RbacError::DirectiveError(
+                                "Permissions argument must be an array of strings".to_string(),
+                            ));
+                        }
+                    } else {
+                        return Err(RbacError::DirectiveError(
+                            "@requiresAnyPermission directive must have a 'permissions' argument".to_string(),
+                        ));
+                    }
                 }
                 _ => {
-                    // Ignore other directives (like @include, @skip)
+                    // Ignore other directives (like @include, @skip, @deprecated)
                 }
             }
         }

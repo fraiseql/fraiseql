@@ -117,15 +117,13 @@ sha2 = "0.10"               # Hashing for signatures
 
 # Authentication (Phase 10)
 jsonwebtoken = "9.2"        # JWT validation with built-in JWK support
-reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
-# pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }  # Python async bindings (requires pyo3 0.20, conflicts with 0.25)
-tokio = { version = "1.35", features = ["full"] }  # Async runtime
 
-# Security dependencies (Phase 12)
+# Security features (Phase 12)
 rand = "0.8"                # Random number generation for CSRF
 hex = "0.4"                 # Hex encoding for tokens
-http = "0.2"                # HTTP types for CORS headers
-# serde_json already included above for JSON parsing
+http = "0.2"                # HTTP header types for CORS
+reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
+tokio = { version = "1.35", features = ["full"] }  # Async runtime
 # sha2 already included above for signatures
 
 [dev-dependencies]

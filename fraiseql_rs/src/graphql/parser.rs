@@ -2,7 +2,7 @@
 
 use crate::graphql::types::*;
 use anyhow::{anyhow, Result};
-use graphql_parser::query::{self, Document, OperationDefinition, Selection};
+use graphql_parser::query::{self, Definition, Directive as GraphQLDirective, Document, FragmentDefinition, OperationDefinition, Selection, Type};
 
 /// Parse GraphQL query string into Rust AST.
 pub fn parse_query(source: &str) -> Result<ParsedQuery> {
@@ -24,14 +24,69 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
     let (operation_type, operation_name, root_field, selections, variables) =
         extract_operation(operation)?;
 
+    // Extract fragment definitions
+    let fragments = extract_fragments(&doc)?;
+
     Ok(ParsedQuery {
         operation_type,
         operation_name,
         root_field,
         selections,
         variables,
+        fragments,
         source: source.to_string(),
     })
+}
+
+/// Extract fragment definitions from GraphQL document.
+fn extract_fragments(doc: &Document<String>) -> Result<Vec<crate::graphql::types::FragmentDefinition>> {
+    let mut fragments = Vec::new();
+
+    for def in &doc.definitions {
+        if let Definition::Fragment(fragment) = def {
+            let selections = parse_selection_set(&fragment.selection_set)?;
+
+            // Extract fragment spreads from selections
+            let fragment_spreads = extract_fragment_spreads(&fragment.selection_set);
+
+            // Convert type condition to string
+            let type_condition = match &fragment.type_condition {
+                query::TypeCondition::On(type_name) => type_name.clone(),
+            };
+
+            fragments.push(crate::graphql::types::FragmentDefinition {
+                name: fragment.name.clone(),
+                type_condition,
+                selections,
+                fragment_spreads,
+            });
+        }
+    }
+
+    Ok(fragments)
+}
+
+/// Extract fragment spreads from a selection set.
+fn extract_fragment_spreads(selection_set: &query::SelectionSet<String>) -> Vec<String> {
+    let mut spreads = Vec::new();
+
+    for selection in &selection_set.items {
+        match selection {
+            Selection::FragmentSpread(spread) => {
+                spreads.push(spread.fragment_name.clone());
+            }
+            Selection::InlineFragment(inline) => {
+                // Inline fragments can also contain spreads
+                spreads.extend(extract_fragment_spreads(&inline.selection_set));
+            }
+            Selection::Field(field) => {
+                // Fields can have nested selections with spreads
+                spreads.extend(extract_fragment_spreads(&field.selection_set));
+            }
+        }
+    }
+
+    spreads
 }
 
 /// Extract operation details from GraphQL operation definition.
@@ -76,7 +131,7 @@ fn extract_operation(
         .map(|var_def| {
             VariableDefinition {
                 name: var_def.name.clone(),
-                var_type: format!("{}", var_def.var_type), // GraphQL type string
+                var_type: parse_graphql_type(&var_def.var_type),
                 default_value: var_def.default_value.as_ref().map(|v| serialize_value(v)),
             }
         })
@@ -112,12 +167,17 @@ fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Ve
                 // Parse nested selection set (recursive)
                 let nested_fields = parse_selection_set(&field.selection_set)?;
 
+                let directives = field.directives
+                    .iter()
+                    .map(|d| parse_directive(d))
+                    .collect::<Result<Vec<_>>>()?;
+
                 fields.push(FieldSelection {
                     name: field.name.clone(),
                     alias: field.alias.clone(),
                     arguments,
                     nested_fields,
-                    directives: field.directives.iter().map(|d| d.name.clone()).collect(),
+                    directives,
                 });
             }
             Selection::InlineFragment(frag) => {
@@ -191,6 +251,49 @@ fn serialize_value(value: &query::Value<String>) -> String {
             format!("{{{}}}", pairs.join(","))
         }
         query::Value::Variable(v) => format!("\"${}\"", v),
+    }
+}
+
+/// Parse GraphQL directive from graphql-parser Directive.
+fn parse_directive(directive: &GraphQLDirective<String>) -> Result<Directive> {
+    let arguments = directive.arguments
+        .iter()
+        .map(|(name, value)| GraphQLArgument {
+            name: name.clone(),
+            value_type: value_type_string(value),
+            value_json: serialize_value(value),
+        })
+        .collect();
+
+    Ok(Directive {
+        name: directive.name.clone(),
+        arguments,
+    })
+}
+
+/// Parse GraphQL type from graphql-parser Type to our GraphQLType.
+fn parse_graphql_type(graphql_type: &query::Type<String>) -> GraphQLType {
+    match graphql_type {
+        query::Type::NamedType(name) => GraphQLType {
+            name: name.clone(),
+            nullable: true, // Named types are nullable by default
+            list: false,
+            list_nullable: false,
+        },
+        query::Type::ListType(inner) => GraphQLType {
+            name: format!("[{}]", parse_graphql_type(inner).name),
+            nullable: true,
+            list: true,
+            list_nullable: true, // List items are nullable by default
+        },
+        query::Type::NonNullType(inner) => {
+            let mut parsed = parse_graphql_type(inner);
+            parsed.nullable = false;
+            if parsed.list {
+                parsed.list_nullable = false;
+            }
+            parsed
+        }
     }
 }
 

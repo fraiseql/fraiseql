@@ -23,6 +23,9 @@ pub struct ParsedQuery {
     pub variables: Vec<VariableDefinition>,
 
     #[pyo3(get)]
+    pub fragments: Vec<FragmentDefinition>, // Fragment definitions
+
+    #[pyo3(get)]
     pub source: String, // Original query string (for caching key)
 }
 
@@ -57,7 +60,18 @@ pub struct FieldSelection {
     pub nested_fields: Vec<FieldSelection>, // Recursive nested selections
 
     #[pyo3(get)]
-    pub directives: Vec<String>, // @include, @skip, etc
+    pub directives: Vec<Directive>, // @include, @skip, etc with arguments
+}
+
+/// GraphQL directive (e.g., @requiresRole(role: "admin")).
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Directive {
+    #[pyo3(get)]
+    pub name: String, // Directive name (e.g., "requiresRole")
+
+    #[pyo3(get)]
+    pub arguments: Vec<GraphQLArgument>, // Directive arguments
 }
 
 /// GraphQL argument (e.g., where: {...}).
@@ -74,6 +88,20 @@ pub struct GraphQLArgument {
     pub value_json: String, // Serialized value (JSON)
 }
 
+/// GraphQL type representation
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphQLType {
+    #[pyo3(get)]
+    pub name: String, // Type name (e.g., "String", "User")
+    #[pyo3(get)]
+    pub nullable: bool, // Whether the type is nullable
+    #[pyo3(get)]
+    pub list: bool, // Whether it's a list type
+    #[pyo3(get)]
+    pub list_nullable: bool, // Whether list items are nullable
+}
+
 /// Variable definition.
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,10 +110,41 @@ pub struct VariableDefinition {
     pub name: String, // Variable name without $
 
     #[pyo3(get)]
-    pub var_type: String, // Type string (e.g., "UserWhere!")
+    pub var_type: GraphQLType, // Structured type information
 
     #[pyo3(get)]
-    pub default_value: Option<String>, // Default value as JSON
+    pub default_value: Option<String>, // Default value as JSON string
+}
+
+/// Fragment definition.
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FragmentDefinition {
+    #[pyo3(get)]
+    pub name: String, // Fragment name
+
+    #[pyo3(get)]
+    pub type_condition: String, // Type this fragment applies to (e.g., "User")
+
+    #[pyo3(get)]
+    pub selections: Vec<FieldSelection>, // Fields selected in fragment
+
+    #[pyo3(get)]
+    pub fragment_spreads: Vec<String>, // Names of other fragments this one spreads
+}
+
+impl Default for ParsedQuery {
+    fn default() -> Self {
+        Self {
+            operation_type: "query".to_string(),
+            operation_name: None,
+            root_field: "".to_string(),
+            selections: Vec::new(),
+            variables: Vec::new(),
+            fragments: Vec::new(),
+            source: "".to_string(),
+        }
+    }
 }
 
 impl PartialEq for FieldSelection {

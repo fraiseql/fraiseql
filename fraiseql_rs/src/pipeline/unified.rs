@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::cache::{CachedQueryPlan, QueryPlanCache};
-use crate::graphql::types::ParsedQuery;
+use crate::graphql::{complexity::{ComplexityAnalyzer, ComplexityConfig}, fragments::FragmentGraph, types::ParsedQuery, variables::VariableProcessor};
 use crate::query::composer::SQLComposer;
 use crate::query::schema::SchemaMetadata;
 
@@ -55,6 +55,9 @@ impl GraphQLPipeline {
         // Phase 6: Parse GraphQL query
         let parsed_query = crate::graphql::parser::parse_query(query_string)?;
 
+        // Phase 13: Advanced GraphQL Features Validation
+        self.validate_advanced_graphql_features(&parsed_query, &variables)?;
+
         // Phase 7 + 8: Build SQL (with caching)
         let signature = crate::cache::signature::generate_signature(&parsed_query);
         let sql = if let Ok(Some(cached_plan)) = self.cache.get(&signature) {
@@ -93,6 +96,42 @@ impl GraphQLPipeline {
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
+    }
+
+    /// Validate advanced GraphQL features (Phase 13).
+    fn validate_advanced_graphql_features(
+        &self,
+        query: &ParsedQuery,
+        variables: &HashMap<String, JsonValue>,
+    ) -> Result<()> {
+        // 1. Fragment cycle detection
+        let fragment_graph = FragmentGraph::new(query);
+        fragment_graph.validate_fragments()
+            .map_err(|e| anyhow::anyhow!("Fragment validation error: {}", e))?;
+
+        // 2. Variable processing and validation
+        let var_processor = VariableProcessor::new(query);
+        let processed_vars = var_processor.process_variables(variables);
+        if !processed_vars.errors.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Variable processing errors: {}",
+                processed_vars.errors.join(", ")
+            ));
+        }
+
+        // 3. Query complexity analysis
+        let complexity_config = ComplexityConfig {
+            max_complexity: 1000, // Configurable limit
+            field_cost: 1,
+            depth_multiplier: 1.5,
+            field_overrides: HashMap::new(),
+            type_multipliers: HashMap::new(),
+        };
+        let analyzer = ComplexityAnalyzer::with_config(complexity_config);
+        analyzer.validate_complexity(query)
+            .map_err(|e| anyhow::anyhow!("Complexity validation error: {}", e))?;
+
+        Ok(())
     }
 
     /// Mock database execution for Phase 9 demo.

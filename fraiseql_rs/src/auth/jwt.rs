@@ -26,6 +26,7 @@ pub struct Claims {
 }
 
 /// JWT validator with JWKS caching.
+#[derive(Debug)]
 pub struct JWTValidator {
     issuer: String,
     audience: Vec<String>,
@@ -93,6 +94,7 @@ impl JWTValidator {
 }
 
 /// JWKS cache with LRU eviction and TTL.
+#[derive(Debug)]
 struct JWKSCache {
     cache: Arc<Mutex<LruCache<String, (Jwk, SystemTime)>>>,
     ttl: Duration,

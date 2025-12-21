@@ -109,6 +109,7 @@ mod tests {
                 directives: vec![],
             }],
             variables: vec![],
+            fragments: vec![],
             source: query_str.to_string(),
         }
     }

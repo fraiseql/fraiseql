@@ -196,6 +196,7 @@ mod tests {
             root_field: "test".to_string(),
             selections: vec![],
             variables: vec![],
+            fragments: vec![],
             source: "query { test }".to_string(),
         };
 
@@ -231,6 +232,7 @@ mod tests {
                 directives: vec![],
             }],
             variables: vec![],
+            fragments: vec![],
             source: "query { users { posts } }".to_string(),
         };
 
@@ -257,6 +259,7 @@ mod tests {
                 directives: vec![],
             }],
             variables: vec![],
+            fragments: vec![],
             source: "query { users }".to_string(),
         };
 
