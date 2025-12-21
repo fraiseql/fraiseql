@@ -41,5 +41,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "chaos_network: network-related chaos tests")
     config.addinivalue_line("markers", "chaos_database: database-related chaos tests")
     config.addinivalue_line("markers", "chaos_cache: cache-related chaos tests")
+    config.addinivalue_line("markers", "chaos_auth: authentication-related chaos tests")
     config.addinivalue_line("markers", "chaos_resources: resource-related chaos tests")
     config.addinivalue_line("markers", "chaos_concurrency: concurrency-related chaos tests")
