@@ -26,7 +26,17 @@ def chaos_test_case():
 @pytest.fixture
 def toxiproxy():
     """Toxiproxy manager for network chaos injection."""
-    return ToxiproxyManager()
+    manager = ToxiproxyManager()
+    yield manager
+    # Cleanup all proxies after test
+    for proxy_name in list(manager.proxies.keys()):
+        try:
+            manager.delete_proxy(proxy_name)
+        except:
+            pass
+
+# For unittest-style tests, provide a default toxiproxy instance
+_default_toxiproxy = ToxiproxyManager()
 
 
 @pytest.fixture

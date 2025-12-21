@@ -53,24 +53,32 @@ class Phase4SuccessCriteria:
         # Basic success rate check
         success_rate = 1 - (errors / max(total_ops, 1))
         if success_rate < cls.RESOURCE_SUCCESS_RATE_MIN:
-            issues.append(".1f")
+            issues.append(
+                f"Resource success rate too low: {success_rate:.1%} (min {cls.RESOURCE_SUCCESS_RATE_MIN:.1%})"
+            )
             passed = False
 
         # Specific validation based on resource type
         if resource_type == "memory_pressure":
             if success_rate < cls.MEMORY_PRESSURE_SUCCESS_RATE:
-                issues.append(".1f")
+                issues.append(
+                    f"Memory pressure success rate too low: {success_rate:.1%} (min {cls.MEMORY_PRESSURE_SUCCESS_RATE:.1%})"
+                )
                 passed = False
 
         elif resource_type == "cpu_spike":
             if success_rate < cls.CPU_SPIKE_SUCCESS_RATE:
-                issues.append(".1f")
+                issues.append(
+                    f"CPU spike success rate too low: {success_rate:.1%} (min {cls.CPU_SPIKE_SUCCESS_RATE:.1%})"
+                )
                 passed = False
 
         elif resource_type == "disk_io":
             # I/O operations may have higher failure rates due to contention
             if success_rate < 0.7:  # Lower threshold for I/O
-                issues.append(".1f")
+                issues.append(
+                    f"Disk I/O success rate too low: {success_rate:.1%} (min 70%)"
+                )
                 passed = False
 
         elif resource_type == "resource_exhaustion":
@@ -121,7 +129,9 @@ class Phase4SuccessCriteria:
         # Basic success rate check
         success_rate = 1 - (errors / max(total_ops, 1))
         if success_rate < cls.CONCURRENCY_SUCCESS_RATE_MIN:
-            issues.append(".1f")
+            issues.append(
+                f"Concurrency success rate too low: {success_rate:.1%} (min {cls.CONCURRENCY_SUCCESS_RATE_MIN:.1%})"
+            )
             passed = False
 
         # Specific validation based on concurrency type
@@ -132,7 +142,9 @@ class Phase4SuccessCriteria:
 
         elif concurrency_type == "lock_contention":
             if success_rate < cls.THREAD_CONTENTION_SUCCESS_RATE:
-                issues.append(".1f")
+                issues.append(
+                    f"Lock contention success rate too low: {success_rate:.1%} (min {cls.THREAD_CONTENTION_SUCCESS_RATE:.1%})"
+                )
                 passed = False
 
         elif concurrency_type == "race_condition":
@@ -144,7 +156,9 @@ class Phase4SuccessCriteria:
         elif concurrency_type == "deadlock_prevention":
             # Deadlocks should be minimal
             if success_rate < cls.DEADLOCK_PREVENTION_RATE:
-                issues.append(".1f")
+                issues.append(
+                    f"Deadlock prevention rate too low: {success_rate:.1%} (min {cls.DEADLOCK_PREVENTION_RATE:.1%})"
+                )
                 passed = False
 
         elif concurrency_type == "connection_pooling":
@@ -155,7 +169,9 @@ class Phase4SuccessCriteria:
         elif concurrency_type == "atomic_operation":
             # Atomic operations should have high success rates
             if success_rate < 0.9:
-                issues.append(".1f")
+                issues.append(
+                    f"Atomic operation success rate too low: {success_rate:.1%} (min 90%)"
+                )
                 passed = False
 
         status_msg = "PASS" if passed else "FAIL"
@@ -193,7 +209,9 @@ class Phase4SuccessCriteria:
 
         # Check overall pass rate
         if pass_rate < cls.RESOURCE_SUCCESS_RATE_MIN:  # Using resource threshold as baseline
-            issues.append(".1f")
+            issues.append(
+                f"Overall pass rate too low: {pass_rate:.1%} (min {cls.RESOURCE_SUCCESS_RATE_MIN:.1%})"
+            )
             overall_pass = False
         else:
             overall_pass = True
@@ -467,11 +485,11 @@ def print_phase4_report(report: Dict[str, Any]):
     print("SUMMARY STATISTICS:")
     print(f"  Total Tests: {summary['total_tests']}")
     print(f"  Passed Tests: {summary['passed_tests']}")
-    print(".1f")
+    print(f"  Pass Rate: {summary['pass_rate']:.1%}")
     print(f"  Resource Failures: {summary['resource_failures']}")
     print(f"  Concurrency Failures: {summary['concurrency_failures']}")
-    print(".2f")
-    print(".2f")
+    print(f"  Resource Success Rate: {summary['resource_success_rate']:.2%}")
+    print(f"  Concurrency Success Rate: {summary['concurrency_success_rate']:.2%}")
 
     breakdown = report["test_breakdown"]
     print("\nTEST BREAKDOWN:")
@@ -482,12 +500,12 @@ def print_phase4_report(report: Dict[str, Any]):
 
     perf = report["performance_analysis"]
     print("\nPERFORMANCE ANALYSIS:")
-    print(".2f")
-    print(".2f")
+    print(f"  Overall Avg Success Rate: {perf['overall_avg_success_rate']:.2%}")
+    print(f"  Resource Avg Success Rate: {perf['resource_avg_success_rate']:.2%}")
 
     resource = report["resource_analysis"]
     print("\nRESOURCE ANALYSIS:")
-    print(".2f")
+    print(f"  Resource Success Rate: {resource['resource_success_rate']:.2%}")
     print(
         f"  Resource Stability Maintained: {'YES' if resource['resource_stability_maintained'] else 'NO'}"
     )
@@ -497,7 +515,7 @@ def print_phase4_report(report: Dict[str, Any]):
 
     concurrency = report["concurrency_analysis"]
     print("\nCONCURRENCY ANALYSIS:")
-    print(".2f")
+    print(f"  Concurrency Success Rate: {concurrency['concurrency_success_rate']:.2%}")
     print(
         f"  Deadlock Prevention Effective: {'YES' if concurrency['deadlock_prevention_effective'] else 'NO'}"
     )

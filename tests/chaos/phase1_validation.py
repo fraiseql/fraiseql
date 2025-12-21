@@ -52,7 +52,9 @@ class Phase1SuccessCriteria:
             baseline_time = comparison["baseline"].get("mean_ms", 0)
 
             if current_time > baseline_time * 2:
-                issues.append(".1f")
+                issues.append(
+                    f"Recovery time degradation too high: {current_time:.1f}ms (baseline: {baseline_time:.1f}ms)"
+                )
                 passed = False
 
         status_msg = "PASS" if passed else "FAIL"
@@ -108,7 +110,9 @@ class Phase1SuccessCriteria:
         # Check error rate is acceptable
         error_rate = results.get("error_count", 0) / max(total_ops, 1)
         if error_rate > 0.2:  # Max 20% errors under latency
-            issues.append(".1f")
+            issues.append(
+                f"Error rate too high under latency: {error_rate:.1%} (max 20%)"
+            )
             passed = False
 
         status_msg = "PASS" if passed else "FAIL"
@@ -148,7 +152,9 @@ class Phase1SuccessCriteria:
         expected_min_success = max(0.5, 1.0 - loss_rate - 0.2)  # Loss + 20% retry factor
 
         if success_rate < expected_min_success:
-            issues.append(".2f")
+            issues.append(
+                f"Success rate too low: {success_rate:.2%} (expected >{expected_min_success:.2%})"
+            )
             passed = False
 
         # Check retry behavior
@@ -386,23 +392,23 @@ class Phase1Statistics:
         print("SUMMARY STATISTICS:")
         print(f"  Total Tests: {summary['total_tests']}")
         print(f"  Passed Tests: {summary['passed_tests']}")
-        print(".1f")
+        print(f"  Pass Rate: {summary['pass_rate']:.1%}")
         print(f"  Critical Failures: {summary['critical_failures']}")
-        print(".1f")
-        print(".2f")
+        print(f"  Avg Response Time: {summary['avg_response_time_ms']:.1f}ms")
+        print(f"  Avg Error Rate: {summary['avg_error_rate']:.2%}")
 
         print("\nTEST BREAKDOWN:")
         for test_type, stats in report["test_breakdown"].items():
             pass_rate = stats["passed"] / stats["total"]
-            print(".1f")
+            print(f"  {test_type}: {stats['passed']}/{stats['total']} ({pass_rate:.1%})")
 
         perf = report["performance_analysis"]
         print("\nPERFORMANCE ANALYSIS:")
-        print(".1f")
-        print(".1f")
-        print(".1f")
-        print(".2f")
-        print(".1f")
+        print(f"  Avg Response Time: {perf['avg_response_time_ms']:.1f}ms")
+        print(f"  Median Response Time: {perf['median_response_time_ms']:.1f}ms")
+        print(f"  Max Response Time: {perf['max_response_time_ms']:.1f}ms")
+        print(f"  Response Time Variance: {perf['response_time_variance']:.2f}ms")
+        print(f"  Avg Error Rate: {perf['avg_error_rate']:.1%}")
 
         if summary.get("issues"):
             print("\nISSUES IDENTIFIED:")

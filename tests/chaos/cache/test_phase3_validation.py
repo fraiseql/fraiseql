@@ -70,7 +70,9 @@ class Phase3SuccessCriteria:
             # System should continue operating during backend failures
             success_rate = 1 - (errors / max(total_ops, 1))
             if success_rate < cls.CACHE_HIT_RATE_MIN:
-                issues.append(".1f")
+                issues.append(
+                    f"Cache hit rate too low during backend failure: {success_rate:.1%} (min {cls.CACHE_HIT_RATE_MIN:.1%})"
+                )
                 passed = False
 
         elif cache_type == "stampede":
@@ -125,7 +127,9 @@ class Phase3SuccessCriteria:
         # Basic success rate check
         success_rate = 1 - (errors / max(total_ops, 1))
         if success_rate < cls.AUTH_SUCCESS_RATE_MIN:
-            issues.append(".1f")
+            issues.append(
+                f"Auth success rate too low: {success_rate:.1%} (min {cls.AUTH_SUCCESS_RATE_MIN:.1%})"
+            )
             passed = False
 
         # Specific validation based on auth chaos type
@@ -138,7 +142,9 @@ class Phase3SuccessCriteria:
         elif auth_type == "rbac_policy":
             # Should handle RBAC failures securely
             if success_rate < cls.RBAC_POLICY_SUCCESS_RATE:
-                issues.append(".1f")
+                issues.append(
+                    f"RBAC success rate too low: {success_rate:.1%} (min {cls.RBAC_POLICY_SUCCESS_RATE:.1%})"
+                )
                 passed = False
 
         elif auth_type == "service_outage":
@@ -156,7 +162,9 @@ class Phase3SuccessCriteria:
         elif auth_type == "jwt_signature":
             # Should validate signatures correctly
             if success_rate < cls.JWT_VALIDATION_ACCURACY:
-                issues.append(".1f")
+                issues.append(
+                    f"JWT validation accuracy too low: {success_rate:.1%} (min {cls.JWT_VALIDATION_ACCURACY:.1%})"
+                )
                 passed = False
 
         elif auth_type == "rbac_comprehensive":
@@ -438,11 +446,11 @@ def print_phase3_report(report: Dict[str, Any]):
     print("SUMMARY STATISTICS:")
     print(f"  Total Tests: {summary['total_tests']}")
     print(f"  Passed Tests: {summary['passed_tests']}")
-    print(".1f")
+    print(f"  Pass Rate: {summary['pass_rate']:.1%}")
     print(f"  Auth Failures: {summary['auth_failures']}")
     print(f"  Cache Failures: {summary['cache_failures']}")
-    print(".2f")
-    print(".2f")
+    print(f"  Auth Success Rate: {summary['auth_success_rate']:.2%}")
+    print(f"  Cache Success Rate: {summary['cache_success_rate']:.2%}")
 
     breakdown = report["test_breakdown"]
     print("\nTEST BREAKDOWN:")
@@ -451,12 +459,12 @@ def print_phase3_report(report: Dict[str, Any]):
 
     perf = report["performance_analysis"]
     print("\nPERFORMANCE ANALYSIS:")
-    print(".2f")
-    print(".2f")
+    print(f"  Overall Avg Success Rate: {perf['overall_avg_success_rate']:.2%}")
+    print(f"  Cache Avg Success Rate: {perf['cache_avg_success_rate']:.2%}")
 
     security = report["security_analysis"]
     print("\nSECURITY ANALYSIS:")
-    print(".2f")
+    print(f"  Auth Avg Success Rate: {security['auth_avg_success_rate']:.2%}")
     print(
         f"  Security Posture Maintained: {'YES' if security['security_posture_maintained'] else 'NO'}"
     )

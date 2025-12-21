@@ -7,9 +7,9 @@ including metrics collection, test case management, and chaos injection utilitie
 
 import time
 import statistics
+import unittest
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
 
 
 @dataclass
@@ -85,23 +85,31 @@ class ChaosMetrics:
         }
 
 
-class ChaosTestCase(ABC):
+class ChaosTestCase(unittest.TestCase):
     """
     Base class for chaos engineering tests.
 
     Provides common functionality for chaos test setup, execution, and cleanup.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.metrics = ChaosMetrics()
         self.chaos_active = False
         self.baseline_file = "tests/chaos/baseline_metrics.json"
+        # Pytest fixture support - allow pytest to inject fixtures
+        self._pytest_fixtures = {}
 
-    def setup_method(self):
+    def setup_method(self, method=None):
         """Setup called before each test method."""
+        self.metrics = ChaosMetrics()
         self.metrics.start_test()
+        # Check if pytest has injected fixtures into self.__pytest_meta__
+        if hasattr(self, "__pytest_meta__"):
+            for name, value in self.__pytest_meta__.items():
+                setattr(self, name, value)
 
-    def teardown_method(self):
+    def teardown_method(self, method=None):
         """Teardown called after each test method."""
         self.metrics.end_test()
         self._save_results()
