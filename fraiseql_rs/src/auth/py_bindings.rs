@@ -1,8 +1,9 @@
 //! PyO3 bindings for authentication module (Phase 10).
 
 use pyo3::prelude::*;
+use std::sync::Arc;
 
-use crate::auth::provider::{Auth0Provider, CustomJWTProvider};
+use crate::auth::provider::{Auth0Provider, AuthProvider, CustomJWTProvider};
 use crate::pipeline::unified::UserContext;
 
 /// Python wrapper for UserContext (exposed from Rust to Python)
@@ -32,20 +33,16 @@ impl From<UserContext> for PyUserContext {
 
 /// Python wrapper for authentication providers
 ///
-/// This is a synchronous wrapper that provides factory methods for creating
-/// Auth0 and custom JWT providers. Token validation is currently synchronous
-/// and should be called from async Python code using asyncio.to_thread() or similar.
+/// Provides token validation with Auth0 and custom JWT support.
 #[pyclass]
 #[allow(dead_code)]
 pub struct PyAuthProvider {
-    // Store provider configuration for lazy initialization
-    // (Some fields stored for future validation/debug features)
+    // The actual auth provider (Auth0 or CustomJWT)
+    provider: Arc<dyn AuthProvider>,
+    // Store for debugging/introspection
     provider_type: String,
-    domain_or_issuer: String,
+    domain_or_issuer: String, // Stored for potential debug features
     audience: Vec<String>,
-    jwks_url: Option<String>,
-    roles_claim: Option<String>,
-    permissions_claim: Option<String>,
 }
 
 #[pymethods]
@@ -63,8 +60,7 @@ impl PyAuthProvider {
     ///     ValueError: If domain or audience is invalid
     #[staticmethod]
     pub fn auth0(domain: String, audience: Vec<String>) -> PyResult<Self> {
-        // Validate by creating a temporary provider
-        let _provider = Auth0Provider::new(&domain, audience.clone()).map_err(|e| {
+        let provider = Auth0Provider::new(&domain, audience.clone()).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                 "Failed to create Auth0 provider: {}",
                 e
@@ -72,12 +68,10 @@ impl PyAuthProvider {
         })?;
 
         Ok(Self {
+            provider: Arc::new(provider),
             provider_type: "auth0".to_string(),
             domain_or_issuer: domain,
             audience,
-            jwks_url: None,
-            roles_claim: None,
-            permissions_claim: None,
         })
     }
 
@@ -104,11 +98,10 @@ impl PyAuthProvider {
         roles_claim: &str,
         permissions_claim: &str,
     ) -> PyResult<Self> {
-        // Validate by creating a temporary provider
-        let _provider = CustomJWTProvider::new(
+        let provider = CustomJWTProvider::new(
             issuer.clone(),
             audience.clone(),
-            jwks_url.clone(),
+            jwks_url,
             roles_claim.to_string(),
             permissions_claim.to_string(),
         )
@@ -120,13 +113,75 @@ impl PyAuthProvider {
         })?;
 
         Ok(Self {
+            provider: Arc::new(provider),
             provider_type: "jwt".to_string(),
             domain_or_issuer: issuer,
             audience,
-            jwks_url: Some(jwks_url),
-            roles_claim: Some(roles_claim.to_string()),
-            permissions_claim: Some(permissions_claim.to_string()),
         })
+    }
+
+    /// Validate a JWT token and return user context.
+    ///
+    /// This is an async method - call it with await from Python.
+    ///
+    /// Args:
+    ///     token: JWT token string to validate
+    ///
+    /// Returns:
+    ///     PyUserContext with user_id, roles, permissions, and exp
+    ///
+    /// Raises:
+    ///     RuntimeError: If token validation fails (expired, invalid signature, etc.)
+    ///
+    /// Example:
+    ///     ```python
+    ///     import asyncio
+    ///     from fraiseql._fraiseql_rs import PyAuthProvider
+    ///
+    ///     async def main():
+    ///         auth = PyAuthProvider.auth0("example.auth0.com", ["https://api.example.com"])
+    ///         try:
+    ///             user = await auth.validate_token(token)
+    ///             print(f"User {user.user_id} with roles {user.roles}")
+    ///         except RuntimeError as e:
+    ///             print(f"Token validation failed: {e}")
+    ///
+    ///     asyncio.run(main())
+    ///     ```
+    /// Validate a JWT token (blocks until validation completes).
+    ///
+    /// For best compatibility with Python async code, call this from
+    /// an executor like asyncio.to_thread.run_in_executor() or
+    /// concurrent.futures.ThreadPoolExecutor.
+    ///
+    /// Example:
+    ///     ```python
+    ///     import asyncio
+    ///     auth = PyAuthProvider.auth0("example.auth0.com", ["https://api.example.com"])
+    ///
+    ///     async def validate(token):
+    ///         loop = asyncio.get_event_loop()
+    ///         user = await loop.run_in_executor(None, auth.validate_token_blocking, token)
+    ///         return user
+    ///     ```
+    pub fn validate_token_blocking(&self, token: String) -> PyResult<PyUserContext> {
+        let provider = self.provider.clone();
+
+        // Run the async validation on the current tokio runtime
+        // Using block_on, which requires a tokio runtime to be available
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "No tokio runtime available. Call from async context or use asyncio.to_thread.run_in_executor()"
+            ))?;
+
+        let context = rt.block_on(provider.validate_token(&token)).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Token validation failed: {}",
+                e
+            ))
+        })?;
+
+        Ok(PyUserContext::from(context))
     }
 
     /// Get provider type (for debugging)
