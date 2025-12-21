@@ -16,8 +16,8 @@ from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
 from chaos.base import ChaosMetrics
 
-# Import chaos database fixtures
-pytest_plugins = ["chaos.database_fixtures"]
+# Note: pytest_plugins moved to top-level tests/conftest.py
+# to comply with pytest plugin loading requirements
 
 
 @pytest.fixture
