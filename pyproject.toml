@@ -195,6 +195,16 @@ markers = [
   "skip_ci: Skip in CI environment",
   "turbo: Tests for TurboRouter functionality",
   "forked: Tests that require process isolation (schema registry singleton)",
+  "chaos: Chaos engineering tests (resilience and failure handling)",
+  "chaos_real_db: Chaos tests using real PostgreSQL backend",
+  "chaos_network: Chaos tests for network failures (latency, packet loss)",
+  "chaos_database: Chaos tests for database failures (deadlocks, constraints)",
+  "chaos_cache: Chaos tests for cache failures (invalidation, corruption)",
+  "chaos_auth: Chaos tests for authentication failures (expiration, service outages)",
+  "chaos_resources: Chaos tests for resource exhaustion (memory, CPU, disk)",
+  "chaos_concurrency: Chaos tests for concurrent execution (deadlocks, race conditions)",
+  "chaos_validation: Chaos test validation and success criteria checks",
+  "chaos_verification: Chaos infrastructure verification tests",
 ]
 
 # Async support - explicit @pytest.mark.asyncio decorators used instead
