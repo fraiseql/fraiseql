@@ -5,9 +5,8 @@ queries and mutations through the Rust backend. It handles all the complexity
 of parameter conversion, error handling, and result transformation.
 """
 
-import asyncio
 import json
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Dict, List
 
 # Lazy import of Rust functions to handle cases where extension is not available
 _rust_functions = None
@@ -73,8 +72,8 @@ class RustGraphQLPipeline:
             result_json = await self._rust.execute_query_async(query_json)
             result = json.loads(result_json)
 
-            # Rust backend already returns standardized GraphQL response format
-            return result
+            # Return standardized GraphQL response format
+            return {"data": result, "errors": None}
 
         except Exception as e:
             # Return GraphQL error format
