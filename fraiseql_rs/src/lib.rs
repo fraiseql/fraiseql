@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 )]
 // Warn on everything else (configured in Cargo.toml)
 // Sub-modules
+pub mod auth;
 mod camel_case;
 pub mod cache;
 pub mod cascade;

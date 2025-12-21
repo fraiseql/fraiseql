@@ -18,6 +18,7 @@ pub struct UserContext {
     pub user_id: Option<String>,
     pub permissions: Vec<String>,
     pub roles: Vec<String>,
+    pub exp: u64,  // Expiration timestamp for cache management
 }
 
 /// Complete unified GraphQL pipeline.
@@ -248,5 +249,6 @@ fn dict_to_user_context(dict: &Bound<'_, PyDict>) -> PyResult<UserContext> {
         user_id,
         permissions,
         roles,
+        exp: 0,  // Default for mock contexts
     })
 }
