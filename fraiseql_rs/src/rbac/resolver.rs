@@ -1,4 +1,46 @@
-//! Permission resolver with multi-layer caching.
+//! Permission resolver with multi-layer caching and role hierarchy support.
+//!
+//! This module provides the core permission resolution logic. It orchestrates:
+//! 1. Cache lookup (hit: <0.1ms)
+//! 2. User role queries
+//! 3. Role hierarchy traversal (includes inherited parent roles)
+//! 4. Permission collection and matching
+//! 5. Result caching with TTL
+//!
+//! ## Performance Path
+//!
+//! ```
+//! has_permission(user_id, "document", "read", tenant_id)
+//!   ├─ Check cache (Instant::now() < expires_at) → HIT: return in <0.1ms
+//!   ├─ Query user_roles (includes expiration check)
+//!   ├─ Traverse role hierarchy via recursive CTE
+//!   ├─ Collect permissions from all roles
+//!   ├─ Match resource:action pattern
+//!   ├─ Cache result with 5m TTL
+//!   └─ Return result in <1ms (cache miss)
+//! ```
+//!
+//! ## Expiration Handling
+//!
+//! The resolver respects role assignment expiration:
+//! - User-role assignments can have optional `expires_at` timestamp
+//! - Query automatically filters expired assignments
+//! - No cleanup job needed - expired roles naturally stop being used
+//! - Separate from cache TTL: even non-expired cached entries will be stale
+//!
+//! ## Query Patterns
+//!
+//! All queries use parameterized statements (safe from SQL injection):
+//! - User roles: filters by user_id and expiration
+//! - Hierarchy: recursive CTE with tenant scoping
+//! - Permissions: DISTINCT join on role_permissions + permissions
+//!
+//! ## Thread Safety
+//!
+//! The resolver is thread-safe and can be shared via `Arc<PermissionResolver>`:
+//! - All methods take `&self` (immutable borrow)
+//! - Database pool handles concurrent connections
+//! - Cache uses Mutex for atomic updates
 
 use uuid::Uuid;
 use deadpool_postgres::Pool;
@@ -10,7 +52,28 @@ use super::{
     cache::PermissionCache,
 };
 
-/// Permission resolver with caching and hierarchy support
+/// Permission resolver with caching and hierarchy support.
+///
+/// The main API for permission checking in FraiseQL. Combines efficient
+/// database queries with multi-layer caching for sub-millisecond performance.
+///
+/// # Example
+///
+/// ```ignore
+/// use fraiseql_rs::rbac::PermissionResolver;
+///
+/// let resolver = PermissionResolver::new(pool, 10_000);
+///
+/// // Check if user can read documents
+/// if resolver.has_permission(user_id, "document", "read", Some(tenant_id)).await? {
+///     // Grant access
+/// } else {
+///     // Deny access
+/// }
+///
+/// // On role changes, invalidate cache
+/// resolver.invalidate_user(user_id);
+/// ```
 pub struct PermissionResolver {
     pool: Pool,
     hierarchy: RoleHierarchy,
