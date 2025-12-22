@@ -1,115 +1,95 @@
 # FraiseQL Documentation
 
+FraiseQL is a PostgreSQL-native GraphQL framework for Python. Build type-safe, production-ready APIs without boilerplate.
+
 ## Getting Started
 
-- **[5-Minute Quickstart](getting-started/quickstart.md)** - Fastest way to get running
-- **[First Hour Guide](getting-started/first-hour.md)** - Progressive tutorial
-- **[Understanding FraiseQL](guides/understanding-fraiseql.md)** - Conceptual overview
-- **[Installation](getting-started/installation.md)** - Detailed setup instructions
+New to FraiseQL? Start here:
 
-## v1.5.0 Highlights
+- **[5-Minute Quickstart](getting-started/quickstart.md)** - Get running in minutes
+- **[Installation](getting-started/installation.md)** - Setup instructions
+- **[First Hour Guide](getting-started/first-hour.md)** - Learn the fundamentals
+- **[Core Concepts](core/concepts-glossary.md)** - Essential mental models
 
-FraiseQL v1.5.0 brings AI-ready capabilities and enterprise cache management:
+## Learn by Example
+
+See FraiseQL in action:
+
+- **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete API from scratch
+- **[Filtering Examples](examples/advanced-filtering.md)** - Query patterns and use cases
+- **[RAG Tutorial](ai-ml/rag-tutorial.md)** - Build AI search with pgvector
+- **[Error Handling Examples](guides/error-handling-patterns.md)** - Robust error management
+- **[Production Deployment](tutorials/production-deployment.md)** - Deploy safely
+
+## Core Features
+
+FraiseQL provides everything you need for modern APIs:
 
 ### pgvector Integration
 
-Native PostgreSQL vector similarity search for RAG & semantic search applications.
-
-- 6 distance operators (cosine, L2, inner product, L1, Hamming, Jaccard)
-- HNSW and IVFFlat index support
-- Full GraphQL integration with type-safe filters
-- **[Get Started with pgvector →](features/pgvector.md)**
+Native PostgreSQL vector search for semantic search and RAG applications.
+- Type-safe GraphQL integration with vector operators
+- **[Learn more →](features/pgvector.md)**
 
 ### GraphQL Cascade
 
-Automatic cache invalidation that propagates when related data changes.
-
-- Auto-detection from GraphQL schema
-- Apollo Client and Relay integration
+Automatic, intelligent cache invalidation that works with your data relationships.
 - Zero manual cache management
-- **[Architecture Overview →](mutations/cascade-architecture.md)**
-- **[Migration Guide →](mutations/migration-guide.md)**
-- **[Best Practices & Examples →](guides/cascade-best-practices.md)**
+- **[Learn more →](features/graphql-cascade.md)** | **[Best Practices →](guides/cascade-best-practices.md)**
 
 ### LangChain Integration
 
-Build RAG applications with LangChain and FraiseQL.
+Build AI-powered applications with document ingestion and semantic search.
+- Production-ready patterns for RAG applications
+- **[Learn more →](features/langchain-integration.md)**
 
-- Document ingestion and vector storage
-- Semantic search and question answering
-- Production-ready patterns
-- **[Build a RAG App →](guides/langchain-integration.md)**
+### LLM Integration
 
-## Feature Discovery
-
-- **[Feature Matrix](features/index.md)** - Complete overview of all FraiseQL capabilities
-  - Core features, database features, advanced queries
-  - AI & Vector features (pgvector, LangChain, LLM integration)
-  - Security, enterprise, real-time, monitoring
-
-## Core Concepts
-
-**New to FraiseQL?** Start with these essential concepts:
-
-- **[Concepts & Glossary](core/concepts-glossary.md)** - Core terminology and mental models
-  - CQRS Pattern - Separate reads (views) from writes (functions)
-  - Trinity Identifiers - Three-tier ID system for performance and UX
-  - JSONB Views vs Table Views - When to use `v_*` vs `tv_*`
-  - Database-First Architecture - PostgreSQL composes, GraphQL exposes
-  - Explicit Sync Pattern - Denormalized tables for complex queries
-
-- **[Types and Schema](core/types-and-schema.md)** - Complete guide to FraiseQL's type system
-- **[Database API](core/database-api.md)** - PostgreSQL integration and query execution
-- **[Configuration](core/configuration.md)** - Application configuration reference
-
-## Querying & Filtering
-
-FraiseQL provides flexible filtering with two syntaxes:
-
-- **[Filtering Guide](guides/filtering.md)** - Unified entry point for all filtering documentation
-- **[Where Input Types](advanced/where-input-types.md)** - Type-safe WhereType deep dive
-- **[Filter Operators Reference](advanced/filter-operators.md)** - Complete operator documentation
-- **[Syntax Comparison](reference/where-clause-syntax-comparison.md)** - Side-by-side cheat sheet
-- **[Advanced Examples](examples/advanced-filtering.md)** - Real-world use cases
-
-## Advanced Features
-
-- [Advanced Patterns](advanced/advanced-patterns.md)
-- [Authentication](advanced/authentication.md)
-- [Multi-Tenancy](advanced/multi-tenancy.md)
-- [Database Patterns](advanced/database-patterns.md)
-- [AI-Native Architecture](features/ai-native.md)
-
-## Performance
-
-- [Performance Guide](performance/index.md)
-- [APQ Optimization](performance/apq-optimization-guide.md)
-- [Rust Pipeline](performance/rust-pipeline-optimization.md)
-- [CASCADE Best Practices](guides/cascade-best-practices.md)
-- [CASCADE Architecture](mutations/cascade-architecture.md)
-
-## Reference
-
-- [Quick Reference](reference/quick-reference.md)
-- [Configuration Reference](reference/config.md)
-- [Type Operator Architecture](architecture/type-operator-architecture.md)
+Use LLMs directly in your GraphQL resolvers.
+- Type-safe LLM calling from Python
+- **[Learn more →](features/llm-integration.md)**
 
 ## Guides
 
-- [Troubleshooting](guides/troubleshooting.md)
-- [Troubleshooting Decision Tree](guides/troubleshooting-decision-tree.md)
-- [Cascade Best Practices](guides/cascade-best-practices.md)
-- [Migrating to Cascade](guides/migrating-to-cascade.md)
+Common tasks and patterns:
 
-## Mutations
+- **[Filtering & Querying](guides/filtering.md)** - Query syntax and patterns
+- **[Mutations & Data Changes](guides/mutation-sql-requirements.md)** - Writing database functions
+- **[Authentication](advanced/authentication.md)** - Securing your API
+- **[Multi-Tenancy](advanced/multi-tenancy.md)** - Tenant isolation patterns
+- **[Performance & Optimization](performance/index.md)** - Make it fast
+- **[Troubleshooting](guides/troubleshooting.md)** - Common issues and solutions
 
-- **[Mutation SQL Requirements](guides/mutation-sql-requirements.md)** - Complete guide to writing PostgreSQL functions
-- **[Error Handling Patterns](guides/error-handling-patterns.md)** - Error handling philosophy and patterns
-- [CASCADE Architecture](mutations/cascade-architecture.md) - Complete technical overview
-- [CASCADE Migration Guide](mutations/migration-guide.md) - Step-by-step migration instructions
+## Reference
 
-## Development
+API documentation and configuration:
 
-- [Contributing](../CONTRIBUTING.md)
-- [Style Guide](development/style-guide.md)
-- [Architecture Decisions](architecture/README.md)
+- **[Database API](core/database-api.md)** - Query execution and methods
+- **[Types & Schema](core/types-and-schema.md)** - Type system and schema definition
+- **[Configuration](core/configuration.md)** - All configuration options
+- **[Decorators](reference/decorators.md)** - Python decorators reference
+- **[CLI](reference/cli.md)** - Command-line tools
+
+## Architecture
+
+How FraiseQL works under the hood:
+
+- **[Architecture Overview](architecture/README.md)** - System design
+- **[Mutation Pipeline](architecture/mutation-pipeline.md)** - How mutations execute
+- **[Rust Pipeline](performance/rust-pipeline-optimization.md)** - Performance optimizations
+- **[Key Decisions](architecture/decisions/README.md)** - Design rationale
+
+## Deploy to Production
+
+Get your API live:
+
+- **[Deployment Guide](production/deployment.md)** - Deploying FraiseQL
+- **[Monitoring](production/monitoring.md)** - Track and debug
+- **[Health Checks](production/health-checks.md)** - Readiness and liveness
+- **[Security](production/security.md)** - Secure your API
+- **[Performance Tips](performance/index.md)** - Optimize for production
+
+## Contributing
+
+- **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
+- **[Development Style Guide](development/style-guide.md)** - Code standards
