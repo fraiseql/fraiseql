@@ -10,14 +10,14 @@
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[vulnerability-remediation-summary.md](vulnerability-remediation-summary.md)** | 📊 Executive summary of vulnerability status | Management, Auditors |
-| **[cve-mitigation-medium.md](cve-mitigation-medium.md)** | 🔍 Detailed MEDIUM CVE analysis (2 CVEs, fully mitigated) | Security Team, Compliance |
-| **[cve-assessment-low.md](cve-assessment-low.md)** | 📋 Comprehensive LOW CVE analysis (25 CVEs, all accepted) | Security Team, Compliance |
-| **[distroless-evaluation.md](distroless-evaluation.md)** | 🐳 Base image comparison (prevented regression) | DevOps, Architecture |
-| **[configuration.md](configuration.md)** | ⚙️ Security configuration guide | DevOps, SRE |
-| **[controls-matrix.md](controls-matrix.md)** | ✅ Compliance controls mapping | Compliance, Auditors |
-| **[threat-model.md](threat-model.md)** | 🛡️ Threat analysis and mitigations | Security Team |
-| **[vulnerability-remediation-plan.md](vulnerability-remediation-plan.md)** | 📚 Original comprehensive plan | Historical Reference |
+| **[vulnerability-remediation-summary.md](vulnerability-remediation-summary/)** | 📊 Executive summary of vulnerability status | Management, Auditors |
+| **[cve-mitigation-medium.md](cve-mitigation-medium/)** | 🔍 Detailed MEDIUM CVE analysis (2 CVEs, fully mitigated) | Security Team, Compliance |
+| **[cve-assessment-low.md](cve-assessment-low/)** | 📋 Comprehensive LOW CVE analysis (25 CVEs, all accepted) | Security Team, Compliance |
+| **[distroless-evaluation.md](distroless-evaluation/)** | 🐳 Base image comparison (prevented regression) | DevOps, Architecture |
+| **[configuration.md](configuration/)** | ⚙️ Security configuration guide | DevOps, SRE |
+| **[controls-matrix.md](controls-matrix/)** | ✅ Compliance controls mapping | Compliance, Auditors |
+| **[threat-model.md](threat-model/)** | 🛡️ Threat analysis and mitigations | Security Team |
+| **[vulnerability-remediation-plan.md](vulnerability-remediation-plan/)** | 📚 Original comprehensive plan | Historical Reference |
 
 ---
 
@@ -58,7 +58,7 @@
 **Mitigations**: 5 layers (PostgreSQL-only, startup checks, production validation, FTS5 disabled, Falco Rule 14)
 **Risk Reduction**: >99.9%
 
-**Details**: [cve-mitigation-medium.md](cve-mitigation-medium.md)
+**Details**: [cve-mitigation-medium.md](cve-mitigation-medium/)
 
 ---
 
@@ -74,7 +74,7 @@
 
 **All mitigated by defense-in-depth** (5 layers)
 
-**Details**: [cve-assessment-low.md](cve-assessment-low.md)
+**Details**: [cve-assessment-low.md](cve-assessment-low/)
 
 ---
 
@@ -142,7 +142,7 @@ run_all_security_checks()  # Fail-fast on misconfigurations
 - 2 MEDIUM CVEs fully mitigated
 - Complete POA&M documentation
 
-**Details**: [controls-matrix.md](controls-matrix.md)
+**Details**: [controls-matrix.md](controls-matrix/)
 
 ---
 
@@ -220,10 +220,10 @@ docs/security/
 ## For Auditors
 
 **Compliance Evidence**:
-1. [vulnerability-remediation-summary.md](vulnerability-remediation-summary.md) - Executive summary
-2. [cve-mitigation-medium.md](cve-mitigation-medium.md) - MEDIUM CVE mitigations
-3. [cve-assessment-low.md](cve-assessment-low.md) - LOW CVE risk assessments
-4. [controls-matrix.md](controls-matrix.md) - Control mappings
+1. [vulnerability-remediation-summary.md](vulnerability-remediation-summary/) - Executive summary
+2. [cve-mitigation-medium.md](cve-mitigation-medium/) - MEDIUM CVE mitigations
+3. [cve-assessment-low.md](cve-assessment-low/) - LOW CVE risk assessments
+4. [controls-matrix.md](controls-matrix/) - Control mappings
 5. `.trivyignore` - Risk acceptance documentation (in repository root)
 6. `.github/workflows/security-alerts.yml` - Automated monitoring proof
 
@@ -237,8 +237,8 @@ docs/security/
 ## For Developers
 
 **Getting Started**:
-1. Read [vulnerability-remediation-summary.md](vulnerability-remediation-summary.md) for overview
-2. Review [configuration.md](configuration.md) for deployment settings
+1. Read [vulnerability-remediation-summary.md](vulnerability-remediation-summary/) for overview
+2. Review [configuration.md](configuration/) for deployment settings
 3. Integrate startup checks (see Quick Start above)
 4. Deploy hardened containers (see Quick Start above)
 
@@ -260,7 +260,7 @@ docs/security/
 - ✅ **Automated monitoring** (weekly scans, real-time detection)
 - ✅ **Full compliance** (NIST/FedRAMP/NIS2/ISO/SOC2)
 
-**Read**: [vulnerability-remediation-summary.md](vulnerability-remediation-summary.md)
+**Read**: [vulnerability-remediation-summary.md](vulnerability-remediation-summary/)
 
 ---
 
@@ -269,7 +269,7 @@ docs/security/
 **DO NOT** open public GitHub issues for security vulnerabilities.
 
 **Instead**:
-1. Email: See [SECURITY.md](../../SECURITY.md) for contact information
+1. Email: See [SECURITY.md](../../SECURITY/) for contact information
 2. Use GitHub Security Advisories (private disclosure)
 3. Include: vulnerability description, reproduction steps, impact assessment
 
@@ -300,4 +300,4 @@ docs/security/
 **Last Scan**: Automated weekly (Monday 6 AM UTC)
 **Next Review**: Continuous (automated monitoring)
 
-For questions, see [SECURITY.md](../../SECURITY.md)
+For questions, see [SECURITY.md](../../SECURITY/)

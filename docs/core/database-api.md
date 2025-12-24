@@ -2,7 +2,7 @@
 
 Repository pattern for async database operations with type safety, structured queries, and JSONB views.
 
-**📍 Navigation**: [← Queries & Mutations](queries-and-mutations.md) • [Performance →](../performance/index.md) • [Database Patterns →](../advanced/database-patterns.md)
+**📍 Navigation**: [← Queries & Mutations](queries-and-mutations/) • [Performance →](../performance/index/) • [Database Patterns →](../advanced/database-patterns/)
 
 ## Overview
 
@@ -33,7 +33,7 @@ FraiseQL provides a repository layer for database operations that:
 3. **PostgreSQL** executes view and returns JSONB results
 4. **Rust Pipeline** transforms JSONB to GraphQL response format
 
-**[📊 Detailed Query Flow](../diagrams/request-flow.md)** - Complete request lifecycle
+**[📊 Detailed Query Flow](../diagrams/request-flow/)** - Complete request lifecycle
 
 ## FraiseQLRepository
 
@@ -442,7 +442,7 @@ class QueryOptions:
 
 Filter syntax supports multiple operators for flexible querying.
 
-> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](../advanced/filter-operators.md)** and **[Advanced Filtering Examples](../examples/advanced-filtering.md)**.
+> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](../advanced/filter-operators/)** and **[Advanced Filtering Examples](../examples/advanced-filtering/)**.
 
 ### Supported Operators
 
@@ -1161,7 +1161,7 @@ for order in data:
 
 ## See Also
 
-- [Queries & Mutations](queries-and-mutations.md) - Using repository methods in GraphQL resolvers
-- [Database Patterns](../advanced/database-patterns.md) - View design and N+1 prevention
-- [Performance](../performance/index.md) - Query optimization
-- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
+- [Queries & Mutations](queries-and-mutations/) - Using repository methods in GraphQL resolvers
+- [Database Patterns](../advanced/database-patterns/) - View design and N+1 prevention
+- [Performance](../performance/index/) - Query optimization
+- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation patterns

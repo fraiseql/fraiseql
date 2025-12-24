@@ -1,6 +1,6 @@
 # FraiseQL Mutations Quick Reference
 
-One-page guide covering 90% of mutation use cases. For complete details, see [Mutation SQL Requirements](../guides/mutation-sql-requirements.md).
+One-page guide covering 90% of mutation use cases. For complete details, see [Mutation SQL Requirements](../guides/mutation-sql-requirements/).
 
 ---
 
@@ -236,7 +236,7 @@ SELECT status ~ '^(created|updated|deleted|failed|not_found|conflict|noop)(:.+)?
 
 ## Next Steps
 
-- **Complete Guide:** [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)
-- **Error Handling Deep Dive:** [Error Handling Patterns](../guides/error-handling-patterns.md)
-- **Troubleshooting:** [Troubleshooting Guide](../guides/troubleshooting-mutations.md)
+- **Complete Guide:** [Mutation SQL Requirements](../guides/mutation-sql-requirements/)
+- **Error Handling Deep Dive:** [Error Handling Patterns](../guides/error-handling-patterns/)
+- **Troubleshooting:** [Troubleshooting Guide](../guides/troubleshooting-mutations/)
 - **Examples:** [Real-World Mutations](../../examples/mutation-patterns/)

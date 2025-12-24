@@ -21,9 +21,9 @@ PostgreSQL → Rust (fraiseql-rs) → HTTP
 
 ## Key Documents
 
-- [Pipeline Architecture](rust-first-pipeline.md) - Technical details
-- [Usage Guide](rust-pipeline-implementation-guide.md) - How to optimize queries
-- [Field Projection](rust-field-projection.md) - Performance optimization
+- [Pipeline Architecture](rust-first-pipeline/) - Technical details
+- [Usage Guide](rust-pipeline-implementation-guide/) - How to optimize queries
+- [Field Projection](rust-field-projection/) - Performance optimization
 
 ## For Contributors
 

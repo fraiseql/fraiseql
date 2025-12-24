@@ -662,7 +662,7 @@ FraiseQL includes built-in OpenTelemetry instrumentation:
 - HackerOne: [If applicable]
 
 **Vulnerability Disclosure**:
-See [SECURITY.md](../SECURITY.md) for responsible disclosure process.
+See [SECURITY.md](../SECURITY/) for responsible disclosure process.
 
 ### Post-Incident Review
 

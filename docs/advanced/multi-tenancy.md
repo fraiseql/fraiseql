@@ -8,8 +8,8 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 
 **Prerequisites**: Before implementing multi-tenancy, ensure you understand:
 - [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
-- [Security Basics](../production/security.md) - RLS and access control fundamentals
-- [Context Propagation](../advanced/where-input-types.md) - Dynamic filtering patterns
+- [Security Basics](../production/security/) - RLS and access control fundamentals
+- [Context Propagation](../advanced/where-input-types/) - Dynamic filtering patterns
 
 **Key Strategies:**
 - Row-level security (RLS) with tenant_id filtering
@@ -119,7 +119,7 @@ FraiseQL automatically sets these based on your context:
 3. **Database**: RLS policies enforce row-level filtering
 4. **Caching**: Tenant-scoped cache invalidation
 
-**[🔒 Isolation Details](../diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+**[🔒 Isolation Details](../diagrams/multi-tenant-isolation/)** - Complete tenant security architecture
 
 ## Table of Contents
 
@@ -994,7 +994,7 @@ large_tenant_pool = DatabasePool(
 
 ## Next Steps
 
-- [Authentication](authentication.md) - Tenant-scoped authentication
-- [Bounded Contexts](bounded-contexts.md) - Multi-tenant DDD patterns
-- [Performance](../performance/index.md) - Query optimization per tenant
-- [Security](../production/security.md) - Tenant isolation security
+- [Authentication](authentication/) - Tenant-scoped authentication
+- [Bounded Contexts](bounded-contexts/) - Multi-tenant DDD patterns
+- [Performance](../performance/index/) - Query optimization per tenant
+- [Security](../production/security/) - Tenant isolation security

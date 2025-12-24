@@ -374,9 +374,9 @@ FraiseQL's security features support compliance with supply chain security regul
 ## 📚 Additional Resources
 
 ### Official Documentation
-- [FraiseQL Security Configuration](../security/configuration.md)
-- [FraiseQL Security Controls Matrix](../security/controls-matrix.md)
-- [SBOM Process Guide](../../COMPLIANCE/SUPPLY_CHAIN/SBOM_PROCESS.md)
+- [FraiseQL Security Configuration](../security/configuration/)
+- [FraiseQL Security Controls Matrix](../security/controls-matrix/)
+- [SBOM Process Guide](../../COMPLIANCE/SUPPLY_CHAIN/SBOM_PROCESS/)
 
 ### External Standards
 - [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework)

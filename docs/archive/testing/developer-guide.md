@@ -445,7 +445,7 @@ When adding new tests:
 
 ## Resources
 
-- [CI Architecture Documentation](./ci-architecture.md)
-- [Pytest Markers Guide](./pytest-markers.md)
-- [Config Fixtures Guide](./config-fixtures.md)
+- [CI Architecture Documentation](./ci-architecture/)
+- [Pytest Markers Guide](./pytest-markers/)
+- [Config Fixtures Guide](./config-fixtures/)
 - [Pytest Documentation](https://docs.pytest.org/)

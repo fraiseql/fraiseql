@@ -175,7 +175,7 @@ pytest -m 'requires_auth0'
 
 ## Troubleshooting
 
-**For detailed troubleshooting procedures, see**: [`docs/runbooks/ci-troubleshooting.md`](../runbooks/ci-troubleshooting.md)
+**For detailed troubleshooting procedures, see**: [`docs/runbooks/ci-troubleshooting.md`](../runbooks/ci-troubleshooting/)
 
 ### Quick Reference
 
@@ -191,7 +191,7 @@ pytest -m 'requires_auth0'
 - Tests can't connect → Run `pg_isready -h localhost -p 5432`, restart PostgreSQL if needed
 - Markers not working → Run `pytest --markers` to list available markers
 
-**For step-by-step diagnostics and solutions**, see the [CI Troubleshooting Runbook](../runbooks/ci-troubleshooting.md)
+**For step-by-step diagnostics and solutions**, see the [CI Troubleshooting Runbook](../runbooks/ci-troubleshooting/)
 
 ## Contributing
 

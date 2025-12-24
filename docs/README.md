@@ -6,20 +6,20 @@ FraiseQL is a PostgreSQL-native GraphQL framework for Python. Build type-safe, p
 
 New to FraiseQL? Start here:
 
-- **[5-Minute Quickstart](getting-started/quickstart.md)** - Get running in minutes
-- **[Installation](getting-started/installation.md)** - Setup instructions
-- **[First Hour Guide](getting-started/first-hour.md)** - Learn the fundamentals
-- **[Core Concepts](core/concepts-glossary.md)** - Essential mental models
+- **[5-Minute Quickstart](getting-started/quickstart/)** - Get running in minutes
+- **[Installation](getting-started/installation/)** - Setup instructions
+- **[First Hour Guide](getting-started/first-hour/)** - Learn the fundamentals
+- **[Core Concepts](core/concepts-glossary/)** - Essential mental models
 
 ## Learn by Example
 
 See FraiseQL in action:
 
-- **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete API from scratch
-- **[Filtering Examples](examples/advanced-filtering.md)** - Query patterns and use cases
-- **[RAG Tutorial](ai-ml/rag-tutorial.md)** - Build AI search with pgvector
-- **[Error Handling Examples](guides/error-handling-patterns.md)** - Robust error management
-- **[Production Deployment](tutorials/production-deployment.md)** - Deploy safely
+- **[Blog API Tutorial](tutorials/blog-api/)** - Build a complete API from scratch
+- **[Filtering Examples](examples/advanced-filtering/)** - Query patterns and use cases
+- **[RAG Tutorial](ai-ml/rag-tutorial/)** - Build AI search with pgvector
+- **[Error Handling Examples](guides/error-handling-patterns/)** - Robust error management
+- **[Production Deployment](tutorials/production-deployment/)** - Deploy safely
 
 ## Core Features
 
@@ -29,67 +29,67 @@ FraiseQL provides everything you need for modern APIs:
 
 Native PostgreSQL vector search for semantic search and RAG applications.
 - Type-safe GraphQL integration with vector operators
-- **[Learn more →](features/pgvector.md)**
+- **[Learn more →](features/pgvector/)**
 
 ### GraphQL Cascade
 
 Automatic, intelligent cache invalidation that works with your data relationships.
 - Zero manual cache management
-- **[Learn more →](features/graphql-cascade.md)** | **[Best Practices →](guides/cascade-best-practices.md)**
+- **[Learn more →](features/graphql-cascade/)** | **[Best Practices →](guides/cascade-best-practices/)**
 
 ### LangChain Integration
 
 Build AI-powered applications with document ingestion and semantic search.
 - Production-ready patterns for RAG applications
-- **[Learn more →](features/langchain-integration.md)**
+- **[Learn more →](guides/langchain-integration/)**
 
 ### LLM Integration
 
 Use LLMs directly in your GraphQL resolvers.
 - Type-safe LLM calling from Python
-- **[Learn more →](features/llm-integration.md)**
+- **[Learn more →](features/ai-native/)**
 
 ## Guides
 
 Common tasks and patterns:
 
-- **[Filtering & Querying](guides/filtering.md)** - Query syntax and patterns
-- **[Mutations & Data Changes](guides/mutation-sql-requirements.md)** - Writing database functions
-- **[Authentication](advanced/authentication.md)** - Securing your API
-- **[Multi-Tenancy](advanced/multi-tenancy.md)** - Tenant isolation patterns
-- **[Performance & Optimization](performance/index.md)** - Make it fast
-- **[Troubleshooting](guides/troubleshooting.md)** - Common issues and solutions
+- **[Filtering & Querying](guides/filtering/)** - Query syntax and patterns
+- **[Mutations & Data Changes](guides/mutation-sql-requirements/)** - Writing database functions
+- **[Authentication](advanced/authentication/)** - Securing your API
+- **[Multi-Tenancy](advanced/multi-tenancy/)** - Tenant isolation patterns
+- **[Performance & Optimization](performance/index/)** - Make it fast
+- **[Troubleshooting](guides/troubleshooting/)** - Common issues and solutions
 
 ## Reference
 
 API documentation and configuration:
 
-- **[Database API](core/database-api.md)** - Query execution and methods
-- **[Types & Schema](core/types-and-schema.md)** - Type system and schema definition
-- **[Configuration](core/configuration.md)** - All configuration options
-- **[Decorators](reference/decorators.md)** - Python decorators reference
-- **[CLI](reference/cli.md)** - Command-line tools
+- **[Database API](core/database-api/)** - Query execution and methods
+- **[Types & Schema](core/types-and-schema/)** - Type system and schema definition
+- **[Configuration](core/configuration/)** - All configuration options
+- **[Decorators](reference/decorators/)** - Python decorators reference
+- **[CLI](reference/cli/)** - Command-line tools
 
 ## Architecture
 
 How FraiseQL works under the hood:
 
-- **[Architecture Overview](architecture/README.md)** - System design
-- **[Mutation Pipeline](architecture/mutation-pipeline.md)** - How mutations execute
-- **[Rust Pipeline](performance/rust-pipeline-optimization.md)** - Performance optimizations
-- **[Key Decisions](architecture/decisions/README.md)** - Design rationale
+- **[Architecture Overview](architecture/README/)** - System design
+- **[Mutation Pipeline](architecture/mutation-pipeline/)** - How mutations execute
+- **[Rust Pipeline](performance/rust-pipeline-optimization/)** - Performance optimizations
+- **[Key Decisions](architecture/decisions/README/)** - Design rationale
 
 ## Deploy to Production
 
 Get your API live:
 
-- **[Deployment Guide](production/deployment.md)** - Deploying FraiseQL
-- **[Monitoring](production/monitoring.md)** - Track and debug
-- **[Health Checks](production/health-checks.md)** - Readiness and liveness
-- **[Security](production/security.md)** - Secure your API
-- **[Performance Tips](performance/index.md)** - Optimize for production
+- **[Deployment Guide](production/deployment/)** - Deploying FraiseQL
+- **[Monitoring](production/monitoring/)** - Track and debug
+- **[Health Checks](production/health-checks/)** - Readiness and liveness
+- **[Security](production/security/)** - Secure your API
+- **[Performance Tips](performance/index/)** - Optimize for production
 
 ## Contributing
 
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
-- **[Development Style Guide](development/style-guide.md)** - Code standards
+- **[Development Style Guide](guides/common-mistakes/)** - Code standards and best practices

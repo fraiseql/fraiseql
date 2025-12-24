@@ -21,7 +21,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Learn how FraiseQL treats vectors as first-class citizens
 
-**Read:** [AI-Native Features](../features/ai-native.md)
+**Read:** [AI-Native Features](../features/ai-native/)
 
 **Key Concepts:**
 - Zero-copy JSONB includes vector types
@@ -38,7 +38,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 
 **Goal:** Build a complete RAG system from scratch
 
-**Follow:** [RAG Tutorial](../ai-ml/rag-tutorial.md)
+**Follow:** [RAG Tutorial](../ai-ml/rag-tutorial/)
 
 **What You'll Build:**
 1. Document storage with automatic embedding generation
@@ -77,7 +77,7 @@ python app.py
 
 **Goal:** Master pgvector similarity operators
 
-**Read:** [Vector Operators Reference](../reference/vector-operators.md)
+**Read:** [Vector Operators Reference](../reference/vector-operators/)
 
 **All 6 pgvector Operators:**
 
@@ -118,7 +118,7 @@ query SearchDocuments($queryEmbedding: [Float!]!) {
 
 **Goal:** Integrate FraiseQL with LangChain RAG pipelines
 
-**Read:** [LangChain Integration Guide](../guides/langchain-integration.md)
+**Read:** [LangChain Integration Guide](../guides/langchain-integration/)
 
 **Integration Pattern:**
 
@@ -183,7 +183,7 @@ query FilteredSearch($queryEmbedding: [Float!]!, $authorId: UUID!) {
 
 **Goal:** Optimize vector search for production scale
 
-**Read:** [pgvector Performance Guide](../features/pgvector.md)
+**Read:** [pgvector Performance Guide](../features/pgvector/)
 
 **Indexing Strategies:**
 
@@ -239,7 +239,7 @@ SET hnsw.ef_search = 20;
 
 **Goal:** Deploy RAG system to production
 
-**Read:** [Production Deployment Checklist](../production/deployment-checklist.md)
+**Read:** [Production Deployment Checklist](../production/deployment-checklist/)
 
 **RAG-Specific Deployment Considerations:**
 
@@ -471,7 +471,7 @@ You now have:
 
 **Estimated Time to Production:** 1-2 weeks for a team of 2 AI/ML engineers
 
-**Recommended Next Journey:** [DevOps Engineer Journey](./devops-engineer.md) for deployment best practices
+**Recommended Next Journey:** [DevOps Engineer Journey](./devops-engineer/) for deployment best practices
 
 ---
 

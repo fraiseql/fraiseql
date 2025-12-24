@@ -48,7 +48,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 - [ ] **Dependencies Tracked** - Complete dependency tree with vulnerability status
 - [ ] **Build Reproducibility** - Verifiable builds with integrity checks
 
-**Guide:** [SLSA Provenance Verification](./slsa-provenance.md) *(coming in WP-011)*
+**Guide:** [SLSA Provenance Verification](./slsa-provenance/) *(coming in WP-011)*
 
 ### Data Privacy & Protection
 
@@ -57,7 +57,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 - [ ] **Data Encryption** - At-rest and in-transit encryption
 - [ ] **Key Management** - KMS integration for cryptographic key lifecycle
 
-**Guide:** [Compliance Matrix](./compliance-matrix.md) *(coming in WP-012)*
+**Guide:** [Compliance Matrix](./compliance-matrix/) *(coming in WP-012)*
 
 ### Access Control
 
@@ -66,7 +66,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 - [ ] **Authentication** - JWT/OAuth2 integration
 - [ ] **Authorization Policies** - Fine-grained field and operation permissions
 
-**Guide:** [Security Profiles](./security-profiles.md) *(coming in WP-013)*
+**Guide:** [Security Profiles](./security-profiles/) *(coming in WP-013)*
 
 ### Audit & Monitoring
 
@@ -77,7 +77,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 
 **Guides:**
 - [Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)
-- [Production Monitoring](../production/monitoring.md)
+- [Production Monitoring](../production/monitoring/)
 
 ---
 
@@ -299,7 +299,7 @@ FraiseQL provides three security profiles for different regulatory environments:
 - Dedicated audit infrastructure
 - Security Operations Center (SOC) integration
 
-**Configuration Guide:** [Security Profiles Setup](./security-profiles.md) *(coming in WP-013)*
+**Configuration Guide:** [Security Profiles Setup](./security-profiles/) *(coming in WP-013)*
 
 ---
 
@@ -310,7 +310,7 @@ FraiseQL provides three security profiles for different regulatory environments:
 **Verify FraiseQL's Security Claims:**
 
 1. **Check SLSA Provenance** - Verify build integrity and supply chain security
-   - Guide: [SLSA Provenance Verification](./slsa-provenance.md) *(coming in WP-011)*
+   - Guide: [SLSA Provenance Verification](./slsa-provenance/) *(coming in WP-011)*
    - Time: 10-15 minutes
    - Technical Skill: None (uses web tools)
 
@@ -320,7 +320,7 @@ FraiseQL provides three security profiles for different regulatory environments:
    - Technical Skill: Basic (command line)
 
 3. **Assess Compliance Posture** - Check regulatory compliance status
-   - Guide: [Compliance Matrix](./compliance-matrix.md) *(coming in WP-012)*
+   - Guide: [Compliance Matrix](./compliance-matrix/) *(coming in WP-012)*
    - Time: 15-20 minutes
    - Technical Skill: None (checklist-based)
 
@@ -329,12 +329,12 @@ FraiseQL provides three security profiles for different regulatory environments:
 **Audit FraiseQL Deployments:**
 
 1. **Review Security Architecture** - Assess defense-in-depth implementation
-   - Guide: [Security Architecture Overview](../production/security.md)
+   - Guide: [Security Architecture Overview](../production/security/)
    - Time: 30-45 minutes
    - Technical Skill: Advanced
 
 2. **Test Access Controls** - Verify RBAC and RLS policies
-   - Guide: [RBAC Testing Guide](../enterprise/rbac-postgresql-assessment.md)
+   - Guide: [RBAC Testing Guide](../enterprise/rbac-postgresql-assessment/)
    - Time: 1-2 hours
    - Technical Skill: Advanced (SQL)
 
@@ -353,7 +353,7 @@ FraiseQL provides three security profiles for different regulatory environments:
    - Output: PDF/JSON report
 
 2. **Map Controls to Regulations** - Cross-reference FraiseQL controls with requirements
-   - Guide: [Compliance Matrix](./compliance-matrix.md) *(coming in WP-012)*
+   - Guide: [Compliance Matrix](./compliance-matrix/) *(coming in WP-012)*
    - Time: 20-30 minutes
    - Technical Skill: None
 
@@ -368,9 +368,9 @@ FraiseQL provides three security profiles for different regulatory environments:
 
 FraiseQL's security architecture is documented in Architecture Decision Records (ADRs):
 
-- **[ADR-003: KMS Architecture](../architecture/decisions/0003-kms-architecture.md)** - Multi-provider key management
-- **[ADR-005: Unified Audit Table](../architecture/decisions/003-unified-audit-table.md)** - Immutable audit logging design
-- **[ADR-006: Simplified CDC](../architecture/decisions/005-simplified-single-source-cdc.md)** - Change Data Capture approach
+- **[ADR-003: KMS Architecture](../architecture/decisions/0003-kms-architecture/)** - Multi-provider key management
+- **[ADR-005: Unified Audit Table](../architecture/decisions/003-unified-audit-table/)** - Immutable audit logging design
+- **[ADR-006: Simplified CDC](../architecture/decisions/005-simplified-single-source-cdc/)** - Change Data Capture approach
 
 ---
 
@@ -378,22 +378,22 @@ FraiseQL's security architecture is documented in Architecture Decision Records 
 
 ### Detailed Technical Guides
 
-- **[Production Security Guide](../production/security.md)** - SQL injection prevention, rate limiting, CORS, authentication
+- **[Production Security Guide](../production/security/)** - SQL injection prevention, rate limiting, CORS, authentication
 - **[Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)** - Comprehensive audit logging implementation
-- **[RBAC Implementation](../enterprise/rbac-postgresql-refactored.md)** - Role-based access control with PostgreSQL
-- **[KMS Integration](../architecture/decisions/0003-kms-architecture.md)** - Key management for data encryption
+- **[RBAC Implementation](../enterprise/rbac-postgresql-refactored/)** - Role-based access control with PostgreSQL
+- **[KMS Integration](../architecture/decisions/0003-kms-architecture/)** - Key management for data encryption
 
 ### Deployment & Operations
 
-- **[Production Deployment](../production/deployment.md)** - Secure deployment configurations
-- **[Monitoring & Observability](../production/observability.md)** - Security monitoring setup
-- **[Production Checklist](../production/README.md)** - Pre-deployment security review
+- **[Production Deployment](../production/deployment/)** - Secure deployment configurations
+- **[Monitoring & Observability](../production/observability/)** - Security monitoring setup
+- **[Production Checklist](../production/README/)** - Pre-deployment security review
 
 ### Compliance
 
-- **[Global Regulations Guide](../compliance/global-regulations.md)** - Detailed regulatory requirements by jurisdiction
-- **[Compliance Matrix](./compliance-matrix.md)** - Control mapping (coming in WP-012)
-- **[Security Profiles](./security-profiles.md)** - Configuration for regulated industries (coming in WP-013)
+- **[Global Regulations Guide](../compliance/global-regulations/)** - Detailed regulatory requirements by jurisdiction
+- **[Compliance Matrix](./compliance-matrix/)** - Control mapping (coming in WP-012)
+- **[Security Profiles](./security-profiles/)** - Configuration for regulated industries (coming in WP-013)
 
 ---
 
@@ -482,9 +482,9 @@ fraiseql compliance report --format pdf
 ## Support & Resources
 
 ### Documentation
-- **[Security Best Practices](../production/security.md)**
-- **[Architecture Decisions](../architecture/decisions/README.md)**
-- **[Production Deployment](../production/deployment.md)**
+- **[Security Best Practices](../production/security/)**
+- **[Architecture Decisions](../architecture/decisions/README/)**
+- **[Production Deployment](../production/deployment/)**
 
 ### Tools
 - **SBOM Generator:** `fraiseql sbom generate`
@@ -526,7 +526,7 @@ A:
 
 **Q: How do I verify FraiseQL's SLSA provenance?**
 
-A: See [SLSA Provenance Verification Guide](./slsa-provenance.md) *(coming in WP-011)*. Verification takes 10-15 minutes using web-based tools and requires no specialized knowledge.
+A: See [SLSA Provenance Verification Guide](./slsa-provenance/) *(coming in WP-011)*. Verification takes 10-15 minutes using web-based tools and requires no specialized knowledge.
 
 **Q: Can I generate SBOMs for my application?**
 
@@ -592,6 +592,6 @@ A: Yes. FraiseQL supports audit log export to:
 ---
 
 **Next Steps:**
-- Review [SLSA Provenance Verification](./slsa-provenance.md) *(coming in WP-011)*
-- Check [Compliance Matrix](./compliance-matrix.md) *(coming in WP-012)*
-- Configure [Security Profiles](./security-profiles.md) *(coming in WP-013)*
+- Review [SLSA Provenance Verification](./slsa-provenance/) *(coming in WP-011)*
+- Check [Compliance Matrix](./compliance-matrix/) *(coming in WP-012)*
+- Configure [Security Profiles](./security-profiles/) *(coming in WP-013)*

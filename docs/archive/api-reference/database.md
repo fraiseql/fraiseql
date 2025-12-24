@@ -199,6 +199,6 @@ order_by = {
 
 ## Related
 
-- [Repository Pattern](../core/README.md)
+- [Repository Pattern](../core/README/)
 - [Examples](../../examples/)
 - [CQRS Pattern](../architecture/)

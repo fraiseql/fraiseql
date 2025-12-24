@@ -772,7 +772,7 @@ config = FraiseQLConfig(
 **Impact**:
 - When set, all mutations without an explicit `error_config` parameter will use this global default
 - Individual mutations can override the global default by specifying `error_config` in the decorator
-- Only used in non-HTTP mode (direct GraphQL execution); HTTP mode uses [status string taxonomy](../mutations/status-strings.md)
+- Only used in non-HTTP mode (direct GraphQL execution); HTTP mode uses [status string taxonomy](../mutations/status-strings/)
 
 **Available Configurations**:
 
@@ -861,8 +861,8 @@ class DeleteUser:
 
 **See Also**:
 - [Mutation Decorator](./decorators.md#fraiseqlmutation) - Mutation decorator reference
-- [Status Strings](../mutations/status-strings.md) - Status string conventions (HTTP mode)
-- [MutationErrorConfig](../api-reference/README.md) - Error config API reference
+- [Status Strings](../mutations/status-strings/) - Status string conventions (HTTP mode)
+- [MutationErrorConfig](../api-reference/README/) - Error config API reference
 
 ## Entity Routing Settings
 
@@ -959,5 +959,5 @@ config = FraiseQLConfig(
 
 ## See Also
 
-- [Configuration Guide](../core/configuration.md) - Configuration patterns and examples
-- [Deployment](../production/deployment.md) - Production configuration
+- [Configuration Guide](../core/configuration/) - Configuration patterns and examples
+- [Deployment](../production/deployment/) - Production configuration

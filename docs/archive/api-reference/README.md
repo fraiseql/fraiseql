@@ -35,14 +35,14 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
 - **[fetch_one() / fetch_all()](database.md#fetching-data)** - Retrieve query results
 
 ### Where Input Types
-- **[create_graphql_where_input()](../advanced/where-input-types.md)** - Generate filtering types
+- **[create_graphql_where_input()](../advanced/where-input-types/)** - Generate filtering types
   - Standard operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `isnull`
   - Specialized operators: Network types, ltree hierarchy, date ranges
   - Nested array filtering: `AND`, `OR`, `NOT` logical operators
 
 ## Configuration
 
-- **[FraiseQLConfig](../core/configuration.md)** - Application configuration
+- **[FraiseQLConfig](../core/configuration/)** - Application configuration
   - Database connection settings
   - APQ (Automatic Persisted Queries) configuration
   - Caching backend selection
@@ -63,7 +63,7 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
   - OpenTelemetry trace correlation
 
 ### APQ (Automatic Persisted Queries)
-- **[APQConfig](../performance/apq-optimization-guide.md)** - Configure APQ
+- **[APQConfig](../performance/apq-optimization-guide/)** - Configure APQ
   - Storage backends: memory, PostgreSQL
   - Query hash validation
   - Multi-instance coordination
@@ -71,13 +71,13 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
 ## Utilities
 
 ### Trinity Identifiers
-- **[Trinity Pattern](../database/trinity-identifiers.md)** - Three-tier ID system
+- **[Trinity Pattern](../database/trinity-identifiers/)** - Three-tier ID system
   - `pk_*` - Internal integer IDs for fast joins
   - `id` - Public UUID for API stability
   - `identifier` - Human-readable slugs for SEO
 
 ### Type Operators
-- **[Type Operator Architecture](../architecture/type-operator-architecture.md)** - Advanced filtering
+- **[Type Operator Architecture](../architecture/type-operator-architecture/)** - Advanced filtering
   - Network operators: `inet_eq`, `cidr_contains`
   - Hierarchy operators: `ancestor_of`, `descendant_of`
   - Range operators: `overlaps`, `contains`

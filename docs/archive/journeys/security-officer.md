@@ -21,7 +21,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Understand FraiseQL's security architecture
 
-**Read:** [Security & Compliance Hub](../security-compliance/README.md)
+**Read:** [Security & Compliance Hub](../security-compliance/README/)
 
 **Key Security Features:**
 - ✅ **Supply Chain Security:** SLSA Level 3 provenance, automated SBOM
@@ -42,7 +42,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Verify compliance with your organization's regulatory requirements
 
-**Read:** [Compliance Matrix](../security-compliance/compliance-matrix.md)
+**Read:** [Compliance Matrix](../security-compliance/compliance-matrix/)
 
 **Supported Compliance Frameworks:**
 
@@ -113,7 +113,7 @@ All control implementations link to test files for verification:
 
 **Goal:** Choose the appropriate security profile for your requirements
 
-**Read:** [Security Profiles Guide](../security-compliance/security-profiles.md)
+**Read:** [Security Profiles Guide](../security-compliance/security-profiles/)
 
 **Decision Matrix:**
 
@@ -176,7 +176,7 @@ app = create_fraiseql_app(
 
 **Goal:** Verify SLSA provenance and SBOM integrity
 
-**Read:** [SLSA Provenance Verification Guide](../security-compliance/slsa-provenance.md)
+**Read:** [SLSA Provenance Verification Guide](../security-compliance/slsa-provenance/)
 
 **Supply Chain Security Features:**
 - ✅ **SLSA Level 3** provenance with cryptographic signing
@@ -376,11 +376,11 @@ Use this checklist for final approval decision:
 ## Related Resources
 
 ### Documentation
-- [Security & Compliance Hub](../security-compliance/README.md) - Overview
-- [Compliance Matrix](../security-compliance/compliance-matrix.md) - Framework mappings
-- [Security Profiles](../security-compliance/security-profiles.md) - Configuration guide
-- [SLSA Provenance](../security-compliance/slsa-provenance.md) - Supply chain verification
-- [Production Security](../production/security.md) - Operational security guide
+- [Security & Compliance Hub](../security-compliance/README/) - Overview
+- [Compliance Matrix](../security-compliance/compliance-matrix/) - Framework mappings
+- [Security Profiles](../security-compliance/security-profiles/) - Configuration guide
+- [SLSA Provenance](../security-compliance/slsa-provenance/) - Supply chain verification
+- [Production Security](../production/security/) - Operational security guide
 
 ### Test Evidence
 - Audit trail tests: `tests/integration/enterprise/audit/`
@@ -426,7 +426,7 @@ You now have:
 
 **Estimated Time to Security Approval:** 1-2 weeks (including security review and testing)
 
-**Recommended Next Journey:** [Procurement Officer Journey](./procurement-officer.md) for SLSA provenance verification workflow
+**Recommended Next Journey:** [Procurement Officer Journey](./procurement-officer/) for SLSA provenance verification workflow
 
 ---
 

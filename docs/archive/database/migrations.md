@@ -266,7 +266,7 @@ For production migrations with minimal downtime (0-5 seconds):
 confiture migrate schema-to-schema --strategy fdw
 ```
 
-This uses **Foreign Data Wrapper (FDW)** technology. For detailed steps, see [Confiture's Zero-Downtime Guide](https://github.com/fraiseql/confiture/blob/main/docs/guides/medium-4-schema-to-schema.md).
+This uses **Foreign Data Wrapper (FDW)** technology. For detailed steps, see [Confiture's Zero-Downtime Guide](https://github.com/fraiseql/confiture/blob/main/docs/guides/medium-4-schema-to-schema/).
 
 ### Learn More
 
@@ -460,9 +460,9 @@ After successful migration:
 ## Related Documentation
 
 - [**Confiture**](https://github.com/fraiseql/confiture) - Official FraiseQL migration tool (production-ready)
-- [Table Naming Conventions](./table-naming-conventions.md) - Complete naming reference
-- [View Strategies](./view-strategies.md) - When to use v_* vs tv_* vs mv_*
-- [Trinity Identifiers](./trinity-identifiers.md) - Three-tier ID system
+- [Table Naming Conventions](./table-naming-conventions/) - Complete naming reference
+- [View Strategies](./view-strategies/) - When to use v_* vs tv_* vs mv_*
+- [Trinity Identifiers](./trinity-identifiers/) - Three-tier ID system
 - [Example Migration Script](./example-migration.sql) - Ready-to-use SQL script
 
 ---

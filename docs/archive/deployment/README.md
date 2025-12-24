@@ -464,8 +464,8 @@ See **[Production Deployment Guide](../production/deployment.md#scaling-strategi
 ## Support & Additional Resources
 
 - **[Production Guide](../production/)** - Monitoring, security, observability
-- **[Security Policy](../../SECURITY.md)** - Security best practices
-- **[Health Checks](../production/health-checks.md)** - Liveness/readiness probes
-- **[Troubleshooting](../guides/troubleshooting.md)** - Common deployment issues
+- **[Security Policy](../../SECURITY/)** - Security best practices
+- **[Health Checks](../production/health-checks/)** - Liveness/readiness probes
+- **[Troubleshooting](../guides/troubleshooting/)** - Common deployment issues
 
 **Need help?** Open an issue at [GitHub Issues](../issues)

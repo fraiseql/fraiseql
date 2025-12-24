@@ -268,7 +268,7 @@ RECOMMENDATION: APPROVED for procurement
 - Include in procurement documentation for non-technical stakeholders
 
 **4. Compliance Mapping** (Reference Document)
-- Link to [Compliance Matrix](../security-compliance/compliance-matrix.md)
+- Link to [Compliance Matrix](../security-compliance/compliance-matrix/)
 - Highlight relevant frameworks (ISO 27001, FedRAMP, etc.)
 - Include in vendor evaluation matrix
 
@@ -451,9 +451,9 @@ You now have:
 5. **Retain documentation** - 7+ years for compliance
 
 ### For Technical Team
-1. **Security assessment** - [Security Officer Journey](./security-officer.md)
-2. **Technical evaluation** - [Backend Engineer Journey](./backend-engineer.md)
-3. **Deployment planning** - [DevOps Engineer Journey](./devops-engineer.md)
+1. **Security assessment** - [Security Officer Journey](./security-officer/)
+2. **Technical evaluation** - [Backend Engineer Journey](./backend-engineer/)
+3. **Deployment planning** - [DevOps Engineer Journey](./devops-engineer/)
 
 ### For Ongoing Compliance
 - **Quarterly SBOM review** - Check for new vulnerabilities
@@ -464,9 +464,9 @@ You now have:
 ## Related Resources
 
 ### Documentation
-- [SLSA Provenance Guide](../security-compliance/slsa-provenance.md) - Detailed technical guide
-- [Compliance Matrix](../security-compliance/compliance-matrix.md) - Regulatory framework mappings
-- [Security & Compliance Hub](../security-compliance/README.md) - Overview
+- [SLSA Provenance Guide](../security-compliance/slsa-provenance/) - Detailed technical guide
+- [Compliance Matrix](../security-compliance/compliance-matrix/) - Regulatory framework mappings
+- [Security & Compliance Hub](../security-compliance/README/) - Overview
 
 ### External Resources
 - [SLSA Framework](https://slsa.dev/) - Supply chain security standard

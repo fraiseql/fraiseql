@@ -117,9 +117,9 @@ app = FraiseQL()
 
 ## 📚 Documentation
 
-- **[PostgreSQL Comments Guide](postgresql-comments.md)** - How to use database comments for GraphQL documentation
-- **[Getting Started](../getting-started/quickstart.md)** - 5-minute setup guide
-- **[Core Concepts](../core/concepts-glossary.md)** - Understanding FraiseQL's architecture
+- **[PostgreSQL Comments Guide](postgresql-comments/)** - How to use database comments for GraphQL documentation
+- **[Getting Started](../getting-started/quickstart/)** - 5-minute setup guide
+- **[Core Concepts](../core/concepts-glossary/)** - Understanding FraiseQL's architecture
 - **[API Reference](../api-reference/)** - Complete API documentation
 
 ## 🎯 Use Cases

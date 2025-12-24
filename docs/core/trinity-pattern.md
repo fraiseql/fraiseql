@@ -383,7 +383,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 -- Step 4: Update application to use v_user
 ```
 
-See [Migration Guide](./migrations.md) for detailed steps.
+See [Migration Guide](./migrations/) for detailed steps.
 
 ---
 
@@ -481,10 +481,10 @@ SELECT
 
 ## Next Steps
 
-- [Database Naming Conventions](../database/table-naming-conventions.md) - Complete naming reference
-- [Migration Guide](./migrations.md) - Migrate from simple tables
-- [View Strategies](../database/view-strategies.md) - Advanced view patterns
-- [Performance Tuning](../performance/performance-guide.md) - Optimize your trinity pattern
+- [Database Naming Conventions](../database/table-naming-conventions/) - Complete naming reference
+- [Migration Guide](./migrations/) - Migrate from simple tables
+- [View Strategies](../database/view-strategies/) - Advanced view patterns
+- [Performance Tuning](../performance/performance-guide/) - Optimize your trinity pattern
 
 ---
 

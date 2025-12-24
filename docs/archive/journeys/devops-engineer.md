@@ -22,7 +22,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Understand FraiseQL's deployment architecture
 
-**Read:** [Production Deployment Guide](../production/deployment.md)
+**Read:** [Production Deployment Guide](../production/deployment/)
 
 **Production Architecture:**
 ```
@@ -64,7 +64,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Validate readiness for production deployment
 
-**Follow:** [Production Deployment Checklist](../production/deployment-checklist.md)
+**Follow:** [Production Deployment Checklist](../production/deployment-checklist/)
 
 **Essential Checks:**
 
@@ -153,7 +153,7 @@ spec:
 
 **Goal:** Configure PostgreSQL for production workloads
 
-**Read:** [Database Configuration](../database/table-naming-conventions.md)
+**Read:** [Database Configuration](../database/table-naming-conventions/)
 
 **PostgreSQL Production Configuration:**
 
@@ -261,7 +261,7 @@ spec:
 
 **Goal:** Deploy comprehensive monitoring and logging
 
-**Read:** [Observability Guide](../production/observability.md)
+**Read:** [Observability Guide](../production/observability/)
 
 **Observability Stack:**
 
@@ -301,7 +301,7 @@ scrape_configs:
 
 **2. Grafana Dashboards:**
 
-**Read:** [Monitoring Setup](../production/monitoring.md)
+**Read:** [Monitoring Setup](../production/monitoring/)
 
 Pre-built dashboards available in `deployments/grafana/`:
 - `fraiseql-overview.json` - High-level health metrics
@@ -318,7 +318,7 @@ kubectl create configmap grafana-dashboards \
 
 **3. Loki Log Aggregation:**
 
-**Read:** [Loki Integration](../production/loki-integration.md)
+**Read:** [Loki Integration](../production/loki-integration/)
 
 **Loki Configuration:**
 ```yaml
@@ -384,7 +384,7 @@ python app.py
 
 **Goal:** Configure health monitoring and alerting
 
-**Read:** [Health Checks Guide](../production/health-checks.md)
+**Read:** [Health Checks Guide](../production/health-checks/)
 
 **Health Check Endpoints:**
 
@@ -578,7 +578,7 @@ kubectl rollout status deployment/fraiseql-api
 
 **Goal:** Prepare for production incidents
 
-**Read:** [Operations Runbook](../deployment/operations-runbook.md)
+**Read:** [Operations Runbook](../deployment/operations-runbook/)
 
 **Common Incidents & Resolution:**
 
@@ -817,7 +817,7 @@ You now have:
 
 **Estimated Time to Production:** 1-2 weeks for infrastructure setup and validation
 
-**Recommended Next Journey:** [Backend Engineer Journey](./backend-engineer.md) for API design patterns
+**Recommended Next Journey:** [Backend Engineer Journey](./backend-engineer/) for API design patterns
 
 ---
 

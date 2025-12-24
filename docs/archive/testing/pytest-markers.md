@@ -305,5 +305,5 @@ As the codebase grows, markers may evolve:
 ## Reference
 
 - [Pytest Markers Documentation](https://docs.pytest.org/en/stable/how-to/mark.html)
-- [FraiseQL CI Architecture](./ci-architecture.md)
-- [Config Fixtures](./config-fixtures.md)
+- [FraiseQL CI Architecture](./ci-architecture/)
+- [Config Fixtures](./config-fixtures/)

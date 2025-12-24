@@ -12,15 +12,15 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **GraphQL Types** | ✅ Stable | [Types Guide](../core/types-and-schema.md) | [blog_simple](../../examples/blog_simple/) |
-| **Queries** | ✅ Stable | [Queries Guide](../core/queries-and-mutations.md) | [blog_api](../../examples/blog_api/) |
-| **Mutations** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md) | [mutations_demo](../../examples/mutations_demo/) |
-| **Mutation Result Formats** | ✅ Stable | [Result Reference](mutation-result-reference.md) | [mutations_demo](../../examples/mutations_demo/) |
+| **GraphQL Types** | ✅ Stable | [Types Guide](../core/types-and-schema/) | [blog_simple](../../examples/blog_simple/) |
+| **Queries** | ✅ Stable | [Queries Guide](../core/queries-and-mutations/) | [blog_api](../../examples/blog_api/) |
+| **Mutations** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations/) | [mutations_demo](../../examples/mutations_demo/) |
+| **Mutation Result Formats** | ✅ Stable | [Result Reference](mutation-result-reference/) | [mutations_demo](../../examples/mutations_demo/) |
 | **Input Types** | ✅ Stable | [Types Guide](../core/types-and-schema.md#input-types) | [blog_simple](../../examples/blog_simple/) |
 | **Success/Failure Responses** | ✅ Stable | [Mutations Guide](../core/queries-and-mutations.md#success-failure-pattern) | [mutations_demo](../../examples/mutations_demo/) |
 | **Nested Relations** | ✅ Stable | [Database API](../core/database-api.md#nested-relations) | [blog_api](../../examples/blog_api/) |
-| **Pagination** | ✅ Stable | [Database API](../core/database-api.md) | [ecommerce](../../examples/ecommerce/) |
-| **Filtering (Where Input)** | ✅ Stable | [Where Input Guide](../advanced/where-input-types.md) | [filtering](../../examples/filtering/) |
+| **Pagination** | ✅ Stable | [Database API](../core/database-api/) | [ecommerce](../../examples/ecommerce/) |
+| **Filtering (Where Input)** | ✅ Stable | [Where Input Guide](../advanced/where-input-types/) | [filtering](../../examples/filtering/) |
 
 ---
 
@@ -29,11 +29,11 @@ Complete overview of all FraiseQL capabilities.
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
 | **JSONB Views (v_*)** | ✅ Stable | [Core Concepts](../core/concepts-glossary.md#jsonb-views) | [blog_simple](../../examples/blog_simple/) |
-| **Table Views (tv_*)** | ✅ Stable | [Explicit Sync](../core/explicit-sync.md) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
+| **Table Views (tv_*)** | ✅ Stable | [Explicit Sync](../core/explicit-sync/) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
 | **PostgreSQL Functions** | ✅ Stable | [Database API](../core/database-api.md#calling-functions) | [blog_api](../../examples/blog_api/) |
 | **Connection Pooling** | ✅ Stable | [Database API](../core/database-api.md#connection-pool) | All examples |
 | **Transaction Support** | ✅ Stable | [Database API](../core/database-api.md#transactions) | [enterprise_patterns](../../examples/enterprise_patterns/) |
-| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../database/trinity-identifiers.md) | [saas-starter](../../examples/saas-starter/) |
+| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](../database/trinity-identifiers/) | [saas-starter](../../examples/saas-starter/) |
 | **CQRS Pattern** | ✅ Stable | [Patterns Guide](../patterns/README.md#cqrs) | [blog_enterprise](../../examples/blog_enterprise/) |
 
 ---
@@ -42,7 +42,7 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **Nested Array Filtering** | ✅ Stable | [Nested Arrays](../guides/nested-array-filtering.md) | [specialized_types](../../examples/specialized_types/) |
+| **Nested Array Filtering** | ✅ Stable | [Nested Arrays](../guides/nested-array-filtering/) | [specialized_types](../../examples/specialized_types/) |
 | **Logical Operators (AND/OR/NOT)** | ✅ Stable | [Where Input Types](../advanced/where-input-types.md#logical-operators) | [filtering](../../examples/filtering/) |
 | **Network Types (IPv4/IPv6/CIDR)** | ✅ Stable | [Specialized Types](../advanced/where-input-types.md#network-types) | [specialized_types](../../examples/specialized_types/) |
 | **Hierarchical Data (ltree)** | ✅ Stable | [Hierarchical Guide](../advanced/database-patterns.md#ltree) | [ltree-hierarchical-data](../../examples/ltree-hierarchical-data/) |
@@ -56,9 +56,9 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **Rust Pipeline Acceleration** | ✅ Stable | [Rust Pipeline](../performance/rust-pipeline-optimization.md) | All examples (automatic) |
+| **Rust Pipeline Acceleration** | ✅ Stable | [Rust Pipeline](../performance/rust-pipeline-optimization/) | All examples (automatic) |
 | **Zero N+1 Queries** | ✅ Stable | [Performance Guide](../performance/index.md#n-plus-one-prevention) | [blog_api](../../examples/blog_api/) |
-| **Automatic Persisted Queries (APQ)** | ✅ Stable | [APQ Guide](../performance/apq-optimization-guide.md) | [apq_multi_tenant](../../examples/apq_multi_tenant/) |
+| **Automatic Persisted Queries (APQ)** | ✅ Stable | [APQ Guide](../performance/apq-optimization-guide/) | [apq_multi_tenant](../../examples/apq_multi_tenant/) |
 | **PostgreSQL Caching** | ✅ Stable | [Caching Guide](../performance/index.md#postgresql-caching) | [ecommerce](../../examples/ecommerce/) |
 | **Query Batching** | ✅ Stable | [Database API](../core/database-api.md#batching) | [turborouter](../../examples/turborouter/) |
 | **Connection Pooling** | ✅ Stable | [Database API](../core/database-api.md#connection-pool) | All examples |
@@ -86,12 +86,12 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **Multi-Tenancy** | ✅ Stable | [Multi-Tenancy Guide](../advanced/multi-tenancy.md) | [saas-starter](../../examples/saas-starter/) |
-| **Bounded Contexts** | ✅ Stable | [Bounded Contexts](../advanced/bounded-contexts.md) | [blog_enterprise](../../examples/blog_enterprise/) |
-| **Event Sourcing** | ✅ Stable | [Event Sourcing](../advanced/event-sourcing.md) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
+| **Multi-Tenancy** | ✅ Stable | [Multi-Tenancy Guide](../advanced/multi-tenancy/) | [saas-starter](../../examples/saas-starter/) |
+| **Bounded Contexts** | ✅ Stable | [Bounded Contexts](../advanced/bounded-contexts/) | [blog_enterprise](../../examples/blog_enterprise/) |
+| **Event Sourcing** | ✅ Stable | [Event Sourcing](../advanced/event-sourcing/) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
 | **Domain Events** | ✅ Stable | [Event Sourcing](../advanced/event-sourcing.md#domain-events) | [blog_enterprise](../../examples/blog_enterprise/) |
 | **CQRS Architecture** | ✅ Stable | [Patterns Guide](../patterns/README.md#cqrs) | [blog_enterprise](../../examples/blog_enterprise/) |
-| **Compliance (GDPR/SOC2/HIPAA)** | ✅ Stable | [Enterprise Guide](../enterprise/enterprise.md) | [saas-starter](../../examples/saas-starter/) |
+| **Compliance (GDPR/SOC2/HIPAA)** | ✅ Stable | [Enterprise Guide](../enterprise/enterprise/) | [saas-starter](../../examples/saas-starter/) |
 
 ---
 
@@ -102,7 +102,7 @@ Complete overview of all FraiseQL capabilities.
 | **GraphQL Subscriptions** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
 | **WebSocket Support** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
 | **Presence Tracking** | ✅ Stable | See examples | [real_time_chat](../../examples/real_time_chat/) |
-| **LISTEN/NOTIFY (PostgreSQL)** | ✅ Stable | [Database Patterns](../advanced/database-patterns.md) | [real_time_chat](../../examples/real_time_chat/) |
+| **LISTEN/NOTIFY (PostgreSQL)** | ✅ Stable | [Database Patterns](../advanced/database-patterns/) | [real_time_chat](../../examples/real_time_chat/) |
 
 ---
 
@@ -110,11 +110,11 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **Built-in Error Tracking** | ✅ Stable | [Monitoring Guide](../production/monitoring.md) | [saas-starter](../../examples/saas-starter/) |
+| **Built-in Error Tracking** | ✅ Stable | [Monitoring Guide](../production/monitoring/) | [saas-starter](../../examples/saas-starter/) |
 | **PostgreSQL-based Monitoring** | ✅ Stable | [Monitoring Guide](../production/monitoring.md#postgresql-monitoring) | [saas-starter](../../examples/saas-starter/) |
-| **OpenTelemetry Integration** | ✅ Stable | [Observability Guide](../production/observability.md) | [saas-starter](../../examples/saas-starter/) |
+| **OpenTelemetry Integration** | ✅ Stable | [Observability Guide](../production/observability/) | [saas-starter](../../examples/saas-starter/) |
 | **Grafana Dashboards** | ✅ Stable | [Monitoring Guide](../production/monitoring.md#grafana) | [grafana/](../../grafana/) |
-| **Health Checks** | ✅ Stable | [Health Checks](../production/health-checks.md) | All examples |
+| **Health Checks** | ✅ Stable | [Health Checks](../production/health-checks/) | All examples |
 | **Custom Metrics** | ✅ Stable | [Observability Guide](../production/observability.md#metrics) | [analytics_dashboard](../../examples/analytics_dashboard/) |
 
 ---
@@ -137,7 +137,7 @@ Complete overview of all FraiseQL capabilities.
 | **GraphQL Playground** | ✅ Stable | Built-in | All examples |
 | **Schema Introspection** | ✅ Stable | Built-in | All examples |
 | **Hot Reload** | ✅ Stable | Built-in | All examples |
-| **CLI Commands** | ✅ Stable | [CLI Reference](../reference/cli.md) | - |
+| **CLI Commands** | ✅ Stable | [CLI Reference](../reference/cli/) | - |
 | **Type Generation** | ✅ Stable | [CLI Reference](../reference/cli.md#type-generation) | - |
 | **Schema Export** | ✅ Stable | [CLI Reference](../reference/cli.md#schema-export) | - |
 
@@ -152,7 +152,7 @@ Complete overview of all FraiseQL capabilities.
 | **AWS Deployment** | ✅ Stable | [Deployment Guide](../deployment/README.md#aws) | - |
 | **GCP Deployment** | ✅ Stable | [Deployment Guide](../deployment/README.md#gcp) | - |
 | **Azure Deployment** | ✅ Stable | [Deployment Guide](../deployment/README.md#azure) | - |
-| **Environment Configuration** | ✅ Stable | [Configuration Guide](../core/configuration.md) | All examples |
+| **Environment Configuration** | ✅ Stable | [Configuration Guide](../core/configuration/) | All examples |
 
 ---
 
@@ -160,12 +160,12 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **pgvector Integration** | ✅ Stable | [pgvector Guide](pgvector.md) | [vector_search](../../examples/vector_search/) |
+| **pgvector Integration** | ✅ Stable | [pgvector Guide](pgvector/) | [vector_search](../../examples/vector_search/) |
 | **Vector Similarity Search** | ✅ Stable | [pgvector Guide](pgvector.md#distance-operators) | [vector_search](../../examples/vector_search/) |
-| **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [graphql-cascade](../../examples/graphql-cascade/) |
-| **SQL Function Return Format** | ✅ Stable | [SQL Function Guide](sql-function-return-format.md) | [mutations_demo](../../examples/mutations_demo/) |
-| **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration.md) | [Documentation](../guides/langchain-integration.md) |
-| **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native.md) | [Documentation](ai-native.md) |
+| **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade/) | [graphql-cascade](../../examples/graphql-cascade/) |
+| **SQL Function Return Format** | ✅ Stable | [SQL Function Guide](sql-function-return-format/) | [mutations_demo](../../examples/mutations_demo/) |
+| **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration/) | [Documentation](../guides/langchain-integration/) |
+| **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native/) | [Documentation](ai-native/) |
 
 ### Vector Distance Operators
 
@@ -184,7 +184,7 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **CASCADE Invalidation** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
+| **CASCADE Invalidation** | ✅ Stable | [Cascade Guide](graphql-cascade/) | [complete_cqrs_blog](../../examples/complete_cqrs_blog/) |
 | **PostgreSQL Function Pattern** | ✅ Stable | [PostgreSQL Pattern](graphql-cascade.md#postgresql-function-pattern) | - |
 | **Cascade Structure** | ✅ Stable | [Cascade Structure](graphql-cascade.md#cascade-structure) | - |
 | **Apollo Client Integration** | ✅ Stable | [Client Integration](graphql-cascade.md#apollo-client) | - |
@@ -217,7 +217,7 @@ We prioritize features based on:
 
 ## Quick Links
 
-- **[Getting Started](../getting-started/quickstart.md)** - Build your first API in 5 minutes
-- **[Core Concepts](../core/concepts-glossary.md)** - Understand FraiseQL's mental model
+- **[Getting Started](../getting-started/quickstart/)** - Build your first API in 5 minutes
+- **[Core Concepts](../core/concepts-glossary/)** - Understand FraiseQL's mental model
 - **[Examples](../../examples/)** - Learn by example
 - **[Production Deployment](../production/)** - Deploy to production

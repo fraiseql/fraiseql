@@ -5,7 +5,7 @@ Common design patterns and architectural approaches for FraiseQL applications.
 ## Core Patterns
 
 ### Trinity Identifiers
-**[Trinity Identifiers Pattern](../database/trinity-identifiers.md)** - Three-tier ID system for optimal performance and UX
+**[Trinity Identifiers Pattern](../database/trinity-identifiers/)** - Three-tier ID system for optimal performance and UX
 
 The trinity pattern uses three types of identifiers per entity:
 - **`pk_*`** - Internal integer IDs for fast database joins
@@ -56,13 +56,13 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-**See also:** [Database Patterns Guide](../advanced/database-patterns.md)
+**See also:** [Database Patterns Guide](../advanced/database-patterns/)
 
 ---
 
 ### Table Views (tv_*) - Explicit Sync Pattern
 
-**[Explicit Sync Pattern](../core/explicit-sync.md)** - Denormalized JSONB tables for complex queries
+**[Explicit Sync Pattern](../core/explicit-sync/)** - Denormalized JSONB tables for complex queries
 
 Table views (`tv_*`) are **denormalized tables** with JSONB columns, explicitly synchronized from source tables:
 
@@ -100,19 +100,19 @@ $$ LANGUAGE plpgsql;
 ## Advanced Patterns
 
 ### Multi-Tenancy
-**[Multi-Tenancy Pattern](../advanced/multi-tenancy.md)** - Isolate data per tenant
+**[Multi-Tenancy Pattern](../advanced/multi-tenancy/)** - Isolate data per tenant
 
 Strategies:
 - **Row-Level Security (RLS)**: PostgreSQL enforces tenant isolation
 - **Schema-per-tenant**: Separate schemas for each customer
 - **Database-per-tenant**: Complete isolation (enterprise)
 
-**See:** [Multi-Tenancy Guide](../advanced/multi-tenancy.md)
+**See:** [Multi-Tenancy Guide](../advanced/multi-tenancy/)
 
 ---
 
 ### Event Sourcing
-**[Event Sourcing Pattern](../advanced/event-sourcing.md)** - Store events instead of current state
+**[Event Sourcing Pattern](../advanced/event-sourcing/)** - Store events instead of current state
 
 FraiseQL supports event sourcing with PostgreSQL:
 - Store domain events in append-only tables
@@ -124,12 +124,12 @@ FraiseQL supports event sourcing with PostgreSQL:
 - CQRS with event-driven architecture
 - Temporal queries ("what was the state on date X?")
 
-**See:** [Event Sourcing Guide](../advanced/event-sourcing.md)
+**See:** [Event Sourcing Guide](../advanced/event-sourcing/)
 
 ---
 
 ### Bounded Contexts
-**[Bounded Contexts Pattern](../advanced/bounded-contexts.md)** - Organize code by domain
+**[Bounded Contexts Pattern](../advanced/bounded-contexts/)** - Organize code by domain
 
 Domain-Driven Design applied to FraiseQL:
 - Separate modules per business domain
@@ -146,14 +146,14 @@ app/
 └── shared/           # Shared types and utilities
 ```
 
-**See:** [Bounded Contexts Guide](../advanced/bounded-contexts.md)
+**See:** [Bounded Contexts Guide](../advanced/bounded-contexts/)
 
 ---
 
 ## Database Patterns
 
 ### Naming Conventions
-**[DDL Organization](../core/ddl-organization.md)** - Consistent naming for clarity
+**[DDL Organization](../core/ddl-organization/)** - Consistent naming for clarity
 
 - `tb_*` - Base tables (source of truth)
 - `v_*` - Views (JSONB-generating queries for real-time data)
@@ -183,7 +183,7 @@ CREATE TABLE tb_product (
 
 ## Authentication & Authorization Patterns
 
-**[Authentication Guide](../advanced/authentication.md)** - Common auth patterns
+**[Authentication Guide](../advanced/authentication/)** - Common auth patterns
 
 Strategies:
 - JWT tokens with PostgreSQL validation
@@ -235,9 +235,9 @@ class DeletePost:
 
 ## Additional Resources
 
-- **[Core Concepts](../core/concepts-glossary.md)** - Terminology and mental models
+- **[Core Concepts](../core/concepts-glossary/)** - Terminology and mental models
 - **[Architecture Decisions](../architecture/decisions/)** - ADRs explaining why patterns were chosen
-- **[Database Patterns](../advanced/database-patterns.md)** - Detailed database design patterns
+- **[Database Patterns](../advanced/database-patterns/)** - Detailed database design patterns
 - **[Examples Directory](../../examples/)** - Real implementations
 
 **Need help choosing a pattern?** See [Architecture Decision Records](../architecture/decisions/) for context on trade-offs.
