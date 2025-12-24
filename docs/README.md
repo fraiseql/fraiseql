@@ -28,25 +28,33 @@ FraiseQL provides everything you need for modern APIs:
 ### pgvector Integration
 
 Native PostgreSQL vector search for semantic search and RAG applications.
+
 - Type-safe GraphQL integration with vector operators
+- Query semantically similar documents with vector similarity
 - **[Learn more →](features/pgvector/)**
 
 ### GraphQL Cascade
 
 Automatic, intelligent cache invalidation that works with your data relationships.
+
 - Zero manual cache management
+- Intelligent invalidation based on SQL relationships
 - **[Learn more →](features/graphql-cascade/)** | **[Best Practices →](guides/cascade-best-practices/)**
 
 ### LangChain Integration
 
 Build AI-powered applications with document ingestion and semantic search.
+
 - Production-ready patterns for RAG applications
+- Seamless document embedding and vector storage
 - **[Learn more →](guides/langchain-integration/)**
 
 ### LLM Integration
 
 Use LLMs directly in your GraphQL resolvers.
+
 - Type-safe LLM calling from Python
+- Built-in streaming and error handling
 - **[Learn more →](features/ai-native/)**
 
 ## Guides
