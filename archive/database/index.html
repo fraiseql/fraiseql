@@ -3427,7 +3427,7 @@
 - Type safety end-to-end (DB → GraphQL → TypeScript)
 - Easier testing (functions testable in pure SQL)
 - Better observability (one query log, not scattered app logs)</p>
-<p><strong>See</strong>: <a href="../core/fraiseql-philosophy.md">FraiseQL Philosophy</a> for complete rationale.</p>
+<p><strong>See</strong>: <a href="../core/fraiseql-philosophy/">FraiseQL Philosophy</a> for complete rationale.</p>
 <hr />
 <h2 id="quick-decision-matrix">📋 Quick Decision Matrix<a class="headerlink" href="#quick-decision-matrix" title="Permanent link">&para;</a></h2>
 <table>
@@ -3541,7 +3541,7 @@
 - ✅ Better organization at scale</p>
 <p><strong>Documentation</strong>:
 - <strong><a href="table-naming-conventions/">Table Naming Conventions</a></strong> - Complete reference
-- <strong><a href="../core/trinity-pattern.md">Trinity Pattern Philosophy</a></strong> - Architectural rationale</p>
+- <strong><a href="../core/trinity-pattern/">Trinity Pattern Philosophy</a></strong> - Architectural rationale</p>
 <hr />
 <h2 id="2-trinity-identifiers">2. Trinity Identifiers<a class="headerlink" href="#2-trinity-identifiers" title="Permanent link">&para;</a></h2>
 <h3 id="three-tier-id-system">Three-Tier ID System<a class="headerlink" href="#three-tier-id-system" title="Permanent link">&para;</a></h3>
@@ -3563,7 +3563,7 @@
 </span></code></pre></div></p>
 <p><strong>Documentation</strong>:
 - <strong><a href="trinity-identifiers/">Trinity Identifiers</a></strong> - Complete guide with examples
-- <strong><a href="../advanced/database-patterns.md">Database Patterns</a></strong> - Advanced ID patterns</p>
+- <strong><a href="../advanced/database-patterns/">Database Patterns</a></strong> - Advanced ID patterns</p>
 <hr />
 <h2 id="3-view-strategies">3. View Strategies<a class="headerlink" href="#3-view-strategies" title="Permanent link">&para;</a></h2>
 <h3 id="virtual-views-v_-vs-physical-table-views-tv_">Virtual Views (<code>v_*</code>) vs Physical Table Views (<code>tv_*</code>)<a class="headerlink" href="#virtual-views-v_-vs-physical-table-views-tv_" title="Permanent link">&para;</a></h3>
@@ -3740,7 +3740,7 @@
 </span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
 </span></code></pre></div></p>
 <p><strong>Documentation</strong>:
-- <strong><a href="../guides/mutation-sql-requirements.md">Mutation SQL Requirements</a></strong> - Complete reference
+- <strong><a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong> - Complete reference
 - <strong><a href="../mutations/status-strings/">Status Strings</a></strong> - Status taxonomy
 - <strong><a href="../mutations/cascade-architecture/">CASCADE Architecture</a></strong> - Side effects</p>
 <hr />
@@ -3779,7 +3779,7 @@
 - <code>timeout:*</code> → 408 (Request Timeout)
 - <code>noop:*</code> → 422 (No changes made)</p>
 <p><strong>Documentation</strong>:
-- <strong><a href="../guides/error-handling-patterns.md">Error Handling Patterns</a></strong> - Deep dive
+- <strong><a href="../guides/error-handling-patterns/">Error Handling Patterns</a></strong> - Deep dive
 - <strong><a href="../mutations/status-strings/">Status Strings Reference</a></strong> - Complete taxonomy</p>
 <hr />
 <h2 id="6-validation-patterns">6. Validation Patterns<a class="headerlink" href="#6-validation-patterns" title="Permanent link">&para;</a></h2>
@@ -3856,8 +3856,8 @@
 - ✅ Atomic with data changes
 - ✅ Better error messages (knows data context)</p>
 <p><strong>Documentation</strong>:
-- <strong><a href="../guides/error-handling-patterns.md">Error Handling Patterns</a></strong> - Validation section
-- <strong><a href="../guides/mutation-sql-requirements.md">Mutation SQL Requirements</a></strong> - Complete examples</p>
+- <strong><a href="../guides/error-handling-patterns/">Error Handling Patterns</a></strong> - Validation section
+- <strong><a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong> - Complete examples</p>
 <hr />
 <h2 id="7-security-patterns">7. Security Patterns<a class="headerlink" href="#7-security-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="row-level-security-rls">Row-Level Security (RLS)<a class="headerlink" href="#row-level-security-rls" title="Permanent link">&para;</a></h3>
@@ -3895,7 +3895,7 @@
 </span></code></pre></div></p>
 <p><strong>Documentation</strong>:
 - <strong><a href="../enterprise/rbac-postgresql-assessment/">RBAC &amp; RLS Patterns</a></strong> - Complete guide
-- <strong><a href="../advanced/multi-tenancy.md">Multi-Tenancy</a></strong> - Tenant isolation patterns</p>
+- <strong><a href="../advanced/multi-tenancy/">Multi-Tenancy</a></strong> - Tenant isolation patterns</p>
 <hr />
 <h2 id="8-performance-patterns">8. Performance Patterns<a class="headerlink" href="#8-performance-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="indexing-strategy">Indexing Strategy<a class="headerlink" href="#indexing-strategy" title="Permanent link">&para;</a></h3>
@@ -3951,7 +3951,7 @@
 </span><span id="__span-21-23"><a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a><span class="p">);</span>
 </span></code></pre></div>
 <p><strong>Documentation</strong>:
-- <strong><a href="../performance/performance-guide.md">Performance Guide</a></strong> - Complete optimization guide
+- <strong><a href="../performance/performance-guide/">Performance Guide</a></strong> - Complete optimization guide
 - <strong><a href="database-level-caching/">Database-Level Caching</a></strong> - Materialized view patterns</p>
 <hr />
 <h2 id="9-caching-patterns">9. Caching Patterns<a class="headerlink" href="#9-caching-patterns" title="Permanent link">&para;</a></h2>
@@ -4157,26 +4157,26 @@
 <li><a href="table-naming-conventions/">Table Naming Conventions</a> - Trinity pattern reference</li>
 <li><a href="trinity-identifiers/">Trinity Identifiers</a> - Three-tier ID system</li>
 <li><a href="view-strategies/">View Strategies</a> - JSONB vs table views</li>
-<li><a href="../core/trinity-pattern.md">Trinity Pattern Philosophy</a> - Architectural rationale</li>
-<li><a href="../core/postgresql-extensions.md">PostgreSQL Extensions</a> - Required extensions</li>
+<li><a href="../core/trinity-pattern/">Trinity Pattern Philosophy</a> - Architectural rationale</li>
+<li><a href="../core/postgresql-extensions/">PostgreSQL Extensions</a> - Required extensions</li>
 </ul>
 <h3 id="mutation-error-handling">Mutation &amp; Error Handling<a class="headerlink" href="#mutation-error-handling" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="../guides/mutation-sql-requirements.md">Mutation SQL Requirements</a> - Complete function guide</li>
-<li><a href="../guides/error-handling-patterns.md">Error Handling Patterns</a> - Error handling deep dive</li>
+<li><a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a> - Complete function guide</li>
+<li><a href="../guides/error-handling-patterns/">Error Handling Patterns</a> - Error handling deep dive</li>
 <li><a href="../mutations/status-strings/">Status Strings Reference</a> - Status taxonomy</li>
 <li><a href="../mutations/cascade-architecture/">CASCADE Architecture</a> - Side effects &amp; cache updates</li>
 </ul>
 <h3 id="performance-caching">Performance &amp; Caching<a class="headerlink" href="#performance-caching" title="Permanent link">&para;</a></h3>
 <ul>
 <li><a href="database-level-caching/">Database-Level Caching</a> - Caching strategies</li>
-<li><a href="../performance/performance-guide.md">Performance Guide</a> - Complete optimization guide</li>
-<li><a href="../performance/coordinate-performance-guide.md">Coordinate Performance</a> - Geospatial optimization</li>
+<li><a href="../performance/performance-guide/">Performance Guide</a> - Complete optimization guide</li>
+<li><a href="../performance/coordinate-performance-guide/">Coordinate Performance</a> - Geospatial optimization</li>
 </ul>
 <h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
 <ul>
 <li><a href="../enterprise/rbac-postgresql-assessment/">RBAC &amp; RLS Patterns</a> - Authorization guide</li>
-<li><a href="../advanced/multi-tenancy.md">Multi-Tenancy</a> - Tenant isolation</li>
+<li><a href="../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation</li>
 </ul>
 <h3 id="migrations-operations">Migrations &amp; Operations<a class="headerlink" href="#migrations-operations" title="Permanent link">&para;</a></h3>
 <ul>
@@ -4185,21 +4185,21 @@
 </ul>
 <h3 id="advanced-topics">Advanced Topics<a class="headerlink" href="#advanced-topics" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="../advanced/database-patterns.md">Advanced Database Patterns</a> - Advanced patterns</li>
-<li><a href="../core/database-api.md">Database API Reference</a> - Connection and query APIs</li>
+<li><a href="../advanced/database-patterns/">Advanced Database Patterns</a> - Advanced patterns</li>
+<li><a href="../core/database-api/">Database API Reference</a> - Connection and query APIs</li>
 </ul>
 <hr />
 <h2 id="learning-path">🎓 Learning Path<a class="headerlink" href="#learning-path" title="Permanent link">&para;</a></h2>
 <p><strong>New to FraiseQL's database patterns?</strong> Follow this path:</p>
 <ol>
-<li><strong>Start</strong>: <a href="../core/fraiseql-philosophy.md">FraiseQL Philosophy</a> - Understand "why"</li>
+<li><strong>Start</strong>: <a href="../core/fraiseql-philosophy/">FraiseQL Philosophy</a> - Understand "why"</li>
 <li><strong>Basics</strong>: <a href="table-naming-conventions/">Table Naming Conventions</a> - Learn the trinity pattern</li>
 <li><strong>IDs</strong>: <a href="trinity-identifiers/">Trinity Identifiers</a> - Understand the three-tier ID system</li>
 <li><strong>Data</strong>: <a href="view-strategies/">View Strategies</a> - Learn how to expose data</li>
-<li><strong>Mutations</strong>: <a href="../guides/mutation-sql-requirements.md">Mutation SQL Requirements</a> - Write your first mutation</li>
-<li><strong>Errors</strong>: <a href="../guides/error-handling-patterns.md">Error Handling Patterns</a> - Handle errors properly</li>
+<li><strong>Mutations</strong>: <a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a> - Write your first mutation</li>
+<li><strong>Errors</strong>: <a href="../guides/error-handling-patterns/">Error Handling Patterns</a> - Handle errors properly</li>
 <li><strong>Security</strong>: <a href="../enterprise/rbac-postgresql-assessment/">RBAC &amp; RLS</a> - Add authorization</li>
-<li><strong>Performance</strong>: <a href="../performance/performance-guide.md">Performance Guide</a> - Optimize queries</li>
+<li><strong>Performance</strong>: <a href="../performance/performance-guide/">Performance Guide</a> - Optimize queries</li>
 </ol>
 <hr />
 <p><strong>The FraiseQL Way™</strong>: PostgreSQL-first, type-safe, and opinionated. One way to do it, and it's the right way.</p>

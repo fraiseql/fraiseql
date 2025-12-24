@@ -3279,18 +3279,18 @@
 
 <h1 id="sql-function-return-format-for-fraiseql-mutations">SQL Function Return Format for FraiseQL Mutations<a class="headerlink" href="#sql-function-return-format-for-fraiseql-mutations" title="Permanent link">&para;</a></h1>
 <p><strong>⚠️ This document has been consolidated into the new comprehensive guide.</strong></p>
-<p><strong>📖 Please see: <a href="../../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong></p>
+<p><strong>📖 Please see: <a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong></p>
 <hr />
 <p><strong>Legacy Content Below</strong> (for reference during migration)</p>
-<p><strong>Navigation</strong>: <a href="../../core/queries-and-mutations/">← Queries &amp; Mutations</a> • <a href="../mutation-result-reference/">Mutation Result Reference →</a> • <a href="../graphql-cascade/">GraphQL Cascade →</a></p>
+<p><strong>Navigation</strong>: <a href="../core/queries-and-mutations/">← Queries &amp; Mutations</a> • <a href="mutation-result-reference/">Mutation Result Reference →</a> • <a href="graphql-cascade/">GraphQL Cascade →</a></p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>This guide explains the return formats for PostgreSQL functions used with FraiseQL mutations. FraiseQL supports two formats:</p>
 <ul>
 <li><strong>Legacy Format</strong> (v1.4+): Simple <code>success</code>/<code>data</code>/<code>error</code> structure</li>
 <li><strong>V2 Format</strong> (v1.7+): Structured <code>mutation_response</code> type with comprehensive error handling</li>
 </ul>
-<p>See <a href="../mutation-result-reference/">Mutation Result Reference</a> for complete format specifications.</p>
-<p><strong>Error Detection</strong>: FraiseQL's Rust layer automatically detects errors using a <a href="../mutations/status-strings.md">comprehensive status taxonomy</a>. Status strings like <code>validation:</code>, <code>unauthorized:token_expired</code>, <code>conflict:duplicate</code>, etc. are automatically mapped to appropriate error types and HTTP status codes.</p>
+<p>See <a href="mutation-result-reference/">Mutation Result Reference</a> for complete format specifications.</p>
+<p><strong>Error Detection</strong>: FraiseQL's Rust layer automatically detects errors using a <a href="../mutations/status-strings/">comprehensive status taxonomy</a>. Status strings like <code>validation:</code>, <code>unauthorized:token_expired</code>, <code>conflict:duplicate</code>, etc. are automatically mapped to appropriate error types and HTTP status codes.</p>
 <p><strong>Note</strong>: The legacy format continues to work but the v2 format is recommended for new implementations.</p>
 <h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
 <ul>
@@ -3396,10 +3396,10 @@
 - Built-in helper functions for common operations
 - Automatic cascade data construction
 - Better type safety and consistency</p>
-<p>See <a href="../mutation-result-reference/">Mutation Result Reference</a> for complete v2 format documentation.</p>
+<p>See <a href="mutation-result-reference/">Mutation Result Reference</a> for complete v2 format documentation.</p>
 <hr />
 <h2 id="ultra-direct-path-compatibility">Ultra-Direct Path Compatibility<a class="headerlink" href="#ultra-direct-path-compatibility" title="Permanent link">&para;</a></h2>
-<p>FraiseQL's Ultra-Direct Path (see <a href="../../architecture/decisions/002-ultra-direct-mutation-path/">ADR-002</a>) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.</p>
+<p>FraiseQL's Ultra-Direct Path (see <a href="../architecture/decisions/002-ultra-direct-mutation-path/">ADR-002</a>) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.</p>
 <h3 id="requirements-for-ultra-direct-path">Requirements for Ultra-Direct Path<a class="headerlink" href="#requirements-for-ultra-direct-path" title="Permanent link">&para;</a></h3>
 <p>Your PostgreSQL functions <strong>automatically work</strong> with the ultra-direct path if they:</p>
 <ol>
@@ -3999,11 +3999,11 @@
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../mutation-result-reference/">Mutation Result Reference</a> - Complete format specifications (v1.7+)</li>
-<li><a href="../../core/queries-and-mutations/">Queries and Mutations</a> - FraiseQL mutation decorator</li>
-<li><a href="../graphql-cascade/">GraphQL Cascade</a> - Full cascade specification</li>
-<li><a href="../../architecture/decisions/002-ultra-direct-mutation-path/">ADR-002: Ultra-Direct Mutation Path</a> - Performance optimization</li>
-<li><a href="../../core/postgresql-extensions/">PostgreSQL Extensions</a> - Database setup</li>
+<li><a href="mutation-result-reference/">Mutation Result Reference</a> - Complete format specifications (v1.7+)</li>
+<li><a href="../core/queries-and-mutations/">Queries and Mutations</a> - FraiseQL mutation decorator</li>
+<li><a href="graphql-cascade/">GraphQL Cascade</a> - Full cascade specification</li>
+<li><a href="../architecture/decisions/002-ultra-direct-mutation-path/">ADR-002: Ultra-Direct Mutation Path</a> - Performance optimization</li>
+<li><a href="../core/postgresql-extensions/">PostgreSQL Extensions</a> - Database setup</li>
 </ul>
 <hr />
 <p><strong>Document Status</strong>: Updated for v1.7

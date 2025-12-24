@@ -3282,11 +3282,11 @@
 <p><strong>Purpose</strong>: Ensure maintainable, resilient documentation links that survive refactoring and reorganization.</p>
 <h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gh"># ✅ Recommended: Absolute from repo root</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation.md</span>)
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation/</span>)
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>[<span class="nt">Examples</span>](<span class="na">/examples/blog_api/</span>)
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gh"># ❌ Fragile: Relative paths</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>[<span class="nt">Installation Guide</span>](<span class="na">../getting-started/installation.md</span>)
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>[<span class="nt">Installation Guide</span>](<span class="na">../getting-started/installation/</span>)
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>[<span class="nt">Examples</span>](<span class="na">../../examples/blog_api/</span>)
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gh"># ✅ External links</span>
@@ -3299,8 +3299,8 @@
 <h2 id="link-types">Link Types<a class="headerlink" href="#link-types" title="Permanent link">&para;</a></h2>
 <h3 id="1-absolute-repository-links-recommended">1. Absolute Repository Links (RECOMMENDED)<a class="headerlink" href="#1-absolute-repository-links-recommended" title="Permanent link">&para;</a></h3>
 <p><strong>Pattern</strong>: <code>/path/from/repo/root/file.md</code></p>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[<span class="nt">API Reference</span>](<span class="na">/docs/api-reference/database.md</span>)
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[<span class="nt">API Reference</span>](<span class="na">/docs/api-reference/database/</span>)
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>[<span class="nt">Examples Directory</span>](<span class="na">/examples/</span>)
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>[<span class="nt">Contributing Guide</span>](<span class="na">/CONTRIBUTING.md</span>)
 </span></code></pre></div>
@@ -3319,13 +3319,13 @@
 <h3 id="2-relative-links">2. Relative Links<a class="headerlink" href="#2-relative-links" title="Permanent link">&para;</a></h3>
 <p><strong>Pattern</strong>: <code>./file.md</code> or <code>../sibling/file.md</code></p>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gh"># Same directory</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[<span class="nt">Style Guide</span>](<span class="na">./style-guide.md</span>)
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[<span class="nt">Style Guide</span>](<span class="na">./style-guide/</span>)
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="gh"># Parent directory</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary.md</span>)
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary/</span>)
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="gh"># Sibling directory</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>[<span class="nt">Getting Started</span>](<span class="na">../getting-started/installation.md</span>)
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>[<span class="nt">Getting Started</span>](<span class="na">../getting-started/installation/</span>)
 </span></code></pre></div>
 <p><strong>When to use (RARE):</strong>
 - Links within the same directory
@@ -3337,10 +3337,10 @@
 - Hard to validate across refactorings</p>
 <p><strong>Example of fragility:</strong></p>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gh"># In: docs/advanced/authentication.md</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation.md</span>)  # Works
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation/</span>)  # Works
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="gh"># After moving to: docs/guides/security/authentication.md</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation.md</span>)  # BROKEN! Now needs ../../getting-started/
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation/</span>)  # BROKEN! Now needs ../../getting-started/
 </span></code></pre></div>
 <h3 id="3-external-links">3. External Links<a class="headerlink" href="#3-external-links" title="Permanent link">&para;</a></h3>
 <p><strong>Pattern</strong>: <code>https://...</code> or <code>http://...</code></p>
@@ -3354,10 +3354,10 @@
 - Avoid linking to own repository on GitHub (use relative/absolute instead)</p>
 <p><strong>Anti-pattern:</strong></p>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gh"># ❌ Don&#39;t link to own repo via GitHub URL</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[<span class="nt">Core Concepts</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[<span class="nt">Core Concepts</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary/</span>)
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="gh"># ✅ Use absolute path instead</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
 </span></code></pre></div>
 <h3 id="4-anchor-links">4. Anchor Links<a class="headerlink" href="#4-anchor-links" title="Permanent link">&para;</a></h3>
 <p><strong>Pattern</strong>: <code>#section-name</code></p>
@@ -3379,8 +3379,8 @@
 <hr />
 <h2 id="directory-vs-file-links">Directory vs File Links<a class="headerlink" href="#directory-vs-file-links" title="Permanent link">&para;</a></h2>
 <h3 id="files-include-extension">Files: Include Extension<a class="headerlink" href="#files-include-extension" title="Permanent link">&para;</a></h3>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>✅ [<span class="nt">Configuration</span>](<span class="na">/docs/core/configuration.md</span>)
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>❌ [<span class="nt">Configuration</span>](<span class="na">../core/configuration.md</span>)
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>✅ [<span class="nt">Configuration</span>](<span class="na">/docs/core/configuration/</span>)
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>❌ [<span class="nt">Configuration</span>](<span class="na">../core/configuration/</span>)
 </span></code></pre></div>
 <h3 id="directories-include-trailing-slash">Directories: Include Trailing Slash<a class="headerlink" href="#directories-include-trailing-slash" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>✅ [<span class="nt">Examples Directory</span>](<span class="na">/examples/</span>)
@@ -3396,14 +3396,14 @@
 <h3 id="1-wrong-relative-path-depth">1. Wrong Relative Path Depth<a class="headerlink" href="#1-wrong-relative-path-depth" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gh"># ❌ Wrong - Missing directory level</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="gh"># File: docs/guides/performance-guide.md</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation.md</span>)
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation/</span>)
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="gh"># ✅ Correct calculation (if using relative)</span>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="gh"># docs/guides/performance-guide.md → docs/getting-started/installation.md</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation.md</span>)
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation/</span>)
 </span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
 </span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="gh"># ✅ Better - Use absolute path</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation.md</span>)
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation/</span>)
 </span></code></pre></div>
 <h3 id="2-linking-to-directories-without-trailing-slash">2. Linking to Directories Without Trailing Slash<a class="headerlink" href="#2-linking-to-directories-without-trailing-slash" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gh"># ❌ May break in GitHub rendering</span>
@@ -3414,20 +3414,20 @@
 </span></code></pre></div>
 <h3 id="3-using-github-urls-for-internal-links">3. Using GitHub URLs for Internal Links<a class="headerlink" href="#3-using-github-urls-for-internal-links" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gh"># ❌ External link to own repository</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[<span class="nt">Core</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/README.md</span>)
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[<span class="nt">Core</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/README/</span>)
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
 </span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="gh"># ✅ Absolute path</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>[<span class="nt">Core</span>](<span class="na">/docs/core/README.md</span>)
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>[<span class="nt">Core</span>](<span class="na">/docs/core/README/</span>)
 </span></code></pre></div>
 <h3 id="4-inconsistent-link-styles-in-same-file">4. Inconsistent Link Styles in Same File<a class="headerlink" href="#4-inconsistent-link-styles-in-same-file" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gh"># ❌ Mixed styles are confusing</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation.md</span>)
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary.md</span>)
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation/</span>)
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary/</span>)
 </span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>[<span class="nt">API Reference</span>](<span class="na">/docs/api-reference/</span>)
 </span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
 </span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="gh"># ✅ Consistent absolute paths</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation.md</span>)
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>[<span class="nt">Installation</span>](<span class="na">/docs/getting-started/installation/</span>)
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
 </span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>[<span class="nt">API Reference</span>](<span class="na">/docs/api-reference/</span>)
 </span></code></pre></div>
 <hr />
@@ -3440,11 +3440,11 @@
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>./scripts/validate-docs.sh<span class="w"> </span>all
 </span></code></pre></div>
 <p><strong>What the validator checks:</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>1. Absolute links (/docs/file.md)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>1. Absolute links (/docs/file/)
 </span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>   - Resolves to: $PROJECT_ROOT/docs/file.md
 </span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>   - Checks file/directory exists
 </span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>2. Relative links (../file.md)
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>2. Relative links (../file/)
 </span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>   - Resolves from current file&#39;s directory
 </span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>   - Checks target exists after path resolution
 </span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
@@ -3470,12 +3470,12 @@
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>./scripts/validate-docs.sh<span class="w"> </span>links
 </span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
 </span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># 2. Example output:</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="c1"># [ERROR] Broken link in docs/advanced/authentication.md:</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1">#         ../core/concepts-glossary.md (resolved to: docs/core/concepts-glossary.md)</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="c1"># [ERROR] Broken link in docs/advanced/authentication/:</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1">#         ../core/concepts-glossary/ (resolved to: docs/core/concepts-glossary/)</span>
 </span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
 </span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="c1"># 3. Fix the link:</span>
-</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="c1"># Old: [Concepts](../core/concepts-glossary.md)</span>
-</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># New: [Concepts](/docs/core/concepts-glossary.md)</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="c1"># Old: [Concepts](../core/concepts-glossary/)</span>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># New: [Concepts](/docs/core/concepts-glossary/)</span>
 </span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>
 </span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="c1"># 4. Re-run validation</span>
 </span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>./scripts/validate-docs.sh<span class="w"> </span>links
@@ -3487,34 +3487,34 @@
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>Broken<span class="w"> </span>link<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;source-file&gt;:<span class="w"> </span>&lt;link-text&gt;<span class="w"> </span><span class="o">(</span>resolved<span class="w"> </span>to:<span class="w"> </span>&lt;target-path&gt;<span class="o">)</span>
 </span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
 </span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Example:</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>Broken<span class="w"> </span>link<span class="w"> </span><span class="k">in</span><span class="w"> </span>docs/guides/troubleshooting.md:
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">        </span>../core/database-api.md<span class="w"> </span><span class="o">(</span>resolved<span class="w"> </span>to:<span class="w"> </span>docs/core/database-api.md<span class="o">)</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="o">[</span>ERROR<span class="o">]</span><span class="w"> </span>Broken<span class="w"> </span>link<span class="w"> </span><span class="k">in</span><span class="w"> </span>docs/guides/troubleshooting/:
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">        </span>../core/database-api/<span class="w"> </span><span class="o">(</span>resolved<span class="w"> </span>to:<span class="w"> </span>docs/core/database-api/<span class="o">)</span>
 </span></code></pre></div>
 <p><strong>Common causes:</strong></p>
 <ol>
 <li>
 <p><strong>File was renamed/moved</strong>
    <div class="language-markdown highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="gh"># Link points to old location</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[<span class="nt">Database API</span>](<span class="na">../core/database-api.md</span>)
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[<span class="nt">Database API</span>](<span class="na">../core/database-api/</span>)
 </span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="gh"># File was renamed to: docs/api-reference/database.md</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="gh"># Fix: [Database API](/docs/api-reference/database.md)</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="gh"># Fix: [Database API](/docs/api-reference/database/)</span>
 </span></code></pre></div></p>
 </li>
 <li>
 <p><strong>Wrong relative path depth</strong>
     <div class="language-markdown highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="gh"># From: docs/development/link-best-practices.md</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[<span class="nt">Core</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md</span>)  # Wrong - uses GitHub URL
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>[<span class="nt">Core</span>](<span class="na">../core/concepts-glossary.md</span>)  # Correct - uses relative path
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[<span class="nt">Core</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary/</span>)  # Wrong - uses GitHub URL
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>[<span class="nt">Core</span>](<span class="na">../core/concepts-glossary/</span>)  # Correct - uses relative path
 </span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
 </span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="gh"># Better: Use absolute</span>
-</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>[<span class="nt">Core</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>[<span class="nt">Core</span>](<span class="na">/docs/core/concepts-glossary/</span>)
 </span></code></pre></div></p>
 </li>
 <li>
 <p><strong>Using GitHub URLs for internal links</strong>
-   <div class="language-markdown highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[<span class="nt">Config</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/configuration.md</span>)  # External link to own repo
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>[<span class="nt">Config</span>](<span class="na">/docs/core/configuration.md</span>)  # Correct absolute path
+   <div class="language-markdown highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[<span class="nt">Config</span>](<span class="na">https://github.com/fraiseql/fraiseql/blob/main/docs/core/configuration/</span>)  # External link to own repo
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>[<span class="nt">Config</span>](<span class="na">/docs/core/configuration/</span>)  # Correct absolute path
 </span></code></pre></div></p>
 </li>
 </ol>
@@ -3535,13 +3535,13 @@
 <h2 id="migration-guide">Migration Guide<a class="headerlink" href="#migration-guide" title="Permanent link">&para;</a></h2>
 <h3 id="converting-relative-to-absolute-links">Converting Relative to Absolute Links<a class="headerlink" href="#converting-relative-to-absolute-links" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="gh"># Before: docs/advanced/authentication.md</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">../getting-started/installation.md</span>)
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary.md</span>)
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">../getting-started/installation/</span>)
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">../core/concepts-glossary/</span>)
 </span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[<span class="nt">Examples</span>](<span class="na">../../examples/</span>)
 </span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
 </span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="gh"># After: docs/advanced/authentication.md (same file, different links)</span>
-</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation.md</span>)
-</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation/</span>)
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
 </span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>[<span class="nt">Examples</span>](<span class="na">/examples/</span>)
 </span></code></pre></div>
 <p><strong>Benefits after conversion:</strong>
@@ -3578,41 +3578,41 @@
 <h2 id="examples-from-fraiseql-docs">Examples from FraiseQL Docs<a class="headerlink" href="#examples-from-fraiseql-docs" title="Permanent link">&para;</a></h2>
 <h3 id="good-examples">Good Examples<a class="headerlink" href="#good-examples" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="gh"># Clear, absolute paths</span>
-</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation.md</span>)
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
-</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>[<span class="nt">Performance Optimization</span>](<span class="na">/docs/guides/performance-guide.md</span>)
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation/</span>)
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>[<span class="nt">Performance Optimization</span>](<span class="na">/docs/guides/performance-guide/</span>)
 </span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>[<span class="nt">Blog API Example</span>](<span class="na">/examples/blog_api/</span>)
 </span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
 </span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="gh"># Descriptive link text with context</span>
-</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>See the [<span class="nt">filter operators reference</span>](<span class="na">/docs/advanced/filter-operators.md</span>)
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>See the [<span class="nt">filter operators reference</span>](<span class="na">/docs/advanced/filter-operators/</span>)
 </span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>for a complete list of supported operators.
 </span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>
 </span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>For production deployment, review the
-</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>[<span class="nt">deployment guide</span>](<span class="na">/docs/production/deployment.md</span>) and
-</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>[<span class="nt">security checklist</span>](<span class="na">/docs/production/security.md</span>).
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>[<span class="nt">deployment guide</span>](<span class="na">/docs/production/deployment/</span>) and
+</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>[<span class="nt">security checklist</span>](<span class="na">/docs/production/security/</span>).
 </span></code></pre></div>
 <h3 id="improved-examples">Improved Examples<a class="headerlink" href="#improved-examples" title="Permanent link">&para;</a></h3>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="gh"># ❌ Before: Fragile relative path</span>
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>For more details, see [<span class="nt">here</span>](<span class="na">../guides/performance-guide.md</span>).
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>For more details, see [<span class="nt">here</span>](<span class="na">../guides/performance-guide/</span>).
 </span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
 </span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="gh"># ✅ After: Absolute path with descriptive text</span>
 </span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>For query optimization strategies, see the
-</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>[<span class="nt">Performance Guide</span>](<span class="na">/docs/guides/performance-guide.md</span>).
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>[<span class="nt">Performance Guide</span>](<span class="na">/docs/guides/performance-guide/</span>).
 </span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
 </span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="gh"># ❌ Before: Multiple relative depths</span>
-</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation.md</span>)
-</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>[<span class="nt">Core</span>](<span class="na">../core/concepts-glossary.md</span>)
+</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>[<span class="nt">Installation</span>](<span class="na">../getting-started/installation/</span>)
+</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>[<span class="nt">Core</span>](<span class="na">../core/concepts-glossary/</span>)
 </span><span id="__span-26-11"><a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>
 </span><span id="__span-26-12"><a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="gh"># ✅ After: Consistent absolute paths</span>
-</span><span id="__span-26-13"><a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation.md</span>)
-</span><span id="__span-26-14"><a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary.md</span>)
+</span><span id="__span-26-13"><a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>[<span class="nt">Installation Guide</span>](<span class="na">/docs/getting-started/installation/</span>)
+</span><span id="__span-26-14"><a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>[<span class="nt">Core Concepts</span>](<span class="na">/docs/core/concepts-glossary/</span>)
 </span></code></pre></div>
 <hr />
 <h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="/docs/development/style-guide.md">Style Guide</a> - Code and documentation standards</li>
+<li><a href="/docs/development/style-guide/">Style Guide</a> - Code and documentation standards</li>
 <li><a href="/CONTRIBUTING.md">Contributing Guide</a> - Development workflow</li>
-<li><a href="/docs/README.md">Documentation Structure</a> - Organization overview</li>
+<li><a href="/docs/README/">Documentation Structure</a> - Organization overview</li>
 </ul>
 <hr />
 <p><strong>Questions?</strong> Open an issue or discussion on GitHub.</p>

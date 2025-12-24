@@ -3132,7 +3132,7 @@
 <h2 id="step-by-step-deployment">Step-by-Step Deployment<a class="headerlink" href="#step-by-step-deployment" title="Permanent link">&para;</a></h2>
 <h3 id="step-1-production-architecture-overview-30-minutes">Step 1: Production Architecture Overview (30 minutes)<a class="headerlink" href="#step-1-production-architecture-overview-30-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Understand FraiseQL's deployment architecture</p>
-<p><strong>Read:</strong> <a href="../production/deployment.md">Production Deployment Guide</a></p>
+<p><strong>Read:</strong> <a href="../production/deployment/">Production Deployment Guide</a></p>
 <p><strong>Production Architecture:</strong>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────────────────────────────┐
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                     Load Balancer                        │
@@ -3167,7 +3167,7 @@
 <p><strong>Success Check:</strong> You understand the production architecture and dependencies</p>
 <h3 id="step-2-pre-deployment-checklist-45-minutes">Step 2: Pre-Deployment Checklist (45 minutes)<a class="headerlink" href="#step-2-pre-deployment-checklist-45-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Validate readiness for production deployment</p>
-<p><strong>Follow:</strong> <a href="../production/deployment-checklist.md">Production Deployment Checklist</a></p>
+<p><strong>Follow:</strong> <a href="../production/deployment-checklist/">Production Deployment Checklist</a></p>
 <p><strong>Essential Checks:</strong></p>
 <h4 id="security-compliance">Security &amp; Compliance<a class="headerlink" href="#security-compliance" title="Permanent link">&para;</a></h4>
 <ul>
@@ -3254,7 +3254,7 @@
 <p><strong>Success Check:</strong> All checklist items are completed</p>
 <h3 id="step-3-database-operations-setup-40-minutes">Step 3: Database Operations Setup (40 minutes)<a class="headerlink" href="#step-3-database-operations-setup-40-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Configure PostgreSQL for production workloads</p>
-<p><strong>Read:</strong> <a href="../../database/table-naming-conventions/">Database Configuration</a></p>
+<p><strong>Read:</strong> <a href="../database/table-naming-conventions/">Database Configuration</a></p>
 <p><strong>PostgreSQL Production Configuration:</strong></p>
 <p><strong>1. Connection Pooling with PgBouncer:</strong>
 <div class="language-ini highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># pgbouncer.ini</span>
@@ -3345,7 +3345,7 @@
 <p><strong>Success Check:</strong> Database is configured with pooling, replicas, and backups</p>
 <h3 id="step-4-observability-stack-setup-50-minutes">Step 4: Observability Stack Setup (50 minutes)<a class="headerlink" href="#step-4-observability-stack-setup-50-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Deploy comprehensive monitoring and logging</p>
-<p><strong>Read:</strong> <a href="../production/observability.md">Observability Guide</a></p>
+<p><strong>Read:</strong> <a href="../production/observability/">Observability Guide</a></p>
 <p><strong>Observability Stack:</strong></p>
 <p><strong>1. Prometheus Metrics:</strong></p>
 <p>FraiseQL exposes Prometheus metrics at <code>/metrics</code>:</p>
@@ -3376,7 +3376,7 @@
 </span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="nt">scrape_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
 </span></code></pre></div></p>
 <p><strong>2. Grafana Dashboards:</strong></p>
-<p><strong>Read:</strong> <a href="../production/monitoring.md">Monitoring Setup</a></p>
+<p><strong>Read:</strong> <a href="../production/monitoring/">Monitoring Setup</a></p>
 <p>Pre-built dashboards available in <code>deployments/grafana/</code>:
 - <code>fraiseql-overview.json</code> - High-level health metrics
 - <code>fraiseql-database.json</code> - PostgreSQL performance
@@ -3388,7 +3388,7 @@
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span>--from-file<span class="o">=</span>deployments/grafana/fraiseql-database.json
 </span></code></pre></div></p>
 <p><strong>3. Loki Log Aggregation:</strong></p>
-<p><strong>Read:</strong> <a href="../production/loki-integration.md">Loki Integration</a></p>
+<p><strong>Read:</strong> <a href="../production/loki-integration/">Loki Integration</a></p>
 <p><strong>Loki Configuration:</strong>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># promtail.yaml</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">clients</span><span class="p">:</span>
@@ -3441,7 +3441,7 @@
 <p><strong>Success Check:</strong> Metrics, logs, and traces are flowing to observability stack</p>
 <h3 id="step-5-health-checks-and-alerting-35-minutes">Step 5: Health Checks and Alerting (35 minutes)<a class="headerlink" href="#step-5-health-checks-and-alerting-35-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Configure health monitoring and alerting</p>
-<p><strong>Read:</strong> <a href="../production/health-checks.md">Health Checks Guide</a></p>
+<p><strong>Read:</strong> <a href="../production/health-checks/">Health Checks Guide</a></p>
 <p><strong>Health Check Endpoints:</strong></p>
 <p><strong>1. Liveness Probe (<code>/health</code>):</strong>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>curl<span class="w"> </span>http://localhost:8000/health
@@ -3605,7 +3605,7 @@
 <p><strong>Success Check:</strong> You can deploy and rollback safely</p>
 <h3 id="step-7-incident-response-40-minutes">Step 7: Incident Response (40 minutes)<a class="headerlink" href="#step-7-incident-response-40-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Prepare for production incidents</p>
-<p><strong>Read:</strong> <a href="../../deployment/operations-runbook/">Operations Runbook</a></p>
+<p><strong>Read:</strong> <a href="../deployment/operations-runbook/">Operations Runbook</a></p>
 <p><strong>Common Incidents &amp; Resolution:</strong></p>
 <p><strong>Incident 1: High Error Rate</strong>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># 1. Check recent deployments</span>
@@ -3809,7 +3809,7 @@
 - ✅ Scaling and cost optimization strategies
 - ✅ Backup and disaster recovery procedures</p>
 <p><strong>Estimated Time to Production:</strong> 1-2 weeks for infrastructure setup and validation</p>
-<p><strong>Recommended Next Journey:</strong> <a href="../backend-engineer/">Backend Engineer Journey</a> for API design patterns</p>
+<p><strong>Recommended Next Journey:</strong> <a href="./backend-engineer/">Backend Engineer Journey</a> for API design patterns</p>
 <hr />
 <p><strong>Questions?</strong> Join our <a href="https://discord.gg/fraiseql">Discord community</a> #deployment channel</p>
 

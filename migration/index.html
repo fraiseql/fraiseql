@@ -3225,30 +3225,30 @@
 <td><strong>PostGraphile</strong></td>
 <td>⭐ Low</td>
 <td>3-4 days (1 engineer)</td>
-<td><a href="from-postgraphile/">Migration Guide</a></td>
+<td><a href="./from-postgraphile/">Migration Guide</a></td>
 </tr>
 <tr>
 <td><strong>Graphene</strong></td>
 <td>⭐⭐ Medium</td>
 <td>1-2 weeks (2 engineers)</td>
-<td><a href="from-graphene/">Migration Guide</a></td>
+<td><a href="./from-graphene/">Migration Guide</a></td>
 </tr>
 <tr>
 <td><strong>Strawberry</strong></td>
 <td>⭐⭐ Medium</td>
 <td>2-3 weeks (2 engineers)</td>
-<td><a href="from-strawberry/">Migration Guide</a></td>
+<td><a href="./from-strawberry/">Migration Guide</a></td>
 </tr>
 </tbody>
 </table>
 <h3 id="generic-resources">Generic Resources<a class="headerlink" href="#generic-resources" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="migration-checklist/">Migration Checklist</a></strong>: Universal 10-phase checklist applicable to any framework migration</li>
+<li><strong><a href="./migration-checklist/">Migration Checklist</a></strong>: Universal 10-phase checklist applicable to any framework migration</li>
 </ul>
 <hr />
 <h2 id="which-guide-should-i-use">Which Guide Should I Use?<a class="headerlink" href="#which-guide-should-i-use" title="Permanent link">&para;</a></h2>
 <h3 id="migrating-from-postgraphile-fraiseql">Migrating from PostGraphile → FraiseQL<a class="headerlink" href="#migrating-from-postgraphile-fraiseql" title="Permanent link">&para;</a></h3>
-<p><strong><a href="from-postgraphile/">PostGraphile Migration Guide</a></strong></p>
+<p><strong><a href="./from-postgraphile/">PostGraphile Migration Guide</a></strong></p>
 <ul>
 <li><strong>Best for:</strong> Teams already using PostgreSQL-first architecture</li>
 <li><strong>Why easiest:</strong> Both frameworks share database-first philosophy</li>
@@ -3262,7 +3262,7 @@
 - RLS policies work identically
 - Views may already exist</p>
 <h3 id="migrating-from-graphene-fraiseql">Migrating from Graphene → FraiseQL<a class="headerlink" href="#migrating-from-graphene-fraiseql" title="Permanent link">&para;</a></h3>
-<p><strong><a href="from-graphene/">Graphene Migration Guide</a></strong></p>
+<p><strong><a href="./from-graphene/">Graphene Migration Guide</a></strong></p>
 <ul>
 <li><strong>Best for:</strong> Django-based applications with ORM models</li>
 <li><strong>Why moderate:</strong> Need to migrate from ORM to database-first approach</li>
@@ -3276,7 +3276,7 @@
 - Move business logic from Python to PostgreSQL functions
 - Adopt trinity pattern (tb_/v_/tv_)</p>
 <h3 id="migrating-from-strawberry-fraiseql">Migrating from Strawberry → FraiseQL<a class="headerlink" href="#migrating-from-strawberry-fraiseql" title="Permanent link">&para;</a></h3>
-<p><strong><a href="from-strawberry/">Strawberry Migration Guide</a></strong></p>
+<p><strong><a href="./from-strawberry/">Strawberry Migration Guide</a></strong></p>
 <ul>
 <li><strong>Best for:</strong> Modern Python shops already using type hints</li>
 <li><strong>Why moderate:</strong> Database layer needs restructuring</li>
@@ -3302,37 +3302,37 @@
 <tbody>
 <tr>
 <td><strong>PostGraphile + TypeScript</strong></td>
-<td><a href="from-postgraphile/">PostGraphile</a></td>
+<td><a href="./from-postgraphile/">PostGraphile</a></td>
 <td>Language switch (TS → Python)</td>
 </tr>
 <tr>
 <td><strong>PostGraphile + Minimal plugins</strong></td>
-<td><a href="from-postgraphile/">PostGraphile</a></td>
+<td><a href="./from-postgraphile/">PostGraphile</a></td>
 <td>Almost no changes needed</td>
 </tr>
 <tr>
 <td><strong>Graphene + Django</strong></td>
-<td><a href="from-graphene/">Graphene</a></td>
+<td><a href="./from-graphene/">Graphene</a></td>
 <td>ORM → Database-first</td>
 </tr>
 <tr>
 <td><strong>Graphene + SQLAlchemy</strong></td>
-<td><a href="from-graphene/">Graphene</a></td>
+<td><a href="./from-graphene/">Graphene</a></td>
 <td>ORM → Database-first</td>
 </tr>
 <tr>
 <td><strong>Strawberry + Manual resolvers</strong></td>
-<td><a href="from-strawberry/">Strawberry</a></td>
+<td><a href="./from-strawberry/">Strawberry</a></td>
 <td>Database restructuring</td>
 </tr>
 <tr>
 <td><strong>Strawberry + ORM</strong></td>
-<td><a href="from-strawberry/">Strawberry</a></td>
+<td><a href="./from-strawberry/">Strawberry</a></td>
 <td>Full architecture shift</td>
 </tr>
 <tr>
 <td><strong>Other framework</strong></td>
-<td><a href="migration-checklist/">Migration Checklist</a></td>
+<td><a href="./migration-checklist/">Migration Checklist</a></td>
 <td>Follow generic process</td>
 </tr>
 </tbody>
@@ -3375,7 +3375,7 @@
 <li>Blue-green deployment</li>
 <li>Monitor for 24-48 hours</li>
 </ul>
-<p><strong>See:</strong> <a href="migration-checklist/">Migration Checklist</a> for complete 10-phase breakdown</p>
+<p><strong>See:</strong> <a href="./migration-checklist/">Migration Checklist</a> for complete 10-phase breakdown</p>
 <hr />
 <h2 id="common-migration-patterns">Common Migration Patterns<a class="headerlink" href="#common-migration-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="pattern-1-orm-model-postgresql-view">Pattern 1: ORM Model → PostgreSQL View<a class="headerlink" href="#pattern-1-orm-model-postgresql-view" title="Permanent link">&para;</a></h3>
@@ -3509,7 +3509,7 @@
 <ul>
 <li><a href="../core/trinity-pattern/">Trinity Pattern Guide</a> - Database naming conventions</li>
 <li><a href="../features/graphql-cascade/">CASCADE Documentation</a> - Automatic cache invalidation</li>
-<li><a href="../deployment/production-deployment.md">Production Deployment Checklist</a> - Go-live preparation</li>
+<li><a href="../deployment/production-deployment/">Production Deployment Checklist</a> - Go-live preparation</li>
 </ul>
 <h3 id="community-support">Community Support<a class="headerlink" href="#community-support" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3543,10 +3543,10 @@
 </ol>
 <hr />
 <p><strong>Ready to migrate?</strong> Start with your framework-specific guide:
-- <a href="from-postgraphile/">From PostGraphile</a>
-- <a href="from-graphene/">From Graphene</a>
-- <a href="from-strawberry/">From Strawberry</a>
-- <a href="migration-checklist/">Generic Checklist</a></p>
+- <a href="./from-postgraphile/">From PostGraphile</a>
+- <a href="./from-graphene/">From Graphene</a>
+- <a href="./from-strawberry/">From Strawberry</a>
+- <a href="./migration-checklist/">Generic Checklist</a></p>
 
 
 

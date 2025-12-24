@@ -3165,10 +3165,10 @@
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">END</span><span class="p">;</span>
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
 </span></code></pre></div></p>
-<p><strong>See also:</strong> <a href="../advanced/database-patterns.md">Database Patterns Guide</a></p>
+<p><strong>See also:</strong> <a href="../advanced/database-patterns/">Database Patterns Guide</a></p>
 <hr />
 <h3 id="table-views-tv_-explicit-sync-pattern">Table Views (tv_*) - Explicit Sync Pattern<a class="headerlink" href="#table-views-tv_-explicit-sync-pattern" title="Permanent link">&para;</a></h3>
-<p><strong><a href="../core/explicit-sync.md">Explicit Sync Pattern</a></strong> - Denormalized JSONB tables for complex queries</p>
+<p><strong><a href="../core/explicit-sync/">Explicit Sync Pattern</a></strong> - Denormalized JSONB tables for complex queries</p>
 <p>Table views (<code>tv_*</code>) are <strong>denormalized tables</strong> with JSONB columns, explicitly synchronized from source tables:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Table view (denormalized storage)</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tv_user</span><span class="w"> </span><span class="p">(</span>
@@ -3198,15 +3198,15 @@
 <hr />
 <h2 id="advanced-patterns">Advanced Patterns<a class="headerlink" href="#advanced-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="multi-tenancy">Multi-Tenancy<a class="headerlink" href="#multi-tenancy" title="Permanent link">&para;</a></h3>
-<p><strong><a href="../advanced/multi-tenancy.md">Multi-Tenancy Pattern</a></strong> - Isolate data per tenant</p>
+<p><strong><a href="../advanced/multi-tenancy/">Multi-Tenancy Pattern</a></strong> - Isolate data per tenant</p>
 <p>Strategies:
 - <strong>Row-Level Security (RLS)</strong>: PostgreSQL enforces tenant isolation
 - <strong>Schema-per-tenant</strong>: Separate schemas for each customer
 - <strong>Database-per-tenant</strong>: Complete isolation (enterprise)</p>
-<p><strong>See:</strong> <a href="../advanced/multi-tenancy.md">Multi-Tenancy Guide</a></p>
+<p><strong>See:</strong> <a href="../advanced/multi-tenancy/">Multi-Tenancy Guide</a></p>
 <hr />
 <h3 id="event-sourcing">Event Sourcing<a class="headerlink" href="#event-sourcing" title="Permanent link">&para;</a></h3>
-<p><strong><a href="../advanced/event-sourcing.md">Event Sourcing Pattern</a></strong> - Store events instead of current state</p>
+<p><strong><a href="../advanced/event-sourcing/">Event Sourcing Pattern</a></strong> - Store events instead of current state</p>
 <p>FraiseQL supports event sourcing with PostgreSQL:
 - Store domain events in append-only tables
 - Project events into read models (views or table views)
@@ -3215,10 +3215,10 @@
 - Audit logging with full history
 - CQRS with event-driven architecture
 - Temporal queries ("what was the state on date X?")</p>
-<p><strong>See:</strong> <a href="../advanced/event-sourcing.md">Event Sourcing Guide</a></p>
+<p><strong>See:</strong> <a href="../advanced/event-sourcing/">Event Sourcing Guide</a></p>
 <hr />
 <h3 id="bounded-contexts">Bounded Contexts<a class="headerlink" href="#bounded-contexts" title="Permanent link">&para;</a></h3>
-<p><strong><a href="../advanced/bounded-contexts.md">Bounded Contexts Pattern</a></strong> - Organize code by domain</p>
+<p><strong><a href="../advanced/bounded-contexts/">Bounded Contexts Pattern</a></strong> - Organize code by domain</p>
 <p>Domain-Driven Design applied to FraiseQL:
 - Separate modules per business domain
 - Shared database with schema organization
@@ -3231,11 +3231,11 @@
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   └── payments/     # Billing context
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>└── shared/           # Shared types and utilities
 </span></code></pre></div></p>
-<p><strong>See:</strong> <a href="../advanced/bounded-contexts.md">Bounded Contexts Guide</a></p>
+<p><strong>See:</strong> <a href="../advanced/bounded-contexts/">Bounded Contexts Guide</a></p>
 <hr />
 <h2 id="database-patterns">Database Patterns<a class="headerlink" href="#database-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="naming-conventions">Naming Conventions<a class="headerlink" href="#naming-conventions" title="Permanent link">&para;</a></h3>
-<p><strong><a href="../core/ddl-organization.md">DDL Organization</a></strong> - Consistent naming for clarity</p>
+<p><strong><a href="../core/ddl-organization/">DDL Organization</a></strong> - Consistent naming for clarity</p>
 <ul>
 <li><code>tb_*</code> - Base tables (source of truth)</li>
 <li><code>v_*</code> - Views (JSONB-generating queries for real-time data)</li>
@@ -3257,7 +3257,7 @@
 <p><strong>When to use:</strong> Products, settings, or entities with variable attributes.</p>
 <hr />
 <h2 id="authentication-authorization-patterns">Authentication &amp; Authorization Patterns<a class="headerlink" href="#authentication-authorization-patterns" title="Permanent link">&para;</a></h2>
-<p><strong><a href="../advanced/authentication.md">Authentication Guide</a></strong> - Common auth patterns</p>
+<p><strong><a href="../advanced/authentication/">Authentication Guide</a></strong> - Common auth patterns</p>
 <p>Strategies:
 - JWT tokens with PostgreSQL validation
 - Session-based authentication
@@ -3347,9 +3347,9 @@
 <hr />
 <h2 id="additional-resources">Additional Resources<a class="headerlink" href="#additional-resources" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../core/concepts-glossary.md">Core Concepts</a></strong> - Terminology and mental models</li>
+<li><strong><a href="../core/concepts-glossary/">Core Concepts</a></strong> - Terminology and mental models</li>
 <li><strong><a href="../architecture/decisions/">Architecture Decisions</a></strong> - ADRs explaining why patterns were chosen</li>
-<li><strong><a href="../advanced/database-patterns.md">Database Patterns</a></strong> - Detailed database design patterns</li>
+<li><strong><a href="../advanced/database-patterns/">Database Patterns</a></strong> - Detailed database design patterns</li>
 <li><strong><a href="../../examples/">Examples Directory</a></strong> - Real implementations</li>
 </ul>
 <p><strong>Need help choosing a pattern?</strong> See <a href="../architecture/decisions/">Architecture Decision Records</a> for context on trade-offs.</p>

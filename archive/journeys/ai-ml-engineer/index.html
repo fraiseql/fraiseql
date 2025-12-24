@@ -3120,7 +3120,7 @@
 <h2 id="step-by-step-implementation">Step-by-Step Implementation<a class="headerlink" href="#step-by-step-implementation" title="Permanent link">&para;</a></h2>
 <h3 id="step-1-understanding-fraiseqls-ai-native-features-15-minutes">Step 1: Understanding FraiseQL's AI-Native Features (15 minutes)<a class="headerlink" href="#step-1-understanding-fraiseqls-ai-native-features-15-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Learn how FraiseQL treats vectors as first-class citizens</p>
-<p><strong>Read:</strong> <a href="../features/ai-native.md">AI-Native Features</a></p>
+<p><strong>Read:</strong> <a href="../features/ai-native/">AI-Native Features</a></p>
 <p><strong>Key Concepts:</strong>
 - Zero-copy JSONB includes vector types
 - pgvector operators exposed in GraphQL
@@ -3131,7 +3131,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 <p><strong>Success Check:</strong> You understand that <code>ORDER BY embedding &lt;=&gt; query_embedding</code> becomes a GraphQL query automatically</p>
 <h3 id="step-2-rag-tutorial-hands-on-45-minutes">Step 2: RAG Tutorial - Hands-On (45 minutes)<a class="headerlink" href="#step-2-rag-tutorial-hands-on-45-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Build a complete RAG system from scratch</p>
-<p><strong>Follow:</strong> <a href="../ai-ml/rag-tutorial.md">RAG Tutorial</a></p>
+<p><strong>Follow:</strong> <a href="../ai-ml/rag-tutorial/">RAG Tutorial</a></p>
 <p><strong>What You'll Build:</strong>
 1. Document storage with automatic embedding generation
 2. Semantic search using cosine similarity
@@ -3162,7 +3162,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 <p><strong>Success Check:</strong> You can add a document, search for it, and get relevant results</p>
 <h3 id="step-3-vector-operators-deep-dive-20-minutes">Step 3: Vector Operators Deep-Dive (20 minutes)<a class="headerlink" href="#step-3-vector-operators-deep-dive-20-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Master pgvector similarity operators</p>
-<p><strong>Read:</strong> <a href="../reference/vector-operators.md">Vector Operators Reference</a></p>
+<p><strong>Read:</strong> <a href="../reference/vector-operators/">Vector Operators Reference</a></p>
 <p><strong>All 6 pgvector Operators:</strong></p>
 <table>
 <thead>
@@ -3234,7 +3234,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 <p><strong>Success Check:</strong> You can explain when to use each operator</p>
 <h3 id="step-4-langchain-integration-25-minutes">Step 4: LangChain Integration (25 minutes)<a class="headerlink" href="#step-4-langchain-integration-25-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Integrate FraiseQL with LangChain RAG pipelines</p>
-<p><strong>Read:</strong> <a href="../guides/langchain-integration.md">LangChain Integration Guide</a></p>
+<p><strong>Read:</strong> <a href="../guides/langchain-integration/">LangChain Integration Guide</a></p>
 <p><strong>Integration Pattern:</strong></p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langchain.vectorstores</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLVectorStore</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langchain.embeddings</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAIEmbeddings</span>
@@ -3289,7 +3289,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 <p><strong>Success Check:</strong> You understand how to combine filters with vector search</p>
 <h3 id="step-5-performance-optimization-20-minutes">Step 5: Performance Optimization (20 minutes)<a class="headerlink" href="#step-5-performance-optimization-20-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Optimize vector search for production scale</p>
-<p><strong>Read:</strong> <a href="../features/pgvector.md">pgvector Performance Guide</a></p>
+<p><strong>Read:</strong> <a href="../features/pgvector/">pgvector Performance Guide</a></p>
 <p><strong>Indexing Strategies:</strong></p>
 <p><strong>1. HNSW Index (Recommended for Production):</strong>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- Hierarchical Navigable Small World index</span>
@@ -3331,7 +3331,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 <p><strong>Success Check:</strong> You can choose the right index and tune parameters</p>
 <h3 id="step-6-production-deployment-patterns-15-minutes">Step 6: Production Deployment Patterns (15 minutes)<a class="headerlink" href="#step-6-production-deployment-patterns-15-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Deploy RAG system to production</p>
-<p><strong>Read:</strong> <a href="../production/deployment-checklist.md">Production Deployment Checklist</a></p>
+<p><strong>Read:</strong> <a href="../production/deployment-checklist/">Production Deployment Checklist</a></p>
 <p><strong>RAG-Specific Deployment Considerations:</strong></p>
 <p><strong>1. Embedding Generation Strategy:</strong>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Option A: Synchronous (simple, blocks API)</span>
@@ -3530,7 +3530,7 @@ Traditional GraphQL frameworks require custom resolvers for vector operations. F
 - ✅ Deployment and scaling knowledge
 - ✅ Advanced RAG techniques</p>
 <p><strong>Estimated Time to Production:</strong> 1-2 weeks for a team of 2 AI/ML engineers</p>
-<p><strong>Recommended Next Journey:</strong> <a href="../devops-engineer/">DevOps Engineer Journey</a> for deployment best practices</p>
+<p><strong>Recommended Next Journey:</strong> <a href="./devops-engineer/">DevOps Engineer Journey</a> for deployment best practices</p>
 <hr />
 <p><strong>Questions?</strong> Join our <a href="https://discord.gg/fraiseql">Discord community</a> #ai-ml channel</p>
 

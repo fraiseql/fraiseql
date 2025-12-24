@@ -3053,7 +3053,7 @@
 <h2 id="step-by-step-evaluation">Step-by-Step Evaluation<a class="headerlink" href="#step-by-step-evaluation" title="Permanent link">&para;</a></h2>
 <h3 id="step-1-quick-architecture-overview-15-minutes">Step 1: Quick Architecture Overview (15 minutes)<a class="headerlink" href="#step-1-quick-architecture-overview-15-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Understand FraiseQL's core design principles</p>
-<p><strong>Read:</strong> <a href="../core/fraiseql-philosophy.md">FraiseQL Philosophy</a></p>
+<p><strong>Read:</strong> <a href="../core/fraiseql-philosophy/">FraiseQL Philosophy</a></p>
 <p><strong>Key Questions Answered:</strong>
 - Why "database-first" approach?
 - How does zero-copy JSONB work?
@@ -3061,7 +3061,7 @@
 <p><strong>Success Check:</strong> You can explain "FraiseQL generates GraphQL from PostgreSQL views, not the other way around"</p>
 <h3 id="step-2-performance-deep-dive-30-minutes">Step 2: Performance Deep-Dive (30 minutes)<a class="headerlink" href="#step-2-performance-deep-dive-30-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Verify the 7-10x JSON performance claims</p>
-<p><strong>Read:</strong> <a href="../core/rust-pipeline-integration.md">Rust Pipeline Integration</a></p>
+<p><strong>Read:</strong> <a href="../core/rust-pipeline-integration/">Rust Pipeline Integration</a></p>
 <p><strong>Key Concepts:</strong>
 - Zero-copy JSONB processing
 - Rust JSON serialization (7-10x faster than Python)
@@ -3079,12 +3079,12 @@
 <h3 id="step-3-migration-assessment-25-minutes">Step 3: Migration Assessment (25 minutes)<a class="headerlink" href="#step-3-migration-assessment-25-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Estimate migration effort from your current framework</p>
 <p><strong>Read:</strong>
-- <a href="../migration/README.md">Migration Guides Overview</a>
+- <a href="../migration/README/">Migration Guides Overview</a>
 - Framework-specific guides:
-  - <a href="../migration/from-strawberry.md">From Strawberry</a> - 2-3 weeks
-  - <a href="../migration/from-graphene.md">From Graphene</a> - 1-2 weeks
-  - <a href="../migration/from-postgraphile.md">From PostGraphile</a> - 3-4 days
-- <a href="../migration/migration-checklist.md">Migration Checklist</a> - Generic 10-phase process</p>
+  - <a href="../migration/from-strawberry/">From Strawberry</a> - 2-3 weeks
+  - <a href="../migration/from-graphene/">From Graphene</a> - 1-2 weeks
+  - <a href="../migration/from-postgraphile/">From PostGraphile</a> - 3-4 days
+- <a href="../migration/migration-checklist/">Migration Checklist</a> - Generic 10-phase process</p>
 <p><strong>Migration Assessment:</strong></p>
 <p>Choose your framework-specific guide for detailed migration steps, code examples, and common pitfalls:</p>
 <table>
@@ -3130,7 +3130,7 @@
 <p><strong>Success Check:</strong> You have a concrete time estimate for your team's migration</p>
 <h3 id="step-4-enterprise-features-evaluation-30-minutes">Step 4: Enterprise Features Evaluation (30 minutes)<a class="headerlink" href="#step-4-enterprise-features-evaluation-30-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Assess advanced features for production use</p>
-<p><strong>Read:</strong> <a href="../advanced/database-patterns.md">Advanced Patterns</a></p>
+<p><strong>Read:</strong> <a href="../advanced/database-patterns/">Advanced Patterns</a></p>
 <p><strong>Key Features to Evaluate:</strong></p>
 <ol>
 <li>
@@ -3163,13 +3163,13 @@
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 </span></code></pre></div>
    <strong>Defaults:</strong> 10 connections (dev), 20 connections (production)
-   <strong>For detailed tuning:</strong> See <a href="../core/configuration.md">Database Configuration</a></p>
+   <strong>For detailed tuning:</strong> See <a href="../core/configuration/">Database Configuration</a></p>
 </li>
 </ol>
 <p><strong>Success Check:</strong> You understand how RLS and computed views reduce application complexity</p>
 <h3 id="step-5-production-operations-review-20-minutes">Step 5: Production Operations Review (20 minutes)<a class="headerlink" href="#step-5-production-operations-review-20-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Assess operational complexity and monitoring</p>
-<p><strong>Read:</strong> <a href="../production/deployment.md">Production Deployment</a></p>
+<p><strong>Read:</strong> <a href="../production/deployment/">Production Deployment</a></p>
 <p><strong>Key Operational Aspects:</strong>
 - <strong>Monitoring:</strong> Prometheus metrics, Grafana dashboards
 - <strong>Logging:</strong> Structured logs with correlation IDs
@@ -3188,7 +3188,7 @@
 <p><strong>Success Check:</strong> You know how to monitor and troubleshoot production deployments</p>
 <h3 id="step-6-security-compliance-assessment-15-minutes">Step 6: Security &amp; Compliance Assessment (15 minutes)<a class="headerlink" href="#step-6-security-compliance-assessment-15-minutes" title="Permanent link">&para;</a></h3>
 <p><strong>Goal:</strong> Evaluate security features for regulated environments</p>
-<p><strong>Read:</strong> <a href="../../security/configuration/">Security Configuration</a></p>
+<p><strong>Read:</strong> <a href="../security/configuration/">Security Configuration</a></p>
 <p><strong>Security Features:</strong>
 - <strong>Cryptographic Audit Trails:</strong> SHA-256 + HMAC chains
 - <strong>KMS Integration:</strong> AWS KMS, GCP KMS, Vault

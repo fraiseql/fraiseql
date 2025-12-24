@@ -3623,10 +3623,10 @@
 
 
 <h1 id="graphql-cascade">GraphQL Cascade<a class="headerlink" href="#graphql-cascade" title="Permanent link">&para;</a></h1>
-<p><strong>Navigation</strong>: <a href="../mutation-result-reference/">← Mutation Result Reference</a> • <a href="../sql-function-return-format/">SQL Function Return Format</a> • <a href="../../core/queries-and-mutations/">Queries &amp; Mutations →</a></p>
+<p><strong>Navigation</strong>: <a href="mutation-result-reference/">← Mutation Result Reference</a> • <a href="sql-function-return-format/">SQL Function Return Format</a> • <a href="../core/queries-and-mutations/">Queries &amp; Mutations →</a></p>
 <blockquote>
 <p><strong>Deep Dive</strong>: For best practices, patterns, and recommendations, see the
-<a href="../../guides/cascade-best-practices/">CASCADE Best Practices Guide</a>.</p>
+<a href="../guides/cascade-best-practices/">CASCADE Best Practices Guide</a>.</p>
 </blockquote>
 <p>GraphQL Cascade enables automatic cache updates and side effect tracking for mutations in FraiseQL. When a mutation modifies data, it can include cascade information that clients use to update their caches without additional queries.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
@@ -3655,7 +3655,7 @@
     Client-&gt;&gt;Cache: Update User entity (post_count)
     Client-&gt;&gt;Cache: Invalidate "posts" queries</code></pre>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
-<p>For detailed information on SQL function return formats, see <a href="../mutation-result-reference/">Mutation Result Reference</a> and <a href="../sql-function-return-format/">SQL Function Return Format</a>.</p>
+<p>For detailed information on SQL function return formats, see <a href="mutation-result-reference/">Mutation Result Reference</a> and <a href="sql-function-return-format/">SQL Function Return Format</a>.</p>
 <h2 id="postgresql-function-pattern">PostgreSQL Function Pattern<a class="headerlink" href="#postgresql-function-pattern" title="Permanent link">&para;</a></h2>
 <p>To enable cascade for a mutation, include cascade data in your return value. For v2 format, cascade data goes in the <code>cascade</code> field of <code>mutation_response</code>. For legacy format, use the <code>_cascade</code> field:</p>
 <h3 id="legacy-format-v14">Legacy Format (v1.4)<a class="headerlink" href="#legacy-format-v14" title="Permanent link">&para;</a></h3>
@@ -3984,10 +3984,10 @@
 - Testing patterns</p>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../mutation-result-reference/">Mutation Result Reference</a> - Complete format specifications</li>
-<li><a href="../../guides/cascade-best-practices/">CASCADE Best Practices</a> - Tuning, monitoring, advanced patterns</li>
-<li><a href="../../guides/migrating-to-cascade/">Migrating to Cascade</a> - Adoption guide</li>
-<li><a href="../../guides/cascade-best-practices/">Cascade Best Practices</a> - Production recommendations</li>
+<li><a href="mutation-result-reference/">Mutation Result Reference</a> - Complete format specifications</li>
+<li><a href="../guides/cascade-best-practices/">CASCADE Best Practices</a> - Tuning, monitoring, advanced patterns</li>
+<li><a href="../guides/migrating-to-cascade/">Migrating to Cascade</a> - Adoption guide</li>
+<li><a href="../guides/cascade-best-practices/">Cascade Best Practices</a> - Production recommendations</li>
 </ul>
 
 

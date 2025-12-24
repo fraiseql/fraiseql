@@ -3246,7 +3246,7 @@
 
 <h1 id="mutation-result-reference">Mutation Result Reference<a class="headerlink" href="#mutation-result-reference" title="Permanent link">&para;</a></h1>
 <p><strong>⚠️ This document has been consolidated into the new comprehensive guide.</strong></p>
-<p><strong>📖 Please see: <a href="../../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong></p>
+<p><strong>📖 Please see: <a href="../guides/mutation-sql-requirements/">Mutation SQL Requirements</a></strong></p>
 <p>This new guide provides:
 - Complete PostgreSQL function requirements
 - Error handling patterns (including native error arrays)
@@ -3362,7 +3362,7 @@
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">);</span>
 </span></code></pre></div>
 <h3 id="status-values">Status Values<a class="headerlink" href="#status-values" title="Permanent link">&para;</a></h3>
-<p>FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See <a href="../mutations/status-strings.md">Status String Conventions</a> for complete details.</p>
+<p>FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See <a href="../mutations/status-strings/">Status String Conventions</a> for complete details.</p>
 <h4 id="success-states">Success States<a class="headerlink" href="#success-states" title="Permanent link">&para;</a></h4>
 <ul>
 <li><code>success</code> - Generic success</li>
@@ -3507,7 +3507,7 @@
 </span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="status-to-code-mapping">Status to Code Mapping<a class="headerlink" href="#status-to-code-mapping" title="Permanent link">&para;</a></h3>
-<p>FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See <a href="../mutations/status-strings.md">Status String Conventions</a> for complete reference.</p>
+<p>FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See <a href="../mutations/status-strings/">Status String Conventions</a> for complete reference.</p>
 <table>
 <thead>
 <tr>
@@ -3671,7 +3671,7 @@
 <h2 id="cascade-data">Cascade Data<a class="headerlink" href="#cascade-data" title="Permanent link">&para;</a></h2>
 <p>Cascade data represents side effects and related entity changes from mutations.</p>
 <h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
-<p>Cascade data is stored in the <code>cascade</code> field and describes operations that occurred on related entities. See the <a href="../graphql-cascade/">GraphQL Cascade documentation</a> for complete details.</p>
+<p>Cascade data is stored in the <code>cascade</code> field and describes operations that occurred on related entities. See the <a href="graphql-cascade/">GraphQL Cascade documentation</a> for complete details.</p>
 <h3 id="integration-with-mutation-formats">Integration with Mutation Formats<a class="headerlink" href="#integration-with-mutation-formats" title="Permanent link">&para;</a></h3>
 <p>Both simple and v2 formats support cascade data:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1">-- V2 format with cascade</span>
@@ -3745,8 +3745,8 @@
 </span></code></pre></div>
 <hr />
 <p><strong>Related Documentation</strong>:
-- <a href="../sql-function-return-format/">SQL Function Return Format</a> - Existing return format guide
-- <a href="../graphql-cascade/">GraphQL Cascade</a> - Complete cascade specification
+- <a href="sql-function-return-format/">SQL Function Return Format</a> - Existing return format guide
+- <a href="graphql-cascade/">GraphQL Cascade</a> - Complete cascade specification
 - <a href="../../migrations/trinity/005_add_mutation_response.sql">Migration: Add mutation_response</a> - SQL type definition and helpers</p>
 
 

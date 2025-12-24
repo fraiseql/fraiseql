@@ -3459,7 +3459,7 @@
 <li>[ ] <strong>Dependencies Tracked</strong> - Complete dependency tree with vulnerability status</li>
 <li>[ ] <strong>Build Reproducibility</strong> - Verifiable builds with integrity checks</li>
 </ul>
-<p><strong>Guide:</strong> <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></p>
+<p><strong>Guide:</strong> <a href="./slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></p>
 <h3 id="data-privacy-protection">Data Privacy &amp; Protection<a class="headerlink" href="#data-privacy-protection" title="Permanent link">&para;</a></h3>
 <ul>
 <li>[ ] <strong>GDPR Compliance</strong> - Right to erasure, data portability, consent tracking</li>
@@ -3467,7 +3467,7 @@
 <li>[ ] <strong>Data Encryption</strong> - At-rest and in-transit encryption</li>
 <li>[ ] <strong>Key Management</strong> - KMS integration for cryptographic key lifecycle</li>
 </ul>
-<p><strong>Guide:</strong> <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></p>
+<p><strong>Guide:</strong> <a href="./compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></p>
 <h3 id="access-control">Access Control<a class="headerlink" href="#access-control" title="Permanent link">&para;</a></h3>
 <ul>
 <li>[ ] <strong>RBAC Implemented</strong> - Role-based permissions at database level</li>
@@ -3475,7 +3475,7 @@
 <li>[ ] <strong>Authentication</strong> - JWT/OAuth2 integration</li>
 <li>[ ] <strong>Authorization Policies</strong> - Fine-grained field and operation permissions</li>
 </ul>
-<p><strong>Guide:</strong> <a href="security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
+<p><strong>Guide:</strong> <a href="./security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
 <h3 id="audit-monitoring">Audit &amp; Monitoring<a class="headerlink" href="#audit-monitoring" title="Permanent link">&para;</a></h3>
 <ul>
 <li>[ ] <strong>Audit Logging</strong> - Immutable audit trails for all mutations</li>
@@ -3485,7 +3485,7 @@
 </ul>
 <p><strong>Guides:</strong>
 - <a href="../advanced/event-sourcing.md#audit-trails">Audit Trails Deep Dive</a>
-- <a href="../production/monitoring.md">Production Monitoring</a></p>
+- <a href="../production/monitoring/">Production Monitoring</a></p>
 <hr />
 <h2 id="regulatory-compliance">Regulatory Compliance<a class="headerlink" href="#regulatory-compliance" title="Permanent link">&para;</a></h2>
 <h3 id="united-states">United States<a class="headerlink" href="#united-states" title="Permanent link">&para;</a></h3>
@@ -3642,14 +3642,14 @@
 - HSM or FIPS 140-2 Level 3 KMS
 - Dedicated audit infrastructure
 - Security Operations Center (SOC) integration</p>
-<p><strong>Configuration Guide:</strong> <a href="security-profiles/">Security Profiles Setup</a> <em>(coming in WP-013)</em></p>
+<p><strong>Configuration Guide:</strong> <a href="./security-profiles/">Security Profiles Setup</a> <em>(coming in WP-013)</em></p>
 <hr />
 <h2 id="verification-guides">Verification Guides<a class="headerlink" href="#verification-guides" title="Permanent link">&para;</a></h2>
 <h3 id="for-procurement-officers">For Procurement Officers<a class="headerlink" href="#for-procurement-officers" title="Permanent link">&para;</a></h3>
 <p><strong>Verify FraiseQL's Security Claims:</strong></p>
 <ol>
 <li><strong>Check SLSA Provenance</strong> - Verify build integrity and supply chain security</li>
-<li>Guide: <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></li>
+<li>Guide: <a href="./slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em></li>
 <li>Time: 10-15 minutes</li>
 <li>
 <p>Technical Skill: None (uses web tools)</p>
@@ -3665,7 +3665,7 @@
 <li>
 <p><strong>Assess Compliance Posture</strong> - Check regulatory compliance status</p>
 </li>
-<li>Guide: <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
+<li>Guide: <a href="./compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
 <li>Time: 15-20 minutes</li>
 <li>Technical Skill: None (checklist-based)</li>
 </ol>
@@ -3673,7 +3673,7 @@
 <p><strong>Audit FraiseQL Deployments:</strong></p>
 <ol>
 <li><strong>Review Security Architecture</strong> - Assess defense-in-depth implementation</li>
-<li>Guide: <a href="../production/security.md">Security Architecture Overview</a></li>
+<li>Guide: <a href="../production/security/">Security Architecture Overview</a></li>
 <li>Time: 30-45 minutes</li>
 <li>
 <p>Technical Skill: Advanced</p>
@@ -3707,7 +3707,7 @@
 <li>
 <p><strong>Map Controls to Regulations</strong> - Cross-reference FraiseQL controls with requirements</p>
 </li>
-<li>Guide: <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
+<li>Guide: <a href="./compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em></li>
 <li>Time: 20-30 minutes</li>
 <li>
 <p>Technical Skill: None</p>
@@ -3723,30 +3723,30 @@
 <h2 id="architecture-decisions">Architecture Decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h2>
 <p>FraiseQL's security architecture is documented in Architecture Decision Records (ADRs):</p>
 <ul>
-<li><strong><a href="../architecture/decisions/0003-kms-architecture.md">ADR-003: KMS Architecture</a></strong> - Multi-provider key management</li>
-<li><strong><a href="../architecture/decisions/003-unified-audit-table.md">ADR-005: Unified Audit Table</a></strong> - Immutable audit logging design</li>
-<li><strong><a href="../architecture/decisions/005-simplified-single-source-cdc.md">ADR-006: Simplified CDC</a></strong> - Change Data Capture approach</li>
+<li><strong><a href="../architecture/decisions/0003-kms-architecture/">ADR-003: KMS Architecture</a></strong> - Multi-provider key management</li>
+<li><strong><a href="../architecture/decisions/003-unified-audit-table/">ADR-005: Unified Audit Table</a></strong> - Immutable audit logging design</li>
+<li><strong><a href="../architecture/decisions/005-simplified-single-source-cdc/">ADR-006: Simplified CDC</a></strong> - Change Data Capture approach</li>
 </ul>
 <hr />
 <h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <h3 id="detailed-technical-guides">Detailed Technical Guides<a class="headerlink" href="#detailed-technical-guides" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="../production/security.md">Production Security Guide</a></strong> - SQL injection prevention, rate limiting, CORS, authentication</li>
+<li><strong><a href="../production/security/">Production Security Guide</a></strong> - SQL injection prevention, rate limiting, CORS, authentication</li>
 <li><strong><a href="../advanced/event-sourcing.md#audit-trails">Audit Trails Deep Dive</a></strong> - Comprehensive audit logging implementation</li>
 <li><strong><a href="../enterprise/rbac-postgresql-refactored/">RBAC Implementation</a></strong> - Role-based access control with PostgreSQL</li>
-<li><strong><a href="../architecture/decisions/0003-kms-architecture.md">KMS Integration</a></strong> - Key management for data encryption</li>
+<li><strong><a href="../architecture/decisions/0003-kms-architecture/">KMS Integration</a></strong> - Key management for data encryption</li>
 </ul>
 <h3 id="deployment-operations">Deployment &amp; Operations<a class="headerlink" href="#deployment-operations" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="../production/deployment.md">Production Deployment</a></strong> - Secure deployment configurations</li>
-<li><strong><a href="../production/observability.md">Monitoring &amp; Observability</a></strong> - Security monitoring setup</li>
-<li><strong><a href="../production/README.md">Production Checklist</a></strong> - Pre-deployment security review</li>
+<li><strong><a href="../production/deployment/">Production Deployment</a></strong> - Secure deployment configurations</li>
+<li><strong><a href="../production/observability/">Monitoring &amp; Observability</a></strong> - Security monitoring setup</li>
+<li><strong><a href="../production/README/">Production Checklist</a></strong> - Pre-deployment security review</li>
 </ul>
 <h3 id="compliance">Compliance<a class="headerlink" href="#compliance" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong><a href="../compliance/global-regulations/">Global Regulations Guide</a></strong> - Detailed regulatory requirements by jurisdiction</li>
-<li><strong><a href="compliance-matrix/">Compliance Matrix</a></strong> - Control mapping (coming in WP-012)</li>
-<li><strong><a href="security-profiles/">Security Profiles</a></strong> - Configuration for regulated industries (coming in WP-013)</li>
+<li><strong><a href="./compliance-matrix/">Compliance Matrix</a></strong> - Control mapping (coming in WP-012)</li>
+<li><strong><a href="./security-profiles/">Security Profiles</a></strong> - Configuration for regulated industries (coming in WP-013)</li>
 </ul>
 <hr />
 <h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
@@ -3819,9 +3819,9 @@
 <h2 id="support-resources">Support &amp; Resources<a class="headerlink" href="#support-resources" title="Permanent link">&para;</a></h2>
 <h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="../production/security.md">Security Best Practices</a></strong></li>
-<li><strong><a href="../architecture/decisions/README.md">Architecture Decisions</a></strong></li>
-<li><strong><a href="../production/deployment.md">Production Deployment</a></strong></li>
+<li><strong><a href="../production/security/">Security Best Practices</a></strong></li>
+<li><strong><a href="../architecture/decisions/README/">Architecture Decisions</a></strong></li>
+<li><strong><a href="../production/deployment/">Production Deployment</a></strong></li>
 </ul>
 <h3 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3853,7 +3853,7 @@
 - RESTRICTED profile: ~20-25% overhead (comprehensive protection)</p>
 <h3 id="supply-chain-security_1">Supply Chain Security<a class="headerlink" href="#supply-chain-security_1" title="Permanent link">&para;</a></h3>
 <p><strong>Q: How do I verify FraiseQL's SLSA provenance?</strong></p>
-<p>A: See <a href="slsa-provenance/">SLSA Provenance Verification Guide</a> <em>(coming in WP-011)</em>. Verification takes 10-15 minutes using web-based tools and requires no specialized knowledge.</p>
+<p>A: See <a href="./slsa-provenance/">SLSA Provenance Verification Guide</a> <em>(coming in WP-011)</em>. Verification takes 10-15 minutes using web-based tools and requires no specialized knowledge.</p>
 <p><strong>Q: Can I generate SBOMs for my application?</strong></p>
 <p>A: Yes. FraiseQL includes SBOM generation for your entire application stack:
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>fraiseql<span class="w"> </span>sbom<span class="w"> </span>generate<span class="w"> </span>--format<span class="w"> </span>cyclonedx<span class="w"> </span>--output<span class="w"> </span>sbom.json
@@ -3895,9 +3895,9 @@
 <strong>Maintainer:</strong> FraiseQL Security Team</p>
 <hr />
 <p><strong>Next Steps:</strong>
-- Review <a href="slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em>
-- Check <a href="compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em>
-- Configure <a href="security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
+- Review <a href="./slsa-provenance/">SLSA Provenance Verification</a> <em>(coming in WP-011)</em>
+- Check <a href="./compliance-matrix/">Compliance Matrix</a> <em>(coming in WP-012)</em>
+- Configure <a href="./security-profiles/">Security Profiles</a> <em>(coming in WP-013)</em></p>
 
 
 

@@ -3341,7 +3341,7 @@
 <td>Information security for use of cloud services</td>
 <td>KMS integration (AWS, Azure, GCP, Vault), encryption at rest/transit</td>
 <td>REGULATED+</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>8.1</strong></td>
@@ -3369,14 +3369,14 @@
 <td>Management of technical vulnerabilities</td>
 <td>Automated dependency scanning, SBOM for vulnerability tracking, container scanning</td>
 <td>ALL</td>
-<td><a href="../../security/configuration/">Security Config</a></td>
+<td><a href="../security/configuration/">Security Config</a></td>
 </tr>
 <tr>
 <td><strong>8.9</strong></td>
 <td>Configuration management</td>
 <td>Security profiles (STANDARD/REGULATED/RESTRICTED), immutable infrastructure</td>
 <td>ALL</td>
-<td><a href="../security-profiles/">Security Profiles</a></td>
+<td><a href="./security-profiles/">Security Profiles</a></td>
 </tr>
 <tr>
 <td><strong>8.10</strong></td>
@@ -3397,7 +3397,7 @@
 <td>Data leakage prevention</td>
 <td>PII sanitization in logs, secure error handling, rate limiting</td>
 <td>ALL</td>
-<td><a href="../production/observability.md">Observability</a></td>
+<td><a href="../production/observability/">Observability</a></td>
 </tr>
 <tr>
 <td><strong>8.15</strong></td>
@@ -3411,7 +3411,7 @@
 <td>Monitoring activities</td>
 <td>Real-time security monitoring, anomaly detection (RESTRICTED), audit trail analysis</td>
 <td>REGULATED+</td>
-<td><a href="../production/monitoring.md">Production Monitoring</a></td>
+<td><a href="../production/monitoring/">Production Monitoring</a></td>
 </tr>
 </tbody>
 </table>
@@ -3437,7 +3437,7 @@
 <td>Integrity and confidentiality (security)</td>
 <td>Encryption at rest/transit, access control, audit logging</td>
 <td>REGULATED+</td>
-<td><a href="../features/security-architecture.md">Security Architecture</a></td>
+<td><a href="../features/security-architecture/">Security Architecture</a></td>
 </tr>
 <tr>
 <td><strong>Art. 15</strong></td>
@@ -3472,7 +3472,7 @@
 <td>Data protection by design and by default</td>
 <td>Security profiles, field-level encryption, minimal data collection</td>
 <td>REGULATED+</td>
-<td><a href="../security-profiles/">Security Profiles</a></td>
+<td><a href="./security-profiles/">Security Profiles</a></td>
 </tr>
 <tr>
 <td><strong>Art. 30</strong></td>
@@ -3486,7 +3486,7 @@
 <td>Security of processing</td>
 <td>KMS encryption, cryptographic audit chains, RLS, field-level auth</td>
 <td>REGULATED+</td>
-<td><a href="../../security/controls-matrix/">Security Controls</a></td>
+<td><a href="../security/controls-matrix/">Security Controls</a></td>
 </tr>
 <tr>
 <td><strong>Art. 33-34</strong></td>
@@ -3527,7 +3527,7 @@
 <td>Secure configuration standards</td>
 <td>Security profiles with predefined controls, minimal container images</td>
 <td>ALL</td>
-<td><a href="../security-profiles/">Security Profiles</a></td>
+<td><a href="./security-profiles/">Security Profiles</a></td>
 </tr>
 <tr>
 <td><strong>3.4.1</strong></td>
@@ -3548,7 +3548,7 @@
 <td>Inventory of software components (SBOM)</td>
 <td>Automated SBOM generation (CycloneDX), dependency tracking</td>
 <td>ALL</td>
-<td><a href="../slsa-provenance/">SLSA Provenance</a></td>
+<td><a href="./slsa-provenance/">SLSA Provenance</a></td>
 </tr>
 <tr>
 <td><strong>6.3.2</strong></td>
@@ -3603,7 +3603,7 @@
 <td>Integrity and ethical values</td>
 <td>Security profiles enforce consistent controls across environments</td>
 <td>ALL</td>
-<td><a href="../security-profiles/">Security Profiles</a></td>
+<td><a href="./security-profiles/">Security Profiles</a></td>
 </tr>
 <tr>
 <td><strong>CC2.1</strong></td>
@@ -3617,14 +3617,14 @@
 <td>Risk assessment</td>
 <td>Threat model, security controls matrix, vulnerability scanning</td>
 <td>REGULATED+</td>
-<td><a href="../../security/threat-model/">Threat Model</a></td>
+<td><a href="../security/threat-model/">Threat Model</a></td>
 </tr>
 <tr>
 <td><strong>CC5.1</strong></td>
 <td>Control activities</td>
 <td>Input validation, rate limiting, query complexity analysis, parameterized queries</td>
 <td>ALL</td>
-<td><a href="../production/security.md">Production Security</a></td>
+<td><a href="../production/security/">Production Security</a></td>
 </tr>
 <tr>
 <td><strong>CC6.1</strong></td>
@@ -3638,14 +3638,14 @@
 <td>Encryption</td>
 <td>KMS integration, envelope encryption, TLS enforcement, key rotation</td>
 <td>REGULATED+</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>CC7.2</strong></td>
 <td>Monitoring activities</td>
 <td>Security event logging, distributed tracing, real-time alerting</td>
 <td>REGULATED+</td>
-<td><a href="../production/monitoring.md">Production Monitoring</a></td>
+<td><a href="../production/monitoring/">Production Monitoring</a></td>
 </tr>
 <tr>
 <td><strong>CC7.3</strong></td>
@@ -3659,14 +3659,14 @@
 <td>System availability</td>
 <td>Health checks, monitoring, incident response</td>
 <td>REGULATED+</td>
-<td><a href="../production/deployment.md">Production Deployment</a></td>
+<td><a href="../production/deployment/">Production Deployment</a></td>
 </tr>
 <tr>
 <td><strong>C1.2</strong></td>
 <td>Data confidentiality</td>
 <td>Encryption at rest/transit, access control, data classification</td>
 <td>REGULATED+</td>
-<td><a href="../features/security-architecture.md">Security Architecture</a></td>
+<td><a href="../features/security-architecture/">Security Architecture</a></td>
 </tr>
 <tr>
 <td><strong>P3.1</strong></td>
@@ -3792,13 +3792,13 @@
 <td><strong>D. Malware Protection</strong></td>
 <td>Container scanning, dependency scanning, SBOM for vulnerability tracking</td>
 <td>ALL</td>
-<td><a href="../../security/configuration/">Security Configuration</a></td>
+<td><a href="../security/configuration/">Security Configuration</a></td>
 </tr>
 <tr>
 <td><strong>E. Security Update Management</strong></td>
 <td>Automated dependency scanning, SBOM for patch tracking, CI/CD integration</td>
 <td>ALL</td>
-<td><a href="../slsa-provenance/">SLSA Provenance</a></td>
+<td><a href="./slsa-provenance/">SLSA Provenance</a></td>
 </tr>
 </tbody>
 </table>
@@ -3822,13 +3822,13 @@
 <td><strong>1. Application Control</strong></td>
 <td>Code signing, container image verification, SBOM integrity checks</td>
 <td>RESTRICTED</td>
-<td><a href="../slsa-provenance/">SLSA Provenance</a></td>
+<td><a href="./slsa-provenance/">SLSA Provenance</a></td>
 </tr>
 <tr>
 <td><strong>2. Patch Applications</strong></td>
 <td>Automated dependency scanning, SBOM for vulnerability tracking</td>
 <td>ALL</td>
-<td><a href="../../security/configuration/">Security Configuration</a></td>
+<td><a href="../security/configuration/">Security Configuration</a></td>
 </tr>
 <tr>
 <td><strong>3. Configure Microsoft Office Macros</strong></td>
@@ -3890,31 +3890,31 @@
 <td><strong>Risk Management</strong></td>
 <td>Security profiles, threat model, vulnerability management</td>
 <td>RESTRICTED</td>
-<td><a href="../../security/threat-model/">Threat Model</a></td>
+<td><a href="../security/threat-model/">Threat Model</a></td>
 </tr>
 <tr>
 <td><strong>Cybersecurity Audits</strong></td>
 <td>Audit logging, compliance reporting, security controls documentation</td>
 <td>RESTRICTED</td>
-<td><a href="../../security/controls-matrix/">Security Controls</a></td>
+<td><a href="../security/controls-matrix/">Security Controls</a></td>
 </tr>
 <tr>
 <td><strong>Incident Reporting</strong></td>
 <td>Security event logging, real-time alerting, incident detection</td>
 <td>RESTRICTED</td>
-<td><a href="../production/monitoring.md">Production Monitoring</a></td>
+<td><a href="../production/monitoring/">Production Monitoring</a></td>
 </tr>
 <tr>
 <td><strong>Supply Chain Security</strong></td>
 <td>SBOM generation, dependency tracking, cryptographic verification</td>
 <td>ALL</td>
-<td><a href="../slsa-provenance/">SLSA Provenance</a></td>
+<td><a href="./slsa-provenance/">SLSA Provenance</a></td>
 </tr>
 <tr>
 <td><strong>Data Protection</strong></td>
 <td>Encryption at rest/transit, KMS integration, access control</td>
 <td>RESTRICTED</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 </tbody>
 </table>
@@ -3951,19 +3951,19 @@
 <td><strong>Cryptography</strong></td>
 <td>KMS integration (HSM-backed for RESTRICTED), AES-256-GCM, TLS 1.3</td>
 <td>RESTRICTED</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>Incident Response</strong></td>
 <td>Security event logging, real-time monitoring, alerting</td>
 <td>RESTRICTED</td>
-<td><a href="../production/monitoring.md">Production Monitoring</a></td>
+<td><a href="../production/monitoring/">Production Monitoring</a></td>
 </tr>
 <tr>
 <td><strong>Supply Chain Security</strong></td>
 <td>SBOM, dependency scanning, cryptographic verification</td>
 <td>RESTRICTED</td>
-<td><a href="../slsa-provenance/">SLSA Provenance</a></td>
+<td><a href="./slsa-provenance/">SLSA Provenance</a></td>
 </tr>
 </tbody>
 </table>
@@ -4059,21 +4059,21 @@
 <td>SC-13 (Cryptographic Protection)</td>
 <td>AES-256-GCM, KMS integration, envelope encryption</td>
 <td>REGULATED+</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>SC</strong></td>
 <td>SC-28 (Protection of Information at Rest)</td>
 <td>Database encryption, KMS for key management</td>
 <td>REGULATED+</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>SI</strong></td>
 <td>SI-3 (Malicious Code Protection)</td>
 <td>Container scanning, dependency scanning, SBOM vulnerability tracking</td>
 <td>ALL</td>
-<td><a href="../../security/configuration/">Security Configuration</a></td>
+<td><a href="../security/configuration/">Security Configuration</a></td>
 </tr>
 <tr>
 <td><strong>SI</strong></td>
@@ -4101,7 +4101,7 @@
 <td><strong>Low</strong></td>
 <td>Low-impact SaaS</td>
 <td>STANDARD or REGULATED</td>
-<td><a href="../../security/controls-matrix/">Security Controls</a></td>
+<td><a href="../security/controls-matrix/">Security Controls</a></td>
 </tr>
 <tr>
 <td><strong>Moderate</strong></td>
@@ -4168,7 +4168,7 @@
 <td>Security management process</td>
 <td>Security profiles, threat model, risk assessment</td>
 <td>REGULATED+</td>
-<td><a href="../../security/threat-model/">Threat Model</a></td>
+<td><a href="../security/threat-model/">Threat Model</a></td>
 </tr>
 <tr>
 <td><strong>§164.308(a)(3)(i)</strong></td>
@@ -4182,14 +4182,14 @@
 <td>Security awareness and training</td>
 <td>Security documentation, best practices guides</td>
 <td>REGULATED+</td>
-<td><a href="../production/security.md">Production Security</a></td>
+<td><a href="../production/security/">Production Security</a></td>
 </tr>
 <tr>
 <td><strong>§164.310(d)(1)</strong></td>
 <td>Device and media controls</td>
 <td>Encryption at rest, KMS key lifecycle</td>
 <td>REGULATED+</td>
-<td><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></td>
+<td><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></td>
 </tr>
 <tr>
 <td><strong>§164.312(a)(1)</strong></td>
@@ -4463,13 +4463,13 @@
 </ul>
 <h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="../slsa-provenance/">SLSA Provenance &amp; SBOM</a></strong> - Supply chain security verification</li>
-<li><strong><a href="../security-profiles/">Security Profiles</a></strong> - Configuration for different compliance levels</li>
-<li><strong><a href="../production/security.md">Production Security</a></strong> - SQL injection, rate limiting, CORS, auth</li>
-<li><strong><a href="../../security/controls-matrix/">Security Controls Matrix</a></strong> - Detailed control implementation</li>
-<li><strong><a href="../architecture/decisions/0003-kms-architecture.md">KMS Architecture</a></strong> - Encryption key management</li>
-<li><strong><a href="../../security/threat-model/">Threat Model</a></strong> - Security risk assessment</li>
-<li><strong><a href="../../security/configuration/">Security Configuration</a></strong> - Configuration best practices</li>
+<li><strong><a href="./slsa-provenance/">SLSA Provenance &amp; SBOM</a></strong> - Supply chain security verification</li>
+<li><strong><a href="./security-profiles/">Security Profiles</a></strong> - Configuration for different compliance levels</li>
+<li><strong><a href="../production/security/">Production Security</a></strong> - SQL injection, rate limiting, CORS, auth</li>
+<li><strong><a href="../security/controls-matrix/">Security Controls Matrix</a></strong> - Detailed control implementation</li>
+<li><strong><a href="../architecture/decisions/0003-kms-architecture/">KMS Architecture</a></strong> - Encryption key management</li>
+<li><strong><a href="../security/threat-model/">Threat Model</a></strong> - Security risk assessment</li>
+<li><strong><a href="../security/configuration/">Security Configuration</a></strong> - Configuration best practices</li>
 </ul>
 <hr />
 <h2 id="how-to-use-this-matrix">How to Use This Matrix<a class="headerlink" href="#how-to-use-this-matrix" title="Permanent link">&para;</a></h2>
@@ -4482,7 +4482,7 @@
 </ol>
 <h3 id="for-procurement-officers">For Procurement Officers<a class="headerlink" href="#for-procurement-officers" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Check vendor claims</strong> - Verify FraiseQL's SLSA provenance (<a href="../slsa-provenance/">guide</a>)</li>
+<li><strong>Check vendor claims</strong> - Verify FraiseQL's SLSA provenance (<a href="./slsa-provenance/">guide</a>)</li>
 <li><strong>Review SBOM</strong> - Inspect dependencies and vulnerabilities</li>
 <li><strong>Assess compliance posture</strong> - Use this matrix as checklist</li>
 <li><strong>Request evidence</strong> - All test files and documentation linked above</li>
@@ -4513,7 +4513,7 @@
 <p><strong>Q: Which profile should I use for multiple compliance requirements?</strong></p>
 <p>A: Use the <strong>highest required profile</strong>. For example, if you need both GDPR (REGULATED) and AU Essential Eight ML3 (RESTRICTED), use RESTRICTED as it includes all REGULATED controls plus additional protections.</p>
 <p><strong>Q: Can I customize security profiles?</strong></p>
-<p>A: Yes. Profiles are configuration templates. You can enable/disable specific controls based on your risk assessment. See <a href="../../security/configuration/">Security Configuration Guide</a> for details.</p>
+<p>A: Yes. Profiles are configuration templates. You can enable/disable specific controls based on your risk assessment. See <a href="../security/configuration/">Security Configuration Guide</a> for details.</p>
 <p><strong>Q: Are these controls auditable?</strong></p>
 <p>A: Yes. All controls have <strong>test evidence</strong> (linked in Evidence column) and comprehensive documentation. Automated test suites verify control implementation on every commit.</p>
 <p><strong>Q: What about compliance in regions not listed?</strong></p>
@@ -4529,12 +4529,12 @@
 <hr />
 <h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="../">Security &amp; Compliance Hub</a></strong> - Overview and quick start</li>
-<li><strong><a href="../slsa-provenance/">SLSA Provenance Verification</a></strong> - Supply chain security</li>
-<li><strong><a href="../security-profiles/">Security Profiles Guide</a></strong> - Configuration for compliance</li>
-<li><strong><a href="../../compliance/global-regulations/">Global Regulations Guide</a></strong> - Detailed regulatory analysis</li>
-<li><strong><a href="../production/security.md">Production Security</a></strong> - Implementation best practices</li>
-<li><strong><a href="../../security/controls-matrix/">Security Controls Matrix</a></strong> - Technical control details</li>
+<li><strong><a href="./README/">Security &amp; Compliance Hub</a></strong> - Overview and quick start</li>
+<li><strong><a href="./slsa-provenance/">SLSA Provenance Verification</a></strong> - Supply chain security</li>
+<li><strong><a href="./security-profiles/">Security Profiles Guide</a></strong> - Configuration for compliance</li>
+<li><strong><a href="../compliance/global-regulations/">Global Regulations Guide</a></strong> - Detailed regulatory analysis</li>
+<li><strong><a href="../production/security/">Production Security</a></strong> - Implementation best practices</li>
+<li><strong><a href="../security/controls-matrix/">Security Controls Matrix</a></strong> - Technical control details</li>
 </ul>
 <hr />
 <p><strong>For Questions or Support:</strong>

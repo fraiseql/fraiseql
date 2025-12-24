@@ -4270,7 +4270,7 @@
 </span></code></pre></div></p>
 <h3 id="synchronization-pattern">Synchronization Pattern<a class="headerlink" href="#synchronization-pattern" title="Permanent link">&para;</a></h3>
 <p><strong>Trigger-Based Synchronization</strong> (not generated columns):</p>
-<p>tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See <a href="../../core/explicit-sync/">Explicit Sync Documentation</a> for details.</p>
+<p>tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See <a href="../core/explicit-sync/">Explicit Sync Documentation</a> for details.</p>
 <p><strong>Step 1: Create tv_ Table</strong></p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- tv_ table with JSONB data column (maintained via explicit sync)</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tv_order</span><span class="w"> </span><span class="p">(</span>
@@ -4332,7 +4332,7 @@
 </span></code></pre></div>
 <p><strong>Step 2: Explicit Synchronization (FraiseQL Approach)</strong></p>
 <blockquote>
-<p><strong>Note</strong>: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See <a href="../../core/explicit-sync/">Explicit Sync Documentation</a> for details.</p>
+<p><strong>Note</strong>: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See <a href="../core/explicit-sync/">Explicit Sync Documentation</a> for details.</p>
 </blockquote>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Explicit sync function (FraiseQL approach)</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fn_sync_tv_order</span><span class="p">(</span><span class="n">p_order_id</span><span class="w"> </span><span class="nb">INT</span><span class="p">)</span><span class="w"> </span><span class="k">RETURNS</span><span class="w"> </span><span class="n">VOID</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="err">$$</span>
