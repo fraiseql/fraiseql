@@ -101,7 +101,7 @@ nav:
     - pgvector (Vector Search): features/pgvector.md
     - GraphQL Cascade: features/graphql-cascade.md
     - LangChain Integration: guides/langchain-integration.md
-    - LLM Integration: advanced/llm-integration.md
+    - LLM Integration: features/ai-native.md
   - Core Concepts:
     - Philosophy: core/fraiseql-philosophy.md
     - Types & Schema: core/types-and-schema.md
@@ -111,7 +111,7 @@ nav:
     - Concepts Glossary: core/concepts-glossary.md
   - Guides:
     - Filtering & Querying: guides/filtering.md
-    - Nested Filters: guides/nested-filters.md
+    - Nested Filters: filtering/nested-filters.md
     - Mutations & Data Changes: guides/mutation-sql-requirements.md
     - Error Handling: guides/error-handling-patterns.md
     - Cascade Best Practices: guides/cascade-best-practices.md
