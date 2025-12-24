@@ -15,9 +15,6 @@ mkdocs:
   configuration: mkdocs.yml
   fail_on_warning: false
 
-# Build on PR previews for documentation changes
-build-on-pull-requests: true
-
 # Optionally build PDF & ePub
 formats:
   - pdf
