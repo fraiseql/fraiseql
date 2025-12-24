@@ -227,9 +227,9 @@ PostgreSQL Views → Schema Generation → Type-Safe Resolvers → Client
 
 **Resources:**
 - [Performance Benchmarks](../../benchmarks/)
-- [Compliance Matrix](../security/controls-matrix.md)
-- [Migration Guide](../database/migrations.md)
-- [Production Deployment](../production/deployment.md)
+- [Compliance Matrix](../security/controls-matrix/)
+- [Migration Guide](../database/migrations/)
+- [Production Deployment](../production/deployment/)
 
 ---
 

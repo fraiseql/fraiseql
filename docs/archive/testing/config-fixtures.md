@@ -447,5 +447,5 @@ def test_config(postgres_url: str):
 
 ## Reference
 
-- [CI Architecture](./ci-architecture.md)
-- [Pytest Markers](./pytest-markers.md)
+- [CI Architecture](./ci-architecture/)
+- [Pytest Markers](./pytest-markers/)

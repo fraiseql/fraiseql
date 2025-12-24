@@ -334,6 +334,6 @@ Have a benchmark to add? Submit a PR with:
 ## References
 
 - **[Benchmark Scripts](../../benchmarks)** - Complete reproduction code
-- **[Performance Guide](../performance/index.md)** - Optimization strategies
-- **[Rust Pipeline](../performance/rust-pipeline-optimization.md)** - How Rust acceleration works
+- **[Performance Guide](../performance/index/)** - Optimization strategies
+- **[Rust Pipeline](../performance/rust-pipeline-optimization/)** - How Rust acceleration works
 - **[N+1 Prevention](../performance/index.md#n-plus-one-prevention)** - JSONB view composition

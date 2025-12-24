@@ -24,7 +24,7 @@ FraiseQL treats PostgreSQL as:
 - Easier testing (functions testable in pure SQL)
 - Better observability (one query log, not scattered app logs)
 
-**See**: [FraiseQL Philosophy](../core/fraiseql-philosophy.md) for complete rationale.
+**See**: [FraiseQL Philosophy](../core/fraiseql-philosophy/) for complete rationale.
 
 ---
 
@@ -101,8 +101,8 @@ CREATE FUNCTION fn_create_post(...) RETURNS mutation_response;
 - ✅ Better organization at scale
 
 **Documentation**:
-- **[Table Naming Conventions](table-naming-conventions.md)** - Complete reference
-- **[Trinity Pattern Philosophy](../core/trinity-pattern.md)** - Architectural rationale
+- **[Table Naming Conventions](table-naming-conventions/)** - Complete reference
+- **[Trinity Pattern Philosophy](../core/trinity-pattern/)** - Architectural rationale
 
 ---
 
@@ -133,8 +133,8 @@ Federation:      Sync entity with UUID a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 ```
 
 **Documentation**:
-- **[Trinity Identifiers](trinity-identifiers.md)** - Complete guide with examples
-- **[Database Patterns](../advanced/database-patterns.md)** - Advanced ID patterns
+- **[Trinity Identifiers](trinity-identifiers/)** - Complete guide with examples
+- **[Database Patterns](../advanced/database-patterns/)** - Advanced ID patterns
 
 ---
 
@@ -288,8 +288,8 @@ CREATE TABLE tv_post (
 ```
 
 **Documentation**:
-- **[View Strategies](view-strategies.md)** - Complete guide with performance notes
-- **[Database-Level Caching](database-level-caching.md)** - Materialized view patterns
+- **[View Strategies](view-strategies/)** - Complete guide with performance notes
+- **[Database-Level Caching](database-level-caching/)** - Materialized view patterns
 
 ---
 
@@ -349,9 +349,9 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Documentation**:
-- **[Mutation SQL Requirements](../guides/mutation-sql-requirements.md)** - Complete reference
-- **[Status Strings](../mutations/status-strings.md)** - Status taxonomy
-- **[CASCADE Architecture](../mutations/cascade-architecture.md)** - Side effects
+- **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete reference
+- **[Status Strings](../mutations/status-strings/)** - Status taxonomy
+- **[CASCADE Architecture](../mutations/cascade-architecture/)** - Side effects
 
 ---
 
@@ -398,8 +398,8 @@ GraphQL:     errors = [{
 - `noop:*` → 422 (No changes made)
 
 **Documentation**:
-- **[Error Handling Patterns](../guides/error-handling-patterns.md)** - Deep dive
-- **[Status Strings Reference](../mutations/status-strings.md)** - Complete taxonomy
+- **[Error Handling Patterns](../guides/error-handling-patterns/)** - Deep dive
+- **[Status Strings Reference](../mutations/status-strings/)** - Complete taxonomy
 
 ---
 
@@ -485,8 +485,8 @@ $$ LANGUAGE plpgsql;
 - ✅ Better error messages (knows data context)
 
 **Documentation**:
-- **[Error Handling Patterns](../guides/error-handling-patterns.md)** - Validation section
-- **[Mutation SQL Requirements](../guides/mutation-sql-requirements.md)** - Complete examples
+- **[Error Handling Patterns](../guides/error-handling-patterns/)** - Validation section
+- **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete examples
 
 ---
 
@@ -534,8 +534,8 @@ result = await db.fetch("SELECT * FROM tb_post")
 ```
 
 **Documentation**:
-- **[RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment.md)** - Complete guide
-- **[Multi-Tenancy](../advanced/multi-tenancy.md)** - Tenant isolation patterns
+- **[RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment/)** - Complete guide
+- **[Multi-Tenancy](../advanced/multi-tenancy/)** - Tenant isolation patterns
 
 ---
 
@@ -607,8 +607,8 @@ SELECT cron.schedule('refresh-user-stats', '0 * * * *',
 ```
 
 **Documentation**:
-- **[Performance Guide](../performance/performance-guide.md)** - Complete optimization guide
-- **[Database-Level Caching](database-level-caching.md)** - Materialized view patterns
+- **[Performance Guide](../performance/performance-guide/)** - Complete optimization guide
+- **[Database-Level Caching](database-level-caching/)** - Materialized view patterns
 
 ---
 
@@ -644,7 +644,7 @@ CREATE TABLE cache_api_responses (
 ```
 
 **Documentation**:
-- **[Database-Level Caching](database-level-caching.md)** - Complete caching guide
+- **[Database-Level Caching](database-level-caching/)** - Complete caching guide
 
 ---
 
@@ -706,7 +706,7 @@ COMMIT;
 ```
 
 **Documentation**:
-- **[Migrations Guide](migrations.md)** - Complete migration patterns
+- **[Migrations Guide](migrations/)** - Complete migration patterns
 
 ---
 
@@ -741,7 +741,7 @@ $$;
 ```
 
 **Documentation**:
-- **[Avoid Triggers](avoid-triggers.md)** - Complete rationale
+- **[Avoid Triggers](avoid-triggers/)** - Complete rationale
 
 ### ❌ Don't Use ORMs
 
@@ -855,34 +855,34 @@ CREATE POLICY select_policy ON tb_{entity}
 ## 📖 Complete Documentation Index
 
 ### Core Database Patterns
-- [Table Naming Conventions](table-naming-conventions.md) - Trinity pattern reference
-- [Trinity Identifiers](trinity-identifiers.md) - Three-tier ID system
-- [View Strategies](view-strategies.md) - JSONB vs table views
-- [Trinity Pattern Philosophy](../core/trinity-pattern.md) - Architectural rationale
-- [PostgreSQL Extensions](../core/postgresql-extensions.md) - Required extensions
+- [Table Naming Conventions](table-naming-conventions/) - Trinity pattern reference
+- [Trinity Identifiers](trinity-identifiers/) - Three-tier ID system
+- [View Strategies](view-strategies/) - JSONB vs table views
+- [Trinity Pattern Philosophy](../core/trinity-pattern/) - Architectural rationale
+- [PostgreSQL Extensions](../core/postgresql-extensions/) - Required extensions
 
 ### Mutation & Error Handling
-- [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) - Complete function guide
-- [Error Handling Patterns](../guides/error-handling-patterns.md) - Error handling deep dive
-- [Status Strings Reference](../mutations/status-strings.md) - Status taxonomy
-- [CASCADE Architecture](../mutations/cascade-architecture.md) - Side effects & cache updates
+- [Mutation SQL Requirements](../guides/mutation-sql-requirements/) - Complete function guide
+- [Error Handling Patterns](../guides/error-handling-patterns/) - Error handling deep dive
+- [Status Strings Reference](../mutations/status-strings/) - Status taxonomy
+- [CASCADE Architecture](../mutations/cascade-architecture/) - Side effects & cache updates
 
 ### Performance & Caching
-- [Database-Level Caching](database-level-caching.md) - Caching strategies
-- [Performance Guide](../performance/performance-guide.md) - Complete optimization guide
-- [Coordinate Performance](../performance/coordinate-performance-guide.md) - Geospatial optimization
+- [Database-Level Caching](database-level-caching/) - Caching strategies
+- [Performance Guide](../performance/performance-guide/) - Complete optimization guide
+- [Coordinate Performance](../performance/coordinate-performance-guide/) - Geospatial optimization
 
 ### Security
-- [RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment.md) - Authorization guide
-- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation
+- [RBAC & RLS Patterns](../enterprise/rbac-postgresql-assessment/) - Authorization guide
+- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation
 
 ### Migrations & Operations
-- [Migrations Guide](migrations.md) - Migration best practices
-- [Avoid Triggers](avoid-triggers.md) - Why we don't use triggers
+- [Migrations Guide](migrations/) - Migration best practices
+- [Avoid Triggers](avoid-triggers/) - Why we don't use triggers
 
 ### Advanced Topics
-- [Advanced Database Patterns](../advanced/database-patterns.md) - Advanced patterns
-- [Database API Reference](../core/database-api.md) - Connection and query APIs
+- [Advanced Database Patterns](../advanced/database-patterns/) - Advanced patterns
+- [Database API Reference](../core/database-api/) - Connection and query APIs
 
 ---
 
@@ -890,14 +890,14 @@ CREATE POLICY select_policy ON tb_{entity}
 
 **New to FraiseQL's database patterns?** Follow this path:
 
-1. **Start**: [FraiseQL Philosophy](../core/fraiseql-philosophy.md) - Understand "why"
-2. **Basics**: [Table Naming Conventions](table-naming-conventions.md) - Learn the trinity pattern
-3. **IDs**: [Trinity Identifiers](trinity-identifiers.md) - Understand the three-tier ID system
-4. **Data**: [View Strategies](view-strategies.md) - Learn how to expose data
-5. **Mutations**: [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) - Write your first mutation
-6. **Errors**: [Error Handling Patterns](../guides/error-handling-patterns.md) - Handle errors properly
-7. **Security**: [RBAC & RLS](../enterprise/rbac-postgresql-assessment.md) - Add authorization
-8. **Performance**: [Performance Guide](../performance/performance-guide.md) - Optimize queries
+1. **Start**: [FraiseQL Philosophy](../core/fraiseql-philosophy/) - Understand "why"
+2. **Basics**: [Table Naming Conventions](table-naming-conventions/) - Learn the trinity pattern
+3. **IDs**: [Trinity Identifiers](trinity-identifiers/) - Understand the three-tier ID system
+4. **Data**: [View Strategies](view-strategies/) - Learn how to expose data
+5. **Mutations**: [Mutation SQL Requirements](../guides/mutation-sql-requirements/) - Write your first mutation
+6. **Errors**: [Error Handling Patterns](../guides/error-handling-patterns/) - Handle errors properly
+7. **Security**: [RBAC & RLS](../enterprise/rbac-postgresql-assessment/) - Add authorization
+8. **Performance**: [Performance Guide](../performance/performance-guide/) - Optimize queries
 
 ---
 

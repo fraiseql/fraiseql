@@ -35,7 +35,7 @@ Running FraiseQL in production? We'd love to feature your deployment!
 
 ### How to Submit
 
-1. **Use the Template**: Start with [`template.md`](./template.md)
+1. **Use the Template**: Start with [`template.md`](./template/)
 2. **Gather Metrics**: Collect performance, cost, and operational data
 3. **Write Honestly**: Include both wins and challenges
 4. **Anonymize if Needed**: You can keep company details private
@@ -65,7 +65,7 @@ Running FraiseQL in production? We'd love to feature your deployment!
 
 ## Case Study Template
 
-Download: [`template.md`](./template.md)
+Download: [`template.md`](./template/)
 
 The template includes sections for:
 - Company & infrastructure information
@@ -83,7 +83,7 @@ The template includes sections for:
 
 - **General**: lionel.hamayon@evolution-digitale.fr
 - **Technical**: Open a [GitHub Discussion](../discussions)
-- **Security**: See [SECURITY.md](../../SECURITY.md)
+- **Security**: See [SECURITY.md](../../SECURITY/)
 
 ## Case Study Guidelines
 

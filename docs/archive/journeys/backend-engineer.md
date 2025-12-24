@@ -21,7 +21,7 @@ By the end, you'll have:
 
 **Goal:** Understand FraiseQL's core design principles
 
-**Read:** [FraiseQL Philosophy](../core/fraiseql-philosophy.md)
+**Read:** [FraiseQL Philosophy](../core/fraiseql-philosophy/)
 
 **Key Questions Answered:**
 - Why "database-first" approach?
@@ -34,7 +34,7 @@ By the end, you'll have:
 
 **Goal:** Verify the 7-10x JSON performance claims
 
-**Read:** [Rust Pipeline Integration](../core/rust-pipeline-integration.md)
+**Read:** [Rust Pipeline Integration](../core/rust-pipeline-integration/)
 
 **Key Concepts:**
 - Zero-copy JSONB processing
@@ -58,12 +58,12 @@ python rust_vs_python_benchmark.py  # Rust vs Python JSON performance
 **Goal:** Estimate migration effort from your current framework
 
 **Read:**
-- [Migration Guides Overview](../migration/README.md)
+- [Migration Guides Overview](../migration/README/)
 - Framework-specific guides:
-  - [From Strawberry](../migration/from-strawberry.md) - 2-3 weeks
-  - [From Graphene](../migration/from-graphene.md) - 1-2 weeks
-  - [From PostGraphile](../migration/from-postgraphile.md) - 3-4 days
-- [Migration Checklist](../migration/migration-checklist.md) - Generic 10-phase process
+  - [From Strawberry](../migration/from-strawberry/) - 2-3 weeks
+  - [From Graphene](../migration/from-graphene/) - 1-2 weeks
+  - [From PostGraphile](../migration/from-postgraphile/) - 3-4 days
+- [Migration Checklist](../migration/migration-checklist/) - Generic 10-phase process
 
 **Migration Assessment:**
 
@@ -93,7 +93,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
 
 **Goal:** Assess advanced features for production use
 
-**Read:** [Advanced Patterns](../advanced/database-patterns.md)
+**Read:** [Advanced Patterns](../advanced/database-patterns/)
 
 **Key Features to Evaluate:**
 
@@ -127,7 +127,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
    )
    ```
    **Defaults:** 10 connections (dev), 20 connections (production)
-   **For detailed tuning:** See [Database Configuration](../core/configuration.md)
+   **For detailed tuning:** See [Database Configuration](../core/configuration/)
 
 **Success Check:** You understand how RLS and computed views reduce application complexity
 
@@ -135,7 +135,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
 
 **Goal:** Assess operational complexity and monitoring
 
-**Read:** [Production Deployment](../production/deployment.md)
+**Read:** [Production Deployment](../production/deployment/)
 
 **Key Operational Aspects:**
 - **Monitoring:** Prometheus metrics, Grafana dashboards
@@ -161,7 +161,7 @@ curl http://localhost:8000/metrics
 
 **Goal:** Evaluate security features for regulated environments
 
-**Read:** [Security Configuration](../security/configuration.md)
+**Read:** [Security Configuration](../security/configuration/)
 
 **Security Features:**
 - **Cryptographic Audit Trails:** SHA-256 + HMAC chains

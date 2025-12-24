@@ -771,7 +771,7 @@ async def benchmark_search(
 
 ## References
 
-- [FraiseQL pgvector Documentation](../features/pgvector.md)
+- [FraiseQL pgvector Documentation](../features/pgvector/)
 - [pgvector GitHub](https://github.com/pgvector/pgvector)
 - [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
 - [Cohere Embeddings](https://docs.cohere.com/docs/embeddings)

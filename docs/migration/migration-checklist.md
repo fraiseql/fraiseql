@@ -3,9 +3,9 @@
 **Purpose:** Generic checklist for migrating from any GraphQL framework to FraiseQL
 
 Use this checklist alongside framework-specific guides:
-- [From Strawberry](./from-strawberry.md)
-- [From Graphene](./from-graphene.md)
-- [From PostGraphile](./from-postgraphile.md)
+- [From Strawberry](./from-strawberry/)
+- [From Graphene](./from-graphene/)
+- [From PostGraphile](./from-postgraphile/)
 
 ---
 
@@ -352,12 +352,12 @@ Use this checklist alongside framework-specific guides:
 
 ## Resources
 
-- [Strawberry Migration Guide](./from-strawberry.md)
-- [Graphene Migration Guide](./from-graphene.md)
-- [PostGraphile Migration Guide](./from-postgraphile.md)
-- [Trinity Pattern Guide](../core/trinity-pattern.md)
-- [CASCADE Documentation](../features/graphql-cascade.md)
-- [Production Deployment Checklist](../deployment/production-deployment.md)
+- [Strawberry Migration Guide](./from-strawberry/)
+- [Graphene Migration Guide](./from-graphene/)
+- [PostGraphile Migration Guide](./from-postgraphile/)
+- [Trinity Pattern Guide](../core/trinity-pattern/)
+- [CASCADE Documentation](../features/graphql-cascade/)
+- [Production Deployment Checklist](../deployment/production-deployment/)
 
 ---
 

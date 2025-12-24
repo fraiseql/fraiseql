@@ -950,8 +950,8 @@ Combine FraiseQL caching layers:
 
 ## Further Reading
 
-- [FraiseQL Performance Guide](./index.md)
-- [Caching Guide](./caching.md)
+- [FraiseQL Performance Guide](./index/)
+- [Caching Guide](./caching/)
 - [GraphQL APQ Specification](https://www.apollographql.com/docs/react/api/link/persisted-queries/)
 
 ---

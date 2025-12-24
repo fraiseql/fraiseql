@@ -220,6 +220,6 @@ def get_product(
 ## Further Reading
 
 - [Database Design](../architecture/)
-- [Security Best Practices](../../SECURITY.md)
+- [Security Best Practices](../../SECURITY/)
 - [Blog Simple Example](../../examples/blog_simple/) - Complete trinity identifier implementation
 - [Examples](../../examples/)

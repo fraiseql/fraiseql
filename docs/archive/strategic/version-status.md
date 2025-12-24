@@ -140,14 +140,14 @@ FraiseQL maintains backward compatibility within the unified Rust pipeline archi
 ## 📞 Getting Help
 
 ### **Documentation & Examples**
-- [Installation Guide](../getting-started/installation.md)
-- [Quickstart](../getting-started/quickstart.md)
+- [Installation Guide](../getting-started/installation/)
+- [Quickstart](../getting-started/quickstart/)
 - Examples (../../examples/) - 20+ production patterns
 - [API Reference](../reference/)
 
 ### **Architecture Questions**
 - Review [Architecture Overview](../architecture/) for technical details
-- Check [Documentation](../README.md) for comprehensive guides
+- Check [Documentation](../README/) for comprehensive guides
 - Open issue for clarification
 
 ### **Performance & Features**

@@ -41,17 +41,17 @@ This compliance matrix maps FraiseQL's security features to **international stan
 | Control ID | Control Name | FraiseQL Implementation | Profile | Evidence |
 |------------|--------------|-------------------------|---------|----------|
 | **5.21** | Managing information security in the ICT supply chain | SBOM generation (CycloneDX), dependency tracking, cryptographic verification | ALL | [SBOM Guide](./slsa-provenance.md#sbom-verification) |
-| **5.23** | Information security for use of cloud services | KMS integration (AWS, Azure, GCP, Vault), encryption at rest/transit | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
+| **5.23** | Information security for use of cloud services | KMS integration (AWS, Azure, GCP, Vault), encryption at rest/transit | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
 | **8.1** | User endpoint devices | Session management, token expiration, device authentication | ALL | [Auth Security](../production/security.md#authentication-security) |
 | **8.2** | Privileged access rights | RBAC with PostgreSQL roles, row-level security (RLS), field-level auth | ALL | [RBAC Tests](../../tests/integration/enterprise/rbac/test_row_level_security.py) |
 | **8.3** | Information access restriction | Field-level authorization, GraphQL resolver checks, RLS policies | ALL | [Field Auth Tests](../../tests/integration/enterprise/rbac/test_field_level_auth.py) |
-| **8.8** | Management of technical vulnerabilities | Automated dependency scanning, SBOM for vulnerability tracking, container scanning | ALL | [Security Config](../security/configuration.md) |
-| **8.9** | Configuration management | Security profiles (STANDARD/REGULATED/RESTRICTED), immutable infrastructure | ALL | [Security Profiles](./security-profiles.md) |
+| **8.8** | Management of technical vulnerabilities | Automated dependency scanning, SBOM for vulnerability tracking, container scanning | ALL | [Security Config](../security/configuration/) |
+| **8.9** | Configuration management | Security profiles (STANDARD/REGULATED/RESTRICTED), immutable infrastructure | ALL | [Security Profiles](./security-profiles/) |
 | **8.10** | Information deletion | GDPR right to erasure, data retention policies, soft deletes with audit | REGULATED+ | [Production Security](../production/security.md#gdpr-compliance) |
 | **8.11** | Data masking | PII anonymization, field masking for dev environments, resolver-level masking | REGULATED+ | [Production Security](../production/security.md#sensitive-data-handling) |
-| **8.12** | Data leakage prevention | PII sanitization in logs, secure error handling, rate limiting | ALL | [Observability](../production/observability.md) |
+| **8.12** | Data leakage prevention | PII sanitization in logs, secure error handling, rate limiting | ALL | [Observability](../production/observability/) |
 | **8.15** | Logging | Structured logging, security event logging, distributed tracing (OpenTelemetry) | ALL | [Production Security](../production/security.md#audit-logging) |
-| **8.16** | Monitoring activities | Real-time security monitoring, anomaly detection (RESTRICTED), audit trail analysis | REGULATED+ | [Production Monitoring](../production/monitoring.md) |
+| **8.16** | Monitoring activities | Real-time security monitoring, anomaly detection (RESTRICTED), audit trail analysis | REGULATED+ | [Production Monitoring](../production/monitoring/) |
 
 **Compliance Status:** ✅ **Fully Supported** for all profiles
 **Recommended Profile:** REGULATED or RESTRICTED for ISO 27001 certification
@@ -66,14 +66,14 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Article | Requirement | FraiseQL Implementation | Profile | Evidence |
 |---------|-------------|-------------------------|---------|----------|
-| **Art. 5(1)(f)** | Integrity and confidentiality (security) | Encryption at rest/transit, access control, audit logging | REGULATED+ | [Security Architecture](../features/security-architecture.md) |
+| **Art. 5(1)(f)** | Integrity and confidentiality (security) | Encryption at rest/transit, access control, audit logging | REGULATED+ | [Security Architecture](../features/security-architecture/) |
 | **Art. 15** | Right of access | Data export API, JSON format for portability | REGULATED+ | [Production Security](../production/security.md#gdpr-compliance) |
 | **Art. 16** | Right to rectification | GraphQL mutations with audit trails | ALL | [Audit Tests](../../tests/integration/enterprise/audit/test_unified_audit.py) |
 | **Art. 17** | Right to erasure ("right to be forgotten") | Soft deletes with anonymization, audit retention, data deletion API | REGULATED+ | [Production Security](../production/security.md#gdpr-compliance) |
 | **Art. 20** | Right to data portability | JSON export of all user data | REGULATED+ | [Production Security](../production/security.md#gdpr-compliance) |
-| **Art. 25** | Data protection by design and by default | Security profiles, field-level encryption, minimal data collection | REGULATED+ | [Security Profiles](./security-profiles.md) |
+| **Art. 25** | Data protection by design and by default | Security profiles, field-level encryption, minimal data collection | REGULATED+ | [Security Profiles](./security-profiles/) |
 | **Art. 30** | Records of processing activities | Audit logging, change data capture (CDC), before/after snapshots | REGULATED+ | [Audit Schema](../../tests/integration/enterprise/audit/test_audit_schema.py) |
-| **Art. 32** | Security of processing | KMS encryption, cryptographic audit chains, RLS, field-level auth | REGULATED+ | [Security Controls](../security/controls-matrix.md) |
+| **Art. 32** | Security of processing | KMS encryption, cryptographic audit chains, RLS, field-level auth | REGULATED+ | [Security Controls](../security/controls-matrix/) |
 | **Art. 33-34** | Breach notification | Security event logging, real-time alerting, incident detection | REGULATED+ | [Production Security](../production/security.md#audit-logging) |
 
 **Compliance Status:** ✅ **Fully Supported** with REGULATED or RESTRICTED profile
@@ -91,10 +91,10 @@ This compliance matrix maps FraiseQL's security features to **international stan
 | Requirement | Description | FraiseQL Implementation | Profile | Evidence |
 |-------------|-------------|-------------------------|---------|----------|
 | **1.2.1** | Network segmentation | Network-level configuration (infrastructure), restrictive CORS | REGULATED+ | [Security Config](../production/security.md#cors-configuration) |
-| **2.2.2** | Secure configuration standards | Security profiles with predefined controls, minimal container images | ALL | [Security Profiles](./security-profiles.md) |
+| **2.2.2** | Secure configuration standards | Security profiles with predefined controls, minimal container images | ALL | [Security Profiles](./security-profiles/) |
 | **3.4.1** | Render PAN unreadable | Field-level encryption (KMS), data masking, PII anonymization | REGULATED+ | [Production Security](../production/security.md#sensitive-data-handling) |
 | **4.2.1** | Strong cryptography for transmission (TLS) | TLS 1.2+ (STANDARD/REGULATED), TLS 1.3 only (RESTRICTED) | ALL | [Security Controls](../security/controls-matrix.md#encryption-controls) |
-| **6.2.4** | Inventory of software components (SBOM) | Automated SBOM generation (CycloneDX), dependency tracking | ALL | [SLSA Provenance](./slsa-provenance.md) |
+| **6.2.4** | Inventory of software components (SBOM) | Automated SBOM generation (CycloneDX), dependency tracking | ALL | [SLSA Provenance](./slsa-provenance/) |
 | **6.3.2** | Maintain software component inventory | SBOM with direct + transitive dependencies, version tracking | ALL | [SLSA Provenance](./slsa-provenance.md#sbom-verification) |
 | **8.2.1** | Strong authentication controls | JWT/OAuth2, MFA (REGULATED+), session timeout, password complexity | REGULATED+ | [Production Security](../production/security.md#authentication-security) |
 | **10.2.1** | Audit trail for all access to cardholder data | Comprehensive audit logging, immutable audit chains, field-level tracking | REGULATED+ | [Audit Bridge](../../tests/integration/enterprise/audit/test_audit_bridge.py) |
@@ -114,16 +114,16 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Criterion | Category | FraiseQL Implementation | Profile | Evidence |
 |-----------|----------|-------------------------|---------|----------|
-| **CC1.1** | Integrity and ethical values | Security profiles enforce consistent controls across environments | ALL | [Security Profiles](./security-profiles.md) |
+| **CC1.1** | Integrity and ethical values | Security profiles enforce consistent controls across environments | ALL | [Security Profiles](./security-profiles/) |
 | **CC2.1** | Communication of responsibilities | Role-based access control (RBAC), permission management APIs | ALL | [RBAC Tests](../../tests/integration/enterprise/rbac/test_rbac_management_apis.py) |
-| **CC3.1** | Risk assessment | Threat model, security controls matrix, vulnerability scanning | REGULATED+ | [Threat Model](../security/threat-model.md) |
-| **CC5.1** | Control activities | Input validation, rate limiting, query complexity analysis, parameterized queries | ALL | [Production Security](../production/security.md) |
+| **CC3.1** | Risk assessment | Threat model, security controls matrix, vulnerability scanning | REGULATED+ | [Threat Model](../security/threat-model/) |
+| **CC5.1** | Control activities | Input validation, rate limiting, query complexity analysis, parameterized queries | ALL | [Production Security](../production/security/) |
 | **CC6.1** | Logical access controls | RBAC, RLS, field-level authorization, session management | ALL | [Security Controls](../security/controls-matrix.md#access-controls) |
-| **CC6.6** | Encryption | KMS integration, envelope encryption, TLS enforcement, key rotation | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
-| **CC7.2** | Monitoring activities | Security event logging, distributed tracing, real-time alerting | REGULATED+ | [Production Monitoring](../production/monitoring.md) |
+| **CC6.6** | Encryption | KMS integration, envelope encryption, TLS enforcement, key rotation | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
+| **CC7.2** | Monitoring activities | Security event logging, distributed tracing, real-time alerting | REGULATED+ | [Production Monitoring](../production/monitoring/) |
 | **CC7.3** | Audit logging | Immutable audit trails, cryptographic chains, change data capture | REGULATED+ | [Unified Audit](../../tests/integration/enterprise/audit/test_unified_audit.py) |
-| **A1.2** | System availability | Health checks, monitoring, incident response | REGULATED+ | [Production Deployment](../production/deployment.md) |
-| **C1.2** | Data confidentiality | Encryption at rest/transit, access control, data classification | REGULATED+ | [Security Architecture](../features/security-architecture.md) |
+| **A1.2** | System availability | Health checks, monitoring, incident response | REGULATED+ | [Production Deployment](../production/deployment/) |
+| **C1.2** | Data confidentiality | Encryption at rest/transit, access control, data classification | REGULATED+ | [Security Architecture](../features/security-architecture/) |
 | **P3.1** | Data privacy | Consent management, data minimization, privacy by design | REGULATED+ | [Production Security](../production/security.md#gdpr-compliance) |
 
 **Compliance Status:** ✅ **Architecture supports** all Trust Service Criteria
@@ -144,15 +144,15 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Requirement | FraiseQL Implementation | Profile | Evidence |
 |-------------|-------------------------|---------|----------|
-| **Art. 21(1)** | Risk management measures | Security profiles, threat model, vulnerability management | REGULATED+ | [Security Controls](../security/controls-matrix.md) |
-| **Art. 21(2)(a)** | Policies on risk analysis | Threat model, compliance matrix, risk-based profile selection | REGULATED+ | [Threat Model](../security/threat-model.md) |
+| **Art. 21(1)** | Risk management measures | Security profiles, threat model, vulnerability management | REGULATED+ | [Security Controls](../security/controls-matrix/) |
+| **Art. 21(2)(a)** | Policies on risk analysis | Threat model, compliance matrix, risk-based profile selection | REGULATED+ | [Threat Model](../security/threat-model/) |
 | **Art. 21(2)(b)** | Incident handling | Security event logging, real-time alerting, audit trails | REGULATED+ | [Production Security](../production/security.md#audit-logging) |
-| **Art. 21(2)(c)** | Business continuity | High availability, backup/recovery, monitoring | REGULATED+ | [Production Deployment](../production/deployment.md) |
-| **Art. 21(2)(d)** | Supply chain security | SBOM generation, dependency tracking, cryptographic verification | ALL | [SLSA Provenance](./slsa-provenance.md) |
-| **Art. 21(2)(e)** | Security in acquisition, development | Secure development practices, security profiles, code scanning | ALL | [Security Configuration](../security/configuration.md) |
+| **Art. 21(2)(c)** | Business continuity | High availability, backup/recovery, monitoring | REGULATED+ | [Production Deployment](../production/deployment/) |
+| **Art. 21(2)(d)** | Supply chain security | SBOM generation, dependency tracking, cryptographic verification | ALL | [SLSA Provenance](./slsa-provenance/) |
+| **Art. 21(2)(e)** | Security in acquisition, development | Secure development practices, security profiles, code scanning | ALL | [Security Configuration](../security/configuration/) |
 | **Art. 21(2)(f)** | Access control | RBAC, RLS, MFA (REGULATED+), session management | REGULATED+ | [Security Controls](../security/controls-matrix.md#access-controls) |
 | **Art. 21(2)(g)** | Asset management | SBOM for software assets, dependency inventory | ALL | [SLSA Provenance](./slsa-provenance.md#sbom-verification) |
-| **Art. 23** | Reporting obligations (24h significant incidents) | Security event logging, incident detection, alerting | RESTRICTED | [Production Monitoring](../production/monitoring.md) |
+| **Art. 23** | Reporting obligations (24h significant incidents) | Security event logging, incident detection, alerting | RESTRICTED | [Production Monitoring](../production/monitoring/) |
 
 **Compliance Status:** ✅ **Supports** NIS2 Essential and Important Entity requirements
 **Recommended Profile:** REGULATED (minimum), RESTRICTED for Essential Entities
@@ -171,8 +171,8 @@ This compliance matrix maps FraiseQL's security features to **international stan
 | **A. Firewalls** | Network configuration (infrastructure), restrictive CORS, IP allowlisting (RESTRICTED) | REGULATED+ | [Security Config](../production/security.md#cors-configuration) |
 | **B. Secure Configuration** | Security profiles, minimal container images, read-only filesystem (RESTRICTED) | ALL | [Security Controls](../security/controls-matrix.md#infrastructure-controls) |
 | **C. User Access Control** | RBAC, RLS, MFA (REGULATED+), session timeout | REGULATED+ | [Security Controls](../security/controls-matrix.md#access-controls) |
-| **D. Malware Protection** | Container scanning, dependency scanning, SBOM for vulnerability tracking | ALL | [Security Configuration](../security/configuration.md) |
-| **E. Security Update Management** | Automated dependency scanning, SBOM for patch tracking, CI/CD integration | ALL | [SLSA Provenance](./slsa-provenance.md) |
+| **D. Malware Protection** | Container scanning, dependency scanning, SBOM for vulnerability tracking | ALL | [Security Configuration](../security/configuration/) |
+| **E. Security Update Management** | Automated dependency scanning, SBOM for patch tracking, CI/CD integration | ALL | [SLSA Provenance](./slsa-provenance/) |
 
 **Compliance Status:** ✅ **Supports** Cyber Essentials and Cyber Essentials Plus
 **Recommended Profile:** REGULATED for Cyber Essentials Plus, RESTRICTED for high-security environments
@@ -187,8 +187,8 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Mitigation Strategy | FraiseQL Implementation | Profile | Evidence |
 |---------------------|-------------------------|---------|----------|
-| **1. Application Control** | Code signing, container image verification, SBOM integrity checks | RESTRICTED | [SLSA Provenance](./slsa-provenance.md) |
-| **2. Patch Applications** | Automated dependency scanning, SBOM for vulnerability tracking | ALL | [Security Configuration](../security/configuration.md) |
+| **1. Application Control** | Code signing, container image verification, SBOM integrity checks | RESTRICTED | [SLSA Provenance](./slsa-provenance/) |
+| **2. Patch Applications** | Automated dependency scanning, SBOM for vulnerability tracking | ALL | [Security Configuration](../security/configuration/) |
 | **3. Configure Microsoft Office Macros** | N/A (backend framework) | - | - |
 | **4. User Application Hardening** | Input validation, XSS prevention, CSRF protection, query complexity limits | ALL | [Production Security](../production/security.md#query-complexity-limits) |
 | **5. Restrict Administrative Privileges** | RBAC with principle of least privilege, PostgreSQL role separation | ALL | [RBAC Tests](../../tests/integration/enterprise/rbac/test_role_hierarchy.py) |
@@ -211,11 +211,11 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Requirement | FraiseQL Implementation | Profile | Evidence |
 |-------------|-------------------------|---------|----------|
-| **Risk Management** | Security profiles, threat model, vulnerability management | RESTRICTED | [Threat Model](../security/threat-model.md) |
-| **Cybersecurity Audits** | Audit logging, compliance reporting, security controls documentation | RESTRICTED | [Security Controls](../security/controls-matrix.md) |
-| **Incident Reporting** | Security event logging, real-time alerting, incident detection | RESTRICTED | [Production Monitoring](../production/monitoring.md) |
-| **Supply Chain Security** | SBOM generation, dependency tracking, cryptographic verification | ALL | [SLSA Provenance](./slsa-provenance.md) |
-| **Data Protection** | Encryption at rest/transit, KMS integration, access control | RESTRICTED | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
+| **Risk Management** | Security profiles, threat model, vulnerability management | RESTRICTED | [Threat Model](../security/threat-model/) |
+| **Cybersecurity Audits** | Audit logging, compliance reporting, security controls documentation | RESTRICTED | [Security Controls](../security/controls-matrix/) |
+| **Incident Reporting** | Security event logging, real-time alerting, incident detection | RESTRICTED | [Production Monitoring](../production/monitoring/) |
+| **Supply Chain Security** | SBOM generation, dependency tracking, cryptographic verification | ALL | [SLSA Provenance](./slsa-provenance/) |
+| **Data Protection** | Encryption at rest/transit, KMS integration, access control | RESTRICTED | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
 
 **Compliance Status:** ✅ **Supports** CII protection requirements
 **Recommended Profile:** RESTRICTED for all CII operators
@@ -233,9 +233,9 @@ This compliance matrix maps FraiseQL's security features to **international stan
 |--------------|-------------------------|---------|----------|
 | **Access Control** | RBAC, RLS, MFA, session management | RESTRICTED | [Security Controls](../security/controls-matrix.md#access-controls) |
 | **Audit Logging** | Immutable audit trails, cryptographic chains, 7-year retention | RESTRICTED | [Unified Audit](../../tests/integration/enterprise/audit/test_unified_audit.py) |
-| **Cryptography** | KMS integration (HSM-backed for RESTRICTED), AES-256-GCM, TLS 1.3 | RESTRICTED | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
-| **Incident Response** | Security event logging, real-time monitoring, alerting | RESTRICTED | [Production Monitoring](../production/monitoring.md) |
-| **Supply Chain Security** | SBOM, dependency scanning, cryptographic verification | RESTRICTED | [SLSA Provenance](./slsa-provenance.md) |
+| **Cryptography** | KMS integration (HSM-backed for RESTRICTED), AES-256-GCM, TLS 1.3 | RESTRICTED | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
+| **Incident Response** | Security event logging, real-time monitoring, alerting | RESTRICTED | [Production Monitoring](../production/monitoring/) |
+| **Supply Chain Security** | SBOM, dependency scanning, cryptographic verification | RESTRICTED | [SLSA Provenance](./slsa-provenance/) |
 
 **Compliance Status:** ✅ **Architecture supports** CPCSC requirements
 **Recommended Profile:** RESTRICTED mandatory for defence contractors
@@ -260,9 +260,9 @@ This compliance matrix maps FraiseQL's security features to **international stan
 | **IA** | IA-2 (Identification and Authentication) | JWT/OAuth2, MFA (REGULATED+), unique user IDs | REGULATED+ | [Production Security](../production/security.md#authentication-security) |
 | **IA** | IA-5 (Authenticator Management) | Token rotation, password hashing (bcrypt), key management | ALL | [Production Security](../production/security.md#password-security) |
 | **SC** | SC-8 (Transmission Confidentiality) | TLS 1.2+ (STANDARD/REGULATED), TLS 1.3 (RESTRICTED) | ALL | [Security Controls](../security/controls-matrix.md#encryption-controls) |
-| **SC** | SC-13 (Cryptographic Protection) | AES-256-GCM, KMS integration, envelope encryption | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
-| **SC** | SC-28 (Protection of Information at Rest) | Database encryption, KMS for key management | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
-| **SI** | SI-3 (Malicious Code Protection) | Container scanning, dependency scanning, SBOM vulnerability tracking | ALL | [Security Configuration](../security/configuration.md) |
+| **SC** | SC-13 (Cryptographic Protection) | AES-256-GCM, KMS integration, envelope encryption | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
+| **SC** | SC-28 (Protection of Information at Rest) | Database encryption, KMS for key management | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
+| **SI** | SI-3 (Malicious Code Protection) | Container scanning, dependency scanning, SBOM vulnerability tracking | ALL | [Security Configuration](../security/configuration/) |
 | **SI** | SI-10 (Information Input Validation) | GraphQL validation, parameterized queries, input sanitization | ALL | [Production Security](../production/security.md#sql-injection-prevention) |
 
 **Compliance Status:** ✅ **Supports** NIST 800-53 Moderate and High baselines
@@ -272,7 +272,7 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | Baseline | Description | FraiseQL Profile | Evidence |
 |----------|-------------|------------------|----------|
-| **Low** | Low-impact SaaS | STANDARD or REGULATED | [Security Controls](../security/controls-matrix.md) |
+| **Low** | Low-impact SaaS | STANDARD or REGULATED | [Security Controls](../security/controls-matrix/) |
 | **Moderate** | Moderate-impact SaaS | REGULATED | NIST 800-53 Moderate controls above |
 | **High** | High-impact SaaS | RESTRICTED | NIST 800-53 High controls above |
 
@@ -302,10 +302,10 @@ This compliance matrix maps FraiseQL's security features to **international stan
 
 | HIPAA Rule | Requirement | FraiseQL Implementation | Profile | Evidence |
 |------------|-------------|-------------------------|---------|----------|
-| **§164.308(a)(1)(i)** | Security management process | Security profiles, threat model, risk assessment | REGULATED+ | [Threat Model](../security/threat-model.md) |
+| **§164.308(a)(1)(i)** | Security management process | Security profiles, threat model, risk assessment | REGULATED+ | [Threat Model](../security/threat-model/) |
 | **§164.308(a)(3)(i)** | Workforce security (authorization) | RBAC, role hierarchy, permission management | REGULATED+ | [RBAC Tests](../../tests/integration/enterprise/rbac/test_role_hierarchy.py) |
-| **§164.308(a)(5)(i)** | Security awareness and training | Security documentation, best practices guides | REGULATED+ | [Production Security](../production/security.md) |
-| **§164.310(d)(1)** | Device and media controls | Encryption at rest, KMS key lifecycle | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture.md) |
+| **§164.308(a)(5)(i)** | Security awareness and training | Security documentation, best practices guides | REGULATED+ | [Production Security](../production/security/) |
+| **§164.310(d)(1)** | Device and media controls | Encryption at rest, KMS key lifecycle | REGULATED+ | [KMS Architecture](../architecture/decisions/0003-kms-architecture/) |
 | **§164.312(a)(1)** | Access control | RBAC, RLS, unique user IDs, session timeout | REGULATED+ | [Security Controls](../security/controls-matrix.md#access-controls) |
 | **§164.312(a)(2)(i)** | Unique user identification | JWT with unique sub claim, user_id tracking | ALL | [Production Security](../production/security.md#authentication-security) |
 | **§164.312(b)** | Audit controls | Comprehensive audit logging, PHI access tracking | REGULATED+ | [Unified Audit](../../tests/integration/enterprise/audit/test_unified_audit.py) |
@@ -374,13 +374,13 @@ This compliance matrix maps FraiseQL's security features to **international stan
 - **[Audit Schema](../../tests/integration/enterprise/audit/test_audit_schema.py)** - Immutable audit table structure
 
 ### Documentation
-- **[SLSA Provenance & SBOM](./slsa-provenance.md)** - Supply chain security verification
-- **[Security Profiles](./security-profiles.md)** - Configuration for different compliance levels
-- **[Production Security](../production/security.md)** - SQL injection, rate limiting, CORS, auth
-- **[Security Controls Matrix](../security/controls-matrix.md)** - Detailed control implementation
-- **[KMS Architecture](../architecture/decisions/0003-kms-architecture.md)** - Encryption key management
-- **[Threat Model](../security/threat-model.md)** - Security risk assessment
-- **[Security Configuration](../security/configuration.md)** - Configuration best practices
+- **[SLSA Provenance & SBOM](./slsa-provenance/)** - Supply chain security verification
+- **[Security Profiles](./security-profiles/)** - Configuration for different compliance levels
+- **[Production Security](../production/security/)** - SQL injection, rate limiting, CORS, auth
+- **[Security Controls Matrix](../security/controls-matrix/)** - Detailed control implementation
+- **[KMS Architecture](../architecture/decisions/0003-kms-architecture/)** - Encryption key management
+- **[Threat Model](../security/threat-model/)** - Security risk assessment
+- **[Security Configuration](../security/configuration/)** - Configuration best practices
 
 ---
 
@@ -393,7 +393,7 @@ This compliance matrix maps FraiseQL's security features to **international stan
 4. **Generate compliance report** - Use `fraiseql compliance report --framework [iso27001|gdpr|pci-dss|...]`
 
 ### For Procurement Officers
-1. **Check vendor claims** - Verify FraiseQL's SLSA provenance ([guide](./slsa-provenance.md))
+1. **Check vendor claims** - Verify FraiseQL's SLSA provenance ([guide](./slsa-provenance/))
 2. **Review SBOM** - Inspect dependencies and vulnerabilities
 3. **Assess compliance posture** - Use this matrix as checklist
 4. **Request evidence** - All test files and documentation linked above
@@ -435,7 +435,7 @@ A: Use the **highest required profile**. For example, if you need both GDPR (REG
 
 **Q: Can I customize security profiles?**
 
-A: Yes. Profiles are configuration templates. You can enable/disable specific controls based on your risk assessment. See [Security Configuration Guide](../security/configuration.md) for details.
+A: Yes. Profiles are configuration templates. You can enable/disable specific controls based on your risk assessment. See [Security Configuration Guide](../security/configuration/) for details.
 
 **Q: Are these controls auditable?**
 
@@ -464,12 +464,12 @@ A: Use this matrix as checklist, provide evidence links (test results, documenta
 
 ## Related Documentation
 
-- **[Security & Compliance Hub](./README.md)** - Overview and quick start
-- **[SLSA Provenance Verification](./slsa-provenance.md)** - Supply chain security
-- **[Security Profiles Guide](./security-profiles.md)** - Configuration for compliance
-- **[Global Regulations Guide](../compliance/global-regulations.md)** - Detailed regulatory analysis
-- **[Production Security](../production/security.md)** - Implementation best practices
-- **[Security Controls Matrix](../security/controls-matrix.md)** - Technical control details
+- **[Security & Compliance Hub](./README/)** - Overview and quick start
+- **[SLSA Provenance Verification](./slsa-provenance/)** - Supply chain security
+- **[Security Profiles Guide](./security-profiles/)** - Configuration for compliance
+- **[Global Regulations Guide](../compliance/global-regulations/)** - Detailed regulatory analysis
+- **[Production Security](../production/security/)** - Implementation best practices
+- **[Security Controls Matrix](../security/controls-matrix/)** - Technical control details
 
 ---
 

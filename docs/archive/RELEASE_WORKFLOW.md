@@ -538,6 +538,6 @@ A: Yes, the PR exists for 10+ seconds before auto-merge triggers.
 
 ## See Also
 
-- [FraiseQL Version Status](../docs/strategic/version-status.md)
+- [FraiseQL Version Status](../docs/strategic/version-status/)
 - [Release Automation Script](../scripts/pr_ship.py)
 - [GitHub Actions Auto-Merge Documentation](https://docs.github.com/en/pull-requests/automating-your-workflow-with-github-apis/managing-pull-requests-with-the-rest-api)

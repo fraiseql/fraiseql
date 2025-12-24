@@ -30,7 +30,7 @@ Each test measures time spent in:
 
 ## Details
 
-See [`MEDIUM_VPS_BENCHMARKS.md`](MEDIUM_VPS_BENCHMARKS.md) for:
+See [`MEDIUM_VPS_BENCHMARKS.md`](MEDIUM_VPS_BENCHMARKS/) for:
 - Complete benchmark results
 - Hardware profile specification
 - Optimization recommendations

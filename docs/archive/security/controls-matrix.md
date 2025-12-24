@@ -331,9 +331,9 @@ restricted = ProfileEnforcer(
 
 ## References
 
-- [FraiseQL Security Configuration Guide](./configuration.md)
-- [FraiseQL Threat Model](./threat-model.md)
-- [KMS Architecture ADR](../architecture/decisions/0003-kms-architecture.md)
+- [FraiseQL Security Configuration Guide](./configuration/)
+- [FraiseQL Threat Model](./threat-model/)
+- [KMS Architecture ADR](../architecture/decisions/0003-kms-architecture/)
 - [PCI-DSS v4.0](https://www.pcisecuritystandards.org/)
 - [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/)
 - [NIST 800-53](https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final)

@@ -362,7 +362,7 @@ curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
 
 ## Reference
 
-- [CI Architecture](./ci-architecture.md)
-- [Pytest Markers](./pytest-markers.md)
-- [Config Fixtures](./config-fixtures.md)
-- [Developer Guide](./developer-guide.md)
+- [CI Architecture](./ci-architecture/)
+- [Pytest Markers](./pytest-markers/)
+- [Config Fixtures](./config-fixtures/)
+- [Developer Guide](./developer-guide/)

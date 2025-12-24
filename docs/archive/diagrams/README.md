@@ -8,17 +8,17 @@ This directory contains visual diagrams explaining FraiseQL's architecture and d
 
 | Diagram | Description | Key Concepts |
 |---------|-------------|--------------|
-| [**Request Flow**](request-flow.md) | Complete request lifecycle from client to database | GraphQL → FastAPI → PostgreSQL → Response |
-| [**CQRS Pattern**](cqrs-pattern.md) | Read vs Write separation | Queries vs Mutations, v_* vs fn_* |
-| [**Database Schema Conventions**](database-schema-conventions.md) | Naming patterns and object roles | tb_*, v_*, tv_*, fn_* conventions |
+| [**Request Flow**](request-flow/) | Complete request lifecycle from client to database | GraphQL → FastAPI → PostgreSQL → Response |
+| [**CQRS Pattern**](cqrs-pattern/) | Read vs Write separation | Queries vs Mutations, v_* vs fn_* |
+| [**Database Schema Conventions**](database-schema-conventions/) | Naming patterns and object roles | tb_*, v_*, tv_*, fn_* conventions |
 
 ### Advanced Features
 
 | Diagram | Description | Key Concepts |
 |---------|-------------|--------------|
-| [**Multi-Tenant Isolation**](multi-tenant-isolation.md) | Tenant data isolation mechanisms | RLS, Context passing, Security layers |
-| [**APQ Cache Flow**](apq-cache-flow.md) | Automatic Persisted Queries caching | Query hashing, Cache storage, Performance |
-| [**Rust Pipeline**](rust-pipeline.md) | High-performance data transformation | JSONB processing, Field projection, Memory optimization |
+| [**Multi-Tenant Isolation**](multi-tenant-isolation/) | Tenant data isolation mechanisms | RLS, Context passing, Security layers |
+| [**APQ Cache Flow**](apq-cache-flow/) | Automatic Persisted Queries caching | Query hashing, Cache storage, Performance |
+| [**Rust Pipeline**](rust-pipeline/) | High-performance data transformation | JSONB processing, Field projection, Memory optimization |
 
 ## Diagram Formats
 
@@ -41,14 +41,14 @@ Interactive diagrams using Mermaid syntax for:
 ### When to Use Each Diagram
 
 **For New Users:**
-1. Start with [Request Flow](request-flow.md) - understand the big picture
-2. Read [CQRS Pattern](cqrs-pattern.md) - learn read vs write separation
-3. Study [Database Schema Conventions](database-schema-conventions.md) - understand naming patterns
+1. Start with [Request Flow](request-flow/) - understand the big picture
+2. Read [CQRS Pattern](cqrs-pattern/) - learn read vs write separation
+3. Study [Database Schema Conventions](database-schema-conventions/) - understand naming patterns
 
 **For Developers:**
-1. [Multi-Tenant Isolation](multi-tenant-isolation.md) - implementing multi-tenant apps
-2. [APQ Cache Flow](apq-cache-flow.md) - optimizing query performance
-3. [Rust Pipeline](rust-pipeline.md) - advanced performance tuning
+1. [Multi-Tenant Isolation](multi-tenant-isolation/) - implementing multi-tenant apps
+2. [APQ Cache Flow](apq-cache-flow/) - optimizing query performance
+3. [Rust Pipeline](rust-pipeline/) - advanced performance tuning
 
 **For Architects:**
 - All diagrams provide comprehensive understanding of system design
@@ -85,26 +85,26 @@ Interactive diagrams using Mermaid syntax for:
 ## Quick Reference
 
 ### Most Important Diagrams (Start Here)
-1. **[Request Flow](request-flow.md)** - System overview
-2. **[CQRS Pattern](cqrs-pattern.md)** - Core architectural pattern
-3. **[Database Schema Conventions](database-schema-conventions.md)** - Naming system
+1. **[Request Flow](request-flow/)** - System overview
+2. **[CQRS Pattern](cqrs-pattern/)** - Core architectural pattern
+3. **[Database Schema Conventions](database-schema-conventions/)** - Naming system
 
 ### Performance & Scaling
-1. **[APQ Cache Flow](apq-cache-flow.md)** - Query optimization
-2. **[Rust Pipeline](rust-pipeline.md)** - High-performance processing
-3. **[Multi-Tenant Isolation](multi-tenant-isolation.md)** - Scaling considerations
+1. **[APQ Cache Flow](apq-cache-flow/)** - Query optimization
+2. **[Rust Pipeline](rust-pipeline/)** - High-performance processing
+3. **[Multi-Tenant Isolation](multi-tenant-isolation/)** - Scaling considerations
 
 ### Troubleshooting
-- Check [Request Flow](request-flow.md) for general issues
-- Review [CQRS Pattern](cqrs-pattern.md) for read/write problems
-- Consult [Multi-Tenant Isolation](multi-tenant-isolation.md) for data access issues
+- Check [Request Flow](request-flow/) for general issues
+- Review [CQRS Pattern](cqrs-pattern/) for read/write problems
+- Consult [Multi-Tenant Isolation](multi-tenant-isolation/) for data access issues
 
 ## Related Documentation
 
-- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Conceptual overview
-- [Core Concepts](../core/concepts-glossary.md) - Terminology reference
-- [Performance Guide](../performance/index.md) - Optimization strategies
-- [Multi-Tenancy Guide](../advanced/multi-tenancy.md) - Tenant implementation
+- [Understanding FraiseQL](../guides/understanding-fraiseql/) - Conceptual overview
+- [Core Concepts](../core/concepts-glossary/) - Terminology reference
+- [Performance Guide](../performance/index/) - Optimization strategies
+- [Multi-Tenancy Guide](../advanced/multi-tenancy/) - Tenant implementation
 
 ---
 

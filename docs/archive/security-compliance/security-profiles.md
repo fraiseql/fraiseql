@@ -340,7 +340,7 @@ app = create_fraiseql_app(
 | **ISO 27001** | ✅ Yes | Add certification audit prep |
 | **NIS2 Important** | ✅ Yes | Incident response procedures needed |
 
-See [Compliance Matrix](./compliance-matrix.md) for detailed control mapping.
+See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 
 ---
 
@@ -540,7 +540,7 @@ app = create_fraiseql_app(
 | **CA CPCSC** | ✅ Yes | Defence contractor certified |
 | **UK NCSC High** | ✅ Yes | High-security guidance compliant |
 
-See [Compliance Matrix](./compliance-matrix.md) for detailed control mapping.
+See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 
 ---
 
@@ -1017,11 +1017,11 @@ app = create_fraiseql_app(
 
 ## Related Documentation
 
-- **[Compliance Matrix](./compliance-matrix.md)** - Detailed compliance requirements mapping
-- **[Security Controls Matrix](../security/controls-matrix.md)** - Technical control implementation
-- **[Production Security](../production/security.md)** - Security best practices
-- **[KMS Architecture](../architecture/decisions/0003-kms-architecture.md)** - Key management design
-- **[Threat Model](../security/threat-model.md)** - Security risk assessment
+- **[Compliance Matrix](./compliance-matrix/)** - Detailed compliance requirements mapping
+- **[Security Controls Matrix](../security/controls-matrix/)** - Technical control implementation
+- **[Production Security](../production/security/)** - Security best practices
+- **[KMS Architecture](../architecture/decisions/0003-kms-architecture/)** - Key management design
+- **[Threat Model](../security/threat-model/)** - Security risk assessment
 
 ---
 
@@ -1073,4 +1073,4 @@ Provide auditors with:
 
 ---
 
-*This guide provides comprehensive coverage of FraiseQL's security profiles. For specific compliance requirements, consult the [Compliance Matrix](./compliance-matrix.md). For implementation details, see [Production Security](../production/security.md).*
+*This guide provides comprehensive coverage of FraiseQL's security profiles. For specific compliance requirements, consult the [Compliance Matrix](./compliance-matrix/). For implementation details, see [Production Security](../production/security/).*

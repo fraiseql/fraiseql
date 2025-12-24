@@ -700,7 +700,7 @@ A: Currently, pip doesn't preserve attestations after installation. Options:
 ---
 
 ## Related Guides
-- **[Security & Compliance Hub](./README.md)** - Overview of all security features
-- **[Compliance Matrix](./compliance-matrix.md)** - Regulatory controls mapping *(coming in WP-012)*
-- **[Security Profiles](./security-profiles.md)** - Configuration for regulated industries *(coming in WP-013)*
-- **[Global Regulations Guide](../compliance/global-regulations.md)** - Detailed regulatory requirements
+- **[Security & Compliance Hub](./README/)** - Overview of all security features
+- **[Compliance Matrix](./compliance-matrix/)** - Regulatory controls mapping *(coming in WP-012)*
+- **[Security Profiles](./security-profiles/)** - Configuration for regulated industries *(coming in WP-013)*
+- **[Global Regulations Guide](../compliance/global-regulations/)** - Detailed regulatory requirements

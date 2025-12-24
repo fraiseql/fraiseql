@@ -6,11 +6,11 @@
 
 ```markdown
 # ✅ Recommended: Absolute from repo root
-[Installation Guide](/docs/getting-started/installation.md)
+[Installation Guide](/docs/getting-started/installation/)
 [Examples](/examples/blog_api/)
 
 # ❌ Fragile: Relative paths
-[Installation Guide](../getting-started/installation.md)
+[Installation Guide](../getting-started/installation/)
 [Examples](../../examples/blog_api/)
 
 # ✅ External links
@@ -29,8 +29,8 @@
 **Pattern**: `/path/from/repo/root/file.md`
 
 ```markdown
-[Core Concepts](/docs/core/concepts-glossary.md)
-[API Reference](/docs/api-reference/database.md)
+[Core Concepts](/docs/core/concepts-glossary/)
+[API Reference](/docs/api-reference/database/)
 [Examples Directory](/examples/)
 [Contributing Guide](/CONTRIBUTING.md)
 ```
@@ -54,13 +54,13 @@
 
 ```markdown
 # Same directory
-[Style Guide](./style-guide.md)
+[Style Guide](./style-guide/)
 
 # Parent directory
-[Core Concepts](../core/concepts-glossary.md)
+[Core Concepts](../core/concepts-glossary/)
 
 # Sibling directory
-[Getting Started](../getting-started/installation.md)
+[Getting Started](../getting-started/installation/)
 ```
 
 **When to use (RARE):**
@@ -77,10 +77,10 @@
 
 ```markdown
 # In: docs/advanced/authentication.md
-[Installation](../getting-started/installation.md)  # Works
+[Installation](../getting-started/installation/)  # Works
 
 # After moving to: docs/guides/security/authentication.md
-[Installation](../getting-started/installation.md)  # BROKEN! Now needs ../../getting-started/
+[Installation](../getting-started/installation/)  # BROKEN! Now needs ../../getting-started/
 ```
 
 ### 3. External Links
@@ -102,10 +102,10 @@
 
 ```markdown
 # ❌ Don't link to own repo via GitHub URL
-[Core Concepts](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)
+[Core Concepts](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary/)
 
 # ✅ Use absolute path instead
-[Core Concepts](/docs/core/concepts-glossary.md)
+[Core Concepts](/docs/core/concepts-glossary/)
 ```
 
 ### 4. Anchor Links
@@ -140,8 +140,8 @@
 ### Files: Include Extension
 
 ```markdown
-✅ [Configuration](/docs/core/configuration.md)
-❌ [Configuration](../core/configuration.md)
+✅ [Configuration](/docs/core/configuration/)
+❌ [Configuration](../core/configuration/)
 ```
 
 ### Directories: Include Trailing Slash
@@ -166,14 +166,14 @@
 ```markdown
 # ❌ Wrong - Missing directory level
 # File: docs/guides/performance-guide.md
-[Installation](../getting-started/installation.md)
+[Installation](../getting-started/installation/)
 
 # ✅ Correct calculation (if using relative)
 # docs/guides/performance-guide.md → docs/getting-started/installation.md
-[Installation](../getting-started/installation.md)
+[Installation](../getting-started/installation/)
 
 # ✅ Better - Use absolute path
-[Installation](/docs/getting-started/installation.md)
+[Installation](/docs/getting-started/installation/)
 ```
 
 ### 2. Linking to Directories Without Trailing Slash
@@ -190,23 +190,23 @@
 
 ```markdown
 # ❌ External link to own repository
-[Core](https://github.com/fraiseql/fraiseql/blob/main/docs/core/README.md)
+[Core](https://github.com/fraiseql/fraiseql/blob/main/docs/core/README/)
 
 # ✅ Absolute path
-[Core](/docs/core/README.md)
+[Core](/docs/core/README/)
 ```
 
 ### 4. Inconsistent Link Styles in Same File
 
 ```markdown
 # ❌ Mixed styles are confusing
-[Installation](/docs/getting-started/installation.md)
-[Core Concepts](../core/concepts-glossary.md)
+[Installation](/docs/getting-started/installation/)
+[Core Concepts](../core/concepts-glossary/)
 [API Reference](/docs/api-reference/)
 
 # ✅ Consistent absolute paths
-[Installation](/docs/getting-started/installation.md)
-[Core Concepts](/docs/core/concepts-glossary.md)
+[Installation](/docs/getting-started/installation/)
+[Core Concepts](/docs/core/concepts-glossary/)
 [API Reference](/docs/api-reference/)
 ```
 
@@ -227,11 +227,11 @@
 **What the validator checks:**
 
 ```
-1. Absolute links (/docs/file.md)
+1. Absolute links (/docs/file/)
    - Resolves to: $PROJECT_ROOT/docs/file.md
    - Checks file/directory exists
 
-2. Relative links (../file.md)
+2. Relative links (../file/)
    - Resolves from current file's directory
    - Checks target exists after path resolution
 
@@ -265,12 +265,12 @@
 ./scripts/validate-docs.sh links
 
 # 2. Example output:
-# [ERROR] Broken link in docs/advanced/authentication.md:
-#         ../core/concepts-glossary.md (resolved to: docs/core/concepts-glossary.md)
+# [ERROR] Broken link in docs/advanced/authentication/:
+#         ../core/concepts-glossary/ (resolved to: docs/core/concepts-glossary/)
 
 # 3. Fix the link:
-# Old: [Concepts](../core/concepts-glossary.md)
-# New: [Concepts](/docs/core/concepts-glossary.md)
+# Old: [Concepts](../core/concepts-glossary/)
+# New: [Concepts](/docs/core/concepts-glossary/)
 
 # 4. Re-run validation
 ./scripts/validate-docs.sh links
@@ -287,8 +287,8 @@
 [ERROR] Broken link in <source-file>: <link-text> (resolved to: <target-path>)
 
 # Example:
-[ERROR] Broken link in docs/guides/troubleshooting.md:
-        ../core/database-api.md (resolved to: docs/core/database-api.md)
+[ERROR] Broken link in docs/guides/troubleshooting/:
+        ../core/database-api/ (resolved to: docs/core/database-api/)
 ```
 
 **Common causes:**
@@ -296,26 +296,26 @@
 1. **File was renamed/moved**
    ```markdown
    # Link points to old location
-   [Database API](../core/database-api.md)
+   [Database API](../core/database-api/)
 
    # File was renamed to: docs/api-reference/database.md
-   # Fix: [Database API](/docs/api-reference/database.md)
+   # Fix: [Database API](/docs/api-reference/database/)
    ```
 
 2. **Wrong relative path depth**
     ```markdown
     # From: docs/development/link-best-practices.md
-    [Core](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)  # Wrong - uses GitHub URL
-    [Core](../core/concepts-glossary.md)  # Correct - uses relative path
+    [Core](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary/)  # Wrong - uses GitHub URL
+    [Core](../core/concepts-glossary/)  # Correct - uses relative path
 
     # Better: Use absolute
-    [Core](/docs/core/concepts-glossary.md)
+    [Core](/docs/core/concepts-glossary/)
     ```
 
 3. **Using GitHub URLs for internal links**
    ```markdown
-   [Config](https://github.com/fraiseql/fraiseql/blob/main/docs/core/configuration.md)  # External link to own repo
-   [Config](/docs/core/configuration.md)  # Correct absolute path
+   [Config](https://github.com/fraiseql/fraiseql/blob/main/docs/core/configuration/)  # External link to own repo
+   [Config](/docs/core/configuration/)  # Correct absolute path
    ```
 
 ### Debugging Steps
@@ -342,13 +342,13 @@ grep -r "concepts-glossary.md" docs/
 
 ```markdown
 # Before: docs/advanced/authentication.md
-[Installation Guide](../getting-started/installation.md)
-[Core Concepts](../core/concepts-glossary.md)
+[Installation Guide](../getting-started/installation/)
+[Core Concepts](../core/concepts-glossary/)
 [Examples](../../examples/)
 
 # After: docs/advanced/authentication.md (same file, different links)
-[Installation Guide](/docs/getting-started/installation.md)
-[Core Concepts](/docs/core/concepts-glossary.md)
+[Installation Guide](/docs/getting-started/installation/)
+[Core Concepts](/docs/core/concepts-glossary/)
 [Examples](/examples/)
 ```
 
@@ -400,46 +400,46 @@ grep -r "](\.\./" docs/ | wc -l
 
 ```markdown
 # Clear, absolute paths
-[Installation Guide](/docs/getting-started/installation.md)
-[Core Concepts](/docs/core/concepts-glossary.md)
-[Performance Optimization](/docs/guides/performance-guide.md)
+[Installation Guide](/docs/getting-started/installation/)
+[Core Concepts](/docs/core/concepts-glossary/)
+[Performance Optimization](/docs/guides/performance-guide/)
 [Blog API Example](/examples/blog_api/)
 
 # Descriptive link text with context
-See the [filter operators reference](/docs/advanced/filter-operators.md)
+See the [filter operators reference](/docs/advanced/filter-operators/)
 for a complete list of supported operators.
 
 For production deployment, review the
-[deployment guide](/docs/production/deployment.md) and
-[security checklist](/docs/production/security.md).
+[deployment guide](/docs/production/deployment/) and
+[security checklist](/docs/production/security/).
 ```
 
 ### Improved Examples
 
 ```markdown
 # ❌ Before: Fragile relative path
-For more details, see [here](../guides/performance-guide.md).
+For more details, see [here](../guides/performance-guide/).
 
 # ✅ After: Absolute path with descriptive text
 For query optimization strategies, see the
-[Performance Guide](/docs/guides/performance-guide.md).
+[Performance Guide](/docs/guides/performance-guide/).
 
 # ❌ Before: Multiple relative depths
-[Installation](../getting-started/installation.md)
-[Core](../core/concepts-glossary.md)
+[Installation](../getting-started/installation/)
+[Core](../core/concepts-glossary/)
 
 # ✅ After: Consistent absolute paths
-[Installation Guide](/docs/getting-started/installation.md)
-[Core Concepts](/docs/core/concepts-glossary.md)
+[Installation Guide](/docs/getting-started/installation/)
+[Core Concepts](/docs/core/concepts-glossary/)
 ```
 
 ---
 
 ## Related Documentation
 
-- [Style Guide](/docs/development/style-guide.md) - Code and documentation standards
+- [Style Guide](/docs/development/style-guide/) - Code and documentation standards
 - [Contributing Guide](/CONTRIBUTING.md) - Development workflow
-- [Documentation Structure](/docs/README.md) - Organization overview
+- [Documentation Structure](/docs/README/) - Organization overview
 
 ---
 

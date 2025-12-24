@@ -111,7 +111,7 @@ CREATE VIEW v_user AS SELECT * FROM tb_user;
 CREATE VIEW v_post AS SELECT * FROM tb_post;
 ```
 
-**See:** [Trinity Pattern Guide](../core/trinity-pattern.md) for details.
+**See:** [Trinity Pattern Guide](../core/trinity-pattern/) for details.
 
 ---
 
@@ -419,7 +419,7 @@ $$ LANGUAGE plpgsql;
 - Invalidates client cache for affected entities
 - No manual cache updates needed in frontend
 
-**See:** [CASCADE Documentation](../features/graphql-cascade.md)
+**See:** [CASCADE Documentation](../features/graphql-cascade/)
 
 ---
 
@@ -655,7 +655,7 @@ Requests/sec: 12,000  # 10x improvement
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README.md)
+- **Documentation**: [FraiseQL Docs](../README/)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -663,9 +663,9 @@ Requests/sec: 12,000  # 10x improvement
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern.md)
-2. Review [CASCADE Documentation](../features/graphql-cascade.md)
-3. Check [Production Deployment Checklist](../deployment/production-deployment.md)
+1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
+2. Review [CASCADE Documentation](../features/graphql-cascade/)
+3. Check [Production Deployment Checklist](../deployment/production-deployment/)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 2-3 weeks for 2 engineers

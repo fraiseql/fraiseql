@@ -8,11 +8,11 @@ FraiseQL provides powerful, flexible filtering capabilities for both GraphQL que
 
 | Use Case | Syntax | Link |
 |----------|--------|------|
-| Static queries with IDE autocomplete | WhereType | [WhereType Guide](../advanced/where-input-types.md) |
+| Static queries with IDE autocomplete | WhereType | [WhereType Guide](../advanced/where-input-types/) |
 | Dynamic/runtime-built filters | Dict-based | [Dict-Based Syntax](#dict-based-filtering) |
-| Need operator reference | Both | [Filter Operators](../advanced/filter-operators.md) |
-| Side-by-side comparison | Both | [Syntax Comparison](../reference/where-clause-syntax-comparison.md) |
-| Real-world patterns | Both | [Advanced Examples](../examples/advanced-filtering.md) |
+| Need operator reference | Both | [Filter Operators](../advanced/filter-operators/) |
+| Side-by-side comparison | Both | [Syntax Comparison](../reference/where-clause-syntax-comparison/) |
+| Real-world patterns | Both | [Advanced Examples](../examples/advanced-filtering/) |
 
 ---
 
@@ -40,7 +40,7 @@ async def active_users(info) -> list[User]:
 - Compile-time error detection
 - Self-documenting code
 
-For complete documentation: **[Where Input Types Guide](../advanced/where-input-types.md)**
+For complete documentation: **[Where Input Types Guide](../advanced/where-input-types/)**
 
 ---
 
@@ -198,7 +198,7 @@ query {
 | `lt`, `lte` | Less than (or equal) | `{"stock": {"lt": 100}}` |
 | `in`, `nin` | In/not in list | `{"status_code": {"in": [200, 201]}}` |
 
-For the complete operator reference: **[Filter Operators](../advanced/filter-operators.md)**
+For the complete operator reference: **[Filter Operators](../advanced/filter-operators/)**
 
 ---
 
@@ -264,7 +264,7 @@ Dict-based filters support 2-level nesting only:
 
 ## Next Steps
 
-- **[Filter Operators Reference](../advanced/filter-operators.md)** - Complete operator documentation
-- **[WhereType Deep Dive](../advanced/where-input-types.md)** - Type-safe filtering patterns
-- **[Syntax Comparison](../reference/where-clause-syntax-comparison.md)** - WhereType vs Dict side-by-side
-- **[Advanced Examples](../examples/advanced-filtering.md)** - Real-world filtering patterns
+- **[Filter Operators Reference](../advanced/filter-operators/)** - Complete operator documentation
+- **[WhereType Deep Dive](../advanced/where-input-types/)** - Type-safe filtering patterns
+- **[Syntax Comparison](../reference/where-clause-syntax-comparison/)** - WhereType vs Dict side-by-side
+- **[Advanced Examples](../examples/advanced-filtering/)** - Real-world filtering patterns

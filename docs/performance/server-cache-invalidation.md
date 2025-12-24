@@ -1,7 +1,7 @@
 # CASCADE Cache Invalidation
 # Server-Side Cache Invalidation
 
-> **Note**: This document describes server-side cache invalidation, not the [GraphQL Cascade](../features/graphql-cascade.md) client-side update feature.
+> **Note**: This document describes server-side cache invalidation, not the [GraphQL Cascade](../features/graphql-cascade/) client-side update feature.
 
 > **Intelligent cache invalidation that automatically propagates when related data changes**
 
@@ -596,9 +596,9 @@ async def test_user_cascade():
 ## See Also
 
 - Complete CQRS Example (../../examples/complete_cqrs_blog/) - See CASCADE in action
-- [Caching Guide](./caching.md) - General caching documentation
-- [Explicit Sync Guide](../core/explicit-sync.md) - How sync works with CASCADE
-- [Performance Tuning](./index.md) - Optimize CASCADE performance
+- [Caching Guide](./caching/) - General caching documentation
+- [Explicit Sync Guide](../core/explicit-sync/) - How sync works with CASCADE
+- [Performance Tuning](./index/) - Optimize CASCADE performance
 
 ---
 

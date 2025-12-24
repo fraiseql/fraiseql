@@ -1685,7 +1685,7 @@ ORDER BY occurrences DESC;
 
 ## Next Steps
 
-- [Monitoring Guide](monitoring.md) - Detailed monitoring setup
-- [Deployment](deployment.md) - Production deployment patterns
-- [Security](security.md) - Security best practices
-- [Health Checks](health-checks.md) - Application health monitoring
+- [Monitoring Guide](monitoring/) - Detailed monitoring setup
+- [Deployment](deployment/) - Production deployment patterns
+- [Security](security/) - Security best practices
+- [Health Checks](health-checks/) - Application health monitoring

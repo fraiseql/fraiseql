@@ -1025,7 +1025,7 @@ async def check_cache_extension():
 
 ## Next Steps
 
-- [Performance Optimization](index.md) - Full performance stack (Rust, APQ, TurboRouter)
-- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant-aware caching patterns
-- [Monitoring](../production/monitoring.md) - Production monitoring setup
-- [Security](../production/security.md) - Cache security best practices
+- [Performance Optimization](index/) - Full performance stack (Rust, APQ, TurboRouter)
+- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant-aware caching patterns
+- [Monitoring](../production/monitoring/) - Production monitoring setup
+- [Security](../production/security/) - Cache security best practices
