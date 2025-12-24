@@ -1,0 +1,4 @@
+mkdocs>=1.6.1
+mkdocs-material>=9.6.22
+mkdocs-redirects>=1.2.2
+pymdown-extensions>=10.16.1

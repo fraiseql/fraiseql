@@ -7,12 +7,6 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.13"
-    # Rust is part of the build for fraiseql_rs extension
-    rust: latest
-  # Required for Rust compilation
-  apt_packages:
-    - pkg-config
-    - libssl-dev
 
 mkdocs:
   configuration: mkdocs.yml
@@ -21,9 +15,7 @@ mkdocs:
 python:
   install:
     - method: pip
-      path: .
-      extra_requirements:
-        - docs
+      requirements: docs/requirements.txt
 
 # Build on PR previews for documentation changes
 build-on-pull-requests: true
