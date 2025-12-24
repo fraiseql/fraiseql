@@ -19,7 +19,6 @@ mkdocs:
   fail_on_warning: false
 
 python:
-  version: "3.13"
   install:
     - method: pip
       path: .
@@ -33,8 +32,3 @@ build-on-pull-requests: true
 formats:
   - pdf
   - epub
-
-# Python targets for version compatibility testing
-python-targets:
-  - 3.13
-  - 3.12
