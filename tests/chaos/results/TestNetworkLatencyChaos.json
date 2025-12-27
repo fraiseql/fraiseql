@@ -1,8 +1,8 @@
 {
   "test_class": "TestNetworkLatencyChaos",
-  "timestamp": 1766317387.007575,
+  "timestamp": 1766843913.0141182,
   "metrics": {
-    "duration_ms": 10000.96869468689,
+    "duration_ms": 10001.61862373352,
     "query_count": 0,
     "avg_query_time_ms": null,
     "p95_query_time_ms": null,
