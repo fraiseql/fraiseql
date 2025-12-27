@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql"
-version = "1.8.9"
+version = "1.9.0"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
@@ -66,6 +66,11 @@ sha2 = "0.10"               # Hashing for signatures
 # Authentication (Phase 10)
 jsonwebtoken = "9.2"        # JWT validation with built-in JWK support
 reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
+
+# Security features (Phase 12)
+rand = "0.8"                # Random number generation for CSRF
+hex = "0.4"                 # Hex encoding for tokens
+http = "0.2"                # HTTP header types for CORS
 
 [profile.release]
 opt-level = 3
