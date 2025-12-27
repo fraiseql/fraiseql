@@ -20,7 +20,7 @@ from chaos.base import ChaosMetrics
 @pytest.mark.chaos_cache
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_invalidation_storm(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_cache_invalidation_storm(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test cache invalidation storm resilience.
 
@@ -33,7 +33,9 @@ async def test_cache_invalidation_storm(chaos_db_client, chaos_test_schema, base
     metrics.start_test()
 
     # Simulate cache invalidation storm
-    total_operations = 20
+    # Scale total_operations based on hardware (20 on baseline, 10-80 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    total_operations = max(10, int(20 * chaos_config.load_multiplier))
     cache_hit_rate = 0.9  # 90% cache hit rate normally
     storm_cache_hit_rate = 0.1  # Drops to 10% during storm
 
@@ -80,7 +82,7 @@ async def test_cache_invalidation_storm(chaos_db_client, chaos_test_schema, base
 @pytest.mark.chaos_cache
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_corruption_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_cache_corruption_handling(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test cache corruption detection and recovery.
 
@@ -94,7 +96,9 @@ async def test_cache_corruption_handling(chaos_db_client, chaos_test_schema, bas
 
     corruption_detected = 0
     successful_fallbacks = 0
-    total_operations = 15
+    # Scale total_operations based on hardware (15 on baseline, 7-60 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    total_operations = max(7, int(15 * chaos_config.load_multiplier))
 
     for i in range(total_operations):
         try:
@@ -144,7 +148,7 @@ async def test_cache_corruption_handling(chaos_db_client, chaos_test_schema, bas
 @pytest.mark.chaos_cache
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_backend_failure(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_cache_backend_failure(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test cache backend failure and recovery.
 
@@ -159,7 +163,9 @@ async def test_cache_backend_failure(chaos_db_client, chaos_test_schema, baselin
     backend_available = True
     backend_failures = 0
     degraded_operations = 0
-    total_operations = 12
+    # Scale total_operations based on hardware (12 on baseline, 6-48 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    total_operations = max(6, int(12 * chaos_config.load_multiplier))
 
     for i in range(total_operations):
         try:
@@ -213,7 +219,7 @@ async def test_cache_backend_failure(chaos_db_client, chaos_test_schema, baselin
 @pytest.mark.chaos_cache
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cache_stampede_prevention(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_cache_stampede_prevention(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test cache stampede prevention under concurrent load.
 
@@ -226,7 +232,9 @@ async def test_cache_stampede_prevention(chaos_db_client, chaos_test_schema, bas
     metrics.start_test()
 
     # Simulate concurrent cache stampede scenario
-    num_threads = 5
+    # Scale num_threads based on hardware (5 on baseline, 3-20 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    num_threads = max(3, int(5 * chaos_config.load_multiplier))
     cache_populated = False
     stampede_events = 0
 
