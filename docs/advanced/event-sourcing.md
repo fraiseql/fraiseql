@@ -699,7 +699,7 @@ LIMIT 1;
 
 ## Next Steps
 
-- [Bounded Contexts](bounded-contexts.md) - Event-driven context integration
-- [CQRS](../advanced/database-patterns.md) - Command Query Responsibility Segregation
-- [Monitoring](../production/monitoring.md) - Event sourcing metrics
-- [Performance](../performance/index.md) - Audit log optimization
+- [Bounded Contexts](bounded-contexts/) - Event-driven context integration
+- [CQRS](../advanced/database-patterns/) - Command Query Responsibility Segregation
+- [Monitoring](../production/monitoring/) - Event sourcing metrics
+- [Performance](../performance/index/) - Audit log optimization

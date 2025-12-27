@@ -100,7 +100,7 @@ Prototypes   Apps       Apps      Apps
 - ❌ Don't use for production applications
 - ❌ Don't add complex business logic
 
-**Example Projects**: [Todo App Quickstart](../getting-started/quickstart.md)
+**Example Projects**: [Todo App Quickstart](../getting-started/quickstart/)
 
 ### Minimal Template Best Practices
 - ✅ Single-file schema for simple domains

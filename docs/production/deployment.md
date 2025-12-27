@@ -732,6 +732,6 @@ echo "✓ Rollback completed successfully"
 
 ## Next Steps
 
-- [Monitoring](monitoring.md) - Metrics, logs, and alerting
-- [Security](security.md) - Production security hardening
-- [Performance](../performance/index.md) - Production optimization
+- [Monitoring](monitoring/) - Metrics, logs, and alerting
+- [Security](security/) - Production security hardening
+- [Performance](../performance/index/) - Production optimization

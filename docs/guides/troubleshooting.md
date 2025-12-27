@@ -3,7 +3,7 @@
 Common issues and solutions for FraiseQL beginners.
 
 **💡 Quick Navigation:**
-- **[Troubleshooting Decision Tree](troubleshooting-decision-tree.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- **[Troubleshooting Decision Tree](troubleshooting-decision-tree/)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - **This guide** - Specific error messages and detailed solutions
 
 Can't find your issue? Check the [GitHub Issues](../issues) or ask in [Discussions](../discussions).
@@ -263,7 +263,7 @@ import fraiseql
 # import fraiseql as fq; fq.type
 ```
 
-**Prevention**: Check the [Style Guide](../development/style-guide.md) for correct imports
+**Prevention**: Check the [Style Guide](../development/style-guide/) for correct imports
 
 ---
 
@@ -303,12 +303,12 @@ lsof -i :8000
 6. ✅ GraphQL endpoint responds: `curl http://localhost:8000/graphql`
 
 ### Getting Help
-- 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
+- 📖 Check the [First Hour Guide](../getting-started/first-hour/) for step-by-step help
 - 🔍 Search [existing issues](../issues)
 - 💬 Ask in [GitHub Discussions](../discussions)
 - 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
-- [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns
+- [Quick Reference](../reference/quick-reference/) - Copy-paste code patterns
 - Examples (../../examples/) - Working applications you can study
-- [Beginner Learning Path](../tutorials/beginner-path.md) - Complete skill progression
+- [Beginner Learning Path](../tutorials/beginner-path/) - Complete skill progression

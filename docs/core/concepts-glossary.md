@@ -1078,7 +1078,7 @@ print(f"Cached queries: {stats.total_queries}")
 ```
 
 **See also:**
-- [APQ Cache Flow Diagram](../diagrams/apq-cache-flow.md)
+- [APQ Cache Flow Diagram](../diagrams/apq-cache-flow/)
 - [Multi-tenant APQ Setup](../../examples/apq_multi_tenant/)
 
 ### Rust JSON Pipeline
@@ -1221,6 +1221,6 @@ config = FraiseQLConfig(
 
 ## Related
 
-- [Core Documentation](README.md)
+- [Core Documentation](README/)
 - [Examples](../../examples/)
 - [API Reference](../reference/)

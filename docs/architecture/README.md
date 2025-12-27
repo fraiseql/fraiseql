@@ -5,7 +5,7 @@ This directory contains architectural documentation for FraiseQL.
 ## Key Documents
 
 ### Direct Path Implementation
-**[direct-path-implementation.md](./direct-path-implementation.md)** - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.
+**[direct-path-implementation.md](./direct-path-implementation/)** - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.
 
 **Status**: ✅ Implemented and working
 - GraphQL → SQL → Rust → HTTP pipeline
@@ -14,7 +14,7 @@ This directory contains architectural documentation for FraiseQL.
 - Automatic fallback to traditional GraphQL
 
 ### Type System
-**[type-operator-architecture.md](./type-operator-architecture.md)** - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.
+**[type-operator-architecture.md](./type-operator-architecture/)** - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.
 
 ### Architectural Decisions
 **[decisions/](./decisions/)** - Records of key architectural decisions and their rationale.

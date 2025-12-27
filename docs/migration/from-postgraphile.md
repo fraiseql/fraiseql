@@ -316,7 +316,7 @@ class CreatePost:
 - Client cache automatically invalidated
 - No manual refetch needed
 
-**See:** [CASCADE Documentation](../features/graphql-cascade.md)
+**See:** [CASCADE Documentation](../features/graphql-cascade/)
 
 ---
 
@@ -545,7 +545,7 @@ FraiseQL uses explicit mutations.
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README.md)
+- **Documentation**: [FraiseQL Docs](../README/)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -553,9 +553,9 @@ FraiseQL uses explicit mutations.
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern.md)
-2. Review [CASCADE Documentation](../features/graphql-cascade.md)
-3. Check [Production Deployment Checklist](../deployment/production-deployment.md)
+1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
+2. Review [CASCADE Documentation](../features/graphql-cascade/)
+3. Check [Production Deployment Checklist](../deployment/production-deployment/)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 3-4 days for 1 engineer

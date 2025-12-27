@@ -1,11 +1,11 @@
 # GraphQL Cascade
 
-**Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
+**Navigation**: [← Mutation Result Reference](mutation-result-reference/) • [SQL Function Return Format](sql-function-return-format/) • [Queries & Mutations →](../core/queries-and-mutations/)
 
 > **Deep Dive**: For best practices, patterns, and recommendations, see the
-> [CASCADE Best Practices Guide](../guides/cascade-best-practices.md).
+> [CASCADE Best Practices Guide](../guides/cascade-best-practices/).
 
-GraphQL Cascade enables automatic cache updates and side effect tracking for mutations in FraiseQL. When a mutation modifies data, it can include cascade information that clients use to update their caches without additional queries.
+GraphQL Cascade is an open-source specification for automatic cache invalidation in GraphQL APIs. FraiseQL implements the [GraphQL Cascade specification](https://github.com/graphql-cascade/graphql-cascade) to enable automatic cache updates when mutations modify data. Rather than requiring clients to manually refetch information, mutations return cascade information that clients use to automatically keep their caches synchronized.
 
 ## Overview
 
@@ -17,6 +17,32 @@ Cascade works by having PostgreSQL functions return not just the mutation result
 - **Metadata**: Timestamps and operation counts
 
 **Note**: Cascade is fully integrated with both legacy and v2 mutation formats. For v2 format, use the built-in SQL helper functions for easier cascade construction.
+
+## GraphQL Cascade Compliance Levels
+
+FraiseQL implements the [official GraphQL Cascade specification](https://github.com/graphql-cascade/graphql-cascade) (v1.1) with support for multiple compliance levels:
+
+### **Cascade Basic** ✅
+Core entity tracking for cache synchronization:
+- Entity tracking (created, updated, deleted)
+- Basic invalidation strategies
+- Standard response format
+
+### **Cascade Standard** ✅
+Enhanced features for production applications:
+- Cascade depth control and relationship traversal
+- Transaction metadata and timestamps
+- Structured error handling
+- Advanced invalidation strategies
+
+### **Cascade Complete** (Partial)
+Advanced features for sophisticated applications:
+- Optimistic updates and concurrent mutation handling
+- Real-time subscriptions with cascade invalidation
+- Conflict resolution strategies
+- Performance optimizations
+
+> **Note**: FraiseQL currently implements **Cascade Basic** and **Cascade Standard** compliance levels. Cascade Complete features (subscriptions, conflict resolution) are planned for future releases.
 
 ### How It Works
 
@@ -40,7 +66,7 @@ sequenceDiagram
 
 ## Quick Start
 
-For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference.md) and [SQL Function Return Format](sql-function-return-format.md).
+For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference/) and [SQL Function Return Format](sql-function-return-format/).
 
 ## PostgreSQL Function Pattern
 
@@ -430,7 +456,7 @@ See `examples/cascade/` for complete working examples including:
 
 ## Next Steps
 
-- [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications
-- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Tuning, monitoring, advanced patterns
-- [Migrating to Cascade](../guides/migrating-to-cascade.md) - Adoption guide
-- [Cascade Best Practices](../guides/cascade-best-practices.md) - Production recommendations
+- [Mutation Result Reference](mutation-result-reference/) - Complete format specifications
+- [CASCADE Best Practices](../guides/cascade-best-practices/) - Tuning, monitoring, advanced patterns
+- [Migrating to Cascade](../guides/migrating-to-cascade/) - Adoption guide
+- [Cascade Best Practices](../guides/cascade-best-practices/) - Production recommendations

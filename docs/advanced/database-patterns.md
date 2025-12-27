@@ -134,7 +134,7 @@ CREATE INDEX idx_tv_order_status
 
 **Trigger-Based Synchronization** (not generated columns):
 
-tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See [Explicit Sync Documentation](../core/explicit-sync.md) for details.
+tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See [Explicit Sync Documentation](../core/explicit-sync/) for details.
 
 **Step 1: Create tv_ Table**
 
@@ -200,7 +200,7 @@ FROM tb_order o;
 
 **Step 2: Explicit Synchronization (FraiseQL Approach)**
 
-> **Note**: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See [Explicit Sync Documentation](../core/explicit-sync.md) for details.
+> **Note**: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See [Explicit Sync Documentation](../core/explicit-sync/) for details.
 
 ```sql
 -- Explicit sync function (FraiseQL approach)
