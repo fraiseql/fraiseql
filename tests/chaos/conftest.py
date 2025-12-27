@@ -15,6 +15,8 @@ if tests_dir not in sys.path:
 from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
 from chaos.base import ChaosMetrics
+from chaos.adaptive_config import get_chaos_config, ChaosConfig
+from chaos.environment import detect_environment, EnvironmentInfo
 
 # Note: pytest_plugins moved to top-level tests/conftest.py
 # to comply with pytest plugin loading requirements
@@ -46,6 +48,61 @@ _default_toxiproxy = ToxiproxyManager()
 def chaos_metrics():
     """Chaos metrics collector."""
     return ChaosMetrics()
+
+
+@pytest.fixture(scope="session")
+def environment_info() -> EnvironmentInfo:
+    """
+    Detect environment information once per test session.
+
+    This fixture provides hardware and environment details for adaptive
+    test configuration.
+
+    Returns:
+        EnvironmentInfo with detected capabilities
+    """
+    env = detect_environment()
+    print(f"\n[Environment Detection] {env}")
+    return env
+
+
+@pytest.fixture(scope="session")
+def chaos_config(environment_info: EnvironmentInfo) -> ChaosConfig:
+    """
+    Adaptive chaos test configuration based on environment.
+
+    This fixture provides environment-specific configuration that scales
+    concurrent operations, timeouts, and pool sizes based on detected
+    hardware capabilities and runtime environment (CI/CD, container, local).
+
+    The configuration adapts to:
+    - Hardware: CPU count, memory, frequency
+    - Environment: CI/CD vs local development
+    - Containerization: Docker, Podman, Kubernetes
+
+    Args:
+        environment_info: Detected environment information
+
+    Returns:
+        ChaosConfig with adaptive settings
+
+    Examples:
+        >>> async def test_concurrent_load(chaos_config):
+        ...     # Use adaptive concurrent request count
+        ...     tasks = [
+        ...         make_request()
+        ...         for _ in range(chaos_config.concurrent_requests)
+        ...     ]
+        ...     await asyncio.gather(*tasks)
+        ...
+        >>> async def test_with_timeout(chaos_config):
+        ...     # Use adaptive timeout
+        ...     async with asyncio.timeout(chaos_config.timeout_seconds):
+        ...         await long_operation()
+    """
+    config = get_chaos_config(environment_info)
+    print(f"\n[Chaos Config] {config}")
+    return config
 
 
 # Register chaos test markers
