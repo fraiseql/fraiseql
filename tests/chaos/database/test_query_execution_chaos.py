@@ -93,7 +93,13 @@ class TestQueryExecutionChaos(ChaosTestCase):
         successful_operations = 0
         deadlock_errors = 0
 
-        for i in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 # Simulate potential deadlock with random delays
                 if i % 3 == 0:  # Every 3rd operation might deadlock
@@ -139,7 +145,13 @@ class TestQueryExecutionChaos(ChaosTestCase):
         serialization_errors = 0
         successful_commits = 0
 
-        for i in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             retry_count = 0
             success = False
 
@@ -195,7 +207,13 @@ class TestQueryExecutionChaos(ChaosTestCase):
         exhausted_operations = 0
         pool_exhaustion_errors = 0
 
-        for i in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 20.0)
@@ -248,7 +266,13 @@ class TestQueryExecutionChaos(ChaosTestCase):
         resource_exhaustion_errors = 0
         successful_complex_queries = 0
 
-        for i in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 # Complex query that might exhaust resources
                 result = client.execute_query(complex_operation, timeout=10.0)
@@ -307,7 +331,12 @@ class TestQueryExecutionChaos(ChaosTestCase):
 
         # Start multiple concurrent queries
         threads = []
-        for i in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+
+        for i in range(iterations):
             thread = threading.Thread(target=execute_concurrent_query, args=(i,))
             threads.append(thread)
             thread.start()

@@ -35,7 +35,13 @@ class TestDataConsistencyChaos(ChaosTestCase):
         successful_transactions = 0
         rolled_back_transactions = 0
 
-        for i in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 # Simulate transaction that might be rolled back
                 if i % 3 == 2:  # Every 3rd transaction rolls back
@@ -87,7 +93,13 @@ class TestDataConsistencyChaos(ChaosTestCase):
         partial_failures = 0
         complete_successes = 0
 
-        for i in range(6):
+        # Scale iterations based on hardware (6 on baseline, 3-24 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(6 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 result = client.execute_query(operation)
 
@@ -136,7 +148,13 @@ class TestDataConsistencyChaos(ChaosTestCase):
         constraint_violations = 0
         successful_operations = 0
 
-        for i in range(7):
+        # Scale iterations based on hardware (7 on baseline, 3-28 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(7 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 # Simulate constraint violation scenarios
                 if i % 3 == 1:  # Every 3rd operation violates constraints
@@ -197,7 +215,11 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
             try:
                 # Simulate read operations that might see inconsistent data
-                for _ in range(3):
+                # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+                # Uses multiplier-based formula to ensure meaningful test on all hardware
+                iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+                for i in range(iterations):
                     result = client.execute_query(read_operation)
                     execution_time = result.get("_execution_time_ms", 15.0)
 
@@ -220,7 +242,12 @@ class TestDataConsistencyChaos(ChaosTestCase):
 
         # Start concurrent transactions
         threads = []
-        for i in range(2):
+        # Scale iterations based on hardware (2 on baseline, 3-8 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(2 * self.chaos_config.load_multiplier))
+
+
+        for i in range(iterations):
             thread = threading.Thread(target=simulate_transaction, args=(i,))
             threads.append(thread)
             thread.start()
@@ -275,7 +302,13 @@ class TestDataConsistencyChaos(ChaosTestCase):
         corruption_detected = 0
         valid_responses = 0
 
-        for i in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 result = client.execute_query(operation)
 
@@ -329,7 +362,13 @@ class TestDataConsistencyChaos(ChaosTestCase):
         cascading_failures = 0
         contained_operations = 0
 
-        for i in range(6):
+        # Scale iterations based on hardware (6 on baseline, 3-24 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(6 * self.chaos_config.load_multiplier))
+
+
+
+        for i in range(iterations):
             try:
                 # Primary operation (might fail)
                 primary_result = client.execute_query(simple_op)
