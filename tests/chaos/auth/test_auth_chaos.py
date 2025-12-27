@@ -28,6 +28,15 @@ class TestAuthenticationChaos(ChaosTestCase):
 
         Scenario: JWT expires while request is being processed.
         Expected: FraiseQL handles token expiration gracefully.
+
+        Adaptive Scaling:
+            - Iterations: 5-40 based on hardware (base=10)
+            - LOW (0.5x): 5 iterations
+            - MEDIUM (1.0x): 10 iterations
+            - HIGH (4.0x): 40 iterations
+
+        Configuration:
+            Uses self.chaos_config (auto-injected by conftest.py fixture)
         """
         client = MockFraiseQLClient()
         operation = FraiseQLTestScenarios.simple_user_query()
@@ -39,7 +48,11 @@ class TestAuthenticationChaos(ChaosTestCase):
         auth_failures = 0
         token_expirations = 0
 
-        for i in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             try:
                 # Simulate JWT validation
                 if random.random() < 0.15:  # 15% chance of token expiration during processing
@@ -299,6 +312,15 @@ class TestAuthenticationChaos(ChaosTestCase):
 
         Scenario: JWT tokens have invalid signatures or are tampered with.
         Expected: FraiseQL rejects invalid tokens securely.
+
+        Adaptive Scaling:
+            - Iterations: 5-40 based on hardware (base=10)
+            - LOW (0.5x): 5 iterations
+            - MEDIUM (1.0x): 10 iterations
+            - HIGH (4.0x): 40 iterations
+
+        Configuration:
+            Uses self.chaos_config (auto-injected by conftest.py fixture)
         """
         client = MockFraiseQLClient()
         operation = FraiseQLTestScenarios.simple_user_query()
@@ -310,7 +332,11 @@ class TestAuthenticationChaos(ChaosTestCase):
         invalid_signatures = 0
         tampered_tokens = 0
 
-        for i in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             try:
                 # Simulate token validation
                 token_type = random.random()
