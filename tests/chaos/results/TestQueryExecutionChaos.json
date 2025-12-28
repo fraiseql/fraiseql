@@ -1,10 +1,10 @@
 {
   "test_class": "TestQueryExecutionChaos",
-  "timestamp": 1766867533.8647842,
+  "timestamp": 1766926688.0582688,
   "metrics": {
-    "duration_ms": 25048.222303390503,
+    "duration_ms": 25047.712802886963,
     "query_count": 3,
-    "avg_query_time_ms": 8349.01237487793,
+    "avg_query_time_ms": 8348.944822947184,
     "p95_query_time_ms": null,
     "error_count": 0,
     "retry_count": 0,

@@ -401,9 +401,9 @@ class TestResourceChaos(ChaosTestCase):
                 # Check if subsequent operations also fail (cascading)
                 # Scale iterations based on hardware (2 on baseline, 3-8 adaptive)
                 # Uses multiplier-based formula to ensure meaningful test on all hardware
-                iterations = max(3, int(2 * self.chaos_config.load_multiplier))
+                check_iterations = max(3, int(2 * self.chaos_config.load_multiplier))
 
-                for i in range(iterations):  # Check next 2 operations for cascading
+                for j in range(check_iterations):  # Check next operations for cascading
                     if i + j + 1 < total_operations:
                         try:
                             cascading_op = operations[(i + j + 1) % len(operations)]

@@ -301,7 +301,9 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             self.metrics.start_test()
 
             # Simulate adaptive retry behavior
-            operations = 12
+            # Scale iterations based on hardware (12 on baseline, 6-48 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            operations = max(6, int(12 * self.chaos_config.load_multiplier))
             successful_operations = 0
             total_retries = 0
 

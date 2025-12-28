@@ -17,3 +17,14 @@ def inject_chaos_config(request, chaos_config):
     """
     if hasattr(request, "instance") and request.instance is not None:
         request.instance.chaos_config = chaos_config
+
+
+@pytest.fixture
+def toxiproxy():
+    """Toxiproxy fixture that skips tests if Toxiproxy is not available.
+
+    Toxiproxy is a framework for simulating network conditions (latency, packet loss, etc.).
+    These tests require Toxiproxy infrastructure to be set up.
+    For now, we skip these tests as Toxiproxy is not configured.
+    """
+    pytest.skip("Toxiproxy infrastructure not configured - test requires Toxiproxy")

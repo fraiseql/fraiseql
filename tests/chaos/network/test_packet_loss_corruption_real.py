@@ -19,7 +19,7 @@ from chaos.base import ChaosMetrics
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test recovery from packet loss at different severity levels.
 
@@ -144,7 +144,7 @@ async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_packet_corruption_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_packet_corruption_handling(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test handling of corrupted packets.
 
@@ -208,7 +208,7 @@ async def test_packet_corruption_handling(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_out_of_order_delivery(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_out_of_order_delivery(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test handling of out-of-order packet delivery.
 
@@ -265,7 +265,7 @@ async def test_out_of_order_delivery(chaos_db_client, chaos_test_schema, baselin
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_duplicate_packet_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_duplicate_packet_handling(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test handling of duplicate packet delivery.
 

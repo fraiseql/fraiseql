@@ -18,7 +18,7 @@ from chaos.base import ChaosMetrics
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test gradual network latency increase with real database.
 
@@ -77,7 +77,7 @@ async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, base
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test consistent high network latency with real database.
 
@@ -129,7 +129,7 @@ async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, basel
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test jittery (variable) network latency with real database.
 
@@ -189,7 +189,7 @@ async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metr
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_asymmetric_latency(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_asymmetric_latency(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test asymmetric network latency (different request/response delays).
 
@@ -243,7 +243,7 @@ async def test_asymmetric_latency(chaos_db_client, chaos_test_schema, baseline_m
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test timeout handling under extreme latency.
 
@@ -296,7 +296,7 @@ async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, base
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config):
     """
     Test recovery time after latency chaos injection is removed.
 
