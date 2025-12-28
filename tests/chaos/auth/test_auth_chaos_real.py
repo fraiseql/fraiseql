@@ -20,7 +20,9 @@ from chaos.base import ChaosMetrics
 @pytest.mark.chaos_auth
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_jwt_expiration_during_request(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_jwt_expiration_during_request(
+    chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
+):
     """
     Test JWT token expiration during active request processing.
 
@@ -37,7 +39,13 @@ async def test_jwt_expiration_during_request(chaos_db_client, chaos_test_schema,
     auth_failures = 0
     token_expirations = 0
 
-    for i in range(10):
+    # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(5, int(10 * chaos_config.load_multiplier))
+
+    for i in range(iterations):
         try:
             # Simulate JWT validation
             if random.random() < 0.15:  # 15% chance of token expiration during processing
@@ -66,11 +74,13 @@ async def test_jwt_expiration_during_request(chaos_db_client, chaos_test_schema,
 
     # Validate JWT expiration handling
     assert token_expirations > 0, "Should experience JWT expirations during processing"
-    assert auth_successes > auth_failures, (
-        "Should have more authentication successes than failures"
-    )
+    assert auth_successes > auth_failures, "Should have more authentication successes than failures"
 
-    success_rate = auth_successes / (auth_successes + auth_failures) if (auth_successes + auth_failures) > 0 else 0
+    success_rate = (
+        auth_successes / (auth_successes + auth_failures)
+        if (auth_successes + auth_failures) > 0
+        else 0
+    )
     assert success_rate >= 0.7, f"Authentication success rate too low: {success_rate:.2f}"
 
 
@@ -78,7 +88,9 @@ async def test_jwt_expiration_during_request(chaos_db_client, chaos_test_schema,
 @pytest.mark.chaos_auth
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_rbac_policy_failure(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_rbac_policy_failure(
+    chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
+):
     """
     Test RBAC policy evaluation failures.
 
@@ -95,7 +107,13 @@ async def test_rbac_policy_failure(chaos_db_client, chaos_test_schema, baseline_
     policy_failures = 0
     denied_operations = 0
 
-    for i in range(12):
+    # Scale iterations based on hardware (12 on baseline, 6-48 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(6, int(12 * chaos_config.load_multiplier))
+
+    for i in range(iterations):
         try:
             # Simulate RBAC policy check
             if random.random() < 0.2:  # 20% chance of policy evaluation failure
@@ -136,7 +154,9 @@ async def test_rbac_policy_failure(chaos_db_client, chaos_test_schema, baseline_
 @pytest.mark.chaos_auth
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_authentication_service_outage(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_authentication_service_outage(
+    chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
+):
     """
     Test authentication service unavailability.
 
@@ -151,7 +171,9 @@ async def test_authentication_service_outage(chaos_db_client, chaos_test_schema,
     auth_service_available = True
     service_outages = 0
     degraded_operations = 0
-    total_operations = 15
+    # Scale total_operations based on hardware (15 on baseline, 7-60 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    total_operations = max(7, int(15 * chaos_config.load_multiplier))
 
     for i in range(total_operations):
         try:
@@ -210,7 +232,9 @@ async def test_authentication_service_outage(chaos_db_client, chaos_test_schema,
 @pytest.mark.chaos_auth
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_authentication_load(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_concurrent_authentication_load(
+    chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
+):
     """
     Test authentication under concurrent load.
 
@@ -223,7 +247,9 @@ async def test_concurrent_authentication_load(chaos_db_client, chaos_test_schema
     metrics.start_test()
 
     # Simulate concurrent authentication load
-    num_requests = 6
+    # Scale num_requests based on hardware (6 on baseline, 3-24 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    num_requests = max(3, int(6 * chaos_config.load_multiplier))
     auth_contentions = 0
 
     async def authenticate_concurrent_request(request_id: int):
@@ -276,7 +302,11 @@ async def test_concurrent_authentication_load(chaos_db_client, chaos_test_schema
 
     if execution_times:
         avg_time = statistics.mean(execution_times)
-        p95_time = sorted(execution_times)[int(len(execution_times) * 0.95)] if len(execution_times) > 1 else avg_time
+        p95_time = (
+            sorted(execution_times)[int(len(execution_times) * 0.95)]
+            if len(execution_times) > 1
+            else avg_time
+        )
 
         # Verify no excessive degradation under concurrent load
         assert p95_time <= avg_time * 2.5, (
