@@ -26,6 +26,10 @@ class TestAuthenticationChaos(ChaosTestCase):
         """
         Test JWT token expiration during active request processing.
 
+        HYPOTHESIS: System should maintain 70%+ success rate with 15% token expirations
+        VALIDATION: token_expirations > 0 AND success_rate >= 0.7
+        BLAST RADIUS: 5-40 operations (adaptive), 15% deterministic expiration pattern
+
         Scenario: JWT expires while request is being processed.
         Expected: FraiseQL handles token expiration gracefully.
 
@@ -52,12 +56,22 @@ class TestAuthenticationChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
+        # DETERMINISTIC PATTERN: Calculate exact failure iterations (15% expiration, 5% other)
+        # Industry best practice: Netflix moved from random to deterministic scheduling
+        expiration_interval = max(1, int(1 / 0.15))  # Every ~7th iteration
+        other_failure_interval = max(1, int(1 / 0.05))  # Every ~20th iteration
+
+        expiration_iterations = set(range(expiration_interval - 1, iterations, expiration_interval))
+        other_failure_iterations = set(range(other_failure_interval - 1, iterations, other_failure_interval))
+        # Remove overlap to maintain intended failure rates
+        other_failure_iterations -= expiration_iterations
+
         for i in range(iterations):
             try:
-                # Simulate JWT validation
-                if random.random() < 0.15:  # 15% chance of token expiration during processing
+                # Deterministic failure injection - repeatable every run
+                if i in expiration_iterations:
                     raise jwt.ExpiredSignatureError("Token expired during request processing")
-                elif random.random() < 0.05:  # 5% chance of other auth failures
+                elif i in other_failure_iterations:
                     raise Exception("JWT validation failed")
                 else:
                     # Successful authentication
@@ -121,12 +135,22 @@ class TestAuthenticationChaos(ChaosTestCase):
         # Scale iterations based on hardware (12 on baseline, 6-48 adaptive)
         iterations = max(6, int(12 * self.chaos_config.load_multiplier))
 
+        # DETERMINISTIC PATTERN: Calculate exact failure iterations (20% policy, 30% denial)
+        # Industry best practice: deterministic scheduling based on mean time between failures
+        policy_failure_interval = max(1, int(1 / 0.2))  # Every ~5th iteration
+        denial_interval = max(1, int(1 / 0.3))  # Every ~3rd iteration
+
+        policy_failure_iterations = set(range(policy_failure_interval - 1, iterations, policy_failure_interval))
+        denial_iterations = set(range(denial_interval - 1, iterations, denial_interval))
+        # Remove overlap - denials take precedence
+        policy_failure_iterations -= denial_iterations
+
         for i in range(iterations):
             try:
-                # Simulate RBAC policy check
-                if random.random() < 0.2:  # 20% chance of policy evaluation failure
+                # Deterministic failure injection - repeatable every run
+                if i in policy_failure_iterations:
                     raise Exception("RBAC policy evaluation failed")
-                elif random.random() < 0.3:  # 30% chance of authorization denial
+                elif i in denial_iterations:
                     raise Exception("Access denied by RBAC policy")
 
                 # Policy check passed - proceed with operation
@@ -147,10 +171,12 @@ class TestAuthenticationChaos(ChaosTestCase):
 
         # Validate RBAC failure handling
         assert policy_failures > 0, "Should experience RBAC policy failures"
-        # With probabilistic simulation (20% policy failures, 30% denials), expect ~30-40% denials
-        # Relax threshold to 0.25 to accommodate statistical variance across runs
-        assert denied_operations >= policy_failures * 0.25, (
-            "Should have appropriate authorization denials"
+        # With deterministic pattern (every 3rd = denial, every 5th = policy failure, denials take precedence)
+        # Expected denials = iterations // denial_interval
+        expected_denials = len(denial_iterations)
+        # Allow small variance for edge cases in small iteration counts
+        assert denied_operations >= max(1, expected_denials - 1), (
+            f"Should have appropriate authorization denials: {denied_operations} >= {expected_denials - 1}"
         )
 
         summary = self.metrics.get_summary()
