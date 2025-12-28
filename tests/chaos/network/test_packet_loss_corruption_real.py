@@ -38,7 +38,13 @@ async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline
         baseline_successes = 0
         baseline_times = []
 
-        for _ in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+        iterations = max(5, int(10 * chaos_config.load_multiplier))
+
+        for _ in range(iterations):
             try:
                 result = await chaos_db_client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
@@ -59,7 +65,13 @@ async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline
         chaos_times = []
         retry_count = 0
 
-        for _ in range(20):  # More samples for statistical significance
+        # Scale iterations based on hardware (20 on baseline, 10-80 adaptive)
+
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+        iterations = max(10, int(20 * chaos_config.load_multiplier))
+
+        for _ in range(iterations):  # More samples for statistical significance
             # Simulate packet loss with retry logic
             retries = 0
             success = False
@@ -71,7 +83,7 @@ async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline
                         retries += 1
                         retry_count += 1
                         # Exponential backoff
-                        await asyncio.sleep(0.01 * (2 ** retries))
+                        await asyncio.sleep(0.01 * (2**retries))
                     else:
                         result = await chaos_db_client.execute_query(operation)
                         execution_time = result.get("_execution_time_ms", 10.0)
@@ -93,7 +105,13 @@ async def test_packet_loss_recovery(chaos_db_client, chaos_test_schema, baseline
         recovery_successes = 0
         recovery_times = []
 
-        for _ in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+        iterations = max(5, int(10 * chaos_config.load_multiplier))
+
+        for _ in range(iterations):
             try:
                 result = await chaos_db_client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
@@ -150,7 +168,13 @@ async def test_packet_corruption_handling(chaos_db_client, chaos_test_schema, ba
         corrupt_successes = 0
         corrupt_failures = 0
 
-        for _ in range(15):
+        # Scale iterations based on hardware (15 on baseline, 7-60 adaptive)
+
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+        iterations = max(7, int(15 * chaos_config.load_multiplier))
+
+        for _ in range(iterations):
             if random.random() < corruption_rate:
                 # Corrupted packet - operation fails
                 corrupt_failures += 1
@@ -200,7 +224,13 @@ async def test_out_of_order_delivery(chaos_db_client, chaos_test_schema, baselin
     # Simulate out-of-order effects through variable timing
     reorder_times = []
 
-    for _ in range(10):
+    # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(5, int(10 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         # Simulate packets arriving out of order with varied delays
         packet_delays = [0.010, 0.015, 0.008, 0.012, 0.009]  # Varied delays
         random.shuffle(packet_delays)  # Out of order
@@ -251,7 +281,13 @@ async def test_duplicate_packet_handling(chaos_db_client, chaos_test_schema, bas
     # Simulate duplicate packet effects
     duplicate_scenarios = []
 
-    for _ in range(8):
+    # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(4, int(8 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         # Simulate receiving some packets twice
         packet_count = 5
         duplicates = random.randint(0, 2)  # 0-2 duplicates
@@ -290,7 +326,9 @@ async def test_duplicate_packet_handling(chaos_db_client, chaos_test_schema, bas
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_adaptive_retry_under_packet_loss(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_adaptive_retry_under_packet_loss(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Test adaptive retry strategies under packet loss.
 
@@ -324,12 +362,12 @@ async def test_adaptive_retry_under_packet_loss(chaos_db_client, chaos_test_sche
                         retries += 1
                         total_retries += 1
                         # Exponential backoff
-                        await asyncio.sleep(0.001 * (2 ** retries))
+                        await asyncio.sleep(0.001 * (2**retries))
                 else:
                     retries += 1
                     total_retries += 1
                     # Exponential backoff
-                    await asyncio.sleep(0.001 * (2 ** retries))
+                    await asyncio.sleep(0.001 * (2**retries))
 
         chaos_db_client.reset_chaos()
         metrics.end_test()
@@ -338,7 +376,7 @@ async def test_adaptive_retry_under_packet_loss(chaos_db_client, chaos_test_sche
         avg_retries_per_operation = total_retries / operations if operations > 0 else 0
 
         # Validate adaptive behavior
-        expected_success_rate = 1.0 - (packet_loss_rate ** 2)  # With retries
+        expected_success_rate = 1.0 - (packet_loss_rate**2)  # With retries
 
         assert success_rate >= expected_success_rate * 0.8, (
             f"Success rate {success_rate:.2f} too low for {packet_loss_rate * 100}% loss"
@@ -356,7 +394,9 @@ async def test_adaptive_retry_under_packet_loss(chaos_db_client, chaos_test_sche
 @pytest.mark.chaos_network
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_network_recovery_after_corruption(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_network_recovery_after_corruption(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Test network recovery after corruption chaos.
 
@@ -371,7 +411,11 @@ async def test_network_recovery_after_corruption(chaos_db_client, chaos_test_sch
 
     # Phase 1: Baseline
     baseline_times = []
-    for _ in range(5):
+    # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(3, int(5 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
@@ -389,7 +433,13 @@ async def test_network_recovery_after_corruption(chaos_db_client, chaos_test_sch
     corruption_times = []
     corruption_errors = 0
 
-    for _ in range(8):
+    # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(4, int(8 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             # High chance of failure under corruption
             if random.random() < 0.25:  # 25% failure rate
@@ -411,7 +461,11 @@ async def test_network_recovery_after_corruption(chaos_db_client, chaos_test_sch
     chaos_db_client.reset_chaos()
 
     recovery_times = []
-    for _ in range(5):
+    # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(3, int(5 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)

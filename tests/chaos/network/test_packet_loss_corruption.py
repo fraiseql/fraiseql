@@ -40,7 +40,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             baseline_successes = 0
             baseline_times = []
 
-            for _ in range(10):
+            # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
                 baseline_times.append(execution_time)
@@ -58,7 +62,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             chaos_times = []
             retry_count = 0
 
-            for _ in range(20):  # More samples for statistical significance
+            # Scale iterations based on hardware (20 on baseline, 10-80 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(10, int(20 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):  # More samples for statistical significance
                 start = time.time()
                 try:
                     # Simulate operation that may fail due to packet loss
@@ -95,7 +103,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             recovery_successes = 0
             recovery_times = []
 
-            for _ in range(10):
+            # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 start = time.time()
                 time.sleep(0.010)
                 recovery_times.append((time.time() - start) * 1000)
@@ -151,7 +163,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
             corrupt_successes = 0
             corrupt_failures = 0
 
-            for _ in range(15):
+            # Scale iterations based on hardware (15 on baseline, 7-60 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(7, int(15 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 if random.random() < corruption_rate:
                     # Corrupted packet - operation fails
                     corrupt_failures += 1
@@ -195,7 +211,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Simulate out-of-order effects through variable timing
         reorder_times = []
 
-        for _ in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             # Simulate packets arriving out of order
             packet_delays = [0.010, 0.015, 0.008, 0.012, 0.009]  # Varied delays
             random.shuffle(packet_delays)  # Out of order
@@ -239,7 +259,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         # Simulate duplicate packet effects
         duplicate_scenarios = []
 
-        for _ in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             # Simulate receiving some packets twice
             packet_count = 5
             duplicates = random.randint(0, 2)  # 0-2 duplicates
@@ -330,7 +354,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
 
         # Phase 1: Baseline
         baseline_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.010)
             baseline_times.append((time.time() - start) * 1000)
@@ -344,7 +372,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         corruption_times = []
         corruption_errors = 0
 
-        for _ in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             try:
                 # High chance of failure under corruption
@@ -364,7 +396,11 @@ class TestPacketLossCorruptionChaos(ChaosTestCase):
         toxiproxy.remove_all_toxics("fraiseql_postgres")
 
         recovery_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.010)  # Should be back to normal
             recovery_times.append((time.time() - start) * 1000)

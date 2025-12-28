@@ -46,7 +46,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
             # Measure query performance under current latency
             query_times = []
-            for _ in range(3):
+            # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
                 query_times.append(execution_time)
@@ -89,7 +93,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
         # Test under consistent latency for multiple operations
         consistent_times = []
-        for i in range(10):
+        # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(5, int(10 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.510)  # 10ms base + 500ms latency
             query_time = (time.time() - start) * 1000
@@ -134,7 +142,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
         # Test under jittery conditions
         jitter_times = []
-        for _ in range(15):  # More samples for statistical significance
+        # Scale iterations based on hardware (15 on baseline, 7-60 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(7, int(15 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):  # More samples for statistical significance
             start = time.time()
             # Simulate variable network delay
             base_delay = 0.020  # 20ms base
@@ -177,7 +189,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
         asymmetric_times = []
 
         # Simulate asymmetric: fast outbound, slow inbound
-        for _ in range(8):
+        # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(4, int(8 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             # Fast "request" phase
             time.sleep(0.010)  # 10ms outbound
 
@@ -215,7 +231,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
         timeout_count = 0
         success_count = 0
 
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             try:
                 # Simulate operation with 2-second latency
@@ -250,7 +270,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
         # Baseline measurement
         baseline_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.010)
             baseline_times.append((time.time() - start) * 1000)
@@ -262,7 +286,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
         # Measure under chaos
         chaos_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(1.010)  # 1s latency + 10ms base
             chaos_times.append((time.time() - start) * 1000)
@@ -272,7 +300,11 @@ class TestNetworkLatencyChaos(ChaosTestCase):
 
         # Measure recovery (immediate next operations)
         recovery_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.010)  # Should be back to baseline
             recovery_times.append((time.time() - start) * 1000)

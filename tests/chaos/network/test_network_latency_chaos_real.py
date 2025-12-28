@@ -42,7 +42,11 @@ async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, base
 
         # Measure query performance under current latency
         query_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * chaos_config.load_multiplier))
+
+        for _ in range(iterations):
             try:
                 result = await chaos_db_client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
@@ -91,7 +95,11 @@ async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, basel
 
     # Test under consistent latency for multiple operations
     consistent_times = []
-    for _ in range(10):
+    # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(5, int(10 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             query_time = result.get("_execution_time_ms", 500.0)
@@ -109,9 +117,7 @@ async def test_consistent_high_latency(chaos_db_client, chaos_test_schema, basel
 
         # Validate consistent performance
         # Should be around 500ms (the injected latency)
-        assert 400 <= avg_consistent <= 600, (
-            f"Expected ~500ms, got {avg_consistent:.1f}ms"
-        )
+        assert 400 <= avg_consistent <= 600, f"Expected ~500ms, got {avg_consistent:.1f}ms"
 
         # Variance should be small (latency is consistent)
         assert stddev_consistent < 150, (
@@ -141,7 +147,11 @@ async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metr
 
     # Test under jittery conditions
     jitter_times = []
-    for i in range(15):  # More samples for statistical significance
+    # Scale iterations based on hardware (15 on baseline, 7-60 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(7, int(15 * chaos_config.load_multiplier))
+
+    for i in range(iterations):  # More samples for statistical significance
         # Variable jitter component
         jitter_ms = (i * 17) % jitter_range_ms  # Pseudo-random: 0-100ms jitter
 
@@ -166,19 +176,13 @@ async def test_jittery_latency(chaos_db_client, chaos_test_schema, baseline_metr
 
         # Validate jitter handling
         # Should be around base + average jitter
-        assert 200 <= avg_jitter <= 400, (
-            f"Jitter test: expected 200-400ms, got {avg_jitter:.1f}ms"
-        )
+        assert 200 <= avg_jitter <= 400, f"Jitter test: expected 200-400ms, got {avg_jitter:.1f}ms"
 
         # Should show some variance (due to jitter)
-        assert stddev_jitter > 10, (
-            f"Should show variance under jitter: {stddev_jitter:.1f}ms"
-        )
+        assert stddev_jitter > 10, f"Should show variance under jitter: {stddev_jitter:.1f}ms"
 
         # P95 should be reasonable (< 550ms)
-        assert p95_jitter < 550, (
-            f"P95 should be reasonable: {p95_jitter:.1f}ms"
-        )
+        assert p95_jitter < 550, f"P95 should be reasonable: {p95_jitter:.1f}ms"
 
 
 @pytest.mark.chaos
@@ -200,7 +204,13 @@ async def test_asymmetric_latency(chaos_db_client, chaos_test_schema, baseline_m
     # Simulate asymmetric: fast outbound, slow inbound
     asymmetric_times = []
 
-    for _ in range(8):
+    # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(4, int(8 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         # Simulate asymmetric latency: request fast, response slow
         # In real scenario, request has low latency but response has high latency
         chaos_db_client.reset_chaos()
@@ -252,13 +262,16 @@ async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, base
     timeout_count = 0
     success_count = 0
 
-    for _ in range(5):
+    # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+
+    iterations = max(3, int(5 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             # Set a short timeout (1.5s) while latency is 2s
-            result = await asyncio.wait_for(
-                chaos_db_client.execute_query(operation),
-                timeout=1.5
-            )
+            result = await asyncio.wait_for(chaos_db_client.execute_query(operation), timeout=1.5)
             success_count += 1
             metrics.record_query_time(result.get("_execution_time_ms", 2000))
         except asyncio.TimeoutError:
@@ -274,7 +287,9 @@ async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, base
     # Validate timeout behavior
     assert timeout_count > 0, "Should experience timeouts under extreme latency"
     # Some operations may complete if latency happens to be just under timeout
-    assert (success_count + timeout_count) == 5, "All operations should complete (timeout or success)"
+    assert (success_count + timeout_count) == 5, (
+        "All operations should complete (timeout or success)"
+    )
 
 
 @pytest.mark.chaos
@@ -295,7 +310,11 @@ async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baselin
 
     # Baseline measurement (no chaos)
     baseline_times = []
-    for _ in range(5):
+    # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(3, int(5 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
@@ -311,7 +330,11 @@ async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baselin
 
     # Measure under chaos
     chaos_times = []
-    for _ in range(3):
+    # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(3, int(3 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 1000.0)
@@ -325,7 +348,11 @@ async def test_latency_recovery_time(chaos_db_client, chaos_test_schema, baselin
 
     # Measure recovery (immediate next operations)
     recovery_times = []
-    for _ in range(5):
+    # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    iterations = max(3, int(5 * chaos_config.load_multiplier))
+
+    for _ in range(iterations):
         try:
             result = await chaos_db_client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)

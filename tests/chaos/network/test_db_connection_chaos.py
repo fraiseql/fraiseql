@@ -39,7 +39,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
         # Measure baseline performance (no chaos)
         baseline_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             result = client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
             baseline_times.append(execution_time)
@@ -54,7 +58,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
         chaos_times = []
         errors_during_chaos = 0
 
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             try:
                 result = client.execute_query(operation)
                 execution_time = result.get("_execution_time_ms", 10.0)
@@ -73,7 +81,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
         # Test recovery - operations should work normally again
         recovery_times = []
-        for _ in range(5):
+        # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             result = client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
             recovery_times.append(execution_time)
@@ -118,7 +130,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
         # Baseline: Normal operations
         baseline_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             result = client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
             baseline_times.append(execution_time)
@@ -138,7 +154,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
         chaos_times = []
         timeouts = 0
 
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             try:
                 result = client.execute_query(operation, timeout=2.0)  # 2 second timeout
                 execution_time = result.get("_execution_time_ms", 2000.0)
@@ -158,7 +178,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
         # Test recovery
         recovery_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             result = client.execute_query(operation)
             execution_time = result.get("_execution_time_ms", 10.0)
             recovery_times.append(execution_time)
@@ -193,7 +217,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
         # Baseline
         baseline_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.01)  # 10ms connection time
             baseline_times.append((time.time() - start) * 1000)
@@ -209,7 +237,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
             # Test connection under increased latency
             connection_times = []
-            for _ in range(2):
+            # Scale iterations based on hardware (2 on baseline, 3-8 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(3, int(2 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 start = time.time()
                 time.sleep(latency_ms / 1000.0)  # Simulate connection delay
                 connection_times.append((time.time() - start) * 1000)
@@ -221,7 +253,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
         toxiproxy.remove_all_toxics("fraiseql_postgres")
 
         recovery_times = []
-        for _ in range(3):
+        # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        iterations = max(3, int(3 * self.chaos_config.load_multiplier))
+
+        for i in range(iterations):
             start = time.time()
             time.sleep(0.01)
             recovery_times.append((time.time() - start) * 1000)
@@ -253,7 +289,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 
             # Baseline successful queries
             successful_queries = 0
-            for _ in range(5):
+            # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 start = time.time()
                 time.sleep(0.020)  # 20ms query
                 successful_queries += 1
@@ -264,7 +304,11 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
             chaos_queries = 0
             interrupted_queries = 0
 
-            for _ in range(5):
+            # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(3, int(5 * self.chaos_config.load_multiplier))
+
+            for i in range(iterations):
                 start = time.time()
                 try:
                     # Simulate query that gets interrupted
