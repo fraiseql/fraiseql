@@ -72,7 +72,11 @@ async def test_transaction_rollback_recovery(chaos_db_client, chaos_test_schema,
     assert successful_transactions >= rolled_back_transactions, (
         "Should successfully commit more than roll back"
     )
-    assert rolled_back_transactions <= 3, "Rollback rate should be reasonable"
+    # Scale rollback threshold based on adaptive scaling (every 3rd tx rolls back)
+    expected_max_rollbacks = max(3, int(iterations / 3))
+    assert rolled_back_transactions <= expected_max_rollbacks, (
+        f"Rollback rate should be reasonable: {rolled_back_transactions} <= {expected_max_rollbacks}"
+    )
 
 
 @pytest.mark.chaos
@@ -376,13 +380,13 @@ async def test_cascading_failure_prevention(chaos_db_client, chaos_test_schema, 
                 primary_failures += 1
                 # Check if dependent operation also failed (cascading)
                 try:
-                    # This should not happen if cascading is prevented
+                    # Dependent operation should still succeed (no cascading)
                     complex_result = await chaos_db_client.execute_query(complex_op)
+                    contained_operations += 1  # Successfully contained the failure
+                except Exception:
+                    # Dependent operation failed - this is a cascading failure
                     cascading_failures += 1
                     metrics.record_error()
-                except Exception:
-                    # Expected: cascading failure prevented
-                    pass
             else:
                 raise
 

@@ -128,7 +128,11 @@ async def test_deadlock_detection_and_recovery(chaos_db_client, chaos_test_schem
     # Validate deadlock handling
     assert deadlock_errors > 0, "Should experience some deadlock conditions"
     assert successful_operations > deadlock_errors, "Should recover from most deadlocks"
-    assert deadlock_errors <= 4, "Deadlock rate should be reasonable"
+    # Scale deadlock threshold based on adaptive scaling (every 3rd op is a deadlock)
+    expected_max_deadlocks = max(4, int(iterations / 3) + 1)
+    assert deadlock_errors <= expected_max_deadlocks, (
+        f"Deadlock rate should be reasonable: {deadlock_errors} <= {expected_max_deadlocks}"
+    )
 
 
 @pytest.mark.chaos
