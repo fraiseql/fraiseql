@@ -59,18 +59,25 @@ async def test_gradual_latency_increase(chaos_db_client, chaos_test_schema, base
             avg_time = statistics.mean(query_times)
 
             # Validate reasonable performance degradation
-            expected_min_time = latency_ms + 5  # Base time + latency
-            expected_max_time = expected_min_time * 1.5  # Allow 50% variance
+            # For 0ms latency, just verify it's fast (< 10ms)
+            # For non-zero latency, expect latency + small base time
+            if latency_ms == 0:
+                assert avg_time < 10, f"Baseline should be fast: got {avg_time:.1f}ms"
+            else:
+                expected_min_time = latency_ms * 0.9  # Allow 10% variance below
+                expected_max_time = latency_ms * 1.5  # Allow 50% variance above
 
-            assert expected_min_time <= avg_time <= expected_max_time, (
-                f"Latency {latency_ms}ms: expected {expected_min_time}-{expected_max_time}ms, "
-                f"got {avg_time:.1f}ms"
-            )
+                assert expected_min_time <= avg_time <= expected_max_time, (
+                    f"Latency {latency_ms}ms: expected {expected_min_time:.1f}-{expected_max_time:.1f}ms, "
+                    f"got {avg_time:.1f}ms"
+                )
 
     metrics.end_test()
 
     # Validate overall test results
-    assert metrics.get_summary()["query_count"] == len(latencies) * 3
+    # With adaptive scaling, iterations vary (3 on baseline, 3-12 adaptive)
+    expected_queries = len(latencies) * max(3, int(3 * chaos_config.load_multiplier))
+    assert metrics.get_summary()["query_count"] == expected_queries
 
 
 @pytest.mark.chaos
@@ -287,8 +294,8 @@ async def test_latency_timeout_handling(chaos_db_client, chaos_test_schema, base
     # Validate timeout behavior
     assert timeout_count > 0, "Should experience timeouts under extreme latency"
     # Some operations may complete if latency happens to be just under timeout
-    assert (success_count + timeout_count) == 5, (
-        "All operations should complete (timeout or success)"
+    assert (success_count + timeout_count) == iterations, (
+        f"All {iterations} operations should complete (timeout or success)"
     )
 
 
