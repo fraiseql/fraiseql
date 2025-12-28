@@ -70,7 +70,9 @@ class TestNetworkLatencyChaos(ChaosTestCase):
         self.metrics.end_test()
 
         # Validate overall test results
-        assert self.metrics.get_summary()["query_count"] == len(latencies) * 3
+        # With adaptive scaling, iterations vary (3 on baseline, 3-12 adaptive)
+        expected_queries = len(latencies) * max(3, int(3 * self.chaos_config.load_multiplier))
+        assert self.metrics.get_summary()["query_count"] == expected_queries
 
         toxiproxy.delete_proxy("fraiseql_postgres")
 
@@ -152,7 +154,7 @@ class TestNetworkLatencyChaos(ChaosTestCase):
         for i in range(iterations):  # More samples for statistical significance
             start = time.time()
             # Simulate variable network delay
-            base_delay = 0.020  # 20ms base
+            base_delay = 0.200  # 200ms base (matching test description)
             jitter = (time.time() * 1000) % 200  # Pseudo-random jitter 0-200ms
             total_delay = base_delay + (jitter / 1000.0)
             time.sleep(total_delay)
