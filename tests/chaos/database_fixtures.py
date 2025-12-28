@@ -194,64 +194,71 @@ async def chaos_db_client(
 
 @pytest_asyncio.fixture
 async def chaos_test_schema(
-    test_schema: str, db_connection: psycopg.AsyncConnection
+    test_schema: str, class_db_pool: psycopg_pool.AsyncConnectionPool
 ) -> AsyncGenerator[str]:
     """Prepare test schema with required tables for chaos testing.
 
     Creates minimal tables needed for chaos test scenarios.
+    Uses a temporary connection that is released immediately to avoid pool exhaustion.
     """
-    # Create users table
-    await db_connection.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            email VARCHAR(255) NOT NULL UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    # Use a temporary connection that gets released immediately
+    async with class_db_pool.connection() as conn:
+        # Set schema
+        await conn.execute(f"SET search_path TO {test_schema}, public")
 
-    # Create posts table
-    await db_connection.execute("""
-        CREATE TABLE IF NOT EXISTS posts (
-            id SERIAL PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
-            content TEXT NOT NULL,
-            author_id INTEGER NOT NULL REFERENCES users(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        # Create users table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    # Create comments table
-    await db_connection.execute("""
-        CREATE TABLE IF NOT EXISTS comments (
-            id SERIAL PRIMARY KEY,
-            content TEXT NOT NULL,
-            post_id INTEGER NOT NULL REFERENCES posts(id),
-            author_id INTEGER NOT NULL REFERENCES users(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        # Create posts table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                author_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    await db_connection.commit()
+        # Create comments table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS comments (
+                id SERIAL PRIMARY KEY,
+                content TEXT NOT NULL,
+                post_id INTEGER NOT NULL REFERENCES posts(id),
+                author_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    # Insert test data
-    await db_connection.execute("""
-        INSERT INTO users (name, email) VALUES
-        ('Test User 123', 'user123@example.com'),
-        ('Test User 124', 'user124@example.com'),
-        ('Test User 125', 'user125@example.com')
-        ON CONFLICT DO NOTHING
-    """)
+        await conn.commit()
 
-    await db_connection.execute("""
-        INSERT INTO posts (title, content, author_id) VALUES
-        ('Test Post 1', 'This is test content', 1),
-        ('Test Post 2', 'More test content', 1),
-        ('Test Post 3', 'Even more content', 2)
-        ON CONFLICT DO NOTHING
-    """)
+        # Insert test data
+        await conn.execute("""
+            INSERT INTO users (name, email) VALUES
+            ('Test User 123', 'user123@example.com'),
+            ('Test User 124', 'user124@example.com'),
+            ('Test User 125', 'user125@example.com')
+            ON CONFLICT DO NOTHING
+        """)
 
-    await db_connection.commit()
+        await conn.execute("""
+            INSERT INTO posts (title, content, author_id) VALUES
+            ('Test Post 1', 'This is test content', 1),
+            ('Test Post 2', 'More test content', 1),
+            ('Test Post 3', 'Even more content', 2)
+            ON CONFLICT DO NOTHING
+        """)
+
+        await conn.commit()
+    # Connection is released here, before test runs
 
     yield test_schema
 
