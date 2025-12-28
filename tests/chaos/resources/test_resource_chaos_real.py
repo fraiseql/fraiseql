@@ -36,6 +36,11 @@ async def test_memory_pressure_handling(chaos_db_client, chaos_test_schema, base
     memory_pressure_operations = 25
     memory_stress = []
 
+    # DETERMINISTIC PATTERN: Calculate exact GC pressure iterations
+    # Industry best practice: Netflix's deterministic chaos scheduling
+    gc_interval = max(1, int(1 / 0.2))  # Every 5th iteration triggers GC pressure
+    gc_pressure_iterations = set(range(gc_interval - 1, memory_pressure_operations, gc_interval))
+
     for i in range(memory_pressure_operations):
         # Use increasingly complex operations to simulate memory pressure
         if i < 8:
@@ -51,8 +56,8 @@ async def test_memory_pressure_handling(chaos_db_client, chaos_test_schema, base
             memory_stress.append(execution_time)
             metrics.record_query_time(execution_time)
 
-            # Simulate memory pressure by introducing delays (representing GC pressure)
-            if random.random() < 0.2:  # 20% chance of memory pressure
+            # Deterministic memory pressure (GC delays)
+            if i in gc_pressure_iterations:  # Deterministic 20% rate
                 await asyncio.sleep(0.050)  # 50ms delay simulating GC or memory allocation
 
         except Exception:

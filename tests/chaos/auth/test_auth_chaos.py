@@ -305,16 +305,21 @@ class TestAuthenticationChaos(ChaosTestCase):
         results_queue = queue.Queue()
         auth_contentions = 0
 
+        # DETERMINISTIC PATTERN: Thread-based contention scheduling
+        # Every 10th thread experiences contention (10% rate)
+        contention_interval = max(1, int(1 / 0.1))
+        contention_threads = set(range(contention_interval - 1, num_threads, contention_interval))
+
         def authenticate_concurrent_request(thread_id: int):
             """Simulate authentication under concurrent load."""
             try:
-                # Simulate authentication delay (varies per request)
-                auth_delay = 0.01 + random.uniform(0, 0.02)  # 10-30ms auth time
+                # Deterministic authentication delay based on thread_id
+                auth_delay = 0.01 + ((thread_id % 20) / 1000)  # 10-30ms auth time (deterministic)
                 time.sleep(auth_delay)
 
-                # Simulate occasional auth contention
+                # Deterministic auth contention scheduling
                 nonlocal auth_contentions
-                if random.random() < 0.1:  # 10% chance of auth contention
+                if thread_id in contention_threads:  # Deterministic contention
                     auth_contentions += 1
                     time.sleep(0.05)  # Additional delay for contention
 
