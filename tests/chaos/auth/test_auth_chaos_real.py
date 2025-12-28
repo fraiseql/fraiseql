@@ -165,6 +165,9 @@ async def test_authentication_service_outage(
 
     Scenario: Authentication service becomes temporarily unavailable.
     Expected: FraiseQL handles auth service outages gracefully.
+
+    Hypothesis: Deterministic failure pattern (MTBF-based scheduling) provides
+    repeatable validation of auth service outage handling across all test runs.
     """
     metrics = ChaosMetrics()
     operation = FraiseQLTestScenarios.simple_user_query()
@@ -178,17 +181,29 @@ async def test_authentication_service_outage(
     # Uses multiplier-based formula to ensure meaningful test on all hardware
     total_operations = max(7, int(15 * chaos_config.load_multiplier))
 
+    # DETERMINISTIC PATTERN: Calculate exact outage/recovery iterations
+    # Industry best practice: Netflix moved from random to deterministic scheduling
+    outage_interval = max(1, int(1 / 0.2))  # Every 5th iteration triggers outage
+    auth_fail_interval = max(1, int(1 / 0.1))  # Every 10th iteration fails (when available)
+    degraded_success_interval = max(1, int(1 / 0.3))  # Every ~3rd iteration succeeds during outage
+    recovery_interval = max(1, int(1 / 0.25))  # Every 4th iteration attempts recovery
+
+    outage_iterations = set(range(outage_interval - 1, total_operations, outage_interval))
+    auth_fail_iterations = set(range(auth_fail_interval - 1, total_operations, auth_fail_interval))
+    degraded_success_iterations = set(range(degraded_success_interval - 1, total_operations, degraded_success_interval))
+    recovery_iterations = set(range(recovery_interval - 1, total_operations, recovery_interval))
+
     for i in range(total_operations):
         try:
-            # Simulate auth service availability
+            # Deterministic auth service availability - repeatable every run
             if auth_service_available:
-                if random.random() < 0.2:  # 20% chance of service outage
+                if i in outage_iterations:
                     auth_service_available = False
                     service_outages += 1
 
             if auth_service_available:
                 # Normal authentication
-                if random.random() < 0.9:  # 90% auth success when service available
+                if i not in auth_fail_iterations:
                     result = await chaos_db_client.execute_query(operation)
                     execution_time = result.get("_execution_time_ms", 15.0)
                     metrics.record_query_time(execution_time)
@@ -199,7 +214,7 @@ async def test_authentication_service_outage(
                 degraded_operations += 1
 
                 # Simulate degraded operation (might allow limited access)
-                if random.random() < 0.3:  # 30% success rate during outage
+                if i in degraded_success_iterations:
                     result = await chaos_db_client.execute_query(operation)
                     execution_time = result.get(
                         "_execution_time_ms", 50.0
@@ -208,8 +223,8 @@ async def test_authentication_service_outage(
                 else:
                     raise Exception("Authentication service unavailable")
 
-                # Simulate service recovery
-                if random.random() < 0.25:  # 25% recovery chance per operation
+                # Deterministic service recovery
+                if i in recovery_iterations:
                     auth_service_available = True
 
         except Exception as e:

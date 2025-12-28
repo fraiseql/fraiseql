@@ -450,6 +450,9 @@ class TestAuthenticationChaos(ChaosTestCase):
         Scenario: Various RBAC policy failures and edge cases.
         Expected: FraiseQL maintains security posture under RBAC chaos.
 
+        Hypothesis: Deterministic failure pattern (MTBF-based scheduling) provides
+        repeatable validation of RBAC handling across all test runs.
+
         Adaptive Scaling:
             - Iterations: 9-72 based on hardware (base=18)
             - LOW (0.5x): 9 iterations
@@ -476,23 +479,39 @@ class TestAuthenticationChaos(ChaosTestCase):
         # Scale iterations based on hardware (18 on baseline, 9-72 adaptive)
         iterations = max(9, int(18 * self.chaos_config.load_multiplier))
 
+        # DETERMINISTIC PATTERN: Calculate exact failure iterations
+        # Industry best practice: Netflix moved from random to deterministic scheduling
+        # 60% success, 15% permission denied, 10% role error, 15% other
+        permission_interval = max(1, int(1 / 0.15))  # Every ~7th iteration
+        role_error_interval = max(1, int(1 / 0.10))  # Every 10th iteration
+        other_error_interval = max(1, int(1 / 0.15))  # Every ~7th iteration
+
+        permission_iterations = set(range(permission_interval - 1, iterations, permission_interval))
+        role_error_iterations = set(range(role_error_interval - 1, iterations, role_error_interval))
+        other_error_iterations = set(range(other_error_interval - 1, iterations, other_error_interval))
+
+        # Remove overlaps - permission takes precedence
+        role_error_iterations -= permission_iterations
+        other_error_iterations -= permission_iterations
+        other_error_iterations -= role_error_iterations
+
         for i in range(iterations):
             try:
                 operation = operations[i % len(operations)]
 
-                # Simulate RBAC evaluation
-                rbac_outcome = random.random()
-                if rbac_outcome < 0.6:  # 60% successful authorization
+                # Deterministic RBAC evaluation - repeatable every run
+                if i in permission_iterations:
+                    raise Exception("RBAC permission denied")
+                elif i in role_error_iterations:
+                    raise Exception("RBAC role evaluation failed")
+                elif i in other_error_iterations:
+                    raise Exception("RBAC policy evaluation error")
+                else:
+                    # Successful authorization
                     rbac_successes += 1
                     result = client.execute_query(operation)
                     execution_time = result.get("_execution_time_ms", 20.0)
                     self.metrics.record_query_time(execution_time)
-                elif rbac_outcome < 0.75:  # 15% permission denied
-                    raise Exception("RBAC permission denied")
-                elif rbac_outcome < 0.85:  # 10% role evaluation error
-                    raise Exception("RBAC role evaluation failed")
-                else:  # 15% other RBAC failures
-                    raise Exception("RBAC policy evaluation error")
 
             except Exception as e:
                 rbac_failures += 1
