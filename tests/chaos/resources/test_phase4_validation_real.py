@@ -17,7 +17,9 @@ from chaos.base import ChaosMetrics
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_resource_exhaustion_recovery_time(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_resource_exhaustion_recovery_time(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Validate resource exhaustion recovery time.
 
@@ -82,7 +84,9 @@ async def test_resource_exhaustion_recovery_time(chaos_db_client, chaos_test_sch
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_concurrent_throughput_under_load(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_concurrent_throughput_under_load(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Validate concurrent throughput under resource load.
 
@@ -137,7 +141,9 @@ async def test_concurrent_throughput_under_load(chaos_db_client, chaos_test_sche
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_deadlock_detection_and_recovery(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_deadlock_detection_and_recovery(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Validate deadlock detection and recovery.
 
@@ -288,7 +294,9 @@ async def test_extreme_concurrency_handling(chaos_db_client, chaos_test_schema, 
 @pytest.mark.chaos_validation
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_graceful_degradation_under_stress(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_graceful_degradation_under_stress(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Validate graceful degradation under stress.
 

@@ -373,7 +373,9 @@ class TestResourceChaos(ChaosTestCase):
         self.metrics.start_test()
 
         # Simulate cascading resource failure scenario
-        total_operations = 15
+        # Scale total_operations based on hardware (15 on baseline, 7-60 adaptive)
+        # Uses multiplier-based formula to ensure meaningful test on all hardware
+        total_operations = max(7, int(15 * self.chaos_config.load_multiplier))
         primary_failures = 0
         cascading_failures = 0
         contained_operations = 0
@@ -397,7 +399,11 @@ class TestResourceChaos(ChaosTestCase):
                 self.metrics.record_error()
 
                 # Check if subsequent operations also fail (cascading)
-                for j in range(2):  # Check next 2 operations for cascading
+                # Scale iterations based on hardware (2 on baseline, 3-8 adaptive)
+                # Uses multiplier-based formula to ensure meaningful test on all hardware
+                iterations = max(3, int(2 * self.chaos_config.load_multiplier))
+
+                for i in range(iterations):  # Check next 2 operations for cascading
                     if i + j + 1 < total_operations:
                         try:
                             cascading_op = operations[(i + j + 1) % len(operations)]

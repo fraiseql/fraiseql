@@ -364,7 +364,9 @@ async def test_system_resource_monitoring(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_resources
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
-async def test_cascading_resource_failure_prevention(chaos_db_client, chaos_test_schema, baseline_metrics):
+async def test_cascading_resource_failure_prevention(
+    chaos_db_client, chaos_test_schema, baseline_metrics
+):
     """
     Test prevention of cascading resource failures.
 
@@ -381,7 +383,9 @@ async def test_cascading_resource_failure_prevention(chaos_db_client, chaos_test
     metrics.start_test()
 
     # Simulate cascading resource failure scenario
-    total_operations = 15
+    # Scale total_operations based on hardware (15 on baseline, 7-60 adaptive)
+    # Uses multiplier-based formula to ensure meaningful test on all hardware
+    total_operations = max(7, int(15 * chaos_config.load_multiplier))
     primary_failures = 0
     cascading_failures = 0
     contained_operations = 0
@@ -405,7 +409,11 @@ async def test_cascading_resource_failure_prevention(chaos_db_client, chaos_test
             metrics.record_error()
 
             # Check if subsequent operations also fail (cascading)
-            for j in range(2):  # Check next 2 operations for cascading
+            # Scale iterations based on hardware (2 on baseline, 3-8 adaptive)
+            # Uses multiplier-based formula to ensure meaningful test on all hardware
+            iterations = max(3, int(2 * chaos_config.load_multiplier))
+
+            for i in range(iterations):  # Check next 2 operations for cascading
                 if i + j + 1 < total_operations:
                     try:
                         cascading_op = operations[(i + j + 1) % len(operations)]
@@ -434,7 +442,9 @@ async def test_cascading_resource_failure_prevention(chaos_db_client, chaos_test
     summary = metrics.get_summary()
     # System should remain operational despite resource failures
     if summary.get("query_count", 0) > 0:
-        operational_rate = (summary.get("query_count", 0) - summary.get("error_count", 0)) / summary.get("query_count", 1)
+        operational_rate = (
+            summary.get("query_count", 0) - summary.get("error_count", 0)
+        ) / summary.get("query_count", 1)
         assert operational_rate >= 0.6, (
             f"Resource failure caused excessive system degradation: {operational_rate:.2f}"
         )

@@ -76,9 +76,7 @@ class Phase4SuccessCriteria:
         elif resource_type == "disk_io":
             # I/O operations may have higher failure rates due to contention
             if success_rate < 0.7:  # Lower threshold for I/O
-                issues.append(
-                    f"Disk I/O success rate too low: {success_rate:.1%} (min 70%)"
-                )
+                issues.append(f"Disk I/O success rate too low: {success_rate:.1%} (min 70%)")
                 passed = False
 
         elif resource_type == "resource_exhaustion":
