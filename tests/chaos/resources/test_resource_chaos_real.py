@@ -365,7 +365,7 @@ async def test_system_resource_monitoring(chaos_db_client, chaos_test_schema, ba
 @pytest.mark.chaos_real_db
 @pytest.mark.asyncio
 async def test_cascading_resource_failure_prevention(
-    chaos_db_client, chaos_test_schema, baseline_metrics
+    chaos_db_client, chaos_test_schema, baseline_metrics, chaos_config
 ):
     """
     Test prevention of cascading resource failures.
