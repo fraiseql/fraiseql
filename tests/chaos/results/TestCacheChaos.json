@@ -1,11 +1,11 @@
 {
   "test_class": "TestCacheChaos",
-  "timestamp": 1766954696.6880734,
+  "timestamp": 1766956019.0561287,
   "metrics": {
-    "duration_ms": 150.22730827331543,
+    "duration_ms": 129.7001838684082,
     "query_count": 25,
-    "avg_query_time_ms": 7.770047705311774,
-    "p95_query_time_ms": 10.746121406555176,
+    "avg_query_time_ms": 7.21527130516188,
+    "p95_query_time_ms": 11.246037483215332,
     "error_count": 0,
     "retry_count": 0,
     "chaos_active_duration_ms": null
