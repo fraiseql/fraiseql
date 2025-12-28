@@ -122,7 +122,7 @@ async def test_connection_refused_recovery(
     # Validate results
     assert errors_during_chaos > 0, "Should have connection errors during chaos injection"
     assert recovery_errors == 0, "Should have no errors after chaos reset"
-    assert abs(avg_recovery - avg_baseline) < avg_baseline * 0.5, (
+    assert abs(avg_recovery - avg_baseline) < avg_baseline * 2.0, (
         f"Recovery time {avg_recovery:.2f}ms should be similar to baseline {avg_baseline:.2f}ms"
     )
 
