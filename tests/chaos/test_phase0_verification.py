@@ -21,7 +21,7 @@ class TestPhase0Infrastructure(ChaosTestCase):
         baselines = self.load_baseline()
         assert isinstance(baselines, dict)
         assert len(baselines) > 0
-        assert "simple_query" in baselines
+        assert "simple_user_query" in baselines
 
     def test_metrics_collection(self):
         """Test that metrics collection works."""
@@ -42,7 +42,7 @@ class TestPhase0Infrastructure(ChaosTestCase):
         self.metrics.record_query_time(15.0)  # Same as baseline
         self.metrics.end_test()
 
-        comparison = self.compare_to_baseline("simple_query")
+        comparison = self.compare_to_baseline("simple_user_query")
         assert "current" in comparison
         assert "baseline" in comparison
 
