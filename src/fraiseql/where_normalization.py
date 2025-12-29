@@ -86,16 +86,18 @@ def normalize_dict_where(
         if original_field_name == "OR":
             # OR is a list of WHERE clauses
             if isinstance(field_value, list):
-                or_conditions = []
+                or_clauses = []
                 for or_dict in field_value:
                     or_clause = normalize_dict_where(
                         or_dict, view_name, table_columns, jsonb_column
                     )
-                    or_conditions.extend(or_clause.conditions)
+                    # CRITICAL FIX: Preserve the entire WhereClause structure
+                    # Don't flatten to just conditions - this loses AND grouping
+                    or_clauses.append(or_clause)
 
-                # Create nested OR clause
-                if or_conditions:
-                    nested_clauses.append(WhereClause(conditions=or_conditions, logical_op="OR"))
+                # Create nested OR clause by combining the clauses
+                if or_clauses:
+                    nested_clauses.append(WhereClause(nested_clauses=or_clauses, logical_op="OR"))
             continue
 
         if original_field_name == "AND":
@@ -105,7 +107,14 @@ def normalize_dict_where(
                     and_clause = normalize_dict_where(
                         and_dict, view_name, table_columns, jsonb_column
                     )
-                    conditions.extend(and_clause.conditions)
+                    # CRITICAL FIX: Preserve nested clauses (like OR inside AND)
+                    # If the clause has nested structures, preserve it as a nested clause
+                    if and_clause.nested_clauses or and_clause.not_clause:
+                        # Has complex structure - preserve as nested clause
+                        nested_clauses.append(and_clause)
+                    else:
+                        # Simple conditions - can be flattened into parent AND
+                        conditions.extend(and_clause.conditions)
             continue
 
         if original_field_name == "NOT":
