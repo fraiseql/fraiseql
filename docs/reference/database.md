@@ -1,3 +1,15 @@
+---
+title: Database API Reference
+description: Complete reference for FraiseQLRepository and database operations
+tags:
+  - database
+  - API
+  - repository
+  - queries
+  - PostgreSQL
+  - CRUD
+---
+
 # Database API Reference
 
 Complete reference for FraiseQL database operations and repository methods.

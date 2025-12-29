@@ -1,3 +1,14 @@
+---
+title: Configuration API Reference
+description: Complete API reference for FraiseQLConfig class with all configuration options
+tags:
+  - configuration
+  - API
+  - settings
+  - FraiseQLConfig
+  - environment
+---
+
 # FraiseQLConfig API Reference
 
 Complete API reference for FraiseQLConfig class with all configuration options for v1.6.1.
