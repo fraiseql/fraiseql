@@ -414,7 +414,11 @@ fn transform_with_aliases(
                     // 1. Exactly matches the field_path (leaf field selected)
                     // 2. Starts with field_path + "." (children of this field selected)
                     alias_map.keys().any(|path| {
-                        path == &field_path || path.starts_with(&format!("{}.", field_path))
+                        path == &field_path || (
+                            path.len() > field_path.len() + 1 &&
+                            path.starts_with(&field_path) &&
+                            path.as_bytes()[field_path.len()] == b'.'
+                        )
                     })
                 };
 
@@ -457,9 +461,13 @@ fn transform_with_aliases(
                     None => {
                         // Field not in schema
                         // Check if we have nested selections for this field in alias_map
-                        let has_nested_selections = alias_map.keys().any(|path| {
-                            path.starts_with(&format!("{}.", field_path))
-                        });
+                        let has_nested_selections = alias_map
+                            .keys()
+                            .any(|path| {
+                                path.len() > field_path.len() + 1 &&
+                                path.starts_with(&field_path) &&
+                                path.as_bytes()[field_path.len()] == b'.'
+                            });
 
                         if has_nested_selections {
                             // Field has nested selections, so recursively transform with filtering
