@@ -202,41 +202,62 @@ class TestAuthenticationChaos(ChaosTestCase):
 
         Configuration:
             Uses self.chaos_config (auto-injected by conftest.py fixture)
+
+        Deterministic Pattern (Netflix MTBF-based):
+            - Service outages at every 5th operation (20% MTBF rate)
+            - Auth failures at every 10th operation when service available (10% rate)
+            - Degraded success at every 3rd-4th operation during outage (30% rate)
+            - Recovery after 4 operations in outage (deterministic)
         """
         client = MockFraiseQLClient()
         operation = FraiseQLTestScenarios.simple_user_query()
 
         self.metrics.start_test()
 
-        auth_service_available = True
-        service_outages = 0
-        degraded_operations = 0
-
         # Scale iterations based on hardware (15 on baseline, 8-60 adaptive)
         total_operations = max(8, int(15 * self.chaos_config.load_multiplier))
 
+        # Deterministic scheduling (MTBF-based)
+        outage_interval = max(1, int(1 / 0.2))  # Every 5th operation (20% rate)
+        outage_start_iterations = set(range(outage_interval - 1, total_operations, outage_interval))
+
+        auth_failure_interval = max(1, int(1 / 0.1))  # Every 10th operation (10% rate)
+        auth_failure_iterations = set(range(auth_failure_interval - 1, total_operations, auth_failure_interval))
+        # Remove overlaps - outage takes precedence
+        auth_failure_iterations -= outage_start_iterations
+
+        degraded_success_interval = max(1, int(1 / 0.3))  # Every ~3rd operation (30% rate)
+
+        # State tracking
+        auth_service_available = True
+        outage_start = None
+        service_outages = 0
+        degraded_operations = 0
+
         for i in range(total_operations):
             try:
-                # Simulate auth service availability
-                if auth_service_available:
-                    if random.random() < 0.2:  # 20% chance of service outage
-                        auth_service_available = False
-                        service_outages += 1
-                        print(f"Auth service outage at operation {i}")
+                # Deterministic service outage
+                if auth_service_available and i in outage_start_iterations:
+                    auth_service_available = False
+                    outage_start = i
+                    service_outages += 1
+                    print(f"Auth service outage at operation {i}")
 
                 if auth_service_available:
-                    # Normal authentication
-                    if random.random() < 0.9:  # 90% auth success when service available
+                    # Normal authentication - deterministic failures
+                    if i in auth_failure_iterations:
+                        raise Exception("Authentication failed")
+                    else:
                         result = client.execute_query(operation)
                         execution_time = result.get("_execution_time_ms", 15.0)
                         self.metrics.record_query_time(execution_time)
-                    else:
-                        raise Exception("Authentication failed")
                 else:
                     # Auth service unavailable - should handle gracefully
                     degraded_operations += 1
-                    # Simulate degraded operation (might allow limited access)
-                    if random.random() < 0.3:  # 30% success rate during outage
+                    operations_in_outage = i - outage_start
+
+                    # Deterministic degraded success (every 3rd operation during outage)
+                    if operations_in_outage % degraded_success_interval == 0:
                         result = client.execute_query(operation)
                         execution_time = result.get(
                             "_execution_time_ms", 50.0
@@ -245,9 +266,10 @@ class TestAuthenticationChaos(ChaosTestCase):
                     else:
                         raise Exception("Authentication service unavailable")
 
-                    # Simulate service recovery
-                    if random.random() < 0.25:  # 25% recovery chance per operation
+                    # Deterministic service recovery (after 4 operations in outage)
+                    if operations_in_outage >= 4:
                         auth_service_available = True
+                        outage_start = None
                         print(f"Auth service recovered at operation {i}")
 
             except Exception as e:

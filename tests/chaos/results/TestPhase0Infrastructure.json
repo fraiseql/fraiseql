@@ -1,8 +1,8 @@
 {
   "test_class": "TestPhase0Infrastructure",
-  "timestamp": 1766997257.7121398,
+  "timestamp": 1767001613.5349586,
   "metrics": {
-    "duration_ms": 0.4897117614746094,
+    "duration_ms": 0.3731250762939453,
     "query_count": 1,
     "avg_query_time_ms": 15.0,
     "p95_query_time_ms": null,
