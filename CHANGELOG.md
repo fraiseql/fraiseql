@@ -2517,7 +2517,7 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
   - Step-by-step diagnosis and fixes for top 10 user issues
   - Most common issues table with quick fixes
 
-- **Benchmark Methodology** (`docs/benchmarks/methodology.md`)
+- **Benchmark Methodology** (`benchmarks/methodology.md`)
   - Reproducible benchmarks with complete methodology
   - JSON transformation speed: 7-10x faster (with reproduction steps)
   - Full request latency: P95 8.5ms vs competitors (Strawberry 28.7ms, Hasura 14.2ms)
@@ -2550,7 +2550,6 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
 - **Updated Main Documentation**
   - `README.md`: Added benchmark methodology links under Performance Guide
   - `docs/README.md`: Added Feature Discovery section
-  - `docs/deployment/README.md`: Complete deployment template sections with production checklist
 
 #### Removed
 
@@ -2584,18 +2583,17 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
 - [Feature Matrix](docs/features/index.md)
 
 **Production Deployment**
-- [Deployment Guide](docs/deployment/README.md)
 - [Docker Compose Template](deployment/docker-compose.prod.yml)
 - [Kubernetes Manifests](deployment/k8s/)
-- [Production Checklist](docs/production/README.md#production-checklist)
+- [Production Runbooks](docs/production/runbooks/)
 
 **Troubleshooting**
 - [Decision Tree](docs/guides/troubleshooting-decision-tree.md) (diagnostic guide)
 - [Detailed Guide](docs/guides/troubleshooting.md) (error-specific solutions)
 
 **Performance**
-- [Benchmark Methodology](docs/benchmarks/methodology.md)
-- [Reproduction Guide](docs/benchmarks/methodology.md#reproduction-instructions)
+- [Benchmark Methodology](benchmarks/methodology.md)
+- [Reproduction Guide](benchmarks/methodology.md#reproduction-instructions)
 
 ### 🔄 Upgrade from v1.0.0
 
@@ -2712,7 +2710,7 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 🚀 Next Steps
 
-See [docs/strategic/version-status.md](docs/strategic/version-status.md) for the v1.1+ roadmap.
+See [docs/archive/strategic/version-status.md](docs/archive/strategic/version-status.md) for the version status and roadmap.
 
 ---
 

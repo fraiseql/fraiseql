@@ -299,9 +299,9 @@ jobs:
       run: |
         echo "=== Running Clippy Strict Mode ==="
         echo "This enforces zero-warning policy to maintain Rust quality audit standards"
-        echo "Checking library code (excluding benchmarks due to packed_simd compatibility issues)"
+        echo "Checking library code (excluding SIMD feature which requires nightly Rust)"
         cd fraiseql_rs
-        cargo clippy --lib --all-features -- -D warnings
+        cargo clippy --lib --no-default-features -- -D warnings
         echo "✅ Clippy strict mode passed - zero warnings"
 
   security:
