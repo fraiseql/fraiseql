@@ -285,6 +285,25 @@ jobs:
     - name: Run ruff format check
       run: uv run ruff format --check .
 
+  rust-lint:
+    name: Rust Lint (Clippy Strict)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: clippy
+    - name: Run clippy with strict mode (zero warnings)
+      run: |
+        echo "=== Running Clippy Strict Mode ==="
+        echo "This enforces zero-warning policy to maintain Rust quality audit standards"
+        echo "Checking library code (excluding benchmarks due to packed_simd compatibility issues)"
+        cd fraiseql_rs
+        cargo clippy --lib --all-features -- -D warnings
+        echo "✅ Clippy strict mode passed - zero warnings"
+
   security:
     name: Security
     runs-on: ubuntu-latest
@@ -427,7 +446,7 @@ jobs:
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-postgres, lint, security, performance]
+    needs: [unit-tests, integration-postgres, lint, rust-lint, security, performance]
     if: always()
     steps:
       - name: Check quality gate status
@@ -443,6 +462,10 @@ jobs:
           fi
           if [[ "${{ needs.lint.result }}" != "success" ]]; then
             echo "❌ Lint checks failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.rust-lint.result }}" != "success" ]]; then
+            echo "❌ Rust lint (clippy strict) failed - Quality gate blocked"
             exit 1
           fi
           if [[ "${{ needs.security.result }}" != "success" ]]; then
