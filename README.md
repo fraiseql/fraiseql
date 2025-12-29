@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.8.9) - Stable Release**
+**📍 You are here: Main FraiseQL Framework (v1.9.0) - Stable Release**
 
-**Current Version**: v1.8.9 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Current Version**: v1.9.0 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
@@ -906,7 +906,7 @@ class FinancialRecord:
     margin: Percentage           # Percentages (0.00-100.00)
     security_id: CUSIP | ISIN    # Financial instrument identifiers
 
-@fraiseql.type(sql_source="v_network_devices")
+@fraiseql.type(sql_source="v_network_device")
 class NetworkDevice:
     id: int
     ip_address: IPv4             # IPv4 addresses with subnet operations
@@ -964,7 +964,7 @@ class DeletePost:
 Three types of identifiers per entity for different purposes:
 
 ```python
-@fraiseql.type(sql_source="posts")
+@fraiseql.type(sql_source="v_post")
 class Post(TrinityMixin):
     """
     Trinity Pattern:
@@ -1182,8 +1182,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.8.9** | Root level | Stable | Current production release | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.8.9+ | ✅ Stable |
+| **v1.9.0** | Root level | Stable | Current production release | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.9.0+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

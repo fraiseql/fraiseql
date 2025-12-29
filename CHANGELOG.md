@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2025-12-29
+
+### Added
+
+#### Operational Runbooks
+
+Added comprehensive operational runbooks for production incident response (~4,000 lines of documentation):
+
+- **Database Performance Degradation** - Diagnose and resolve slow queries, connection pool issues, and query timeouts
+- **High Memory Usage** - Handle memory leaks, OOM events, and resource exhaustion
+- **Rate Limiting Triggered** - Investigate rate limit violations and distinguish legitimate traffic from abuse
+- **GraphQL Query DoS** - Detect and mitigate expensive queries and DoS attacks
+- **Authentication Failures** - Troubleshoot auth failures, token issues, and brute force attacks
+
+**Features:**
+- MTTR targets (10-20 minutes per incident)
+- Prometheus alert rules and Grafana dashboard panels
+- Structured log parsing with jq examples
+- PostgreSQL diagnostic queries
+- Step-by-step resolution procedures (immediate, short-term, long-term)
+- Post-incident review templates
+- Escalation paths and emergency contacts
+
+**Location:** `docs/production/runbooks/`
+
 ### Fixed
 
 #### Complex AND/OR WHERE Clause Filtering (Issue #124 Edge Cases)
@@ -176,7 +201,7 @@ Completed comprehensive 6-phase Rust safety audit achieving **zero clippy errors
 
 ### Features
 
-## [1.8.9] - 2025-12-20
+## [1.9.0] - 2025-12-20
 
 ### Fixed
 
