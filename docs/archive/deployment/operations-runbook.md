@@ -474,8 +474,8 @@ docker-compose stop fraiseql
 
 # Verify data integrity
 docker-compose exec db psql -U fraiseql -d fraiseql_prod -c "
-SELECT count(*) FROM users;
-SELECT max(created_at) FROM users;
+SELECT count(*) FROM v_user;
+SELECT max(created_at) FROM v_user;
 "
 
 # Restart application

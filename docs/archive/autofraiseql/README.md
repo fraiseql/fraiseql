@@ -50,7 +50,7 @@ type Mutation {
 
 ```sql
 -- Create a users table
-CREATE TABLE users (
+CREATE TABLE tb_user (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL UNIQUE,
   name text NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE users (
 
 -- Create a view with a comment
 CREATE VIEW app.v_user_profile AS
-SELECT id, email, name, created_at FROM users;
+SELECT id, email, name, created_at FROM v_user;
 
 COMMENT ON VIEW app.v_user_profile IS 'User profile data with contact information';
 
@@ -69,7 +69,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  INSERT INTO users (email, name) VALUES (email, name)
+  INSERT INTO tb_user (email, name) VALUES (email, name)
   RETURNING row_to_json(users.*)::jsonb;
 END;
 $$;

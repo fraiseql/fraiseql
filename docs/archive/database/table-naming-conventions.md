@@ -619,8 +619,8 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 **Simple naming without prefixes** (NOT recommended for production):
 ```sql
 -- Simple naming (no prefixes) - FOR PROTOTYPES ONLY
-CREATE TABLE users (...);
-CREATE TABLE posts (...);
+CREATE TABLE tb_user (...);
+CREATE TABLE tb_post (...);
 
 -- Generated column for GraphQL
 ALTER TABLE users ADD COLUMN data JSONB GENERATED ALWAYS AS (...) STORED;

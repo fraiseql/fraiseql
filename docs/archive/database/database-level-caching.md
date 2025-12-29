@@ -37,7 +37,7 @@ Optimization target: Database layer
 
 ```sql
 -- Query plan cache
-PREPARE get_user AS SELECT data FROM users WHERE id = $1;
+PREPARE get_user AS SELECT data FROM v_user WHERE id = $1;
 EXECUTE get_user(1);  -- Uses cached plan
 
 -- Buffer pool (shared_buffers)
@@ -89,7 +89,7 @@ CREATE TABLE tb_user (
             'email', email,
             'user_posts', (
                 SELECT jsonb_agg(...)
-                FROM posts
+                FROM v_post
                 WHERE user_id = users.id
                 LIMIT 10
             )
@@ -100,7 +100,7 @@ CREATE TABLE tb_user (
 
 **Performance**:
 ```
-Query: SELECT data FROM users WHERE id = 1;
+Query: SELECT data FROM v_user WHERE id = 1;
 Execution: 0.05ms (indexed lookup + JSONB retrieve)
 
 Without generated column:
@@ -128,17 +128,17 @@ Complex aggregations that are:
 -- Materialized view for dashboard stats
 CREATE MATERIALIZED VIEW mv_dashboard_stats AS
 SELECT
-    (SELECT COUNT(*) FROM users) as total_users,
-    (SELECT COUNT(*) FROM posts) as total_posts,
-    (SELECT COUNT(*) FROM posts WHERE created_at > NOW() - INTERVAL '24 hours') as posts_today,
-    (SELECT AVG(LENGTH(content)) FROM posts) as avg_post_length,
+    (SELECT COUNT(*) FROM v_user) as total_users,
+    (SELECT COUNT(*) FROM v_post) as total_posts,
+    (SELECT COUNT(*) FROM v_post WHERE created_at > NOW() - INTERVAL '24 hours') as posts_today,
+    (SELECT AVG(LENGTH(content)) FROM v_post) as avg_post_length,
     jsonb_build_object(
         'top_users', (
             SELECT jsonb_agg(jsonb_build_object('id', id, 'name', name, 'post_count', post_count))
             FROM (
                 SELECT u.id, u.name, COUNT(p.id) as post_count
-                FROM users u
-                LEFT JOIN posts p ON p.user_id = u.id
+                FROM v_user u
+                LEFT JOIN v_post p ON p.user_id = u.id
                 GROUP BY u.id
                 ORDER BY post_count DESC
                 LIMIT 10
@@ -312,7 +312,7 @@ CREATE INDEX idx_users_active ON users(id)
 WHERE active = true AND deleted_at IS NULL;  -- 100MB index
 
 -- Query (uses smaller, faster index)
-SELECT data FROM users WHERE id = 123 AND active = true AND deleted_at IS NULL;
+SELECT data FROM v_user WHERE id = 123 AND active = true AND deleted_at IS NULL;
 ```
 
 **Performance**:
@@ -668,7 +668,7 @@ CREATE TABLE tb_user (
                     )
                     ORDER BY p.created_at DESC
                 )
-                FROM posts p
+                FROM v_post p
                 WHERE p.user_id = users.id AND p.deleted_at IS NULL
                 LIMIT 10
             )
@@ -690,8 +690,8 @@ SELECT
             SELECT jsonb_agg(jsonb_build_object('id', id, 'name', first_name, 'posts', post_count))
             FROM (
                 SELECT u.id, u.first_name, COUNT(p.id) as post_count
-                FROM users u
-                LEFT JOIN posts p ON p.user_id = u.id
+                FROM v_user u
+                LEFT JOIN v_post p ON p.user_id = u.id
                 GROUP BY u.id
                 ORDER BY post_count DESC
                 LIMIT 10
@@ -730,7 +730,7 @@ class Dashboard:
 async def user(info, id: int) -> User:
     """
     Pipeline:
-    1. SELECT data FROM users WHERE id = $1 (0.05ms - partial index)
+    1. SELECT data FROM v_user WHERE id = $1 (0.05ms - partial index)
     2. Rust transform (0.5ms)
     Total: 0.55ms
     """

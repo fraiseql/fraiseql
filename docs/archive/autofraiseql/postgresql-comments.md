@@ -16,7 +16,7 @@ PostgreSQL view comments become GraphQL object type descriptions.
 -- Create a view with a comment
 CREATE VIEW app.v_user_profile AS
 SELECT id, email, name, created_at
-FROM users;
+FROM v_user;
 
 -- Add a descriptive comment
 COMMENT ON VIEW app.v_user_profile IS 'User profile data with contact information';
@@ -88,7 +88,7 @@ When multiple comment sources are available, FraiseQL uses this priority order:
 
 ```sql
 -- Create user table
-CREATE TABLE users (
+CREATE TABLE tb_user (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL,
   name text NOT NULL,
@@ -102,7 +102,7 @@ COMMENT ON COLUMN users.created_at IS 'Account creation timestamp (UTC)';
 
 -- Create view with comment
 CREATE VIEW app.v_user_profile AS
-SELECT id, email, name, created_at FROM users;
+SELECT id, email, name, created_at FROM v_user;
 
 COMMENT ON VIEW app.v_user_profile IS 'User profile data with contact information';
 

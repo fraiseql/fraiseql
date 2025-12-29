@@ -280,7 +280,7 @@ services:
 **Database Schema** (required for all submissions):
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -289,7 +289,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE posts (
+CREATE TABLE tb_post (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT,

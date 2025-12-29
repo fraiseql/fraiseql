@@ -205,7 +205,7 @@ SELECT 'tv_user_with_stats rows', COUNT(*) FROM tv_user_with_stats;
 **Test performance:**
 ```sql
 -- Compare query performance
-EXPLAIN ANALYZE SELECT * FROM users WHERE id = $1;
+EXPLAIN ANALYZE SELECT * FROM v_user WHERE id = $1;
 -- Expected: 5-10ms (table scan)
 
 EXPLAIN ANALYZE SELECT * FROM tv_user_with_stats WHERE id = $1;
@@ -299,7 +299,7 @@ FOREIGN KEY (user_id) REFERENCES tb_user(id);
 ```sql
 -- This view breaks after rename
 CREATE VIEW user_summary AS
-SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM v_user;
 ```
 
 **Solution:** Update view definitions
@@ -314,7 +314,7 @@ SELECT COUNT(*) FROM tb_user;
 **Problem:** Hard-coded SQL references old names
 ```python
 # This breaks after migration
-cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+cursor.execute("SELECT * FROM v_user WHERE id = %s", (user_id,))
 ```
 
 **Solution:** Use FraiseQL repository pattern
@@ -329,7 +329,7 @@ user = await db.find_one("v_user", id=user_id)
 ```sql
 -- Materialized view breaks
 CREATE MATERIALIZED VIEW mv_user_stats AS
-SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM v_user;
 ```
 
 **Solution:** Refresh materialized views after migration
