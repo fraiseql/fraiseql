@@ -128,6 +128,7 @@ nav:
     - Advanced Patterns: advanced/advanced-patterns.md
   - Performance:
     - Overview: performance/index.md
+    - Benchmarking Guide: performance/benchmarking-guide.md
     - Rust Pipeline: performance/rust-pipeline-optimization.md
     - APQ Optimization: performance/apq-optimization-guide.md
     - Caching: performance/caching.md
