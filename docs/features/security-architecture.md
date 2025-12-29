@@ -20,7 +20,7 @@ SELECT
     -- Explicitly exclude: password_hash, ssn, internal_notes
     created_at,
     updated_at
-FROM users
+FROM v_user
 WHERE deleted_at IS NULL;
 ```
 
@@ -51,7 +51,7 @@ class UserType(DjangoObjectType):
 ```sql
 -- View only contains safe fields by design
 CREATE VIEW user_safe AS
-SELECT id, email, created_at FROM users;
+SELECT id, email, created_at FROM v_user;
 ```
 ```python
 # Type can only reference fields that exist in the view
@@ -82,7 +82,7 @@ def resolve_user(self, info, user_id):
 ```sql
 -- Database never loads sensitive fields
 CREATE VIEW user_public AS
-SELECT id, email, created_at FROM users;
+SELECT id, email, created_at FROM v_user;
 ```
 
 The database view ensures sensitive fields are never loaded from disk, eliminating the possibility of accidental exposure through coding errors or misconfigurations.
@@ -135,29 +135,29 @@ SELECT
     display_name,
     avatar_url
     -- No email, no internal fields
-FROM users;
+FROM v_user;
 ```
 
 ### 2. Contextual Views for Different Roles
 ```sql
 -- Public profile view
 CREATE VIEW user_public AS
-SELECT id, display_name FROM users;
+SELECT id, display_name FROM v_user;
 
 -- Admin view with more fields
 CREATE VIEW user_admin AS
-SELECT id, email, role, last_login FROM users;
+SELECT id, email, role, last_login FROM v_user;
 
 -- Self view for account management
 CREATE VIEW user_self AS
-SELECT id, email, display_name, settings FROM users;
+SELECT id, email, display_name, settings FROM v_user;
 ```
 
 ### 3. Row-Level Security Integration
 ```sql
 -- Combine with PostgreSQL RLS
 CREATE VIEW posts_visible AS
-SELECT * FROM posts
+SELECT * FROM v_post
 WHERE author_id = current_user_id()
    OR visibility = 'public';
 
@@ -173,7 +173,7 @@ SELECT
     created_at,
     updated_at,
     updated_by
-FROM users;
+FROM v_user;
 ```
 
 ## Migration from Traditional GraphQL
@@ -194,7 +194,7 @@ def resolve_user_email(self, info):
 -- Permission logic becomes view logic
 CREATE VIEW user_with_email AS
 SELECT u.id, u.email
-FROM users u
+FROM v_user u
 JOIN user_permissions p ON p.user_id = u.id
 WHERE p.can_view_emails = true;
 ```

@@ -116,7 +116,7 @@ async def get_user_stats(info, user_id: UUID) -> UserStats:
     # Custom SQL query for complex aggregations
     # Exclusive Rust pipeline handles result processing automatically
     result = await db.execute_raw(
-        "SELECT count(*) as post_count FROM posts WHERE user_id = $1",
+        "SELECT count(*) as post_count FROM v_post WHERE user_id = $1",
         user_id
     )
     return UserStats(post_count=result[0]["post_count"])
@@ -797,7 +797,7 @@ DECLARE
     result jsonb;
 BEGIN
     -- Insert user
-    INSERT INTO users (name, email, created_at)
+    INSERT INTO tb_user (name, email, created_at)
     VALUES (
         input->>'name',
         input->>'email',

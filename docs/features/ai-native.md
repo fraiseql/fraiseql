@@ -190,7 +190,7 @@ SELECT
     jsonb_agg(jsonb_build_object(
         'id', o.id, 'total', o.total, 'status', o.status
     )) FILTER (WHERE o.status = 'completed') as completed_orders
-FROM users u
+FROM v_user u
 LEFT JOIN orders o ON u.id = o.user_id
 WHERE u.active = true
 GROUP BY u.id, u.name, u.email, u.country;
@@ -227,7 +227,7 @@ SELECT
     jsonb_agg(jsonb_build_object(
         'id', o.id, 'total', o.total, 'created_at', o.created_at
     )) as recent_orders
-FROM users u
+FROM v_user u
 LEFT JOIN orders o ON u.id = o.user_id
     AND o.created_at >= now() - interval '7 days'
 WHERE u.active = true
@@ -255,7 +255,7 @@ User.objects.prefetch_related('orders__items').select_related('profile').filter(
 -- ~15 tokens of clear SQL
 CREATE VIEW v_user AS
 SELECT id, name, total_orders, avg_order_value
-FROM users WHERE country = 'US'
+FROM v_user WHERE country = 'US'
 ORDER BY total_orders DESC LIMIT 10;
 ```
 

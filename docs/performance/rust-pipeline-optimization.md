@@ -113,7 +113,7 @@ Pre-compute denormalized data in the database:
 SELECT jsonb_build_object(
     'id', u.id,
     'first_name', u.first_name,
-    'posts', (SELECT jsonb_agg(...) FROM posts WHERE user_id = u.id)
+    'posts', (SELECT jsonb_agg(...) FROM v_post WHERE user_id = u.id)
 ) FROM tb_user u;
 -- Takes: 10-50ms for complex queries
 

@@ -1051,11 +1051,11 @@ SELECT
         'title', p.title,
         'createdAt', p.created_at
       ) ORDER BY p.created_at DESC)
-      FROM posts p
+      FROM v_post p
       WHERE p.user_id = u.id
     )
   ) as data
-FROM users u;
+FROM v_user u;
 ```
 
 **GraphQL Query** (single SQL query):
@@ -1179,7 +1179,7 @@ SELECT
         AND c.status = 'pending'
     )
   ) as data
-FROM posts p;
+FROM v_post p;
 ```
 
 ## Materialized Views
@@ -1196,8 +1196,8 @@ SELECT
   COUNT(DISTINCT c.id) as comment_count,
   MAX(p.created_at) as last_post_at,
   SUM(p.view_count) as total_views
-FROM users u
-LEFT JOIN posts p ON p.author_id = u.id
+FROM v_user u
+LEFT JOIN v_post p ON p.author_id = u.id
 LEFT JOIN comments c ON c.user_id = u.id
 GROUP BY u.id, u.name;
 
@@ -1286,7 +1286,7 @@ Tenant isolation at the database level:
 
 ```sql
 -- Multi-tenant table with RLS
-CREATE TABLE projects (
+CREATE TABLE tb_project (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   name VARCHAR(200) NOT NULL,
@@ -1314,7 +1314,7 @@ SELECT
     'description', p.description,
     'createdAt', p.created_at
   ) as data
-FROM projects p;
+FROM v_project p;
 
 -- Set tenant context before queries
 SELECT set_config('app.current_tenant_id', '123e4567-...', true);
@@ -1425,13 +1425,13 @@ SELECT
     'name', u.name,
     'latestPost', p.data
   ) as data
-FROM users u
+FROM v_user u
 LEFT JOIN LATERAL (
   SELECT jsonb_build_object(
     'id', p.id,
     'title', p.title
   ) as data
-  FROM posts p
+  FROM v_post p
   WHERE p.author_id = u.id
   ORDER BY p.created_at DESC
   LIMIT 1
@@ -1615,7 +1615,7 @@ SELECT
           'id', p.id,
           'title', p.title
         )
-        FROM posts p
+        FROM v_post p
         WHERE p.id = n.entity_id
       )
       WHEN 'Comment' THEN (

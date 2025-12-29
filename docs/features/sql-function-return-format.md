@@ -113,7 +113,7 @@ DECLARE
     user_id uuid;
 BEGIN
     -- Check for existing email
-    IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email') THEN
+    IF EXISTS (SELECT 1 FROM v_user WHERE email = input->>'email') THEN
         RETURN mutation_validation_error('Email already exists', 'email');
     END IF;
 

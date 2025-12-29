@@ -45,13 +45,13 @@ Strawberry typically uses simple table names. FraiseQL recommends the trinity pa
 
 **Before (Strawberry):**
 ```sql
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
     email TEXT NOT NULL,
     name TEXT
 );
 
-CREATE TABLE posts (
+CREATE TABLE tb_post (
     id UUID PRIMARY KEY,
     title TEXT,
     content TEXT,
@@ -194,7 +194,7 @@ class Query:
         # Manual database query
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM users WHERE id = $1",
+                "SELECT * FROM v_user WHERE id = $1",
                 UUID(id)
             )
             if row:
@@ -226,7 +226,7 @@ class Query:
         offset: int = 0,
         active: Optional[bool] = None
     ) -> list[User]:
-        query = "SELECT * FROM users"
+        query = "SELECT * FROM v_user"
         params = []
 
         if active is not None:
@@ -309,7 +309,7 @@ class Mutation:
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO users (email, name)
+                INSERT INTO tb_user (email, name)
                 VALUES ($1, $2)
                 RETURNING *
                 """,
@@ -372,7 +372,7 @@ async def create_post(
 
         # Manually fetch author for response
         author_row = await conn.fetchrow(
-            "SELECT * FROM users WHERE id = $1",
+            "SELECT * FROM v_user WHERE id = $1",
             author_id
         )
 
@@ -434,7 +434,7 @@ from strawberry.dataloader import DataLoader
 async def load_users(keys: list[UUID]) -> list[User]:
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM users WHERE id = ANY($1)",
+            "SELECT * FROM v_user WHERE id = ANY($1)",
             keys
         )
         users_by_id = {row['id']: User(**dict(row)) for row in rows}

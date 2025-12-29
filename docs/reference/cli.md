@@ -432,7 +432,7 @@ CREATE OR REPLACE FUNCTION update_users_updated_at()...
 -- View for FraiseQL
 CREATE OR REPLACE VIEW v_users AS
 SELECT id, data, created_at, updated_at
-FROM users
+FROM v_user
 WHERE deleted_at IS NULL;
 ```
 
@@ -671,7 +671,7 @@ fraiseql sql generate-pattern aggregation posts --group-by user_id
 ```sql
 -- Pagination pattern for users
 SELECT *
-FROM users
+FROM v_user
 ORDER BY id
 LIMIT 10 OFFSET 20;
 ```

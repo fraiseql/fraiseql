@@ -78,13 +78,13 @@ PostGraphile typically uses simple table names. FraiseQL recommends the trinity 
 
 **Current (PostGraphile):**
 ```sql
-CREATE TABLE users (
+CREATE TABLE tb_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL UNIQUE,
     name TEXT
 );
 
-CREATE TABLE posts (
+CREATE TABLE tb_post (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT,
     content TEXT,
@@ -95,8 +95,8 @@ CREATE TABLE posts (
 **Option A: Keep As-Is (Quickest)**
 ```sql
 -- Create views pointing to existing tables
-CREATE VIEW v_user AS SELECT * FROM users;
-CREATE VIEW v_post AS SELECT * FROM posts;
+CREATE VIEW v_user AS SELECT * FROM v_user;
+CREATE VIEW v_post AS SELECT * FROM v_post;
 ```
 
 **Option B: Adopt Trinity Pattern (Recommended for Multi-tenancy)**
@@ -228,7 +228,7 @@ CREATE OR REPLACE FUNCTION create_user(
 DECLARE
     new_user users;
 BEGIN
-    INSERT INTO users (email, name)
+    INSERT INTO tb_user (email, name)
     VALUES (input_email, input_name)
     RETURNING * INTO new_user;
 

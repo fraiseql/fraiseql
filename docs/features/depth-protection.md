@@ -58,14 +58,14 @@ SELECT
                     )
                 )
                 FROM comments c
-                JOIN users cu ON c.user_id = cu.id
+                JOIN v_user cu ON c.user_id = cu.id
                 WHERE c.post_id = p.id
                 LIMIT 10  -- Also limit comment count
             )
         )
     ) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id
+FROM v_user u
+LEFT JOIN v_post p ON p.user_id = u.id
 GROUP BY u.id, u.name;
 ```
 
@@ -159,12 +159,12 @@ SELECT
             )
         )
     )
-    FROM posts p
+    FROM v_post p
     WHERE p.user_id = users.id
     ORDER BY p.created_at DESC
     LIMIT 10  -- Max 10 posts per user
     ) as posts
-FROM users;
+FROM v_user;
 ```
 
 ## GraphQL Schema Enforces View Limits
@@ -220,15 +220,15 @@ Different views for different contexts with appropriate depths:
 ```sql
 -- Shallow view for lists
 CREATE VIEW user_list AS
-SELECT id, name FROM users;
+SELECT id, name FROM v_user;
 
 -- Medium depth for profiles
 CREATE VIEW user_profile AS
 SELECT
     u.id, u.name, u.bio,
     jsonb_agg(jsonb_build_object('id', p.id, 'title', p.title)) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id
+FROM v_user u
+LEFT JOIN v_post p ON p.user_id = u.id
 GROUP BY u.id, u.name, u.bio;
 
 -- Deep view for detailed analysis (admin only)
@@ -249,7 +249,7 @@ SELECT
                             'name', cu.name,
                             'posts', (
                                 SELECT jsonb_agg(jsonb_build_object('title', cp.title))
-                                FROM posts cp
+                                FROM v_post cp
                                 WHERE cp.user_id = cu.id
                                 LIMIT 3
                             )
@@ -257,13 +257,13 @@ SELECT
                     )
                 )
                 FROM comments c
-                JOIN users cu ON c.user_id = cu.id
+                JOIN v_user cu ON c.user_id = cu.id
                 WHERE c.post_id = p.id
             )
         )
     ) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id
+FROM v_user u
+LEFT JOIN v_post p ON p.user_id = u.id
 GROUP BY u.id;
 ```
 
@@ -301,7 +301,7 @@ SELECT
             WHERE c.post_id = p.id
         )
     ) as comments
-FROM posts p;
+FROM v_post p;
 ```
 
 ## Migration from Runtime Protection
@@ -350,19 +350,19 @@ SELECT
                     )
                 )
                 FROM comments c
-                JOIN users cu ON c.user_id = cu.id
+                JOIN v_user cu ON c.user_id = cu.id
                 WHERE c.post_id = p.id
                 ORDER BY c.created_at DESC
                 LIMIT 3
             )
         )
     )
-    FROM posts p
+    FROM v_post p
     WHERE p.user_id = u.id
     ORDER BY p.created_at DESC
     LIMIT 5
     ) as posts
-FROM users u
+FROM v_user u
 ORDER BY u.created_at DESC
 LIMIT 10;
 ```

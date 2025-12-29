@@ -358,7 +358,7 @@ async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
     # Explicit tenant filtering (recommended for clarity)
     async with db.connection() as conn:
         result = await conn.execute(
-            "SELECT * FROM orders WHERE tenant_id = $1",
+            "SELECT * FROM v_order WHERE tenant_id = $1",
             tenant_id
         )
         return [Order(**row) for row in await result.fetchall()]
@@ -370,7 +370,7 @@ async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
 
     async with db.connection() as conn:
         result = await conn.execute(
-            "SELECT * FROM orders WHERE id = $1 AND tenant_id = $2",
+            "SELECT * FROM v_order WHERE id = $1 AND tenant_id = $2",
             order_id, tenant_id
         )
         row = await result.fetchone()
@@ -694,12 +694,12 @@ async def get_all_tenants_orders(
 
         if tenant_id:
             result = await conn.execute(
-                "SELECT * FROM orders WHERE tenant_id = $1 LIMIT $2",
+                "SELECT * FROM v_order WHERE tenant_id = $1 LIMIT $2",
                 tenant_id, limit
             )
         else:
             result = await conn.execute(
-                "SELECT * FROM orders LIMIT $1",
+                "SELECT * FROM v_order LIMIT $1",
                 limit
             )
 
@@ -726,7 +726,7 @@ async def get_tenant_statistics(info) -> list[TenantStats]:
                 COUNT(DISTINCT o.id) as order_count,
                 COALESCE(SUM(o.total), 0) as total_revenue
             FROM organizations t
-            LEFT JOIN users u ON u.tenant_id = t.id
+            LEFT JOIN v_user u ON u.tenant_id = t.id
             LEFT JOIN orders o ON o.tenant_id = t.id
             GROUP BY t.id, t.name
             ORDER BY total_revenue DESC
@@ -828,14 +828,14 @@ async def export_tenant_data(info) -> str:
     async with db.connection() as conn:
         # Export users
         result = await conn.execute(
-            "SELECT * FROM users WHERE tenant_id = $1",
+            "SELECT * FROM v_user WHERE tenant_id = $1",
             tenant_id
         )
         export_data["users"] = [dict(row) for row in await result.fetchall()]
 
         # Export orders
         result = await conn.execute(
-            "SELECT * FROM orders WHERE tenant_id = $1",
+            "SELECT * FROM v_order WHERE tenant_id = $1",
             tenant_id
         )
         export_data["orders"] = [dict(row) for row in await result.fetchall()]
@@ -870,7 +870,7 @@ async def import_tenant_data(info, data: str) -> bool:
             for user_data in import_data.get("users", []):
                 user_data["tenant_id"] = tenant_id  # Force current tenant
                 await conn.execute("""
-                    INSERT INTO users (id, tenant_id, email, name, created_at)
+                    INSERT INTO tb_user (id, tenant_id, email, name, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (id) DO UPDATE SET
                         email = EXCLUDED.email,
@@ -928,7 +928,7 @@ async def provision_tenant(
             # 2. Create admin user
             admin_id = str(uuid4())
             await conn.execute("""
-                INSERT INTO users (id, tenant_id, email, name, roles, created_at)
+                INSERT INTO tb_user (id, tenant_id, email, name, roles, created_at)
                 VALUES ($1, $2, $3, $4, $5, NOW())
             """, admin_id, tenant_id, admin_email, "Admin User", ["admin"])
 
@@ -970,18 +970,18 @@ WHERE status IN ('pending', 'processing');
 
 ```python
 # GOOD: tenant_id first in WHERE clause
-SELECT * FROM orders
+SELECT * FROM v_order
 WHERE tenant_id = 'uuid' AND status = 'completed'
 ORDER BY created_at DESC
 LIMIT 10;
 
 # BAD: Missing tenant_id filter
-SELECT * FROM orders
+SELECT * FROM v_order
 WHERE user_id = 'uuid'
 ORDER BY created_at DESC;
 
 # GOOD: Explicit tenant_id
-SELECT * FROM orders
+SELECT * FROM v_order
 WHERE tenant_id = 'uuid' AND user_id = 'uuid'
 ORDER BY created_at DESC;
 ```

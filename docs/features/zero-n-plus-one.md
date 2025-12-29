@@ -26,9 +26,9 @@ query {
 ```
 
 **Execution Pattern:**
-1. `SELECT * FROM users` (1 query)
-2. `SELECT * FROM posts WHERE user_id = ?` (N queries, one per user)
-3. `SELECT * FROM comments WHERE post_id = ?` (M queries, one per post)
+1. `SELECT * FROM v_user` (1 query)
+2. `SELECT * FROM v_post WHERE user_id = ?` (N queries, one per user)
+3. `SELECT * FROM v_comment WHERE post_id = ?` (M queries, one per post)
 
 **Result:** 1 + N + M queries total
 
@@ -79,13 +79,13 @@ SELECT
                     )
                 )
                 FROM comments c
-                JOIN users cu ON c.user_id = cu.id
+                JOIN v_user cu ON c.user_id = cu.id
                 WHERE c.post_id = p.id
             )
         )
     ) FILTER (WHERE p.id IS NOT NULL) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id AND p.published = true
+FROM v_user u
+LEFT JOIN v_post p ON p.user_id = u.id AND p.published = true
 GROUP BY u.id, u.name, u.email;
 ```
 
@@ -196,7 +196,7 @@ SELECT
     jsonb_agg(
         jsonb_build_object('id', t.id, 'name', t.name)
     ) as tags
-FROM posts p
+FROM v_post p
 LEFT JOIN post_tags pt ON p.id = pt.post_id
 LEFT JOIN tags t ON pt.tag_id = t.id
 GROUP BY p.id, p.title;
@@ -260,8 +260,8 @@ Replace multiple table joins with single JSONB aggregation views:
 
 ```sql
 -- Before: Multiple queries
-SELECT * FROM users;
-SELECT * FROM posts WHERE user_id IN (...);
+SELECT * FROM v_user;
+SELECT * FROM v_post WHERE user_id IN (...);
 SELECT * FROM comments WHERE post_id IN (...);
 
 -- After: One view
@@ -276,12 +276,12 @@ SELECT
                 'author', jsonb_build_object('avatar', cu.avatar)
             ))
             FROM comments c
-            JOIN users cu ON c.user_id = cu.id
+            JOIN v_user cu ON c.user_id = cu.id
             WHERE c.post_id = p.id
         )
     )) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id
+FROM v_user u
+LEFT JOIN v_post p ON p.user_id = u.id
 GROUP BY u.id;
 ```
 

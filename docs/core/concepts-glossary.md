@@ -952,7 +952,7 @@ SELECT
     user_id,
     COUNT(*) as post_count,
     MAX(created_at) as last_post_at
-FROM posts
+FROM v_post
 GROUP BY user_id;
 ```
 

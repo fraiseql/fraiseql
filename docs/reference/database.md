@@ -530,11 +530,11 @@ async def execute_raw(
 **Examples**:
 ```python
 # Simple query
-results = await db.execute_raw("SELECT * FROM users")
+results = await db.execute_raw("SELECT * FROM v_user")
 
 # With parameters
 results = await db.execute_raw(
-    "SELECT * FROM users WHERE id = $1",
+    "SELECT * FROM v_user WHERE id = $1",
     user_id
 )
 
@@ -544,7 +544,7 @@ stats = await db.execute_raw(
     SELECT
         count(*) as total_users,
         count(*) FILTER (WHERE is_active) as active_users
-    FROM users
+    FROM v_user
     WHERE created_at > $1
     """,
     datetime(2025, 1, 1)
@@ -960,12 +960,12 @@ async def get_user(info, id: UUID) -> User | None:
 ```python
 # Always use parameterized queries
 results = await db.execute_raw(
-    "SELECT * FROM users WHERE email = $1",  # Safe
+    "SELECT * FROM v_user WHERE email = $1",  # Safe
     email
 )
 
 # NEVER do this (SQL injection risk):
-# results = await db.execute_raw(f"SELECT * FROM users WHERE email = '{email}'")
+# results = await db.execute_raw(f"SELECT * FROM v_user WHERE email = '{email}'")
 ```
 
 **Transactions**:

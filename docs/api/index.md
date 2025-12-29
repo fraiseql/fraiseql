@@ -277,7 +277,7 @@ pool = await create_database_pool(
 
 # Get connection from pool
 async with pool.acquire() as conn:
-    result = await conn.fetch("SELECT * FROM users")
+    result = await conn.fetch("SELECT * FROM v_user")
 ```
 
 **See Also:**

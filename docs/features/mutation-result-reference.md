@@ -211,7 +211,7 @@ DECLARE
     current_user record;
 BEGIN
     -- Check if user exists
-    SELECT * INTO current_user FROM users WHERE id = user_id;
+    SELECT * INTO current_user FROM v_user WHERE id = user_id;
     IF NOT FOUND THEN
         RETURN mutation_not_found('User', user_id::text);
     END IF;
@@ -219,7 +219,7 @@ BEGIN
     -- Update email if provided
     IF input ? 'email' AND input->>'email' != current_user.email THEN
         -- Check uniqueness
-        IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email' AND id != user_id) THEN
+        IF EXISTS (SELECT 1 FROM v_user WHERE email = input->>'email' AND id != user_id) THEN
             RETURN mutation_validation_error('Email already exists', 'email');
         END IF;
         UPDATE users SET email = input->>'email' WHERE id = user_id;
@@ -237,7 +237,7 @@ BEGIN
         'name', name,
         'email', email,
         'updated_at', to_jsonb(updated_at)
-    ) INTO user_data FROM users WHERE id = user_id;
+    ) INTO user_data FROM v_user WHERE id = user_id;
 
     RETURN mutation_updated(
         'User updated successfully',

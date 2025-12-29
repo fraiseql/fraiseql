@@ -167,10 +167,10 @@ BEGIN
 
     -- Fetch complete entity data
     SELECT jsonb_build_object('id', id, 'title', title, 'content', content, 'author_id', author_id, 'created_at', created_at)
-    INTO v_post_data FROM posts WHERE id = v_post_id;
+    INTO v_post_data FROM v_post WHERE id = v_post_id;
 
     SELECT jsonb_build_object('id', id, 'name', name, 'email', email, 'post_count', post_count)
-    INTO v_author_data FROM users WHERE id = v_author_id;
+    INTO v_author_data FROM v_user WHERE id = v_author_id;
 
     -- Build cascade using helper functions
     v_cascade_data := cascade_merge(

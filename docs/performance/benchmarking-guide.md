@@ -88,7 +88,7 @@ async def benchmark_simple_query(pool: AsyncConnectionPool) -> BenchmarkResult:
     query = """
         SELECT id, name, email, created_at, status,
                role, avatar_url, bio, updated_at, last_login
-        FROM users
+        FROM v_user
         LIMIT 100;
     """
     times = await benchmark_query(pool, query)
@@ -107,8 +107,8 @@ async def benchmark_nested_query(pool: AsyncConnectionPool) -> BenchmarkResult:
                     'content', p.content
                 )
             ) as posts
-        FROM users u
-        LEFT JOIN posts p ON p.user_id = u.id
+        FROM v_user u
+        LEFT JOIN v_post p ON p.user_id = u.id
         GROUP BY u.id, u.name, u.email
         LIMIT 50;
     """
@@ -120,7 +120,7 @@ async def benchmark_large_result(pool: AsyncConnectionPool) -> BenchmarkResult:
     """Benchmark large result set (1000 rows)."""
     query = """
         SELECT id, name, email, status, created_at
-        FROM users
+        FROM v_user
         LIMIT 1000;
     """
     times = await benchmark_query(pool, query)
@@ -134,7 +134,7 @@ async def benchmark_aggregation(pool: AsyncConnectionPool) -> BenchmarkResult:
             status,
             COUNT(*) as count,
             AVG(EXTRACT(EPOCH FROM (NOW() - created_at))) as avg_age_seconds
-        FROM users
+        FROM v_user
         GROUP BY status;
     """
     times = await benchmark_query(pool, query)
@@ -375,7 +375,7 @@ async def analyze_query(pool: AsyncConnectionPool, query: str):
 DATABASE_URL = "postgresql://localhost/mydb"
 pool = AsyncConnectionPool(conninfo=DATABASE_URL)
 
-query = "SELECT * FROM users WHERE status = 'active' LIMIT 100"
+query = "SELECT * FROM v_user WHERE status = 'active' LIMIT 100"
 asyncio.run(analyze_query(pool, query))
 ```
 
