@@ -584,4 +584,3 @@ This plan provides a complete path to a **full-Rust GraphQL database layer**:
 **Return**: 5-10x faster query building, 1.5-2x overall performance improvement, simpler codebase
 
 The plan is detailed, tested (via PoC), and ready for execution.
-

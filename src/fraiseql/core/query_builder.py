@@ -1,13 +1,13 @@
 """Rust-based SQL query builder with caching."""
 
 from dataclasses import dataclass
-from typing import Optional
+
 from fraiseql._fraiseql_rs import (
+    GeneratedQuery,
     build_sql_query,
     build_sql_query_cached,
-    get_cache_stats,
     clear_cache,
-    GeneratedQuery,
+    get_cache_stats,
 )
 from fraiseql.core.graphql_parser import ParsedQuery
 
@@ -28,8 +28,7 @@ class RustQueryBuilder:
         parsed_query: ParsedQuery,
         schema_metadata: dict,
     ) -> GeneratedQuery:
-        """
-        Build complete SQL query from parsed GraphQL.
+        """Build complete SQL query from parsed GraphQL.
 
         Args:
             parsed_query: Result from GraphQL parser
@@ -46,8 +45,7 @@ class RustQueryBuilder:
         parsed_query: ParsedQuery,
         schema_metadata: dict,
     ) -> GeneratedQuery:
-        """
-        Build query with caching for repeated queries.
+        """Build query with caching for repeated queries.
 
         Args:
             parsed_query: Result from GraphQL parser

@@ -1,8 +1,10 @@
 """Middleware for cache statistics."""
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from fraiseql.core.query_builder import RustQueryBuilder
 import logging
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from fraiseql.core.query_builder import RustQueryBuilder
 
 logger = logging.getLogger(__name__)
 

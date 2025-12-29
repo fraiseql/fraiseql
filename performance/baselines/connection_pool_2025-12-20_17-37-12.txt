@@ -7,4 +7,3 @@ test pool_state_management/50 ... bench:           0 ns/iter (+/- 0)
 test pool_state_management/100 ... bench:           0 ns/iter (+/- 0)
 
 test connection_retry_logic ... bench:           0 ns/iter (+/- 0)
-

@@ -5,7 +5,7 @@ Phase 10 implementation with 5-10x performance improvement over Python.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import List
 
 from fraiseql.auth.base import AuthProvider, UserContext
 
@@ -36,6 +36,7 @@ class RustAuth0Provider(AuthProvider):
         # Try to import Rust implementation
         try:
             import _fraiseql_rs as rs
+
             self._has_rust = True
             logger.info("✓ Using Rust Auth0 provider (5-10x faster)")
         except ImportError:
@@ -111,13 +112,13 @@ class RustCustomJWTProvider(AuthProvider):
         # Try to import Rust implementation
         try:
             import _fraiseql_rs as rs
+
             self._has_rust = True
             logger.info("✓ Using Rust CustomJWT provider (5-10x faster)")
         except ImportError:
             self._has_rust = False
             logger.warning(
-                "⚠ Rust extension not available. "
-                "Falling back to Python implementation (slower)."
+                "⚠ Rust extension not available. Falling back to Python implementation (slower)."
             )
 
     async def validate_token(self, token: str) -> UserContext:

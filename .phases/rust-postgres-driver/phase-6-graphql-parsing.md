@@ -913,4 +913,3 @@ time fraiseql_rs.parse_graphql_query(query_string)
 ```
 
 This phase sets the foundation for Phase 8 (query plan caching), which will provide 5-10x additional speedup for repeated queries.
-

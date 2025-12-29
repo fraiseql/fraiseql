@@ -4,8 +4,9 @@ This module demonstrates how to integrate the RustGraphQLPipeline
 with GraphQL mutation resolvers for typical CRUD operations.
 """
 
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
+
 # from fraiseql.core.graphql_pipeline import pipeline  # Will be imported at runtime
 
 
@@ -261,18 +262,17 @@ def _convert_graphql_filter(graphql_filter: Dict[str, Any]) -> Optional[Dict[str
         # AND operation: { and: [filter1, filter2, ...] }
         return {"and": [_convert_graphql_filter(f) for f in graphql_filter["and"] if f]}
 
-    elif "or" in graphql_filter:
+    if "or" in graphql_filter:
         # OR operation: { or: [filter1, filter2, ...] }
         return {"or": [_convert_graphql_filter(f) for f in graphql_filter["or"] if f]}
 
-    elif "not" in graphql_filter:
+    if "not" in graphql_filter:
         # NOT operation: { not: filter }
         return {"not": _convert_graphql_filter(graphql_filter["not"])}
 
-    else:
-        # Simple filter: { field: 'name', operator: 'eq', value: 'John' }
-        # or shorthand: { name: { eq: 'John' } }
-        return _convert_simple_filter(graphql_filter)
+    # Simple filter: { field: 'name', operator: 'eq', value: 'John' }
+    # or shorthand: { name: { eq: 'John' } }
+    return _convert_simple_filter(graphql_filter)
 
 
 def _convert_simple_filter(filter: Dict[str, Any]) -> Dict[str, Any]:
@@ -354,11 +354,11 @@ def _normalize_operator(op: str) -> str:
 
 # Export all mutation resolvers
 __all__ = [
-    "resolve_create_user",
-    "resolve_update_user",
-    "resolve_delete_user",
+    "resolve_bulk_delete_posts",
     "resolve_bulk_update_users",
     "resolve_create_post",
+    "resolve_create_user",
+    "resolve_delete_user",
     "resolve_publish_post",
-    "resolve_bulk_delete_posts",
+    "resolve_update_user",
 ]

@@ -1,19 +1,15 @@
 """Rust-based GraphQL query parser."""
 
-from typing import Optional
-from dataclasses import dataclass
 from fraiseql._fraiseql_rs import (
-    parse_graphql_query,
-    ParsedQuery,
     FieldSelection,
-    GraphQLArgument,
-    VariableDefinition,
+    ParsedQuery,
+    parse_graphql_query,
 )
 
 __all__ = [
-    "RustGraphQLParser",
-    "ParsedQuery",
     "FieldSelection",
+    "ParsedQuery",
+    "RustGraphQLParser",
 ]
 
 
@@ -21,8 +17,7 @@ class RustGraphQLParser:
     """Wrapper around Rust GraphQL parser for FraiseQL."""
 
     async def parse(self, query_string: str) -> ParsedQuery:
-        """
-        Parse GraphQL query string into structured AST.
+        """Parse GraphQL query string into structured AST.
 
         Args:
             query_string: Raw GraphQL query text
@@ -36,8 +31,7 @@ class RustGraphQLParser:
         return parse_graphql_query(query_string)
 
     def parse_sync(self, query_string: str) -> ParsedQuery:
-        """
-        Synchronous wrapper (not recommended - use async version).
+        """Synchronous wrapper (not recommended - use async version).
 
         This is for testing only. In production, use async version.
         """

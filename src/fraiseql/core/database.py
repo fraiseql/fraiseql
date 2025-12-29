@@ -4,6 +4,7 @@ Phase 1: Basic synchronous wrapper. Async support in Phase 1.5.
 """
 
 from typing import Optional
+
 from fraiseql._fraiseql_rs import DatabasePool as RustDatabasePool
 
 
