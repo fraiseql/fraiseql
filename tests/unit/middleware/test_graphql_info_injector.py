@@ -22,26 +22,26 @@ class TestGraphQLInfoInjector:
         mock_info = Mock()
         mock_info.field_name = 'test_field'
         mock_info.parent_type = 'Query'
-        
+
         # Test resolver
         def test_resolver(obj, info):
             return {'field': info.field_name}
-        
+
         # Inject and call
         wrapped_resolver = injector.inject(test_resolver)
         result = wrapped_resolver(None, mock_info)
-        
+
         assert result['field'] == 'test_field'
 
     def test_info_parameter_auto_injection(self, injector):
         """Test automatic info parameter injection."""
         mock_info = Mock()
         mock_info.field_name = 'auto_test'
-        
+
         def resolver_without_info(obj):
             """Resolver that doesn't explicitly take info."""
             return 'success'
-        
+
         wrapped = injector.inject(resolver_without_info)
         # Should still work even though info isn't in signature
         result = wrapped(None, mock_info)
@@ -56,16 +56,16 @@ class TestGraphQLInfoInjector:
             Mock(name='field1'),
             Mock(name='field2')
         ]
-        
+
         def resolver_with_selections(obj, info):
             return {
                 'field_name': info.field_name,
                 'selections': [s.name for s in info.selection_set.selections]
             }
-        
+
         wrapped = injector.inject(resolver_with_selections)
         result = wrapped(None, mock_info)
-        
+
         assert result['field_name'] == 'selections'
         assert result['selections'] == ['field1', 'field2']
 
@@ -73,21 +73,21 @@ class TestGraphQLInfoInjector:
         """Test that injector works in middleware chain."""
         mock_info = Mock()
         mock_info.field_name = 'chained'
-        
+
         execution_order = []
-        
+
         def before_middleware(info):
             execution_order.append('before')
             return info
-        
+
         def resolver(obj, info):
             execution_order.append('resolver')
             return info.field_name
-        
+
         def after_middleware(result, info):
             execution_order.append('after')
             return result
-        
+
         # Test basic chaining
         result = resolver(None, mock_info)
         assert result == 'chained'
@@ -98,22 +98,22 @@ class TestGraphQLInfoInjector:
         mock_info = Mock()
         mock_info.field_name = 'test'
         mock_process.return_value = mock_info
-        
+
         def resolver(obj, info):
             return 'processed'
-        
+
         wrapped = injector.inject(resolver)
         result = wrapped(None, mock_info)
-        
+
         assert result == 'processed'
 
     def test_error_handling(self, injector):
         """Test error handling during injection."""
         def failing_resolver(obj, info):
             raise ValueError('Test error')
-        
+
         wrapped = injector.inject(failing_resolver)
-        
+
         with pytest.raises(ValueError, match='Test error'):
             wrapped(None, Mock())
 
@@ -122,10 +122,10 @@ class TestGraphQLInfoInjector:
         def my_resolver(obj, info):
             """Original resolver docstring."""
             return 'result'
-        
+
         my_resolver.custom_attr = 'test_value'
         wrapped = injector.inject(my_resolver)
-        
+
         # Wrapped function should be callable
         assert callable(wrapped)
 
@@ -133,14 +133,14 @@ class TestGraphQLInfoInjector:
         """Test injection across multiple fields."""
         mock_info_1 = Mock(field_name='field1')
         mock_info_2 = Mock(field_name='field2')
-        
+
         def resolver(obj, info):
             return info.field_name
-        
+
         wrapped = injector.inject(resolver)
-        
+
         result1 = wrapped(None, mock_info_1)
         result2 = wrapped(None, mock_info_2)
-        
+
         assert result1 == 'field1'
         assert result2 == 'field2'
