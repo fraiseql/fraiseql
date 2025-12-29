@@ -135,12 +135,12 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 
 ### 1. Zero-Copy Performance
 
-**Traditional Approach** (expensive JOINs):
+**Traditional Approach** (expensive JOINs at runtime):
 ```sql
 -- Runtime JOIN for every query
 SELECT u.*, p.*
-FROM users u
-JOIN posts p ON p.user_id = u.id
+FROM tb_user u
+JOIN tb_post p ON p.fk_user = u.pk_user
 WHERE u.id = $1;
 ```
 

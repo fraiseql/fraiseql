@@ -252,17 +252,25 @@ CREATE TABLE tb_user (  -- ✅ tb_ prefix
 
 **Problem**: Tables don't follow `tb_<entity>` naming convention.
 
-**❌ Wrong**:
+**❌ Wrong** (common naming mistakes to avoid):
 ```sql
-CREATE TABLE users (...);        -- ❌ Plural
-CREATE TABLE User (...);         -- ❌ PascalCase
-CREATE TABLE tbl_user (...);     -- ❌ tbl_ prefix
+CREATE TABLE users (...);        -- ❌ Plural (should be singular)
+CREATE TABLE User (...);         -- ❌ PascalCase (should be snake_case)
+CREATE TABLE tbl_user (...);     -- ❌ tbl_ prefix (should be tb_)
+CREATE TABLE user (...);         -- ❌ No prefix (should be tb_user)
 ```
 
-**✅ Correct**:
+**✅ Correct** (Trinity Pattern naming):
 ```sql
-CREATE TABLE tb_user (...);      -- ✅ tb_ prefix, singular
-CREATE TABLE tb_blog_post (...); -- ✅ tb_ prefix, descriptive
+-- Base tables use tb_ prefix, singular, snake_case
+CREATE TABLE tb_user (...);      -- ✅ Correct pattern
+CREATE TABLE tb_blog_post (...); -- ✅ Multi-word entities
+
+-- Views use v_ prefix
+CREATE VIEW v_user AS ...;       -- ✅ API view
+
+-- Computed views use tv_ prefix
+CREATE VIEW tv_user_with_posts AS ...; -- ✅ Pre-joined data
 ```
 
 **Why it matters**: Consistent naming makes the schema self-documenting.

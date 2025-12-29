@@ -366,10 +366,10 @@ EXPLAIN ANALYZE SELECT * FROM your_function(...);
 
 ```sql
 -- Slow: No index on email
-SELECT * FROM users WHERE email = user_email;
+SELECT * FROM v_user WHERE email = user_email;
 
--- Fix: Add index
-CREATE INDEX idx_users_email ON users(email);
+-- Fix: Add index on base table
+CREATE INDEX idx_user_email ON tb_user(email);
 ```
 
 #### 2. N+1 Queries in CASCADE
@@ -404,10 +404,10 @@ EXPLAIN ANALYZE SELECT * FROM your_function(...);
 
 ```sql
 -- Slow: No index on email
-SELECT * FROM users WHERE email = user_email;
+SELECT * FROM v_user WHERE email = user_email;
 
--- Fix: Add index
-CREATE INDEX idx_users_email ON users(email);
+-- Fix: Add index on base table
+CREATE INDEX idx_user_email ON tb_user(email);
 ```
 
 #### 2. N+1 Queries in CASCADE

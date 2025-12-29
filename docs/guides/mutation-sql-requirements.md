@@ -44,20 +44,33 @@ CREATE TYPE mutation_response AS (
     metadata jsonb
 );
 
--- 2. Create users table
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- 2. Create base table and view (Trinity Pattern)
+CREATE TABLE IF NOT EXISTS tb_user (
+    pk_user INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- API view for GraphQL queries
+CREATE VIEW v_user AS
+SELECT
+    id,
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'email', email,
+        'created_at', created_at
+    ) as data
+FROM tb_user;
 
 -- 3. Create mutation function
 CREATE OR REPLACE FUNCTION create_user(input_payload jsonb)
 RETURNS mutation_response AS $$
 DECLARE
     result mutation_response;
-    new_user users;
+    new_user tb_user%ROWTYPE;
 BEGIN
     -- Validate input
     IF input_payload->>'name' IS NULL THEN
@@ -66,8 +79,8 @@ BEGIN
         RETURN result;
     END IF;
 
-    -- Insert user
-    INSERT INTO users (name, email)
+    -- Insert user (into base table)
+    INSERT INTO tb_user (name, email)
     VALUES (
         input_payload->>'name',
         input_payload->>'email'
@@ -643,16 +656,16 @@ class CreateUser:
 CREATE OR REPLACE FUNCTION update_user(user_id text, input_payload jsonb)
 RETURNS mutation_response AS $$
 DECLARE
-    updated_user users;
+    updated_user tb_user%ROWTYPE;
     changed_fields text[] := ARRAY[]::text[];
 BEGIN
-    -- Check if user exists
-    IF NOT EXISTS (SELECT 1 FROM users WHERE id = user_id::uuid) THEN
+    -- Check if user exists (query view)
+    IF NOT EXISTS (SELECT 1 FROM v_user WHERE id = user_id::uuid) THEN
         RETURN mutation_not_found('User not found');
     END IF;
 
-    -- Build update query dynamically
-    UPDATE users SET
+    -- Build update query dynamically (update base table)
+    UPDATE tb_user SET
         updated_at = now()
         -- Add other fields conditionally
         name = CASE WHEN input_payload ? 'name'
@@ -687,17 +700,17 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION delete_user(user_id text)
 RETURNS mutation_response AS $$
 DECLARE
-    deleted_user users;
+    deleted_user tb_user%ROWTYPE;
     cascade_data jsonb;
 BEGIN
-    -- Check if user exists
-    SELECT * INTO deleted_user FROM users WHERE id = user_id::uuid;
+    -- Check if user exists (query view)
+    SELECT * INTO deleted_user FROM v_user WHERE id = user_id::uuid;
     IF NOT FOUND THEN
         RETURN mutation_not_found('User not found');
     END IF;
 
-    -- Delete user (CASCADE will handle related records)
-    DELETE FROM users WHERE id = user_id::uuid;
+    -- Delete user from base table (CASCADE will handle related records)
+    DELETE FROM tb_user WHERE id = user_id::uuid;
 
     -- Build cascade data for cache invalidation
     cascade_data := jsonb_build_object(
