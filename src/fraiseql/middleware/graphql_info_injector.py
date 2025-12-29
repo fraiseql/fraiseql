@@ -12,7 +12,7 @@ Features:
 
 import inspect
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 
 class GraphQLInfoInjector:
@@ -40,6 +40,7 @@ class GraphQLInfoInjector:
                 db = info.context["db"]
                 return await db.find("users", limit=limit)  # info auto-extracted
         """
+
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Get function signature to extract info parameter
