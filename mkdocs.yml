@@ -92,7 +92,8 @@ nav:
     - tutorials/beginner-path.md
     - Blog API Tutorial: tutorials/blog-api.md
     - Production Deployment: tutorials/production-deployment.md
-  - Examples:
+  - Recipes & Examples:
+    - recipes/index.md
     - RAG with pgvector: ai-ml/rag-tutorial.md
     - Advanced Filtering: examples/advanced-filtering.md
     - Error Handling Patterns: guides/error-handling-patterns.md

@@ -1,3 +1,17 @@
+---
+title: Advanced Filtering Examples
+description: Real-world filtering recipes for e-commerce, CMS, user management, logs, and multi-tenant SaaS
+tags:
+  - examples
+  - filtering
+  - recipes
+  - e-commerce
+  - CMS
+  - full-text search
+  - JSONB
+  - arrays
+---
+
 # Advanced Filtering Examples
 
 This guide provides practical, real-world examples of using FraiseQL's advanced PostgreSQL filter operators. Each example includes the complete GraphQL query, generated SQL, and explanations.

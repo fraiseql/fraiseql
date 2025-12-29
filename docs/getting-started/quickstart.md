@@ -1,3 +1,15 @@
+---
+title: 5-Minute Quick Start
+description: Get started with FraiseQL in 5 minutes - create a complete GraphQL note-taking API
+tags:
+  - quickstart
+  - tutorial
+  - getting started
+  - first app
+  - notes API
+  - beginner
+---
+
 # Quick Start Guide
 
 Get started with FraiseQL in 5 minutes! This guide will walk you through creating a simple note-taking GraphQL API.

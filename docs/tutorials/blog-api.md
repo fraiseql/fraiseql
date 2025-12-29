@@ -1,3 +1,16 @@
+---
+title: Build a Blog API Tutorial
+description: Step-by-step tutorial building a production-ready blog API with posts, comments, authentication, and tags
+tags:
+  - tutorial
+  - blog
+  - REST to GraphQL
+  - production
+  - authentication
+  - relationships
+  - CQRS
+---
+
 # Blog API Tutorial
 
 Complete blog application demonstrating FraiseQL's CQRS architecture, N+1 prevention, and production patterns.
