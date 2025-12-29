@@ -44,18 +44,18 @@ impl FragmentGraph {
         deps
     }
 
-    /// Extract dependencies from field selections (recursive)
+    /// Extract dependencies from field selections (recursive helper)
     fn extract_selection_dependencies(
         selection: &crate::graphql::types::FieldSelection,
-        all_fragments: &[FragmentDefinition],
-        deps: &mut HashSet<String>,
+        _all_fragments: &[FragmentDefinition],
+        _deps: &mut HashSet<String>,
     ) {
         // Fragment spreads are already collected during parsing in FragmentDefinition.fragment_spreads
         // No additional processing needed here for selection-level dependencies
 
         // Recursively check nested selections
         for nested in &selection.nested_fields {
-            Self::extract_selection_dependencies(nested, all_fragments, deps);
+            Self::extract_selection_dependencies(nested, _all_fragments, _deps);
         }
     }
 

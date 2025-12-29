@@ -199,7 +199,7 @@ impl RateLimitStore {
         }
     }
 
-    fn get_bucket(&mut self, key: &str, capacity: usize, window: u64) -> &mut TokenBucket {
+    fn get_bucket(&mut self, key: &str, capacity: usize, _window: u64) -> &mut TokenBucket {
         self.buckets
             .entry(key.to_string())
             .or_insert_with(|| TokenBucket {

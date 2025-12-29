@@ -7,9 +7,9 @@ pub struct SecurityHeaders {
     headers: HashMap<String, String>,
 }
 
-impl SecurityHeaders {
+impl Default for SecurityHeaders {
     /// Create default security headers
-    pub fn default() -> Self {
+    fn default() -> Self {
         let mut headers = HashMap::new();
 
         // Prevent XSS
@@ -35,6 +35,9 @@ impl SecurityHeaders {
 
         Self { headers }
     }
+}
+
+impl SecurityHeaders {
 
     /// Create production-grade security headers
     pub fn production() -> Self {

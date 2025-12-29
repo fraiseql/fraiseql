@@ -65,6 +65,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["simd"]
 simd = []
 dhat-heap = []
+python = []  # Python bindings feature (for PyO3 error conversions)
 
 [dependencies]
 pyo3 = { version = "0.25.0", features = ["extension-module", "experimental-async"] }

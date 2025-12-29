@@ -218,7 +218,7 @@ impl AuditLogger {
                             100 * consecutive_errors as u64,
                         ))
                         .await;
-                        if let Ok(_) = Self::write_event(&pool, &event).await {
+                        if (Self::write_event(&pool, &event).await).is_ok() {
                             consecutive_errors = 0;
                         }
                     }

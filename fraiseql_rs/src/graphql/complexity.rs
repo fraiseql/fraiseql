@@ -98,7 +98,7 @@ impl ComplexityAnalyzer {
         let mut max_depth = 0u32;
 
         for selection in &query.selections {
-            self.count_fields_and_depth(selection, 0, &mut field_count, &mut max_depth);
+            Self::count_fields_and_depth(selection, 0, &mut field_count, &mut max_depth);
         }
 
         // Calculate components
@@ -127,9 +127,8 @@ impl ComplexityAnalyzer {
         breakdown
     }
 
-    /// Count fields and track maximum depth
+    /// Count fields and track maximum depth (recursive helper)
     fn count_fields_and_depth(
-        &self,
         selection: &crate::graphql::types::FieldSelection,
         current_depth: u32,
         field_count: &mut u32,
@@ -139,7 +138,7 @@ impl ComplexityAnalyzer {
         *max_depth = (*max_depth).max(current_depth);
 
         for nested in &selection.nested_fields {
-            self.count_fields_and_depth(nested, current_depth + 1, field_count, max_depth);
+            Self::count_fields_and_depth(nested, current_depth + 1, field_count, max_depth);
         }
     }
 
@@ -155,7 +154,7 @@ impl ComplexityAnalyzer {
 
         // Add complexity from fragments (they contribute through spreads)
         // Fragment definitions themselves don't add complexity until spread
-        for fragment in &query.fragments {
+        for _fragment in &query.fragments {
             // Each fragment definition has a small base cost
             complexity = complexity.saturating_add(1);
         }
@@ -207,6 +206,10 @@ impl ComplexityAnalyzer {
     }
 
     /// Calculate complexity for a field selection
+    ///
+    /// Reserved for future use in fine-grained complexity calculation.
+    /// Currently, complexity is calculated at the selection level.
+    #[allow(dead_code)]
     fn calculate_field_complexity(
         &self,
         field_name: &str,
@@ -231,6 +234,10 @@ impl ComplexityAnalyzer {
     }
 
     /// Calculate complexity for a type
+    ///
+    /// Reserved for future use in type-based complexity multipliers.
+    /// Currently, type multipliers are applied at config level.
+    #[allow(dead_code)]
     fn calculate_type_complexity(&self, type_name: &str, base_complexity: u32) -> u32 {
         let multiplier = self
             .config

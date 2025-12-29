@@ -22,7 +22,7 @@ impl FieldAuthChecker {
     pub async fn check_field_access(
         &self,
         user_context: &UserContext,
-        field_name: &str,
+        _field_name: &str,
         field_permissions: &FieldPermissions,
         tenant_id: Option<Uuid>,
     ) -> Result<()> {
