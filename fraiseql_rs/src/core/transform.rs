@@ -32,6 +32,9 @@ use crate::core::camel::snake_to_camel;
 use crate::pipeline::projection::FieldSet;
 use pyo3::PyErr;
 
+/// Maximum JSON nesting depth to prevent stack overflow
+pub const MAX_JSON_DEPTH: usize = 64;
+
 /// Transform configuration (zero-cost at compile time)
 #[derive(Clone, Copy)]
 pub struct TransformConfig {
@@ -39,6 +42,19 @@ pub struct TransformConfig {
     pub camel_case: bool,
     pub project_fields: bool,
     pub add_graphql_wrapper: bool,
+    pub max_depth: usize,
+}
+
+impl Default for TransformConfig {
+    fn default() -> Self {
+        Self {
+            add_typename: true,
+            camel_case: true,
+            project_fields: false,
+            add_graphql_wrapper: true,
+            max_depth: MAX_JSON_DEPTH,
+        }
+    }
 }
 
 /// Zero-copy JSON transformer
@@ -63,6 +79,7 @@ pub struct ZeroCopyTransformer<'a> {
     config: TransformConfig,
     typename: Option<&'a str>,
     field_projection: Option<&'a FieldSet>,
+    current_depth: usize,
 }
 
 impl<'a> ZeroCopyTransformer<'a> {
@@ -77,6 +94,7 @@ impl<'a> ZeroCopyTransformer<'a> {
             config,
             typename,
             field_projection,
+            current_depth: 0,
         }
     }
 
@@ -89,7 +107,7 @@ impl<'a> ZeroCopyTransformer<'a> {
     /// - Space complexity: O(k) where k = output size (pre-allocated)
     /// - Allocations: 1 (output buffer), rest uses arena
     pub fn transform_bytes(
-        &self,
+        &mut self,
         input: &[u8],
         output: &mut ByteBuf,
     ) -> Result<(), TransformError> {
@@ -126,10 +144,17 @@ impl<'a> ZeroCopyTransformer<'a> {
     /// Transform JSON object (recursive, tail-call optimized)
     #[inline]
     fn transform_object(
-        &self,
+        &mut self,
         reader: &mut ByteReader,
         writer: &mut JsonWriter,
     ) -> Result<(), TransformError> {
+        // Check recursion depth limit
+        if self.current_depth >= self.config.max_depth {
+            return Err(TransformError::MaxDepthExceeded(self.config.max_depth));
+        }
+
+        self.current_depth += 1;
+
         reader.expect_byte(b'{')?;
         writer.write_object_start()?;
 
@@ -186,16 +211,24 @@ impl<'a> ZeroCopyTransformer<'a> {
         reader.expect_byte(b'}')?;
         writer.write_object_end()?;
 
+        self.current_depth -= 1;
         Ok(())
     }
 
     /// Transform JSON array
     #[inline]
     fn transform_array(
-        &self,
+        &mut self,
         reader: &mut ByteReader,
         writer: &mut JsonWriter,
     ) -> Result<(), TransformError> {
+        // Check recursion depth limit
+        if self.current_depth >= self.config.max_depth {
+            return Err(TransformError::MaxDepthExceeded(self.config.max_depth));
+        }
+
+        self.current_depth += 1;
+
         reader.expect_byte(b'[')?;
         writer.write_array_start()?;
 
@@ -214,13 +247,14 @@ impl<'a> ZeroCopyTransformer<'a> {
         reader.expect_byte(b']')?;
         writer.write_array_end()?;
 
+        self.current_depth -= 1;
         Ok(())
     }
 
     /// Transform JSON value (dispatch based on first byte)
     #[inline(always)]
     fn transform_value(
-        &self,
+        &mut self,
         reader: &mut ByteReader,
         writer: &mut JsonWriter,
     ) -> Result<(), TransformError> {
@@ -665,6 +699,7 @@ pub enum TransformError {
     InvalidBool,
     InvalidNull,
     InvalidNumber,
+    MaxDepthExceeded(usize),
 }
 
 impl std::fmt::Display for TransformError {
@@ -679,6 +714,9 @@ impl std::fmt::Display for TransformError {
             TransformError::InvalidBool => write!(f, "Invalid boolean value"),
             TransformError::InvalidNull => write!(f, "Invalid null value"),
             TransformError::InvalidNumber => write!(f, "Invalid number"),
+            TransformError::MaxDepthExceeded(max) => {
+                write!(f, "JSON nesting depth exceeded maximum of {}", max)
+            }
         }
     }
 }

@@ -4,7 +4,7 @@
 //! responses from PostgreSQL JSON rows using schema-aware transformation.
 
 use crate::core::arena::Arena;
-use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
+use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer, MAX_JSON_DEPTH};
 use crate::json_transform;
 use crate::pipeline::projection::FieldSet;
 use crate::schema_registry;
@@ -206,11 +206,12 @@ fn build_zero_copy(
         camel_case: true,
         project_fields: field_paths.is_some(),
         add_graphql_wrapper: false,
+        max_depth: MAX_JSON_DEPTH,
     };
 
     let field_set = field_paths.map(|paths| FieldSet::from_paths(&paths, &arena));
 
-    let transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
+    let mut transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
 
     let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
 
