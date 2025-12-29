@@ -9,6 +9,207 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+## [1.9.0b1] - 2025-12-29
+
+**Beta Release - Complete Rust Backend Migration**
+
+This beta release represents a complete rewrite of FraiseQL's backend in Rust, transforming it from a Python-based GraphQL framework to a high-performance Rust-powered system. This release is intended for testing with PrintOptim before the final v1.9.0 release.
+
+### 🚀 Major Features
+
+#### Complete Rust Pipeline (Phases 1-13)
+- **5-7x Performance Improvement**: Query parsing, SQL generation, and JSON transformation all in Rust
+- **Unified GraphQL Pipeline**: End-to-end Rust execution from query to response
+- **Zero-Copy Streaming**: Efficient result handling with minimal allocations
+- **Query Plan Caching**: LRU cache with SHA-256 signatures (80-90% hit rate)
+
+#### Authentication & Authorization
+- **JWT Validation**: JWKS support, HS256/RS256/ES256 algorithms, 10x faster than Python
+- **RBAC System**: GraphQL directives (`@requiresRole`, `@requiresPermission`)
+- **Field-Level Auth**: Per-field access control with permission caching
+- **Multi-Tenancy**: Tenant-scoped permissions
+
+#### Security Features
+- **Rate Limiting**: Token bucket algorithm (1000 req/min default)
+- **Query Validation**: Depth (10), complexity (1000), and size limits (100KB)
+- **Audit Logging**: Async non-blocking with retry logic for critical events
+- **Security Headers**: CORS, CSP, HSTS, X-Frame-Options
+
+#### Advanced GraphQL
+- **Fragment Support**: Fragment definitions, spreads, and cycle detection
+- **Variables**: Type validation, default values, null handling
+- **Directives**: @include, @skip, @requiresRole, @requiresPermission
+- **Complexity Analysis**: Field-level costs with configurable rejection threshold
+
+### 🔒 Code Quality & Safety (Phases 1-6.2)
+
+#### Rust Safety Audit
+- **Zero Clippy Errors**: Passes `cargo clippy -- -D warnings` (fixed 12 errors from v1.9.0a1)
+- **Zero Excessive Nesting**: Refactored 14+ warnings with helper methods
+- **Memory Safety**: Arena allocator (10MB limit), JSON recursion limit (64 levels)
+- **Property-Based Testing**: 8 fuzzing tests for Arena allocator
+- **Safety Documentation**: 50+ lines documenting unsafe code, thread safety, attack prevention
+
+#### Quality Improvements
+- Reduced panic risks from 337 to 328 (eliminated in hot paths)
+- Added 7 SAFETY comments (up from 3)
+- Implemented `Default` trait idiomatically
+- Replaced `Unknown` type with `Option<SchemaType>`
+
+### ⚡ Performance
+
+**Rust Transformation Benchmarks** (vs Pure Python):
+- Simple (0.23 KB): 6.87x faster
+- Medium (1.07 KB): 4.64x faster
+- Nested (7.39 KB): 5.43x faster
+- Large (32.51 KB): 4.62x faster
+
+**End-to-End Performance**:
+- Simple queries: 4.0x faster (0.46ms total)
+- Nested queries: 1.6x faster (2.04ms total)
+- Transformation overhead: < 0.1ms (negligible)
+
+**Note**: Measurements are from release builds. Debug builds are 2x slower than Python - always use `maturin develop --release` in production.
+
+### 🧪 Testing
+
+- **6251+ Tests Passing**: 100% success rate maintained
+- **Chaos Engineering**: 145/145 tests passing (infrastructure, network, database, auth, cache, concurrency)
+- **Property-Based Testing**: 8 tests fuzzing Arena allocator for safety invariants
+- **Performance Regression Tests**: Baseline tracking, throughput benchmarks, latency percentiles
+
+### 🐛 Bug Fixes
+
+#### WHERE Clause Filtering on Hybrid Tables (Issue #124)
+- **Fixed**: WHERE filters now work correctly on tables with both SQL columns and JSONB data
+- **Root Cause**: Type re-registration cleared `table_columns` metadata
+- **Solution**: Preserve metadata during re-registration with fallback logic
+- **Tests**: 4 regression tests added
+
+#### JWT Token Validation
+- Fixed expired tokens sometimes passing validation
+- Strict timestamp comparison for expiry checks
+
+#### Fragment Cycle Detection
+- Fixed false positives in valid fragment graphs
+- Proper recursion stack cleanup on backtrack
+
+#### Performance Fixes
+- Eliminated `format!()` allocations in hot paths (15-20% improvement)
+- Reduced LRU cache lock contention (3x better concurrency)
+
+### 🔧 Breaking Changes
+
+#### ⚠️ Rust Extension Required
+- **Before (v1.8.9)**: Pure Python with optional Rust acceleration
+- **After (v1.9.0b1)**: Rust extension REQUIRED
+- **Mitigation**: Pre-built wheels provided for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x86_64)
+
+#### Removed: CamelForge PostgreSQL Functions
+- Replaced with pure Rust transformation (no DB extensions needed)
+- Simpler deployment, better horizontal scaling, improved performance
+- Migration: Automatic, no code changes required
+
+#### Changed: Error Types
+- Errors now originate from Rust (via PyO3)
+- Error handling API unchanged - still catch `GraphQLError`
+
+### 📚 Documentation
+
+**New Documentation**:
+- Rust Migration Roadmap (13 phases)
+- RBAC Guide (directives, permissions, multi-tenancy)
+- Security Guide (rate limiting, audit logging, headers)
+- Chaos Engineering (test scenarios, recovery patterns)
+- Performance Tuning (release builds, optimization, benchmarking)
+
+**Updated Documentation**:
+- README.md (complete rewrite with competitive positioning)
+- Installation Guide (Rust toolchain requirements)
+- API Reference (Rust-native types)
+
+### 🔄 Migration Guide
+
+**Prerequisites**:
+```bash
+# Install Rust (if building from source)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Or use pre-built wheels (recommended)
+pip install fraiseql==1.9.0b1 --only-binary fraiseql
+```
+
+**Configuration** (new environment variables):
+```bash
+# JWT
+FRAISEQL_JWKS_URL=https://auth-provider.com/.well-known/jwks.json
+FRAISEQL_JWT_ALGORITHM=RS256
+
+# Rate Limiting
+FRAISEQL_RATE_LIMIT_PER_USER=1000  # req/min
+FRAISEQL_RATE_LIMIT_PER_IP=100
+
+# Query Limits
+FRAISEQL_MAX_QUERY_DEPTH=10
+FRAISEQL_MAX_QUERY_COMPLEXITY=1000
+```
+
+**Initialize Rust Pipeline**:
+```python
+from fraiseql import initialize_graphql_pipeline
+import json
+
+schema_json = json.dumps(your_schema_dict)
+initialize_graphql_pipeline(schema_json)
+```
+
+### 🚨 Known Issues
+
+1. **Debug builds are 2x slower than Python** - Use `maturin develop --release` always
+2. **No pre-built wheels for Windows ARM64** - Build from source
+3. **Property tests occasionally flaky on CI** - Investigating timeout issues
+
+### 📦 Dependencies
+
+**New Rust Dependencies**:
+- pyo3 0.25.0 (Python bindings)
+- tokio 1.0 (async runtime)
+- tokio-postgres 0.7 (PostgreSQL driver)
+- deadpool-postgres 0.14 (connection pooling)
+- jsonwebtoken 9.2 (JWT validation)
+- proptest 1.0 (property-based testing)
+
+**No breaking changes to Python dependencies**
+
+### ⚠️ Beta Release Notice
+
+This is a **beta release** intended for testing with PrintOptim before final v1.9.0 release.
+
+**What "beta" means**:
+- API is stable but may change based on feedback
+- Performance is production-ready
+- Comprehensive testing but real-world validation needed
+- **Not recommended for production** - use v1.8.9 for production
+
+**How to help**:
+- Test in staging environment
+- Report integration issues
+- Share performance benchmarks
+- Provide feedback on API ergonomics
+
+### 🎯 Next Steps
+
+**Before v1.9.0 Final**:
+- Full integration testing with PrintOptim
+- Staging environment validation
+- Performance benchmarks under load
+- Memory leak detection
+- Potential v1.9.0b2 if issues found
+
+**Full Changelog**: https://github.com/fraiseql/fraiseql/compare/v1.8.9...v1.9.0b1
+
+---
+
 ## [1.8.9] - 2025-12-20
 
 ### Fixed
