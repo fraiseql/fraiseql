@@ -1,6 +1,163 @@
+---
+title: Authentication & Authorization
+description: Enterprise-grade authentication with JWT, Auth0, role-based access control, and field-level permissions
+tags:
+  - authentication
+  - authorization
+  - JWT
+  - Auth0
+  - RBAC
+  - security
+  - permissions
+  - roles
+---
+
 # Authentication & Authorization
 
 Complete guide to implementing enterprise-grade authentication and authorization in FraiseQL applications.
+
+## Quick Start - JWT Authentication Example
+
+```python
+"""
+Complete example: JWT authentication with FraiseQL.
+
+Prerequisites:
+- pip install fraiseql pyjwt cryptography
+- Generate a secret key: python -c "import secrets; print(secrets.token_hex(32))"
+"""
+
+import asyncio
+from datetime import datetime, timedelta
+from uuid import UUID, uuid4
+import jwt
+import fraiseql
+from fraiseql.auth import AuthProvider, UserContext, requires_auth, requires_role
+
+# 1. Create custom JWT auth provider
+class SimpleJWTProvider(AuthProvider):
+    """Simple JWT authentication provider."""
+
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+        self.algorithm = "HS256"
+
+    async def validate_token(self, token: str) -> dict:
+        """Validate and decode JWT token."""
+        try:
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm]
+            )
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise ValueError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise ValueError("Invalid token")
+
+    async def get_user_from_token(self, token: str) -> UserContext:
+        """Extract user context from token."""
+        payload = await self.validate_token(token)
+
+        return UserContext(
+            user_id=UUID(payload["user_id"]),
+            email=payload.get("email"),
+            name=payload.get("name"),
+            roles=payload.get("roles", []),
+            permissions=payload.get("permissions", [])
+        )
+
+# 2. Define types with authorization
+@fraiseql.type(sql_source="v_user")
+class User:
+    id: UUID
+    name: str
+    email: str
+
+# 3. Protected queries and mutations
+@fraiseql.query
+@requires_auth  # ← Requires authentication
+async def current_user(info) -> User:
+    """Get current authenticated user."""
+    user_context = info.context["user"]  # UserContext available here
+    db = info.context["db"]
+
+    return await db.fetch_one(
+        "SELECT * FROM v_user WHERE data->>'id' = $1",
+        str(user_context.user_id)
+    )
+
+@fraiseql.query
+@requires_role("admin")  # ← Requires admin role
+async def all_users(info) -> list[User]:
+    """Admin-only: Get all users."""
+    db = info.context["db"]
+    return await db.fetch("SELECT * FROM v_user")
+
+# 4. Set up schema with auth
+async def main():
+    # Create auth provider
+    auth_provider = SimpleJWTProvider(secret_key="your-secret-key-here")
+
+    # Create schema with auth
+    schema = fraiseql.Schema(
+        database_url="postgresql://localhost/mydb",
+        auth_provider=auth_provider
+    )
+
+    # Generate test token
+    token = jwt.encode(
+        {
+            "user_id": str(uuid4()),
+            "email": "alice@example.com",
+            "name": "Alice",
+            "roles": ["admin"],
+            "exp": datetime.utcnow() + timedelta(hours=1)
+        },
+        "your-secret-key-here",
+        algorithm="HS256"
+    )
+
+    # Execute authenticated query
+    query = """
+    {
+      currentUser {
+        id
+        name
+        email
+      }
+    }
+    """
+
+    result = await schema.execute(
+        query,
+        context={
+            "authorization": f"Bearer {token}"  # ← Pass token in context
+        }
+    )
+
+    if result.errors:
+        print(f"❌ Errors: {result.errors}")
+    else:
+        user = result.data['currentUser']
+        print(f"✅ Authenticated as: {user['name']} ({user['email']})")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Expected Output:**
+```
+✅ Authenticated as: Alice (alice@example.com)
+```
+
+**Without Token (Unauthorized):**
+```
+❌ Errors: [{'message': 'Authentication required', 'locations': [...]}]
+```
+
+---
 
 ## Overview
 

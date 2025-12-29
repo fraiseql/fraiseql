@@ -1,3 +1,16 @@
+---
+title: Rust Pipeline Architecture
+description: How FraiseQL integrates Python and Rust for 5-7x faster JSON transformation and zero-copy performance
+tags:
+  - rust
+  - python
+  - architecture
+  - performance
+  - PyO3
+  - pipeline
+  - integration
+---
+
 # Python ↔ Rust Integration
 
 This guide explains how FraiseQL's Python code integrates with the Rust pipeline.
