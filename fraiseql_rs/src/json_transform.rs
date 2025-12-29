@@ -299,7 +299,7 @@ pub fn transform_with_selections(
     // Transform with aliases and field projection applied
     transform_with_aliases(
         value,
-        current_type,
+        Some(current_type),
         "",
         &alias_map,
         &allowed_fields,
@@ -369,7 +369,7 @@ fn build_alias_map(
 /// - Minimal allocations (path string constructed once per field)
 fn transform_with_aliases(
     value: &Value,
-    current_type: &str,
+    current_type: Option<&str>,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
     allowed_fields: &std::collections::HashSet<String>,
@@ -377,14 +377,21 @@ fn transform_with_aliases(
 ) -> Value {
     match value {
         Value::Object(map) => {
-            // Pre-allocate result map (field count + __typename)
-            let mut result = Map::with_capacity(map.len() + 1);
+            // Pre-allocate result map (field count + optional __typename)
+            let capacity = if current_type.is_some() {
+                map.len() + 1
+            } else {
+                map.len()
+            };
+            let mut result = Map::with_capacity(capacity);
 
-            // Inject __typename first (GraphQL convention)
-            result.insert(
-                "__typename".to_string(),
-                Value::String(current_type.to_string()),
-            );
+            // Inject __typename first (GraphQL convention) if type is known
+            if let Some(type_name) = current_type {
+                result.insert(
+                    "__typename".to_string(),
+                    Value::String(type_name.to_string()),
+                );
+            }
 
             // OPTIMIZATION: Clone map once, then use .remove() to take ownership of values
             // This trades 1 map clone for N field clones (where N = number of fields)
@@ -437,7 +444,8 @@ fn transform_with_aliases(
                 };
 
                 // Transform value based on schema type
-                let field_type_opt = registry.get_field_type(current_type, key);
+                let field_type_opt = current_type
+                    .and_then(|type_name| registry.get_field_type(type_name, key));
 
                 let transformed_val = match field_type_opt {
                     Some(field_info) if field_info.is_nested_object() => {
@@ -446,7 +454,7 @@ fn transform_with_aliases(
                         let val = owned_map.get(key).unwrap();
                         transform_nested_field_with_aliases(
                             val,
-                            field_info.type_name(),
+                            Some(field_info.type_name()),
                             field_info.is_list(),
                             &field_path,
                             alias_map,
@@ -474,10 +482,10 @@ fn transform_with_aliases(
                             let val = owned_map.get(key).unwrap();
                             // Determine if it's a list by checking the value type
                             let is_list = matches!(val, Value::Array(_));
-                            // We don't know the type name, use "Unknown" as placeholder
+                            // Type not in schema - pass None to skip __typename injection
                             transform_nested_field_with_aliases(
                                 val,
-                                "Unknown",
+                                None,
                                 is_list,
                                 &field_path,
                                 alias_map,
@@ -507,7 +515,7 @@ fn transform_with_aliases(
 #[inline]
 fn transform_nested_field_with_aliases(
     value: &Value,
-    nested_type: &str,
+    nested_type: Option<&str>,
     is_list: bool,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
