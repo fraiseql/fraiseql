@@ -216,9 +216,9 @@ fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE
 - **Flexibility**: All three types available for different use cases
 
 ### Learn More
-- [Trinity Identifiers Guide](../../docs/database/trinity-identifiers.md)
-- [Table Naming Conventions](../../docs/database/table-naming-conventions.md)
-- [Migration Guide](../../docs/database/migrations.md)
+- [Trinity Identifiers Guide](../../docs/archive/database/trinity-identifiers.md)
+- [Table Naming Conventions](../../docs/archive/database/table-naming-conventions.md)
+- [Migration Guide](../../docs/archive/database/migrations.md)
 
 ---
 

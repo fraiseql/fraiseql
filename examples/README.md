@@ -161,7 +161,6 @@ uvicorn app:app --reload
 ## 🛠️ Development & Testing
 
 **Tools and best practices:**
-- **[Development Tools](../docs/development/)** - GraphQL playground, database tools, testing
 - **[Best Practices](../docs/core/)** - Database design, API design, security, performance
 - **[Debugging Guide](../docs/production/)** - Monitoring, query analysis, troubleshooting
 
