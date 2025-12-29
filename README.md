@@ -319,7 +319,7 @@ FraiseQL includes enterprise-grade security features designed for global regulat
 - **Field-level authorization** with role inheritance
 - **Row-level security** via PostgreSQL RLS
 
-**[🔐 Security Configuration](https://github.com/fraiseql/fraiseql/blob/main/docs/security/configuration.md)** • **[🌍 Global Compliance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/compliance/GLOBAL_REGULATIONS.md)** • **[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
+**[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
 
 ---
 
