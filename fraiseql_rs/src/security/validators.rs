@@ -95,9 +95,7 @@ impl QueryValidator {
     }
 
     /// Calculate depth for a single selection (recursive helper)
-    fn calculate_selection_depth(
-        selection: &crate::graphql::types::FieldSelection,
-    ) -> usize {
+    fn calculate_selection_depth(selection: &crate::graphql::types::FieldSelection) -> usize {
         if selection.nested_fields.is_empty() {
             1
         } else {

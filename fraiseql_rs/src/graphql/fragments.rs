@@ -97,16 +97,7 @@ impl FragmentGraph {
 
         if let Some(deps) = self.dependencies.get(fragment_name) {
             for dep in deps {
-                if !visited.contains(dep) {
-                    if let Some(cycle) =
-                        self.dfs_cycle_detect(dep, visited, recursion_stack, cycle_path)
-                    {
-                        return Some(cycle);
-                    }
-                } else if recursion_stack.contains(dep) {
-                    // Cycle found - extract cycle path
-                    let cycle_start = cycle_path.iter().position(|f| f == dep).unwrap();
-                    let cycle = cycle_path[cycle_start..].to_vec();
+                if let Some(cycle) = self.check_dependency_cycle(dep, visited, recursion_stack, cycle_path) {
                     return Some(cycle);
                 }
             }
@@ -114,6 +105,29 @@ impl FragmentGraph {
 
         recursion_stack.remove(fragment_name);
         cycle_path.pop();
+        None
+    }
+
+    /// Check if a dependency creates a cycle (helper to reduce nesting)
+    fn check_dependency_cycle(
+        &self,
+        dep: &str,
+        visited: &mut HashSet<String>,
+        recursion_stack: &mut HashSet<String>,
+        cycle_path: &mut Vec<String>,
+    ) -> Option<Vec<String>> {
+        if !visited.contains(dep) {
+            // Not visited yet - recurse
+            return self.dfs_cycle_detect(dep, visited, recursion_stack, cycle_path);
+        }
+
+        if recursion_stack.contains(dep) {
+            // Cycle found - extract cycle path
+            let cycle_start = cycle_path.iter().position(|f| f == dep).unwrap();
+            let cycle = cycle_path[cycle_start..].to_vec();
+            return Some(cycle);
+        }
+
         None
     }
 

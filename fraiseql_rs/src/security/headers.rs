@@ -38,7 +38,6 @@ impl Default for SecurityHeaders {
 }
 
 impl SecurityHeaders {
-
     /// Create production-grade security headers
     pub fn production() -> Self {
         let mut headers = Self::default().headers;

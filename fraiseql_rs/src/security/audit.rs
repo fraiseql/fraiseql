@@ -211,19 +211,37 @@ impl AuditLogger {
                         // Could implement circuit breaker pattern here
                     }
 
-                    // For critical events, could retry with backoff
-                    if Self::is_critical_event(&event) && consecutive_errors < 3 {
-                        // Simple retry logic for critical events
-                        tokio::time::sleep(tokio::time::Duration::from_millis(
-                            100 * consecutive_errors as u64,
-                        ))
-                        .await;
-                        if (Self::write_event(&pool, &event).await).is_ok() {
-                            consecutive_errors = 0;
-                        }
+                    // For critical events, retry with backoff
+                    if Self::should_retry(&event, consecutive_errors) {
+                        consecutive_errors = Self::retry_critical_event(&pool, &event, consecutive_errors).await;
                     }
                 }
             }
+        }
+    }
+
+    /// Check if we should retry writing this event
+    fn should_retry(event: &AuditEvent, consecutive_errors: u32) -> bool {
+        Self::is_critical_event(event) && consecutive_errors < 3
+    }
+
+    /// Retry writing a critical event with exponential backoff
+    async fn retry_critical_event(
+        pool: &deadpool_postgres::Pool,
+        event: &AuditEvent,
+        consecutive_errors: u32,
+    ) -> u32 {
+        // Exponential backoff
+        tokio::time::sleep(tokio::time::Duration::from_millis(
+            100 * consecutive_errors as u64,
+        ))
+        .await;
+
+        // Retry write
+        if (Self::write_event(pool, event).await).is_ok() {
+            0 // Reset error counter on success
+        } else {
+            consecutive_errors // Keep current count on failure
         }
     }
 

@@ -421,11 +421,10 @@ fn transform_with_aliases(
                     // 1. Exactly matches the field_path (leaf field selected)
                     // 2. Starts with field_path + "." (children of this field selected)
                     alias_map.keys().any(|path| {
-                        path == &field_path || (
-                            path.len() > field_path.len() + 1 &&
-                            path.starts_with(&field_path) &&
-                            path.as_bytes()[field_path.len()] == b'.'
-                        )
+                        path == &field_path
+                            || (path.len() > field_path.len() + 1
+                                && path.starts_with(&field_path)
+                                && path.as_bytes()[field_path.len()] == b'.')
                     })
                 };
 
@@ -444,8 +443,8 @@ fn transform_with_aliases(
                 };
 
                 // Transform value based on schema type
-                let field_type_opt = current_type
-                    .and_then(|type_name| registry.get_field_type(type_name, key));
+                let field_type_opt =
+                    current_type.and_then(|type_name| registry.get_field_type(type_name, key));
 
                 let transformed_val = match field_type_opt {
                     Some(field_info) if field_info.is_nested_object() => {
@@ -469,13 +468,11 @@ fn transform_with_aliases(
                     None => {
                         // Field not in schema
                         // Check if we have nested selections for this field in alias_map
-                        let has_nested_selections = alias_map
-                            .keys()
-                            .any(|path| {
-                                path.len() > field_path.len() + 1 &&
-                                path.starts_with(&field_path) &&
-                                path.as_bytes()[field_path.len()] == b'.'
-                            });
+                        let has_nested_selections = alias_map.keys().any(|path| {
+                            path.len() > field_path.len() + 1
+                                && path.starts_with(&field_path)
+                                && path.as_bytes()[field_path.len()] == b'.'
+                        });
 
                         if has_nested_selections {
                             // Field has nested selections, so recursively transform with filtering

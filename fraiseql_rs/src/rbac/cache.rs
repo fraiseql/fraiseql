@@ -63,7 +63,7 @@ const DEFAULT_CACHE_CAPACITY_USIZE: usize = 100;
 /// Default cache capacity as NonZeroUsize (compile-time constant)
 const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(DEFAULT_CACHE_CAPACITY_USIZE) {
     Some(nz) => nz,
-    None => unreachable!(),  // 100 is non-zero, guaranteed at compile time
+    None => unreachable!(), // 100 is non-zero, guaranteed at compile time
 };
 
 /// Permission cache with TTL expiry and LRU eviction.

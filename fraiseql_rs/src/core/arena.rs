@@ -141,7 +141,7 @@ impl Arena {
     /// 2. Returned slice lifetime is tied to arena lifetime
     /// 3. We check bounds before growing buffer
     #[inline]
-    #[allow(clippy::mut_from_ref)]  // Interior mutability pattern - safe via !Send + !Sync marker
+    #[allow(clippy::mut_from_ref)] // Interior mutability pattern - safe via !Send + !Sync marker
     pub fn try_alloc_bytes(&self, len: usize) -> Result<&mut [u8], ArenaError> {
         // SAFETY: Single-threaded access enforced by !Send + !Sync marker
         unsafe {
@@ -180,8 +180,8 @@ impl Arena {
     /// # Safety
     /// Same safety guarantees as `try_alloc_bytes`.
     #[inline(always)]
-    #[allow(clippy::mut_from_ref)]  // Interior mutability pattern - safe via !Send + !Sync marker
-    #[allow(clippy::expect_used)]  // Intentional panic for convenience API
+    #[allow(clippy::mut_from_ref)] // Interior mutability pattern - safe via !Send + !Sync marker
+    #[allow(clippy::expect_used)] // Intentional panic for convenience API
     pub fn alloc_bytes(&self, len: usize) -> &mut [u8] {
         self.try_alloc_bytes(len)
             .expect("Arena size limit exceeded")
