@@ -1,3 +1,15 @@
+---
+title: Health Checks
+description: Composable health check patterns for monitoring application dependencies
+tags:
+  - health-checks
+  - production
+  - monitoring
+  - kubernetes
+  - liveness
+  - readiness
+---
+
 # Health Checks
 
 Composable health check patterns for monitoring application dependencies and system health.

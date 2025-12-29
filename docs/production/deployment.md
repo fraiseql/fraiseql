@@ -1,3 +1,15 @@
+---
+title: Production Deployment
+description: Complete guide for deploying FraiseQL with Docker, Kubernetes, and scaling strategies
+tags:
+  - deployment
+  - production
+  - docker
+  - kubernetes
+  - scaling
+  - CI/CD
+---
+
 # Production Deployment
 
 Complete production deployment guide for FraiseQL: Docker, Kubernetes, environment management, health checks, scaling strategies, and rollback procedures.

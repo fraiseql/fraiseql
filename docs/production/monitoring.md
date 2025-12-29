@@ -1,3 +1,15 @@
+---
+title: Production Monitoring
+description: PostgreSQL-native error tracking, caching, and observability without external services
+tags:
+  - monitoring
+  - production
+  - observability
+  - error-tracking
+  - PostgreSQL
+  - metrics
+---
+
 # Production Monitoring
 
 Comprehensive monitoring strategy for FraiseQL applications with **PostgreSQL-native error tracking, caching, and observability**—eliminating the need for external services like Sentry or Redis.
