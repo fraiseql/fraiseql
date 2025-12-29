@@ -139,6 +139,7 @@ nav:
     - Security: production/security.md
   - Reference:
     - API Reference:
+      - Overview: api/index.md
       - Database API: reference/database.md
       - Decorators: reference/decorators.md
       - CLI: reference/cli.md
