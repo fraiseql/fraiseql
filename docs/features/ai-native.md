@@ -303,7 +303,7 @@ FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs ca
 
 ### GraphQL Schema as LLM Context
 
-GraphQL schema provides perfect structure for LLM understanding:
+GraphQL schema provides structured context for LLM understanding:
 
 ```python
 import fraiseql

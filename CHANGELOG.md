@@ -2697,8 +2697,8 @@ pip install --upgrade fraiseql
 ### 🙏 Acknowledgments
 
 This release represents months of development, testing, and refinement. Special thanks to:
-- The PostgreSQL team for an amazing database
-- The Rust community for excellent tooling
+- The PostgreSQL team
+- The Rust community
 - Early adopters and testers for valuable feedback
 
 ### 📚 Documentation

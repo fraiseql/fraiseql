@@ -65,7 +65,7 @@ $$ LANGUAGE plpgsql;
 -- Sample data
 INSERT INTO tb_note (title, content) VALUES
     ('Welcome to FraiseQL', 'This is your first note!'),
-    ('GraphQL is awesome', 'Queries and mutations made simple'),
+    ('Type-safe queries', 'Automatic GraphQL schema from PostgreSQL views'),
     ('Database-first design', 'Views compose data for optimal performance');
 ```
 
@@ -222,7 +222,7 @@ query {
 ### Create a new note:
 ```graphql
 mutation {
-  createNote(input: { title: "My New Note", content: "This is awesome!" }) {
+  createNote(input: { title: "My New Note", content: "GraphQL mutations made simple" }) {
     ... on CreateNoteSuccess {
       note {
         id
@@ -266,4 +266,4 @@ mutation {
 
 ---
 
-Ready to build something amazing? Let's go! 🚀
+Continue with the [First Hour Tutorial](first-hour/) for hands-on examples.
