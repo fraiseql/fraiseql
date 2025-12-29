@@ -1,3 +1,14 @@
+---
+title: Rust Backend Migration
+description: Migration guide from Python-only to Rust pipeline backend
+tags:
+  - Rust
+  - migration
+  - performance
+  - backend
+  - upgrade
+---
+
 # Rust Backend Migration Guide
 
 **Last Updated**: December 21, 2025

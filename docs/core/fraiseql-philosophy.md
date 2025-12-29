@@ -1,3 +1,14 @@
+---
+title: FraiseQL Philosophy
+description: Design principles, PostgreSQL-native patterns, and developer experience focus
+tags:
+  - philosophy
+  - principles
+  - design
+  - PostgreSQL
+  - architecture
+---
+
 # FraiseQL Philosophy
 
 Understanding FraiseQL's design principles and innovative approaches.

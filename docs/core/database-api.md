@@ -1,3 +1,14 @@
+---
+title: Database API
+description: Complete database operations guide with FraiseQLRepository
+tags:
+  - database
+  - API
+  - repository
+  - queries
+  - PostgreSQL
+---
+
 # Database API
 
 Repository pattern for async database operations with type safety, structured queries, and JSONB views.

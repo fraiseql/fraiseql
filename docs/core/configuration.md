@@ -1,3 +1,13 @@
+---
+title: Configuration
+description: Application configuration, environment variables, and settings
+tags:
+  - configuration
+  - settings
+  - environment
+  - config
+---
+
 # Configuration
 
 FraiseQLConfig class for comprehensive application configuration.

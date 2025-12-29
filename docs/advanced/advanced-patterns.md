@@ -1,3 +1,14 @@
+---
+title: Advanced Patterns
+description: Advanced architectural patterns and design strategies
+tags:
+  - patterns
+  - architecture
+  - advanced
+  - design
+  - best-practices
+---
+
 # FraiseQL v1 - Advanced Patterns (DEFAULT)
 
 **Core patterns for FraiseQL v1**: Production-grade database architecture

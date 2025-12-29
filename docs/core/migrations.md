@@ -1,3 +1,14 @@
+---
+title: Database Migrations
+description: Database schema migrations and version management
+tags:
+  - migrations
+  - schema
+  - database
+  - versioning
+  - DDL
+---
+
 # Database Migrations
 
 > **Manage your database schema with confidence using FraiseQL's integrated migration system**

@@ -1,3 +1,14 @@
+---
+title: Trinity Pattern Guide
+description: Complete guide to three-tier identifier system
+tags:
+  - trinity
+  - identifiers
+  - pattern
+  - UUID
+  - guide
+---
+
 # Trinity Pattern Complete Guide
 
 The Trinity Pattern is FraiseQL's three-identifier system for optimal performance, security, and user experience. Every entity in FraiseQL uses three types of identifiers working together.

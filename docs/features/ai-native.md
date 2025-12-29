@@ -1,3 +1,14 @@
+---
+title: AI-Native Features
+description: Built-in AI and ML integration features
+tags:
+  - AI
+  - machine-learning
+  - LLM
+  - embeddings
+  - features
+---
+
 # AI-Native Architecture
 
 FraiseQL is designed from the ground up for AI and LLM integration. Unlike traditional frameworks that confuse AI models with complex ORM abstractions, FraiseQL speaks the languages AI understands best: SQL and Python.

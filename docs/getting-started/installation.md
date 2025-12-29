@@ -1,3 +1,13 @@
+---
+title: Installation
+description: Install FraiseQL with Python, Rust extensions, and PostgreSQL setup
+tags:
+  - installation
+  - setup
+  - getting-started
+  - requirements
+---
+
 # Installation Guide
 
 🟢 Beginner · 🟡 Production - Complete installation guide for FraiseQL with different use cases, requirements, and troubleshooting.

@@ -1,3 +1,14 @@
+---
+title: Performance Guide
+description: Optimization strategies and performance best practices
+tags:
+  - performance
+  - optimization
+  - speed
+  - efficiency
+  - best-practices
+---
+
 # FraiseQL Performance Guide
 
 🟡 **Production** - Performance expectations, methodology, and optimization guidance.

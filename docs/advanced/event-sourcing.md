@@ -1,3 +1,14 @@
+---
+title: Event Sourcing
+description: Event sourcing patterns with audit logs and event streams
+tags:
+  - event-sourcing
+  - audit
+  - events
+  - CQRS
+  - patterns
+---
+
 # Event Sourcing & Audit Trails
 
 Event sourcing patterns in FraiseQL: entity change logs, temporal queries, audit trails, and CQRS with event-driven architectures.

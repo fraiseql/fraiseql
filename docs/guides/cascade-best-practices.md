@@ -1,3 +1,14 @@
+---
+title: Cascade Best Practices
+description: Best practices for GraphQL Cascade cache invalidation
+tags:
+  - cascade
+  - best-practices
+  - cache
+  - invalidation
+  - patterns
+---
+
 # GraphQL Cascade Best Practices
 
 This guide provides recommendations for effectively using GraphQL Cascade in your FraiseQL applications. Cascade enables automatic cache updates and side effect tracking, but proper usage is key to maximizing benefits while avoiding pitfalls.

@@ -1,3 +1,14 @@
+---
+title: PostgreSQL Extensions
+description: Required and optional PostgreSQL extensions for FraiseQL
+tags:
+  - PostgreSQL
+  - extensions
+  - pgvector
+  - pg_trgm
+  - database
+---
+
 # PostgreSQL Extensions
 
 > **FraiseQL integrates with PostgreSQL extensions for maximum performance**

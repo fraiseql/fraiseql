@@ -1,3 +1,13 @@
+---
+title: Feature Matrix
+description: Complete feature overview and capability matrix
+tags:
+  - features
+  - capabilities
+  - overview
+  - matrix
+---
+
 # FraiseQL Feature Matrix
 
 Complete overview of all FraiseQL capabilities.

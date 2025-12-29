@@ -1,3 +1,14 @@
+---
+title: Multi-Tenancy
+description: Tenant isolation patterns with PostgreSQL RLS and data partitioning
+tags:
+  - multi-tenancy
+  - isolation
+  - RLS
+  - PostgreSQL
+  - security
+---
+
 # Multi-Tenancy
 
 Comprehensive guide to implementing multi-tenant architectures in FraiseQL with complete data isolation, tenant context propagation, and scalable database patterns.

@@ -1,3 +1,14 @@
+---
+title: Error Handling Patterns
+description: Production-ready error handling strategies and patterns
+tags:
+  - errors
+  - handling
+  - patterns
+  - exceptions
+  - production
+---
+
 # Error Handling Patterns - Deep Dive
 
 This guide dives deep into FraiseQL's error handling philosophy, patterns, and advanced usage. It explains why we have one opinionated way and how to use it effectively.
