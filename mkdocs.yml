@@ -112,6 +112,8 @@ nav:
   - Guides:
     - Filtering & Querying: guides/filtering.md
     - Nested Filters: filtering/nested-filters.md
+    - Where Input Types: advanced/where-input-types.md
+    - Filter Operators Reference: advanced/filter-operators.md
     - Mutations & Data Changes: guides/mutation-sql-requirements.md
     - Error Handling: guides/error-handling-patterns.md
     - Cascade Best Practices: guides/cascade-best-practices.md
@@ -141,11 +143,25 @@ nav:
       - CLI: reference/cli.md
       - Configuration: reference/config.md
     - Quick Reference: reference/quick-reference.md
+  - Testing:
+    - Testing Checklist: reference/testing-checklist.md
+    - Chaos Testing: CHAOS_TESTING_IMPLEMENTATION.md
+    - Chaos QA Report: CHAOS_TESTING_QA_REPORT.md
   - Migration:
     - Migrating to Cascade: guides/migrating-to-cascade.md
+    - Migration Guide: advanced/migration-guide.md
   - Architecture:
     - Overview: architecture/README.md
-    - Architecture Decisions: architecture/decisions/README.md
+    - Rust Pipeline Architecture: core/rust-pipeline-integration.md
+    - Type Operator Architecture: architecture/type-operator-architecture.md
+    - Mutation Pipeline: architecture/mutation-pipeline.md
+    - Direct Path Implementation: architecture/direct-path-implementation.md
+    - Architecture Decisions:
+      - Index: architecture/decisions/README.md
+      - Ultra-Direct Mutation Path: architecture/decisions/002-ultra-direct-mutation-path.md
+      - Unified Audit Table: architecture/decisions/003-unified-audit-table.md
+      - KMS Architecture: architecture/decisions/0003-kms-architecture.md
+      - Simplified Single-Source CDC: architecture/decisions/005-simplified-single-source-cdc.md
 
 extra_css:
   - stylesheets/extra.css

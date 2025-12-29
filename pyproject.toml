@@ -484,6 +484,11 @@ dev = [
 docs = [
   "mkdocs>=1.6.1",
   "mkdocs-material>=9.6.22",
+  "mkdocs-mermaid2-plugin>=1.2.3",
+  "mkdocs-minify-plugin>=0.8.0",
   "mkdocs-redirects>=1.2.2",
   "pymdown-extensions>=10.16.1",
+  "sphinx>=9.0.4",
+  "sphinx-autodoc-typehints>=3.6.0",
+  "sphinx-rtd-theme>=0.5.1",
 ]
