@@ -57,6 +57,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+/// Default cache capacity (fallback if capacity is 0)
+const DEFAULT_CACHE_CAPACITY: usize = 100;
+
 /// Permission cache with TTL expiry and LRU eviction.
 ///
 /// Caches the effective permissions for each user within a tenant context.
@@ -96,15 +99,38 @@ struct CacheEntry {
 }
 
 impl PermissionCache {
+    /// Lock the cache, recovering from poisoning if necessary.
+    /// The cache is still valid after poisoning since we only store cached data.
+    #[inline]
+    fn lock_cache(&self) -> std::sync::MutexGuard<'_, LruCache<CacheKey, CacheEntry>> {
+        match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                eprintln!("Warning: Permission cache mutex was poisoned, recovering...");
+                poisoned.into_inner()
+            }
+        }
+    }
+
     /// Create new cache with capacity and default TTL
     pub fn new(capacity: usize) -> Self {
         Self::with_ttl(capacity, Duration::from_secs(300)) // 5 minute default TTL
     }
 
     /// Create new cache with custom TTL
+    ///
+    /// # Arguments
+    /// * `capacity` - Maximum number of cached entries (uses default if 0)
+    /// * `default_ttl` - Time-to-live for cache entries
     pub fn with_ttl(capacity: usize, default_ttl: Duration) -> Self {
+        // Use default capacity if provided capacity is 0
+        let effective_capacity = NonZeroUsize::new(capacity).unwrap_or_else(|| {
+            NonZeroUsize::new(DEFAULT_CACHE_CAPACITY)
+                .expect("DEFAULT_CACHE_CAPACITY is non-zero (compile-time constant)")
+        });
+
         Self {
-            cache: Mutex::new(LruCache::new(NonZeroUsize::new(capacity).unwrap())),
+            cache: Mutex::new(LruCache::new(effective_capacity)),
             default_ttl,
         }
     }
@@ -112,7 +138,7 @@ impl PermissionCache {
     /// Get cached permissions (with TTL check)
     pub fn get(&self, user_id: Uuid, tenant_id: Option<Uuid>) -> Option<Vec<Permission>> {
         let key = CacheKey { user_id, tenant_id };
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
 
         if let Some(entry) = cache.get(&key) {
             if Instant::now() < entry.expires_at {
@@ -144,13 +170,13 @@ impl PermissionCache {
             expires_at: Instant::now() + ttl,
         };
 
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
         cache.put(key, entry);
     }
 
     /// Invalidate specific user (all tenants)
     pub fn invalidate_user(&self, user_id: Uuid) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
 
         let keys_to_remove: Vec<CacheKey> = cache
             .iter()
@@ -165,7 +191,7 @@ impl PermissionCache {
 
     /// Invalidate specific tenant (all users)
     pub fn invalidate_tenant(&self, tenant_id: Uuid) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
 
         let keys_to_remove: Vec<CacheKey> = cache
             .iter()
@@ -195,13 +221,13 @@ impl PermissionCache {
 
     /// Clear entire cache
     pub fn clear(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
         cache.clear();
     }
 
     /// Clean expired entries (maintenance operation)
     pub fn cleanup_expired(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.lock_cache();
         let now = Instant::now();
 
         // Remove expired entries
@@ -218,7 +244,7 @@ impl PermissionCache {
 
     /// Get cache statistics
     pub fn stats(&self) -> CacheStats {
-        let cache = self.cache.lock().unwrap();
+        let cache = self.lock_cache();
         let now = Instant::now();
 
         let expired_count = cache

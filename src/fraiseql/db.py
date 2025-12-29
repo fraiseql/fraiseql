@@ -667,6 +667,18 @@ class FraiseQLRepository:
                         for sel in field_selections
                     ]
 
+                    # Store field selections in context for nested resolvers
+                    # This allows nested_field_resolver to apply field filtering to embedded JSONB
+                    if hasattr(info, "context") and isinstance(info.context, dict):
+                        if "_fraiseql_field_selections" not in info.context:
+                            info.context["_fraiseql_field_selections"] = {}
+
+                        # Store by parent type name for nested resolver lookup
+                        info.context["_fraiseql_field_selections"][parent_type] = {
+                            "selections": field_selections_json,
+                            "paths": field_paths,
+                        }
+
         # 2. Get JSONB column from cached metadata (NO sample query!)
         jsonb_column = None  # default to None (use row_to_json)
         if view_name in _table_metadata:

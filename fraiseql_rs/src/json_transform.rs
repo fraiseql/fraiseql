@@ -402,12 +402,23 @@ fn transform_with_aliases(
                     format!("{}.{}", current_path, key)
                 };
 
-                // Field projection: skip fields not in allowed set (only at root level)
-                // Check both snake_case key (from JSON) and camelCase version (for cases like dns_1/dns1)
-                if current_path.is_empty()
-                    && !allowed_fields.contains(key)
-                    && !allowed_fields.contains(&to_camel_case(key))
-                {
+                // Field projection: Check if this field is allowed at current path level
+                // At root level: check allowed_fields directly
+                // At nested level: check if any selection starts with current path + field
+                let is_field_allowed = if current_path.is_empty() {
+                    // Root level: check if field is in allowed set
+                    allowed_fields.contains(key) || allowed_fields.contains(&to_camel_case(key))
+                } else {
+                    // Nested level: check if any selection includes this path
+                    // A field is allowed if there's a selection that:
+                    // 1. Exactly matches the field_path (leaf field selected)
+                    // 2. Starts with field_path + "." (children of this field selected)
+                    alias_map.keys().any(|path| {
+                        path == &field_path || path.starts_with(&format!("{}.", field_path))
+                    })
+                };
+
+                if !is_field_allowed {
                     continue;
                 }
 
@@ -422,7 +433,9 @@ fn transform_with_aliases(
                 };
 
                 // Transform value based on schema type
-                let transformed_val = match registry.get_field_type(current_type, key) {
+                let field_type_opt = registry.get_field_type(current_type, key);
+
+                let transformed_val = match field_type_opt {
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - recursively transform with updated path
                         // Still need to borrow here for nested transformation
@@ -442,8 +455,31 @@ fn transform_with_aliases(
                         owned_map.remove(key).unwrap()
                     }
                     None => {
-                        // Field not in schema - take ownership and transform recursively
-                        transform_value(owned_map.remove(key).unwrap())
+                        // Field not in schema
+                        // Check if we have nested selections for this field in alias_map
+                        let has_nested_selections = alias_map.keys().any(|path| {
+                            path.starts_with(&format!("{}.", field_path))
+                        });
+
+                        if has_nested_selections {
+                            // Field has nested selections, so recursively transform with filtering
+                            let val = owned_map.get(key).unwrap();
+                            // Determine if it's a list by checking the value type
+                            let is_list = matches!(val, Value::Array(_));
+                            // We don't know the type name, use "Unknown" as placeholder
+                            transform_nested_field_with_aliases(
+                                val,
+                                "Unknown",
+                                is_list,
+                                &field_path,
+                                alias_map,
+                                allowed_fields,
+                                registry,
+                            )
+                        } else {
+                            // No nested selections - use generic transformation
+                            transform_value(owned_map.remove(key).unwrap())
+                        }
                     }
                 };
 

@@ -242,9 +242,18 @@ struct FixedWindow {
     count: usize,
 }
 
+/// Get current Unix timestamp in seconds.
+/// Returns 0 on system time error (extremely rare edge case).
+#[inline]
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
+        .map(|d| d.as_secs())
+        .unwrap_or_else(|e| {
+            // System clock is before Unix epoch - should never happen in production
+            // Log and return 0 to avoid panic
+            #[cfg(debug_assertions)]
+            eprintln!("ERROR: System clock before Unix epoch: {}", e);
+            0
+        })
 }

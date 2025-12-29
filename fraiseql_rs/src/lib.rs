@@ -53,7 +53,18 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 #[pyfunction]
 pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
     let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
-    *GLOBAL_PIPELINE.lock().unwrap() = Some(pipeline);
+
+    // Handle mutex poisoning gracefully
+    match GLOBAL_PIPELINE.lock() {
+        Ok(mut guard) => *guard = Some(pipeline),
+        Err(poisoned) => {
+            // Recover from poisoning - another thread panicked while holding lock
+            // This is safe because we're replacing the entire Option
+            eprintln!("Warning: Pipeline mutex was poisoned, recovering...");
+            *poisoned.into_inner() = Some(pipeline);
+        }
+    }
+
     Ok(())
 }
 
@@ -65,7 +76,15 @@ pub fn execute_graphql_query(
     variables: Bound<'_, PyDict>,
     user_context: Bound<'_, PyDict>,
 ) -> PyResult<PyObject> {
-    let pipeline_guard = GLOBAL_PIPELINE.lock().unwrap();
+    // Handle mutex poisoning gracefully
+    let pipeline_guard = match GLOBAL_PIPELINE.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Warning: Pipeline mutex was poisoned during access, recovering...");
+            poisoned.into_inner()
+        }
+    };
+
     match &*pipeline_guard {
         Some(pipeline) => pipeline.execute_py(py, query_string, &variables, &user_context),
         None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
