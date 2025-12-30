@@ -67,6 +67,7 @@ class GraphQLInfoInjector:
                 return await func(*args, **kwargs)
 
             return async_wrapper  # type: ignore[return-value]
+
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             # Check if info is passed as an argument
