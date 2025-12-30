@@ -174,7 +174,7 @@ query SimilarProducts($productTags: [String!]!) {
 
 ### Example 3: Validate Product SKU Format
 
-**Scenario**: Find products with invalid SKU codes (should be `PROD-XXXX` where X is digit).
+**Scenario**: Find products with invalid SKU codes (should be `PROD-XXXX` where each X is a digit 0-9).
 
 **GraphQL Query**:
 ```graphql

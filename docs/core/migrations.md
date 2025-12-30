@@ -194,7 +194,7 @@ fraiseql migrate status
 ### Basic Structure
 
 ```sql
--- Migration XXX: Description of what this migration does
+-- Migration 001: Description of what this migration does
 --
 -- Author: Your Name
 -- Date: 2024-01-15

@@ -494,8 +494,9 @@ class UserResult:
 
 @fraiseql.mutation
 async def create_user(input: CreateUserInput, repository: CQRSRepository) -> UserResult:
-    # TODO: Implement creation logic
-    ...
+    # Call your CQRS repository methods
+    result = await repository.create(input)
+    return UserResult(user=result)
 ```
 
 **Next Steps:**
