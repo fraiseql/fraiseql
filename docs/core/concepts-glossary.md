@@ -542,7 +542,7 @@ async def create_user(info, input: CreateUserInput) -> User:
         "name": input.name,
         "email": input.email
     })
-    return await db.find_one("v_user", "user", info, id=result["id"])
+    return await db.find_one("v_user", id=result["id"])
 ```
 
 **Class-based pattern (with success/failure):**
@@ -567,7 +567,7 @@ class CreateUser:
 
         # PostgreSQL function returns success/error indicator with user ID
         if result["success"]:
-            user = await db.find_one("v_user", "user", info, id=result["user_id"])
+            user = await db.find_one("v_user", id=result["user_id"])
             return CreateUserSuccess(
                 user=user,
                 message=result.get("message", "User created")

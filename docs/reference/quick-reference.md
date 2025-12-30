@@ -56,7 +56,8 @@ from uuid import UUID
 async def user(info, id: UUID) -> User | None:
     """Get user by ID."""
     db = info.context["db"]
-    return await db.get_by_id("users", id)
+    # field_name auto-inferred from function name "user"
+    return await db.find_one("v_user", id=id)
 ```
 
 ### Query - Filter with Where Input Types

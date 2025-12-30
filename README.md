@@ -19,7 +19,7 @@ PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 
 ```python
 # Complete GraphQL API in ~15 lines
-from fraiseql import type, query
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
@@ -31,6 +31,7 @@ class User:
 @fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
+    # field_name auto-inferred from function name "users"
     return await db.find("v_user")
 
 app = create_fraiseql_app(
@@ -372,17 +373,17 @@ $$ LANGUAGE plpgsql;
 ### Explicit Contracts
 
 ```python
-@input
+@fraiseql.input
 class CreateUserInput:
     email: str  # AI sees exact input structure
     name: str
 
-@success
+@fraiseql.success
 class UserCreated:
     user_id: str  # AI sees success response
-    message: str
+    # Note: @success auto-injects: status, message, updated_fields, id
 
-@error
+@fraiseql.error
 class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"
@@ -391,7 +392,7 @@ class ValidationError:
 class CreateUser:
     input: CreateUserInput
     success: UserCreated
-    failure: ValidationError
+    failure: ValidationError  # Note: Use 'failure' field, not '@failure' decorator
 
 # That's it! FraiseQL automatically:
 # 1. Calls public.fn_create_user(input) with input as dict
@@ -461,7 +462,7 @@ async def note(info, id: UUID) -> Note | None:
     return await db.find_one("v_note", id=id)
 
 # Step 3: Define mutations
-@input
+@fraiseql.input
 class CreateNoteInput:
     title: str
     content: str | None = None

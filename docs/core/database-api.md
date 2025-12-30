@@ -22,7 +22,7 @@ FraiseQL provides a repository layer for database operations that:
 │ GraphQL     │───▶│ Repository  │───▶│ PostgreSQL  │───▶│   Rust      │
 │ Resolver    │    │  Method     │    │   View      │    │ Pipeline    │
 │             │    │             │    │             │    │             │
-│ @query      │    │ find_rust() │    │ SELECT *    │    │ Transform   │
+│ @query      │    │ find()      │    │ SELECT data │    │ Transform   │
 │ def users:  │    │             │    │ FROM v_user │    │ JSONB→GraphQL│
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
@@ -50,7 +50,8 @@ Execute query using the exclusive Rust pipeline with automatic field selection.
 async def users(info, limit: int = 100) -> list[User]:
     db = info.context["db"]
     # Rust pipeline automatically used
-    return await db.find("v_user", "users", limit=limit)
+    # field_name auto-inferred from function name "users"
+    return await db.find("v_user", limit=limit)
 
 @fraiseql.query
 async def filtered_users(info, min_age: int = 18) -> list[User]:

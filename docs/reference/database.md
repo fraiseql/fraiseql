@@ -368,78 +368,77 @@ connection = create_connection(result, User)
 
 **Note**: Usually accessed via `@connection` decorator rather than directly
 
-## Mutation Methods
+## Mutation Patterns
 
-### create_one()
+FraiseQL follows the CQRS (Command Query Responsibility Segregation) pattern. Mutations are handled by PostgreSQL functions, not direct repository methods.
 
-**Purpose**: Create a single record
+### Creating Records
 
-**Signature**:
-```python
-async def create_one(
-    view_name: str,
-    data: dict[str, Any]
-) -> dict[str, Any]
-```
+Use `execute_function()` with a PostgreSQL function, then fetch the result with `find_one()`:
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
-
-**Example Pattern**:
 ```python
 import fraiseql
 
 @fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
+
+    # Execute PostgreSQL function to create record
     result = await db.execute_function("fn_create_user", {
         "name": input.name,
         "email": input.email
     })
-    return await db.find_one("v_user", "user", info, id=result["id"])
+
+    # Fetch created record via Rust pipeline
+    # field_name auto-inferred from function name "create_user" → "user"
+    return await db.find_one("v_user", id=result["id"])
 ```
 
-### update_one()
+**PostgreSQL Function**:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(input jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    new_id uuid;
+BEGIN
+    INSERT INTO tb_user (name, email)
+    VALUES (input->>'name', input->>'email')
+    RETURNING id INTO new_id;
 
-**Purpose**: Update a single record
-
-**Signature**:
-```python
-async def update_one(
-    view_name: str,
-    where: dict[str, Any],
-    updates: dict[str, Any]
-) -> dict[str, Any]
+    RETURN jsonb_build_object('id', new_id);
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
+### Updating Records
 
-**Example Pattern**:
 ```python
-import fraiseql
-
 @fraiseql.mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
+
+    # Execute PostgreSQL function to update record
     result = await db.execute_function("fn_update_user", {
         "id": id,
         **input.__dict__
     })
-    return await db.find_one("v_user", "user", info, id=id)
+
+    # Fetch updated record
+    return await db.find_one("v_user", id=id)
 ```
 
-### delete_one()
+### Deleting Records
 
-**Purpose**: Delete a single record
-
-**Signature**:
 ```python
-async def delete_one(
-    view_name: str,
-    where: dict[str, Any]
-) -> bool
-```
+@fraiseql.mutation
+async def delete_user(info, id: UUID) -> bool:
+    db = info.context["db"]
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
+    # Execute PostgreSQL function to delete record
+    result = await db.execute_function("fn_delete_user", {"id": id})
+
+    return result.get("success", False)
+```
 
 ## PostgreSQL Function Execution
 
@@ -983,7 +982,7 @@ import fraiseql
 async def get_user(info, id: UUID) -> User | None:
     try:
         db = info.context["db"]
-        return await db.find_one("v_user", "user", info, id=id)
+        return await db.find_one("v_user", id=id)
     except Exception as e:
         logger.error(f"Failed to fetch user {id}: {e}")
         raise GraphQLError("Failed to fetch user")

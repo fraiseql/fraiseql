@@ -102,14 +102,14 @@ class CreateNoteInput:
     title: str
     content: str | None = None
 
-# Define success/failure types
+# Define success/error types
 @fraiseql.success
 class CreateNoteSuccess:
     """Success response for note creation."""
     note: Note
-    message: str = "Note created successfully"
+    # Note: @success auto-injects: status, message, updated_fields, id
 
-@fraiseql.failure
+@fraiseql.error
 class ValidationError:
     """Validation error."""
     message: str
@@ -120,13 +120,15 @@ class ValidationError:
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
-    return await db.find("v_note", "notes", info, order_by=[("created_at", "DESC")])
+    # field_name auto-inferred from function name "notes"
+    return await db.find("v_note", order_by=[("created_at", "DESC")])
 
 @fraiseql.query
 async def note(info, id: uuid.UUID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
-    return await db.find_one("v_note", "note", info, id=id)
+    # field_name auto-inferred from function name "note"
+    return await db.find_one("v_note", id=id)
 
 # Mutations
 @fraiseql.mutation
@@ -150,7 +152,7 @@ class CreateNote:
                 return ValidationError(message="Failed to create note")
 
             # Fetch the created note via Rust pipeline
-            note = await db.find_one("v_note", "note", info, id=result["id"])
+            note = await db.find_one("v_note", id=result["id"])
             return CreateNoteSuccess(note=note)
 
         except Exception as e:
@@ -249,6 +251,68 @@ mutation {
 - **Queries**: Get all notes and get note by ID
 - **Mutations**: Create new notes with success/failure handling
 - **FastAPI Integration**: Ready-to-deploy web server
+
+## 💡 Best Practices
+
+### Import Style
+
+**Always use namespaced imports to avoid shadowing Python builtins:**
+
+```python
+# ✅ RECOMMENDED (safe, clear)
+import fraiseql
+
+@fraiseql.type(sql_source="v_user")
+class User: ...
+
+@fraiseql.input
+class CreateUserInput: ...
+```
+
+**Alternative with explicit imports:**
+
+```python
+# ✅ SAFE (explicit names)
+from fraiseql import fraise_type, fraise_input
+
+@fraise_type(sql_source="v_user")
+class User: ...
+
+@fraise_input
+class CreateUserInput: ...
+```
+
+**⚠️ AVOID - Shadows Python builtins:**
+
+```python
+# ❌ DANGEROUS - shadows builtin type() and input()
+from fraiseql import type, input
+
+@type  # Now you can't use Python's type() function!
+class User: ...
+```
+
+### Auto-Inference Magic
+
+FraiseQL automatically infers parameters to reduce boilerplate:
+
+```python
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    # field_name auto-inferred from function name "users"
+    # info parameter auto-injected from GraphQL context
+    return await db.find("v_user")
+```
+
+The GraphQL response will automatically use the correct field name:
+```json
+{
+  "data": {
+    "users": [...]  // ← Matches function name
+  }
+}
+```
 
 ## Next Steps
 

@@ -37,7 +37,7 @@ from uuid import UUID
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]
     # Returns RustResponseBytes - automatically processed by exclusive Rust pipeline
-    return await db.find_one("v_user", "user", info, id=id)
+    return await db.find_one("v_user", id=id)
 ```
 
 Query with multiple parameters:
@@ -55,7 +55,7 @@ async def search_users(
     if name_filter:
         filters["name__icontains"] = name_filter
     # Exclusive Rust pipeline handles camelCase conversion and __typename injection
-    return await db.find("v_user", "users", info, **filters, limit=limit)
+    return await db.find("v_user", **filters, limit=limit)
 ```
 
 Query with authentication:
@@ -72,7 +72,7 @@ async def get_my_profile(info) -> User:
 
     db = info.context["db"]
     # Exclusive Rust pipeline works with authentication automatically
-    return await db.find_one("v_user", "user", info, id=user_context.user_id)
+    return await db.find_one("v_user", id=user_context.user_id)
 ```
 
 Query with error handling:
@@ -88,7 +88,7 @@ async def get_post(info, id: UUID) -> Post | None:
     try:
         db = info.context["db"]
         # Exclusive Rust pipeline handles JSON processing automatically
-        return await db.find_one("v_post", "post", info, id=id)
+        return await db.find_one("v_post", id=id)
     except Exception as e:
         logger.error(f"Failed to fetch post {id}: {e}")
         return None
@@ -140,7 +140,7 @@ Queries returning `list[FraiseType]` automatically get these parameters:
 @fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
-    return await db.find("v_user", info=info)
+    return await db.find("v_user")
 ```
 
 GraphQL schema automatically includes:
@@ -205,7 +205,7 @@ async def users(
     limit: int = 50  # Custom default
 ) -> list[User]:
     db = info.context["db"]
-    return await db.find("v_user", info=info, where=where, limit=limit)
+    return await db.find("v_user", where=where, limit=limit)
 ```
 
 ### Validation
@@ -272,7 +272,7 @@ class User:
     @fraiseql.field(description="Posts authored by this user")
     async def posts(self, info) -> list[Post]:
         db = info.context["db"]
-        return await db.find("v_post", "posts", info, user_id=self.id)
+        return await db.find("v_post", user_id=self.id)
 ```
 
 Field with custom resolver function:
@@ -318,7 +318,7 @@ class User:
         filters = {"user_id": self.id}
         if published_only:
             filters["status"] = "published"
-        return await db.find("v_post", "posts", info, **filters, limit=limit)
+        return await db.find("v_post", **filters, limit=limit)
 ```
 
 Field with authentication/authorization:
@@ -336,7 +336,7 @@ class User:
             return None  # Don't expose private data
 
         db = info.context["db"]
-        return await db.find_one("v_user_settings", "settings", info, user_id=self.id)
+        return await db.find_one("v_user_settings", user_id=self.id)
 ```
 
 Field with caching:
@@ -569,7 +569,7 @@ async def create_user(info, input: CreateUserInput) -> User:
         "name": input.name,
         "email": input.email
     })
-    return await db.find_one("v_user", "user", info, id=result["id"])
+    return await db.find_one("v_user", id=result["id"])
 ```
 
 Basic class-based mutation:
