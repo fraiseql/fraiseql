@@ -399,15 +399,15 @@ docker exec -it postgres psql -U postgres
 
 After successful installation:
 
-1. **[Quickstart Guide](quickstart/)** - Build your first API
-2. **[Core Concepts](../core/concepts-glossary/)** - Understand FraiseQL patterns
+1. **[Quickstart Guide](quickstart.md)** - Build your first API
+2. **[Core Concepts](../core/concepts-glossary.md)** - Understand FraiseQL patterns
 3. **Examples (../examples/)** - See real implementations
-4. **[Configuration](../core/configuration/)** - Advanced setup options
+4. **[Configuration](../core/configuration.md)** - Advanced setup options
 
 ## Getting Help
 
 - **Installation issues**: Check this troubleshooting section
-- **Framework questions**: See [Quickstart Guide](quickstart/)
+- **Framework questions**: See [Quickstart Guide](quickstart.md)
 - **Bug reports**: [GitHub Issues](../issues)
 - **Community**: [GitHub Discussions](../discussions)
 

@@ -776,9 +776,9 @@ CREATE INDEX idx_products_brand ON products(brand);
 
 ## Related Examples
 
-- [`../filtering/`](../filtering/) - Advanced filtering and where clauses
-- [`../specialized_types/`](../specialized_types/) - PostgreSQL-specific types (INET, JSONB, arrays)
-- [`../fastapi/`](../fastapi/) - Complete FastAPI integration
+- [`../filtering/`](../filtering/README.md) - Advanced filtering and where clauses
+- [`../specialized_types/`](../specialized_types/README.md) - PostgreSQL-specific types (INET, JSONB, arrays)
+- [`../fastapi/`](../fastapi/README.md) - Complete FastAPI integration
 
 ## Production Considerations
 

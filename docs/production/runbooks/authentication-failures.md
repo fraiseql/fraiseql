@@ -704,7 +704,6 @@ After resolving the incident:
 ## 📚 Related Resources
 
 - [Authentication Configuration](../security.md#authentication)
-- [JWT Best Practices](../../guides/jwt-security.md)
 - [Rate Limiting](./rate-limiting-triggered.md)
 - [Security Hardening](../security.md)
 

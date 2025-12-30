@@ -43,6 +43,6 @@ GraphQL Query → Parser → SQL + WHERE → JSONB → Rust → HTTP
 
 ## Related Documentation
 
-- [Advanced Patterns](../advanced/)
-- [Enterprise Features](../enterprise/)
+- [Advanced Patterns](../advanced/advanced-patterns.md)
+- [Enterprise Features](../advanced/advanced-patterns.md)
 - [Examples](../../examples/)

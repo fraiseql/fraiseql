@@ -393,7 +393,7 @@ CREATE EXTENSION vector;
 ## Next Steps
 
 - Explore [LangChain documentation](https://python.langchain.com/) for advanced features
-- Check out [FraiseQL examples](../examples/) for more patterns
+- Check out [FraiseQL examples](../../examples/README.md) for more patterns
 - Consider adding authentication and authorization to your API
 - Implement document versioning and updates
 

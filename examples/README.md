@@ -37,14 +37,14 @@ python .phases/verify-examples-compliance/verify.py examples/blog_api/
 ## 🎯 Popular Starting Points
 
 ### 🟢 Beginner Friendly (100% Compliant)
-- **[`todo_xs/`](todo_xs/)** 🟢 - Minimal todo app with perfect Trinity (10 min)
-- **[`blog_api/`](blog_api/)** 🟢 - Content management with enterprise patterns (15 min)
+- **`todo_xs/`** 🟢 - Minimal todo app with perfect Trinity (10 min)
+- **[`blog_api/`](blog_api/README.md)** 🟢 - Content management with enterprise patterns (15 min)
 - **[`health_check_example.py`](health_check_example.py)** - Basic endpoints (5 min)
 
 ### 🏢 Production Ready (95%+ Compliant)
-- **[`enterprise_patterns/`](enterprise_patterns/)** 🟡 - All enterprise patterns (45 min)
-- **[`ecommerce_api/`](ecommerce_api/)** 🟡 - Complete e-commerce platform (30 min)
-- **[`real_time_chat/`](real_time_chat/)** 🟢 - Real-time chat with subscriptions (25 min)
+- **[`enterprise_patterns/`](enterprise_patterns/README.md)** 🟡 - All enterprise patterns (45 min)
+- **[`ecommerce_api/`](ecommerce_api/README.md)** 🟡 - Complete e-commerce platform (30 min)
+- **[`real_time_chat/`](real_time_chat/README.md)** 🟢 - Real-time chat with subscriptions (25 min)
 
 ## 🏗️ Example Categories
 
@@ -127,9 +127,9 @@ See **[index.md](index.md)** for complete details and setup instructions.
 ## 📈 Performance & Architecture
 
 **Performance benchmarks and architecture overview available in:**
-- **[Performance Guide](../docs/performance/)** - Detailed benchmarks and optimization
-- **[Architecture Docs](../docs/architecture/)** - CQRS patterns and type system
-- **[Core Concepts](../docs/core/)** - Database-first design principles
+- **[Performance Guide](../docs/performance/performance-guide.md)** - Detailed benchmarks and optimization
+- **[Architecture Docs](../docs/architecture/README.md)** - CQRS patterns and type system
+- **[Core Concepts](../docs/core/README.md)** - Database-first design principles
 
 ## 🚀 Getting Started
 
@@ -161,8 +161,8 @@ uvicorn app:app --reload
 ## 🛠️ Development & Testing
 
 **Tools and best practices:**
-- **[Best Practices](../docs/core/)** - Database design, API design, security, performance
-- **[Debugging Guide](../docs/production/)** - Monitoring, query analysis, troubleshooting
+- **[Best Practices](../docs/core/README.md)** - Database design, API design, security, performance
+- **[Debugging Guide](../docs/production/README.md)** - Monitoring, query analysis, troubleshooting
 
 ## 🤝 Contributing Examples
 
@@ -173,11 +173,11 @@ uvicorn app:app --reload
 
 ## 📖 Documentation Links
 
-- **[Main Documentation](../docs/)** - Complete FraiseQL reference
+- **[Main Documentation](../docs/README.md)** - Complete FraiseQL reference
 - **[Quick Start](../docs/getting-started/quickstart.md)** - Getting started guide
-- **[Core Concepts](../docs/core/)** - Fundamental patterns
-- **[Performance Guide](../docs/performance/)** - Optimization techniques
-- **[Production Deployment](../docs/production/)** - Production setup
+- **[Core Concepts](../docs/core/README.md)** - Fundamental patterns
+- **[Performance Guide](../docs/performance/performance-guide.md)** - Optimization techniques
+- **[Production Deployment](../docs/production/README.md)** - Production setup
 
 ## 🆘 Support
 

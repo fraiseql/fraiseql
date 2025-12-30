@@ -2584,8 +2584,8 @@ FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive pr
 
 **Production Deployment**
 - [Docker Compose Template](deployment/docker-compose.prod.yml)
-- [Kubernetes Manifests](deployment/k8s/)
-- [Production Runbooks](docs/production/runbooks/)
+- [Production Deployment Guide](docs/tutorials/production-deployment.md)
+- [Production Runbooks](docs/production/runbooks/README.md)
 
 **Troubleshooting**
 - [Decision Tree](docs/guides/troubleshooting-decision-tree.md) (diagnostic guide)
@@ -2705,8 +2705,8 @@ This release represents months of development, testing, and refinement. Special 
 - **Installation**: [docs/getting-started/installation.md](docs/getting-started/installation.md)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **First Hour Guide**: [docs/getting-started/first-hour.md](docs/getting-started/first-hour.md)
-- **Full Docs**: [docs/](docs/)
-- **Examples**: [examples/](examples/)
+- **Full Docs**: [docs/](docs/README.md)
+- **Examples**: [examples/](examples/README.md)
 
 ### 🚀 Next Steps
 

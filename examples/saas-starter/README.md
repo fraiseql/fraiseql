@@ -886,9 +886,9 @@ async def subscription_plans() -> list[SubscriptionPlan]:
 
 ## Related Examples
 
-- [`../admin-panel/`](../admin-panel/) - Admin tools for internal teams
-- [`../fastapi/`](../fastapi/) - FastAPI integration patterns
-- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/) - CQRS architecture
+- [`../admin-panel/`](../admin-panel/README.md) - Admin tools for internal teams
+- [`../fastapi/`](../fastapi/README.md) - FastAPI integration patterns
+- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/README.md) - CQRS architecture
 
 ## Production Checklist
 

@@ -927,9 +927,9 @@ class BookFilter:
 
 ## Related Examples
 
-- [`../hybrid_tables/`](../hybrid_tables/) - Combining indexed columns with JSONB
-- [`../specialized_types/`](../specialized_types/) - PostgreSQL-specific types
-- [`../fastapi/`](../fastapi/) - Complete FastAPI integration
+- [`../hybrid_tables/`](../hybrid_tables/README.md) - Combining indexed columns with JSONB
+- [`../specialized_types/`](../specialized_types/README.md) - PostgreSQL-specific types
+- [`../fastapi/`](../fastapi/README.md) - Complete FastAPI integration
 
 ## Key Takeaways
 

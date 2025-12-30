@@ -661,7 +661,6 @@ async def handle_order_submitted(event: DomainEvent):
 
 ## Next Steps
 
-- [Event Sourcing](event-sourcing/) - Event-driven architecture patterns
-- [Repository Pattern](../api-reference/database/) - Complete repository API
-- [Multi-Tenancy](multi-tenancy/) - Tenant isolation in bounded contexts
-- [Performance](../performance/index/) - Context-specific optimization
+- [Event Sourcing](event-sourcing.md) - Event-driven architecture patterns
+- [Multi-Tenancy](multi-tenancy.md) - Tenant isolation in bounded contexts
+- [Performance](../performance/index.md) - Context-specific optimization

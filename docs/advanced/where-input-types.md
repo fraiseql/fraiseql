@@ -525,7 +525,7 @@ posts = await db.find("posts", where=where_dict)
 ```
 
 **See also:**
-- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering/)** - Comprehensive dict syntax documentation
+- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering.md)** - Comprehensive dict syntax documentation
 - Examples include multiple nested fields, camelCase support, and performance tips
 
 ## Advanced Filtering Examples

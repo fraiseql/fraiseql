@@ -29,7 +29,7 @@ import fraiseql
 | implements | list[type] \| None | None | List of GraphQL interface types |
 | resolve_nested | bool | False | Resolve nested instances via separate queries |
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @input / @fraise_input
 
@@ -47,7 +47,7 @@ class InputName:
 
 **Parameters**: None (decorator takes no arguments)
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @enum / @fraise_enum
 
@@ -63,7 +63,7 @@ class EnumName(Enum):
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @interface / @fraise_interface
 
@@ -79,7 +79,7 @@ class InterfaceName:
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ## Query Decorators
 
@@ -234,7 +234,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../mutations/status-strings/) |
+| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../archive/mutations/status-strings.md) |
 
 **Global Default**: If you don't specify `error_config` on a mutation, FraiseQL will use `default_error_config` from your `FraiseQLConfig` (if set). This allows you to set a global error handling strategy and override it per-mutation when needed.
 
@@ -806,6 +806,6 @@ class User:
 
 ## See Also
 
-- [Types and Schema](../core/types-and-schema/) - Type system details
-- [Queries and Mutations](../core/queries-and-mutations/) - Query and mutation patterns
-- [Configuration](../core/configuration/) - Configure decorator behavior
+- [Types and Schema](../core/types-and-schema.md) - Type system details
+- [Queries and Mutations](../core/queries-and-mutations.md) - Query and mutation patterns
+- [Configuration](../core/configuration.md) - Configure decorator behavior

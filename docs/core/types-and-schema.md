@@ -2,7 +2,7 @@
 
 Type system for GraphQL schema definition using Python decorators and dataclasses.
 
-**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path/) • [Queries & Mutations →](queries-and-mutations/) • [Database API →](database-api/)
+**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
 
 ## @fraiseql.type
 
@@ -71,7 +71,6 @@ class TypeName:
 3. **GraphQL Schema** generated with proper types and nullability
 4. **Client Queries** validated against generated schema
 
-**[🔗 Type System Details](../diagrams/database-schema-conventions/)** - Database naming conventions
 
 **Examples**:
 
@@ -576,6 +575,6 @@ mutation {
 
 ## See Also
 
-- [Queries and Mutations](./queries-and-mutations/) - Using types in resolvers
-- [Decorators Reference](../reference/decorators/) - Complete decorator API
-- [Configuration](./configuration/) - Type system configuration options
+- [Queries and Mutations](./queries-and-mutations.md) - Using types in resolvers
+- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+- [Configuration](./configuration.md) - Type system configuration options

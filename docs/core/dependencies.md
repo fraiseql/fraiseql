@@ -84,7 +84,7 @@ await setup_auto_cascade_rules(cache, schema, verbose=True)
 # CASCADE: Created 3 CASCADE rules
 ```
 
-**Documentation**: [CASCADE Best Practices](../guides/cascade-best-practices/)
+**Documentation**: [CASCADE Best Practices](../guides/cascade-best-practices.md)
 
 ---
 
@@ -129,7 +129,7 @@ fraiseql migrate status
 - Safe rollback support
 - Production-ready
 
-**Documentation**: [Migrations Guide](./migrations/)
+**Documentation**: [Migrations Guide](./migrations.md)
 
 ---
 
@@ -307,10 +307,10 @@ See each project's CONTRIBUTING.md for guidelines.
 
 ## See Also
 
-- [PostgreSQL Extensions Guide](./postgresql-extensions/) - Detailed extension docs
-- [Migrations Guide](./migrations/) - confiture usage
-- [CASCADE Best Practices](../guides/cascade-best-practices/) - Cascade patterns
-- [Explicit Sync](./explicit-sync/) - jsonb_ivm integration
+- [PostgreSQL Extensions Guide](./postgresql-extensions.md) - Detailed extension docs
+- [Migrations Guide](./migrations.md) - confiture usage
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cascade patterns
+- [Explicit Sync](./explicit-sync.md) - jsonb_ivm integration
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/) - All components working together
 
 ---

@@ -15,7 +15,7 @@ async def get_user(info, id: UUID) -> User:
     return await db.find_one("v_user", where={"id": id})
 ```
 
-> **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories/) for details on when to use each.
+> **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories.md) for details on when to use each.
 
 ## Accessing the Database
 
@@ -970,6 +970,6 @@ result = await db.run_in_transaction(complex_operation, data)
 
 ## See Also
 
-- [Queries and Mutations](../core/queries-and-mutations/) - Using database in resolvers
-- [Configuration](../core/configuration/) - Database configuration options
-- [PostgreSQL Functions](../core/database-api/) - Writing database functions
+- [Queries and Mutations](../core/queries-and-mutations.md) - Using database in resolvers
+- [Configuration](../core/configuration.md) - Database configuration options
+- [PostgreSQL Functions](../core/database-api.md) - Writing database functions

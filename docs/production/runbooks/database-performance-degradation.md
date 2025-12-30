@@ -558,7 +558,7 @@ After resolving the incident:
 
 - [PostgreSQL Performance Tuning](https://wiki.postgresql.org/wiki/Performance_Optimization)
 - [Connection Pool Best Practices](../deployment.md#connection-pooling)
-- [Query Optimization Guide](../../performance/optimization.md)
+- [Query Optimization Guide](../../performance/performance-guide.md)
 - [Monitoring Setup](../monitoring.md)
 - [Health Checks](../health-checks.md)
 

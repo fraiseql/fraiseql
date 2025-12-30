@@ -704,9 +704,9 @@ CREATE TABLE admin_audit_log_2025_10
 
 ## Related Examples
 
-- [`../fastapi/`](../fastapi/) - Complete FastAPI integration
-- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/) - CQRS pattern for mutations
-- [`../saas-starter/`](../saas-starter/) - Multi-tenant SaaS application
+- [`../fastapi/`](../fastapi/README.md) - Complete FastAPI integration
+- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/README.md) - CQRS pattern for mutations
+- [`../saas-starter/`](../saas-starter/README.md) - Multi-tenant SaaS application
 
 ## Production Deployment
 

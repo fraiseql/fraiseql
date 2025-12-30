@@ -1,9 +1,9 @@
 # GraphQL Cascade
 
-**Navigation**: [← Mutation Result Reference](mutation-result-reference/) • [SQL Function Return Format](sql-function-return-format/) • [Queries & Mutations →](../core/queries-and-mutations/)
+**Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
 
 > **Deep Dive**: For best practices, patterns, and recommendations, see the
-> [CASCADE Best Practices Guide](../guides/cascade-best-practices/).
+> [CASCADE Best Practices Guide](../guides/cascade-best-practices.md).
 
 GraphQL Cascade is an open-source specification for automatic cache invalidation in GraphQL APIs. FraiseQL implements the [GraphQL Cascade specification](https://github.com/graphql-cascade/graphql-cascade) to enable automatic cache updates when mutations modify data. Rather than requiring clients to manually refetch information, mutations return cascade information that clients use to automatically keep their caches synchronized.
 
@@ -66,7 +66,7 @@ sequenceDiagram
 
 ## Quick Start
 
-For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference/) and [SQL Function Return Format](sql-function-return-format/).
+For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference.md) and [SQL Function Return Format](sql-function-return-format.md).
 
 ## PostgreSQL Function Pattern
 
@@ -456,7 +456,7 @@ See `examples/cascade/` for complete working examples including:
 
 ## Next Steps
 
-- [Mutation Result Reference](mutation-result-reference/) - Complete format specifications
-- [CASCADE Best Practices](../guides/cascade-best-practices/) - Tuning, monitoring, advanced patterns
-- [Migrating to Cascade](../guides/migrating-to-cascade/) - Adoption guide
-- [Cascade Best Practices](../guides/cascade-best-practices/) - Production recommendations
+- [Mutation Result Reference](mutation-result-reference.md) - Complete format specifications
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Tuning, monitoring, advanced patterns
+- [Migrating to Cascade](../guides/migrating-to-cascade.md) - Adoption guide
+- [Cascade Best Practices](../guides/cascade-best-practices.md) - Production recommendations

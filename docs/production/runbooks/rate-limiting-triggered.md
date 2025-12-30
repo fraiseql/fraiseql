@@ -610,7 +610,6 @@ async def graphql_endpoint():
 ## 📚 Related Resources
 
 - [Security Configuration](../security.md#rate-limiting)
-- [API Documentation](../../api/rate-limits.md)
 - [User Authentication](./authentication-failures.md)
 - [GraphQL Query DoS Protection](./graphql-query-dos.md)
 

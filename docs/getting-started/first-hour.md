@@ -19,7 +19,7 @@ from fraiseql.sql import create_graphql_where_input
 
 ## Minute 0-5: Quickstart Recap
 
-**[Complete the 5-minute quickstart first](quickstart/)**
+**[Complete the 5-minute quickstart first](quickstart.md)**
 
 You should now have:
 
@@ -41,7 +41,7 @@ query {
 
 ## Minute 5-15: Understanding What You Built
 
-**[Read the Understanding Guide](../guides/understanding-fraiseql/)**
+**[Read the Understanding Guide](../guides/understanding-fraiseql.md)**
 
 Key concepts you should now understand:
 
@@ -52,7 +52,7 @@ Key concepts you should now understand:
 
 ✅ **Checkpoint**: Can you explain why FraiseQL uses JSONB views instead of traditional ORMs?
 
-> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](../advanced/filter-operators/) for details.
+> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](../advanced/filter-operators.md) for details.
 
 ## Minute 15-30: Extend Your API - Add Tags to Notes
 
@@ -397,8 +397,8 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Immediate Next Steps (2-3 hours)
 
-- **[Beginner Learning Path](../tutorials/beginner-path/)** - Deep dive into all core concepts
-- **[Blog API Tutorial](../tutorials/blog-api/)** - Build a complete application
+- **[Beginner Learning Path](../tutorials/beginner-path.md)** - Deep dive into all core concepts
+- **[Blog API Tutorial](../tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
 
@@ -408,16 +408,16 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Advanced Topics
 
-- **[Performance Guide](../guides/performance-guide/)** - Optimization techniques
-- **[Multi-tenancy](../advanced/multi-tenancy/)** - Building SaaS applications
+- **[Performance Guide](../guides/performance-guide.md)** - Optimization techniques
+- **[Multi-tenancy](../advanced/multi-tenancy.md)** - Building SaaS applications
 
 
 ### Need Help?
 
-- **[Troubleshooting Guide](../guides/troubleshooting/)** - Common issues and solutions
-- **[Quick Reference](../reference/quick-reference/)** - Copy-paste code patterns
+- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
+- **[Quick Reference](../reference/quick-reference.md)** - Copy-paste code patterns
 - **[GitHub Discussions](../discussions)** - Community support
 
 ---
 
-**Ready for more?** The [Beginner Learning Path](../tutorials/beginner-path/) will take you from here to building production applications! 🚀
+**Ready for more?** The [Beginner Learning Path](../tutorials/beginner-path.md) will take you from here to building production applications! 🚀

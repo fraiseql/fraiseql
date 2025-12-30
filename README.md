@@ -1183,7 +1183,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
 | **v1.9.0** | Root level | Stable | Current production release | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.9.0+ | ✅ Stable |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.0+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

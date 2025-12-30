@@ -49,7 +49,6 @@ This comprehensive checklist ensures your FraiseQL application is production-rea
 - [ ] **Security Profile Selected**
   - STANDARD, REGULATED, or RESTRICTED chosen
   - Decision documented with justification
-  - See [Security Profiles Guide](../security-compliance/security-profiles/)
 
 **Verification:**
 ```bash
@@ -237,13 +236,11 @@ fraiseql audit verify-chain --from "2025-12-01" --to "2025-12-08"
 
 - [ ] 🟡 **Compliance Framework Requirements Met** (REGULATED+)
   - Checklist completed for required framework(s)
-  - See [Compliance Matrix](../security-compliance/compliance-matrix/)
   - Evidence documented for auditors
 
 - [ ] 🟡 **SLSA Provenance Verified** (REGULATED+)
   - Software Bill of Materials (SBOM) generated
   - Provenance cryptographically signed
-  - See [SLSA Provenance Guide](../security-compliance/slsa-provenance/)
 
 **Verification:**
 ```bash
@@ -1048,11 +1045,9 @@ kubectl rollout undo deployment/fraiseql
 
 ## Related Documentation
 
-- **[Deployment Guide](./deployment/)** - Detailed deployment instructions
-- **[Security Profiles](../security-compliance/security-profiles/)** - Profile configuration
-- **[Monitoring Guide](./monitoring/)** - Observability setup
-- **[Security Guide](./security/)** - Security hardening
-- **[Compliance Matrix](../security-compliance/compliance-matrix/)** - Compliance requirements
+- **[Deployment Guide](./deployment.md)** - Detailed deployment instructions
+- **[Monitoring Guide](./monitoring.md)** - Observability setup
+- **[Security Guide](./security.md)** - Security hardening
 
 ---
 

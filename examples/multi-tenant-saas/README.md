@@ -694,10 +694,10 @@ pool = await create_pool(
 
 ## 📚 Related Examples
 
-- [`../saas-starter/`](../saas-starter/) - Full-featured SaaS template with billing
-- [`../admin-panel/`](../admin-panel/) - Admin tools for managing tenants
-- [`../compliance-demo/`](../compliance-demo/) - SLSA provenance and audit trails
-- [`../blog_enterprise/`](../blog_enterprise/) - Enterprise patterns with CQRS
+- [`../saas-starter/`](../saas-starter/README.md) - Full-featured SaaS template with billing
+- [`../admin-panel/`](../admin-panel/README.md) - Admin tools for managing tenants
+- [`../compliance-demo/`](../compliance-demo/README.md) - SLSA provenance and audit trails
+- [`../blog_enterprise/`](../blog_enterprise/README.md) - Enterprise patterns with CQRS
 
 ## 🎓 Key Learnings
 

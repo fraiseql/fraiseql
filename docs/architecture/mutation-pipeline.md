@@ -48,7 +48,7 @@ Format detection is based on the presence and validity of a `status` field:
 
 ### Status Taxonomy
 
-See `docs/mutations/status-strings.md` for complete status string documentation.
+See `docs/archive/mutations/status-strings.md` for complete status string documentation.
 
 ### Response Building
 

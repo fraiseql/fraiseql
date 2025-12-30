@@ -11,7 +11,7 @@ Build a blog API with:
 - Production-ready patterns
 
 **Time**: 30-45 minutes
-**Prerequisites**: Completed [quickstart](../getting-started/quickstart/), basic PostgreSQL knowledge
+**Prerequisites**: Completed [quickstart](../getting-started/quickstart.md), basic PostgreSQL knowledge
 
 ## Database Schema
 
@@ -516,12 +516,12 @@ WHERE fk_parent IS NULL;
 
 ## Next Steps
 
-- [Database Patterns](../advanced/database-patterns/) - tv_ pattern and production patterns
-- [Performance](../performance/index/) - Rust transformation, APQ, TurboRouter
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation patterns
+- [Database Patterns](../advanced/database-patterns.md) - tv_ pattern and production patterns
+- [Performance](../performance/index.md) - Rust transformation, APQ, TurboRouter
+- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
 
 ## See Also
 
-- [Quickstart](../getting-started/quickstart/) - 5-minute intro
-- [Database API](../core/database-api/) - Repository methods
-- [Production Deployment](./production-deployment/) - Deploy to production
+- [Quickstart](../getting-started/quickstart.md) - 5-minute intro
+- [Database API](../core/database-api.md) - Repository methods
+- [Production Deployment](./production-deployment.md) - Deploy to production

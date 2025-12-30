@@ -54,4 +54,4 @@ Fragment cycle detection prevents infinite recursion and DoS attacks by:
 
 ## Examples
 
-See the [nested fragments examples](../examples/nested-fragments/) and [fragment cycle handling](../examples/fragment-cycles/) guides for detailed usage patterns.
+See the [nested fragments examples](../examples/nested-fragments.md) and [fragment cycle handling](../examples/fragment-cycles.md) guides for detailed usage patterns.

@@ -266,9 +266,9 @@ Need to read data?
 
 Now that you understand the patterns:
 
-- **[5-Minute Quickstart](../getting-started/quickstart/)** - Get a working API immediately
-- **[First Hour Guide](../getting-started/first-hour/)** - Progressive tutorial from zero to production
-- **[Core Concepts](../core/concepts-glossary/)** - Deep dive into each pattern
-- **[Quick Reference](../reference/quick-reference/)** - Complete cheatsheet and examples
+- **[5-Minute Quickstart](../getting-started/quickstart.md)** - Get a working API immediately
+- **[First Hour Guide](../getting-started/first-hour.md)** - Progressive tutorial from zero to production
+- **[Core Concepts](../core/concepts-glossary.md)** - Deep dive into each pattern
+- **[Quick Reference](../reference/quick-reference.md)** - Complete cheatsheet and examples
 
-**Ready to code?** Start with the [quickstart](../getting-started/quickstart/) to see it in action.
+**Ready to code?** Start with the [quickstart](../getting-started/quickstart.md) to see it in action.

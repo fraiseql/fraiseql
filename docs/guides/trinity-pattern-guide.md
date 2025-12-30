@@ -421,10 +421,8 @@ $$ LANGUAGE plpgsql;
 
 ## 🔗 Related Documentation
 
-- [JSONB View Pattern](../database/view-strategies/)
-- [Foreign Key Patterns](../database/README/)
-- [Migration Guide](../mutations/migration-guide/)
-- [Verification Tools](../testing/developer-guide/)
+- [Migration Guide](../archive/mutations/migration-guide.md)
+- [Verification Tools](../archive/testing/developer-guide.md)
 
 ## 🎯 Summary
 

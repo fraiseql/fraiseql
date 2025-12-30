@@ -777,9 +777,9 @@ async def create_order(info, input: OrderInput) -> Order:
 
 ## Related Examples
 
-- [`../fastapi/`](../fastapi/) - FastAPI integration with auto-docs
-- [`../filtering/`](../filtering/) - Filter operators documentation
-- [`../specialized_types/`](../specialized_types/) - Custom scalar docs
+- [`../fastapi/`](../fastapi/README.md) - FastAPI integration with auto-docs
+- [`../filtering/`](../filtering/README.md) - Filter operators documentation
+- [`../specialized_types/`](../specialized_types/README.md) - Custom scalar docs
 
 ## References
 

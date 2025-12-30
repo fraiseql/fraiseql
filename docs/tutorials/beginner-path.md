@@ -5,13 +5,13 @@ Complete pathway from zero to building production GraphQL APIs with FraiseQL.
 **Time**: 2-3 hours
 **Prerequisites**: Python 3.13+, PostgreSQL 13+, basic SQL knowledge
 
-**📍 Navigation**: [← Quickstart](../getting-started/quickstart/) • [Core Concepts →](../core/types-and-schema/) • Examples (../../examples/)
+**📍 Navigation**: [← Quickstart](../getting-started/quickstart.md) • [Core Concepts →](../core/types-and-schema.md) • Examples (../../examples/)
 
 ## Learning Journey
 
 ### Phase 1: Quick Start (15 minutes)
 
-1. **[5-Minute Quickstart](../getting-started/quickstart/)**
+1. **[5-Minute Quickstart](../getting-started/quickstart.md)**
    - Build working API immediately
    - Understand basic pattern
    - Test in GraphQL Playground
@@ -33,13 +33,13 @@ python app.py
 
 ### Phase 2: Core Concepts (30 minutes)
 
-3. **[Database API](../core/database-api/)** (Focus: select_from_json_view)
+3. **[Database API](../core/database-api.md)** (Focus: select_from_json_view)
    - Repository pattern
    - QueryOptions for filtering
    - Pagination with PaginationInput
    - Ordering with OrderByInstructions
 
-4. **[Types and Schema](../core/types-and-schema/)** (Focus: @type decorator)
+4. **[Types and Schema](../core/types-and-schema.md)** (Focus: @type decorator)
    - Python type hints → GraphQL types
    - Optional fields with `| None`
    - Lists with `list[Type]`
@@ -66,7 +66,7 @@ def notes() -> list[Note]:
 
 ### Phase 3: N+1 Prevention (30 minutes)
 
-5. **[Database Patterns](../advanced/database-patterns/)** (Focus: JSONB Composition)
+5. **[Database Patterns](../advanced/database-patterns.md)** (Focus: JSONB Composition)
    - Composed views prevent N+1 queries
    - jsonb_build_object pattern
    - COALESCE for empty arrays
@@ -98,7 +98,7 @@ FROM tb_user u;
 
 ### Phase 4: Mutations (30 minutes)
 
-6. **[Blog API Tutorial](./blog-api/)** (Focus: Mutations section)
+6. **[Blog API Tutorial](./blog-api.md)** (Focus: Mutations section)
    - PostgreSQL functions for business logic
    - fn_ naming convention
    - Calling functions from Python
@@ -141,7 +141,7 @@ def create_note(title: str, content: str) -> Note:
 
 ### Phase 5: Complete Example (45 minutes)
 
-7. **[Blog API Tutorial](./blog-api/)** (Complete walkthrough)
+7. **[Blog API Tutorial](./blog-api.md)** (Complete walkthrough)
    - Users, posts, comments
    - Threaded comments
    - Production patterns
@@ -273,14 +273,14 @@ psql myapp -c "SELECT * FROM v_item LIMIT 1;"
 ### Continue Learning
 
 **Backend Focus**:
-- [Database Patterns](../advanced/database-patterns/) - tv_ pattern, entity change log
-- [Performance](../performance/index/) - Rust transformation, APQ caching
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation
+- [Database Patterns](../advanced/database-patterns.md) - tv_ pattern, entity change log
+- [Performance](../performance/index.md) - Rust transformation, APQ caching
+- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation
 
 **Production Ready**:
-- [Production Deployment](./production-deployment/) - Docker, monitoring, security
-- [Authentication](../advanced/authentication/) - User auth patterns
-- [Monitoring](../production/monitoring/) - Observability
+- [Production Deployment](./production-deployment.md) - Docker, monitoring, security
+- [Authentication](../advanced/authentication.md) - User auth patterns
+- [Monitoring](../production/monitoring.md) - Observability
 
 ### Practice Projects
 
@@ -305,7 +305,7 @@ psql myapp -c "SELECT * FROM v_item LIMIT 1;"
 **N+1 queries detected**
 - Compose data in views, not in resolvers
 - Use `jsonb_agg` for arrays
-- Check [Database Patterns](../advanced/database-patterns/)
+- Check [Database Patterns](../advanced/database-patterns.md)
 
 ## Tips for Success
 
@@ -323,6 +323,6 @@ You've mastered FraiseQL fundamentals. You can now build type-safe, high-perform
 
 ## See Also
 
-- [Blog API Tutorial](./blog-api/) - Complete working example
-- [Database API](../core/database-api/) - Repository reference
-- [Database Patterns](../advanced/database-patterns/) - Production patterns
+- [Blog API Tutorial](./blog-api.md) - Complete working example
+- [Database API](../core/database-api.md) - Repository reference
+- [Database Patterns](../advanced/database-patterns.md) - Production patterns
