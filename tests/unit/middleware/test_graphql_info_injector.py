@@ -7,7 +7,7 @@ class TestGraphQLInfoInjector:
     """Test suite for GraphQL Info Injector middleware."""
 
     @pytest.fixture
-    def injector(self):
+    def injector():
         """Create an injector instance for testing."""
         return GraphQLInfoInjector()
 
