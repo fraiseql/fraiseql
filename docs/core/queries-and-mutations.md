@@ -80,6 +80,7 @@ Query with error handling:
 import fraiseql
 
 import logging
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ async def get_post(info, id: UUID) -> Post | None:
 Query using custom repository methods:
 ```python
 import fraiseql
+from uuid import UUID
 
 
 @fraiseql.query
@@ -264,6 +266,7 @@ class User:
 Async field with database access:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type
 class User:
@@ -278,6 +281,7 @@ class User:
 Field with custom resolver function:
 ```python
 import fraiseql
+from uuid import UUID
 
 async def fetch_user_posts_optimized(root, info):
     """Custom resolver with optimized batch loading."""
@@ -302,6 +306,7 @@ class User:
 Field with parameters:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type
 class User:
@@ -324,6 +329,7 @@ class User:
 Field with authentication/authorization:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type
 class User:
@@ -342,6 +348,7 @@ class User:
 Field with caching:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type
 class Post:
@@ -433,6 +440,7 @@ Basic connection query:
 ```python
 import fraiseql
 from fraiseql.types import Connection
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -640,6 +648,7 @@ class CreateLocation:
 Mutation with validation:
 ```python
 import fraiseql
+from uuid import UUID
 
 @input
 class UpdateUserInput:
@@ -860,6 +869,8 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 
 Filtered subscription with parameters:
 ```python
+from uuid import UUID
+
 @subscription
 async def on_user_posts(
     info,
@@ -888,6 +899,7 @@ async def on_private_messages(info) -> AsyncGenerator[Message, None]:
 Subscription with database polling:
 ```python
 import asyncio
+from uuid import UUID
 
 @subscription
 async def on_task_updates(

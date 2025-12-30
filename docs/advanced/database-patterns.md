@@ -1796,6 +1796,7 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 **Usage in Mutations**:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.mutation
 async def update_order(info, id: UUID, name: str) -> MutationResult:
@@ -1971,6 +1972,8 @@ Since Rust provides excellent JSON concatenation performance, tv_ tables elimina
 
 **GraphQL Type**:
 ```python
+from uuid import UUID
+
 @fraise_type
 class MutationResultBase:
     """Standardized result for all mutations."""
@@ -1996,6 +1999,7 @@ class MutationLogResult:
 **Usage in Resolver**:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.mutation
 async def update_product(

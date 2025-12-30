@@ -74,6 +74,8 @@ async def find_one(
 
 **Example**:
 ```python
+from uuid import UUID
+
 @fraiseql.query
 async def user(info, id: UUID) -> User | None:
     db = info.context["db"]
@@ -163,6 +165,8 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 
 #### find_by_id()
 ```python
+from uuid import UUID
+
 async def find_by_id(
     self,
     entity_class: type[T],

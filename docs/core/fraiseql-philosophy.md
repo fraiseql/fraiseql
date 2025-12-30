@@ -47,6 +47,7 @@ Most GraphQL frameworks require manual database setup in every resolver:
 
 ```python
 import fraiseql
+from uuid import UUID
 
 # ❌ Traditional approach - repetitive and error-prone
 @fraiseql.query
@@ -63,6 +64,7 @@ async def get_user(info, id: UUID) -> User:
 
 ```python
 import fraiseql
+from uuid import UUID
 
 # ✅ FraiseQL - database automatically available
 @fraiseql.query
@@ -178,6 +180,7 @@ FROM tb_user;
 **1. Schema Evolution Without Migrations**:
 ```python
 import fraiseql
+from uuid import UUID
 
 # Add new field - no migration needed!
 @fraiseql.type(sql_source="v_user")
@@ -199,6 +202,7 @@ class User:
 **2. JSON Passthrough Performance**:
 ```python
 import fraiseql
+from uuid import UUID
 
 # PostgreSQL JSONB → GraphQL JSON directly
 # No Python object instantiation needed!
@@ -298,6 +302,7 @@ FraiseQL extracts documentation from Python docstrings, eliminating manual schem
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -592,6 +597,7 @@ $$ LANGUAGE sql;
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.query
 async def order_totals(info, id: UUID) -> OrderTotals:

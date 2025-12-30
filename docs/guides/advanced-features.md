@@ -38,6 +38,7 @@ The `@dataloader_field` decorator batches and caches database queries:
 ```python
 from fraiseql import dataloader_field
 from aiodataloader import DataLoader
+from uuid import UUID
 
 # Step 1: Create DataLoader
 class UserDataLoader(DataLoader):
@@ -202,6 +203,8 @@ subscription {
 ### Subscription with Filters
 
 ```python
+from uuid import UUID
+
 @subscription
 async def post_created(info, author_id: UUID | None = None) -> Post:
     """Subscribe to new posts, optionally filtered by author."""

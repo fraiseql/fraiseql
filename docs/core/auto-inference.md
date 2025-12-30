@@ -161,6 +161,8 @@ async def users(
 The `@success` decorator automatically adds standard fields:
 
 ```python
+from uuid import UUID
+
 @fraiseql.success
 class UserCreated:
     user: User  # Your custom field
@@ -330,6 +332,8 @@ async def users(info, limit: int = 100) -> list[User]:
 
 **✅ DO:**
 ```python
+from uuid import UUID
+
 @fraiseql.query
 async def users(info) -> list[User]:  # Plural for lists
     ...

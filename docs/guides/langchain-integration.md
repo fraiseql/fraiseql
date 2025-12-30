@@ -85,6 +85,7 @@ import fraiseql
 from fraiseql import fraise_field
 from fraiseql.types.scalars import UUID
 from typing import List, Optional
+from uuid import UUID
 
 @fraiseql.type
 class Document:

@@ -60,6 +60,7 @@ This architecture is unique to FraiseQL. No other GraphQL framework combines:
 ### Python Side:
 ```python
 import fraiseql
+from uuid import UUID
 
 # 1. Define GraphQL type
 @fraiseql.type(sql_source="v_user")

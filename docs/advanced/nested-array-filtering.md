@@ -22,6 +22,8 @@ import fraiseql
 
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
+from uuid import UUID
+
     auto_nested_array_filters,
     nested_array_filterable,
     register_nested_array_filter,

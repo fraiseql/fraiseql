@@ -321,6 +321,7 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.input
 class CreatePostInput:

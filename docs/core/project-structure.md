@@ -202,8 +202,7 @@ my-project/
 # src/types/user.py
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from uuid import UUID
 
 @fraiseql.type
 class User:

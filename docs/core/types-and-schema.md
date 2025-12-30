@@ -167,6 +167,7 @@ class User:
 With nested object resolution:
 ```python
 import fraiseql
+from uuid import UUID
 
 # Department will be resolved via separate query
 @fraiseql.type(sql_source="departments", resolve_nested=True)
@@ -186,6 +187,7 @@ class Employee:
 With embedded nested objects (default):
 ```python
 import fraiseql
+from uuid import UUID
 
 # Department data is embedded in parent's JSONB
 @fraiseql.type(sql_source="departments")
@@ -265,6 +267,7 @@ class InterfaceName:
 Basic Node interface:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.interface
 class Node:
@@ -286,6 +289,7 @@ class Post:
 Interface with computed fields:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.interface
 class Timestamped:
@@ -311,6 +315,7 @@ class Article:
 Multiple interface implementation:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.interface
 class Searchable:
@@ -423,6 +428,7 @@ class Connection[T]:
 ```python
 import fraiseql
 from fraiseql.types import Connection
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -498,6 +504,7 @@ from fraiseql.types import UNSET
 ```python
 import fraiseql
 from fraiseql.types import UNSET
+from uuid import UUID
 
 @fraiseql.input
 class UpdateUserInput:

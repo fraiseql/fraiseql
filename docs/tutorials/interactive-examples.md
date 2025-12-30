@@ -143,6 +143,7 @@ JOIN tb_user u ON p.author_id = u.id;
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @type(sql_source="v_post_with_author")
 class Post:
@@ -231,6 +232,7 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from fraiseql import mutation, input
+from uuid import UUID
 
 @input
 class CreatePostInput:
@@ -323,6 +325,7 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @type(sql_source="tv_post_stats")
 class PostStats:

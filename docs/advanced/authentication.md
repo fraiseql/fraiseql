@@ -373,8 +373,10 @@ FraiseQL includes native username/password authentication with session managemen
 from fraiseql.auth.native import (
     NativeAuthProvider,
     NativeAuthFactory,
-    UserRepository
+    UserRepository,
+    create_auth_router
 )
+from uuid import UUID
 
 # 1. Implement user repository
 class PostgresUserRepository(UserRepository):
@@ -405,8 +407,6 @@ auth_provider = NativeAuthFactory.create_provider(
 )
 
 # 3. Mount authentication routes
-from fraiseql.auth.native import create_auth_router
-
 auth_router = create_auth_router(auth_provider)
 app.include_router(auth_router, prefix="/auth")
 ```
@@ -761,6 +761,7 @@ Restrict access to specific fields based on roles/permissions:
 import fraiseql
 import fraiseql_
 from fraiseql.security import authorize_field, any_permission
+from uuid import UUID
 
 @type_
 class User:

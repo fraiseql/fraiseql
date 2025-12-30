@@ -32,6 +32,8 @@ type Mutation {
 The `@success` decorator automatically adds standard fields to your success type:
 
 ```python
+from uuid import UUID
+
 @fraiseql.success
 class UserCreated:
     user: User  # Your custom field
@@ -316,6 +318,8 @@ class UserCreated:
 If you need full control and don't want auto-injection:
 
 ```python
+from uuid import UUID
+
 # Option 1: Use a regular class (not @success)
 class UserCreatedManual:
     user: User

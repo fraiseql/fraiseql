@@ -468,6 +468,7 @@ fraiseql generate crud Product
 **Generated Structure:**
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.input
 class CreateUserInput:

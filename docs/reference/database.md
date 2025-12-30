@@ -8,6 +8,7 @@ FraiseQL provides a high-performance database API through the `FraiseQLRepositor
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.query
 async def user(info, id: UUID) -> User:
@@ -165,6 +166,8 @@ async def find_one(
 
 **Examples**:
 ```python
+from uuid import UUID
+
 # Find by ID (field_name auto-inferred from function name "user")
 @fraiseql.query
 async def user(info, id: UUID) -> User | None:
@@ -414,6 +417,8 @@ $$ LANGUAGE plpgsql;
 ### Updating Records
 
 ```python
+from uuid import UUID
+
 @fraiseql.mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
@@ -431,6 +436,8 @@ async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
 ### Deleting Records
 
 ```python
+from uuid import UUID
+
 @fraiseql.mutation
 async def delete_user(info, id: UUID) -> bool:
     db = info.context["db"]
@@ -978,6 +985,7 @@ stats = await db.find("v_user_stats")
 **Error Handling**:
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.query
 async def get_user(info, id: UUID) -> User | None:

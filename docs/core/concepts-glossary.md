@@ -384,6 +384,7 @@ $$;
 **Python mapping:**
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
@@ -811,6 +812,7 @@ query {
 **Example generated type:**
 ```python
 import fraiseql
+from uuid import UUID
 
 # Your type definition
 @fraiseql.type(sql_source="v_server")

@@ -585,6 +585,8 @@ $$ LANGUAGE plpgsql;
 
 **Python mutations** (all follow same trivial pattern):
 ```python
+from uuid import UUID
+
 @fraiseql.mutation
 async def create_post(
     info,
@@ -1098,6 +1100,8 @@ config = FraiseQLConfig(
 ### **Updated QueryRepository**
 
 ```python
+from uuid import UUID
+
 class QueryRepository:
     async def find_one(
         self,

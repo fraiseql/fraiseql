@@ -482,6 +482,8 @@ results = await semantic_search(repo, query, limit=50)  # Not 1000
 ### Recommendation System
 
 ```python
+from uuid import UUID
+
 async def get_similar_products(
     repo: FraiseQLRepository,
     product_id: UUID,

@@ -273,6 +273,7 @@ Rebuild entity state from event log:
 ```python
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 class OrderEventReplayer:
     """Replay order events to rebuild state."""

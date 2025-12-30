@@ -473,6 +473,7 @@ Common types shared across contexts:
 # shared/types.py
 from dataclasses import dataclass
 from decimal import Decimal
+from uuid import UUID
 
 @dataclass
 class Money:
@@ -574,6 +575,7 @@ class ProductACL:
 
 # Usage
 import fraiseql
+from uuid import UUID
 
 @fraiseql.query
 async def get_product_from_external(info, sku: str) -> Product:
@@ -590,6 +592,8 @@ Contexts communicate via domain events:
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from uuid import UUID
+import fraiseql
 
 @dataclass
 class DomainEvent:
@@ -600,9 +604,6 @@ class DomainEvent:
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 # Orders Context: Publish event
-import fraiseql
-from uuid import UUID
-
 @fraiseql.mutation
 async def submit_order(info, order_id: UUID) -> Order:
     """Submit order and publish event."""

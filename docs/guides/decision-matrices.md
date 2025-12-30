@@ -480,6 +480,7 @@ flowchart TD
 # ❌ BAD: Queries database once per user
 import fraiseql
 from fraiseql import field
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -509,6 +510,7 @@ class User:
 ```python
 # ✅ GOOD: Batches queries
 from fraiseql import dataloader_field
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:

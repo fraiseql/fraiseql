@@ -171,6 +171,8 @@ WHERE id = $1;
 
 **GraphQL Schema Updates**:
 ```python
+from uuid import UUID
+
 @fraiseql.type(sql_source="v_user")
 class User:
     id: UUID
@@ -257,6 +259,7 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 
 ```python
 import fraiseql
+from uuid import UUID
 
 @fraiseql.type(sql_source="v_user")
 class User:

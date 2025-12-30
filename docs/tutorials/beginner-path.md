@@ -47,6 +47,7 @@ python app.py
 **Practice Exercise**:
 ```python
 import fraiseql
+from uuid import UUID
 
 # Create a simple Note API
 @fraiseql.type(sql_source="v_note")
@@ -227,6 +228,7 @@ class User:
 ### Essential Pattern
 ```python
 import fraiseql
+from uuid import UUID
 
 # 1. Define type
 @fraiseql.type(sql_source="v_item")
