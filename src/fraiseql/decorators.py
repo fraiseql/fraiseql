@@ -104,6 +104,7 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
         registry = SchemaRegistry.get_instance()
 
         # Debug logging
+        import inspect
         import logging
 
         logger = logging.getLogger(__name__)
@@ -113,15 +114,66 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
             func.__module__,
         )
 
-        # Don't wrap here - the query builder will handle JSON passthrough
-        registry.register_query(func)
+        # Determine if function is async or sync
+        is_async = asyncio.iscoroutinefunction(func)
+
+        # Wrap the function to auto-inject info into context
+        if is_async:
+
+            @wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Extract info parameter from function signature
+                sig = inspect.signature(func)
+                params = list(sig.parameters.keys())
+
+                # Get info from bound arguments
+                info = None
+                if "info" in params:
+                    bound = sig.bind(*args, **kwargs)
+                    bound.apply_defaults()
+                    info = bound.arguments.get("info")
+
+                # Auto-inject into context for db.find() to use
+                if info and hasattr(info, "context") and info.context is not None:
+                    info.context["graphql_info"] = info
+
+                # Call original function
+                return await func(*args, **kwargs)
+
+            wrapper = async_wrapper
+        else:
+
+            @wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Extract info parameter from function signature
+                sig = inspect.signature(func)
+                params = list(sig.parameters.keys())
+
+                # Get info from bound arguments
+                info = None
+                if "info" in params:
+                    bound = sig.bind(*args, **kwargs)
+                    bound.apply_defaults()
+                    info = bound.arguments.get("info")
+
+                # Auto-inject into context for db.find() to use
+                if info and hasattr(info, "context") and info.context is not None:
+                    info.context["graphql_info"] = info
+
+                # Call original function
+                return func(*args, **kwargs)
+
+            wrapper = sync_wrapper
+
+        # Register the wrapper (not the original function)
+        registry.register_query(wrapper)
 
         # Log current state
         logger.debug(
             "Total queries registered after '%s': %d", func.__name__, len(registry.queries)
         )
 
-        return func
+        return wrapper  # type: ignore[return-value]
 
     if fn is None:
         return decorator

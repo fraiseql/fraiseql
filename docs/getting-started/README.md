@@ -1,3 +1,13 @@
+---
+title: Getting Started
+description: Quick start guide and introduction to FraiseQL
+tags:
+  - getting-started
+  - introduction
+  - quickstart
+  - tutorial
+---
+
 # Getting Started with FraiseQL
 
 Welcome! This directory contains everything you need to go from zero to building your first FraiseQL application.

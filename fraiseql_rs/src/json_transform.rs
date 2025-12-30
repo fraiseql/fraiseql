@@ -299,7 +299,7 @@ pub fn transform_with_selections(
     // Transform with aliases and field projection applied
     transform_with_aliases(
         value,
-        current_type,
+        Some(current_type),
         "",
         &alias_map,
         &allowed_fields,
@@ -369,7 +369,7 @@ fn build_alias_map(
 /// - Minimal allocations (path string constructed once per field)
 fn transform_with_aliases(
     value: &Value,
-    current_type: &str,
+    current_type: Option<&str>,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,
     allowed_fields: &std::collections::HashSet<String>,
@@ -377,14 +377,21 @@ fn transform_with_aliases(
 ) -> Value {
     match value {
         Value::Object(map) => {
-            // Pre-allocate result map (field count + __typename)
-            let mut result = Map::with_capacity(map.len() + 1);
+            // Pre-allocate result map (field count + optional __typename)
+            let capacity = if current_type.is_some() {
+                map.len() + 1
+            } else {
+                map.len()
+            };
+            let mut result = Map::with_capacity(capacity);
 
-            // Inject __typename first (GraphQL convention)
-            result.insert(
-                "__typename".to_string(),
-                Value::String(current_type.to_string()),
-            );
+            // Inject __typename first (GraphQL convention) if type is known
+            if let Some(type_name) = current_type {
+                result.insert(
+                    "__typename".to_string(),
+                    Value::String(type_name.to_string()),
+                );
+            }
 
             // OPTIMIZATION: Clone map once, then use .remove() to take ownership of values
             // This trades 1 map clone for N field clones (where N = number of fields)
@@ -402,12 +409,26 @@ fn transform_with_aliases(
                     format!("{}.{}", current_path, key)
                 };
 
-                // Field projection: skip fields not in allowed set (only at root level)
-                // Check both snake_case key (from JSON) and camelCase version (for cases like dns_1/dns1)
-                if current_path.is_empty()
-                    && !allowed_fields.contains(key)
-                    && !allowed_fields.contains(&to_camel_case(key))
-                {
+                // Field projection: Check if this field is allowed at current path level
+                // At root level: check allowed_fields directly
+                // At nested level: check if any selection starts with current path + field
+                let is_field_allowed = if current_path.is_empty() {
+                    // Root level: check if field is in allowed set
+                    allowed_fields.contains(key) || allowed_fields.contains(&to_camel_case(key))
+                } else {
+                    // Nested level: check if any selection includes this path
+                    // A field is allowed if there's a selection that:
+                    // 1. Exactly matches the field_path (leaf field selected)
+                    // 2. Starts with field_path + "." (children of this field selected)
+                    alias_map.keys().any(|path| {
+                        path == &field_path
+                            || (path.len() > field_path.len() + 1
+                                && path.starts_with(&field_path)
+                                && path.as_bytes()[field_path.len()] == b'.')
+                    })
+                };
+
+                if !is_field_allowed {
                     continue;
                 }
 
@@ -422,14 +443,17 @@ fn transform_with_aliases(
                 };
 
                 // Transform value based on schema type
-                let transformed_val = match registry.get_field_type(current_type, key) {
+                let field_type_opt =
+                    current_type.and_then(|type_name| registry.get_field_type(type_name, key));
+
+                let transformed_val = match field_type_opt {
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - recursively transform with updated path
                         // Still need to borrow here for nested transformation
                         let val = owned_map.get(key).unwrap();
                         transform_nested_field_with_aliases(
                             val,
-                            field_info.type_name(),
+                            Some(field_info.type_name()),
                             field_info.is_list(),
                             &field_path,
                             alias_map,
@@ -442,8 +466,33 @@ fn transform_with_aliases(
                         owned_map.remove(key).unwrap()
                     }
                     None => {
-                        // Field not in schema - take ownership and transform recursively
-                        transform_value(owned_map.remove(key).unwrap())
+                        // Field not in schema
+                        // Check if we have nested selections for this field in alias_map
+                        let has_nested_selections = alias_map.keys().any(|path| {
+                            path.len() > field_path.len() + 1
+                                && path.starts_with(&field_path)
+                                && path.as_bytes()[field_path.len()] == b'.'
+                        });
+
+                        if has_nested_selections {
+                            // Field has nested selections, so recursively transform with filtering
+                            let val = owned_map.get(key).unwrap();
+                            // Determine if it's a list by checking the value type
+                            let is_list = matches!(val, Value::Array(_));
+                            // Type not in schema - pass None to skip __typename injection
+                            transform_nested_field_with_aliases(
+                                val,
+                                None,
+                                is_list,
+                                &field_path,
+                                alias_map,
+                                allowed_fields,
+                                registry,
+                            )
+                        } else {
+                            // No nested selections - use generic transformation
+                            transform_value(owned_map.remove(key).unwrap())
+                        }
                     }
                 };
 
@@ -463,7 +512,7 @@ fn transform_with_aliases(
 #[inline]
 fn transform_nested_field_with_aliases(
     value: &Value,
-    nested_type: &str,
+    nested_type: Option<&str>,
     is_list: bool,
     current_path: &str,
     alias_map: &std::collections::HashMap<String, String>,

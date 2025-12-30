@@ -1,3 +1,14 @@
+---
+title: Trinity Pattern
+description: Three-tier identifier system for internal/external/display IDs
+tags:
+  - trinity
+  - identifiers
+  - pattern
+  - UUID
+  - architecture
+---
+
 # Trinity Pattern - FraiseQL's Database Architecture
 
 **Time to Complete:** 10-15 minutes

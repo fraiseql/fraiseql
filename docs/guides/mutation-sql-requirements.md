@@ -1,6 +1,166 @@
+---
+title: Mutation SQL Requirements
+description: Complete guide to writing PostgreSQL functions for FraiseQL mutations with mutation_response type and error handling
+tags:
+  - mutations
+  - postgresql
+  - plpgsql
+  - mutation_response
+  - error handling
+  - SQL functions
+---
+
 # Mutation SQL Requirements - Complete Guide
 
 This guide provides the authoritative reference for writing PostgreSQL functions that work with FraiseQL mutations. It covers everything from basic function structure to advanced error handling patterns.
+
+## Complete Runnable Example
+
+```python
+"""
+End-to-end example: Creating a user with FraiseQL mutations.
+
+Prerequisites:
+- PostgreSQL database
+- FraiseQL installed: pip install fraiseql
+- Run the SQL setup below first
+"""
+
+import asyncio
+from uuid import UUID
+import fraiseql
+
+# SQL Setup (run this first in your database):
+SQL_SETUP = """
+-- 1. Create mutation_response type (if not exists)
+CREATE TYPE mutation_response AS (
+    status text,
+    message text,
+    entity_id text,
+    entity_type text,
+    entity jsonb,
+    updated_fields jsonb,
+    cascade jsonb,
+    metadata jsonb
+);
+
+-- 2. Create users table
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Create mutation function
+CREATE OR REPLACE FUNCTION create_user(input_payload jsonb)
+RETURNS mutation_response AS $$
+DECLARE
+    result mutation_response;
+    new_user users;
+BEGIN
+    -- Validate input
+    IF input_payload->>'name' IS NULL THEN
+        result.status := 'validation:invalid_name';
+        result.message := 'Name is required';
+        RETURN result;
+    END IF;
+
+    -- Insert user
+    INSERT INTO users (name, email)
+    VALUES (
+        input_payload->>'name',
+        input_payload->>'email'
+    )
+    RETURNING * INTO new_user;
+
+    -- Return success
+    result.status := 'created';
+    result.message := 'User created successfully';
+    result.entity_id := new_user.id::text;
+    result.entity_type := 'User';
+    result.entity := row_to_json(new_user);
+
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+# Python Integration:
+
+@fraiseql.type(sql_source="users")
+class User:
+    id: UUID
+    name: str
+    email: str
+
+@fraiseql.mutation
+async def create_user(info, name: str, email: str) -> fraiseql.MutationResponse[User]:
+    """Create a new user."""
+    db = info.context["db"]
+
+    # Call PostgreSQL function
+    result = await db.execute(
+        "SELECT * FROM create_user($1::jsonb)",
+        fraiseql.json.dumps({"name": name, "email": email})
+    )
+
+    return fraiseql.MutationResponse.from_db(result[0])
+
+async def main():
+    schema = fraiseql.Schema("postgresql://localhost/mydb")
+
+    # Execute mutation
+    mutation = """
+    mutation {
+      createUser(name: "Alice Johnson", email: "alice@example.com") {
+        status
+        message
+        entity {
+          id
+          name
+          email
+        }
+        errors {
+          code
+          identifier
+          message
+        }
+      }
+    }
+    """
+
+    result = await schema.execute(mutation)
+
+    if result.errors:
+        print(f"❌ GraphQL Errors: {result.errors}")
+    else:
+        response = result.data['createUser']
+        if response['status'] == 'created':
+            print(f"✅ {response['message']}")
+            print(f"   User ID: {response['entity']['id']}")
+        else:
+            print(f"⚠️  {response['message']}")
+            for error in response.get('errors', []):
+                print(f"   - {error['identifier']}: {error['message']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Expected Output (Success):**
+```
+✅ User created successfully
+   User ID: 123e4567-e89b-12d3-a456-426614174000
+```
+
+**Expected Output (Validation Error):**
+```
+⚠️  Name is required
+   - invalid_name: Name is required
+```
+
+---
 
 ## Quick Start (90% Use Case)
 

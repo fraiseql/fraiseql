@@ -31,6 +31,23 @@ repos:
       - id: ruff-format
         exclude: ^(examples|tools|conftest\.py|experimental_tests)/
 
+  # Rust linting (local hooks - prek not needed for this)
+  - repo: local
+    hooks:
+      - id: clippy
+        name: Clippy Check
+        entry: bash -c 'cargo update --quiet && cargo clippy --lib -- -D warnings'
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: rustfmt
+        name: Rustfmt
+        entry: cargo fmt --all
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
   # Temporarily disabled pytest hook for Marie Kondo cleanup PR
   # This is because pre-commit.ci has persistent issues detecting CI environment
   # All tests are running correctly in GitHub Actions (Tests, Lint, Security all pass)
@@ -41,7 +58,7 @@ repos:
   #      entry: |
   #        bash -c '
   #        set -e  # Exit on any error
-  #
+
   #        # Check CI environment first (before checking for uv)
   #        # Comprehensive CI detection for pre-commit.ci and other CI services
   #        if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ] || \
@@ -54,7 +71,7 @@ repos:
   #          echo "🔍 Environment vars: CI=$CI, GITHUB_ACTIONS=$GITHUB_ACTIONS, PRE_COMMIT_CI=$PRE_COMMIT_CI"
   #          exit 0
   #        fi
-  #
+
   #        # Only check for uv if not in CI environment
   #        if ! command -v uv >/dev/null 2>&1; then
   #          echo ""
@@ -64,13 +81,13 @@ repos:
   #          echo ""
   #          exit 1
   #        fi
-  #
+
   #        # Run tests only in local development environment
   #        echo ""
   #        echo "🧪 Running comprehensive test suite..."
   #        echo "📊 This ensures no broken code reaches the repository"
   #        echo ""
-  #
+
   #        # Run core tests with strict settings (exclude problematic integration tests)
   #        if TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true uv run pytest tests/ --tb=short -x -m "not blog_simple and not blog_enterprise"; then
   #          echo ""

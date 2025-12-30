@@ -1,3 +1,14 @@
+---
+title: pgvector Integration
+description: Vector similarity search with PostgreSQL pgvector extension
+tags:
+  - pgvector
+  - vector-search
+  - AI
+  - similarity
+  - embeddings
+---
+
 # PostgreSQL pgvector Support
 
 FraiseQL provides native support for PostgreSQL's pgvector extension, enabling high-performance vector similarity search through type-safe GraphQL interfaces.

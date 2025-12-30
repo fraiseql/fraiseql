@@ -1,17 +1,43 @@
+use lazy_static::lazy_static;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use std::sync::{Arc, Mutex};
 
+// ============================================================================
+// CLIPPY SUPPRESSION POLICY
+// ============================================================================
+// Allow specific exceptions at module level with justification
+#[allow(
+    // Justification: Required by PyO3 FFI bindings
+    unsafe_code,
+)]
+// Warn on everything else (configured in Cargo.toml)
 // Sub-modules
+pub mod auth;
+pub mod cache;
 mod camel_case;
 pub mod cascade;
 pub mod core;
+pub mod db;
+pub mod graphql;
 pub mod json_transform;
 pub mod mutation;
+pub mod mutations;
 pub mod pipeline;
+pub mod query;
+pub mod rbac;
+pub mod response;
 pub mod schema_registry;
+pub mod security;
 
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// Global unified GraphQL pipeline instance (Phase 9).
+lazy_static! {
+    static ref GLOBAL_PIPELINE: Arc<Mutex<Option<pipeline::unified::PyGraphQLPipeline>>> =
+        Arc::new(Mutex::new(None));
+}
 
 /// Type alias for multi-field response field definition.
 ///
@@ -22,6 +48,50 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// - Option<String>: field_selections (JSON-encoded field selection metadata)
 /// - Option<bool>: is_list (whether field returns list or single object)
 type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
+
+/// Initialize the global GraphQL pipeline (called from Python on startup).
+#[pyfunction]
+pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
+    let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
+
+    // Handle mutex poisoning gracefully
+    match GLOBAL_PIPELINE.lock() {
+        Ok(mut guard) => *guard = Some(pipeline),
+        Err(poisoned) => {
+            // Recover from poisoning - another thread panicked while holding lock
+            // This is safe because we're replacing the entire Option
+            eprintln!("Warning: Pipeline mutex was poisoned, recovering...");
+            *poisoned.into_inner() = Some(pipeline);
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute GraphQL query using global pipeline (Phase 9 unified interface).
+#[pyfunction]
+pub fn execute_graphql_query(
+    py: Python,
+    query_string: String,
+    variables: Bound<'_, PyDict>,
+    user_context: Bound<'_, PyDict>,
+) -> PyResult<PyObject> {
+    // Handle mutex poisoning gracefully
+    let pipeline_guard = match GLOBAL_PIPELINE.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Warning: Pipeline mutex was poisoned during access, recovering...");
+            poisoned.into_inner()
+        }
+    };
+
+    match &*pipeline_guard {
+        Some(pipeline) => pipeline.execute_py(py, query_string, &variables, &user_context),
+        None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+            "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
+        )),
+    }
+}
 
 /// Convert a snake_case string to camelCase
 ///
@@ -382,6 +452,117 @@ pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }
 
+/// Execute GraphQL query via Rust backend
+///
+/// Args:
+///     query_def: JSON string containing query definition
+///
+/// Returns:
+///     JSON string with query results
+#[pyfunction]
+pub fn execute_query_async(query_def: String) -> PyResult<String> {
+    // Parse the query definition
+    let _query_def: serde_json::Value = serde_json::from_str(&query_def).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {}", e))
+    })?;
+
+    // For now, return a placeholder response
+    // In Phase 4, this would execute the actual query
+    let response = serde_json::json!([{"id": 1, "name": "Test User"}]);
+    serde_json::to_string(&response).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+    })
+}
+
+/// Execute GraphQL mutation via Rust backend
+///
+/// Args:
+///     mutation_def: JSON string containing mutation definition
+///
+/// Returns:
+///     JSON string with mutation results
+#[pyfunction]
+pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
+    // Parse the mutation definition
+    let mutation_def: serde_json::Value = serde_json::from_str(&mutation_def).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {}", e))
+    })?;
+
+    // Extract mutation parameters
+    let mutation_type = mutation_def
+        .get("type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Missing mutation type"))?;
+
+    let _table = mutation_def
+        .get("table")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Missing table"))?;
+
+    let _input = mutation_def.get("input");
+    let _filters = mutation_def.get("filters");
+    let _return_fields = mutation_def
+        .get("return_fields")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        });
+
+    // Convert mutation type
+    let mutation_type = match mutation_type {
+        "insert" => crate::mutations::MutationType::Insert,
+        "update" => crate::mutations::MutationType::Update,
+        "delete" => crate::mutations::MutationType::Delete,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Unknown mutation type: {}",
+                mutation_type
+            )))
+        }
+    };
+
+    // Phase 4: Demonstrate pipeline integration with mock database
+    // In Phase 5, this will connect to real database with transactions
+    let response = match mutation_type {
+        crate::mutations::MutationType::Insert => {
+            // Use mutations.rs logic to validate and transform input
+            if let Some(input_val) = _input {
+                // For demo: return the input with an auto-generated ID
+                serde_json::json!({
+                    "id": 1,
+                    "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown"),
+                    "email": input_val.get("email").and_then(|v| v.as_str()).unwrap_or("unknown@example.com")
+                })
+            } else {
+                serde_json::json!({"error": "Input required for INSERT"})
+            }
+        }
+        crate::mutations::MutationType::Update => {
+            if let Some(input_val) = _input {
+                // For demo: return updated record
+                serde_json::json!({
+                    "id": 1,
+                    "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Updated User"),
+                    "updated_at": "2025-12-20T22:00:00Z"
+                })
+            } else {
+                serde_json::json!({"error": "Input required for UPDATE"})
+            }
+        }
+        crate::mutations::MutationType::Delete => {
+            // For demo: return deletion confirmation
+            serde_json::json!({"success": true, "affected_rows": 1})
+        }
+    };
+
+    serde_json::to_string(&response).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+    })
+}
+
 /// Build complete multi-field GraphQL response from PostgreSQL JSON rows
 ///
 /// This function handles multi-field queries entirely in Rust, bypassing graphql-core
@@ -411,9 +592,7 @@ pub fn is_schema_registry_initialized() -> bool {
 /// Raises:
 ///     ValueError: If field data is malformed or transformation fails
 #[pyfunction]
-pub fn build_multi_field_response(
-    fields: Vec<MultiFieldDef>,
-) -> PyResult<Vec<u8>> {
+pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     pipeline::builder::build_multi_field_response(fields)
 }
 
@@ -453,6 +632,13 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "initialize_schema_registry",
             "filter_cascade_data",
             "build_mutation_response",
+            "execute_query_async",
+            "parse_graphql_query",
+            "build_sql_query",
+            "build_sql_query_cached",
+            "DatabasePool",
+            "PyAuthProvider",
+            "PyUserContext",
         ],
     )?;
 
@@ -475,6 +661,44 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add mutation response building
     m.add_function(wrap_pyfunction!(build_mutation_response, m)?)?;
 
+    // Add GraphQL execution functions (Phase 4)
+    m.add_function(wrap_pyfunction!(execute_query_async, m)?)?;
+    m.add_function(wrap_pyfunction!(execute_mutation_async, m)?)?;
+
+    // Add GraphQL parsing functions (Phase 6)
+    m.add_function(wrap_pyfunction!(graphql::parse_graphql_query, m)?)?;
+    m.add_class::<graphql::types::ParsedQuery>()?;
+    m.add_class::<graphql::types::FieldSelection>()?;
+    m.add_class::<graphql::types::GraphQLArgument>()?;
+    m.add_class::<graphql::types::VariableDefinition>()?;
+
+    // Add query building functions (Phase 7)
+    m.add_function(wrap_pyfunction!(query::build_sql_query, m)?)?;
+    m.add_function(wrap_pyfunction!(query::build_sql_query_cached, m)?)?;
+    m.add_function(wrap_pyfunction!(query::get_cache_stats, m)?)?;
+    m.add_function(wrap_pyfunction!(query::clear_cache, m)?)?;
+    m.add_class::<query::GeneratedQuery>()?;
+    m.add_class::<query::schema::TableSchema>()?;
+
+    // Add unified pipeline functions (Phase 9)
+    m.add_function(wrap_pyfunction!(initialize_graphql_pipeline, m)?)?;
+    m.add_function(wrap_pyfunction!(execute_graphql_query, m)?)?;
+    m.add_class::<pipeline::unified::PyGraphQLPipeline>()?;
+
+    // Add authentication (Phase 10)
+    m.add_class::<auth::PyAuthProvider>()?;
+    m.add_class::<auth::PyUserContext>()?;
+
+    // Add RBAC (Phase 11)
+    m.add_class::<rbac::PyPermissionResolver>()?;
+    m.add_class::<rbac::PyFieldAuthChecker>()?;
+
+    // Add security (Phase 12)
+    // Note: Security components are integrated into the pipeline, not exposed as separate classes
+
+    // Add database pool (Phase 1)
+    m.add_class::<db::pool::DatabasePool>()?;
+
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;
     m.add_function(wrap_pyfunction!(test_snake_to_camel, m)?)?;
@@ -484,4 +708,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(is_schema_registry_initialized, m)?)?;
 
     Ok(())
+}
+
+// Integration test modules (only compiled when running tests)
+#[cfg(test)]
+mod tests {
+    include!("../tests/common/mod.rs");
 }

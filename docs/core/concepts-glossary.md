@@ -1,3 +1,13 @@
+---
+title: Concepts Glossary
+description: Key terminology and concepts in FraiseQL
+tags:
+  - glossary
+  - concepts
+  - terminology
+  - definitions
+---
+
 # Concepts & Glossary
 
 Key concepts and terminology in FraiseQL.

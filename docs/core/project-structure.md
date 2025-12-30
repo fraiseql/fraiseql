@@ -1,3 +1,13 @@
+---
+title: Project Structure
+description: Recommended project layout and file organization
+tags:
+  - project
+  - structure
+  - organization
+  - best-practices
+---
+
 # Project Structure Guide
 
 This guide explains the recommended project structure for FraiseQL applications, created automatically by `fraiseql init`.

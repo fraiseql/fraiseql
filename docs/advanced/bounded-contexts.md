@@ -1,3 +1,14 @@
+---
+title: Bounded Contexts
+description: Domain-driven design with schema separation and context boundaries
+tags:
+  - bounded-contexts
+  - DDD
+  - domain
+  - architecture
+  - design
+---
+
 # Bounded Contexts & DDD
 
 Domain-Driven Design patterns in FraiseQL: bounded contexts, repositories, aggregates, and integration strategies for complex domain models.

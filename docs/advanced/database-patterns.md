@@ -1,3 +1,14 @@
+---
+title: Database Patterns
+description: Advanced PostgreSQL patterns for production applications
+tags:
+  - database
+  - patterns
+  - PostgreSQL
+  - best-practices
+  - advanced
+---
+
 # Database Patterns
 
 ## The tv_ Pattern: Projected Tables for GraphQL

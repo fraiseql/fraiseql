@@ -1,3 +1,14 @@
+---
+title: First Hour Guide
+description: Progressive tutorial for your first hour with FraiseQL
+tags:
+  - tutorial
+  - getting-started
+  - learning
+  - guide
+  - beginner
+---
+
 # Your First Hour with FraiseQL
 
 Welcome! You've just completed the 5-minute quickstart and have a working GraphQL API. Now let's spend the next 55 minutes building your skills progressively. By the end, you'll understand how to extend FraiseQL applications and implement production patterns.

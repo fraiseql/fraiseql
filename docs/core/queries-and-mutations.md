@@ -1,3 +1,14 @@
+---
+title: Queries & Mutations
+description: GraphQL queries and mutations with resolvers and business logic
+tags:
+  - queries
+  - mutations
+  - resolvers
+  - GraphQL
+  - CQRS
+---
+
 # Queries and Mutations
 
 Decorators and patterns for defining GraphQL queries, mutations, and subscriptions.

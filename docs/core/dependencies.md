@@ -1,3 +1,14 @@
+---
+title: Dependencies
+description: Python dependencies, Rust extensions, and PostgreSQL requirements
+tags:
+  - dependencies
+  - requirements
+  - Python
+  - Rust
+  - PostgreSQL
+---
+
 # FraiseQL Dependencies & Related Projects
 
 > **FraiseQL is built on a foundation of purpose-built tools for PostgreSQL and GraphQL**

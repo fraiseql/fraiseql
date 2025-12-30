@@ -1,11 +1,30 @@
-# FraiseQL Makefile
-# Run tests with Podman and PostgreSQL
+# ============================================================================
+# FraiseQL Rust PostgreSQL Driver - Development Makefile
+# ============================================================================
+#
+# Usage: make [target]
+#        make help       - Show this help message
+#
+# Main Workflows:
+#   make qa              - Run full quality checks
+#   make test            - Run all tests
+#   make build           - Build debug binary
+#   make release         - Build optimized release
+#   make bench           - Run benchmarks
+#
+# ============================================================================
+
+.PHONY: help qa check build release test test-unit test-integration \
+        bench bench-pool bench-queries bench-streaming \
+        clippy lint lint-rust fmt format clean clean-all \
+        bench-baseline watch docs install \
+        pre-commit pre-commit-install dev
+
+# Default target
+.DEFAULT_GOAL := help
 
 # Default shell
 SHELL := /bin/bash
-
-# Python interpreter
-PYTHON := python
 
 # Test environment variables for Podman
 export TESTCONTAINERS_PODMAN := true
@@ -17,11 +36,282 @@ GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
 
-.PHONY: help
-help: ## Show this help message
-	@echo -e "$(GREEN)FraiseQL Development Commands$(NC)"
-	@echo -e "=============================="
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+# ============================================================================
+# HELP & DOCUMENTATION
+# ============================================================================
+
+## help: Show this help message
+help:
+	@grep "^##" Makefile | sed 's/## //' | column -t -s ':' | sed 's/:/-/'
+
+## docs: Generate documentation
+docs:
+	@cd fraiseql_rs && cargo doc --no-deps --open
+
+## info: Show project information
+info:
+	@echo "📋 FraiseQL Rust PostgreSQL Driver"
+	@echo "=================================="
+	@cd fraiseql_rs && cargo --version && rustc --version
+	@echo ""
+	@echo "Common Rust targets:"
+	@echo "  make qa              - Full quality checks"
+	@echo "  make rust-test       - Run Rust tests"
+	@echo "  make build           - Build debug"
+	@echo "  make release         - Build optimized"
+	@echo "  make rust-bench      - Run benchmarks"
+	@echo ""
+	@echo "For more: make help"
+
+# ============================================================================
+# BUILD TARGETS
+# ============================================================================
+
+## build: Build debug binary
+build:
+	@echo "🔨 Building debug binary..."
+	@cd fraiseql_rs && cargo build
+	@echo "✅ Build complete"
+
+## release: Build optimized release binary
+release:
+	@echo "🚀 Building release binary..."
+	@cd fraiseql_rs && cargo build --release
+	@echo "✅ Release build complete (optimized)"
+
+## check: Quick compilation check (no code generation)
+check:
+	@echo "⚡ Checking compilation..."
+	@cd fraiseql_rs && cargo check --all-targets
+	@echo "✅ Compilation check passed"
+
+# ============================================================================
+# LINTING & CODE QUALITY (Phase 0.1)
+# ============================================================================
+
+## clippy: Run Clippy linter with strict warnings
+clippy:
+	@echo "🔍 Running Clippy..."
+	@cd fraiseql_rs && cargo clippy --lib -- -D warnings
+	@echo "✅ Clippy checks passed"
+
+## lint: Alias for clippy
+lint: clippy
+
+## fmt: Auto-format Rust code
+fmt format:
+	@echo "📝 Formatting code..."
+	@cd fraiseql_rs && cargo fmt --all
+	@echo "✅ Code formatted"
+
+## fmt-check: Check formatting without changes
+fmt-check:
+	@echo "📋 Checking formatting..."
+	@cd fraiseql_rs && cargo fmt --all -- --check
+	@echo "✅ Formatting is correct"
+
+# ============================================================================
+# TESTING TARGETS (Phase 0.2)
+# ============================================================================
+
+## rust-test: Run full Rust test suite (unit + integration)
+rust-test:
+	@echo "🧪 Running Rust tests..."
+	@cd fraiseql_rs && cargo test --lib
+	@echo "✅ All Rust tests passed"
+
+## rust-test-unit: Run Rust unit tests only (fast)
+rust-test-unit:
+	@echo "⚡ Running Rust unit tests..."
+	@cd fraiseql_rs && cargo test --lib
+	@echo "✅ Rust unit tests passed"
+
+## rust-test-integration: Run Rust integration tests only (requires DB)
+rust-test-integration:
+	@echo "🗄️  Running Rust integration tests..."
+	@cd fraiseql_rs && cargo test --test '*'
+	@echo "✅ Rust integration tests passed"
+
+## rust-test-all: Run all Rust tests including e2e
+rust-test-all:
+	@echo "🧪 Running all Rust tests..."
+	@cd fraiseql_rs && cargo test --all
+	@echo "✅ All Rust tests passed"
+
+## rust-test-verbose: Run Rust tests with verbose output
+rust-test-verbose:
+	@echo "📢 Running verbose Rust tests..."
+	@cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
+	@echo "✅ Verbose Rust test run complete"
+
+# ============================================================================
+# BENCHMARKING TARGETS (Phase 0.3)
+# ============================================================================
+
+## rust-bench: Run all Rust benchmarks
+rust-bench:
+	@echo "⏱️  Running Rust benchmarks..."
+	@cd fraiseql_rs && cargo bench --all
+	@echo "✅ Rust benchmarks complete"
+
+## rust-bench-pool: Benchmark connection pool
+rust-bench-pool:
+	@echo "⏱️  Benchmarking connection pool..."
+	@cd fraiseql_rs && cargo bench --bench connection_pool
+	@echo "✅ Pool benchmark complete"
+
+## rust-bench-queries: Benchmark query execution
+rust-bench-queries:
+	@echo "⏱️  Benchmarking query execution..."
+	@cd fraiseql_rs && cargo bench --bench query_execution
+	@echo "✅ Query benchmark complete"
+
+## rust-bench-streaming: Benchmark streaming performance
+rust-bench-streaming:
+	@echo "⏱️  Benchmarking streaming..."
+	@cd fraiseql_rs && cargo bench --bench streaming
+	@echo "✅ Streaming benchmark complete"
+
+## rust-bench-baseline: Capture performance baseline
+rust-bench-baseline:
+	@bash scripts/benchmark_baseline.sh
+
+## rust-bench-compare: Compare against previous baseline
+rust-bench-compare:
+	@bash scripts/check_performance.sh
+
+# ============================================================================
+# QUALITY ASSURANCE (Phase 0.4)
+# ============================================================================
+
+## qa: Complete Rust quality assurance pipeline
+qa: check fmt-check clippy rust-test-unit
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "✅ All Rust quality checks passed!"
+	@echo "════════════════════════════════════════════════════════════════"
+
+## qa-python: Python quality assurance (legacy)
+qa-python: ## Run Python tests and checks (legacy)
+	@echo "🐍 Running Python QA..."
+	pytest tests/unit/ -x
+	@echo "✅ Python QA complete"
+
+## pre-commit: Run pre-commit hooks on all files
+pre-commit:
+	@echo "🪝 Running pre-commit hooks..."
+	@prek run --all
+	@echo "✅ Pre-commit checks passed"
+
+## pre-commit-install: Install pre-commit hooks
+pre-commit-install:
+	@echo "📦 Installing pre-commit hooks..."
+	@prek install
+	@echo "✅ Pre-commit hooks installed"
+
+# ============================================================================
+# DEVELOPMENT WORKFLOWS
+# ============================================================================
+
+## dev: Complete setup for development (install hooks, build, test)
+dev: pre-commit-install build test
+	@echo "✅ Development environment ready"
+
+## release-check: Full pre-release checks
+release-check: qa coverage bench
+	@echo "✅ Release checks passed"
+
+## ci: Run CI pipeline locally (what GitHub Actions runs)
+ci: check clippy fmt-check test coverage
+	@echo "✅ CI pipeline passed locally"
+
+# ============================================================================
+# CLEANUP
+# ============================================================================
+
+## clean: Clean build artifacts
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	@cd fraiseql_rs && cargo clean
+	@echo "✅ Cleaned"
+
+## clean-all: Deep clean (artifacts + caches + benchmarks)
+clean-all: clean
+	@echo "🧹 Deep cleaning..."
+	@rm -rf fraiseql_rs/target coverage/ performance/
+	@echo "✅ Deep clean complete"
+
+## clean-cache: Clear Rust build cache
+clean-cache:
+	@echo "🗑️  Clearing cache..."
+	@rm -rf ~/.cargo/registry/cache ~/.cargo/git/db
+	@echo "✅ Cache cleared"
+
+# ============================================================================
+# INSTALLATION & SETUP
+# ============================================================================
+
+## install-tools: Install development tools
+install-tools:
+	@echo "📦 Installing development tools..."
+	@cargo install cargo-watch
+	@cargo install cargo-criterion
+	@cargo install cargo-tarpaulin
+	@pip install pre-commit
+	@brew install j178/tap/prek
+	@echo "✅ Tools installed"
+
+## install: Install fraiseql_rs locally
+install:
+	@echo "📦 Installing fraiseql_rs..."
+	@uv run pip install -e .
+	@echo "✅ Installation complete"
+
+# ============================================================================
+# ADVANCED TARGETS
+# ============================================================================
+
+## profile: Profile build to find slow builds
+profile:
+	@echo "📊 Profiling build..."
+	@cd fraiseql_rs && cargo build --release -Z timings
+	@echo "✅ Timing report complete"
+
+## security: Run security audit
+security:
+	@echo "🔐 Running security audit..."
+	@cargo audit
+	@echo "✅ Security audit complete"
+
+## size: Check binary size
+size:
+	@echo "📦 Checking binary size..."
+	@cd fraiseql_rs && cargo build --release
+	@ls -lh fraiseql_rs/target/release/
+	@echo "✅ Size check complete"
+
+# ============================================================================
+# WORKFLOW ALIASES
+# ============================================================================
+
+## all: Build everything (build + rust-test + rust-bench)
+all: build rust-test rust-bench
+	@echo "✅ All Rust tasks complete"
+
+## before-push: Run checks before pushing (qa + rust-bench)
+before-push: qa rust-bench
+	@echo "✅ Ready to push"
+
+## after-merge: Run post-merge checks
+after-merge: clean build test
+	@echo "✅ Post-merge verification complete"
+
+# ============================================================================
+# END OF MAKEFILE
+# ============================================================================
+
+# Phony declarations prevent conflicts with files named after targets
+.PHONY: all help docs info
 
 .PHONY: install
 install: ## Install project dependencies
@@ -119,11 +409,117 @@ test-coverage: ## Run tests with coverage report
 	@echo -e "$(GREEN)Running tests with coverage...$(NC)"
 	pytest --cov=src/fraiseql --cov-report=html --cov-report=term
 
+# ============================================================================
+# RUST TEST TARGETS (Phase 0.2)
+# ============================================================================
+
+.PHONY: test-rust test-rust-unit test-rust-integration test-rust-all test-rust-verbose
+
+## test-rust: Run all Rust tests (unit + integration)
+test-rust:
+	@echo -e "$(GREEN)🧪 Running Rust tests...$(NC)"
+	cd fraiseql_rs && cargo test --lib --test '*'
+	@echo -e "$(GREEN)✅ All Rust tests passed$(NC)"
+
+## test-rust-unit: Run only Rust unit tests (fast)
+test-rust-unit:
+	@echo -e "$(GREEN)⚡ Running Rust unit tests...$(NC)"
+	cd fraiseql_rs && cargo test --lib
+	@echo -e "$(GREEN)✅ Rust unit tests passed$(NC)"
+
+## test-rust-integration: Run only Rust integration tests (requires DB)
+test-rust-integration:
+	@echo -e "$(GREEN)🗄️  Running Rust integration tests...$(NC)"
+	cd fraiseql_rs && cargo test --test '*'
+	@echo -e "$(GREEN)✅ Rust integration tests passed$(NC)"
+
+## test-rust-all: Run all Rust tests including e2e and examples
+test-rust-all: test-rust
+	@echo -e "$(GREEN)🧪 Running all Rust tests including examples...$(NC)"
+	cd fraiseql_rs && cargo test --all
+	@echo -e "$(GREEN)✅ All Rust tests passed including examples$(NC)"
+
+## test-rust-verbose: Run Rust tests with verbose output
+test-rust-verbose:
+	@echo -e "$(GREEN)📢 Running Rust tests with verbose output...$(NC)"
+	cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
+	@echo -e "$(GREEN)✅ Verbose Rust test run complete$(NC)"
+
+# ============================================================================
+# Benchmarking Targets (Phase 0.3)
+# ============================================================================
+
+.PHONY: bench bench-pool bench-queries bench-streaming bench-baseline bench-compare
+
+## bench: Run all benchmarks
+bench:
+	@echo -e "$(GREEN)🚀 Running all benchmarks...$(NC)"
+	cd fraiseql_rs && cargo bench --all
+	@echo -e "$(GREEN)✅ Benchmarks complete$(NC)"
+
+## bench-pool: Benchmark connection pool
+bench-pool:
+	@echo -e "$(GREEN)🏊 Benchmarking connection pool...$(NC)"
+	cd fraiseql_rs && cargo bench --bench connection_pool
+	@echo -e "$(GREEN)✅ Pool benchmark complete$(NC)"
+
+## bench-queries: Benchmark query execution
+bench-queries:
+	@echo -e "$(GREEN)🔍 Benchmarking query execution...$(NC)"
+	cd fraiseql_rs && cargo bench --bench query_execution
+	@echo -e "$(GREEN)✅ Query benchmark complete$(NC)"
+
+## bench-streaming: Benchmark streaming performance
+bench-streaming:
+	@echo -e "$(GREEN)🌊 Benchmarking streaming performance...$(NC)"
+	cd fraiseql_rs && cargo bench --bench streaming
+	@echo -e "$(GREEN)✅ Streaming benchmark complete$(NC)"
+
+## bench-baseline: Capture performance baseline
+bench-baseline:
+	@echo -e "$(GREEN)📊 Capturing performance baseline...$(NC)"
+	bash scripts/benchmark_baseline.sh
+
+## bench-compare: Compare against previous baseline
+bench-compare:
+	@echo -e "$(GREEN)📈 Comparing against baseline...$(NC)"
+	bash scripts/check_performance.sh
+
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode (requires pytest-watch)
 	@command -v ptw >/dev/null 2>&1 || { echo -e "$(RED)pytest-watch not installed. Run: pip install pytest-watch$(NC)"; exit 1; }
 	@echo -e "$(GREEN)Running tests in watch mode...$(NC)"
 	ptw -- -xvs
+
+.PHONY: lint lint-rust clippy rustfmt lint-fix lint-check
+lint: lint-rust ## Run all linting (Rust + Python)
+	@echo -e "$(GREEN)✅ All linting checks passed$(NC)"
+
+lint-rust: clippy rustfmt ## Run Rust linting (Clippy + rustfmt)
+	@echo -e "$(GREEN)✅ Rust linting checks passed$(NC)"
+
+clippy: ## Run Clippy linter with strict warnings (Phase 0.1: lib target only)
+	@echo -e "$(GREEN)🔍 Running Clippy on library code...$(NC)"
+	cd fraiseql_rs && cargo clippy --lib -- -D warnings
+	@echo -e "$(GREEN)✅ Clippy checks passed for library code$(NC)"
+
+rustfmt: ## Auto-format Rust code
+	@echo -e "$(GREEN)📝 Formatting Rust code...$(NC)"
+	cd fraiseql_rs && cargo fmt --all
+	@echo -e "$(GREEN)✅ Rust code formatted$(NC)"
+
+lint-fix: ## Fix linting issues automatically (Rust + Python)
+	@echo -e "$(GREEN)🔧 Fixing linting issues...$(NC)"
+	cd fraiseql_rs && cargo clippy --fix --allow-staged --allow-dirty
+	cd fraiseql_rs && cargo fmt --all
+	ruff check src/ --fix
+	@echo -e "$(GREEN)✅ Linting issues fixed$(NC)"
+
+lint-check: ## Check formatting without changes (Rust + Python)
+	@echo -e "$(GREEN)📋 Checking code formatting...$(NC)"
+	cd fraiseql_rs && cargo fmt --all -- --check
+	ruff format --check src/ tests/
+	@echo -e "$(GREEN)✅ Code formatting is correct$(NC)"
 
 .PHONY: lint prek-install prek-run prek-update prek-list
 lint: ## Run linting with ruff
@@ -174,9 +570,9 @@ type-check: ## Run type checking with ruff
 	ruff check --ignore FAST001 src/
 
 
-.PHONY: qa
-qa: format lint type-check test ## Run all quality checks (format, lint, type-check, test)
-	@echo -e "$(GREEN)All quality checks passed!$(NC)"
+.PHONY: qa-python
+qa-python: lint-check lint-rust type-check test ## Run all Python quality checks (format, lint, type-check, test)
+	@echo -e "$(GREEN)All Python quality checks passed!$(NC)"
 
 .PHONY: qa-fast
 qa-fast: format-check lint type-check test-fast ## Run quality checks without formatting

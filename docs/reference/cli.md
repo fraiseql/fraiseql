@@ -1,3 +1,15 @@
+---
+title: CLI Reference
+description: Complete command-line interface reference for FraiseQL development tools
+tags:
+  - CLI
+  - command-line
+  - tools
+  - development
+  - scaffolding
+  - codegen
+---
+
 # CLI Reference
 
 Complete command-line interface reference for FraiseQL. The CLI provides project scaffolding, development server, code generation, and SQL utilities.

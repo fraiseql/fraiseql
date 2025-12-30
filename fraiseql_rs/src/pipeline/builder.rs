@@ -4,7 +4,7 @@
 //! responses from PostgreSQL JSON rows using schema-aware transformation.
 
 use crate::core::arena::Arena;
-use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
+use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer, MAX_JSON_DEPTH};
 use crate::json_transform;
 use crate::pipeline::projection::FieldSet;
 use crate::schema_registry;
@@ -92,7 +92,14 @@ pub fn build_graphql_response(
         }
     }
 
-    build_zero_copy(json_rows, field_name, type_name, field_paths, is_list, include_graphql_wrapper)
+    build_zero_copy(
+        json_rows,
+        field_name,
+        type_name,
+        field_paths,
+        is_list,
+        include_graphql_wrapper,
+    )
 }
 
 /// Transform JSON rows using schema registry and build GraphQL response.
@@ -147,7 +154,10 @@ fn build_with_schema(
         };
 
         return serde_json::to_vec(&field_data).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize field data: {}", e))
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to serialize field data: {}",
+                e
+            ))
         });
     }
 
@@ -196,11 +206,12 @@ fn build_zero_copy(
         camel_case: true,
         project_fields: field_paths.is_some(),
         add_graphql_wrapper: false,
+        max_depth: MAX_JSON_DEPTH,
     };
 
     let field_set = field_paths.map(|paths| FieldSet::from_paths(&paths, &arena));
 
-    let transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
+    let mut transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
 
     let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
 
@@ -210,7 +221,7 @@ fn build_zero_copy(
     let wrapper_overhead = if include_wrapper {
         50 + field_name.len()
     } else {
-        10  // Just for array brackets/object
+        10 // Just for array brackets/object
     };
     let estimated_size = total_input_size + wrapper_overhead;
 
@@ -318,9 +329,7 @@ fn estimate_arena_size(json_rows: &[String]) -> usize {
 ///
 /// Returns:
 ///     Complete GraphQL response as UTF-8 bytes
-pub fn build_multi_field_response(
-    fields: Vec<MultiFieldDef>,
-) -> PyResult<Vec<u8>> {
+pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     let registry = schema_registry::get_registry();
 
     // Build the response object
@@ -330,14 +339,13 @@ pub fn build_multi_field_response(
     for (field_name, type_name, json_rows, field_selections, is_list) in fields {
         // Parse field selections if provided
         let selections_json = match field_selections {
-            Some(json_str) if !json_str.is_empty() => {
-                serde_json::from_str::<Vec<Value>>(&json_str).map_err(|e| {
+            Some(json_str) if !json_str.is_empty() => serde_json::from_str::<Vec<Value>>(&json_str)
+                .map_err(|e| {
                     pyo3::exceptions::PyValueError::new_err(format!(
                         "Invalid field_selections JSON for field '{}': {}",
                         field_name, e
                     ))
-                })?
-            }
+                })?,
             _ => Vec::new(),
         };
 
@@ -361,10 +369,7 @@ pub fn build_multi_field_response(
                     .map(|value| {
                         if let Some(ref selections) = selections_opt {
                             json_transform::transform_with_selections(
-                                &value,
-                                &type_name,
-                                selections,
-                                &registry,
+                                &value, &type_name, selections, &registry,
                             )
                         } else {
                             json_transform::transform_with_schema(&value, &type_name, &registry)
@@ -395,6 +400,9 @@ pub fn build_multi_field_response(
 
     // Serialize to UTF-8 bytes
     serde_json::to_vec(&response).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize multi-field response: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to serialize multi-field response: {}",
+            e
+        ))
     })
 }

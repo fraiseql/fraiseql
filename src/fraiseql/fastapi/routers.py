@@ -21,6 +21,7 @@ from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
+from fraiseql.core.graphql_parser import RustGraphQLParser
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
@@ -1287,6 +1288,20 @@ def create_graphql_router(
             # Generate unique request ID for N+1 detection
             request_id = str(uuid4())
 
+            # Phase 6: Parse query with Rust parser for performance
+            # This sets up query info for Phase 7 (query building in Rust)
+            if request.query:
+                parser = RustGraphQLParser()
+                parsed_query = await parser.parse(request.query)
+
+                # Extract query info for Phase 7
+                context["rust_parsed_query"] = {
+                    "operation_type": parsed_query.operation_type,
+                    "root_field": parsed_query.root_field,
+                    "selections": parsed_query.selections,
+                    "variables": parsed_query.variables,
+                }
+
             # Execute with N+1 detection in non-production
             if not is_production_env:
                 async with n1_detection_context(request_id) as detector:
@@ -1473,6 +1488,42 @@ def create_graphql_router(
         )
 
         return await graphql_endpoint(request_obj, http_request, context)
+
+    # Phase 9: Add simplified unified Rust pipeline endpoint
+    @router.post("/graphql/rust", response_class=Response)
+    async def graphql_endpoint_rust(
+        request: GraphQLRequest,
+        http_request: Request,
+        context: dict[str, Any] = context_dependency,
+    ) -> Response:
+        """Execute GraphQL query using unified Rust pipeline (Phase 9).
+
+        This endpoint demonstrates the dramatic simplification achieved by
+        moving all database operations to Rust. All work happens in a
+        single Rust function call.
+        """
+        # Import the unified Rust function
+        from fraiseql._fraiseql_rs import execute_graphql_query
+
+        # Extract user context for authorization
+        user_context = {
+            "user_id": context.get("user", {}).get("id"),
+            "permissions": context.get("user", {}).get("permissions", []),
+            "roles": context.get("user", {}).get("roles", []),
+        }
+
+        # Call unified Rust pipeline - all work done in Rust!
+        result_bytes = await execute_graphql_query(
+            query_string=request.query or "",
+            variables=request.variables or {},
+            user_context=user_context,
+        )
+
+        # Return bytes directly (no Python JSON processing)
+        return Response(
+            content=result_bytes,
+            media_type="application/json",
+        )
 
     # Add metrics endpoint if enabled
     if hasattr(unified_executor, "get_metrics") and not is_production_env:

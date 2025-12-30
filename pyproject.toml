@@ -11,7 +11,7 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 keywords = [
   "graphql",
   "postgresql",
@@ -40,7 +40,7 @@ classifiers = [
 dependencies = [
   "fastapi>=0.115.12",
   "starlette>=0.49.1",
-  "graphql-core>=3.2.6",
+  "graphql-core>=3.2.0",  # Use 3.2.0 as 3.3.0 not yet released (only alphas available)
   "psycopg[pool]>=3.2.6",
   "psycopg-pool>=3.2.6",
   "uvicorn>=0.34.3",
@@ -195,6 +195,16 @@ markers = [
   "skip_ci: Skip in CI environment",
   "turbo: Tests for TurboRouter functionality",
   "forked: Tests that require process isolation (schema registry singleton)",
+  "chaos: Chaos engineering tests (resilience and failure handling)",
+  "chaos_real_db: Chaos tests using real PostgreSQL backend",
+  "chaos_network: Chaos tests for network failures (latency, packet loss)",
+  "chaos_database: Chaos tests for database failures (deadlocks, constraints)",
+  "chaos_cache: Chaos tests for cache failures (invalidation, corruption)",
+  "chaos_auth: Chaos tests for authentication failures (expiration, service outages)",
+  "chaos_resources: Chaos tests for resource exhaustion (memory, CPU, disk)",
+  "chaos_concurrency: Chaos tests for concurrent execution (deadlocks, race conditions)",
+  "chaos_validation: Chaos test validation and success criteria checks",
+  "chaos_verification: Chaos infrastructure verification tests",
 ]
 
 # Async support - explicit @pytest.mark.asyncio decorators used instead
@@ -474,6 +484,11 @@ dev = [
 docs = [
   "mkdocs>=1.6.1",
   "mkdocs-material>=9.6.22",
+  "mkdocs-mermaid2-plugin>=1.2.3",
+  "mkdocs-minify-plugin>=0.8.0",
   "mkdocs-redirects>=1.2.2",
   "pymdown-extensions>=10.16.1",
+  "sphinx>=9.0.4",
+  "sphinx-autodoc-typehints>=3.6.0",
+  "sphinx-rtd-theme>=0.5.1",
 ]

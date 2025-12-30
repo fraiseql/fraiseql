@@ -1,3 +1,16 @@
+---
+title: Production Security
+description: SQL injection prevention, authentication, rate limiting, CORS, and compliance patterns
+tags:
+  - security
+  - production
+  - authentication
+  - rate-limiting
+  - CORS
+  - compliance
+  - SQL-injection
+---
+
 # Production Security
 
 Comprehensive security guide for production FraiseQL deployments: SQL injection prevention, query complexity limits, rate limiting, CORS, authentication, PII handling, and compliance patterns.

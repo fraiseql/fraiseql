@@ -1,3 +1,14 @@
+---
+title: Quick Reference
+description: One-page cheatsheet for common FraiseQL patterns and commands
+tags:
+  - quick-reference
+  - cheatsheet
+  - patterns
+  - commands
+  - examples
+---
+
 # FraiseQL Quick Reference
 
 One-page cheatsheet for common FraiseQL patterns, commands, and advanced type operations.

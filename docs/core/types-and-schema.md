@@ -1,3 +1,14 @@
+---
+title: Types & Schema
+description: GraphQL type system, schema building, and Python type mappings
+tags:
+  - types
+  - schema
+  - GraphQL
+  - Python
+  - decorators
+---
+
 # Types and Schema
 
 Type system for GraphQL schema definition using Python decorators and dataclasses.

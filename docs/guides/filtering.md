@@ -1,8 +1,101 @@
+---
+title: Filtering & Querying Guide
+description: Complete guide to filtering data in FraiseQL with WHERE clauses, nested filters, and logical operators
+tags:
+  - filtering
+  - queries
+  - where clause
+  - dict-based filtering
+  - WhereType
+  - operators
+---
+
 # Filtering Guide
 
 > **Choose the right filtering approach for your use case**
 
 FraiseQL provides powerful, flexible filtering capabilities for both GraphQL queries and programmatic data access. This guide helps you choose the right approach and get started quickly.
+
+## Quick Start - Complete Example
+
+```python
+"""
+Complete runnable example showing FraiseQL filtering.
+
+Prerequisites:
+- PostgreSQL with a users table/view
+- FraiseQL installed: pip install fraiseql
+"""
+
+import asyncio
+from datetime import datetime
+from uuid import UUID
+import fraiseql
+from fraiseql.filters import StringFilter, BooleanFilter, DateTimeFilter
+
+# 1. Define your GraphQL type
+@fraiseql.type(sql_source="v_user")
+class User:
+    id: UUID
+    name: str
+    email: str
+    status: str
+    is_verified: bool
+    created_at: datetime
+
+# 2. Create a filtered query resolver
+@fraiseql.query
+async def active_verified_users(info) -> list[User]:
+    """Get all active, verified users created after 2024."""
+    db = info.context["db"]
+    repo = fraiseql.FraiseQLRepository(db)
+
+    return await repo.find(
+        "v_user",
+        where={
+            "status": {"eq": "active"},
+            "is_verified": {"eq": True},
+            "created_at": {"gte": "2024-01-01T00:00:00Z"}
+        }
+    )
+
+# 3. Execute the query
+async def main():
+    schema = fraiseql.Schema("postgresql://localhost/mydb")
+
+    query = """
+    {
+      activeVerifiedUsers {
+        id
+        name
+        email
+        createdAt
+      }
+    }
+    """
+
+    result = await schema.execute(query)
+
+    if result.errors:
+        print(f"❌ Errors: {result.errors}")
+    else:
+        print(f"✅ Found {len(result.data['activeVerifiedUsers'])} users")
+        for user in result.data['activeVerifiedUsers']:
+            print(f"  - {user['name']} ({user['email']})")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Expected Output:**
+```
+✅ Found 3 users
+  - Alice Johnson (alice@example.com)
+  - Bob Smith (bob@example.com)
+  - Carol White (carol@example.com)
+```
+
+---
 
 ## Quick Decision
 

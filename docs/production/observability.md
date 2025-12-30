@@ -1,3 +1,16 @@
+---
+title: Observability
+description: PostgreSQL-native error tracking, distributed tracing, and metrics in one database
+tags:
+  - observability
+  - production
+  - tracing
+  - metrics
+  - error-tracking
+  - PostgreSQL
+  - logging
+---
+
 # Observability
 
 Complete observability stack for FraiseQL applications with **PostgreSQL-native error tracking, distributed tracing, and metrics**—all in one database.

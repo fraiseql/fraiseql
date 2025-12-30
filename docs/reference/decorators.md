@@ -1,3 +1,15 @@
+---
+title: Decorators Reference
+description: Complete reference for all FraiseQL decorators (@fraiseql.type, @fraiseql.query, @fraiseql.mutation)
+tags:
+  - decorators
+  - API
+  - type
+  - query
+  - mutation
+  - Python
+---
+
 # Decorators Reference
 
 Complete reference for all FraiseQL decorators with signatures, parameters, and examples.

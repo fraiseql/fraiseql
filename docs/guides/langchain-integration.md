@@ -1,3 +1,14 @@
+---
+title: LangChain Integration
+description: Integrate FraiseQL with LangChain for AI applications
+tags:
+  - LangChain
+  - AI
+  - integration
+  - RAG
+  - machine-learning
+---
+
 # LangChain Integration Guide
 
 This guide shows you how to integrate LangChain with FraiseQL to build Retrieval-Augmented Generation (RAG) applications. You'll learn how to create a GraphQL API that can search documents and generate answers using LangChain's powerful AI capabilities.

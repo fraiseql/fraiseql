@@ -1,0 +1,14 @@
+{
+  "test_class": "TestResourceChaos",
+  "timestamp": 1767011639.3416593,
+  "metrics": {
+    "duration_ms": 917.468786239624,
+    "query_count": 12,
+    "avg_query_time_ms": 15.66984256108602,
+    "p95_query_time_ms": null,
+    "error_count": 0,
+    "retry_count": 0,
+    "chaos_active_duration_ms": null
+  },
+  "chaos_active": false
+}

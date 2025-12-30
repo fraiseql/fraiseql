@@ -1,3 +1,14 @@
+---
+title: Troubleshooting Guide
+description: Common issues, solutions, and debugging strategies
+tags:
+  - troubleshooting
+  - debugging
+  - errors
+  - solutions
+  - problems
+---
+
 # Troubleshooting Guide
 
 Common issues and solutions for FraiseQL beginners.

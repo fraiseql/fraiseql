@@ -5,20 +5,19 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.9.0) - Stable Release**
+**v1.9.0** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
-**Current Version**: v1.9.0 | **Status**: Stable | **Python**: 3.13+ | **PostgreSQL**: 13+
+**Python**: 3.13+ | **PostgreSQL**: 13+
 
 ---
 
-## **GraphQL for the LLM era. Simple. Powerful. Rust-fast.**
+## GraphQL for the LLM era. Simple. Powerful. Rust-fast.
 
 PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 
 ```python
-# Complete GraphQL API in ~15 lines
+# Complete GraphQL API in 15 lines
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
@@ -48,11 +47,13 @@ app = create_fraiseql_app(
 )
 ```
 
-**Why FraiseQL?**
+---
 
-- ⚡ **Rust pipeline** - No Python JSON overhead, compiled performance
-- 🔒 **Secure by design** - Explicit field contracts prevent data leaks
-- 🤖 **AI-native** - LLMs generate correct code on first try
+## Why FraiseQL?
+
+- ⚡ **Rust Pipeline** - 7-10x faster JSON transformation, zero Python overhead
+- 🔒 **Secure by Design** - Explicit field contracts prevent data leaks
+- 🤖 **AI-Native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
@@ -62,236 +63,183 @@ app = create_fraiseql_app(
 - 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 - 📋 **GraphQL compliant** - 85-90% GraphQL spec compliance with advanced fragment support
 
-## 🤔 Is this for me?
+---
 
-**FraiseQL is for production teams** building high-performance GraphQL APIs with PostgreSQL.
+## Is This For You?
 
-### ✅ You should use FraiseQL if you:
+**✅ Perfect if you:**
+- Build high-performance APIs with PostgreSQL
+- Want 7-10x faster JSON processing
+- Need enterprise security & compliance
+- Prefer database-first architecture
+- Use LLMs for code generation
 
-- Build customer-facing APIs with PostgreSQL
-- Need sub-millisecond query performance
-- Want enterprise-grade security and monitoring
-- Have 2-50 developers on your team
-- Are tired of Python serialization overhead
-
-### ❌ Consider alternatives if you:
-
-- Need multi-database support (FraiseQL is PostgreSQL-only)
-- Are building your first GraphQL API (start with simpler frameworks)
+**❌ Consider alternatives if:**
+- You need multi-database support (PostgreSQL-only)
+- Building your first GraphQL API (use simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
 
-*See [detailed audience guide](dev/architecture/audiences.md) for complete user profiles.*
-
 ---
 
-## ⚡ The Rust Advantage
+## How It Works
 
-**The problem with traditional GraphQL frameworks:**
-
+**Traditional GraphQL** (slow):
 ```
 PostgreSQL → Rows → ORM deserialize → Python objects → GraphQL serialize → JSON → Response
-                    ╰────────────── Unnecessary roundtrip ──────────────╯
+            ╰─── Unnecessary roundtrips (2 conversions) ───╯
 ```
 
-**FraiseQL's exclusive Rust pipeline:**
-
+**FraiseQL** (fast):
 ```
 PostgreSQL → JSONB → Rust field selection → HTTP Response
-             ╰──────── Zero Python overhead ────────╯
+           ╰─ Zero Python overhead (1 conversion) ─╯
 ```
 
-### Why This Matters
+### Why This Is Better
 
-**No Python serialization overhead:**
-
-```python
-# Traditional framework (Strawberry + SQLAlchemy)
-user = db.query(User).first()        # SQL query
-user_dict = user.__dict__             # Python object → dict
-json_str = json.dumps(user_dict)      # dict → JSON string (slow!)
-
-# FraiseQL
-SELECT data FROM v_user LIMIT 1       # Returns JSONB
-# Rust transforms JSONB → HTTP response (7-10x faster than Python)
-```
-
-**Architectural benefits:**
-
-- **PostgreSQL composes JSONB once** - No N+1 query problems
-- **Rust selects fields** - Respects GraphQL query shape in compiled code
-- **Direct HTTP response** - Zero-copy path from database to client
-- **No ORM abstraction** - Database returns final data structure
-
-**Security benefits:**
-
-- **Explicit field exposure** - Only fields in JSONB view are accessible (no accidental leaks)
-- **Clear data contracts** - JSONB structure defines exactly what's exposed
-- **No ORM over-fetching** - Can't accidentally expose hidden columns
-- **SQL injection protection** - PostgreSQL prepared statements + typed parameters
-- **Audit trail by design** - Every mutation function can log explicitly
-- **No mass assignment risks** - Input types define allowed fields precisely
-
-**Other frameworks can't do this.** They're locked into Python-based serialization because ORM returns Python objects. ORMs can accidentally expose fields you didn't mean to serialize, or fetch entire rows when only requesting specific fields.
-
-FraiseQL is database-first, so data is already JSON. **Rust just makes it fast and secure.**
+1. **No ORM Overhead** - Database returns final JSONB, Rust transforms it
+2. **No N+1 Queries** - PostgreSQL composes everything in one query
+3. **Security Built-In** - View defines exactly what's exposed (impossible to leak)
+4. **Recursion Safe** - View structure prevents depth attacks naturally
+5. **AI-Friendly** - SQL + Python are massively trained; no magic frameworks
 
 ---
 
-## 🔒 Security by Architecture
+## Quick Start
 
-Traditional ORM-based frameworks have inherent security risks:
+```bash
+pip install fraiseql
+fraiseql init my-api
+cd my-api
+fraiseql dev
+```
 
-### The ORM Security Problem
+**Your GraphQL API is live at `http://localhost:8000/graphql`** 🎉
+
+**Next steps:**
+- [5-Minute Quickstart](docs/getting-started/quickstart.md)
+- [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
+- [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
+
+---
+
+## Real Security, Not Theatre
+
+### The Problem (ORM-based frameworks)
 
 ```python
-# Traditional ORM (SQLAlchemy + Strawberry)
-class User(Base):
-    id = Column(Integer, primary_key=True)
+class User(Base):  # SQLAlchemy
+    id = Column(Integer)
     email = Column(String)
-    password_hash = Column(String)  # Sensitive!
-    is_admin = Column(Boolean)      # Sensitive!
-    api_key = Column(String)        # Sensitive!
+    password_hash = Column(String)  # ← Sensitive!
+    api_key = Column(String)        # ← Sensitive!
 
-# Strawberry type
 @strawberry.type
 class UserType:
     id: int
     email: str
-    # Developer forgot to exclude password_hash, is_admin, api_key!
-
-# Risk: ORM object has ALL columns accessible
-# One mistake in serialization = data leak
+    # Forgot to exclude password_hash and api_key!
 ```
 
-**Common ORM vulnerabilities:**
+**Result:** One mistake = data leak.
 
-- ❌ **Accidental field exposure** - ORM loads all columns, easy to forget exclusions
-- ❌ **Mass assignment attacks** - ORM objects can be updated with any field
-- ❌ **Over-fetching** - Fetching entire rows increases attack surface
-- ❌ **Hidden relationships** - Lazy loading can expose unintended data
-- ❌ **Implicit behavior** - ORM magic makes security audits difficult
-
-### FraiseQL's Explicit Security
+### The Solution (FraiseQL)
 
 ```sql
--- PostgreSQL view explicitly defines what's exposed
+-- PostgreSQL view defines what's exposed
 CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'email', email
-        -- password_hash, is_admin, api_key NOT included
-        -- Impossible to accidentally expose them!
-    ) as data
+SELECT id,
+  jsonb_build_object('id', id, 'email', email) as data
 FROM tb_user;
+-- password_hash and api_key aren't in JSONB = impossible to leak
 ```
 
-```python
-# Python type mirrors EXACT view structure
-@type(sql_source="v_user", jsonb_column="data")
-class User:
-    id: int
-    email: str
-    # That's it. No other fields exist in this contract.
-```
-
-**FraiseQL security advantages:**
-
-- ✅ **Explicit field whitelisting** - Only fields in JSONB view can be queried
-- ✅ **Impossible to over-fetch** - View defines the complete data structure
-- ✅ **Fixed recursion depth** - View defines max nesting, prevents depth attacks
-- ✅ **Protected against N+1 bombs** - One query regardless of GraphQL complexity
-- ✅ **Clear audit trail** - Database view + Python type = two-layer verification
-- ✅ **SQL injection protection** - Prepared statements + typed parameters always
-- ✅ **Mass assignment prevention** - Input types define allowed fields precisely
-- ✅ **Row-level security** - PostgreSQL RLS integrates directly with views
-- ✅ **Cryptographic audit logging** - Built-in SHA-256 + HMAC audit chains
-
-### Recursion Depth Attack Protection
-
-**Traditional GraphQL vulnerability:**
-
-```graphql
-# Malicious query - can crash traditional servers
-query {
-  user(id: 1) {
-    posts {           # 10 posts
-      author {        # → 10 queries
-        posts {       # → 10 × 10 = 100 queries
-          author {    # → 100 queries
-            posts {   # → 1,000 queries
-              # ... 10 levels = 10^10 queries = server crash
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-**Traditional framework response:**
-
-- Each resolver level executes database queries
-- N+1 problem multiplies exponentially with depth
-- Requires query complexity middleware (can be bypassed)
-- DataLoader reduces but doesn't eliminate the problem
-
-**FraiseQL's built-in protection:**
-
-```sql
--- View defines MAXIMUM recursion depth
-CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'posts', (
-            SELECT jsonb_agg(jsonb_build_object(
-                'id', p.id,
-                'title', p.title
-                -- NO 'author' field here!
-                -- Recursion is STRUCTURALLY IMPOSSIBLE
-            ))
-            FROM tb_post p
-            WHERE p.user_id = tb_user.id
-            LIMIT 100  -- Hard limit on array size
-        )
-    ) as data
-FROM tb_user;
-```
-
-**What happens when attacker tries deep query:**
-
-```graphql
-query {
-  user {
-    posts {
-      author {  # ← GraphQL schema validation FAILS
-        # Field 'author' doesn't exist on Post type
-        # because v_post view doesn't include it
-      }
-    }
-  }
-}
-```
-
-**Protection layers:**
-
-1. **Schema validation** - GraphQL rejects queries for non-existent fields
-2. **View structure** - Database defines allowed nesting depth
-3. **Hard limits** - LIMIT clauses prevent array size attacks
-4. **One query** - PostgreSQL executes entire JSONB in single query
-
-**Result:** Attackers cannot exceed the depth you define in views. No middleware needed.
+**Result:** Structure defines the contract. No way to accidentally expose fields.
 
 ---
 
-## 🔐 Security Features
+## Chaos Engineering & Resilience Testing
 
-FraiseQL includes enterprise-grade security features designed for global regulatory compliance and production deployment:
+FraiseQL separates testing into two workflows:
+
+| Aspect | Standard CI/CD | Chaos Engineering |
+|--------|---|---|
+| **Duration** | 15-20 min | 45-60 min |
+| **Purpose** | Correctness | Resilience |
+| **Trigger** | Every PR | Manual/Weekly |
+| **Tests** | Unit + Integration | 71 chaos scenarios |
+| **Blocks Merges** | Yes ✅ | No (informational) |
+| **Environment** | Lightweight | Real PostgreSQL + Docker |
+
+**Standard CI/CD:** Validates that features work correctly
+**Chaos Tests:** Validates that system recovers from failures
+
+[→ Learn about chaos engineering strategy](docs/testing/chaos-engineering-strategy.md)
+
+---
+
+## Advanced Features
+
+### Specialized Type System (50+ scalar types)
+
+```python
+from fraiseql.types import EmailAddress, PhoneNumber, IPv4, Money, LTree
+
+@fraiseql.type(sql_source="v_users")
+class User:
+    email: EmailAddress      # Validated emails
+    phone: PhoneNumber       # International phone numbers
+    ip: IPv4                 # IP addresses with subnet operations
+    balance: Money           # Currency with precision
+    location: LTree          # Hierarchical paths
+```
+
+### Trinity Identifiers
+
+Three ID types for different purposes:
+- **pk_user** (int): Internal DB key, not exposed
+- **id** (UUID): Public API, stable, never changes
+- **identifier** (str): Human-readable slug, SEO-friendly
+
+### GraphQL Cascade
+
+Automatic cache invalidation when mutations change related data:
+
+```graphql
+mutation {
+  createPost(input: {...}) {
+    post { id title }
+    cascade {
+      updated { __typename }     # What changed
+      invalidations { queryName } # Which queries to invalidate
+    }
+  }
+}
+```
+
+---
+
+## Enterprise Security Features
+
+- **KMS Integration:** Vault, AWS KMS, GCP Cloud KMS
+- **Security Profiles:** STANDARD, REGULATED, RESTRICTED (government-grade)
+- **SBOM Generation:** Automated compliance (FedRAMP, NIS2, HIPAA, PCI-DSS)
+- **Audit Logging:** Cryptographic chain (SHA-256 + HMAC)
+- **Row-Level Security:** PostgreSQL RLS integration
+- **Rate Limiting:** Per-endpoint and per-GraphQL operation
+
+[🔐 Security Configuration](docs/production/security.md)
+
+---
+
+## Cost Savings: Replace 4 Services with 1 Database
+
+| Service | Cost | FraiseQL Approach | Savings |
+|---------|------|------------------|---------|
+| Redis (caching) | $50-500/mo | PostgreSQL UNLOGGED tables | $600-6,000/yr |
+| Sentry (error tracking) | $300-3,000/mo | PostgreSQL error logging | $3,600-36,000/yr |
+| APM Tool | $100-500/mo | PostgreSQL traces | $1,200-6,000/yr |
+| **Total** | **$450-4,000/mo** | **PostgreSQL only ($50/mo)** | **$5,400-48,000/yr** |
 
 ### 📋 Software Bill of Materials (SBOM)
 - **Automated generation** via `fraiseql sbom generate`
@@ -332,53 +280,9 @@ FraiseQL includes enterprise-grade security features designed for global regulat
 
 ---
 
-## 🤖 Built for AI-Assisted Development
+## Code Examples
 
-FraiseQL is the first GraphQL framework designed for the LLM era.
-
-### Clear Context in SQL Functions
-
-```sql
-CREATE OR REPLACE FUNCTION fn_create_user(
-    p_email TEXT,
-    p_name TEXT
-) RETURNS JSONB AS $$
-DECLARE
-    v_user_id UUID;
-BEGIN
-    -- AI can see exactly what happens here
-    -- No hidden ORM magic, no abstraction layers
-
-    -- Validate email
-    IF p_email !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$' THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Invalid email format'
-        );
-    END IF;
-
-    -- Insert user
-    INSERT INTO tb_user (email, name)
-    VALUES (p_email, p_name)
-    RETURNING id INTO v_user_id;
-
-    -- Log for observability
-    INSERT INTO audit_log (action, details, timestamp)
-    VALUES ('user_created', jsonb_build_object('user_id', v_user_id), NOW());
-
-    -- Return clear JSONB contract
-    RETURN jsonb_build_object(
-        'success', true,
-        'user_id', v_user_id,
-        'message', 'User created successfully'
-    );
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**The entire business logic is in one place.** LLMs don't need to guess about hidden ORM behavior.
-
-### Explicit Contracts
+### Complete CRUD API
 
 ```python
 @fraiseql.input
@@ -447,21 +351,16 @@ class CreateUser:
 ```python
 from uuid import UUID
 from fraiseql import type, query, mutation, input, success
-from fraiseql.fastapi import create_fraiseql_app
 
-# Step 1: Map PostgreSQL view to GraphQL type
 @fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
-    id: UUID
+    id: int
     title: str
     content: str | None
 
-# Step 2: Define queries
 @fraiseql.query
 async def notes(info) -> list[Note]:
-    """Get all notes."""
-    db = info.context["db"]
-    return await db.find("v_note")
+    return await info.context["db"].find("v_note")
 
 @fraiseql.query
 async def note(info, id: UUID) -> Note | None:
@@ -480,36 +379,35 @@ class CreateNote:
     input: CreateNoteInput
     success: Note
 
-# Step 4: Create app
 app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
     types=[Note],
-    queries=[notes, note],
+    queries=[notes],
     mutations=[CreateNote]
 )
 ```
 
-**That's it.** Your GraphQL API is ready.
-
-### The Database-First Pattern
+### Database-First Pattern
 
 ```sql
--- PostgreSQL view explicitly defines what's exposed
+-- PostgreSQL view (composable, no N+1)
 CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email,
-        -- password_hash, is_admin, api_key NOT included
-        -- Impossible to accidentally expose them!
-    ) as data
+SELECT id,
+  jsonb_build_object(
+    'id', id,
+    'name', name,
+    'email', email,
+    'posts', (
+      SELECT jsonb_agg(...)
+      FROM tb_post p
+      WHERE p.user_id = tb_user.id
+    )
+  ) as data
 FROM tb_user;
 ```
 
 ```python
-# Python type mirrors EXACT view structure
+# Python type mirrors the view
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
     id: int
@@ -1076,106 +974,40 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 
 ---
 
-## 📚 Learn More
+## Learn More
 
-- **[Documentation](https://fraiseql.dev)** - Complete guides and API reference
-- **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications and patterns
-- **[Architecture](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Design decisions and trade-offs
+- **[Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Comprehensive guides
+- **[Architecture Decisions](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Why we built it this way
 - **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
-  - **[Benchmark Methodology](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
-  - **[Reproduction Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
-- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/troubleshooting.md)** - Common issues and solutions
+- **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
-
-- Development setup and testing
-- Architecture decisions and patterns
-- Code style and review process
-
-### Quick Start
+## Contributing
 
 ```bash
 git clone https://github.com/fraiseql/fraiseql
 cd fraiseql && make setup-dev
+prek install  # 7-10x faster than pre-commit
 ```
 
-### Pre-commit with prek (7-10x faster)
-
-FraiseQL uses **prek** - a Rust-based replacement for pre-commit:
-
-```bash
-# Install prek (faster than pre-commit)
-brew install j178/tap/prek      # macOS
-cargo install prek              # or via Rust
-
-# Setup git hooks
-prek install
-
-# Run before committing
-prek run --all
-```
-
-Why prek? ⚡ **7-10x faster** than pre-commit, single binary, zero Python dependencies.
-
-For more details: See `.claude/CLAUDE.md` or run `make prek-list`
+[→ Contributing Guide](CONTRIBUTING.md)
 
 ---
 
-## 🙏 Acknowledgments
+## About
 
-FraiseQL draws inspiration from:
+FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)).
 
-- **[Strawberry GraphQL](https://strawberry.rocks/)** - Excellent Python GraphQL library ("Fraise" = French for strawberry)
-- **Harry Percival's "Architecture Patterns with Python"** - Clean architecture and repository patterns
-- **Eric Evans' "Domain-Driven Design"** - Database-centric domain modeling
-- **PostgreSQL community** - For building the world's most advanced open source database
+**The Idea:** What if PostgreSQL returned JSON directly instead of Python serializing it? No ORM. No N+1 queries. No Python overhead. Just Rust transforming JSONB to HTTP.
+
+**The Result:** A GraphQL framework that's 7-10x faster and designed for the LLM era.
 
 ---
 
-## 👨‍💻 About
+## License
 
-FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer and founder of [Évolution digitale](https://evolution-digitale.fr).
-
-**Started: April 2025**
-
-### The Origin Story
-
-I built FraiseQL after discovering something that changed everything: **PostgreSQL views returning JSONB could eliminate SQLAlchemy's N+1 query problem and lazy loading chaos.**
-
-After years struggling with Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, I realized the ORM approach was fundamentally flawed. Every relationship meant another query, and even with careful eager loading, the complexity exploded.
-
-Then I tried something simple: **What if PostgreSQL composed the entire data structure as JSONB in a single query?** No ORM relationships. No lazy loading. No N+1 queries. Just one view that returns everything.
-
-It worked beautifully. But there was still that stupid inefficiency: **PostgreSQL returns JSON → Python deserializes to objects → GraphQL serializes back to JSON.** Why are we doing this roundtrip?
-
-**Skip the ORM. Skip the object mapping. Let PostgreSQL return the JSON directly.**
-
-But I also wanted something designed for the **LLM era**. SQL and Python are two of the most massively trained languages—LLMs understand them natively. Why not make a framework where AI can easily get context and generate correct code?
-
-FraiseQL is the result:
-
-- **Database-first CQRS** where PostgreSQL does what it does best
-- **Rust pipeline** for compiled performance (7-10x faster than Python JSON)
-- **Python stays minimal** - just decorators and type hints
-- **LLM-readable by design** - clear contracts, explicit logic
-
-Full disclosure: I built this while compulsively preparing for scale I didn't have. But that obsession led somewhere real—**zero N+1 queries, efficient architecture, and a framework that both humans and AI can understand.**
-
-**Connect:**
-
-- 💼 GitHub: [@evoludigit](https://github.com/evoludigit)
-- 📧 <lionel.hamayon@evolution-digitale.fr>
-- 🏢 [Évolution digitale](https://evolution-digitale.fr)
-
-**Support FraiseQL:**
-
-- ⭐ Star [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)
-- 💬 Join discussions and share feedback
-- 🤝 Contribute to the project
+MIT License - see [LICENSE](LICENSE)
 
 ---
 

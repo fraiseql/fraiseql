@@ -1,3 +1,14 @@
+---
+title: GraphQL Cascade
+description: Automatic cache invalidation with GraphQL Cascade
+tags:
+  - cascade
+  - cache
+  - invalidation
+  - performance
+  - GraphQL
+---
+
 # GraphQL Cascade
 
 **Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
