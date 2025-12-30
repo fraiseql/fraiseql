@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.0** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.0b1** | **Beta** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -1023,8 +1023,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.0** | Root level | Stable | Current production release | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.0+ | ✅ Stable |
+| **v1.9.0b1** | Root level | Beta | Beta release for testing | ⚠️ Beta Testing |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.0b1+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 

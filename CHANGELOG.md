@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0b1] - 2024-12-30
+
+**Beta Release - Nested JSONB Field Fix + Rust Performance Optimizations**
+
+This beta release includes a critical bug fix for nested JSONB field filtering and significant Rust pipeline optimizations reviewed by a Rust specialist.
+
+### Fixed
+
+#### Nested JSONB Field Filtering (Underscore+Number Patterns)
+
+Fixed critical bug where nested JSONB fields with underscore+number patterns (e.g., `dns_1.ip_address`) were being filtered out, returning only `__typename` instead of requested fields.
+
+**Root Cause**: Materialized path mismatch between database (snake_case), Python (partial camelCase), and Rust (checking wrong variants)
+- Database: `dns_1.ip_address` (snake_case)
+- Python: `dns1.ip_address` (parent camelCase, child snake_case)
+- Rust: Only checking `dns_1.ip_address` and `dns1.ipAddress` (fully camelCase)
+
+**Solution**: Added partial camelCase path matching to handle Python's format
+
+**Files Modified**:
+- `fraiseql_rs/src/json_transform.rs` - Added path matching logic
+- `fraiseql_rs/src/lib.rs` - Updated PyO3 bindings
+- `src/fraiseql/core/rust_pipeline.py` - Pass field_selections as list
+
+**Testing**: 20+ WHERE clause tests, 6103 functional tests pass, zero regressions
+
+### Performance
+
+#### Rust Pipeline Optimizations (Rust Specialist Reviewed)
+
+Implemented comprehensive performance optimizations based on specialist code review:
+
+1. **Pre-compute path variants** (50-80% overhead reduction)
+   - Cache all three path formats (snake_case, camelCase, partial) upfront in `build_alias_map()`
+   - Trade memory (3x HashSet size) for speed (O(1) lookups vs O(N) conversions)
+   - Eliminates repeated string allocations during field filtering
+
+2. **Optimize string allocations** in path construction
+   - Use `String::with_capacity()` and `push_str()` instead of Vec collect + join
+   - Reduces allocations in `to_camel_case_path()` hot path
+   - Pre-allocate string buffers based on input length
+
+3. **Improve PyO3 type conversion**
+   - Add comprehensive `python_to_json()` helper supporting all Python types
+   - Handle None, bool, int, float, str, dict, list with recursive conversion
+   - Simplify `build_graphql_response()` from 33 lines to 5 lines
+   - More robust error handling for invalid float values
+
+**Current Performance** (after optimizations):
+- Rust Pipeline: 0.03ms (4% of total request time)
+- Total Request: 0.62ms
+- PostgreSQL: 0.54ms (86%)
+- 18 performance tests pass in 2.06 seconds
+
+### Code Quality
+
+#### Rust Code Improvements
+
+1. **Extract path matching logic** to helper function
+   - Move complex matching logic to `path_matches_selection()`
+   - Improves readability and testability
+   - Centralizes prefix/exact match logic
+
+2. **Add inline documentation**
+   - Document all three path variants (snake_case, camelCase, partial)
+   - Explain byte-level checks for prefix matching
+   - Clarify performance trade-offs in comments
+
+**Files Modified**:
+- `fraiseql_rs/src/json_transform.rs` - Path optimization + helper functions
+- `fraiseql_rs/src/lib.rs` - PyO3 type conversion improvements
+- `uv.lock` - Dependency updates from maturin build
+
+**Testing**: All pre-commit hooks pass (rustfmt, clippy, ruff)
+
+### Beta Testing
+
+This is a **beta release** for real-world validation before the stable 1.9.0 release.
+
+**Beta Duration**: 1-2 weeks
+**Monitoring Focus**:
+- Nested JSONB field filtering in production scenarios
+- Performance validation in high-load environments
+- Path matching edge cases with unusual field names
+- Memory usage patterns with pre-computed path variants
+
+**Promote to 1.9.0 Stable**: Mid-January 2025 (if no critical issues found)
+
 ## [1.9.0] - 2025-12-30
 
 **Major Release - WHERE Clause Fixes + Rust Safety Improvements**
