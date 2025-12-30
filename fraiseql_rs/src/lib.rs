@@ -210,7 +210,7 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 ///     field_name: GraphQL field name (e.g., "users", "user")
 ///     type_name: Optional type name for __typename injection
 ///     field_paths: Optional field projection paths (DEPRECATED - use field_selections)
-///     field_selections: Optional field selections JSON string with aliases and type info
+///     field_selections: Optional Python list of dicts with selection metadata (materialized_path, alias, type_name)
 ///     is_list: True for list responses (always array), False for single object responses
 ///     include_graphql_wrapper: True to wrap in {"data":{"field_name":...}} (default), False for field-only mode
 ///
@@ -223,21 +223,43 @@ pub fn build_graphql_response(
     field_name: &str,
     type_name: Option<&str>,
     field_paths: Option<Vec<Vec<String>>>,
-    field_selections: Option<String>,
+    field_selections: Option<Bound<'_, pyo3::types::PyList>>,
     is_list: Option<bool>,
     include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    // Parse field_selections JSON string if provided
-    let selections_json = match field_selections {
-        Some(json_str) => {
-            serde_json::from_str::<Vec<serde_json::Value>>(&json_str).map_err(|e| {
-                pyo3::exceptions::PyValueError::new_err(format!(
-                    "Invalid field_selections JSON: {}",
-                    e
-                ))
-            })?
+    // Convert Python list to Vec<Value> if provided
+    let selections_json = if let Some(py_list) = field_selections {
+        let mut selections = Vec::new();
+        for item in py_list.iter() {
+            // Convert each Python dict to serde_json::Value
+            let py_dict = item.downcast::<pyo3::types::PyDict>()?;
+
+            // Build a JSON object from the Python dict
+            let mut map = serde_json::Map::new();
+            for (key, value) in py_dict.iter() {
+                // Convert key to owned String immediately to avoid lifetime issues
+                let key_owned = key.str()?.to_str()?.to_string();
+
+                // Convert Python value to JSON value
+                let json_value = if let Ok(s) = value.extract::<String>() {
+                    serde_json::Value::String(s)
+                } else if let Ok(b) = value.extract::<bool>() {
+                    serde_json::Value::Bool(b)
+                } else if let Ok(i) = value.extract::<i64>() {
+                    serde_json::Value::Number(i.into())
+                } else {
+                    // Fallback: convert to string representation
+                    serde_json::Value::String(value.str()?.to_str()?.to_string())
+                };
+
+                map.insert(key_owned, json_value);
+            }
+
+            selections.push(serde_json::Value::Object(map));
         }
-        None => Vec::new(),
+        selections
+    } else {
+        Vec::new()
     };
 
     let selections_opt = if selections_json.is_empty() {
