@@ -308,12 +308,113 @@ pub fn transform_with_selections(
     )
 }
 
+/// Convert a dot-separated path to full camelCase
+///
+/// Example: "user_profile.contact_info" → "userProfile.contactInfo"
+///
+/// Performance: Uses String builder to avoid intermediate Vec allocation
+#[inline]
+fn to_camel_case_path(path: &str) -> String {
+    if !path.contains('_') {
+        return path.to_string();
+    }
+
+    let mut result = String::with_capacity(path.len());
+    let mut segments = path.split('.');
+
+    if let Some(first) = segments.next() {
+        result.push_str(&to_camel_case(first));
+
+        for segment in segments {
+            result.push('.');
+            result.push_str(&to_camel_case(segment));
+        }
+    }
+
+    result
+}
+
+/// Convert a path to partial camelCase (parent segments camelCase, last segment unchanged)
+///
+/// This matches Python's materialized path format where GraphQL field names (camelCase)
+/// are used for parent paths, but database column names (snake_case) for the current field.
+///
+/// Examples:
+/// - "dns_1.ip_address" → "dns1.ip_address" (parent camelCase, child unchanged)
+/// - "user.profile.bio" → "user.profile.bio" (no underscores, unchanged)
+#[inline]
+fn to_partial_camel_case_path(path: &str) -> Option<String> {
+    let last_dot = path.rfind('.')?;
+    let parent = &path[..last_dot];
+    let child = &path[last_dot + 1..];
+
+    if !parent.contains('_') {
+        return None; // No conversion needed
+    }
+
+    let camel_parent = to_camel_case_path(parent);
+    Some(format!("{}.{}", camel_parent, child))
+}
+
+/// Check if a selection path matches a field path (exact or prefix match)
+///
+/// Matches if:
+/// 1. Exact match: selection == field_path
+/// 2. Prefix match: selection starts with field_path + "." (i.e., selection is a child)
+///
+/// The byte-level check (`selection.as_bytes()[field_path.len()] == b'.'`) ensures
+/// we don't match "userinfo" when checking "user" prefix.
+#[inline]
+fn path_matches_selection(
+    selection: &str,
+    field_path: &str,
+    camel_field_path: &str,
+    partial_camel_path: Option<&str>,
+) -> bool {
+    // Exact match check for all three variants
+    if selection == field_path || selection == camel_field_path {
+        return true;
+    }
+
+    if let Some(partial) = partial_camel_path {
+        if selection == partial {
+            return true;
+        }
+    }
+
+    // Prefix match check (selection is a child of this field)
+    for candidate in [field_path, camel_field_path] {
+        if selection.len() > candidate.len() + 1
+            && selection.starts_with(candidate)
+            && selection.as_bytes()[candidate.len()] == b'.'
+        {
+            return true;
+        }
+    }
+
+    if let Some(partial) = partial_camel_path {
+        if selection.len() > partial.len() + 1
+            && selection.starts_with(partial)
+            && selection.as_bytes()[partial.len()] == b'.'
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Build a mapping from materialized paths to aliases and allowed field names
+///
+/// **Performance Optimization**: Pre-computes all three path variants (snake_case,
+/// camelCase, partial camelCase) and stores them in `selected_paths`. This trades
+/// memory (3x HashSet size) for speed (O(1) lookups instead of O(N) path conversions
+/// per field).
 ///
 /// Returns a tuple of:
 /// - HashMap: materialized path -> alias
 /// - HashSet: allowed root-level field names for field projection
-/// - HashSet: all selected materialized paths (for nested field filtering)
+/// - HashSet: all selected materialized paths WITH all three variants pre-computed
 fn build_alias_map(
     selections: &[Value],
 ) -> (
@@ -328,13 +429,35 @@ fn build_alias_map(
     for selection in selections {
         // Extract materialized_path (required)
         if let Some(path) = selection.get("materialized_path").and_then(|v| v.as_str()) {
-            // Add to selected paths (tracks ALL selections, not just aliased ones)
+            // **Performance Optimization**: Pre-compute all three path variants upfront
+            // This trades memory for speed - we compute paths once here instead of
+            // O(N fields) times during transformation.
+            //
+            // Three variants needed to match Python's materialized paths:
+            // 1. Original (snake_case): "dns_1.ip_address" (database column names)
+            // 2. Full camelCase: "dns1.ipAddress" (GraphQL response format)
+            // 3. Partial camelCase: "dns1.ip_address" (Python's GraphQL field name + db column)
             selected_paths.insert(path.to_string());
+
+            // Add full camelCase variant if path contains underscores
+            if path.contains('_') {
+                let camel_path = to_camel_case_path(path);
+                selected_paths.insert(camel_path);
+
+                // Add partial camelCase variant if it's different from original
+                if let Some(partial_path) = to_partial_camel_case_path(path) {
+                    selected_paths.insert(partial_path);
+                }
+            }
 
             // Extract root-level field name for field projection (always add to allowed_fields)
             // e.g., "profile.bio" -> "profile", "id" -> "id"
             if let Some(first_segment) = path.split('.').next() {
                 allowed_fields.insert(first_segment.to_string());
+                // Also add camelCase variant of root field
+                if first_segment.contains('_') {
+                    allowed_fields.insert(to_camel_case(first_segment));
+                }
             }
 
             // Extract alias (optional) - only add to alias_map if present
@@ -425,55 +548,29 @@ fn transform_with_aliases(
                     // Root level: check if field is in allowed set
                     allowed_fields.contains(key) || allowed_fields.contains(&to_camel_case(key))
                 } else {
-                    // Nested level: check if any selection includes this path
-                    // A field is allowed if there's a selection that:
-                    // 1. Exactly matches the field_path (leaf field selected)
-                    // 2. Starts with field_path + "." (children of this field selected)
-                    // Convert field_path to camelCase for comparison
-                    let camel_field_path = if field_path.contains('_') {
-                        let segments: Vec<&str> = field_path.split('.').collect();
-                        segments
-                            .iter()
-                            .map(|s| to_camel_case(s))
-                            .collect::<Vec<String>>()
-                            .join(".")
-                    } else {
-                        field_path.clone()
-                    };
+                    // Nested level: check if field_path (or any of its variants) is in selected_paths
+                    //
+                    // **Performance Optimization**: Since we pre-computed all path variants in
+                    // `build_alias_map()`, we can now use simple HashSet lookups instead of
+                    // computing variants for every field. This reduces O(N fields × 3 path builds)
+                    // to O(N fields × 1 path build).
+                    //
+                    // The `path_matches_selection` helper checks:
+                    // 1. Exact match: field_path is in selected_paths
+                    // 2. Prefix match: any selected path is a child of field_path
+                    //
+                    // We only need to build camel_field_path and partial_camel_path here
+                    // because we're checking against the pre-computed set.
+                    let camel_field_path = to_camel_case_path(&field_path);
+                    let partial_camel_path = to_partial_camel_case_path(&field_path);
 
-                    // Also build "partial camel" path: parent segments camelCase, current key snake_case
-                    // This matches Python's materialized paths which use GraphQL field names (camelCase)
-                    // for parent but database column names (snake_case) for current field
-                    let partial_camel_path = if current_path.contains('_') {
-                        // Parent has underscores, convert to camelCase
-                        let parent_segments: Vec<&str> = current_path.split('.').collect();
-                        let camel_parent = parent_segments
-                            .iter()
-                            .map(|s| to_camel_case(s))
-                            .collect::<Vec<String>>()
-                            .join(".");
-                        format!("{}.{}", camel_parent, key)
-                    } else if !current_path.is_empty() {
-                        // Parent already camelCase
-                        format!("{}.{}", current_path, key)
-                    } else {
-                        // Root level
-                        key.to_string()
-                    };
-
-                    selected_paths.iter().any(|path| {
-                        path == &field_path
-                            || path == &camel_field_path
-                            || path == &partial_camel_path
-                            || (path.len() > field_path.len() + 1
-                                && path.starts_with(&field_path)
-                                && path.as_bytes()[field_path.len()] == b'.')
-                            || (path.len() > camel_field_path.len() + 1
-                                && path.starts_with(&camel_field_path)
-                                && path.as_bytes()[camel_field_path.len()] == b'.')
-                            || (path.len() > partial_camel_path.len() + 1
-                                && path.starts_with(&partial_camel_path)
-                                && path.as_bytes()[partial_camel_path.len()] == b'.')
+                    selected_paths.iter().any(|selection| {
+                        path_matches_selection(
+                            selection,
+                            &field_path,
+                            &camel_field_path,
+                            partial_camel_path.as_deref(),
+                        )
                     })
                 };
 

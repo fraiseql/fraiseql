@@ -187,6 +187,64 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
     result.to_vec()
 }
 
+/// Convert a Python object to serde_json::Value recursively
+///
+/// Handles all Python types comprehensively:
+/// - None → Null
+/// - bool → Bool
+/// - int → Number
+/// - float → Number
+/// - str → String
+/// - dict → Object (recursive)
+/// - list → Array (recursive)
+/// - fallback → String (via __str__)
+///
+/// This ensures complete type fidelity when converting Python field_selections
+/// to JSON for the Rust pipeline.
+fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json::Value> {
+    use pyo3::types::{PyDict, PyList};
+
+    if value.is_none() {
+        Ok(serde_json::Value::Null)
+    } else if let Ok(b) = value.extract::<bool>() {
+        // Check bool before int (bool is a subtype of int in Python)
+        Ok(serde_json::Value::Bool(b))
+    } else if let Ok(i) = value.extract::<i64>() {
+        Ok(serde_json::Value::Number(i.into()))
+    } else if let Ok(f) = value.extract::<f64>() {
+        serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid float value: {}",
+                    f
+                ))
+            })
+    } else if let Ok(s) = value.extract::<String>() {
+        Ok(serde_json::Value::String(s))
+    } else if let Ok(dict) = value.downcast::<PyDict>() {
+        // Recursively convert nested dict
+        let mut map = serde_json::Map::new();
+        for (k, v) in dict.iter() {
+            let key_str = k.str()?.to_str()?.to_string();
+            let json_val = python_to_json(&v)?;
+            map.insert(key_str, json_val);
+        }
+        Ok(serde_json::Value::Object(map))
+    } else if let Ok(list) = value.downcast::<PyList>() {
+        // Recursively convert list items
+        list.iter()
+            .map(|item| python_to_json(&item))
+            .collect::<PyResult<Vec<_>>>()
+            .map(serde_json::Value::Array)
+    } else {
+        // Fallback: use string representation for unknown types
+        Ok(serde_json::Value::String(
+            value.str()?.to_str()?.to_string(),
+        ))
+    }
+}
+
 /// Build complete GraphQL response from PostgreSQL JSON rows
 ///
 /// This is the unified API for building GraphQL responses from database JSON.
@@ -227,37 +285,12 @@ pub fn build_graphql_response(
     is_list: Option<bool>,
     include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    // Convert Python list to Vec<Value> if provided
+    // Convert Python list to Vec<Value> if provided using the helper function
     let selections_json = if let Some(py_list) = field_selections {
-        let mut selections = Vec::new();
-        for item in py_list.iter() {
-            // Convert each Python dict to serde_json::Value
-            let py_dict = item.downcast::<pyo3::types::PyDict>()?;
-
-            // Build a JSON object from the Python dict
-            let mut map = serde_json::Map::new();
-            for (key, value) in py_dict.iter() {
-                // Convert key to owned String immediately to avoid lifetime issues
-                let key_owned = key.str()?.to_str()?.to_string();
-
-                // Convert Python value to JSON value
-                let json_value = if let Ok(s) = value.extract::<String>() {
-                    serde_json::Value::String(s)
-                } else if let Ok(b) = value.extract::<bool>() {
-                    serde_json::Value::Bool(b)
-                } else if let Ok(i) = value.extract::<i64>() {
-                    serde_json::Value::Number(i.into())
-                } else {
-                    // Fallback: convert to string representation
-                    serde_json::Value::String(value.str()?.to_str()?.to_string())
-                };
-
-                map.insert(key_owned, json_value);
-            }
-
-            selections.push(serde_json::Value::Object(map));
-        }
-        selections
+        py_list
+            .iter()
+            .map(|item| python_to_json(&item))
+            .collect::<PyResult<Vec<_>>>()?
     } else {
         Vec::new()
     };
