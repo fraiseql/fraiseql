@@ -40,48 +40,49 @@ Core repository class for async database operations with exclusive Rust pipeline
 
 ### Key Methods
 
-#### find_rust(view_name, field_name, info, **kwargs)
-Execute query using exclusive Rust pipeline and return RustResponseBytes.
+#### find(view_name, field_name, **kwargs)
+Execute query using the exclusive Rust pipeline with automatic field selection.
 
-**Fastest method** - PostgreSQL → Rust → HTTP with zero Python string operations.
+**Fastest path** - PostgreSQL → Rust → HTTP with zero Python string operations.
 
 ```python
-# Exclusive Rust pipeline methods:
-users = await db.find_rust("v_user", "users", info)
-user = await db.find_one_rust("v_user", "user", info, id=123)
-filtered = await db.find_rust("v_user", "users", info, age__gt=18)
+@fraiseql.query
+async def users(info, limit: int = 100) -> list[User]:
+    db = info.context["db"]
+    # Rust pipeline automatically used
+    return await db.find("v_user", "users", limit=limit)
+
+@fraiseql.query
+async def filtered_users(info, min_age: int = 18) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", "filteredUsers", where={"age__gte": min_age})
 ```
 
 **Parameters:**
 - `view_name: str` - Database view name (e.g., "v_user")
-- `field_name: str` - GraphQL field name for response wrapping
-- `info: Any` - GraphQL resolver info for field paths
-- `**kwargs` - Filter parameters and options
+- `field_name: str` - GraphQL field name for response wrapping (e.g., "users")
+- `**kwargs` - Query parameters: `where`, `limit`, `offset`, `order_by`
 
-**Returns:** `RustResponseBytes` - Pre-serialized GraphQL response ready for HTTP
+**Returns:** Result handled automatically by framework (annotate resolver with `list[User]`)
 
-#### find_one_rust(view_name, field_name, info, **kwargs)
-Execute single-result query using exclusive Rust pipeline.
+> **Note**: The `info` parameter is auto-injected from context for field selection.
+
+#### find_one(view_name, field_name, **kwargs)
+Execute single-result query using the exclusive Rust pipeline.
+
+```python
+@fraiseql.query
+async def user(info, id: UUID) -> User | None:
+    db = info.context["db"]
+    return await db.find_one("v_user", "user", id=id)
+```
 
 **Parameters:**
 - `view_name: str` - Database view name
 - `field_name: str` - GraphQL field name for response wrapping
-- `info: Any` - GraphQL resolver info for field paths
-- `**kwargs` - Filter parameters
+- `**kwargs` - Filter conditions (e.g., `id=user_id`, `where={...}`)
 
-**Returns:** `RustResponseBytes` - Single result as GraphQL response
-
-#### find(source, where=None, **kwargs)
-Execute query and return Python objects.
-
-```python
-# Direct database access (bypasses Rust pipeline)
-users = await db.find("v_user")
-user = await db.find_one("v_user", id=123)
-```
-
-**Parameters:**
-- `source: str` - View name (e.g., "v_user")
+**Returns:** Result handled automatically (annotate with `User | None`)
 - `where: dict` - WHERE clause filters (optional)
 - `**kwargs` - Additional filters
 

@@ -84,7 +84,7 @@ async def users(self, info, email_filter: str | None = None) -> list[User]:
     if email_filter:
         filters['email__icontains'] = email_filter
 
-    return await repo.find_rust("v_user", "users", info, **filters)
+    return await repo.find("v_user", "users", info, **filters)
 ```
 
 ### GraphQL: Query with Arguments
