@@ -89,7 +89,7 @@ class GraphQLInfoInjector:
             # Check if function expects 'info' parameter
             sig = inspect.signature(func)
             has_info_param = 'info' in sig.parameters
-            
+
             # Extract info from kwargs or positional args if available
             info = None
             if has_info_param:
@@ -103,8 +103,8 @@ class GraphQLInfoInjector:
                     info = args[1]
                     info = self.process_info(info)
                     args = (args[0], info) + args[2:]
-            
+
             # Call the original function with modified args/kwargs
             return func(*args, **kwargs)
-        
+
         return sync_wrapper
