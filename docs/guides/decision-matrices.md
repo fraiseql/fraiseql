@@ -681,29 +681,6 @@ config = FraiseQLConfig(
 
 ---
 
-## Summary
-
-**Key takeaways:**
-
-1. **Database Methods:** Use `find()` for lists, `find_one()` for optional, `find_required()` for required
-2. **Views:** JSONB views for standard queries, projection tables for ultra-high performance
-3. **Identifiers:** Always use Trinity pattern (pk_*, id, identifier) for security and performance
-4. **Mutations:** Function-based for simple, class-based for explicit error handling
-5. **Dataloader:** Use when fetching 1:N relations on lists (or embed in JSONB view)
-6. **APQ Storage:** Memory for single instance, PostgreSQL for multi-instance
-7. **Framework:** Choose FraiseQL for PostgreSQL-native, high-performance, type-safe GraphQL
-
-**Quick decision checklist:**
-
-- [ ] Choose database method based on result cardinality
-- [ ] Use JSONB views by default, projection tables for extreme performance
-- [ ] Apply Trinity pattern to all entities with public APIs
-- [ ] Pick mutation pattern based on error handling needs
-- [ ] Embed relations in JSONB views instead of dataloader when possible
-- [ ] Use PostgreSQL backend for APQ in production multi-instance setups
-
----
-
 ## See Also
 
 - [Core Concepts & Glossary](../core/concepts-glossary.md) - Detailed explanations

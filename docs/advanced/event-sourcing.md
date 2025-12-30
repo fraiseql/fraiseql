@@ -14,17 +14,6 @@ Event sourcing stores all changes to application state as a sequence of events. 
 - Audit trail patterns
 - CQRS with event sourcing
 
-## Table of Contents
-
-- [Entity Change Log](#entity-change-log)
-- [Before/After Snapshots](#beforeafter-snapshots)
-- [Event Replay](#event-replay)
-- [Temporal Queries](#temporal-queries)
-- [Audit Trails](#audit-trails)
-- [CQRS Pattern](#cqrs-pattern)
-- [Event Versioning](#event-versioning)
-- [Performance Optimization](#performance-optimization)
-
 ## Entity Change Log
 
 ### Schema Design

@@ -384,30 +384,6 @@ Expected response structure:
 
 ---
 
-## Summary
-
-FraiseQL's auto-inference reduces boilerplate by 60-70%:
-
-**Traditional GraphQL Framework**:
-```python
-@query.field("users")
-async def resolve_users(obj, info, where=None, limit=100, offset=0, order_by=None):
-    # All parameters explicit, field name specified twice
-    return await db.find("v_user", "users", info, where, limit, offset, order_by)
-```
-
-**FraiseQL with Auto-Inference**:
-```python
-@fraiseql.query
-async def users(info) -> list[User]:
-    # Clean, simple, obvious
-    return await db.find("v_user")
-```
-
-**Result**: Same functionality, 70% less code.
-
----
-
 ## See Also
 
 - [Database API Reference](../reference/database.md) - Complete `find()` and `find_one()` docs

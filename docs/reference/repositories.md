@@ -303,19 +303,6 @@ result = await db.count("v_users", where=where)  # FraiseQLRepository
 result = await repo.count(User, where=where)      # CQRSRepository
 ```
 
-## Summary
-
-| Scenario | Repository | Reason |
-|----------|-----------|--------|
-| GraphQL query resolver | `FraiseQLRepository` | Zero-copy performance |
-| GraphQL mutation resolver | `FraiseQLRepository` | Zero-copy performance |
-| Count query | `FraiseQLRepository.count()` | Returns `int` directly |
-| Background job | `CQRSRepository` | Need Python object manipulation |
-| CLI utility | `CQRSRepository` | Need Python object manipulation |
-| Data migration | `CQRSRepository` | Need Python object manipulation |
-
-**Default Choice**: Use `FraiseQLRepository` (`info.context["db"]`) for all GraphQL resolvers. Only use `CQRSRepository` when you need to manipulate Python objects outside of GraphQL.
-
 ## See Also
 
 - [Database API Reference](database.md) - Complete API documentation

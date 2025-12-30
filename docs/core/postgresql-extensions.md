@@ -4,16 +4,6 @@
 
 FraiseQL is designed to work with several PostgreSQL extensions that enhance performance and functionality. This guide covers installation and configuration of these extensions.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [jsonb_ivm Extension](#jsonb_ivm-extension)
-- [pg_fraiseql_cache Extension](#pg_fraiseql_cache-extension)
-- [Installation Methods](#installation-methods)
-- [Docker Setup](#docker-setup)
-- [Verification](#verification)
-- [Troubleshooting](#troubleshooting)
-
 ---
 
 ## Overview
@@ -527,40 +517,6 @@ You'll see a warning in logs:
 - [jsonb_ivm](https://github.com/fraiseql/jsonb_ivm) - Incremental View Maintenance extension
 - [pg_fraiseql_cache](https://github.com/fraiseql/pg_fraiseql_cache) - Cache invalidation extension
 - [confiture](https://github.com/fraiseql/confiture) - Migration management library
-
----
-
-## Summary
-
-FraiseQL integrates with PostgreSQL extensions for maximum performance:
-
-✅ **jsonb_ivm** - 10-100x faster incremental updates
-✅ **pg_fraiseql_cache** - Automatic CASCADE invalidation
-✅ **Optional** - FraiseQL works without them (slower)
-✅ **Auto-detected** - No configuration needed
-
-**Installation**:
-```bash
-# Clone and install jsonb_ivm
-git clone https://github.com/fraiseql/jsonb_ivm.git && \
-  cd jsonb_ivm && make && sudo make install && cd ..
-
-# Clone and install pg_fraiseql_cache
-git clone https://github.com/fraiseql/pg_fraiseql_cache.git && \
-  cd pg_fraiseql_cache && make && sudo make install && cd ..
-
-# Enable in database
-psql -d mydb -c "CREATE EXTENSION jsonb_ivm;"
-psql -d mydb -c "CREATE EXTENSION pg_fraiseql_cache;"
-```
-
-**Verification**:
-```python
-from fraiseql.ivm import setup_auto_ivm
-
-recommendation = await setup_auto_ivm(db_pool, verbose=True)
-# ✓ Detected jsonb_ivm v1.1
-```
 
 ---
 

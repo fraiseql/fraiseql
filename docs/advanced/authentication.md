@@ -15,20 +15,6 @@ FraiseQL provides a flexible authentication system supporting multiple providers
 - Session management
 - Field-level authorization
 
-## Table of Contents
-
-- [Authentication Providers](#authentication-providers)
-- [UserContext Structure](#usercontext-structure)
-- [Auth0 Provider](#auth0-provider)
-- [Custom JWT Provider](#custom-jwt-provider)
-- [Native Authentication](#native-authentication)
-- [Authorization Decorators](#authorization-decorators)
-- [Token Revocation](#token-revocation)
-- [Session Management](#session-management)
-- [Field-Level Authorization](#field-level-authorization)
-- [Multi-Provider Setup](#multi-provider-setup)
-- [Security Best Practices](#security-best-practices)
-
 ## Authentication Providers
 
 ### AuthProvider Interface

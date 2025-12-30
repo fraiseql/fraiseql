@@ -2,14 +2,6 @@
 
 This guide provides practical, real-world examples of using FraiseQL's advanced PostgreSQL filter operators. Each example includes the complete GraphQL query, generated SQL, and explanations.
 
-## Table of Contents
-
-- [E-commerce Product Catalog](#e-commerce-product-catalog)
-- [Content Management System](#content-management-system)
-- [User Management & Permissions](#user-management--permissions)
-- [Log Analysis & Monitoring](#log-analysis--monitoring)
-- [Multi-tenant SaaS Application](#multi-tenant-saas-application)
-
 ---
 
 ## E-commerce Product Catalog

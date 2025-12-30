@@ -12,17 +12,6 @@ Deploy FraiseQL applications to production with confidence using battle-tested p
 - Cloud platforms (GCP, AWS, Azure)
 - Edge/CDN deployments
 
-## Table of Contents
-
-- [Docker Deployment](#docker-deployment)
-- [Kubernetes Deployment](#kubernetes-deployment)
-- [Environment Configuration](#environment-configuration)
-- [Database Migrations](#database-migrations)
-- [Health Checks](#health-checks)
-- [Scaling Strategies](#scaling-strategies)
-- [Zero-Downtime Deployment](#zero-downtime-deployment)
-- [Rollback Procedures](#rollback-procedures)
-
 ## Docker Deployment
 
 ### Production Dockerfile

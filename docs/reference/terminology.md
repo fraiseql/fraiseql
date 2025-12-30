@@ -559,23 +559,6 @@ When mentioning these concepts, always link to canonical definitions:
 
 ---
 
-## Summary
-
-**Key principles:**
-
-1. ✅ **Be specific:** "PostgreSQL function" > "database function"
-2. ✅ **Be consistent:** Pick one term and stick with it throughout a document
-3. ✅ **Define on first use:** Explain less common terms when first mentioned
-4. ✅ **Link to canonical sources:** Cross-reference to detailed explanations
-5. ✅ **Use code formatting:** Format SQL/Python/view names as code
-
-**When in doubt:**
-- Use the most specific term (PostgreSQL function vs database function)
-- Link to this terminology guide
-- Check `docs/core/concepts-glossary.md` for canonical definitions
-
----
-
 ## See Also
 
 - [Core Concepts & Glossary](../core/concepts-glossary.md) - Detailed concept explanations

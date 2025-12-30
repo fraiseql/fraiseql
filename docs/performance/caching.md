@@ -20,19 +20,6 @@ FraiseQL provides a sophisticated caching system that stores query results in Po
 | Complex aggregation | 200-500ms | 0.5-2ms | **200-500x** |
 | Multi-tenant query | 100-300ms | 0.5-2ms | **100-300x** |
 
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [PostgreSQL Cache Backend](#postgresql-cache-backend)
-- [Configuration](#configuration)
-- [Multi-Tenant Security](#multi-tenant-security)
-- [Domain-Based Invalidation](#domain-based-invalidation)
-- [Usage Patterns](#usage-patterns)
-- [Cache Key Strategy](#cache-key-strategy)
-- [Monitoring & Metrics](#monitoring-metrics)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-
 ## Quick Start
 
 ### Basic Setup

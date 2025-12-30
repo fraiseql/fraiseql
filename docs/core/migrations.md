@@ -4,17 +4,6 @@
 
 FraiseQL provides a robust migration management system through the `fraiseql migrate` CLI, making it easy to evolve your database schema over time while maintaining consistency across development, staging, and production environments.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Quick Start](#quick-start)
-- [Migration Commands](#migration-commands)
-- [Migration File Structure](#migration-file-structure)
-- [Best Practices](#migration-best-practices)
-- [CQRS Migrations](#cqrs-migrations)
-- [Production Deployment](#production-deployment)
-- [Troubleshooting](#troubleshooting)
-
 ---
 
 ## Overview
@@ -597,23 +586,6 @@ async def setup_ivm():
 - [Explicit Sync Guide](./explicit-sync.md)
 - [Database Patterns](../advanced/database-patterns.md)
 - [confiture on GitHub](https://github.com/fraiseql/confiture) - Migration library
-
----
-
-## Summary
-
-FraiseQL's migration system provides:
-
-✅ **Simple** SQL-based migrations
-✅ **Safe** tracking of applied changes
-✅ **Integrated** with the `fraiseql` CLI
-✅ **Production-ready** deployment patterns
-
-**Next Steps**:
-1. Initialize migrations: `fraiseql migrate init`
-2. Create your first migration: `fraiseql migrate create initial_schema`
-3. Apply migrations: `fraiseql migrate up`
-4. See the [Complete CQRS Example](../../examples/complete_cqrs_blog/) for a full working demo
 
 ---
 

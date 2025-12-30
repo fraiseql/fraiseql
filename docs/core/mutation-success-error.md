@@ -539,24 +539,6 @@ mutation {
 
 ---
 
-## Summary
-
-### @success Auto-Injection
-
-✅ **Saves 50-60% boilerplate**
-✅ **Follows GraphQL best practices**
-✅ **Consistent success response structure**
-✅ **Customizable when needed**
-
-### @error Explicit Fields
-
-✅ **Full control over error structure**
-✅ **Type-safe error handling**
-✅ **Clear error messaging**
-✅ **Field-level validation feedback**
-
----
-
 ## See Also
 
 - [Mutations Guide](../reference/mutations.md) - Complete mutation documentation

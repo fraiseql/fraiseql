@@ -14,17 +14,6 @@ Bounded contexts are explicit boundaries within which a domain model is defined.
 - Anti-corruption layers
 - Event-driven communication
 
-## Table of Contents
-
-- [Bounded Context Design](#bounded-context-design)
-- [Repository Pattern](#repository-pattern)
-- [Schema Organization](#schema-organization)
-- [Aggregate Roots](#aggregate-roots)
-- [Context Integration](#context-integration)
-- [Shared Kernel](#shared-kernel)
-- [Anti-Corruption Layer](#anti-corruption-layer)
-- [Event-Driven Communication](#event-driven-communication)
-
 ## Bounded Context Design
 
 ### What is a Bounded Context?

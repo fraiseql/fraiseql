@@ -395,17 +395,18 @@ async def create_user(info, input: CreateUserInput) -> User:
 ```
 
 **PostgreSQL Function**:
-```sql
-CREATE OR REPLACE FUNCTION fn_create_user(input jsonb)
-RETURNS jsonb AS $$
-DECLARE
-    new_id uuid;
-BEGIN
-    INSERT INTO tb_user (name, email)
-    VALUES (input->>'name', input->>'email')
-    RETURNING id INTO new_id;
 
-    RETURN jsonb_build_object('id', new_id);
+See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for a complete example with validation and error handling.
+
+Simple version:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(input jsonb) RETURNS jsonb AS $$
+BEGIN
+    RETURN jsonb_build_object('id',
+        (INSERT INTO tb_user (name, email)
+         VALUES (input->>'name', input->>'email')
+         RETURNING id)
+    );
 END;
 $$ LANGUAGE plpgsql;
 ```

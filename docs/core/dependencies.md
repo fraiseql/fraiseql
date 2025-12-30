@@ -4,14 +4,6 @@
 
 FraiseQL integrates several components to provide a complete, high-performance GraphQL framework. This guide explains each dependency and how they work together.
 
-## Table of Contents
-
-- [Core Dependencies](#core-dependencies)
-- [PostgreSQL Extensions](#postgresql-extensions)
-- [Python Packages](#python-packages)
-- [Development Setup](#development-setup)
-- [Architecture Overview](#architecture-overview)
-
 ---
 
 ## Core Dependencies
@@ -312,27 +304,6 @@ See each project's CONTRIBUTING.md for guidelines.
 - [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cascade patterns
 - [Explicit Sync](./explicit-sync.md) - jsonb_ivm integration
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/) - All components working together
-
----
-
-## Summary
-
-FraiseQL is powered by:
-
-✅ **confiture** - SQL-based migrations (Python package)
-✅ **jsonb_ivm** - 10-100x faster sync (PostgreSQL extension)
-✅ **pg_fraiseql_cache** - Auto CASCADE (PostgreSQL extension)
-
-**Installation**:
-```bash
-# Python package (automatic)
-pip install fraiseql
-
-# PostgreSQL extensions (manual or Docker)
-# See: docs/core/postgresql-extensions.md
-```
-
-**All projects**: https://github.com/fraiseql
 
 ---
 

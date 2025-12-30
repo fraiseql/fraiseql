@@ -760,17 +760,3 @@ v_cascade := app.build_cascade(
     )
 );
 ```
-
-## Conclusion
-
-GraphQL Cascade is a powerful feature for improving application performance and user experience, but success depends on careful implementation and monitoring. Follow these best practices to maximize benefits while minimizing risks:
-
-1. **Start Small**: Begin with simple cascades and expand gradually
-2. **Monitor Performance**: Track metrics and optimize based on real usage
-3. **Test Thoroughly**: Include cascade testing in your development process
-4. **Design Carefully**: Include the right entities and invalidations for each mutation
-5. **Handle Errors Gracefully**: Ensure cascade failures don't break the user experience
-
-By following these guidelines, you can effectively leverage GraphQL Cascade to build faster, more responsive applications.</content>
-</xai:function_call</xai:function_call name="run">
-<parameter name="command">cd /home/lionel/code/fraiseql && python benchmarks/cascade_performance_benchmark.py

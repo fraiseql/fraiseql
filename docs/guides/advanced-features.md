@@ -2,16 +2,6 @@
 
 This guide covers FraiseQL's advanced features for building high-performance, real-time GraphQL APIs.
 
-## Table of Contents
-
-1. [Dataloader Fields (N+1 Prevention)](#dataloader-fields)
-2. [Subscriptions (Real-Time Updates)](#subscriptions)
-3. [GraphQL Cascade (Automatic Cache Invalidation)](#graphql-cascade)
-4. [Vector Search with pgvector](#vector-search)
-5. [Advanced Filtering](#advanced-filtering)
-
----
-
 ## Dataloader Fields
 
 ### The N+1 Problem
@@ -641,18 +631,6 @@ cascade_effects = [
     "comments",
 ]  # All invalidated in single operation
 ```
-
----
-
-## Summary
-
-| Feature | Use Case | Performance Impact |
-|---------|----------|--------------------|
-| **Dataloader** | Prevent N+1 queries | 10-100x faster |
-| **Subscriptions** | Real-time updates | WebSocket overhead |
-| **GraphQL Cascade** | Auto cache invalidation | Improved UX |
-| **Vector Search** | Semantic search, RAG | Query-dependent |
-| **Advanced Filtering** | Complex queries | Index-dependent |
 
 ---
 

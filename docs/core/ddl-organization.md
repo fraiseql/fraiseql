@@ -22,17 +22,6 @@ FraiseQL embraces [confiture](https://github.com/fraiseql/confiture)'s determini
 
 ---
 
-## Table of Contents
-
-- [Philosophy](#philosophy)
-- [Size-Based Organization](#size-based-organization)
-- [Recommended Structure](#recommended-structure)
-- [Examples](#examples)
-- [Best Practices](#best-practices)
-- [Migration Integration](#migration-integration)
-
----
-
 ## Philosophy
 
 ### Deterministic Ordering
@@ -923,21 +912,6 @@ schema/
 - **[FraiseQL Migrations](./migrations.md)** - Migration workflow
 - **[Database Patterns](../advanced/database-patterns.md)** - CQRS and other patterns
 - **[Complete CQRS Example](../../examples/complete_cqrs_blog/)** - Full working example
-
----
-
-## Summary
-
-✅ **Materialized path numbering**: Each child inherits parent's full prefix + adds one digit
-✅ **Match structure to project size**: XS → S → M → L → XL as you grow
-✅ **Start simple**: Begin with flat structure, add hierarchy only when needed
-✅ **Leave gaps**: `01_`, `03_`, `05_` (not `01_`, `02_`, `03_`) for easy insertion
-✅ **Explicit dependencies**: Extensions → Types → Tables → Views → Functions
-✅ **Top-level organization**: `0_schema/`, `10_seed_common/`, `20_seed_dev/`
-✅ **Document your system**: Add README in schema directory
-✅ **Schema is truth**: Migrations are derived from schema files
-
-**The Key Insight**: By using materialized path numbering (`00_` → `001_` → `0011_`), the file numbers themselves encode the full directory path, making the organization self-documenting and easy to maintain.
 
 ---
 

@@ -603,18 +603,6 @@ async def order_totals(info, id: UUID) -> OrderTotals:
     )
 ```
 
-## Conclusion
-
-FraiseQL's philosophy:
-
-1. **Automate the obvious** - Database injection, session variables, documentation
-2. **Embrace PostgreSQL** - JSONB, functions, views, RLS
-3. **Security by default** - Session variables, context injection
-4. **Performance through simplicity** - JSON passthrough, minimal abstractions
-5. **Composable patterns** - Tools, not opinions
-
-These principles enable rapid development without sacrificing security or performance.
-
 ## See Also
 
 - [Database API](../reference/database.md) - Auto-injected database methods

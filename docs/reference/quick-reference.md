@@ -483,21 +483,8 @@ WHERE status != 'deleted';
 ```
 
 ### Function (Business Logic)
-```sql
--- fn_create_user - Write operations (returns public UUID)
-CREATE OR REPLACE FUNCTION fn_create_user(user_data JSONB)
-RETURNS UUID AS $$
-DECLARE
-    new_id UUID;
-BEGIN
-    INSERT INTO tb_user (name, email)
-    VALUES (user_data->>'name', user_data->>'email')
-    RETURNING id INTO new_id;  -- Return public UUID, not pk_user
 
-    RETURN new_id;
-END;
-$$ LANGUAGE plpgsql;
-```
+See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for complete example with validation.
 
 ### Trigger (Auto-updates)
 ```sql

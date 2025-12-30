@@ -290,15 +290,6 @@ FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs ca
 - Prompt engineering for schema understanding
 - Error handling and recovery
 
-## Table of Contents
-
-- [Schema Introspection for LLMs](#schema-introspection-for-llms)
-- [Prompt Engineering](#prompt-engineering)
-- [Query Generation](#query-generation)
-- [Safety Mechanisms](#safety-mechanisms)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
-
 ## Schema Introspection for LLMs
 
 ### GraphQL Schema as LLM Context

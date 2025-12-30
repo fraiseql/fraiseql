@@ -4,7 +4,9 @@
 
 ### Overview
 
-The **tv_** (table view) pattern is FraiseQL's foundational architecture for efficient GraphQL queries. Despite the name, `tv_` tables are **actual PostgreSQL tables** (not VIEWs), serving as denormalized projections of normalized write tables.
+The **tv_** (projection table) pattern is FraiseQL's foundational architecture for efficient GraphQL queries. Despite the name, `tv_` tables are **actual PostgreSQL tables** (not VIEWs), serving as denormalized projections of normalized write tables.
+
+See [Projection Tables](../core/concepts-glossary.md#projection-tables-tv_) in the Core Concepts Glossary for the canonical definition.
 
 **Key Principle**: Write to normalized tables, read from denormalized tv_ projections.
 

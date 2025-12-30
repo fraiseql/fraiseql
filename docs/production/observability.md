@@ -39,23 +39,6 @@ FraiseQL implements the **"In PostgreSQL Everything"** philosophy for observabil
                     └──────────────┘
 ```
 
-## Table of Contents
-
-- [Error Tracking](#error-tracking)
-  - [Schema](#schema)
-  - [Setup](#setup)
-  - [Capture Errors](#capture-errors)
-  - [Error Notifications](#error-notifications)
-- [Distributed Tracing](#distributed-tracing)
-- [Metrics Collection](#metrics-collection)
-- [Correlation](#correlation)
-- [Grafana Dashboards](#grafana-dashboards)
-- [Query Examples](#query-examples)
-- [Performance Tuning](#performance-tuning)
-  - [Production-Scale Error Storage](#production-scale-error-storage)
-  - [Data Retention](#data-retention)
-- [Best Practices](#best-practices)
-
 ## Error Tracking
 
 PostgreSQL-native error tracking with automatic fingerprinting, grouping, and notifications.

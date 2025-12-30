@@ -69,7 +69,7 @@ FraiseQL uses consistent naming to make patterns clear:
 Database Objects:
 ├── tb_*    - Write Tables (normalized storage)
 ├── v_*     - Read Views (JSONB composition)
-├── tv_*    - Table Views (denormalized projections)
+├── tv_*    - Projection Tables (denormalized JSONB cache)
 └── fn_*    - Business Logic Functions (writes/updates)
 ```
 
@@ -136,22 +136,7 @@ CREATE TABLE tv_user_stats (
 
 Handle writes, updates, and complex business logic.
 
-**Example:** `fn_create_user`
-
-```sql
-CREATE FUNCTION fn_create_user(user_data JSONB)
-RETURNS UUID AS $$
-DECLARE
-    new_id UUID;
-BEGIN
-    INSERT INTO tb_user (name, email)
-    VALUES (user_data->>'name', user_data->>'email')
-    RETURNING id INTO new_id;
-
-    RETURN new_id;
-END;
-$$ LANGUAGE plpgsql;
-```
+**Example:** See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for a complete implementation.
 
 **When to use:** All write operations, validation, business rules.
 
@@ -226,19 +211,19 @@ Different query patterns optimized for different use cases:
 
 ```
 Need fast response?
-├── Yes → Use tv_* table view (0.05ms)
+├── Yes → Use tv_* projection table (0.05ms)
 └── No  → Need fresh data?
     ├── Yes → Use v_* view (real-time)
-    └── No  → Use tv_* table view (denormalized)
+    └── No  → Use tv_* projection table (denormalized)
 ```
 
 **Response Time Comparison:**
 
 ```
 Query Type      | Response Time | Use Case
-───────────────|──────────────|─────────────────────
-tv_* table view | 0.05-0.5ms   | Dashboard, analytics
-v_* view        | 1-5ms        | Real-time data
+───────────────────|──────────────|─────────────────────
+tv_* projection    | 0.05-0.5ms   | Dashboard, analytics
+v_* view           | 1-5ms        | Real-time data
 Complex JOIN    | 50-200ms     | Traditional ORM
 ```
 
@@ -249,8 +234,8 @@ Decision tree for choosing patterns:
 ```
 Need to read data?
 ├── Simple query, real-time data → v_* view
-├── Complex nested data → tv_* table view
-└── Performance-critical analytics → tv_* table view
+├── Complex nested data → tv_* projection table
+└── Performance-critical analytics → tv_* projection table
 ```
 
 ## Next Steps

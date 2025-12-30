@@ -463,23 +463,5 @@ WHERE schemaname = 'public' AND tablename LIKE 'v_%';
 
 ---
 
-## Conclusion
-
-FraiseQL provides **excellent performance** for typical GraphQL applications with minimal configuration. The exclusive Rust pipeline delivers:
-
-- **2-4x faster** than traditional frameworks
-- **Sub-10ms responses** for optimized queries
-- **85-95% cache hit rates** in production
-- **Operational simplicity** with PostgreSQL → Rust → HTTP architecture
-
-**Performance matters most when**:
-- Building high-throughput APIs
-- Serving mobile/web applications
-- Optimizing for cost and operational complexity
-
-**Focus on developer productivity first** - FraiseQL's Rust pipeline performance advantages compound with good application design.
-
----
-
 *Performance Guide - Exclusive Rust Pipeline Architecture*
 *Last updated: October 2025*

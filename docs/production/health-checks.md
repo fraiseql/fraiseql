@@ -14,16 +14,6 @@ FraiseQL provides **built-in health and readiness endpoints** for production dep
 - **Pre-built checks**: Ready-to-use functions for common dependencies
 - **Async-first**: Built for modern Python async applications
 
-## Table of Contents
-
-- [Built-in Health Endpoints](#built-in-health-endpoints)
-- [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-- [Pre-built Checks](#pre-built-checks)
-- [Custom Checks](#custom-checks)
-- [FastAPI Integration](#fastapi-integration)
-- [Production Patterns](#production-patterns)
-
 ## Built-in Health Endpoints
 
 FraiseQL automatically provides two health check endpoints for production deployments:

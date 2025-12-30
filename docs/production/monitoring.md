@@ -33,19 +33,6 @@ FraiseQL Stack:
 - Database pool monitoring
 - Alerting strategies
 
-## Table of Contents
-
-- [PostgreSQL Error Tracking](#postgresql-error-tracking) (Recommended)
-- [PostgreSQL Caching](#postgresql-caching) (Recommended)
-- [Migration Guides](#migration-guides)
-- [Metrics Collection](#metrics-collection)
-- [Logging](#logging)
-- [External APM Integration](#external-apm-integration) (Optional)
-- [Query Performance](#query-performance)
-- [Database Monitoring](#database-monitoring)
-- [Alerting](#alerting)
-- [Dashboards](#dashboards)
-
 ## PostgreSQL Error Tracking
 
 **Recommended alternative to Sentry.** FraiseQL includes PostgreSQL-native error tracking with automatic fingerprinting, grouping, and notifications—saving $300-3,000/month.

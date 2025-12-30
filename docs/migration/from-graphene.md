@@ -310,19 +310,16 @@ class CreateUser:
     email: str
     name: str
 
-# Database function
-CREATE OR REPLACE FUNCTION fn_create_user(
-    input_email TEXT,
-    input_name TEXT
-) RETURNS UUID AS $$
-DECLARE
-    new_user_id UUID;
-BEGIN
-    INSERT INTO tb_user (email, name)
-    VALUES (input_email, input_name)
-    RETURNING id INTO new_user_id;
+# Database function:
+# See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function)
+# for the complete implementation with validation and error handling.
 
-    RETURN new_user_id;
+# Simple version for migration reference:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(p_email TEXT, p_name TEXT)
+RETURNS UUID AS $$
+BEGIN
+    INSERT INTO tb_user (email, name) VALUES (p_email, p_name) RETURNING id;
 END;
 $$ LANGUAGE plpgsql;
 ```

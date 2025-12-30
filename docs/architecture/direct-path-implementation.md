@@ -103,7 +103,7 @@ Processes JSONB data and returns complete GraphQL response:
 
 The direct path respects the trinity pattern:
 
-- **Table**: `tv_{entity}` (table view) - stores id + JSONB data
+- **Table**: `tv_{entity}` (projection table) - stores id + JSONB data
 - **View**: `v_{entity}` (view) - selects `id, data FROM tv_{entity}`
 - **Type**: `{Entity}` (GraphQL type) - Python class with `@fraiseql_type`
 

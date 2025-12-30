@@ -7,17 +7,6 @@
 
 FraiseQL's CASCADE invalidation system automatically detects relationships in your GraphQL schema and sets up intelligent cache invalidation rules. When a `User` changes, all related `Post` caches are automatically invalidated—no manual configuration required.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [How CASCADE Works](#how-cascade-works)
-- [Auto-Detection from Schema](#auto-detection-from-schema)
-- [Manual CASCADE Rules](#manual-cascade-rules)
-- [Performance Considerations](#performance-considerations)
-- [Advanced Patterns](#advanced-patterns)
-- [Monitoring CASCADE](#monitoring-cascade)
-- [Troubleshooting](#troubleshooting)
-
 ---
 
 ## Overview
@@ -599,25 +588,6 @@ async def test_user_cascade():
 - [Caching Guide](./caching.md) - General caching documentation
 - [Explicit Sync Guide](../core/explicit-sync.md) - How sync works with CASCADE
 - [Performance Tuning](./index.md) - Optimize CASCADE performance
-
----
-
-## Summary
-
-FraiseQL's CASCADE invalidation provides:
-
-✅ **Automatic** relationship detection from GraphQL schema
-✅ **Intelligent** propagation of invalidations
-✅ **Fast** performance (<10ms typical CASCADE)
-✅ **Flexible** custom rules when needed
-✅ **Observable** metrics and debugging tools
-
-**Key Takeaway**: CASCADE ensures your cache stays consistent automatically, without manual invalidation code scattered throughout your application.
-
-**Next Steps**:
-1. Setup auto-CASCADE: `await setup_auto_cascade_rules(cache, schema)`
-2. Monitor CASCADE performance: `await cache.get_cascade_stats()`
-3. See it working: Try the [Complete CQRS Example](../../examples/complete_cqrs_blog/)
 
 ---
 

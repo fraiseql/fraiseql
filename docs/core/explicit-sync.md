@@ -4,18 +4,6 @@
 
 FraiseQL's explicit sync pattern is a fundamental design decision that prioritizes **visibility, testability, and control** over automatic behavior. Instead of hidden database triggers, you explicitly call sync functions in your code—giving you complete control over when and how data synchronizes from the command side (tb_*) to the query side (tv_*).
 
-## Table of Contents
-
-- [Philosophy: Explicit > Implicit](#philosophy-explicit-implicit)
-- [How Explicit Sync Works](#how-explicit-sync-works)
-- [Implementing Sync Functions](#implementing-sync-functions)
-- [Usage Patterns](#usage-patterns)
-- [Performance Optimization](#performance-optimization)
-- [Testing and Debugging](#testing-and-debugging)
-- [IVM Integration](#ivm-integration)
-- [Common Patterns](#common-patterns)
-- [Migration from Triggers](#migration-from-triggers)
-
 ---
 
 ## Philosophy: Explicit > Implicit
@@ -715,26 +703,6 @@ async def sync_post(self, post_ids: list[UUID]):
 - [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cache invalidation with sync
 - [Migrations Guide](./migrations.md) - Setting up tb_/tv_ tables
 - [Database Patterns](../advanced/database-patterns.md) - Advanced sync patterns
-
----
-
-## Summary
-
-FraiseQL's explicit sync pattern provides:
-
-✅ **Visibility** - Sync is in your code, not hidden
-✅ **Testability** - Easy to mock and test
-✅ **Control** - Batch, defer, or skip as needed
-✅ **Performance** - 10-100x faster than triggers
-✅ **Observability** - Track metrics and debug easily
-
-**Key Philosophy**: "Explicit is better than implicit" - we'd rather have sync visible in code than hidden in database triggers.
-
-**Next Steps**:
-1. Implement sync functions for your entities
-2. Call sync explicitly after mutations
-3. Monitor sync performance
-4. See the [Complete CQRS Example](../../examples/complete_cqrs_blog/) for reference
 
 ---
 

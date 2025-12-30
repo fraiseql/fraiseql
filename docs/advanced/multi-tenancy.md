@@ -119,21 +119,6 @@ FraiseQL automatically sets these based on your context:
 3. **Database**: RLS policies enforce row-level filtering
 4. **Caching**: Tenant-scoped cache invalidation
 
-
-## Table of Contents
-
-- [How RLS Works (Common Misconception)](#how-rls-works-common-misconception)
-- [Architecture Patterns](#architecture-patterns)
-- [Row-Level Security](#row-level-security)
-- [Tenant Context](#tenant-context)
-- [Database Pool Strategies](#database-pool-strategies)
-- [Tenant Resolution](#tenant-context)
-- [Cross-Tenant Queries](#cross-tenant-queries)
-- [Tenant-Aware Caching](#tenant-aware-caching)
-- [Data Export & Import](#data-export-import)
-- [Tenant Provisioning](#tenant-provisioning)
-- [Performance Optimization](#performance-optimization)
-
 ## Architecture Patterns
 
 ### Pattern 1: Row-Level Security (Most Common)

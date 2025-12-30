@@ -16,17 +16,6 @@ Production security requires defense in depth: multiple layers of protection fro
 - Audit logging
 - Compliance (GDPR, SOC2)
 
-## Table of Contents
-
-- [SQL Injection Prevention](#sql-injection-prevention)
-- [Query Complexity Limits](#query-complexity-limits)
-- [Rate Limiting](#rate-limiting)
-- [CORS Configuration](#cors-configuration)
-- [Authentication Security](#authentication-security)
-- [Sensitive Data Handling](#sensitive-data-handling)
-- [Audit Logging](#audit-logging)
-- [Compliance](#compliance)
-
 ## SQL Injection Prevention
 
 ### Parameterized Queries
