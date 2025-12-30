@@ -61,8 +61,9 @@ Use LLMs directly in your GraphQL resolvers.
 
 Common tasks and patterns:
 
+- **[Decision Matrices](guides/decision-matrices.md)** - Choose the right patterns and architecture
 - **[Filtering & Querying](guides/filtering.md)** - Query syntax and patterns
-- **[Mutations & Data Changes](guides/mutation-sql-requirements.md)** - Writing database functions
+- **[Mutations & Data Changes](guides/mutation-sql-requirements.md)** - Writing PostgreSQL functions
 - **[Authentication](advanced/authentication.md)** - Securing your API
 - **[Multi-Tenancy](advanced/multi-tenancy.md)** - Tenant isolation patterns
 - **[Performance & Optimization](performance/index.md)** - Make it fast
@@ -77,6 +78,7 @@ API documentation and configuration:
 - **[Configuration](core/configuration.md)** - All configuration options
 - **[Decorators](reference/decorators.md)** - Python decorators reference
 - **[CLI](reference/cli.md)** - Command-line tools
+- **[Terminology Guide](reference/terminology.md)** - Canonical term definitions and standards
 
 ## Architecture
 

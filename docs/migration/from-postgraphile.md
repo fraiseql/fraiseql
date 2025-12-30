@@ -244,7 +244,7 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 **After (FraiseQL):**
 ```sql
--- Same database function!
+-- Same PostgreSQL function!
 -- (Or rename to fn_create_user for consistency)
 ```
 
@@ -493,7 +493,7 @@ COMMENT ON TABLE users IS E'@omit create,update';
 PostGraphile supports nested `create`/`connect` patterns.
 FraiseQL uses explicit mutations.
 
-**Solution:** Create separate mutations or use database functions with logic.
+**Solution:** Create separate mutations or use PostgreSQL functions with logic.
 
 ---
 
@@ -520,7 +520,7 @@ FraiseQL uses explicit mutations.
 - [ ] Database schema reviewed (trinity pattern optional)
 - [ ] Views created if needed
 - [ ] Custom TypeScript resolvers converted to Python
-- [ ] Mutations mapped to database functions
+- [ ] Mutations mapped to PostgreSQL functions
 - [ ] RLS policies verified (should work as-is)
 - [ ] Tests converted to pytest
 - [ ] Performance benchmarks run

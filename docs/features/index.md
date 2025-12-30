@@ -162,7 +162,7 @@ Complete overview of all FraiseQL capabilities.
 | **pgvector Integration** | ✅ Stable | [pgvector Guide](pgvector.md) | [vector_search](../../examples/vector_search/) |
 | **Vector Similarity Search** | ✅ Stable | [pgvector Guide](pgvector.md#distance-operators) | [vector_search](../../examples/vector_search/) |
 | **GraphQL Cascade** | ✅ Stable | [Cascade Guide](graphql-cascade.md) | [graphql-cascade](../../examples/graphql-cascade/) |
-| **SQL Function Return Format** | ✅ Stable | [SQL Function Guide](sql-function-return-format.md) | [mutations_demo](../../examples/mutations_demo/) |
+| **SQL Function Return Format** | ✅ Stable | [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) | [mutations_demo](../../examples/mutations_demo/) |
 | **LangChain Integration** | ✅ Stable | [LangChain Guide](../guides/langchain-integration.md) | [Documentation](../guides/langchain-integration.md) |
 | **AI-Native Architecture** | ✅ Stable | [AI-Native Guide](ai-native.md) | [Documentation](ai-native.md) |
 

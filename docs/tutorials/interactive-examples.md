@@ -240,7 +240,7 @@ class CreatePostInput:
 
 @fraiseql.mutation
 async def create_post(self, info, input: CreatePostInput) -> Post:
-    # Call database function
+    # Call PostgreSQL function
     post_id = await db.execute_scalar(
         "SELECT fn_create_post($1, $2, $3)",
         [input.title, input.content, input.author_id]

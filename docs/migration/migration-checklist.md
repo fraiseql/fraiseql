@@ -120,7 +120,7 @@ Use this checklist alongside framework-specific guides:
 
 ### Mutation Classes
 - [ ] Create FraiseQL `@mutation` class for each mutation
-- [ ] Map to corresponding database function
+- [ ] Map to corresponding PostgreSQL function
 - [ ] Add input validation
 - [ ] Test mutations in GraphiQL
 - [ ] Verify return values match schema

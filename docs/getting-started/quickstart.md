@@ -316,10 +316,22 @@ The GraphQL response will automatically use the correct field name:
 
 ## Next Steps
 
-- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Learn the architecture
-- [First Hour Guide](first-hour.md) - Progressive tutorial
-- [Troubleshooting](../guides/troubleshooting.md) - Common issues and solutions
-- Examples (../../examples/) - More complete examples
+### Continue Learning
+
+- **[First Hour Guide](first-hour.md)** - Progressive hands-on tutorial
+- **[Core Concepts & Glossary](../core/concepts-glossary.md)** - Understand [CQRS](../core/concepts-glossary.md#cqrs), [Trinity pattern](../core/concepts-glossary.md#trinity-identifiers), and [JSONB views](../core/concepts-glossary.md#jsonb-view-pattern)
+- **[Auto-Inference Guide](../core/auto-inference.md)** - Learn how FraiseQL reduces boilerplate
+
+### Decision Support
+
+- **[Decision Matrices](../guides/decision-matrices.md)** - Choose the right patterns (views vs projection tables, mutation patterns, etc.)
+- **[Understanding FraiseQL](../guides/understanding-fraiseql.md)** - Architecture and philosophy
+
+### Practical Guides
+
+- **[Blog API Tutorial](../tutorials/blog-api.md)** - Build a complete API from scratch
+- **[Troubleshooting](../guides/troubleshooting.md)** - Common issues and solutions
+- **[Examples](../../examples/)** - More complete examples
 
 ## Need Help?
 

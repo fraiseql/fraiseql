@@ -520,7 +520,7 @@ app = create_fraiseql_app(
 ### Test Strategy
 
 1. **Unit Tests**: Convert Strawberry resolver tests to FraiseQL
-2. **Integration Tests**: Test database functions
+2. **Integration Tests**: Test PostgreSQL functions
 3. **E2E Tests**: GraphQL queries through HTTP
 
 ### Example Test Migration
@@ -644,7 +644,7 @@ Requests/sec: 12,000  # 10x improvement
 - [ ] Views created (`v_*` for all tables)
 - [ ] Types converted to FraiseQL decorators
 - [ ] Queries migrated to use `db.find()` / `db.find_one()`
-- [ ] Mutations converted to database functions
+- [ ] Mutations converted to PostgreSQL functions
 - [ ] CASCADE enabled for mutations that need it
 - [ ] DataLoaders converted to `@dataloader_field`
 - [ ] Tests updated and passing

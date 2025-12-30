@@ -521,6 +521,6 @@ $$ LANGUAGE plpgsql;
 ---
 
 **Related Documentation**:
-- [SQL Function Return Format](sql-function-return-format.md) - Existing return format guide
+- [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) - Comprehensive PostgreSQL function guide
 - [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
 - [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) - SQL type definition and helpers

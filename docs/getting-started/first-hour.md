@@ -46,8 +46,8 @@ query {
 Key concepts you should now understand:
 
 - **Database-first GraphQL**: Start with PostgreSQL, not GraphQL types
-- **JSONB Views**: `tb_*` tables → `v_*` views → GraphQL responses
-- **CQRS Pattern**: Reads (views) vs Writes (functions)
+- **JSONB Views**: `tb_*` tables → `v_*` views → GraphQL responses (see [JSONB View Pattern](../core/concepts-glossary.md#jsonb-view-pattern))
+- **[CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Reads (views) vs Writes (PostgreSQL functions)
 - **Naming Conventions**: `tb_*`, `v_*`, `fn_*`, `tv_*`
 
 ✅ **Checkpoint**: Can you explain why FraiseQL uses JSONB views instead of traditional ORMs?

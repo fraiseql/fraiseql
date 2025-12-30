@@ -1,6 +1,6 @@
 # GraphQL Cascade
 
-**Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [SQL Function Return Format](sql-function-return-format.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
+**Navigation**: [← Mutation Result Reference](mutation-result-reference.md) • [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) • [Queries & Mutations →](../core/queries-and-mutations.md)
 
 > **Deep Dive**: For best practices, patterns, and recommendations, see the
 > [CASCADE Best Practices Guide](../guides/cascade-best-practices.md).
@@ -66,7 +66,7 @@ sequenceDiagram
 
 ## Quick Start
 
-For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference.md) and [SQL Function Return Format](sql-function-return-format.md).
+For detailed information on SQL function return formats, see [Mutation Result Reference](mutation-result-reference.md) and [Mutation SQL Requirements](../guides/mutation-sql-requirements.md).
 
 ## PostgreSQL Function Pattern
 

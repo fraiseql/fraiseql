@@ -108,7 +108,7 @@ JOIN tb_user u ON p.author_id = u.id;
 **Migration Path:**
 1. Keep Django models for existing app
 2. Create PostgreSQL views pointing to Django tables
-3. Gradually migrate logic to database functions
+3. Gradually migrate logic to PostgreSQL functions
 4. Eventually remove Django ORM
 
 **See:** [Trinity Pattern Guide](../core/trinity-pattern.md)
@@ -517,7 +517,7 @@ urlpatterns = [
 ### Test Strategy
 
 1. **Unit Tests**: Convert Graphene resolver tests
-2. **Integration Tests**: Test database functions
+2. **Integration Tests**: Test PostgreSQL functions
 3. **Performance Tests**: Validate speed improvements
 
 ### Example Test Migration
@@ -664,7 +664,7 @@ Requests per second: 1,500  # 10x improvement
 - [ ] Views created (`v_*` for all tables)
 - [ ] Types converted to FraiseQL `@type` decorators
 - [ ] Queries migrated to async `db.find()`
-- [ ] Mutations converted to database functions
+- [ ] Mutations converted to PostgreSQL functions
 - [ ] CASCADE enabled where appropriate
 - [ ] DataLoaders replaced with `@dataloader_field`
 - [ ] Tests updated to async

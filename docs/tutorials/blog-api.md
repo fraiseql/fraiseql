@@ -1,6 +1,6 @@
 # Blog API Tutorial
 
-Complete blog application demonstrating FraiseQL's CQRS architecture, N+1 prevention, and production patterns.
+Complete blog application demonstrating FraiseQL's [CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) architecture, N+1 prevention, and production patterns.
 
 ## Overview
 
