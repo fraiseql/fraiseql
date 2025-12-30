@@ -2,6 +2,41 @@
 
 One-page cheatsheet for common FraiseQL patterns, commands, and advanced type operations.
 
+## 💡 Import Best Practices
+
+**Always use namespaced imports to avoid shadowing Python builtins:**
+
+```python
+# ✅ RECOMMENDED (safe, clear)
+import fraiseql
+
+@fraiseql.type(sql_source="v_user")
+class User: ...
+
+@fraiseql.input
+class CreateUserInput: ...
+```
+
+**Alternative - explicit imports:**
+
+```python
+# ✅ SAFE (explicit names don't shadow builtins)
+from fraiseql import fraise_type, fraise_input, query, mutation
+
+@fraise_type(sql_source="v_user")
+class User: ...
+```
+
+**⚠️ AVOID - Shadows Python builtins:**
+
+```python
+# ❌ DANGEROUS - shadows builtin type() and input()
+from fraiseql import type, input  # Don't do this!
+
+@type  # Now you can't use Python's type() function!
+class User: ...
+```
+
 ## Essential Commands
 
 ```bash
