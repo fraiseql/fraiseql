@@ -123,18 +123,33 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     /// * `type_name` - The parent type name (e.g., "Assignment")
-    /// * `field_name` - The field name (e.g., "equipment")
+    /// * `field_name` - The field name (e.g., "equipment" or "network_config")
     ///
     /// # Returns
     /// * `Some(&FieldInfo)` - Field information if found
     /// * `None` - Type or field not found
     ///
     /// # Performance
-    /// This is an O(1) HashMap lookup
+    /// This is an O(1) HashMap lookup (or 2 lookups if camelCase fallback is needed)
+    ///
+    /// # Note
+    /// Field names can be in snake_case (from database) or camelCase (from GraphQL).
+    /// This method tries both formats to find the field:
+    /// 1. First tries the original field name
+    /// 2. If not found, tries camelCase version (for snake_case inputs)
     pub fn get_field_type(&self, type_name: &str, field_name: &str) -> Option<&FieldInfo> {
-        self.types
-            .get(type_name)
-            .and_then(|type_info| type_info.fields.get(field_name))
+        let type_info = self.types.get(type_name)?;
+
+        // Try original field name first
+        if let Some(field_info) = type_info.fields.get(field_name) {
+            return Some(field_info);
+        }
+
+        // If not found, try camelCase version (GraphQL schema uses camelCase)
+        // This handles case where field_name is snake_case (e.g., "network_config")
+        // but schema has camelCase (e.g., "networkConfig")
+        let camel_field_name = crate::camel_case::to_camel_case(field_name);
+        type_info.fields.get(&camel_field_name)
     }
 
     /// Get the number of types in the registry

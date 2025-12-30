@@ -213,7 +213,8 @@ impl AuditLogger {
 
                     // For critical events, retry with backoff
                     if Self::should_retry(&event, consecutive_errors) {
-                        consecutive_errors = Self::retry_critical_event(&pool, &event, consecutive_errors).await;
+                        consecutive_errors =
+                            Self::retry_critical_event(&pool, &event, consecutive_errors).await;
                     }
                 }
             }

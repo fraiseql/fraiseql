@@ -97,7 +97,9 @@ impl FragmentGraph {
 
         if let Some(deps) = self.dependencies.get(fragment_name) {
             for dep in deps {
-                if let Some(cycle) = self.check_dependency_cycle(dep, visited, recursion_stack, cycle_path) {
+                if let Some(cycle) =
+                    self.check_dependency_cycle(dep, visited, recursion_stack, cycle_path)
+                {
                     return Some(cycle);
                 }
             }

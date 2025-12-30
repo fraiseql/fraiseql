@@ -115,8 +115,8 @@ impl DirectiveExtractor {
                 )
             })?;
 
-        let perm_value = serde_json::from_str::<serde_json::Value>(&perm_arg.value_json)
-            .map_err(|_| {
+        let perm_value =
+            serde_json::from_str::<serde_json::Value>(&perm_arg.value_json).map_err(|_| {
                 RbacError::DirectiveError("Invalid permission argument format".to_string())
             })?;
 
@@ -181,7 +181,9 @@ impl DirectiveExtractor {
             })?;
 
         let perms_array = perms_value.as_array().ok_or_else(|| {
-            RbacError::DirectiveError("Permissions argument must be an array of strings".to_string())
+            RbacError::DirectiveError(
+                "Permissions argument must be an array of strings".to_string(),
+            )
         })?;
 
         for perm_value in perms_array {

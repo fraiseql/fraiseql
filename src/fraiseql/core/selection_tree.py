@@ -49,10 +49,14 @@ class GraphQLSchemaWrapper:
 
         Args:
             type_name: The parent GraphQL type name (e.g., "Assignment")
-            field_name: The field name to look up (e.g., "equipment")
+            field_name: The field name to look up (e.g., "equipment" or "network_config")
 
         Returns:
             FieldInfo with type information, or None if field not found
+
+        Note:
+            Field names can be in snake_case (from database) or camelCase (from GraphQL).
+            This method tries both formats to find the field.
 
         Example:
             >>> wrapper = GraphQLSchemaWrapper(schema)
@@ -70,10 +74,18 @@ class GraphQLSchemaWrapper:
 
         # Get the field from the type
         fields = graphql_type.fields
-        if field_name not in fields:
-            return None
 
-        field = fields[field_name]
+        # Try original field name first
+        if field_name in fields:
+            field = fields[field_name]
+        else:
+            # If not found, try camelCase version (GraphQL schema uses camelCase)
+            camel_field_name = to_camel_case(field_name)
+            if camel_field_name in fields:
+                field = fields[camel_field_name]
+            else:
+                return None
+
         field_type = field.type
 
         # Unwrap NonNull and List wrappers to get the base type
