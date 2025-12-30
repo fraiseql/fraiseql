@@ -36,7 +36,7 @@ db = info.context["db"]  # FraiseQLRepository instance
 ```python
 async def find(
     view_name: str,
-    field_name: str,
+    field_name: str | None = None,
     **kwargs: Any
 ) -> Any
 ```
@@ -46,10 +46,21 @@ async def find(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | view_name | str | Yes | Database view or table name (e.g., "v_user") |
-| field_name | str | Yes | GraphQL field name for response wrapping (e.g., "users") |
+| field_name | str \| None | No* | GraphQL field name for response wrapping (e.g., "users"). Defaults to `view_name` if not provided. |
 | **kwargs | Any | No | Query parameters: `where`, `limit`, `offset`, `order_by` |
 
+**\*Best Practice**: Always provide `field_name` explicitly to match your GraphQL schema field name. For example, use `field_name="users"` even when `view_name="v_user"`.
+
 > **Note**: The `info` parameter is automatically injected from the GraphQL context, enabling optimal field selection and 7-10x performance improvement. You don't need to pass it explicitly.
+
+**What field_name does**: Wraps the result in the correct GraphQL response structure:
+```json
+{
+  "data": {
+    "users": [...]  ← This key comes from field_name
+  }
+}
+```
 
 **Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `list[User]`).
 
@@ -145,7 +156,7 @@ async def filtered_users(info, where: UserWhereInput | None = None) -> list[User
 ```python
 async def find_one(
     view_name: str,
-    field_name: str,
+    field_name: str | None = None,
     **kwargs: Any
 ) -> Any | None
 ```
@@ -155,8 +166,10 @@ async def find_one(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | view_name | str | Yes | Database view or table name (e.g., "v_user") |
-| field_name | str | Yes | GraphQL field name for response wrapping (e.g., "user") |
+| field_name | str \| None | No* | GraphQL field name for response wrapping (e.g., "user"). Defaults to `view_name` if not provided. |
 | **kwargs | Any | No | Filter conditions (e.g., `id=user_id`, `where={...}`) |
+
+**\*Best Practice**: Always provide `field_name` explicitly to match your GraphQL schema field name.
 
 > **Note**: The `info` parameter is automatically injected from the GraphQL context for optimal field selection.
 
