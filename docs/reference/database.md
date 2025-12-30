@@ -10,9 +10,10 @@ FraiseQL provides a high-performance database API through the `FraiseQLRepositor
 import fraiseql
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def user(info, id: UUID) -> User:
     db = info.context["db"]
-    return await db.find_one("v_user", "user", id=id)
+    # field_name auto-inferred as "user" from function name
+    return await db.find_one("v_user", id=id)
 ```
 
 > **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories.md) for details on when to use each.
@@ -46,20 +47,24 @@ async def find(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | view_name | str | Yes | Database view or table name (e.g., "v_user") |
-| field_name | str \| None | No* | GraphQL field name for response wrapping (e.g., "users"). Defaults to `view_name` if not provided. |
+| field_name | str \| None | No | GraphQL field name for response wrapping. **Auto-inferred** from `info.field_name` (your resolver function name). Only specify if you need to override. |
 | **kwargs | Any | No | Query parameters: `where`, `limit`, `offset`, `order_by` |
 
-**\*Best Practice**: Always provide `field_name` explicitly to match your GraphQL schema field name. For example, use `field_name="users"` even when `view_name="v_user"`.
+> **Note**: The `info` parameter is automatically injected from the GraphQL context. The `field_name` is also **automatically extracted from `info.field_name`**, so you typically don't need to specify it!
 
-> **Note**: The `info` parameter is automatically injected from the GraphQL context, enabling optimal field selection and 7-10x performance improvement. You don't need to pass it explicitly.
+**Modern API (recommended)**:
+```python
+@fraiseql.query
+async def users(info, limit: int = 100) -> list[User]:
+    db = info.context["db"]
+    # field_name auto-inferred from function name "users"
+    return await db.find("v_user", limit=limit)
+```
 
-**What field_name does**: Wraps the result in the correct GraphQL response structure:
-```json
-{
-  "data": {
-    "users": [...]  ← This key comes from field_name
-  }
-}
+**Explicit field_name (only if needed)**:
+```python
+# Only specify field_name if it differs from the function name
+return await db.find("v_user", "userList", limit=limit)
 ```
 
 **Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `list[User]`).
@@ -67,33 +72,24 @@ async def find(
 **Examples**:
 
 ```python
-# Simple query
+# Simple query (field_name auto-inferred from function name)
 @fraiseql.query
 async def users(info, limit: int = 100) -> list[User]:
     db = info.context["db"]
-    return await db.find("v_user", "users", limit=limit)
+    return await db.find("v_user", limit=limit)
 
 # With filter
 @fraiseql.query
 async def active_users(info) -> list[User]:
     db = info.context["db"]
-    return await db.find(
-        "v_user",
-        "activeUsers",
-        where={"is_active": True}
-    )
+    return await db.find("v_user", where={"is_active": True})
 
 # With pagination
 @fraiseql.query
 async def paginated_users(info, page: int = 1, page_size: int = 20) -> list[User]:
     db = info.context["db"]
     offset = (page - 1) * page_size
-    return await db.find(
-        "v_user",
-        "paginatedUsers",
-        limit=page_size,
-        offset=offset
-    )
+    return await db.find("v_user", limit=page_size, offset=offset)
 
 # With ordering (list of tuples format)
 @fraiseql.query
@@ -101,7 +97,6 @@ async def recent_users(info, limit: int = 10) -> list[User]:
     db = info.context["db"]
     return await db.find(
         "v_user",
-        "recentUsers",
         order_by=[("created_at", "DESC")],
         limit=limit
     )
@@ -112,7 +107,6 @@ async def search_users(info, name: str) -> list[User]:
     db = info.context["db"]
     return await db.find(
         "v_user",
-        "searchUsers",
         where={
             "name__icontains": name,
             "created_at__gte": datetime(2025, 1, 1)
@@ -123,11 +117,7 @@ async def search_users(info, name: str) -> list[User]:
 @fraiseql.query
 async def filtered_users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
-    return await db.find(
-        "v_user",
-        "filteredUsers",
-        where=where
-    )
+    return await db.find("v_user", where=where)
 ```
 
 **Filter Operators** (dict-based):
@@ -166,32 +156,26 @@ async def find_one(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | view_name | str | Yes | Database view or table name (e.g., "v_user") |
-| field_name | str \| None | No* | GraphQL field name for response wrapping (e.g., "user"). Defaults to `view_name` if not provided. |
+| field_name | str \| None | No | GraphQL field name for response wrapping. **Auto-inferred** from `info.field_name`. Only specify if needed. |
 | **kwargs | Any | No | Filter conditions (e.g., `id=user_id`, `where={...}`) |
 
-**\*Best Practice**: Always provide `field_name` explicitly to match your GraphQL schema field name.
-
-> **Note**: The `info` parameter is automatically injected from the GraphQL context for optimal field selection.
+> **Note**: Both `info` and `field_name` are automatically handled. You typically only need to specify `view_name` and filter conditions.
 
 **Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `User | None`). Returns `None` if not found.
 
 **Examples**:
 ```python
-# Find by ID
+# Find by ID (field_name auto-inferred from function name "user")
 @fraiseql.query
 async def user(info, id: UUID) -> User | None:
     db = info.context["db"]
-    return await db.find_one("v_user", "user", id=id)
+    return await db.find_one("v_user", id=id)
 
 # Using where parameter
 @fraiseql.query
 async def user_by_email(info, email: str) -> User | None:
     db = info.context["db"]
-    return await db.find_one(
-        "v_user",
-        "userByEmail",
-        where={"email": email}
-    )
+    return await db.find_one("v_user", where={"email": email})
 
 # Find with complex filter
 @fraiseql.query
@@ -199,7 +183,6 @@ async def active_user_by_email(info, email: str) -> User | None:
     db = info.context["db"]
     return await db.find_one(
         "v_user",
-        "activeUserByEmail",
         where={"email": email, "is_active": True}
     )
 
@@ -207,7 +190,7 @@ async def active_user_by_email(info, email: str) -> User | None:
 @fraiseql.query
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]
-    user = await db.find_one("v_user", "getUser", id=id)
+    user = await db.find_one("v_user", id=id)
     if user is None:
         raise GraphQLError("User not found")
     return user
