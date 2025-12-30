@@ -62,3 +62,44 @@ class GraphQLInfoInjector:
             return await func(*args, **kwargs)
 
         return wrapper
+
+    def process_info(self, info):
+        """Process GraphQL info object.
+        
+        Args:
+            info: GraphQL info object
+            
+        Returns:
+            Processed info object
+        """
+        return info
+
+    def inject(self, func: Callable) -> Callable:
+        """Decorator to inject info parameter into resolvers.
+        
+        Args:
+            func: The resolver function to decorate
+            
+        Returns:
+            Decorated function that injects info
+        """
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs) -> Any:
+            # Get function signature to extract info parameter
+            sig = inspect.signature(func)
+            
+            # Extract info from function parameters if available
+            if "info" in sig.parameters:
+                # Bind the arguments to the signature
+                bound = sig.bind(*args, **kwargs)
+                bound.apply_defaults()
+                info = bound.arguments.get("info")
+                
+                # Process the info object
+                if info:
+                    info = self.process_info(info)
+            
+            # Call the original resolver
+            return func(*args, **kwargs)
+        
+        return sync_wrapper
