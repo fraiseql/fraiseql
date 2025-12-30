@@ -8,10 +8,10 @@ FraiseQL provides a high-performance database API through the `FraiseQLRepositor
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     db = info.context["db"]
     # field_name auto-inferred as "user" from function name
     return await db.find_one("v_user", id=id)
@@ -166,11 +166,11 @@ async def find_one(
 
 **Examples**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 # Find by ID (field_name auto-inferred from function name "user")
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     db = info.context["db"]
     return await db.find_one("v_user", id=id)
 
@@ -191,7 +191,7 @@ async def active_user_by_email(info, email: str) -> User | None:
 
 # Handle not found case
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]
     user = await db.find_one("v_user", id=id)
     if user is None:
@@ -417,10 +417,10 @@ $$ LANGUAGE plpgsql;
 ### Updating Records
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
+async def update_user(info, id: ID, input: UpdateUserInput) -> User:
     db = info.context["db"]
 
     # Execute PostgreSQL function to update record
@@ -436,10 +436,10 @@ async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
 ### Deleting Records
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def delete_user(info, id: UUID) -> bool:
+async def delete_user(info, id: ID) -> bool:
     db = info.context["db"]
 
     # Execute PostgreSQL function to delete record
@@ -985,10 +985,10 @@ stats = await db.find("v_user_stats")
 **Error Handling**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User | None:
+async def get_user(info, id: ID) -> User | None:
     try:
         db = info.context["db"]
         return await db.find_one("v_user", id=id)

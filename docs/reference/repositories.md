@@ -74,10 +74,10 @@ async def find_one(
 
 **Example**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     db = info.context["db"]
     return await db.find_one("v_users", where={"id": {"eq": id}})
 ```
@@ -165,12 +165,12 @@ async def users_count(info, where: UserWhereInput | None = None) -> int:
 
 #### find_by_id()
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def find_by_id(
     self,
     entity_class: type[T],
-    entity_id: UUID
+    entity_id: ID
 ) -> dict[str, Any] | None
 ```
 

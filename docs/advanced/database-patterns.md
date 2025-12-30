@@ -658,14 +658,14 @@ $$ LANGUAGE plpgsql;
 **Python Resolver**:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 from fraiseql.db import execute_mutation
 
 @fraiseql.mutation
 async def update_order(
     info,
-    id: UUID,
+    id: ID,
     status: str,
     notes: str | None = None
 ) -> MutationLogResult:
@@ -1796,10 +1796,10 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 **Usage in Mutations**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def update_order(info, id: UUID, name: str) -> MutationResult:
+async def update_order(info, id: ID, name: str) -> MutationResult:
     db = info.context["db"]
 
     # Log the mutation
@@ -1972,13 +1972,13 @@ Since Rust provides excellent JSON concatenation performance, tv_ tables elimina
 
 **GraphQL Type**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraise_type
 class MutationResultBase:
     """Standardized result for all mutations."""
     status: str
-    id: UUID | None = None
+    id: ID | None = None
     updated_fields: list[str] | None = None
     message: str | None = None
     errors: list[dict[str, Any]] | None = None
@@ -1999,12 +1999,12 @@ class MutationLogResult:
 **Usage in Resolver**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
 async def update_product(
     info,
-    id: UUID,
+    id: ID,
     name: str,
     price: float
 ) -> MutationLogResult:

@@ -176,12 +176,12 @@ FROM tb_post p;
 
 ```python
 from datetime import datetime
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     bio: str | None
@@ -190,7 +190,7 @@ class User:
 
 @fraiseql.type(sql_source="v_comment")
 class Comment:
-    id: UUID
+    id: ID
     content: str
     created_at: datetime
     author: User
@@ -199,7 +199,7 @@ class Comment:
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
     slug: str
     content: str
@@ -215,11 +215,11 @@ class Post:
 ## Queries
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 
 @fraiseql.query
-def get_post(id: UUID) -> Post | None:
+def get_post(id: ID) -> Post | None:
     """Get single post with all nested data."""
     pass  # Implementation handled by framework
 
@@ -321,7 +321,7 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class CreatePostInput:
@@ -333,9 +333,9 @@ class CreatePostInput:
 
 @fraiseql.input
 class CreateCommentInput:
-    post_id: UUID
+    post_id: ID
     content: str
-    parent_id: UUID | None = None
+    parent_id: ID | None = None
 
 @fraiseql.mutation
 def create_post(input: CreatePostInput) -> Post:
@@ -391,7 +391,7 @@ if __name__ == "__main__":
 
 ```graphql
 # Get post with nested data (1 query!)
-query GetPost($id: UUID!) {
+query GetPost($id: ID!) {
   getPost(id: $id) {
     id
     title

@@ -105,10 +105,10 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 **Examples**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]
     return await db.find_one("v_user", where={"id": id})
 
@@ -168,11 +168,11 @@ import fraiseql
 ```python
 import fraiseql
 from fraiseql.types import Connection
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
 
 @connection(node_type=User)
@@ -502,7 +502,7 @@ async def method_name(self, info) -> ReturnType:
 ```python
 from fraiseql import dataloader_field
 from fraiseql.optimization.dataloader import DataLoader
-from uuid import UUID
+from fraiseql.types import ID
 
 # Define DataLoader
 class UserDataLoader(DataLoader):
@@ -516,7 +516,7 @@ class UserDataLoader(DataLoader):
 # Use in type
 @fraiseql.type
 class Post:
-    author_id: UUID
+    author_id: ID
 
     @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self, info) -> User | None:
@@ -561,7 +561,7 @@ async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]
 **Examples**:
 ```python
 from typing import AsyncGenerator
-from uuid import UUID
+from fraiseql.types import ID
 
 @subscription
 async def on_post_created(info) -> AsyncGenerator[Post, None]:
@@ -571,7 +571,7 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 @subscription
 async def on_user_posts(
     info,
-    user_id: UUID
+    user_id: ID
 ) -> AsyncGenerator[Post, None]:
     async for post in post_event_stream():
         if post.user_id == user_id:
@@ -644,7 +644,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_permission
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
 @requires_permission("users:write")
@@ -654,7 +654,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 
 @fraiseql.mutation
 @requires_permission("users:delete")
-async def delete_user(info, id: UUID) -> bool:
+async def delete_user(info, id: ID) -> bool:
     db = info.context["db"]
     await db.delete_one("v_user", where={"id": id})
     return True
@@ -726,11 +726,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_any_permission
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
 @requires_any_permission("users:write", "admin:all")
-async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
+async def update_user(info, id: ID, input: UpdateUserInput) -> User:
     # Can be performed by users:write OR admin:all
     db = info.context["db"]
     return await db.update_one("v_user", where={"id": id}, updates=input.__dict__)
@@ -762,11 +762,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_any_role
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
 @requires_any_role("admin", "moderator")
-async def moderate_content(info, id: UUID) -> ModerationResult:
+async def moderate_content(info, id: ID) -> ModerationResult:
     # Can be performed by admin OR moderator
     pass
 ```
@@ -782,7 +782,7 @@ async def moderate_content(info, id: UUID) -> ModerationResult:
 import fraiseql, connection, type
 from fraiseql.auth import requires_auth, requires_permission
 from fraiseql.types import Connection
-from uuid import UUID
+from fraiseql.types import ID
 
 # Multiple decorators - order matters
 @connection(node_type=User)
@@ -795,7 +795,7 @@ async def users_connection(info, first: int | None = None) -> Connection[User]:
 # Field-level auth
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
 
     @field(description="Private settings")

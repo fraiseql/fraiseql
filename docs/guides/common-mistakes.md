@@ -281,22 +281,22 @@ CREATE TABLE tb_blog_post (...); -- ✅ tb_ prefix, descriptive
 
 **❌ Wrong**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     pk_user: int      # ❌ NEVER expose pk_*
-    id: UUID
+    id: ID
     name: str
 ```
 
 **✅ Correct**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID          # ✅ Only public fields
+    id: ID          # ✅ Only public fields
     name: str
 ```
 
@@ -319,22 +319,22 @@ CREATE VIEW v_user AS SELECT id, jsonb_build_object('id', id, 'name', name) as d
 ```
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str  # ❌ Not in JSONB!
 ```
 
 **✅ Correct**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
-    id: UUID      # ✅ Matches JSONB
+    id: ID      # ✅ Matches JSONB
     name: str     # ✅ Matches JSONB
 ```
 

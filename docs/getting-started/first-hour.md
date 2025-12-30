@@ -7,7 +7,7 @@ Welcome! You've just completed the 5-minute quickstart and have a working GraphQ
 Before starting, ensure you have the necessary imports in your `app.py`:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 import fraiseql
@@ -106,7 +106,7 @@ Add tags to your Note type:
 # app.py
 @fraiseql.type
 class Note:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]  # Add this line
@@ -209,7 +209,7 @@ Add a simple mutation to your app:
 ```python
 # app.py
 @fraiseql.mutation
-async def delete_note(info, id: UUID) -> bool:
+async def delete_note(info, id: ID) -> bool:
     """Delete a note by ID (returns true if deleted, false if not found)."""
     db = info.context["db"]
     return await db.fetchval("SELECT fn_delete_note($1)", id)
@@ -275,7 +275,7 @@ class DeleteNoteError:
     code: str = "NOT_FOUND"
 
 @fraiseql.mutation
-async def delete_note(info, id: UUID) -> DeleteNoteSuccess | DeleteNoteError:
+async def delete_note(info, id: ID) -> DeleteNoteSuccess | DeleteNoteError:
     """Delete a note by ID with detailed error handling."""
     db = info.context["db"]
     # Call function that returns JSONB directly from database
@@ -360,7 +360,7 @@ FROM tb_note;
 # app.py
 @fraiseql.type(sql_source="v_note")
 class Note:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]

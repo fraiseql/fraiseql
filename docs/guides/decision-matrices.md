@@ -131,11 +131,11 @@ FROM tb_user;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 ```
@@ -246,11 +246,11 @@ CREATE TABLE tb_post (
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID          # ✅ Public API - stable forever
+    id: ID          # ✅ Public API - stable forever
     identifier: str   # ✅ Human-readable - can change
     title: str
     content: str
@@ -340,7 +340,7 @@ query {
 ```python
 import fraiseql
 from fraiseql import mutation
-from uuid import UUID
+from fraiseql.types import ID
 
 @mutation
 async def create_user(info, name: str, email: str) -> User:
@@ -480,11 +480,11 @@ flowchart TD
 # ❌ BAD: Queries database once per user
 import fraiseql
 from fraiseql import field
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
 
     @field
@@ -510,11 +510,11 @@ class User:
 ```python
 # ✅ GOOD: Batches queries
 from fraiseql import dataloader_field
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
 
     @dataloader_field
@@ -552,11 +552,11 @@ FROM tb_user;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     posts: list[Post]  # ✅ Already embedded! No dataloader needed
 ```

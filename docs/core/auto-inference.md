@@ -161,7 +161,7 @@ async def users(
 The `@success` decorator automatically adds standard fields:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.success
 class UserCreated:
@@ -170,7 +170,7 @@ class UserCreated:
     # status: str = "success"
     # message: str | None = None
     # updated_fields: list[str] | None = None
-    # id: UUID | None = None
+    # id: ID | None = None
 ```
 
 **GraphQL Response**:
@@ -332,14 +332,14 @@ async def users(info, limit: int = 100) -> list[User]:
 
 **✅ DO:**
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
 async def users(info) -> list[User]:  # Plural for lists
     ...
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:  # Singular for single items
+async def user(info, id: ID) -> User | None:  # Singular for single items
     ...
 ```
 

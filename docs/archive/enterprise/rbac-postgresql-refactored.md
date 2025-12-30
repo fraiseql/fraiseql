@@ -434,7 +434,7 @@ async def test_permission_cache_stores_and_retrieves():
 ```python
 # src/fraiseql/enterprise/rbac/cache.py
 
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import timedelta
 from fraiseql.enterprise.rbac.models import Permission
 from fraiseql.caching import PostgresCache
@@ -465,7 +465,7 @@ class PermissionCache:
         # RBAC domains for version checking
         self._rbac_domains = ['role', 'permission', 'role_permission', 'user_role']
 
-    def _make_key(self, user_id: UUID, tenant_id: UUID | None) -> str:
+    def _make_key(self, user_id: ID, tenant_id: ID | None) -> str:
         """Generate cache key for user permissions.
 
         Format: rbac:permissions:{user_id}:{tenant_id}
@@ -475,8 +475,8 @@ class PermissionCache:
 
     async def get(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None
+        user_id: ID,
+        tenant_id: ID | None
     ) -> list[Permission] | None:
         """Get cached permissions with version checking.
 
@@ -537,8 +537,8 @@ class PermissionCache:
 
     async def set(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None,
+        user_id: ID,
+        tenant_id: ID | None,
         permissions: list[Permission]
     ):
         """Cache permissions with domain version metadata.
@@ -592,8 +592,8 @@ class PermissionCache:
 
     async def invalidate_user(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None = None
+        user_id: ID,
+        tenant_id: ID | None = None
     ):
         """Manually invalidate cache for user.
 
@@ -804,7 +804,7 @@ async def test_role_inheritance_chain():
 ```python
 # src/fraiseql/enterprise/rbac/hierarchy.py
 
-from uuid import UUID
+from fraiseql.types import ID
 from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from fraiseql.enterprise.rbac.models import Role
 
@@ -815,7 +815,7 @@ class RoleHierarchy:
     def __init__(self, repo: FraiseQLRepository):
         self.repo = repo
 
-    async def get_inherited_roles(self, role_id: UUID) -> list[Role]:
+    async def get_inherited_roles(self, role_id: ID) -> list[Role]:
         """Get all roles in inheritance chain (including self).
 
         Uses PostgreSQL recursive CTE for efficient computation.
@@ -898,7 +898,7 @@ async def test_user_effective_permissions_with_caching():
 ```python
 # src/fraiseql/enterprise/rbac/resolver.py
 
-from uuid import UUID
+from fraiseql.types import ID
 from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from fraiseql.enterprise.rbac.models import Permission, Role
 from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
@@ -928,8 +928,8 @@ class PermissionResolver:
 
     async def get_user_permissions(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None = None,
+        user_id: ID,
+        tenant_id: ID | None = None,
         use_cache: bool = True
     ) -> list[Permission]:
         """Get all effective permissions for a user.
@@ -967,8 +967,8 @@ class PermissionResolver:
 
     async def _compute_permissions(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None
+        user_id: ID,
+        tenant_id: ID | None
     ) -> list[Permission]:
         """Compute effective permissions from database.
 
@@ -1011,8 +1011,8 @@ class PermissionResolver:
 
     async def _get_user_roles(
         self,
-        user_id: UUID,
-        tenant_id: UUID | None
+        user_id: ID,
+        tenant_id: ID | None
     ) -> list[Role]:
         """Get roles directly assigned to user."""
         results = await self.repo.run(DatabaseQuery(
@@ -1035,10 +1035,10 @@ class PermissionResolver:
 
     async def has_permission(
         self,
-        user_id: UUID,
+        user_id: ID,
         resource: str,
         action: str,
-        tenant_id: UUID | None = None
+        tenant_id: ID | None = None
     ) -> bool:
         """Check if user has specific permission.
 
@@ -1066,10 +1066,10 @@ class PermissionResolver:
 
 async def check_permission(
     self,
-    user_id: UUID,
+    user_id: ID,
     resource: str,
     action: str,
-    tenant_id: UUID | None = None,
+    tenant_id: ID | None = None,
     raise_on_deny: bool = True
 ) -> bool:
     """Check permission and optionally raise error.
@@ -1098,8 +1098,8 @@ async def check_permission(
 
 async def get_user_roles(
     self,
-    user_id: UUID,
-    tenant_id: UUID | None = None
+    user_id: ID,
+    tenant_id: ID | None = None
 ) -> list[Role]:
     """Get roles assigned to user (public method)."""
     return await self._get_user_roles(user_id, tenant_id)

@@ -113,7 +113,7 @@ from fraiseql.types import IpAddress, LTree, DateRange
 @fraise_type(sql_source="network_devices")
 @dataclass
 class NetworkDevice:
-    id: UUID
+    id: ID
     ip_address: IpAddress           # Custom type hint
     path: LTree                      # Hierarchical path
     availability: DateRange          # Date range

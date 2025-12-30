@@ -280,14 +280,14 @@ def test_audit_event_graphql_type():
 
 import strawberry
 from datetime import datetime
-from uuid import UUID
+from fraiseql.types import ID
 from typing import Optional
 
 @strawberry.type
 class AuditEvent:
     """Immutable audit log entry with cryptographic chain."""
 
-    id: UUID
+    id: ID
     event_type: str
     event_data: strawberry.scalars.JSON
     user_id: Optional[UUID]
@@ -1621,12 +1621,12 @@ def test_role_model_creation():
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
+from fraiseql.types import ID
 
 @dataclass
 class Role:
     """Role with optional hierarchy."""
-    id: UUID
+    id: ID
     name: str
     description: Optional[str] = None
     parent_role_id: Optional[UUID] = None
@@ -1638,7 +1638,7 @@ class Role:
 @dataclass
 class Permission:
     """Permission for resource action."""
-    id: UUID
+    id: ID
     resource: str
     action: str
     description: Optional[str] = None
@@ -1648,9 +1648,9 @@ class Permission:
 @dataclass
 class UserRole:
     """User-Role assignment."""
-    id: UUID
-    user_id: UUID
-    role_id: UUID
+    id: ID
+    user_id: ID
+    role_id: ID
     tenant_id: Optional[UUID] = None
     granted_by: Optional[UUID] = None
     granted_at: datetime = None
@@ -1664,13 +1664,13 @@ class UserRole:
 
 import strawberry
 from typing import Optional
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @strawberry.type
 class Role:
     """Role in RBAC system."""
-    id: UUID
+    id: ID
     name: str
     description: Optional[str]
     parent_role: Optional["Role"]
@@ -1687,7 +1687,7 @@ class Role:
 @strawberry.type
 class Permission:
     """Permission for resource action."""
-    id: UUID
+    id: ID
     resource: str
     action: str
     description: Optional[str]
@@ -1739,7 +1739,7 @@ class RBACQuery:
     async def user_roles(
         self,
         info: Info,
-        user_id: UUID
+        user_id: ID
     ) -> list[Role]:
         """Get roles assigned to a user."""
         from fraiseql.enterprise.rbac.resolver import PermissionResolver
@@ -1792,7 +1792,7 @@ async def test_role_inheritance_chain():
 # src/fraiseql.enterprise/rbac/hierarchy.py
 
 from typing import List
-from uuid import UUID
+from fraiseql.types import ID
 from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from fraiseql.enterprise.rbac.models import Role
 
@@ -1802,7 +1802,7 @@ class RoleHierarchy:
     def __init__(self, repo: FraiseQLRepository):
         self.repo = repo
 
-    async def get_inherited_roles(self, role_id: UUID) -> List[Role]:
+    async def get_inherited_roles(self, role_id: ID) -> List[Role]:
         """Get all roles in inheritance chain (including self).
 
         Args:
@@ -1844,7 +1844,7 @@ class RoleHierarchy:
 
     async def get_inherited_roles(
         self,
-        role_id: UUID,
+        role_id: ID,
         use_cache: bool = True
     ) -> List[Role]:
         """Get inherited roles with caching.
@@ -1950,7 +1950,7 @@ async def test_user_effective_permissions():
 # src/fraiseql/enterprise/rbac/resolver.py
 
 from typing import List, Set
-from uuid import UUID
+from fraiseql.types import ID
 from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from fraiseql.enterprise.rbac.models import Permission, Role
 from fraiseql.enterprise.rbac.hierarchy import RoleHierarchy
@@ -1964,7 +1964,7 @@ class PermissionResolver:
 
     async def get_user_permissions(
         self,
-        user_id: UUID,
+        user_id: ID,
         tenant_id: Optional[UUID] = None
     ) -> List[Permission]:
         """Get all effective permissions for a user.
@@ -2007,7 +2007,7 @@ class PermissionResolver:
 
     async def _get_user_roles(
         self,
-        user_id: UUID,
+        user_id: ID,
         tenant_id: Optional[UUID]
     ) -> List[Role]:
         """Get roles directly assigned to user."""
@@ -2038,7 +2038,7 @@ class PermissionResolver:
 import hashlib
 import json
 from typing import List, Optional
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import timedelta
 from fraiseql.enterprise.rbac.models import Permission
 
@@ -2050,14 +2050,14 @@ class PermissionCache:
         self._request_cache: dict[str, List[Permission]] = {}
         self._cache_ttl = timedelta(minutes=5)
 
-    def _make_key(self, user_id: UUID, tenant_id: Optional[UUID]) -> str:
+    def _make_key(self, user_id: ID, tenant_id: Optional[UUID]) -> str:
         """Generate cache key for user permissions."""
         data = f"{user_id}:{tenant_id or 'global'}"
         return f"rbac:permissions:{hashlib.md5(data.encode()).hexdigest()}"
 
     async def get(
         self,
-        user_id: UUID,
+        user_id: ID,
         tenant_id: Optional[UUID]
     ) -> Optional[List[Permission]]:
         """Get cached permissions."""
@@ -2081,7 +2081,7 @@ class PermissionCache:
 
     async def set(
         self,
-        user_id: UUID,
+        user_id: ID,
         tenant_id: Optional[UUID],
         permissions: List[Permission]
     ):
@@ -2112,7 +2112,7 @@ class PermissionCache:
         """Clear request-level cache (called at end of request)."""
         self._request_cache.clear()
 
-    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None):
+    async def invalidate_user(self, user_id: ID, tenant_id: Optional[UUID] = None):
         """Invalidate cache for user (e.g., after role change)."""
         key = self._make_key(user_id, tenant_id)
         self._request_cache.pop(key, None)
@@ -2130,7 +2130,7 @@ class PermissionResolver:
 
     async def get_user_permissions(
         self,
-        user_id: UUID,
+        user_id: ID,
         tenant_id: Optional[UUID] = None,
         use_cache: bool = True
     ) -> List[Permission]:
@@ -2571,8 +2571,8 @@ class RBACMutation:
     async def assign_role_to_user(
         self,
         info: Info,
-        user_id: UUID,
-        role_id: UUID,
+        user_id: ID,
+        role_id: ID,
         expires_at: Optional[datetime] = None
     ) -> AssignRoleResponse:
         """Assign a role to a user."""
@@ -2644,7 +2644,7 @@ class AssignRoleResponse:
 async def delete_role(
     self,
     info: Info,
-    role_id: UUID
+    role_id: ID
 ) -> DeleteRoleResponse:
     """Delete a role (if not system role)."""
     repo = info.context['repo']
@@ -2676,8 +2676,8 @@ async def delete_role(
 async def add_permission_to_role(
     self,
     info: Info,
-    role_id: UUID,
-    permission_id: UUID
+    role_id: ID,
+    permission_id: ID
 ) -> AddPermissionResponse:
     """Add permission to role."""
     repo = info.context['repo']

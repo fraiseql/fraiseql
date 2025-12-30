@@ -468,7 +468,7 @@ fraiseql generate crud Product
 **Generated Structure:**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class CreateUserInput:
@@ -476,7 +476,7 @@ class CreateUserInput:
 
 @input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None
 
 @success

@@ -242,14 +242,14 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User account with Trinity identifiers."""
     # Trinity identifiers (only public ones exposed)
-    id: UUID          # Public API identifier
+    id: ID          # Public API identifier
     identifier: str   # Human-readable slug
     # pk_user is NOT exposed (internal only)
 
@@ -277,14 +277,14 @@ class User:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type(sql_source="v_post")
 class Post:
     """Blog post with author relation."""
     # Trinity identifiers
-    id: UUID
+    id: ID
     identifier: str
 
     # Content

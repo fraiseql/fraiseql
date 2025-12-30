@@ -32,7 +32,7 @@ type Mutation {
 The `@success` decorator automatically adds standard fields to your success type:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.success
 class UserCreated:
@@ -42,7 +42,7 @@ class UserCreated:
     # status: str = "success"
     # message: str | None = None
     # updated_fields: list[str] | None = None
-    # id: UUID | None = None
+    # id: ID | None = None
 ```
 
 ### Generated GraphQL Type
@@ -56,7 +56,7 @@ type UserCreated {
   status: String!            # Always "success"
   message: String            # Optional success message
   updatedFields: [String!]   # List of fields that were updated
-  id: UUID                   # ID of created/updated resource
+  id: ID                   # ID of created/updated resource
 }
 ```
 
@@ -128,7 +128,7 @@ type ValidationError {
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Input type
 @fraiseql.input
@@ -318,7 +318,7 @@ class UserCreated:
 If you need full control and don't want auto-injection:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 # Option 1: Use a regular class (not @success)
 class UserCreatedManual:
@@ -332,7 +332,7 @@ class UserCreatedCustom:
     status: str = "created"  # Override "success" default
     message: str = "User created"
     updated_fields: list[str] = []
-    id: UUID | None = None
+    id: ID | None = None
 ```
 
 ---

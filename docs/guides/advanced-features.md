@@ -38,7 +38,7 @@ The `@dataloader_field` decorator batches and caches database queries:
 ```python
 from fraiseql import dataloader_field
 from aiodataloader import DataLoader
-from uuid import UUID
+from fraiseql.types import ID
 
 # Step 1: Create DataLoader
 class UserDataLoader(DataLoader):
@@ -62,9 +62,9 @@ app = create_fraiseql_app(
 # Step 3: Use @dataloader_field
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
 
     @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self) -> User:
@@ -84,7 +84,7 @@ class Post:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from aiodataloader import DataLoader
 
 # DataLoader for users
@@ -111,15 +111,15 @@ class CommentDataLoader(DataLoader):
 # Types
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 
 @fraiseql.type(sql_source="v_comment")
 class Comment:
-    id: UUID
-    post_id: UUID
-    author_id: UUID
+    id: ID
+    post_id: ID
+    author_id: ID
     content: str
 
     @dataloader_field(UserDataLoader, key_field="author_id")
@@ -128,9 +128,9 @@ class Comment:
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
 
     @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self) -> User:
@@ -203,10 +203,10 @@ subscription {
 ### Subscription with Filters
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @subscription
-async def post_created(info, author_id: UUID | None = None) -> Post:
+async def post_created(info, author_id: ID | None = None) -> Post:
     """Subscribe to new posts, optionally filtered by author."""
     async for post in info.context["post_stream"]:
         # Filter by author if specified
@@ -282,7 +282,7 @@ EXECUTE FUNCTION notify_post_created();
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 import asyncpg
 
 # Context setup
@@ -296,7 +296,7 @@ async def create_context(request):
 
 # Subscription
 @fraiseql.subscription
-async def post_created(info, author_id: UUID | None = None) -> Post:
+async def post_created(info, author_id: ID | None = None) -> Post:
     """Real-time post creation updates."""
     conn = info.context["db_connection"]
     db = info.context["db"]

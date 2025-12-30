@@ -221,17 +221,17 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class Organisation:
-    id: UUID              # ✅ Clean! Just "id" (UUID)
+    id: ID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "acme-corp"
     name: str
 
 @fraiseql.type
 class User:
-    id: UUID              # ✅ Clean! Just "id" (UUID)
+    id: ID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "john-doe"
     name: str
     email: str
@@ -239,7 +239,7 @@ class User:
 
 @fraiseql.type
 class Post:
-    id: UUID              # ✅ Clean! Just "id" (UUID)
+    id: ID              # ✅ Clean! Just "id" (UUID)
     identifier: str       # "my-first-post"
     title: str
     content: str
@@ -249,7 +249,7 @@ class Post:
 @fraiseql.query
 async def user(
     info,
-    id: UUID | None = None,
+    id: ID | None = None,
     identifier: str | None = None
 ) -> User | None:
     """Get user by UUID or identifier"""
@@ -324,7 +324,7 @@ identifier        -- "This is the human-readable slug/username"
 **2. Clean GraphQL Schema**
 ```graphql
 type User {
-  id: UUID!         # ✅ Standard GraphQL convention (just "id")
+  id: ID!         # ✅ Standard GraphQL convention (just "id")
   identifier: String!
   name: String!
 }
@@ -585,7 +585,7 @@ $$ LANGUAGE plpgsql;
 
 **Python mutations** (all follow same trivial pattern):
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
 async def create_post(
@@ -603,13 +603,13 @@ async def create_post(
     return await QueryRepository(db).find_one("tv_post", id=id)
 
 @fraiseql.mutation
-async def update_post(info, id: UUID, title: str, content: str) -> Post:
+async def update_post(info, id: ID, title: str, content: str) -> Post:
     db = info.context["db"]
     id = await db.fetchval("SELECT fn_update_post($1, $2, $3)", id, title, content)
     return await QueryRepository(db).find_one("tv_post", id=id)
 
 @fraiseql.mutation
-async def delete_post(info, id: UUID) -> bool:
+async def delete_post(info, id: ID) -> bool:
     db = info.context["db"]
     return await db.fetchval("SELECT fn_delete_post($1)", id)
 ```
@@ -962,17 +962,17 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class Organisation:
-    id: UUID
+    id: ID
     identifier: str
     name: str
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     identifier: str
     name: str
     email: str
@@ -980,7 +980,7 @@ class User:
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
     identifier: str
     title: str
     content: str
@@ -990,7 +990,7 @@ class Post:
 @fraiseql.query
 async def user(
     info,
-    id: UUID | None = None,
+    id: ID | None = None,
     identifier: str | None = None
 ) -> User | None:
     repo = QueryRepository(info.context["db"])
@@ -1100,13 +1100,13 @@ config = FraiseQLConfig(
 ### **Updated QueryRepository**
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 class QueryRepository:
     async def find_one(
         self,
         view: str,
-        id: UUID | None = None,            # By public UUID
+        id: ID | None = None,            # By public UUID
         identifier: str | None = None       # By human identifier
     ) -> dict | None:
         """Find by UUID or identifier"""

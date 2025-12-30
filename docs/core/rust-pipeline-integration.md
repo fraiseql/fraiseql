@@ -60,12 +60,12 @@ This architecture is unique to FraiseQL. No other GraphQL framework combines:
 ### Python Side:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # 1. Define GraphQL type
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     first_name: str  # Python uses snake_case
     created_at: datetime
 

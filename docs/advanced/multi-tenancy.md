@@ -313,13 +313,13 @@ FraiseQL automatically adds tenant_id filters when context is set:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type_
 class Order:
-    id: UUID
-    tenant_id: UUID  # Automatically filtered
-    user_id: UUID
+    id: ID
+    tenant_id: ID  # Automatically filtered
+    user_id: ID
     total: float
     status: str
 
@@ -337,7 +337,7 @@ async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
         return [Order(**row) for row in await result.fetchall()]
 
 @fraiseql.query
-async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
+async def get_order(info: GraphQLResolveInfo, order_id: ID) -> Order | None:
     """Get specific order - tenant isolation enforced."""
     tenant_id = info.context["tenant_id"]
 

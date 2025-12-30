@@ -171,11 +171,11 @@ WHERE id = $1;
 
 **GraphQL Schema Updates**:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -259,12 +259,12 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User account."""
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -273,7 +273,7 @@ class User:
 @fraiseql.type(sql_source="tv_user_with_posts")
 class UserWithPosts:
     """User with their posts."""
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -281,7 +281,7 @@ class UserWithPosts:
     created_at: datetime
 
 @fraiseql.query
-async def user_with_posts(info, id: UUID) -> UserWithPosts:
+async def user_with_posts(info, id: ID) -> UserWithPosts:
     """Get user with all their posts."""
     db = info.context["db"]
     return await db.find_one("tv_user_with_posts", where={"id": id})

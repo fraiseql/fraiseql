@@ -452,7 +452,7 @@ from dataclasses import dataclass
 @dataclass
 class User:
     """User with PII protection."""
-    id: UUID
+    id: ID
     email: str
     name: str
     _ssn: str | None = None  # Private field
@@ -475,7 +475,7 @@ class User:
 # GraphQL type
 @fraiseql.type_
 class UserGQL:
-    id: UUID
+    id: ID
     email: str
     name: str
 

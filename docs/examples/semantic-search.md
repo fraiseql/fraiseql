@@ -51,7 +51,7 @@ CREATE INDEX documents_tags_idx ON documents USING gin (tags);
 ```python
 import asyncio
 from typing import List
-from uuid import UUID
+from fraiseql.types import ID
 
 import openai
 from fraiseql import fraise_type
@@ -62,7 +62,7 @@ openai.api_key = "your-api-key"
 
 @fraise_type
 class Document:
-    id: UUID
+    id: ID
     title: str
     content: str
     embedding: List[float]  # Vector field detected by name
@@ -482,11 +482,11 @@ results = await semantic_search(repo, query, limit=50)  # Not 1000
 ### Recommendation System
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def get_similar_products(
     repo: FraiseQLRepository,
-    product_id: UUID,
+    product_id: ID,
     limit: int = 5
 ) -> List[dict]:
     """Find products similar to a given product."""

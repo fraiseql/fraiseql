@@ -47,18 +47,18 @@ results = await db.find("users", where=where_filter)
 ### Nested Object Filtering (WhereType)
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 # Define types with relationships
 @fraiseql.type
 class Device:
-    id: UUID
+    id: ID
     name: str
     is_active: bool
 
 @fraiseql.type
 class Assignment:
-    id: UUID
+    id: ID
     device: Device
     status: str
 
@@ -249,11 +249,11 @@ Where input types are automatically generated GraphQL input types that provide o
 import fraiseql
 import fraiseql
 from fraiseql import fraise_field
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="users")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     age: int
@@ -484,13 +484,13 @@ When your types have relationships, you can filter on nested object properties. 
 ### GraphQL Query (WhereType)
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="posts")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
     author: User  # Nested relationship
 
 # Generate Where input for nested filtering

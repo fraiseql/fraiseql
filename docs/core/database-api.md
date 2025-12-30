@@ -72,10 +72,10 @@ async def filtered_users(info, min_age: int = 18) -> list[User]:
 Execute single-result query using the exclusive Rust pipeline.
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     db = info.context["db"]
     return await db.find_one("v_user", "user", id=id)
 ```

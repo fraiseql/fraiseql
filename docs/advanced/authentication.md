@@ -69,13 +69,13 @@ UserContext is the standardized user representation passed to all resolvers:
 ```python
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import UUID
+from fraiseql.types import ID
 
 @dataclass
 class UserContext:
     """User context available in all GraphQL resolvers."""
 
-    user_id: UUID
+    user_id: ID
     email: str | None = None
     name: str | None = None
     roles: list[str] = field(default_factory=list)
@@ -376,7 +376,7 @@ from fraiseql.auth.native import (
     UserRepository,
     create_auth_router
 )
-from uuid import UUID
+from fraiseql.types import ID
 
 # 1. Implement user repository
 class PostgresUserRepository(UserRepository):
@@ -761,11 +761,11 @@ Restrict access to specific fields based on roles/permissions:
 import fraiseql
 import fraiseql_
 from fraiseql.security import authorize_field, any_permission
-from uuid import UUID
+from fraiseql.types import ID
 
 @type_
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 

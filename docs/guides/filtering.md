@@ -125,11 +125,11 @@ FraiseQL supports filtering nested array elements in GraphQL queries with full A
 ```python
 import fraiseql
 from fraiseql.fields import fraise_field
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_network", jsonb_column="data")
 class NetworkConfiguration:
-    id: UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(
         default_factory=list,

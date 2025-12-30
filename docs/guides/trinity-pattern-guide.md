@@ -157,11 +157,11 @@ FROM tb_post;
 ### GraphQL Type Definition
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_post", jsonb_column="data")
 class Post:
-    id: UUID          # ✅ Public
+    id: ID          # ✅ Public
     identifier: str   # ✅ Public
     title: str
     content: str

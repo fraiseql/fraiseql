@@ -153,7 +153,7 @@ CREATE VIEW v_user AS SELECT * FROM tb_user;
 ```python
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
 ```
@@ -221,7 +221,7 @@ query {
 class CreatePost:
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 ```
 
 ```graphql

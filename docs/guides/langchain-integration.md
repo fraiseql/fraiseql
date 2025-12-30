@@ -83,14 +83,14 @@ Define your GraphQL types and queries:
 import fraiseql
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 from typing import List, Optional
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class Document:
     """A document in the RAG system."""
-    id: UUID = fraise_field(description="Document ID")
+    id: ID = fraise_field(description="Document ID")
     content: str = fraise_field(description="Document content")
     metadata: dict = fraise_field(description="Document metadata")
     created_at: str = fraise_field(description="Creation timestamp")

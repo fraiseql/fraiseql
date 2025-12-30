@@ -61,11 +61,11 @@ make test                                       # Run tests
 ### Define a Type
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     posts: list['Post']  # Forward reference for relationships
@@ -85,10 +85,10 @@ async def users(info) -> list[User]:
 ### Query - Get by ID
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     """Get user by ID."""
     db = info.context["db"]
     # field_name auto-inferred from function name "user"
@@ -128,7 +128,7 @@ def create_user(input: CreateUserInput) -> User:
 ### Mutation - Update
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class UpdateUserInput:
@@ -136,7 +136,7 @@ class UpdateUserInput:
     email: str | None = None
 
 @fraiseql.mutation
-def update_user(id: UUID, input: UpdateUserInput) -> User:
+def update_user(id: ID, input: UpdateUserInput) -> User:
     """Update user."""
     pass  # Framework calls fn_update_user
 ```
@@ -144,14 +144,14 @@ def update_user(id: UUID, input: UpdateUserInput) -> User:
 ### Mutation - Delete
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 class DeleteResult:
     success: bool
     error: str | None
 
 @fraiseql.mutation
-def delete_user(id: UUID) -> DeleteResult:
+def delete_user(id: ID) -> DeleteResult:
     """Delete user."""
     pass  # Framework calls fn_delete_user
 ```
@@ -560,7 +560,7 @@ from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi import FraiseQLRouter
 
 # Types
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 ```
 

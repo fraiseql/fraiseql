@@ -24,12 +24,12 @@ FROM tb_user u;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
@@ -143,11 +143,11 @@ JOIN tb_user u ON p.author_id = u.id;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @type(sql_source="v_post_with_author")
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
     author: User  # Nested User type
@@ -156,7 +156,7 @@ class Post:
 # User type defined separately
 @type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 ```
@@ -232,13 +232,13 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from fraiseql import mutation, input
-from uuid import UUID
+from fraiseql.types import ID
 
 @input
 class CreatePostInput:
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 
 @fraiseql.mutation
 async def create_post(self, info, input: CreatePostInput) -> Post:
@@ -325,11 +325,11 @@ $$ LANGUAGE plpgsql;
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @type(sql_source="tv_post_stats")
 class PostStats:
-    post_id: UUID
+    post_id: ID
     title: str
     comment_count: int
     avg_rating: float | None

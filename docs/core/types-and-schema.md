@@ -60,7 +60,7 @@ class TypeName:
 │             │    │             │    │             │    │             │
 │ @type       │    │ @type(      │    │ type User { │    │ { user {    │
 │ class User: │    │   sql_      │    │   id: ID!   │    │   id        │
-│   id: UUID  │    │   source=   │    │   name:     │    │   name      │
+│   id: ID  │    │   source=   │    │   name:     │    │   name      │
 │   name: str │    │   "v_user") │    │   String!   │    │ } }         │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
@@ -77,12 +77,12 @@ class TypeName:
 Basic type without database binding:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
     created_at: datetime
@@ -105,11 +105,11 @@ type User {
 Type with SQL source for automatic queries:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 ```
@@ -117,11 +117,11 @@ class User:
 Type with regular table columns (no JSONB):
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="users", jsonb_column=None)
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
@@ -130,11 +130,11 @@ class User:
 Type with custom JSONB column:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="tv_machine", jsonb_column="machine_data")
 class Machine:
-    id: UUID
+    id: ID
     identifier: str
     serial_number: str
 ```
@@ -142,7 +142,7 @@ class Machine:
 **With Custom Fields** (using @field decorator):
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -150,7 +150,7 @@ if TYPE_CHECKING:
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
 
@@ -167,38 +167,38 @@ class User:
 With nested object resolution:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Department will be resolved via separate query
 @fraiseql.type(sql_source="departments", resolve_nested=True)
 class Department:
-    id: UUID
+    id: ID
     name: str
 
 # Employee with department as a relation
 @fraiseql.type(sql_source="employees")
 class Employee:
-    id: UUID
+    id: ID
     name: str
-    department_id: UUID  # Foreign key
+    department_id: ID  # Foreign key
     department: Department | None  # Will query departments table
 ```
 
 With embedded nested objects (default):
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Department data is embedded in parent's JSONB
 @fraiseql.type(sql_source="departments")
 class Department:
-    id: UUID
+    id: ID
     name: str
 
 # Employee view includes embedded department in JSONB
 @fraiseql.type(sql_source="v_employees_with_dept")
 class Employee:
-    id: UUID
+    id: ID
     name: str
     department: Department | None  # Uses embedded JSONB data
 ```
@@ -222,18 +222,18 @@ class InputName:
 Basic input type:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
     role: UserRole
 
 @fraiseql.type
 class Order:
-    id: UUID
+    id: ID
     status: OrderStatus
     created_at: datetime
 ```
@@ -267,21 +267,21 @@ class InterfaceName:
 Basic Node interface:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Node:
-    id: UUID
+    id: ID
 
 @fraiseql.type(implements=[Node])
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 
 @fraiseql.type(implements=[Node])
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
 ```
@@ -289,7 +289,7 @@ class Post:
 Interface with computed fields:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Timestamped:
@@ -302,7 +302,7 @@ class Timestamped:
 
 @fraiseql.type(implements=[Timestamped])
 class Article:
-    id: UUID
+    id: ID
     title: str
     created_at: datetime
     updated_at: datetime
@@ -315,7 +315,7 @@ class Article:
 Multiple interface implementation:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.interface
 class Searchable:
@@ -327,7 +327,7 @@ class Taggable:
 
 @fraiseql.type(implements=[Node, Searchable, Taggable])
 class Document:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]
@@ -428,11 +428,11 @@ class Connection[T]:
 ```python
 import fraiseql
 from fraiseql.types import Connection
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 
@@ -504,11 +504,11 @@ from fraiseql.types import UNSET
 ```python
 import fraiseql
 from fraiseql.types import UNSET
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None = UNSET  # Not provided by default
     email: str | None = UNSET
     bio: str | None = UNSET

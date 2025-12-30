@@ -34,10 +34,10 @@ EXECUTE FUNCTION sync_post_to_tv();
 ### FraiseQL's Solution: Explicit Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 # ✅ Explicit sync (visible in your code)
-async def create_post(title: str, author_id: UUID) -> Post:
+async def create_post(title: str, author_id: ID) -> Post:
     # 1. Write to command side
     post_id = await db.execute(
         "INSERT INTO tb_post (title, author_id) VALUES ($1, $2) RETURNING id",
@@ -107,7 +107,7 @@ async def create_post(title: str, author_id: UUID) -> Post:
 ### Basic Sync Function
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import asyncpg
 
 
@@ -183,7 +183,7 @@ class EntitySync:
 ### Sync with Nested Data
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def sync_post_with_comments(self, post_ids: list[UUID]) -> None:
     """Sync posts with embedded comments (denormalized)."""
@@ -268,7 +268,7 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
 ### Pattern 2: Batch Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def create_many_posts(posts: list[dict]) -> list[UUID]:
     """Create multiple posts and batch sync."""
@@ -295,9 +295,9 @@ async def create_many_posts(posts: list[dict]) -> list[UUID]:
 ### Pattern 3: Deferred Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
-async def update_post(post_id: UUID, data: dict, background_tasks: BackgroundTasks):
+async def update_post(post_id: ID, data: dict, background_tasks: BackgroundTasks):
     """Update post and defer sync to background."""
     # 1. Write to command side
     await db.execute("UPDATE tb_post SET ... WHERE id = $1", post_id)
@@ -317,9 +317,9 @@ async def update_post(post_id: UUID, data: dict, background_tasks: BackgroundTas
 ### Pattern 4: Conditional Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
-async def update_post(post_id: UUID, old_data: dict, new_data: dict):
+async def update_post(post_id: ID, old_data: dict, new_data: dict):
     """Only sync if data changed in a way that affects queries."""
     # Update command side
     await db.execute("UPDATE tb_post SET ... WHERE id = $1", post_id)
@@ -333,9 +333,9 @@ async def update_post(post_id: UUID, old_data: dict, new_data: dict):
 ### Pattern 5: Cascade Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
-async def delete_user(user_id: UUID):
+async def delete_user(user_id: ID):
     """Delete user and cascade sync related entities."""
     # 1. Get user's posts before deleting
     post_ids = await db.fetch("SELECT id FROM tb_post WHERE author_id = $1", user_id)
@@ -514,7 +514,7 @@ CREATE INCREMENTAL MATERIALIZED VIEW tv_post;
 **With IVM**, sync becomes simpler:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def sync_post_with_ivm(self, post_ids: list[UUID]):
     """Sync with IVM extension (faster!)."""
@@ -551,9 +551,9 @@ async def setup_ivm():
 ### Pattern: Multi-Entity Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
-async def create_comment(post_id: UUID, author_id: UUID, content: str):
+async def create_comment(post_id: ID, author_id: ID, content: str):
     """Create comment and sync all affected entities."""
     # 1. Write to command side
     comment_id = await db.execute(
@@ -574,9 +574,9 @@ async def create_comment(post_id: UUID, author_id: UUID, content: str):
 ### Pattern: Optimistic Sync
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
-async def like_post(post_id: UUID, user_id: UUID):
+async def like_post(post_id: ID, user_id: ID):
     """Optimistic sync: update cache immediately, sync later."""
     # 1. Update cache optimistically (fast!)
     cached_post = await cache.get(f"post:{post_id}")
@@ -598,7 +598,7 @@ async def like_post(post_id: UUID, user_id: UUID):
 ### Pattern: Sync Validation
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def sync_with_validation(self, post_ids: list[UUID]):
     """Sync with validation to ensure data integrity."""
@@ -689,7 +689,7 @@ for post_id in post_ids:
 
 ```python
 import time
-from uuid import UUID
+from fraiseql.types import ID
 
 async def sync_post(self, post_ids: list[UUID]):
     start = time.time()
@@ -706,7 +706,7 @@ async def sync_post(self, post_ids: list[UUID]):
 ### 4. Handle Sync Errors
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 async def sync_post(self, post_ids: list[UUID]):
     for post_id in post_ids:

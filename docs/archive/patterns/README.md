@@ -17,7 +17,7 @@ The trinity pattern uses three types of identifiers per entity:
 @fraiseql.type(sql_source="v_post")
 class Post:
     pk_post: int              # Internal: Fast joins, never exposed to API
-    id: UUID                  # Public: Stable API identifier
+    id: ID                  # Public: Stable API identifier
     identifier: str           # Human: "how-to-use-fraiseql" (SEO-friendly)
 ```
 

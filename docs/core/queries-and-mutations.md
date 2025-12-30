@@ -31,10 +31,10 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 Basic query with database access:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]
     # Returns RustResponseBytes - automatically processed by exclusive Rust pipeline
     return await db.find_one("v_user", id=id)
@@ -80,12 +80,12 @@ Query with error handling:
 import fraiseql
 
 import logging
-from uuid import UUID
+from fraiseql.types import ID
 
 logger = logging.getLogger(__name__)
 
 @fraiseql.query
-async def get_post(info, id: UUID) -> Post | None:
+async def get_post(info, id: ID) -> Post | None:
     try:
         db = info.context["db"]
         # Exclusive Rust pipeline handles JSON processing automatically
@@ -98,11 +98,11 @@ async def get_post(info, id: UUID) -> Post | None:
 Query using custom repository methods:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 
 @fraiseql.query
-async def get_user_stats(info, user_id: UUID) -> UserStats:
+async def get_user_stats(info, user_id: ID) -> UserStats:
     db = info.context["db"]
     # Custom SQL query for complex aggregations
     # Exclusive Rust pipeline handles result processing automatically
@@ -266,11 +266,11 @@ class User:
 Async field with database access:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Posts authored by this user")
     async def posts(self, info) -> list[Post]:
@@ -281,7 +281,7 @@ class User:
 Field with custom resolver function:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 async def fetch_user_posts_optimized(root, info):
     """Custom resolver with optimized batch loading."""
@@ -291,7 +291,7 @@ async def fetch_user_posts_optimized(root, info):
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(
         resolver=fetch_user_posts_optimized,
@@ -306,11 +306,11 @@ class User:
 Field with parameters:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="User's posts with optional filtering")
     async def posts(
@@ -329,11 +329,11 @@ class User:
 Field with authentication/authorization:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Private user settings (owner only)")
     async def settings(self, info) -> UserSettings | None:
@@ -348,11 +348,11 @@ class User:
 Field with caching:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Number of likes (cached)")
     async def like_count(self, info) -> int:
@@ -440,11 +440,11 @@ Basic connection query:
 ```python
 import fraiseql
 from fraiseql.types import Connection
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 
@@ -648,11 +648,11 @@ class CreateLocation:
 Mutation with validation:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None = None
     email: str | None = None
 
@@ -869,12 +869,12 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 
 Filtered subscription with parameters:
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 
 @subscription
 async def on_user_posts(
     info,
-    user_id: UUID
+    user_id: ID
 ) -> AsyncGenerator[Post, None]:
     # Only yield posts from specific user
     async for post in post_event_stream():
@@ -899,12 +899,12 @@ async def on_private_messages(info) -> AsyncGenerator[Message, None]:
 Subscription with database polling:
 ```python
 import asyncio
-from uuid import UUID
+from fraiseql.types import ID
 
 @subscription
 async def on_task_updates(
     info,
-    project_id: UUID
+    project_id: ID
 ) -> AsyncGenerator[Task, None]:
     db = info.context["db"]
     last_check = datetime.utcnow()

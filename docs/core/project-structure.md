@@ -202,12 +202,12 @@ my-project/
 # src/types/user.py
 import fraiseql
 from fraiseql import fraise_field
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
     """A user in the system."""
-    id: UUID = fraise_field(description="User ID")
+    id: ID = fraise_field(description="User ID")
     username: str = fraise_field(description="Unique username")
     email: str = fraise_field(description="Email address")
     created_at: str = fraise_field(description="Account creation date")
@@ -246,7 +246,7 @@ class UserQueries:
 import fraiseql
 from fraiseql import fraise_field
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 from ..types.user import User
 

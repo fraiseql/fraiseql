@@ -100,12 +100,12 @@ FROM tb_user;
 ```python
 import fraiseql
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User with trinity identifiers."""
-    id: UUID              # Public API identifier (stable, secure)
+    id: ID              # Public API identifier (stable, secure)
     identifier: str       # Human-readable slug (SEO-friendly)
     name: str
     email: str
@@ -221,11 +221,11 @@ FROM tb_user u;
 ```python
 import fraiseql
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID          # Public API - stable forever
+    id: ID          # Public API - stable forever
     identifier: str   # Human-readable - can change
     title: str
     content: str
@@ -384,11 +384,11 @@ $$;
 **Python mapping:**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="tv_user", jsonb_column="data")
 class User:
-    id: UUID
+    id: ID
     name: str
     posts: list[Post]  # Pre-composed!
 ```
@@ -432,7 +432,7 @@ FraiseQL automatically extracts field descriptions from your Python code for Gra
 import fraiseql
 import fraiseql
 from typing import Annotated
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -441,7 +441,7 @@ class User:
     Fields:
         created_at: Account creation timestamp
     """
-    id: UUID  # Public API identifier (inline comment - highest priority)
+    id: ID  # Public API identifier (inline comment - highest priority)
     identifier: str  # Human-readable username
     name: Annotated[str, "User's full name"]  # Annotated type
     email: str
@@ -452,7 +452,7 @@ class User:
 ```graphql
 type User {
   "Public API identifier"
-  id: UUID!
+  id: ID!
 
   "Human-readable username"
   identifier: String!
@@ -487,12 +487,12 @@ Define your data models with trinity identifiers:
 ```python
 import fraiseql
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
     """User type with trinity identifiers."""
-    id: UUID          # Public API identifier (always exposed)
+    id: ID          # Public API identifier (always exposed)
     identifier: str   # Human-readable slug (SEO-friendly)
     name: str
     email: str
@@ -812,12 +812,12 @@ query {
 **Example generated type:**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Your type definition
 @fraiseql.type(sql_source="v_server")
 class Server:
-    id: UUID
+    id: ID
     hostname: str
     ip_address: NetworkAddress  # Special type
     port: int

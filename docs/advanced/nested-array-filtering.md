@@ -22,7 +22,7 @@ import fraiseql
 
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
-from uuid import UUID
+from fraiseql.types import ID
 
     auto_nested_array_filters,
     nested_array_filterable,
@@ -32,7 +32,7 @@ from fraiseql.types import fraise_type
 
 @fraise_type
 class PrintServer:
-    id: UUID
+    id: ID
     hostname: str
     ip_address: str | None = None
     operating_system: str
@@ -42,7 +42,7 @@ class PrintServer:
 @auto_nested_array_filters
 @fraise_type
 class NetworkConfiguration:
-    id: UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
@@ -50,7 +50,7 @@ class NetworkConfiguration:
 @nested_array_filterable("print_servers", "dns_servers")
 @fraise_type
 class NetworkConfiguration:
-    id: UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(default_factory=list)
     dns_servers: list[DnsServer] = fraise_field(default_factory=list)
@@ -58,7 +58,7 @@ class NetworkConfiguration:
 # Option 3: Manual registration (maximum control)
 @fraise_type
 class NetworkConfiguration:
-    id: UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
@@ -69,7 +69,7 @@ register_nested_array_filter(NetworkConfiguration, "print_servers", PrintServer)
 
 ```graphql
 type NetworkConfiguration {
-  id: UUID!
+  id: ID!
   name: String!
   printServers(where: PrintServerWhereInput): [PrintServer!]!
 }

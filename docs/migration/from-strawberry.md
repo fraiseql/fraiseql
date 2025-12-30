@@ -141,21 +141,21 @@ class Post:
 **After (FraiseQL):**
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
     created_at: str  # ISO 8601 timestamp
 
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     created_at: str
 
     @fraiseql.field
@@ -207,7 +207,7 @@ class Query:
 @fraiseql.query
 class Query:
     @fraiseql.field
-    async def user(self, info, id: UUID) -> User | None:
+    async def user(self, info, id: ID) -> User | None:
         """Get user by ID"""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_user", where={"id": id})
@@ -354,7 +354,7 @@ async def create_post(
     self,
     title: str,
     content: str,
-    author_id: UUID
+    author_id: ID
 ) -> Post:
     # Create post
     async with db_pool.acquire() as conn:
@@ -391,7 +391,7 @@ class CreatePost:
     """Create a new post"""
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 
 # Database function:
 CREATE OR REPLACE FUNCTION fn_create_post(
@@ -441,7 +441,7 @@ user_loader = DataLoader(load_fn=load_users)
 
 @strawberry.type
 class Post:
-    author_id: UUID
+    author_id: ID
 
     @strawberry.field
     async def author(self, info) -> User:
@@ -452,9 +452,9 @@ class Post:
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
 
     @fraiseql.dataloader_field(
         loader_class=UserLoader,

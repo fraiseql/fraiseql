@@ -143,7 +143,7 @@ const CustomResolversPlugin = makeExtendSchemaPlugin({
 ```python
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
 
@@ -184,7 +184,7 @@ query {
 @fraiseql.query
 class Query:
     @fraiseql.field
-    async def user(self, info, id: UUID) -> User | None:
+    async def user(self, info, id: ID) -> User | None:
         """Get user by ID"""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_user", where={"id": id})
@@ -308,7 +308,7 @@ class CreatePost:
     """Create a new post"""
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 ```
 
 **CASCADE Benefits:**
@@ -468,7 +468,7 @@ PostGraphile uses promises, FraiseQL uses async/await.
 **Fix:**
 ```python
 # ✅ Correct
-async def user(self, info, id: UUID) -> User | None:
+async def user(self, info, id: ID) -> User | None:
     return await db.find_one("v_user", where={"id": id})
 ```
 

@@ -693,7 +693,7 @@ patch_fastapi(app)
 
 # Custom span
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     with tracer.trace("get_user", service="fraiseql") as span:
         span.set_tag("user.id", id)
         span.set_tag("operation", "query")

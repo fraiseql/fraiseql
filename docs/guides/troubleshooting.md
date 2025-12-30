@@ -91,7 +91,7 @@ psql -h localhost -U postgres -d postgres
 **Solution**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Check your view definition
 psql your_db -c "SELECT * FROM v_note LIMIT 1;"
@@ -99,7 +99,7 @@ psql your_db -c "SELECT * FROM v_note LIMIT 1;"
 # Compare with Python type
 @type(sql_source="v_note")
 class Note:
-    id: UUID        # Must match database column type
+    id: ID        # Must match database column type
     title: str      # Must match database column type
     content: str    # Must match database column type
 ```
