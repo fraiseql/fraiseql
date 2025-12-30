@@ -84,23 +84,27 @@ class GraphQLInfoInjector:
             Decorated function that injects info
         """
 
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs) -> Any:
-            # Get function signature to extract info parameter
+                @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # Check if function expects 'info' parameter
             sig = inspect.signature(func)
-
-            # Extract info from function parameters if available
-            if "info" in sig.parameters:
-                # Bind the arguments to the signature
-                bound = sig.bind(*args, **kwargs)
-                bound.apply_defaults()
-                info = bound.arguments.get("info")
-
-                # Process the info object
-                if info:
+            has_info_param = 'info' in sig.parameters
+            
+            # Extract info from kwargs or positional args if available
+            info = None
+            if has_info_param:
+                # Try to get info from kwargs first
+                if 'info' in kwargs:
+                    info = kwargs['info']
                     info = self.process_info(info)
-
-            # Call the original resolver
+                    kwargs['info'] = info
+                elif len(args) > 1:
+                    # Try to get from positional args (typically: obj, info)
+                    info = args[1]
+                    info = self.process_info(info)
+                    args = (args[0], info) + args[2:]
+            
+            # Call the original function with modified args/kwargs
             return func(*args, **kwargs)
-
+        
         return sync_wrapper
