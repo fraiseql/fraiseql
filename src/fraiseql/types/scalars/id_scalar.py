@@ -1,63 +1,71 @@
-"""GraphQL ID scalar backed by UUID, used for opaque identifier representation."""
+"""GraphQL ID scalar backed by UUID."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
+from graphql import GraphQLError, GraphQLScalarType
+from graphql.language import StringValueNode, ValueNode
 
-class ID:
-    """A GraphQL-safe identifier backed internally by UUID."""
+from fraiseql.types.definitions import ScalarMarker
 
-    __slots__ = ("_value",)
 
-    def __init__(self, value: Any) -> None:
-        """Initialize an ID instance from a UUID or a valid UUID string."""
-        if isinstance(value, uuid.UUID):
-            self._value = value
-        elif isinstance(value, str):
-            try:
-                self._value = uuid.UUID(value)
-            except ValueError as exc:
-                msg = f"Invalid UUID string: {value}"
-                raise TypeError(msg) from exc
-        else:
-            msg = f"ID must be initialized with a UUID or str, not {type(value).__name__}"
-            raise TypeError(msg)
-
-    @classmethod
-    def coerce(cls, value: object) -> ID:
-        """Coerce a UUID, str, or ID into an ID instance."""
-        if isinstance(value, ID):
+# Serialization functions (reuse UUID logic since ID = UUID)
+def serialize_id(value: Any) -> str:
+    """Serialize an ID (UUID) to string."""
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, str):
+        try:
+            uuid.UUID(value)
             return value
-        if isinstance(value, uuid.UUID):
-            return cls(value)
-        if isinstance(value, str):
-            return cls(value)
-        msg = f"Cannot coerce {type(value).__name__} to ID"
-        raise TypeError(msg)
+        except ValueError:
+            pass
+    msg = f"ID cannot represent non-UUID value: {value!r}"
+    raise GraphQLError(msg)
 
-    def __str__(self) -> str:
-        """Return the string representation of the UUID."""
-        return str(self._value)
+
+def parse_id_value(value: Any) -> uuid.UUID:
+    """Parse an ID string into a UUID object."""
+    if isinstance(value, str):
+        try:
+            return uuid.UUID(value)
+        except ValueError:
+            msg = f"Invalid ID string provided: {value!r}"
+            raise GraphQLError(msg) from None
+    msg = f"ID cannot represent non-string value: {value!r}"
+    raise GraphQLError(msg)
+
+
+def parse_id_literal(ast: ValueNode, variables: dict[str, object] | None = None) -> uuid.UUID:
+    """Parse an ID literal from GraphQL AST."""
+    _ = variables
+    if isinstance(ast, StringValueNode):
+        return parse_id_value(ast.value)
+    msg = f"ID cannot represent non-string literal: {getattr(ast, 'value', None)!r}"
+    raise GraphQLError(msg)
+
+
+# GraphQL Scalar
+IDScalar = GraphQLScalarType(
+    name="ID",
+    description="A globally unique identifier in UUID format.",
+    serialize=serialize_id,
+    parse_value=parse_id_value,
+    parse_literal=parse_id_literal,
+)
+
+
+# Python Type Marker
+class IDField(str, ScalarMarker):
+    """FraiseQL ID marker used for Python-side typing and introspection.
+
+    Represents opaque identifiers, backed by UUID in PostgreSQL.
+    """
+
+    __slots__ = ()
 
     def __repr__(self) -> str:
-        """Return the debug representation of the ID."""
-        return f"ID('{self._value}')"
-
-    def __eq__(self, other: object) -> bool:
-        """Check equality with another ID or UUID."""
-        if isinstance(other, ID):
-            return self._value == other._value
-        if isinstance(other, uuid.UUID):
-            return self._value == other
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        """Return a hash based on the underlying UUID."""
-        return hash(self._value)
-
-    @property
-    def uuid(self) -> uuid.UUID:
-        """Access the underlying UUID value."""
-        return self._value
+        """Return a user-friendly type name for introspection and debugging."""
+        return "ID"
