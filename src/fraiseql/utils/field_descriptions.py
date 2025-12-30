@@ -4,6 +4,7 @@ This module provides utilities to automatically extract descriptions for type fi
 from various sources like inline comments, docstrings, and field annotations.
 """
 
+import ast
 import inspect
 import re
 from typing import get_type_hints
@@ -16,8 +17,9 @@ def extract_field_descriptions(cls: type) -> dict[str, str]:
 
     Supports multiple sources for field descriptions in priority order:
     1. Inline comments (# comment) - highest priority
-    2. Type annotations with Annotated[type, "description"]
-    3. Class docstring field documentation - lowest priority
+    2. Attribute-level docstrings (string literals after field) - high priority
+    3. Type annotations with Annotated[type, "description"] - medium priority
+    4. Class docstring field documentation - lowest priority
 
     Args:
         cls: The class to extract field descriptions from
@@ -35,7 +37,8 @@ def extract_field_descriptions(cls: type) -> dict[str, str]:
                 email: User's email address
             '''
             id: UUID  # Primary key identifier
-            name: str  # Full name of the user
+            name: str
+            '''Full name of the user.'''
             email: str
             status: str = "active"  # Account status
     """
@@ -49,11 +52,79 @@ def extract_field_descriptions(cls: type) -> dict[str, str]:
     annotation_descriptions = _extract_annotation_descriptions(cls)
     descriptions.update(annotation_descriptions)
 
+    # High priority: attribute-level docstrings (NEW!)
+    attribute_docstrings = _extract_attribute_docstrings(cls)
+    descriptions.update(attribute_docstrings)
+
     # Highest priority: inline comments (will override others)
     inline_descriptions = _extract_inline_comments(cls)
     descriptions.update(inline_descriptions)
 
     return descriptions
+
+
+def _extract_attribute_docstrings(cls: type) -> dict[str, str]:
+    """Extract field descriptions from attribute-level docstrings.
+
+    Parses the class source code to find string literals immediately following
+    field annotations. These are treated as field-level documentation.
+
+    Example:
+        @fraise_type
+        class User:
+            name: str
+            '''User's full name.'''
+
+            email: str
+            '''User's email address.'''
+
+    Args:
+        cls: The class to extract attribute docstrings from
+
+    Returns:
+        Dictionary mapping field names to their docstrings
+    """
+    try:
+        source = inspect.getsource(cls)
+        # Parse the source code into an AST
+        tree = ast.parse(source)
+
+        # Find the class definition
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == cls.__name__:
+                descriptions = {}
+
+                # Iterate through class body statements
+                for i, stmt in enumerate(node.body):
+                    # Look for annotated assignments (field: type)
+                    if isinstance(stmt, ast.AnnAssign) and hasattr(stmt.target, "id"):
+                        field_name = stmt.target.id
+
+                        # Check if the next statement is a string constant (docstring)
+                        if i + 1 < len(node.body):
+                            next_stmt = node.body[i + 1]
+                            if isinstance(next_stmt, ast.Expr) and isinstance(
+                                next_stmt.value, (ast.Constant, ast.Str)
+                            ):
+                                # Handle both Python 3.8+ (Constant) and older (Str)
+                                if isinstance(next_stmt.value, ast.Constant):
+                                    docstring = next_stmt.value.value
+                                else:  # ast.Str
+                                    docstring = next_stmt.value.s
+
+                                # Only use if it's actually a string
+                                if isinstance(docstring, str):
+                                    # Clean the docstring using inspect.cleandoc
+                                    cleaned = inspect.cleandoc(docstring)
+                                    descriptions[field_name] = cleaned
+
+                return descriptions
+
+        return {}
+
+    except (OSError, TypeError, SyntaxError):
+        # Source not available or not parseable
+        return {}
 
 
 def _extract_inline_comments(cls: type) -> dict[str, str]:

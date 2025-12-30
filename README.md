@@ -24,14 +24,21 @@ from fraiseql.fastapi import create_fraiseql_app
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
+    """A user in the system.
+
+    Fields:
+        id: Unique user identifier
+        name: User's full name
+        email: User's email address
+    """
     id: int
     name: str
     email: str
 
 @fraiseql.query
 async def users(info) -> list[User]:
+    """Get all users."""
     db = info.context["db"]
-    # field_name auto-inferred from function name "users"
     return await db.find("v_user")
 
 app = create_fraiseql_app(
@@ -50,6 +57,7 @@ app = create_fraiseql_app(
 - 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
 - ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
 - 🎯 **Auto-wired query params** - `where`, `orderBy`, `limit`, `offset` added automatically to list queries
+- 📝 **Auto-documentation** - Attribute docstrings become GraphQL descriptions automatically
 - 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 - 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
 - 📋 **GraphQL compliant** - 85-90% GraphQL spec compliance with advanced fragment support

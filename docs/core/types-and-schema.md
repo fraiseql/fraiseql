@@ -203,6 +203,235 @@ class Employee:
     department: Department | None  # Uses embedded JSONB data
 ```
 
+## Field Documentation
+
+**Purpose**: Add descriptions to GraphQL schema fields for better API documentation and introspection
+
+FraiseQL supports **four ways** to document your GraphQL fields, with automatic extraction in priority order:
+
+### 1. Class Docstring - Google/Sphinx Style (Recommended ⭐)
+
+The most common and Pythonic way to document fields - all documentation in one place:
+
+```python
+import fraiseql
+from fraiseql.types import ID
+from datetime import datetime
+
+@fraiseql.type
+class User:
+    """A user account in the system.
+
+    Fields:
+        id: Unique user identifier
+        name: User's full name
+        email: User's email address
+        created_at: Account creation timestamp
+    """
+    id: ID
+    name: str
+    email: str
+    created_at: datetime
+```
+
+**Generated GraphQL Schema:**
+```graphql
+"""A user account in the system."""
+type User {
+  """Unique user identifier."""
+  id: ID!
+
+  """User's full name."""
+  name: String!
+
+  """User's email address."""
+  email: String!
+
+  """Account creation timestamp."""
+  createdAt: DateTime!
+}
+```
+
+**Advantages:**
+- ✅ Clean, compact Python code (no blank lines needed)
+- ✅ All documentation in one place
+- ✅ Standard Google/Sphinx docstring format
+- ✅ Familiar to most Python developers
+- ✅ Works well with auto-documentation tools
+
+**Use when:**
+- Writing most production code (recommended default)
+- Following team Python style guides
+- Working with code generators
+- Documenting many fields at once
+
+### 2. Attribute-Level Docstrings (Advanced)
+
+For detailed, multi-line field documentation:
+
+```python
+@fraiseql.type
+class Article:
+    """A blog article."""
+
+    id: ID
+    """
+    Unique article identifier.
+
+    Generated automatically when the article is created.
+    Cannot be changed after creation.
+    """
+
+    title: str
+    """
+    Article title.
+
+    Should be concise and descriptive.
+    Must be unique within the blog.
+    Maximum length: 200 characters.
+    """
+
+    content: str
+    """Article content in markdown format."""
+```
+
+**Advantages:**
+- ✅ Multi-line descriptions with details
+- ✅ IDE hover support on individual fields
+- ✅ Good for complex fields needing explanation
+
+**Disadvantages:**
+- ❌ Requires blank lines between fields (less compact)
+- ❌ Only works for file-based classes (not dynamically created)
+
+**Use when:**
+- Individual fields need detailed multi-line explanations
+- You want IDE hover to show field-specific docs
+- Working with complex domain models
+
+### 3. Inline Comments
+
+Quick, single-line descriptions:
+
+```python
+@fraiseql.type
+class User:
+    id: ID  # Unique user identifier
+    name: str  # User's full name
+    email: str  # User's email address
+```
+
+**Note:** Inline comments have **highest priority** and will override other documentation methods.
+
+### 4. Explicit `fraise_field` (Legacy)
+
+For backward compatibility and special cases:
+
+```python
+from fraiseql import fraise_field
+
+@fraiseql.type
+class User:
+    id: ID
+    name: str = fraise_field(description="User's full name")
+    email: str = fraise_field(
+        description="User's email address",
+        graphql_name="emailAddress"
+    )
+```
+
+**Use when:**
+- Need to override GraphQL field name
+- Migrating from older FraiseQL versions
+- Need other `fraise_field` options (purpose, init, etc.)
+
+### Documentation Priority Order
+
+When multiple documentation methods are used, FraiseQL applies them in this priority:
+
+1. **Inline comments** (highest priority)
+2. **Attribute-level docstrings**
+3. **Type annotations** (`Annotated[str, "description"]`)
+4. **Class docstring** (Google/Sphinx style)
+5. **Explicit `fraise_field(description="...")`** (backward compatibility)
+
+**Example with priorities:**
+```python
+@fraiseql.type
+class User:
+    """User account.
+
+    Fields:
+        name: From class docstring (lowest priority)
+        email: From class docstring
+    """
+
+    id: ID  # From inline comment (highest priority)
+
+    name: str
+    """From attribute docstring (overrides class docstring)."""
+
+    email: str
+    # Uses class docstring (no attribute docstring)
+
+    phone: str = fraise_field(description="Explicit description")
+```
+
+**Result:**
+- `id`: "From inline comment (highest priority)"
+- `name`: "From attribute docstring (overrides class docstring)."
+- `email`: "From class docstring"
+- `phone`: "Explicit description"
+
+### Best Practices
+
+1. **Be consistent** - Pick one style and use it throughout your project
+2. **Use class docstrings** (Google/Sphinx style) for most code - clean and compact
+3. **Use attribute docstrings** only when fields need detailed multi-line explanations
+4. **Keep descriptions concise** - Focus on what, not how
+5. **Document required fields** - Especially those without obvious names
+6. **Avoid mixing styles** - Stick to one approach per class
+
+### GraphQL Introspection
+
+All field descriptions automatically appear in:
+- GraphQL introspection queries
+- GraphQL Playground / GraphiQL documentation
+- Generated TypeScript/client code
+- API documentation tools
+
+**Introspection Example:**
+```graphql
+query IntrospectUser {
+  __type(name: "User") {
+    fields {
+      name
+      description
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "__type": {
+      "fields": [
+        {
+          "name": "id",
+          "description": "Unique user identifier."
+        },
+        {
+          "name": "name",
+          "description": "User's full name."
+        }
+      ]
+    }
+  }
+}
+```
+
 ## @input
 
 **Purpose**: Define GraphQL input types for mutations and queries

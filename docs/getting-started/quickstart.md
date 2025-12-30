@@ -89,7 +89,14 @@ from fraiseql.fastapi import create_fraiseql_app
 # Define GraphQL types
 @fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
-    """A simple note with title and content."""
+    """A simple note with title and content.
+
+    Fields:
+        id: Unique note identifier
+        title: Note title (max 200 characters)
+        content: Note content in plain text
+        created_at: When the note was created
+    """
     id: uuid.UUID
     title: str
     content: str | None

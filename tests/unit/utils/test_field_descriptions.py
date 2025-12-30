@@ -7,6 +7,7 @@ from uuid import UUID
 from fraiseql import fraise_field, fraise_type
 from fraiseql.utils.field_descriptions import (
     _extract_annotation_descriptions,
+    _extract_attribute_docstrings,
     _extract_docstring_descriptions,
     _extract_inline_comments,
     apply_auto_descriptions,
@@ -224,6 +225,82 @@ class TestAnnotationExtraction:
         assert descriptions == {}
 
 
+class TestAttributeDocstringExtraction:
+    """Test extraction of field descriptions from attribute-level docstrings.
+
+    Note: These tests use fixture classes from a separate file because dynamically
+    created classes don't have source code available for extraction.
+    """
+
+    def test_basic_attribute_docstring_extraction(self) -> None:
+        """Test extraction of simple attribute-level docstrings."""
+        from tests.unit.utils.fixtures import UserWithDocstrings
+
+        descriptions = _extract_attribute_docstrings(UserWithDocstrings)
+
+        assert descriptions["id"] == "Unique user identifier."
+        assert descriptions["name"] == "User's full name."
+        assert descriptions["email"] == "User's email address."
+
+    def test_attribute_docstrings_with_defaults(self) -> None:
+        """Test attribute docstrings with default values."""
+        from tests.unit.utils.fixtures import ProductWithDocstrings
+
+        descriptions = _extract_attribute_docstrings(ProductWithDocstrings)
+
+        assert descriptions["id"] == "Product identifier."
+        assert descriptions["name"] == "Product name."
+        assert descriptions["price"] == "Product price in USD."
+        assert descriptions["status"] == "Product availability status."
+
+    def test_multiline_attribute_docstrings(self) -> None:
+        """Test extraction of multiline attribute docstrings."""
+        from tests.unit.utils.fixtures import OrderWithMultilineDocstrings
+
+        descriptions = _extract_attribute_docstrings(OrderWithMultilineDocstrings)
+
+        # inspect.cleandoc should clean the indentation
+        assert "Unique order identifier" in descriptions["id"]
+        assert "Generated automatically" in descriptions["id"]
+        assert "Detailed description" in descriptions["description"]
+        assert "Can span multiple lines" in descriptions["description"]
+
+    def test_mixed_fields_with_and_without_docstrings(self) -> None:
+        """Test extraction when only some fields have docstrings."""
+        from tests.unit.utils.fixtures import MixedDocumentation
+
+        descriptions = _extract_attribute_docstrings(MixedDocumentation)
+
+        assert descriptions["id"] == "Has docstring."
+        assert descriptions["email"] == "Has docstring."
+        assert "name" not in descriptions
+        assert "age" not in descriptions
+
+    def test_no_attribute_docstrings_for_dynamic_classes(self) -> None:
+        """Test that dynamically created classes return empty dict."""
+
+        @fraise_type
+        @dataclass
+        class DynamicClass:
+            id: UUID
+            name: str
+
+        descriptions = _extract_attribute_docstrings(DynamicClass)
+        # Dynamic classes won't have source code available
+        assert descriptions == {}
+
+    def test_triple_quoted_attribute_docstrings(self) -> None:
+        """Test both single and triple-quoted docstrings."""
+        from tests.unit.utils.fixtures import AllQuoteTypes
+
+        descriptions = _extract_attribute_docstrings(AllQuoteTypes)
+
+        assert descriptions["single"] == "Single quotes docstring."
+        assert descriptions["double"] == "Double quotes docstring."
+        assert descriptions["triple_single"] == "Triple single quotes docstring."
+        assert descriptions["triple_double"] == "Triple double quotes docstring."
+
+
 class TestIntegratedExtraction:
     """Test the complete extract_field_descriptions function."""
 
@@ -269,6 +346,51 @@ class TestIntegratedExtraction:
 
         # Should get description from docstring since inline comments won't work for dynamic classes
         assert descriptions["name"] == "Product name from docstring"
+
+    def test_attribute_docstring_priority(self) -> None:
+        """Test that attribute docstrings override class docstring field descriptions."""
+        from tests.unit.utils.fixtures import PriorityTest
+
+        descriptions = extract_field_descriptions(PriorityTest)
+
+        # Attribute docstring should override class docstring
+        assert descriptions["name"] == "User's full name (from attribute docstring)."
+        # Class docstring should be used when no attribute docstring
+        assert descriptions["email"] == "This stays (no attribute docstring)"
+
+    def test_full_priority_chain(self) -> None:
+        """Test the complete priority chain with all description sources.
+
+        Note: This test uses dynamically created classes which don't have source code
+        available, so attribute docstrings cannot be extracted. In real file-based classes,
+        the priority order would be:
+        1. Inline comments (# comment) - highest
+        2. Attribute docstrings ('''docstring''') - high
+        3. Type annotations (Annotated[T, "desc"]) - medium
+        4. Class docstring (Fields: section) - lowest
+        """
+
+        @fraise_type
+        @dataclass
+        class CompleteExample:
+            """Example with all description types.
+
+            Fields:
+                from_class_docstring: From class docstring
+                could_be_overridden: Could be overridden by other sources
+            """
+
+            from_class_docstring: str
+            # Only class docstring available
+
+            could_be_overridden: str
+            # In real file-based classes, attribute docstrings would override this
+
+        descriptions = extract_field_descriptions(CompleteExample)
+
+        # For dynamically created classes, only class docstring works
+        assert descriptions["from_class_docstring"] == "From class docstring"
+        assert descriptions["could_be_overridden"] == "Could be overridden by other sources"
 
 
 class TestAutoDescriptionApplication:
