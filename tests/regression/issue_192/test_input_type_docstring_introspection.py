@@ -63,6 +63,7 @@ class TestInputTypeDocstringIntrospection:
 
         This is the main regression test for issue #192.
         """
+
         # Define input type with comprehensive docstring
         @fraise_input
         class CreateMachineInput:
@@ -137,6 +138,7 @@ class TestInputTypeDocstringIntrospection:
 
     def test_all_decorator_types_preserve_docstrings(self, registry) -> None:
         """Test that all FraiseQL decorators preserve and expose docstrings."""
+
         # Define types with each decorator
         @fraise_type
         class User:
@@ -171,7 +173,9 @@ class TestInputTypeDocstringIntrospection:
             return []
 
         @mutation
-        async def create_user(info, input: CreateUserInput) -> User | CreateUserSuccess | CreateUserError:  # type: ignore
+        async def create_user(
+            info, input: CreateUserInput
+        ) -> User | CreateUserSuccess | CreateUserError:  # type: ignore
             """Create a new user."""
             return None  # type: ignore
 
@@ -214,6 +218,7 @@ class TestInputTypeDocstringIntrospection:
 
     def test_input_type_without_docstring(self, registry) -> None:
         """Test that input types without docstrings have null description."""
+
         # Define input type WITHOUT docstring
         @fraise_input
         class SimpleInput:

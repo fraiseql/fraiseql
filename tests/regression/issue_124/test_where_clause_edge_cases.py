@@ -65,9 +65,7 @@ class TestWhereClauseEdgeCases:
     """Edge case tests for WHERE clause filtering."""
 
     @pytest_asyncio.fixture
-    async def setup_complex_data(
-        self, class_db_pool, test_schema, clear_registry_class
-    ) -> dict:
+    async def setup_complex_data(self, class_db_pool, test_schema, clear_registry_class) -> dict:
         """Create complex test data with multiple relationships."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -316,8 +314,7 @@ class TestWhereClauseEdgeCases:
 
         # Should return exactly 1 result
         assert len(results) == 1, (
-            f"Expected 1 result but got {len(results)}. "
-            "Multiple FK filters not working correctly."
+            f"Expected 1 result but got {len(results)}. Multiple FK filters not working correctly."
         )
 
         # Verify it's the correct assignment (by device and department)
@@ -329,9 +326,7 @@ class TestWhereClauseEdgeCases:
         assert str(department.get("id")).lower() == str(test_data["department1_id"]).lower()
 
     @pytest.mark.asyncio
-    async def test_null_fk_with_isnull_operator(
-        self, class_db_pool, setup_complex_data
-    ) -> None:
+    async def test_null_fk_with_isnull_operator(self, class_db_pool, setup_complex_data) -> None:
         """Test IS NULL operator on FK relationships.
 
         Query: device IS NULL
@@ -367,14 +362,10 @@ class TestWhereClauseEdgeCases:
 
         # Verify all have NULL device
         for r in results:
-            assert r.get("device") is None, (
-                f"Assignment {r['id']} should have NULL device"
-            )
+            assert r.get("device") is None, f"Assignment {r['id']} should have NULL device"
 
     @pytest.mark.asyncio
-    async def test_not_null_fk_with_isnull_false(
-        self, class_db_pool, setup_complex_data
-    ) -> None:
+    async def test_not_null_fk_with_isnull_false(self, class_db_pool, setup_complex_data) -> None:
         """Test IS NOT NULL operator on FK relationships.
 
         Query: device IS NOT NULL
@@ -409,14 +400,10 @@ class TestWhereClauseEdgeCases:
 
         # Verify all have non-NULL device
         for r in results:
-            assert r.get("device") is not None, (
-                f"Assignment {r['id']} should have non-NULL device"
-            )
+            assert r.get("device") is not None, f"Assignment {r['id']} should have non-NULL device"
 
     @pytest.mark.asyncio
-    async def test_combined_fk_and_regular_filters(
-        self, class_db_pool, setup_complex_data
-    ) -> None:
+    async def test_combined_fk_and_regular_filters(self, class_db_pool, setup_complex_data) -> None:
         """Test combining FK filters with regular column filters.
 
         Query: device = device2 AND status IN ('active', 'pending')
@@ -453,8 +440,7 @@ class TestWhereClauseEdgeCases:
         results = extract_graphql_data(result, "tv_assignment")
 
         assert len(results) == 2, (
-            f"Expected 2 results but got {len(results)}. "
-            "Combined FK + regular filters failed."
+            f"Expected 2 results but got {len(results)}. Combined FK + regular filters failed."
         )
 
         # Verify all are device2
@@ -538,17 +524,13 @@ class TestWhereClauseEdgeCases:
         DeviceWhereInput = create_graphql_where_input(Device)
         AssignmentWhereInput = create_graphql_where_input(Assignment)
 
-        where = AssignmentWhereInput(
-            device=DeviceWhereInput(name=StringFilter(contains="Device"))
-        )
+        where = AssignmentWhereInput(device=DeviceWhereInput(name=StringFilter(contains="Device")))
 
         result = await repo.find("tv_assignment", where=where)
         results = extract_graphql_data(result, "tv_assignment")
 
         # Should find all assignments where device.name contains "Device"
-        assert len(results) == 4, (
-            f"Expected 4 results with 'Device' in name but got {len(results)}"
-        )
+        assert len(results) == 4, f"Expected 4 results with 'Device' in name but got {len(results)}"
 
         # Verify all have "Device" in device name
         for r in results:
@@ -559,9 +541,7 @@ class TestWhereClauseEdgeCases:
             )
 
     @pytest.mark.asyncio
-    async def test_double_negation_not_not(
-        self, class_db_pool, setup_complex_data
-    ) -> None:
+    async def test_double_negation_not_not(self, class_db_pool, setup_complex_data) -> None:
         """Test double negation: NOT (NOT condition).
 
         Query: NOT (NOT (status = 'active'))
@@ -607,9 +587,7 @@ class TestWhereClauseArrayOperators:
     """Test array operators on hybrid tables with PostgreSQL arrays."""
 
     @pytest_asyncio.fixture
-    async def setup_array_data(
-        self, class_db_pool, test_schema, clear_registry_class
-    ) -> dict:
+    async def setup_array_data(self, class_db_pool, test_schema, clear_registry_class) -> dict:
         """Create test data with array fields."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -722,9 +700,7 @@ class TestWhereClauseArrayOperators:
             return {"device1_id": device1_id, "department1_id": department1_id}
 
     @pytest.mark.asyncio
-    async def test_array_contains_single_value(
-        self, class_db_pool, setup_array_data
-    ) -> None:
+    async def test_array_contains_single_value(self, class_db_pool, setup_array_data) -> None:
         """Test PostgreSQL array contains operator with single value.
 
         Query: tags @> ARRAY['production']
@@ -799,9 +775,7 @@ class TestWhereClauseArrayOperators:
         results = extract_graphql_data(result, "tv_assignment")
 
         # Should return 4 assignments (tags is NOT NULL)
-        assert len(results) == 4, (
-            f"Expected 4 results with non-NULL tags but got {len(results)}"
-        )
+        assert len(results) == 4, f"Expected 4 results with non-NULL tags but got {len(results)}"
 
         # Verify results are returned (GraphQL may not include tags field in response)
         # The important thing is the filter worked correctly to return 4 results
@@ -814,9 +788,7 @@ class TestWhereClausePerformanceEdgeCases:
     """Test performance-related edge cases for WHERE clause filtering."""
 
     @pytest_asyncio.fixture
-    async def setup_large_dataset(
-        self, class_db_pool, test_schema, clear_registry_class
-    ) -> dict:
+    async def setup_large_dataset(self, class_db_pool, test_schema, clear_registry_class) -> dict:
         """Create a larger dataset to test performance edge cases."""
         async with class_db_pool.connection() as conn:
             await conn.execute(f"SET search_path TO {test_schema}, public")
@@ -888,9 +860,7 @@ class TestWhereClausePerformanceEdgeCases:
             }
 
     @pytest.mark.asyncio
-    async def test_filter_on_large_dataset(
-        self, class_db_pool, setup_large_dataset
-    ) -> None:
+    async def test_filter_on_large_dataset(self, class_db_pool, setup_large_dataset) -> None:
         """Test that FK filtering performs well on larger datasets.
 
         Ensures the fix for Issue #124 doesn't regress performance.
@@ -935,9 +905,7 @@ class TestWhereClausePerformanceEdgeCases:
         for r in results:
             device = r.get("device")
             assert device is not None
-            assert str(device.get("id")).lower() == str(
-                test_data["device0_id"]
-            ).lower()
+            assert str(device.get("id")).lower() == str(test_data["device0_id"]).lower()
 
     @pytest.mark.asyncio
     async def test_complex_filter_on_large_dataset(
