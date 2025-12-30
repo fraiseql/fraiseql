@@ -85,27 +85,28 @@ class GraphQLInfoInjector:
             Decorated function that injects info
         """
 
-                    @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                # Check if function expects 'info' parameter
-                sig = inspect.signature(func)
-                has_info_param = 'info' in sig.parameters
+@wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # Check if function expects 'info' parameter
+            sig = inspect.signature(func)
+            has_info_param = 'info' in sig.parameters
 
-                # Extract info from kwargs or positional args if available
-                info = None
-                if has_info_param:
-                    # Try to get info from kwargs first
+            # Extract info from kwargs or positional args if available
+            info = None
+            if has_info_param:
+                # Try to get info from kwargs first
+                if 'info' in kwargs:
+                    info = kwargs['info']
+                    # Try to get info from args as well for flexibility
                     if 'info' in kwargs:
                         info = kwargs['info']
-                        info = self.process_info(info)
-                        kwargs['info'] = info
-                    elif len(args) > 1:
-                        # Try to get from positional args (typically: obj, info)
-                        info = args[1]
-                        info = self.process_info(info)
-                        args = (args[0], info) + args[2:]
+                elif len(args) > 1:
+                    # Try to get from positional args (typically: obj, info)
+                    info = args[1]
+                    info = self.process_info(info)
+                    args = (args[0], info) + args[2:]
 
-                # Call the original function with modified args/kwargs
-                return func(*args, **kwargs)
+            # Call the original function with modified args/kwargs
+            return func(*args, **kwargs)
 
-            return sync_wrapper
+        return sync_wrapper
