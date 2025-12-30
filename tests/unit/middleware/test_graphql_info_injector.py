@@ -3,13 +3,14 @@ from unittest.mock import Mock, patch, MagicMock
 from fraiseql.middleware.graphql_info_injector import GraphQLInfoInjector
 
 
-class TestGraphQLInfoInjector:
-    """Test suite for GraphQL Info Injector middleware."""
-
     @pytest.fixture
     def injector():
         """Create an injector instance for testing."""
         return GraphQLInfoInjector()
+
+class TestGraphQLInfoInjector:
+    """Test suite for GraphQL Info Injector middleware."""
+
 
     def test_injector_initialization(self, injector):
         """Test that injector initializes correctly."""
