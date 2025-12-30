@@ -2,6 +2,25 @@
 
 This guide provides recommendations for effectively using GraphQL Cascade in your FraiseQL applications. Cascade enables automatic cache updates and side effect tracking, but proper usage is key to maximizing benefits while avoiding pitfalls.
 
+## Quick Decision Matrix
+
+| Mutation Type | CASCADE? | Reason |
+|--------------|----------|---------|
+| Create post with author stats update | ✅ YES | Multiple entities affected, cache needs update |
+| Update user preference (UI only) | ❌ NO | Single entity, no side effects |
+| Bulk data import (100+ records) | ❌ NO | Large payload, server-side operation |
+| Mobile app background sync | ❌ NO | Bandwidth concerns, not user-facing |
+| Order creation (inventory update) | ✅ YES | Side effects (inventory) need cache update |
+| Delete comment (update counts) | ✅ YES | Related entities (post, user) affected |
+| Simple status toggle | ❌ NO | Single field update, no dependencies |
+| Create invoice (update account balance) | ✅ YES | Financial side effects critical for UI |
+
+**Rule of Thumb**:
+- **Use CASCADE** when side effects affect entities the client cares about
+- **Skip CASCADE** for simple CRUD or server-side operations
+
+---
+
 ## When to Use Cascade
 
 ### ✅ Request CASCADE When:
@@ -145,6 +164,86 @@ class UpdateUserPreferences:
 - Bulk imports/exports
 - Database migrations
 - Administrative operations
+
+---
+
+## Mutations Without CASCADE
+
+For simple mutations with no side effects, skip CASCADE entirely to reduce payload size and improve performance.
+
+### GraphQL (No CASCADE Requested)
+
+```graphql
+mutation UpdateUserPreference($input: PreferenceInput!) {
+  updatePreference(input: $input) {
+    ... on UpdatePreferenceSuccess {
+      message  # Just show success message
+      # NO cascade field requested
+    }
+  }
+}
+```
+
+**Response** (minimal payload):
+```json
+{
+  "data": {
+    "updatePreference": {
+      "message": "Preference updated successfully"
+    }
+  }
+}
+```
+
+### SQL Function (No CASCADE Tracking)
+
+```sql
+CREATE OR REPLACE FUNCTION fn_update_preference(
+    p_user_id UUID,
+    p_key TEXT,
+    p_value TEXT
+) RETURNS JSONB AS $$
+BEGIN
+    UPDATE tb_user_preferences
+    SET value = p_value, updated_at = NOW()
+    WHERE user_id = p_user_id AND key = p_key;
+
+    -- Simple success response (no _cascade object)
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Preference updated'
+    );
+    -- Note: No app.build_cascade() call
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Python Mutation (CASCADE Disabled)
+
+```python
+from fraiseql import mutation
+
+@mutation  # Note: enable_cascade=False by default
+class UpdateUserPreference:
+    """Simple preference update - no side effects"""
+    input: UpdatePreferenceInput
+    success: UpdatePreferenceSuccess
+    error: UpdatePreferenceError
+```
+
+**Benefits**:
+- ✅ **Smaller payload**: ~50-80% reduction vs CASCADE response
+- ✅ **Faster response**: No CASCADE tracking overhead
+- ✅ **Lower bandwidth**: Critical for mobile clients
+- ✅ **Simpler debugging**: Less data to inspect
+
+**Use this pattern for**:
+- User preferences/settings
+- Simple status toggles
+- Single-field updates
+- Background operations
+
+---
 
 ## Designing Cascade Data
 
