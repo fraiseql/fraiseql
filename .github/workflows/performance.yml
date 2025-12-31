@@ -23,15 +23,4 @@ jobs:
 
       - name: Run benchmarks
         working-directory: fraiseql_rs
-        run: cargo bench --all -- --output-format bencher | tee output.txt
-
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'cargo'
-          output-file-path: fraiseql_rs/output.txt
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          alert-threshold: '105%'  # Alert if >5% regression
-          comment-on-alert: true
-          fail-on-alert: false
-          auto-push: false
+        run: cargo bench --all

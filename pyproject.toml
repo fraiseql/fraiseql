@@ -237,7 +237,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py"]
+exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py", ".phases"]
 fix = true
 
 [tool.ruff.lint]
