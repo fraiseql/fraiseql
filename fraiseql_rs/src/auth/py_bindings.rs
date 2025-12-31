@@ -8,7 +8,7 @@ use crate::pipeline::unified::UserContext;
 
 /// Python wrapper for `UserContext` (exposed from Rust to Python)
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PyUserContext {
     /// User identifier
     #[pyo3(get)]
@@ -217,5 +217,15 @@ impl PyAuthProvider {
     #[must_use]
     pub fn audience(&self) -> Vec<String> {
         self.audience.clone()
+    }
+}
+
+impl std::fmt::Debug for PyAuthProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PyAuthProvider")
+            .field("provider_type", &self.provider_type)
+            .field("domain_or_issuer", &self.domain_or_issuer)
+            .field("audience", &self.audience)
+            .finish()
     }
 }
