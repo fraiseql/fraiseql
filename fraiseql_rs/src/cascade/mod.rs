@@ -76,6 +76,13 @@ impl CascadeSelections {
     ///   }
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON string is not valid JSON syntax
+    /// - JSON structure doesn't match expected cascade selections format
+    /// - Required fields are missing or have wrong types
     pub fn from_json(json_str: &str) -> Result<Self, String> {
         serde_json::from_str(json_str).map_err(|e| format!("Invalid cascade selections JSON: {e}"))
     }
@@ -85,6 +92,12 @@ impl CascadeSelections {
 ///
 /// This function operates on `serde_json::Value` for cases where
 /// you already have parsed JSON and want to avoid serialize/deserialize overhead.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cascade value is not a JSON object
+/// - Field filtering fails for updated/deleted/invalidations/metadata fields
 pub fn filter_cascade_by_selections(
     cascade: &Value,
     selections: &CascadeSelections,
@@ -154,6 +167,14 @@ fn convert_field_name(field_name: &str, auto_camel_case: bool) -> String {
 ///
 /// # Returns
 /// Filtered cascade data as JSON string
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cascade JSON is not valid JSON syntax
+/// - Selections JSON is invalid or malformed
+/// - Cascade object filtering fails
+/// - Filtered cascade cannot be serialized back to JSON
 ///
 /// # Performance
 /// - Zero-copy JSON manipulation where possible
