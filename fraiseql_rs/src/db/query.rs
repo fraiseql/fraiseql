@@ -38,8 +38,8 @@ impl<'a> QueryExecutor<'a> {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> DatabaseResult<QueryResult> {
-        let sql = self.build_select_sql(table, columns, &where_clause, order_by, limit, offset)?;
-        let params = self.extract_params(&where_clause);
+        let sql = Self::build_select_sql(table, columns, &where_clause, order_by, limit, offset)?;
+        let params = Self::extract_params(&where_clause);
 
         // Validate parameters before execution
         for param in &params {
@@ -54,7 +54,7 @@ impl<'a> QueryExecutor<'a> {
             .await
             .map_err(|e| DatabaseError::Query(format!("SELECT query failed: {e}")))?;
 
-        let result = self.rows_to_query_result(rows);
+        let result = Self::rows_to_query_result(rows);
         Ok(result)
     }
 
@@ -72,7 +72,7 @@ impl<'a> QueryExecutor<'a> {
         columns: &[&str],
         values: &[QueryParam],
     ) -> DatabaseResult<u64> {
-        let sql = self.build_insert_sql(table, columns, values.len())?;
+        let sql = Self::build_insert_sql(table, columns, values.len())?;
 
         // Validate parameters before execution
         for param in values {
@@ -166,7 +166,6 @@ impl<'a> QueryExecutor<'a> {
 
     /// Build SELECT SQL statement.
     fn build_select_sql(
-        &self,
         table: &str,
         columns: &[&str],
         where_clause: &Option<WhereBuilder>,
@@ -201,7 +200,6 @@ impl<'a> QueryExecutor<'a> {
 
     /// Build INSERT SQL statement.
     fn build_insert_sql(
-        &self,
         table: &str,
         columns: &[&str],
         value_count: usize,
@@ -222,7 +220,7 @@ impl<'a> QueryExecutor<'a> {
         updates: &std::collections::HashMap<&str, QueryParam>,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<(String, Vec<QueryParam>)> {
-        let mut params = self.hashmap_to_params(updates);
+        let mut params = Self::hashmap_to_params(updates);
         let param_offset = params.len();
 
         let set_clauses: Vec<String> = updates
@@ -255,7 +253,7 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Extract parameters from WHERE builder.
-    fn extract_params(&self, where_clause: &Option<WhereBuilder>) -> Vec<QueryParam> {
+    fn extract_params(where_clause: &Option<WhereBuilder>) -> Vec<QueryParam> {
         if let Some(builder) = where_clause {
             let (_, params) = builder.clone().build();
             params
@@ -266,14 +264,13 @@ impl<'a> QueryExecutor<'a> {
 
     /// Convert `HashMap` updates to parameter vector.
     fn hashmap_to_params(
-        &self,
         updates: &std::collections::HashMap<&str, QueryParam>,
     ) -> Vec<QueryParam> {
         updates.values().cloned().collect()
     }
 
     /// Convert `PostgreSQL` rows to `QueryResult`.
-    fn rows_to_query_result(&self, rows: Vec<Row>) -> QueryResult {
+    fn rows_to_query_result(rows: Vec<Row>) -> QueryResult {
         if rows.is_empty() {
             return QueryResult {
                 rows_affected: 0,
@@ -292,7 +289,7 @@ impl<'a> QueryExecutor<'a> {
             .into_iter()
             .map(|row| {
                 (0..row.len())
-                    .map(|i| self.postgres_value_to_query_param(&row, i))
+                    .map(|i| Self::postgres_value_to_query_param(&row, i))
                     .collect()
             })
             .collect();
@@ -305,7 +302,7 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Convert `PostgreSQL` value to `QueryParam`.
-    fn postgres_value_to_query_param(&self, row: &Row, index: usize) -> QueryParam {
+    fn postgres_value_to_query_param(row: &Row, index: usize) -> QueryParam {
         // Try different PostgreSQL types in order of preference
         if let Ok(Some(val)) = row.try_get::<_, Option<i32>>(index) {
             QueryParam::Int(val)

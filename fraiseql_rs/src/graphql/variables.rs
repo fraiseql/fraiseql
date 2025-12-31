@@ -105,10 +105,10 @@ impl VariableProcessor {
         expected_type: &GraphQLType,
     ) -> Result<serde_json::Value, String> {
         match expected_type.name.as_str() {
-            "String" => self.coerce_to_string(value),
-            "Int" => self.coerce_to_int(value),
-            "Float" => self.coerce_to_float(value),
-            "Boolean" => self.coerce_to_boolean(value),
+            "String" => Self::coerce_to_string(value),
+            "Int" => Self::coerce_to_int(value),
+            "Float" => Self::coerce_to_float(value),
+            "Boolean" => Self::coerce_to_boolean(value),
             "ID" => self.coerce_to_id(value),
             _ => {
                 // For custom types, just validate nullability
@@ -123,7 +123,7 @@ impl VariableProcessor {
         }
     }
 
-    fn coerce_to_string(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
+    fn coerce_to_string(value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
             serde_json::Value::String(s) => Ok(serde_json::Value::String(s.clone())),
             serde_json::Value::Number(n) => Ok(serde_json::Value::String(n.to_string())),
@@ -132,7 +132,7 @@ impl VariableProcessor {
         }
     }
 
-    fn coerce_to_int(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
+    fn coerce_to_int(value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
             serde_json::Value::Number(n) if n.is_i64() => Ok(serde_json::Value::Number(n.clone())),
             serde_json::Value::String(s) => s
@@ -143,7 +143,7 @@ impl VariableProcessor {
         }
     }
 
-    fn coerce_to_float(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
+    fn coerce_to_float(value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
             serde_json::Value::Number(n) => Ok(serde_json::Value::Number(n.clone())),
             serde_json::Value::String(s) => s
@@ -159,7 +159,7 @@ impl VariableProcessor {
         }
     }
 
-    fn coerce_to_boolean(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
+    fn coerce_to_boolean(value: &serde_json::Value) -> Result<serde_json::Value, String> {
         match value {
             serde_json::Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
             serde_json::Value::String(s) => match s.to_lowercase().as_str() {
@@ -173,7 +173,7 @@ impl VariableProcessor {
 
     fn coerce_to_id(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
         // ID is serialized as String
-        self.coerce_to_string(value)
+        Self::coerce_to_string(value)
     }
 }
 
