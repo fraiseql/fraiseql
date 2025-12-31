@@ -16,6 +16,10 @@ pub struct UserContextCache {
 
 impl UserContextCache {
     /// Create a new user context cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `capacity` is 0.
     #[must_use]
     pub fn new(capacity: usize, ttl_seconds: u64) -> Self {
         Self {
@@ -27,6 +31,10 @@ impl UserContextCache {
     }
 
     /// Get user context from cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex is poisoned.
     #[must_use]
     pub fn get(&self, token: &str) -> Option<UserContext> {
         let key = Self::hash_token(token);
@@ -59,6 +67,10 @@ impl UserContextCache {
     }
 
     /// Store user context in cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex is poisoned.
     pub fn put(&self, token: &str, context: UserContext) {
         let key = Self::hash_token(token);
 
@@ -67,6 +79,10 @@ impl UserContextCache {
     }
 
     /// Clear all cached contexts.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex is poisoned.
     pub fn clear(&self) {
         let mut cache = self.cache.lock().unwrap();
         cache.clear();

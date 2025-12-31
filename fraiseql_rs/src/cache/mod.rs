@@ -41,6 +41,11 @@ pub struct CacheStats {
 }
 
 impl QueryPlanCache {
+    /// Create a new query plan cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max_size` is 0.
     #[must_use]
     pub fn new(max_size: usize) -> Self {
         Self {
@@ -53,6 +58,15 @@ impl QueryPlanCache {
         }
     }
 
+    /// Get a cached query plan by signature.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache mutex is poisoned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hits/misses counter mutex is poisoned.
     pub fn get(&self, signature: &str) -> Result<Option<CachedQueryPlan>> {
         let mut cache = self
             .cache
@@ -69,6 +83,11 @@ impl QueryPlanCache {
         }
     }
 
+    /// Store a query plan in the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache mutex is poisoned.
     pub fn put(&self, signature: String, plan: CachedQueryPlan) -> Result<()> {
         let mut cache = self
             .cache
@@ -78,6 +97,15 @@ impl QueryPlanCache {
         Ok(())
     }
 
+    /// Clear all cached plans and reset statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache mutex is poisoned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hits/misses counter mutex is poisoned.
     pub fn clear(&self) -> Result<()> {
         let mut cache = self
             .cache
@@ -92,6 +120,15 @@ impl QueryPlanCache {
         Ok(())
     }
 
+    /// Get cache statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache mutex is poisoned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hits/misses counter mutex is poisoned.
     pub fn stats(&self) -> Result<CacheStats> {
         let hits = *self.hits.lock().unwrap();
         let misses = *self.misses.lock().unwrap();
