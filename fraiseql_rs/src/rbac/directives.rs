@@ -47,7 +47,7 @@ impl DirectiveExtractor {
         Ok(())
     }
 
-    /// Parse directives into FieldPermissions
+    /// Parse directives into `FieldPermissions`
     fn extract_directives(directives: &[Directive]) -> RbacResult<FieldPermissions> {
         let mut permissions = FieldPermissions::default();
 

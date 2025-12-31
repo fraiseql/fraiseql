@@ -6,9 +6,9 @@
 //!
 //! ## Architecture
 //!
-//! FraiseQL has **two JSON transformation strategies**:
-//! - **crate::json_transform**: Value-based API for PyO3, schema-aware
-//! - **This module (core::transform)**: Zero-copy streaming API for query pipeline
+//! `FraiseQL` has **two JSON transformation strategies**:
+//! - **`crate::json_transform`**: Value-based API for `PyO3`, schema-aware
+//! - **This module (`core::transform`)**: Zero-copy streaming API for query pipeline
 //!
 //! ## When to Use This Module
 //!
@@ -20,7 +20,7 @@
 //! - Arena allocator available
 //!
 //! ❌ **Use `crate::json_transform` instead when**:
-//! - Called from Python via PyO3
+//! - Called from Python via `PyO3`
 //! - Need schema-aware transformation (nested types)
 //! - Working with JSON strings (`String` → `String`)
 //! - Need `serde_json::Value` compatibility
@@ -36,7 +36,7 @@ use pyo3::PyErr;
 ///
 /// # Recursion Safety
 ///
-/// Maximum depth: 64 levels (MAX_JSON_DEPTH)
+/// Maximum depth: 64 levels (`MAX_JSON_DEPTH`)
 ///
 /// **Stack usage calculation:**
 /// - Each recursion level: ~50-100 bytes (function frame + local variables)
@@ -88,7 +88,7 @@ impl Default for TransformConfig {
 ///
 /// Memory layout:
 /// ┌─────────────────────────────────────────────────┐
-/// │ Input Buffer (read-only)                        │ ← PostgreSQL result
+/// │ Input Buffer (read-only)                        │ ← `PostgreSQL` result
 /// ├─────────────────────────────────────────────────┤
 /// │ Arena (bump allocator)                          │ ← Temporary keys/values
 /// ├─────────────────────────────────────────────────┤
@@ -104,7 +104,7 @@ pub struct ZeroCopyTransformer<'a> {
 }
 
 impl<'a> ZeroCopyTransformer<'a> {
-    pub fn new(
+    pub const fn new(
         arena: &'a Arena,
         config: TransformConfig,
         typename: Option<&'a str>,
@@ -316,6 +316,7 @@ impl ByteBuf {
     /// - Field names: +50% if camelCase (longer keys)
     /// - Projection: -50% if projecting (fewer fields)
     #[inline]
+    #[must_use] 
     pub fn with_estimated_capacity(input_size: usize, config: &TransformConfig) -> Self {
         let base = (input_size as f32 * 1.2) as usize;
 
@@ -328,7 +329,7 @@ impl ByteBuf {
 
         let capacity = (base as f32 * multiplier) as usize;
 
-        ByteBuf {
+        Self {
             buf: Vec::with_capacity(capacity),
         }
     }
@@ -343,13 +344,14 @@ impl ByteBuf {
         self.buf.extend_from_slice(bytes);
     }
 
+    #[must_use] 
     pub fn into_vec(self) -> Vec<u8> {
         self.buf
     }
 
     /// Get mutable reference to internal buffer for direct writing
     #[inline(always)]
-    pub fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    pub const fn as_mut_vec(&mut self) -> &mut Vec<u8> {
         &mut self.buf
     }
 }
@@ -362,7 +364,8 @@ pub struct ByteReader<'a> {
 
 impl<'a> ByteReader<'a> {
     #[inline]
-    pub fn new(bytes: &'a [u8]) -> Self {
+    #[must_use] 
+    pub const fn new(bytes: &'a [u8]) -> Self {
         ByteReader { bytes, pos: 0 }
     }
 
@@ -599,7 +602,7 @@ pub struct JsonWriter<'a> {
 
 impl<'a> JsonWriter<'a> {
     #[inline]
-    pub fn new(output: &'a mut ByteBuf) -> Self {
+    pub const fn new(output: &'a mut ByteBuf) -> Self {
         JsonWriter {
             output,
             needs_comma: false,
@@ -726,17 +729,17 @@ pub enum TransformError {
 impl std::fmt::Display for TransformError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            TransformError::UnexpectedEof => write!(f, "Unexpected end of input"),
-            TransformError::UnexpectedByte(b) => write!(f, "Unexpected byte: {}", b),
-            TransformError::ExpectedByte(expected, got) => {
-                write!(f, "Expected byte {}, got {}", expected, got)
+            Self::UnexpectedEof => write!(f, "Unexpected end of input"),
+            Self::UnexpectedByte(b) => write!(f, "Unexpected byte: {b}"),
+            Self::ExpectedByte(expected, got) => {
+                write!(f, "Expected byte {expected}, got {got}")
             }
-            TransformError::UnterminatedString => write!(f, "Unterminated string"),
-            TransformError::InvalidBool => write!(f, "Invalid boolean value"),
-            TransformError::InvalidNull => write!(f, "Invalid null value"),
-            TransformError::InvalidNumber => write!(f, "Invalid number"),
-            TransformError::MaxDepthExceeded(max) => {
-                write!(f, "JSON nesting depth exceeded maximum of {}", max)
+            Self::UnterminatedString => write!(f, "Unterminated string"),
+            Self::InvalidBool => write!(f, "Invalid boolean value"),
+            Self::InvalidNull => write!(f, "Invalid null value"),
+            Self::InvalidNumber => write!(f, "Invalid number"),
+            Self::MaxDepthExceeded(max) => {
+                write!(f, "JSON nesting depth exceeded maximum of {max}")
             }
         }
     }
@@ -745,7 +748,7 @@ impl std::fmt::Display for TransformError {
 impl std::error::Error for TransformError {}
 
 impl From<TransformError> for PyErr {
-    fn from(err: TransformError) -> PyErr {
+    fn from(err: TransformError) -> Self {
         pyo3::exceptions::PyValueError::new_err(err.to_string())
     }
 }

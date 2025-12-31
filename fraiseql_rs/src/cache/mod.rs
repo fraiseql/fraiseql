@@ -41,6 +41,7 @@ pub struct CacheStats {
 }
 
 impl QueryPlanCache {
+    #[must_use]
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
@@ -56,7 +57,7 @@ impl QueryPlanCache {
         let mut cache = self
             .cache
             .lock()
-            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
+            .map_err(|e| anyhow!("Cache lock error: {e}"))?;
 
         if let Some(plan) = cache.get_mut(signature) {
             plan.hit_count += 1;
@@ -72,7 +73,7 @@ impl QueryPlanCache {
         let mut cache = self
             .cache
             .lock()
-            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
+            .map_err(|e| anyhow!("Cache lock error: {e}"))?;
         cache.put(signature, plan);
         Ok(())
     }
@@ -81,7 +82,7 @@ impl QueryPlanCache {
         let mut cache = self
             .cache
             .lock()
-            .map_err(|e| anyhow!("Cache lock error: {}", e))?;
+            .map_err(|e| anyhow!("Cache lock error: {e}"))?;
         cache.clear();
 
         // Reset counters
@@ -97,7 +98,7 @@ impl QueryPlanCache {
         let size = self
             .cache
             .lock()
-            .map_err(|e| anyhow!("Cache lock error: {}", e))?
+            .map_err(|e| anyhow!("Cache lock error: {e}"))?
             .len();
 
         Ok(CacheStats {

@@ -4,6 +4,7 @@ use crate::graphql::types::{FieldSelection, ParsedQuery};
 use sha2::{Digest, Sha256};
 
 /// Generate cache key from GraphQL query.
+#[must_use]
 pub fn generate_signature(parsed_query: &ParsedQuery) -> String {
     // Create string representation of query structure (ignoring variables and literals)
     let structure = build_query_structure(parsed_query);
@@ -13,7 +14,7 @@ pub fn generate_signature(parsed_query: &ParsedQuery) -> String {
     hasher.update(&structure);
     let hash = hasher.finalize();
 
-    format!("{:x}", hash)
+    format!("{hash:x}")
 }
 
 /// Build structural representation (variables → placeholders).
@@ -53,7 +54,8 @@ fn build_selection_structure(selection: &FieldSelection) -> String {
 }
 
 /// Check if query is suitable for caching.
-pub fn is_cacheable(parsed_query: &ParsedQuery) -> bool {
+#[must_use]
+pub const fn is_cacheable(parsed_query: &ParsedQuery) -> bool {
     // Cacheable if:
     // 1. No variables (fully static query)
     // 2. All arguments are literal values (not variables)
@@ -65,7 +67,7 @@ pub fn is_cacheable(parsed_query: &ParsedQuery) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphql::types::{FieldSelection, GraphQLArgument, ParsedQuery, VariableDefinition};
+    use crate::graphql::types::{FieldSelection, ParsedQuery};
 
     #[test]
     fn test_signature_generation() {

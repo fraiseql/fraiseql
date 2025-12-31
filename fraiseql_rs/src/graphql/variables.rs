@@ -22,6 +22,7 @@ pub struct VariableProcessor {
 
 impl VariableProcessor {
     /// Create a new variable processor
+    #[must_use] 
     pub fn new(query: &ParsedQuery) -> Self {
         // Extract variable definitions from query
         let definitions = query
@@ -34,6 +35,7 @@ impl VariableProcessor {
     }
 
     /// Process and validate variables against their definitions
+    #[must_use] 
     pub fn process_variables(
         &self,
         input_variables: &HashMap<String, serde_json::Value>,
@@ -55,7 +57,7 @@ impl VariableProcessor {
         // Check for undefined variables
         for var_name in input_variables.keys() {
             if !self.definitions.contains_key(var_name) {
-                errors.push(format!("Variable '${}' is not defined in query", var_name));
+                errors.push(format!("Variable '${var_name}' is not defined in query"));
             }
         }
 
@@ -84,11 +86,11 @@ impl VariableProcessor {
                 if let Some(default_str) = &definition.default_value {
                     // Parse the JSON string to serde_json::Value
                     serde_json::from_str(default_str)
-                        .map_err(|_| format!("Invalid default value for variable '${}'", var_name))
+                        .map_err(|_| format!("Invalid default value for variable '${var_name}'"))
                 } else if definition.var_type.nullable {
                     Ok(serde_json::Value::Null)
                 } else {
-                    Err(format!("Required variable '${}' is not provided", var_name))
+                    Err(format!("Required variable '${var_name}' is not provided"))
                 }
             }
         }
@@ -145,9 +147,7 @@ impl VariableProcessor {
             serde_json::Value::String(s) => s
                 .parse::<f64>()
                 .map(|n| {
-                    serde_json::Number::from_f64(n)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or_else(|| serde_json::Value::String(s.clone()))
+                    serde_json::Number::from_f64(n).map_or_else(|| serde_json::Value::String(s.clone()), serde_json::Value::Number)
                 })
                 .map_err(|_| "Cannot coerce string to Float".to_string()),
             _ => Err("Cannot coerce value to Float".to_string()),

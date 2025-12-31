@@ -1,6 +1,6 @@
 //! GraphQL query parser using graphql-parser crate.
 
-use crate::graphql::types::*;
+use crate::graphql::types::{ParsedQuery, FieldSelection, VariableDefinition, GraphQLArgument, Directive, GraphQLType};
 use anyhow::{anyhow, Result};
 use graphql_parser::query::{
     self, Definition, Directive as GraphQLDirective, Document, OperationDefinition, Selection,
@@ -10,7 +10,7 @@ use graphql_parser::query::{
 pub fn parse_query(source: &str) -> Result<ParsedQuery> {
     // Use graphql-parser to parse query string
     let doc: Document<String> =
-        query::parse_query(source).map_err(|e| anyhow!("Failed to parse GraphQL query: {}", e))?;
+        query::parse_query(source).map_err(|e| anyhow!("Failed to parse GraphQL query: {e}"))?;
 
     // Extract first operation (ignore multiple operations for now)
     let operation = doc
@@ -188,12 +188,9 @@ fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Ve
                 // TODO Phase 9: Implement proper inline fragment handling
                 let type_name = frag
                     .type_condition
-                    .as_ref()
-                    .map(|t| format!("{}", t))
-                    .unwrap_or_else(|| "(unknown)".to_string());
+                    .as_ref().map_or_else(|| "(unknown)".to_string(), |t| format!("{t}"));
                 return Err(anyhow!(
-                    "Inline fragments not yet supported: ... on {}",
-                    type_name
+                    "Inline fragments not yet supported: ... on {type_name}"
                 ));
             }
             Selection::FragmentSpread(spread) => {
@@ -228,20 +225,20 @@ fn value_type_string(value: &query::Value<String>) -> String {
 /// Serialize GraphQL value to JSON string.
 fn serialize_value(value: &query::Value<String>) -> String {
     match value {
-        query::Value::String(s) => format!("\"{}\"", s.replace("\"", "\\\"")),
+        query::Value::String(s) => format!("\"{}\"", s.replace('"', "\\\"")),
         query::Value::Int(i) => {
             // SAFETY: graphql_parser::Number is a transparent wrapper around i64
             // This is safe because Number is repr(transparent) with single i64 field
             // TODO: File issue with graphql-parser to expose value or implement Display
             unsafe {
-                let ptr = i as *const query::Number as *const i64;
+                let ptr = std::ptr::from_ref::<query::Number>(i).cast::<i64>();
                 (*ptr).to_string()
             }
         }
-        query::Value::Float(f) => format!("{}", f),
+        query::Value::Float(f) => format!("{f}"),
         query::Value::Boolean(b) => b.to_string(),
         query::Value::Null => "null".to_string(),
-        query::Value::Enum(e) => format!("\"{}\"", e),
+        query::Value::Enum(e) => format!("\"{e}\""),
         query::Value::List(items) => {
             let serialized: Vec<_> = items.iter().map(serialize_value).collect();
             format!("[{}]", serialized.join(","))
@@ -253,7 +250,7 @@ fn serialize_value(value: &query::Value<String>) -> String {
                 .collect();
             format!("{{{}}}", pairs.join(","))
         }
-        query::Value::Variable(v) => format!("\"${}\"", v),
+        query::Value::Variable(v) => format!("\"${v}\""),
     }
 }
 
@@ -275,7 +272,7 @@ fn parse_directive(directive: &GraphQLDirective<String>) -> Result<Directive> {
     })
 }
 
-/// Parse GraphQL type from graphql-parser Type to our GraphQLType.
+/// Parse GraphQL type from graphql-parser Type to our `GraphQLType`.
 fn parse_graphql_type(graphql_type: &query::Type<String>) -> GraphQLType {
     match graphql_type {
         query::Type::NamedType(name) => GraphQLType {

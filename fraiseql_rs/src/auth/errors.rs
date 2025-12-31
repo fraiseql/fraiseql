@@ -34,13 +34,13 @@ pub enum AuthError {
 
 impl From<reqwest::Error> for AuthError {
     fn from(err: reqwest::Error) -> Self {
-        AuthError::HttpError(err.to_string())
+        Self::HttpError(err.to_string())
     }
 }
 
 impl From<serde_json::Error> for AuthError {
     fn from(err: serde_json::Error) -> Self {
-        AuthError::JsonError(err.to_string())
+        Self::JsonError(err.to_string())
     }
 }
 
@@ -48,10 +48,10 @@ impl From<jsonwebtoken::errors::Error> for AuthError {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
         use jsonwebtoken::errors::ErrorKind;
         match err.kind() {
-            ErrorKind::InvalidAudience => AuthError::InvalidAudience,
-            ErrorKind::ExpiredSignature => AuthError::TokenExpired,
-            ErrorKind::InvalidIssuer => AuthError::InvalidIssuer,
-            _ => AuthError::InvalidToken(err.to_string()),
+            ErrorKind::InvalidAudience => Self::InvalidAudience,
+            ErrorKind::ExpiredSignature => Self::TokenExpired,
+            ErrorKind::InvalidIssuer => Self::InvalidIssuer,
+            _ => Self::InvalidToken(err.to_string()),
         }
     }
 }

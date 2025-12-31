@@ -49,53 +49,51 @@ pub type Result<T> = std::result::Result<T, SecurityError>;
 impl fmt::Display for SecurityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SecurityError::RateLimitExceeded {
+            Self::RateLimitExceeded {
                 retry_after,
                 limit,
                 window_secs,
             } => {
                 write!(
                     f,
-                    "Rate limit exceeded. Limit: {} per {} seconds. Retry after: {} seconds",
-                    limit, window_secs, retry_after
+                    "Rate limit exceeded. Limit: {limit} per {window_secs} seconds. Retry after: {retry_after} seconds"
                 )
             }
-            SecurityError::QueryTooDeep { depth, max_depth } => {
-                write!(f, "Query too deep: {} levels (max: {})", depth, max_depth)
+            Self::QueryTooDeep { depth, max_depth } => {
+                write!(f, "Query too deep: {depth} levels (max: {max_depth})")
             }
-            SecurityError::QueryTooComplex {
+            Self::QueryTooComplex {
                 complexity,
                 max_complexity,
             } => {
                 write!(
                     f,
-                    "Query too complex: {} (max: {})",
-                    complexity, max_complexity
+                    "Query too complex: {complexity} (max: {max_complexity})"
                 )
             }
-            SecurityError::QueryTooLarge { size, max_size } => {
-                write!(f, "Query too large: {} bytes (max: {})", size, max_size)
+            Self::QueryTooLarge { size, max_size } => {
+                write!(f, "Query too large: {size} bytes (max: {max_size})")
             }
-            SecurityError::OriginNotAllowed(origin) => {
-                write!(f, "CORS origin not allowed: {}", origin)
+            Self::OriginNotAllowed(origin) => {
+                write!(f, "CORS origin not allowed: {origin}")
             }
-            SecurityError::MethodNotAllowed(method) => {
-                write!(f, "CORS method not allowed: {}", method)
+            Self::MethodNotAllowed(method) => {
+                write!(f, "CORS method not allowed: {method}")
             }
-            SecurityError::HeaderNotAllowed(header) => {
-                write!(f, "CORS header not allowed: {}", header)
+            Self::HeaderNotAllowed(header) => {
+                write!(f, "CORS header not allowed: {header}")
             }
-            SecurityError::InvalidCSRFToken(reason) => {
-                write!(f, "Invalid CSRF token: {}", reason)
+            Self::InvalidCSRFToken(reason) => {
+                write!(f, "Invalid CSRF token: {reason}")
             }
-            SecurityError::CSRFSessionMismatch => {
+            Self::CSRFSessionMismatch => {
                 write!(f, "CSRF token session mismatch")
             }
-            SecurityError::AuditLogFailure(reason) => {
-                write!(f, "Audit logging failed: {}", reason)
+            Self::AuditLogFailure(reason) => {
+                write!(f, "Audit logging failed: {reason}")
             }
-            SecurityError::SecurityConfigError(reason) => {
-                write!(f, "Security configuration error: {}", reason)
+            Self::SecurityConfigError(reason) => {
+                write!(f, "Security configuration error: {reason}")
             }
         }
     }
@@ -105,13 +103,13 @@ impl std::error::Error for SecurityError {}
 
 impl From<tokio_postgres::Error> for SecurityError {
     fn from(error: tokio_postgres::Error) -> Self {
-        SecurityError::AuditLogFailure(error.to_string())
+        Self::AuditLogFailure(error.to_string())
     }
 }
 
 impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for SecurityError {
     fn from(error: deadpool::managed::PoolError<tokio_postgres::Error>) -> Self {
-        SecurityError::AuditLogFailure(error.to_string())
+        Self::AuditLogFailure(error.to_string())
     }
 }
 

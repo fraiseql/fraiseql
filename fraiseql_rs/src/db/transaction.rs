@@ -15,7 +15,7 @@ impl<'a> Transaction<'a> {
     /// Begin a new transaction.
     pub async fn begin(client: &'a mut Client) -> Result<Self, DatabaseError> {
         client.execute("BEGIN", &[]).await.map_err(|e| {
-            DatabaseError::Transaction(format!("Failed to begin transaction: {}", e))
+            DatabaseError::Transaction(format!("Failed to begin transaction: {e}"))
         })?;
 
         Ok(Transaction {
@@ -30,7 +30,7 @@ impl<'a> Transaction<'a> {
             self.client
                 .execute("COMMIT", &[])
                 .await
-                .map_err(|e| DatabaseError::Transaction(format!("Failed to commit: {}", e)))?;
+                .map_err(|e| DatabaseError::Transaction(format!("Failed to commit: {e}")))?;
             self.active = false;
         }
         Ok(())
@@ -42,7 +42,7 @@ impl<'a> Transaction<'a> {
             self.client
                 .execute("ROLLBACK", &[])
                 .await
-                .map_err(|e| DatabaseError::Transaction(format!("Failed to rollback: {}", e)))?;
+                .map_err(|e| DatabaseError::Transaction(format!("Failed to rollback: {e}")))?;
             self.active = false;
         }
         Ok(())
@@ -51,19 +51,19 @@ impl<'a> Transaction<'a> {
     /// Create a savepoint for nested transactions.
     pub async fn savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
         self.client
-            .execute(&format!("SAVEPOINT {}", name), &[])
+            .execute(&format!("SAVEPOINT {name}"), &[])
             .await
-            .map_err(|e| DatabaseError::Transaction(format!("Savepoint failed: {}", e)))?;
+            .map_err(|e| DatabaseError::Transaction(format!("Savepoint failed: {e}")))?;
         Ok(())
     }
 
     /// Rollback to a savepoint.
     pub async fn rollback_to_savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
         self.client
-            .execute(&format!("ROLLBACK TO {}", name), &[])
+            .execute(&format!("ROLLBACK TO {name}"), &[])
             .await
             .map_err(|e| {
-                DatabaseError::Transaction(format!("Rollback to savepoint failed: {}", e))
+                DatabaseError::Transaction(format!("Rollback to savepoint failed: {e}"))
             })?;
         Ok(())
     }
@@ -77,7 +77,7 @@ impl<'a> Transaction<'a> {
         self.client
             .execute(sql, params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {}", e)))
+            .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {e}")))
     }
 
     /// Execute a query and return results within this transaction.
@@ -89,16 +89,16 @@ impl<'a> Transaction<'a> {
         self.client
             .query(sql, params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {}", e)))
+            .map_err(|e| DatabaseError::Query(format!("Transaction query failed: {e}")))
     }
 
     /// Get access to the underlying client for advanced operations.
-    pub fn client(&mut self) -> &mut Client {
+    pub const fn client(&mut self) -> &mut Client {
         self.client
     }
 }
 
-impl<'a> Drop for Transaction<'a> {
+impl Drop for Transaction<'_> {
     fn drop(&mut self) {
         // Note: In a real implementation, we'd want to rollback on drop if not committed
         // But for this phase, we'll keep it simple
@@ -107,9 +107,6 @@ impl<'a> Drop for Transaction<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::db::types::DatabaseResult;
-
     #[tokio::test]
     async fn test_transaction_lifecycle() {
         // This is a mock test - real transaction testing requires database setup

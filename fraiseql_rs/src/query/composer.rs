@@ -15,7 +15,8 @@ pub struct ComposedSQL {
 }
 
 impl SQLComposer {
-    pub fn new(schema: SchemaMetadata) -> Self {
+    #[must_use] 
+    pub const fn new(schema: SchemaMetadata) -> Self {
         Self { schema }
     }
 
@@ -76,22 +77,22 @@ impl SQLComposer {
             if where_clause.is_empty() {
                 String::new()
             } else {
-                format!("WHERE {}", where_clause)
+                format!("WHERE {where_clause}")
             },
             if order_clause.is_empty() {
                 String::new()
             } else {
-                format!(" {}", order_clause)
+                format!(" {order_clause}")
             },
             if limit_clause.is_empty() {
                 String::new()
             } else {
-                format!(" {}", limit_clause)
+                format!(" {limit_clause}")
             },
             if offset_clause.is_empty() {
                 String::new()
             } else {
-                format!(" {}", offset_clause)
+                format!(" {offset_clause}")
             }
         );
 
@@ -116,7 +117,7 @@ impl SQLComposer {
     ) -> Result<String> {
         // Extract limit value
         match limit_arg.value_json.parse::<i64>() {
-            Ok(limit) => Ok(format!("LIMIT {}", limit)),
+            Ok(limit) => Ok(format!("LIMIT {limit}")),
             Err(_) => Ok("LIMIT 100".to_string()),
         }
     }
@@ -127,7 +128,7 @@ impl SQLComposer {
     ) -> Result<String> {
         // Extract offset value
         match offset_arg.value_json.parse::<i64>() {
-            Ok(offset) => Ok(format!("OFFSET {}", offset)),
+            Ok(offset) => Ok(format!("OFFSET {offset}")),
             Err(_) => Ok(String::new()),
         }
     }

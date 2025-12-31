@@ -51,8 +51,8 @@ pub type Result<T> = std::result::Result<T, RbacError>;
 impl fmt::Display for RbacError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RbacError::Database(e) => write!(f, "Database error: {}", e),
-            RbacError::PermissionDenied {
+            Self::Database(e) => write!(f, "Database error: {e}"),
+            Self::PermissionDenied {
                 resource,
                 action,
                 user_id,
@@ -60,45 +60,42 @@ impl fmt::Display for RbacError {
                 if let Some(user) = user_id {
                     write!(
                         f,
-                        "Permission denied: {}:{} for user {}",
-                        resource, action, user
+                        "Permission denied: {resource}:{action} for user {user}"
                     )
                 } else {
-                    write!(f, "Permission denied: {}:{}", resource, action)
+                    write!(f, "Permission denied: {resource}:{action}")
                 }
             }
-            RbacError::MissingRole {
+            Self::MissingRole {
                 required_role,
                 available_roles,
             } => {
                 write!(
                     f,
-                    "Missing required role '{}'. Available roles: {:?}",
-                    required_role, available_roles
+                    "Missing required role '{required_role}'. Available roles: {available_roles:?}"
                 )
             }
-            RbacError::UserNotFound(user_id) => {
-                write!(f, "User not found in RBAC system: {}", user_id)
+            Self::UserNotFound(user_id) => {
+                write!(f, "User not found in RBAC system: {user_id}")
             }
-            RbacError::RoleNotFound(role_name) => {
-                write!(f, "Role not found: {}", role_name)
+            Self::RoleNotFound(role_name) => {
+                write!(f, "Role not found: {role_name}")
             }
-            RbacError::PermissionNotFound(perm) => {
-                write!(f, "Permission not found: {}", perm)
+            Self::PermissionNotFound(perm) => {
+                write!(f, "Permission not found: {perm}")
             }
-            RbacError::InvalidPermissionFormat(perm) => {
+            Self::InvalidPermissionFormat(perm) => {
                 write!(
                     f,
-                    "Invalid permission format '{}'. Expected 'resource:action'",
-                    perm
+                    "Invalid permission format '{perm}'. Expected 'resource:action'"
                 )
             }
-            RbacError::HierarchyCycle(roles) => {
-                write!(f, "Role hierarchy cycle detected: {:?}", roles)
+            Self::HierarchyCycle(roles) => {
+                write!(f, "Role hierarchy cycle detected: {roles:?}")
             }
-            RbacError::CacheError(msg) => write!(f, "Cache error: {}", msg),
-            RbacError::ConfigError(msg) => write!(f, "Configuration error: {}", msg),
-            RbacError::DirectiveError(msg) => write!(f, "Directive parsing error: {}", msg),
+            Self::CacheError(msg) => write!(f, "Cache error: {msg}"),
+            Self::ConfigError(msg) => write!(f, "Configuration error: {msg}"),
+            Self::DirectiveError(msg) => write!(f, "Directive parsing error: {msg}"),
         }
     }
 }
@@ -107,19 +104,19 @@ impl std::error::Error for RbacError {}
 
 impl From<uuid::Error> for RbacError {
     fn from(error: uuid::Error) -> Self {
-        RbacError::ConfigError(format!("UUID parsing error: {}", error))
+        Self::ConfigError(format!("UUID parsing error: {error}"))
     }
 }
 
 impl From<tokio_postgres::Error> for RbacError {
     fn from(error: tokio_postgres::Error) -> Self {
-        RbacError::Database(error.to_string())
+        Self::Database(error.to_string())
     }
 }
 
 impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for RbacError {
     fn from(error: deadpool::managed::PoolError<tokio_postgres::Error>) -> Self {
-        RbacError::Database(error.to_string())
+        Self::Database(error.to_string())
     }
 }
 

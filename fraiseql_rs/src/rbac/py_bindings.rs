@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// Python wrapper for PermissionResolver
+/// Python wrapper for `PermissionResolver`
 #[pyclass]
 pub struct PyPermissionResolver {
     resolver: Arc<PermissionResolver>,
@@ -78,7 +78,7 @@ impl PyPermissionResolver {
     }
 }
 
-/// Python wrapper for FieldAuthChecker
+/// Python wrapper for `FieldAuthChecker`
 #[pyclass]
 pub struct PyFieldAuthChecker {
     #[allow(dead_code)]

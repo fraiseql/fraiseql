@@ -1,4 +1,4 @@
-//! PyO3 bindings for authentication module (Phase 10).
+//! `PyO3` bindings for authentication module (Phase 10).
 
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::auth::provider::{Auth0Provider, AuthProvider, CustomJWTProvider};
 use crate::pipeline::unified::UserContext;
 
-/// Python wrapper for UserContext (exposed from Rust to Python)
+/// Python wrapper for `UserContext` (exposed from Rust to Python)
 #[pyclass]
 #[derive(Clone)]
 pub struct PyUserContext {
@@ -54,16 +54,15 @@ impl PyAuthProvider {
     ///     audience: List of allowed audiences
     ///
     /// Returns:
-    ///     PyAuthProvider instance
+    ///     `PyAuthProvider` instance
     ///
     /// Raises:
-    ///     ValueError: If domain or audience is invalid
+    ///     `ValueError`: If domain or audience is invalid
     #[staticmethod]
     pub fn auth0(domain: String, audience: Vec<String>) -> PyResult<Self> {
         let provider = Auth0Provider::new(&domain, audience.clone()).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Failed to create Auth0 provider: {}",
-                e
+                "Failed to create Auth0 provider: {e}"
             ))
         })?;
 
@@ -80,15 +79,15 @@ impl PyAuthProvider {
     /// Args:
     ///     issuer: JWT issuer URL (must be HTTPS)
     ///     audience: List of allowed audiences
-    ///     jwks_url: URL to fetch JWK set (must be HTTPS)
-    ///     roles_claim: Custom claim name for roles (default: "roles")
-    ///     permissions_claim: Custom claim name for permissions (default: "permissions")
+    ///     `jwks_url`: URL to fetch JWK set (must be HTTPS)
+    ///     `roles_claim`: Custom claim name for roles (default: "roles")
+    ///     `permissions_claim`: Custom claim name for permissions (default: "permissions")
     ///
     /// Returns:
-    ///     PyAuthProvider instance
+    ///     `PyAuthProvider` instance
     ///
     /// Raises:
-    ///     ValueError: If URLs are invalid or other parameters are malformed
+    ///     `ValueError`: If URLs are invalid or other parameters are malformed
     #[staticmethod]
     #[pyo3(signature = (issuer, audience, jwks_url, roles_claim="roles", permissions_claim="permissions"))]
     pub fn jwt(
@@ -107,8 +106,7 @@ impl PyAuthProvider {
         )
         .map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Failed to create custom JWT provider: {}",
-                e
+                "Failed to create custom JWT provider: {e}"
             ))
         })?;
 
@@ -128,10 +126,10 @@ impl PyAuthProvider {
     ///     token: JWT token string to validate
     ///
     /// Returns:
-    ///     PyUserContext with user_id, roles, permissions, and exp
+    ///     `PyUserContext` with `user_id`, roles, permissions, and exp
     ///
     /// Raises:
-    ///     RuntimeError: If token validation fails (expired, invalid signature, etc.)
+    ///     `RuntimeError`: If token validation fails (expired, invalid signature, etc.)
     ///
     /// Example:
     ///     ```python
@@ -151,7 +149,7 @@ impl PyAuthProvider {
     /// Validate a JWT token (blocks until validation completes).
     ///
     /// For best compatibility with Python async code, call this from
-    /// an executor like asyncio.to_thread.run_in_executor() or
+    /// an executor like `asyncio.to_thread.run_in_executor()` or
     /// concurrent.futures.ThreadPoolExecutor.
     ///
     /// Example:
@@ -176,8 +174,7 @@ impl PyAuthProvider {
 
         let context = rt.block_on(provider.validate_token(&token)).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Token validation failed: {}",
-                e
+                "Token validation failed: {e}"
             ))
         })?;
 
@@ -185,11 +182,13 @@ impl PyAuthProvider {
     }
 
     /// Get provider type (for debugging)
+    #[must_use]
     pub fn provider_type(&self) -> String {
         self.provider_type.clone()
     }
 
     /// Get configured audience list
+    #[must_use]
     pub fn audience(&self) -> Vec<String> {
         self.audience.clone()
     }

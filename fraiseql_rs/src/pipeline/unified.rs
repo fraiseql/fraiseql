@@ -35,7 +35,8 @@ pub struct GraphQLPipeline {
 }
 
 impl GraphQLPipeline {
-    pub fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>) -> Self {
+    #[must_use] 
+    pub const fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>) -> Self {
         Self { schema, cache }
     }
 
@@ -86,7 +87,7 @@ impl GraphQLPipeline {
             };
 
             if let Err(e) = self.cache.put(signature, cached_plan) {
-                eprintln!("Cache put error: {}", e); // Log but don't fail
+                eprintln!("Cache put error: {e}"); // Log but don't fail
             }
 
             sql_query.sql
@@ -113,7 +114,7 @@ impl GraphQLPipeline {
         let fragment_graph = FragmentGraph::new(query);
         fragment_graph
             .validate_fragments()
-            .map_err(|e| anyhow::anyhow!("Fragment validation error: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Fragment validation error: {e}"))?;
 
         // 2. Variable processing and validation
         let var_processor = VariableProcessor::new(query);
@@ -136,7 +137,7 @@ impl GraphQLPipeline {
         let analyzer = ComplexityAnalyzer::with_config(complexity_config);
         analyzer
             .validate_complexity(query)
-            .map_err(|e| anyhow::anyhow!("Complexity validation error: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Complexity validation error: {e}"))?;
 
         Ok(())
     }
@@ -249,7 +250,7 @@ impl PyGraphQLPipeline {
     }
 }
 
-/// Convert PyDict to HashMap for variables.
+/// Convert `PyDict` to `HashMap` for variables.
 fn dict_to_hashmap(dict: &Bound<'_, PyDict>) -> PyResult<HashMap<String, JsonValue>> {
     let mut result = HashMap::new();
     for (key, value) in dict.iter() {
@@ -277,7 +278,7 @@ fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<JsonValue> {
     }
 }
 
-/// Convert PyDict to UserContext.
+/// Convert `PyDict` to `UserContext`.
 fn dict_to_user_context(dict: &Bound<'_, PyDict>) -> PyResult<UserContext> {
     let user_id = dict.get_item("user_id")?.and_then(|v| {
         if v.is_none() {

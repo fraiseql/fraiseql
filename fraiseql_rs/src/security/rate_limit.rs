@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
 /// Rate limit strategy
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RateLimitStrategy {
     FixedWindow,
     SlidingWindow,
@@ -47,6 +47,7 @@ impl Default for RateLimiter {
 }
 
 impl RateLimiter {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             limits: HashMap::new(),
@@ -253,7 +254,7 @@ fn current_timestamp() -> u64 {
             // System clock is before Unix epoch - should never happen in production
             // Log and return 0 to avoid panic
             #[cfg(debug_assertions)]
-            eprintln!("ERROR: System clock before Unix epoch: {}", e);
+            eprintln!("ERROR: System clock before Unix epoch: {e}");
             0
         })
 }

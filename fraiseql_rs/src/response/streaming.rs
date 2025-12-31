@@ -11,8 +11,8 @@ pub struct ResponseStream<W: Write> {
 }
 
 impl<W: Write> ResponseStream<W> {
-    pub fn new(writer: W) -> Self {
-        ResponseStream {
+    pub const fn new(writer: W) -> Self {
+        Self {
             writer,
             row_count: 0,
             started: false,
@@ -50,7 +50,7 @@ impl<W: Write> ResponseStream<W> {
         Ok(())
     }
 
-    pub fn row_count(&self) -> usize {
+    pub const fn row_count(&self) -> usize {
         self.row_count
     }
 }
@@ -63,15 +63,17 @@ pub struct ChunkedWriter {
 }
 
 impl ChunkedWriter {
+    #[must_use] 
     pub fn new(chunk_size: usize) -> Self {
-        ChunkedWriter {
+        Self {
             buffer: Vec::with_capacity(chunk_size),
             chunk_size,
             total_written: 0,
         }
     }
 
-    pub fn should_flush(&self) -> bool {
+    #[must_use] 
+    pub const fn should_flush(&self) -> bool {
         self.buffer.len() >= self.chunk_size
     }
 
@@ -85,7 +87,8 @@ impl ChunkedWriter {
         ))
     }
 
-    pub fn total_written(&self) -> usize {
+    #[must_use] 
+    pub const fn total_written(&self) -> usize {
         self.total_written
     }
 }

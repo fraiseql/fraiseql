@@ -14,6 +14,7 @@ pub struct FragmentGraph {
 
 impl FragmentGraph {
     /// Create a new fragment graph from parsed query
+    #[must_use] 
     pub fn new(query: &ParsedQuery) -> Self {
         let mut dependencies = HashMap::new();
 
@@ -61,7 +62,7 @@ impl FragmentGraph {
 
     /// Detect cycles in fragment dependencies using DFS
     ///
-    /// Returns Ok(()) if no cycles found, Err(cycle_path) if cycle detected
+    /// Returns Ok(()) if no cycles found, `Err(cycle_path)` if cycle detected
     pub fn detect_cycles(&self) -> Result<(), Vec<String>> {
         let mut visited = HashSet::new();
         let mut recursion_stack = HashSet::new();

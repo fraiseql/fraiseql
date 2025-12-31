@@ -1,4 +1,4 @@
-//! Database connection and query execution layer for PostgreSQL.
+//! Database connection and query execution layer for `PostgreSQL`.
 //!
 //! This module provides:
 //! - Connection pooling with deadpool-postgres

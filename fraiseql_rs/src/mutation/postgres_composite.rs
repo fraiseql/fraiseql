@@ -1,21 +1,21 @@
-//! PostgreSQL composite type parser for app.mutation_response (8-field format)
+//! `PostgreSQL` composite type parser for `app.mutation_response` (8-field format)
 //!
-//! Parses the PostgreSQL mutation_response composite type which has:
+//! Parses the `PostgreSQL` `mutation_response` composite type which has:
 //! - Position 1: status (TEXT)
 //! - Position 2: message (TEXT)
-//! - Position 3: entity_id (TEXT)
-//! - Position 4: entity_type (TEXT)
+//! - Position 3: `entity_id` (TEXT)
+//! - Position 4: `entity_type` (TEXT)
 //! - Position 5: entity (JSONB)
-//! - Position 6: updated_fields (TEXT[])
+//! - Position 6: `updated_fields` (TEXT[])
 //! - Position 7: cascade (JSONB) - Contains cascade operation data
 //! - Position 8: metadata (JSONB)
 
 use super::{MutationResult, MutationStatus};
 use serde_json::Value;
 
-/// PostgreSQL app.mutation_response composite type structure (8 fields)
+/// `PostgreSQL` `app.mutation_response` composite type structure (8 fields)
 ///
-/// This structure represents the 8-field PostgreSQL composite type.
+/// This structure represents the 8-field `PostgreSQL` composite type.
 /// The CASCADE field at Position 7 contains cascade operation data.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(deny_unknown_fields)] // Fail if structure doesn't match
@@ -53,10 +53,10 @@ pub struct PostgresMutationResponse {
 }
 
 impl PostgresMutationResponse {
-    /// Parse from JSON string (PostgreSQL composite type serialization)
+    /// Parse from JSON string (`PostgreSQL` composite type serialization)
     ///
     /// # Arguments
-    /// * `json_str` - JSON representation of the composite type from PostgreSQL
+    /// * `json_str` - JSON representation of the composite type from `PostgreSQL`
     ///
     /// # Returns
     /// * `Ok(PostgresMutationResponse)` - Successfully parsed
@@ -70,26 +70,26 @@ impl PostgresMutationResponse {
     pub fn from_json(json_str: &str) -> Result<Self, String> {
         serde_json::from_str(json_str).map_err(|e| {
             format!(
-                "Failed to parse PostgreSQL mutation_response composite type (8 fields): {}. \
+                "Failed to parse PostgreSQL mutation_response composite type (8 fields): {e}. \
                  Expected fields: status, message, entity_id, entity_type, entity, \
-                 updated_fields, cascade, metadata",
-                e
+                 updated_fields, cascade, metadata"
             )
         })
     }
 
-    /// Convert to internal MutationResult format
+    /// Convert to internal `MutationResult` format
     ///
-    /// Maps the 8-field composite type to FraiseQL's internal representation.
+    /// Maps the 8-field composite type to `FraiseQL`'s internal representation.
     /// The CASCADE field from Position 7 will be placed at the GraphQL success
     /// wrapper level (not nested in the entity).
     ///
     /// # Arguments
     /// * `_entity_type_fallback` - Unused (kept for API compatibility)
-    ///   In 8-field format, entity_type always comes from Position 4
+    ///   In 8-field format, `entity_type` always comes from Position 4
     ///
     /// # Returns
     /// Internal `MutationResult` ready for GraphQL response building
+    #[must_use] 
     pub fn to_mutation_result(self, _entity_type_fallback: Option<&str>) -> MutationResult {
         // CASCADE is already at Position 7 - just filter out nulls
         let cascade = self.cascade.filter(|c| !c.is_null());

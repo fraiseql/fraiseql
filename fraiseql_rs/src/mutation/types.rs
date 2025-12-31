@@ -4,23 +4,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Mutation response format (auto-detected)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationResponse {
     /// Simple format: entity-only response (no status field)
     Simple(SimpleResponse),
-    /// Full format: mutation_response with status/message/entity
+    /// Full format: `mutation_response` with status/message/entity
     Full(FullResponse),
 }
 
 /// Simple format: Just entity JSONB
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SimpleResponse {
     /// Entity data (entire JSONB)
     pub entity: Value,
 }
 
 /// Full mutation response format
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FullResponse {
     pub status: String,  // REQUIRED
     pub message: String, // REQUIRED
@@ -47,6 +47,7 @@ pub enum StatusKind {
 impl StatusKind {
     /// Parse status string into classification
     #[allow(clippy::should_implement_trait)]
+    #[must_use] 
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
@@ -59,38 +60,41 @@ impl StatusKind {
             || status_lower.starts_with("conflict:")
             || status_lower.starts_with("timeout:")
         {
-            StatusKind::Error(status.to_string())
+            Self::Error(status.to_string())
         }
         // Noop prefix
         else if status_lower.starts_with("noop:") {
-            StatusKind::Noop(status.to_string())
+            Self::Noop(status.to_string())
         }
         // Success keywords
         else if matches!(
             status_lower.as_str(),
             "success" | "created" | "updated" | "deleted" | "completed" | "ok" | "new"
         ) {
-            StatusKind::Success(status.to_string())
+            Self::Success(status.to_string())
         }
         // Unknown - default to success (backward compat)
         else {
-            StatusKind::Success(status.to_string())
+            Self::Success(status.to_string())
         }
     }
 
-    pub fn is_success(&self) -> bool {
-        matches!(self, StatusKind::Success(_))
+    #[must_use] 
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Success(_))
     }
 
-    pub fn is_error(&self) -> bool {
-        matches!(self, StatusKind::Error(_))
+    #[must_use] 
+    pub const fn is_error(&self) -> bool {
+        matches!(self, Self::Error(_))
     }
 
     /// Map to HTTP status code
+    #[must_use] 
     pub fn http_code(&self) -> u16 {
         match self {
-            StatusKind::Success(_) | StatusKind::Noop(_) => 200,
-            StatusKind::Error(reason) => {
+            Self::Success(_) | Self::Noop(_) => 200,
+            Self::Error(reason) => {
                 let reason_lower = reason.to_lowercase();
                 if reason_lower.contains("not_found") {
                     404
@@ -136,13 +140,13 @@ pub enum MutationError {
 
 impl From<String> for MutationError {
     fn from(s: String) -> Self {
-        MutationError::SerializationFailed(s)
+        Self::SerializationFailed(s)
     }
 }
 
 impl From<&str> for MutationError {
     fn from(s: &str) -> Self {
-        MutationError::SerializationFailed(s.to_string())
+        Self::SerializationFailed(s.to_string())
     }
 }
 

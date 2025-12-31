@@ -5,14 +5,14 @@
 //!
 //! ## Architecture
 //!
-//! FraiseQL has **two JSON transformation strategies**:
-//! - **This module (json_transform.rs)**: Value-based API for PyO3, schema-aware
-//! - **core::transform**: Zero-copy streaming API for query pipeline (3-5x faster)
+//! `FraiseQL` has **two JSON transformation strategies**:
+//! - **This module (`json_transform.rs`)**: Value-based API for `PyO3`, schema-aware
+//! - **`core::transform`**: Zero-copy streaming API for query pipeline (3-5x faster)
 //!
 //! ## When to Use This Module
 //!
 //! ✅ **Use `json_transform.rs` when**:
-//! - Called from Python via PyO3
+//! - Called from Python via `PyO3`
 //! - Need schema-aware transformation (nested types)
 //! - Working with JSON strings (`String` → `String`)
 //! - Need `serde_json::Value` compatibility
@@ -33,10 +33,10 @@ use serde_json::{Map, Value};
 use crate::camel_case::to_camel_case;
 use crate::schema_registry::SchemaRegistry;
 
-/// Transform a JSON string by converting all keys from snake_case to camelCase
+/// Transform a JSON string by converting all keys from `snake_case` to camelCase
 ///
 /// This function provides the **fastest path** for JSON transformation:
-/// 1. Parse JSON (serde_json - zero-copy where possible)
+/// 1. Parse JSON (`serde_json` - zero-copy where possible)
 /// 2. Transform keys recursively (move semantics, no clones)
 /// 3. Serialize back to JSON (optimized buffer writes)
 ///
@@ -44,18 +44,18 @@ use crate::schema_registry::SchemaRegistry;
 /// for large JSON objects compared to Python-based transformation.
 ///
 /// # Performance Characteristics
-/// - **Zero-copy parsing**: serde_json optimizes for owned string slices
+/// - **Zero-copy parsing**: `serde_json` optimizes for owned string slices
 /// - **Move semantics**: Values moved, not cloned during transformation
-/// - **Single allocation**: Output buffer pre-sized by serde_json
+/// - **Single allocation**: Output buffer pre-sized by `serde_json`
 /// - **No Python GIL**: Entire operation runs in Rust (GIL-free)
 ///
 /// # Typical Performance
 /// - Simple object (10 fields): ~0.1-0.2ms (vs 5-10ms Python)
 /// - Complex object (50 fields): ~0.5-1ms (vs 20-30ms Python)
-/// - Nested (User + 15 posts): ~1-2ms (vs 40-80ms CamelForge)
+/// - Nested (User + 15 posts): ~1-2ms (vs 40-80ms `CamelForge`)
 ///
 /// # Arguments
-/// * `json_str` - JSON string with snake_case keys
+/// * `json_str` - JSON string with `snake_case` keys
 ///
 /// # Returns
 /// * `PyResult<String>` - Transformed JSON string with camelCase keys
@@ -72,17 +72,17 @@ use crate::schema_registry::SchemaRegistry;
 pub fn transform_json_string(json_str: &str) -> PyResult<String> {
     // Parse JSON (zero-copy where possible)
     let value: Value = serde_json::from_str(json_str)
-        .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {}", e)))?;
+        .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {e}")))?;
 
     // Transform keys (moves values, no cloning)
     let transformed = transform_value(value);
 
     // Serialize back to JSON (optimized buffer writes)
     serde_json::to_string(&transformed)
-        .map_err(|e| PyValueError::new_err(format!("Failed to serialize JSON: {}", e)))
+        .map_err(|e| PyValueError::new_err(format!("Failed to serialize JSON: {e}")))
 }
 
-/// Recursively transform a serde_json::Value
+/// Recursively transform a `serde_json::Value`
 ///
 /// Handles all JSON value types:
 /// - Object: Transform keys, recursively transform values
@@ -142,8 +142,7 @@ fn transform_nested_object(
             _ => {
                 #[cfg(debug_assertions)]
                 eprintln!(
-                    "Warning: Expected array for list type '{}', got {}",
-                    type_name, value
+                    "Warning: Expected array for list type '{type_name}', got {value}"
                 );
                 value.clone()
             }
@@ -160,7 +159,7 @@ fn transform_nested_object(
 /// Transform a JSON value using schema registry for type resolution
 ///
 /// This function:
-/// 1. Converts snake_case keys to camelCase
+/// 1. Converts `snake_case` keys to camelCase
 /// 2. Injects __typename for objects
 /// 3. Recursively resolves nested object types from schema
 /// 4. Handles arrays of nested objects
@@ -175,7 +174,7 @@ fn transform_nested_object(
 /// * Transformed JSON value with correct __typename at all levels
 ///
 /// # Performance
-/// - O(1) schema lookups per field via HashMap
+/// - O(1) schema lookups per field via `HashMap`
 /// - Zero-copy for unchanged scalar values where possible
 /// - Single-pass transformation (no backtracking)
 ///
@@ -189,6 +188,7 @@ fn transform_nested_object(
 /// let result = transform_with_schema(&input, "Assignment", &registry);
 /// // result: {"__typename": "Assignment", "id": "1", "equipment": {"__typename": "Equipment", ...}}
 /// ```
+#[must_use] 
 pub fn transform_with_schema(
     value: &Value,
     current_type: &str,
@@ -287,6 +287,7 @@ pub fn transform_with_schema(
 /// let result = transform_with_selections(&input, "User", &selections, &registry);
 /// // result: {"__typename": "User", "username": "John"}
 /// ```
+#[must_use] 
 pub fn transform_with_selections(
     value: &Value,
     current_type: &str,
@@ -310,7 +311,7 @@ pub fn transform_with_selections(
 
 /// Convert a dot-separated path to full camelCase
 ///
-/// Example: "user_profile.contact_info" → "userProfile.contactInfo"
+/// Example: "`user_profile.contact_info`" → "userProfile.contactInfo"
 ///
 /// Performance: Uses String builder to avoid intermediate Vec allocation
 #[inline]
@@ -337,10 +338,10 @@ fn to_camel_case_path(path: &str) -> String {
 /// Convert a path to partial camelCase (parent segments camelCase, last segment unchanged)
 ///
 /// This matches Python's materialized path format where GraphQL field names (camelCase)
-/// are used for parent paths, but database column names (snake_case) for the current field.
+/// are used for parent paths, but database column names (`snake_case`) for the current field.
 ///
 /// Examples:
-/// - "dns_1.ip_address" → "dns1.ip_address" (parent camelCase, child unchanged)
+/// - "`dns_1.ip_address`" → "`dns1.ip_address`" (parent camelCase, child unchanged)
 /// - "user.profile.bio" → "user.profile.bio" (no underscores, unchanged)
 #[inline]
 fn to_partial_camel_case_path(path: &str) -> Option<String> {
@@ -353,14 +354,14 @@ fn to_partial_camel_case_path(path: &str) -> Option<String> {
     }
 
     let camel_parent = to_camel_case_path(parent);
-    Some(format!("{}.{}", camel_parent, child))
+    Some(format!("{camel_parent}.{child}"))
 }
 
 /// Check if a selection path matches a field path (exact or prefix match)
 ///
 /// Matches if:
-/// 1. Exact match: selection == field_path
-/// 2. Prefix match: selection starts with field_path + "." (i.e., selection is a child)
+/// 1. Exact match: selection == `field_path`
+/// 2. Prefix match: selection starts with `field_path` + "." (i.e., selection is a child)
 ///
 /// The byte-level check (`selection.as_bytes()[field_path.len()] == b'.'`) ensures
 /// we don't match "userinfo" when checking "user" prefix.
@@ -406,15 +407,15 @@ fn path_matches_selection(
 
 /// Build a mapping from materialized paths to aliases and allowed field names
 ///
-/// **Performance Optimization**: Pre-computes all three path variants (snake_case,
+/// **Performance Optimization**: Pre-computes all three path variants (`snake_case`,
 /// camelCase, partial camelCase) and stores them in `selected_paths`. This trades
-/// memory (3x HashSet size) for speed (O(1) lookups instead of O(N) path conversions
+/// memory (3x `HashSet` size) for speed (O(1) lookups instead of O(N) path conversions
 /// per field).
 ///
 /// Returns a tuple of:
-/// - HashMap: materialized path -> alias
-/// - HashSet: allowed root-level field names for field projection
-/// - HashSet: all selected materialized paths WITH all three variants pre-computed
+/// - `HashMap`: materialized path -> alias
+/// - `HashSet`: allowed root-level field names for field projection
+/// - `HashSet`: all selected materialized paths WITH all three variants pre-computed
 fn build_alias_map(
     selections: &[Value],
 ) -> (
@@ -478,7 +479,7 @@ fn build_alias_map(
 /// allowed field names for field projection.
 ///
 /// # Algorithm
-/// 1. **Path Construction**: Build materialized path as we traverse (e.g., "user.posts.author_name")
+/// 1. **Path Construction**: Build materialized path as we traverse (e.g., "`user.posts.author_name`")
 /// 2. **Alias Lookup**: Check if current path has an alias in the map
 /// 3. **Field Projection**: Check if field is in allowed set (skip if not)
 /// 4. **Key Selection**: Use alias if present, otherwise camelCase
@@ -494,8 +495,8 @@ fn build_alias_map(
 /// * `registry` - Schema registry for type resolution
 ///
 /// # Performance
-/// - O(1) alias lookup via HashMap
-/// - O(1) field filtering via HashSet
+/// - O(1) alias lookup via `HashMap`
+/// - O(1) field filtering via `HashSet`
 /// - Single-pass transformation (no backtracking)
 /// - Minimal allocations (path string constructed once per field)
 fn transform_with_aliases(
@@ -536,9 +537,9 @@ fn transform_with_aliases(
                 // Example: "" + "user_name" → "user_name"
                 //          "user.posts" + "author_name" → "user.posts.author_name"
                 let field_path = if current_path.is_empty() {
-                    key.to_string()
+                    key.clone()
                 } else {
-                    format!("{}.{}", current_path, key)
+                    format!("{current_path}.{key}")
                 };
 
                 // Field projection: Check if this field is allowed at current path level

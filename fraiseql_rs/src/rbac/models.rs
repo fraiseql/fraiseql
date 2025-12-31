@@ -1,10 +1,10 @@
-//! RBAC data models matching PostgreSQL schema.
+//! RBAC data models matching `PostgreSQL` schema.
 //!
 //! This module defines the core data structures for role-based access control:
 //! - **Role**: Hierarchical roles with optional parent and tenant isolation
 //! - **Permission**: Resource:action pairs with optional constraints
-//! - **UserRole**: User-role assignments with expiration and audit trail
-//! - **RolePermission**: Many-to-many role-permission mappings
+//! - **`UserRole`**: User-role assignments with expiration and audit trail
+//! - **`RolePermission`**: Many-to-many role-permission mappings
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use uuid::Uuid;
 ///
 /// Roles form a hierarchy through the `parent_role_id` field. A user with a child role
 /// automatically inherits all permissions from parent roles. This enables role inheritance
-/// patterns like: viewer → user → manager → admin → super_admin.
+/// patterns like: viewer → user → manager → admin → `super_admin`.
 ///
 /// # Fields
 ///
@@ -29,8 +29,8 @@ use uuid::Uuid;
 /// # Example
 ///
 /// A typical role hierarchy:
-/// - super_admin (global, no parent)
-/// - admin (tenant, inherits super_admin)
+/// - `super_admin` (global, no parent)
+/// - admin (tenant, inherits `super_admin`)
 /// - manager (tenant, inherits admin)
 /// - user (tenant, inherits manager)
 /// - viewer (tenant, inherits user)
@@ -47,7 +47,7 @@ pub struct Role {
 }
 
 impl Role {
-    /// Create Role from tokio_postgres Row
+    /// Create Role from `tokio_postgres` Row
     pub fn from_row(row: tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
@@ -60,12 +60,8 @@ impl Role {
                 .get::<_, Option<String>>(4)
                 .and_then(|s| Uuid::parse_str(&s).ok()),
             is_system: row.get(5),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6))
-                .map(|dt| dt.with_timezone(&chrono::Utc))
-                .unwrap_or_else(|_| chrono::Utc::now()),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(7))
-                .map(|dt| dt.with_timezone(&chrono::Utc))
-                .unwrap_or_else(|_| chrono::Utc::now()),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(7)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
         }
     }
 }
@@ -108,6 +104,7 @@ pub struct Permission {
 
 impl Permission {
     /// Check if permission matches resource:action pattern
+    #[must_use] 
     pub fn matches(&self, resource: &str, action: &str) -> bool {
         // Exact match
         if self.resource == resource && self.action == action {
@@ -128,7 +125,7 @@ impl Permission {
         false
     }
 
-    /// Create Permission from tokio_postgres Row
+    /// Create Permission from `tokio_postgres` Row
     pub fn from_row(row: tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
@@ -138,9 +135,7 @@ impl Permission {
             constraints: row
                 .get::<_, Option<String>>(4)
                 .and_then(|s| serde_json::from_str(&s).ok()),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
-                .map(|dt| dt.with_timezone(&chrono::Utc))
-                .unwrap_or_else(|_| chrono::Utc::now()),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
         }
     }
 }
@@ -193,6 +188,7 @@ pub struct UserRole {
 
 impl UserRole {
     /// Check if role assignment is still valid
+    #[must_use] 
     pub fn is_valid(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
             Utc::now() < expires_at
@@ -201,7 +197,7 @@ impl UserRole {
         }
     }
 
-    /// Create UserRole from tokio_postgres Row
+    /// Create `UserRole` from `tokio_postgres` Row
     pub fn from_row(row: tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
@@ -213,9 +209,7 @@ impl UserRole {
             granted_by: row
                 .get::<_, Option<String>>(4)
                 .and_then(|s| Uuid::parse_str(&s).ok()),
-            granted_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
-                .map(|dt| dt.with_timezone(&chrono::Utc))
-                .unwrap_or_else(|_| chrono::Utc::now()),
+            granted_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
             expires_at: row
                 .get::<_, Option<String>>(6)
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
@@ -240,9 +234,9 @@ impl UserRole {
 /// # Usage Pattern
 ///
 /// When checking if a user can perform an action:
-/// 1. Find user's roles via UserRole table
-/// 2. Find all inherited roles via RoleHierarchy
-/// 3. Find all permissions for those roles via RolePermission
+/// 1. Find user's roles via `UserRole` table
+/// 2. Find all inherited roles via `RoleHierarchy`
+/// 3. Find all permissions for those roles via `RolePermission`
 /// 4. Match requested resource:action against permission list
 ///
 /// This is computed efficiently by the `PermissionResolver` with caching.

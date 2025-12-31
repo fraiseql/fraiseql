@@ -71,7 +71,7 @@ fn add_cascade_if_selected(
     };
 
     let selections: crate::mutation::CascadeSelections = serde_json::from_str(selections_json)
-        .map_err(|e| format!("Invalid CASCADE selections JSON: {}", e))?;
+        .map_err(|e| format!("Invalid CASCADE selections JSON: {e}"))?;
 
     let filtered_cascade =
         crate::mutation::filter_cascade_by_selections(cascade, &selections, auto_camel_case)?;
@@ -85,7 +85,7 @@ fn add_cascade_if_selected(
 ///
 /// Key behaviors:
 /// - CASCADE at success level (sibling to entity, NOT nested inside entity)
-/// - Entity field name derived from entity_type or explicit parameter
+/// - Entity field name derived from `entity_type` or explicit parameter
 /// - Wrapper fields promoted to success level
 /// - __typename added to response and entity
 /// - camelCase applied if requested
@@ -229,7 +229,7 @@ pub fn build_success_response(
                     json!(if auto_camel_case {
                         to_camel_case(f)
                     } else {
-                        f.to_string()
+                        f.clone()
                     })
                 })
                 .collect();
@@ -263,15 +263,13 @@ pub fn build_success_response(
         // Report validation results
         if !missing_fields.is_empty() {
             eprintln!(
-                "Schema validation warning: Missing expected fields in {}: {:?}",
-                success_type, missing_fields
+                "Schema validation warning: Missing expected fields in {success_type}: {missing_fields:?}"
             );
         }
 
         if !extra_fields.is_empty() {
             eprintln!(
-                "Schema validation warning: Extra fields in {} not in schema: {:?}",
-                success_type, extra_fields
+                "Schema validation warning: Extra fields in {success_type} not in schema: {extra_fields:?}"
             );
         }
     }
@@ -298,9 +296,9 @@ pub fn build_error_response_with_code(
     eprintln!("\n╔══════════════════════════════════════════════════════════════╗");
     eprintln!("║ DEBUG: build_error_response_with_code() called              ║");
     eprintln!("╠══════════════════════════════════════════════════════════════╣");
-    eprintln!("  error_type: {}", error_type);
-    eprintln!("  auto_camel_case: {}", auto_camel_case);
-    eprintln!("  error_type_fields: {:?}", error_type_fields);
+    eprintln!("  error_type: {error_type}");
+    eprintln!("  auto_camel_case: {auto_camel_case}");
+    eprintln!("  error_type_fields: {error_type_fields:?}");
     eprintln!("  result.status: {}", result.status);
     eprintln!("  result.message: {:?}", result.message);
     eprintln!(
@@ -323,13 +321,13 @@ pub fn build_error_response_with_code(
     let empty_vec = Vec::new();
     let selected_fields = error_type_fields.unwrap_or(&empty_vec);
 
-    eprintln!("  ├─ should_filter: {}", should_filter);
-    eprintln!("  └─ selected_fields: {:?}", selected_fields);
+    eprintln!("  ├─ should_filter: {should_filter}");
+    eprintln!("  └─ selected_fields: {selected_fields:?}");
 
     // Helper function to check if field is selected
     let is_selected = |field_name: &str| -> bool {
         let result = !should_filter || selected_fields.contains(&field_name.to_string());
-        eprintln!("    is_selected(\"{}\"): {}", field_name, result);
+        eprintln!("    is_selected(\"{field_name}\"): {result}");
         result
     };
 
@@ -338,7 +336,7 @@ pub fn build_error_response_with_code(
     // Even if not explicitly selected in GraphQL query, we must include it
     let code = result.status.application_code();
     obj.insert("code".to_string(), json!(code));
-    eprintln!("    ✓ Added 'code': {}", code);
+    eprintln!("    ✓ Added 'code': {code}");
 
     // Add status if selected
     if is_selected("status") {
@@ -417,10 +415,10 @@ pub fn generate_errors_array(result: &MutationResult, code: i32) -> Result<Value
 /// Extract error identifier from mutation status
 ///
 /// Examples:
-/// - "noop:already_exists" -> "already_exists"
-/// - "validation:invalid_input" -> "invalid_input"
-/// - "not_found:user_missing" -> "user_missing"
-/// - "failed" -> "general_error"
+/// - "`noop:already_exists`" -> "`already_exists`"
+/// - "`validation:invalid_input`" -> "`invalid_input`"
+/// - "`not_found:user_missing`" -> "`user_missing`"
+/// - "failed" -> "`general_error`"
 pub fn extract_identifier_from_status(status: &MutationStatus) -> String {
     match status {
         MutationStatus::Noop(reason) => {

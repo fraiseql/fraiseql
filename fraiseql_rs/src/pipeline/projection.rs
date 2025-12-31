@@ -1,19 +1,19 @@
 //! Field projection with bitmap-based lookup
 //!
-//! This module provides O(1) field lookup using bitmaps instead of HashMaps.
+//! This module provides O(1) field lookup using bitmaps instead of `HashMaps`.
 //! For up to 128 fields, we use bitmaps for ultra-fast lookup.
-//! For more fields, we fall back to HashSet.
+//! For more fields, we fall back to `HashSet`.
 
 /// Field set for projection (bitmap-based)
 ///
-/// Instead of HashMap<String, bool>, use a bitmap:
+/// Instead of `HashMap`<String, bool>, use a bitmap:
 /// - Hash field name → get bit position
 /// - Check bit: O(1) with zero allocation
 /// - 128 fields fit in two u64 bitmaps!
 ///
 /// Performance:
 /// - Lookup: 1 instruction (bit test)
-/// - Memory: 16 bytes for 128 fields (vs 1KB+ for HashMap)
+/// - Memory: 16 bytes for 128 fields (vs 1KB+ for `HashMap`)
 pub struct FieldSet {
     // For up to 64 fields (covers 95% of cases)
     bitmap: u64,
@@ -29,7 +29,7 @@ impl FieldSet {
     /// * `paths` - Field paths like [["id"], ["firstName"], ["posts", "title"]]
     /// * `_arena` - Arena for allocations (not used in bitmap implementation)
     pub fn from_paths(paths: &[Vec<String>], _arena: &crate::core::arena::Arena) -> Self {
-        let mut field_set = FieldSet {
+        let mut field_set = Self {
             bitmap: 0,
             bitmap_ext: 0,
         };
@@ -46,13 +46,14 @@ impl FieldSet {
 
     /// Check if field is in projection set
     #[inline(always)]
+    #[must_use] 
     pub fn contains(&self, field_name: &[u8]) -> bool {
         let hash = field_hash(field_name);
         self.contains_hash(hash)
     }
 
     #[inline(always)]
-    fn contains_hash(&self, hash: u32) -> bool {
+    const fn contains_hash(&self, hash: u32) -> bool {
         let bit_pos = hash % 128;
 
         if bit_pos < 64 {
@@ -66,7 +67,7 @@ impl FieldSet {
     }
 
     #[inline(always)]
-    fn insert_hash(&mut self, hash: u32) {
+    const fn insert_hash(&mut self, hash: u32) {
         let bit_pos = hash % 128;
 
         if bit_pos < 64 {
@@ -89,7 +90,7 @@ fn field_hash(bytes: &[u8]) -> u32 {
 
     let mut hash = FNV_OFFSET;
     for &byte in bytes {
-        hash ^= byte as u32;
+        hash ^= u32::from(byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash

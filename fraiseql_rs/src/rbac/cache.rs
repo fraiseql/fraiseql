@@ -47,7 +47,7 @@
 //!
 //! The cache is fully thread-safe:
 //! - Uses `Mutex<LruCache<>>` for atomic operations
-//! - All public methods are &self (no RefCell issues)
+//! - All public methods are &self (no `RefCell` issues)
 //! - Safe to share via `Arc<PermissionCache>`
 
 use super::models::Permission;
@@ -60,7 +60,7 @@ use uuid::Uuid;
 /// Default cache capacity (fallback if capacity is 0)
 const DEFAULT_CACHE_CAPACITY_USIZE: usize = 100;
 
-/// Default cache capacity as NonZeroUsize (compile-time constant)
+/// Default cache capacity as `NonZeroUsize` (compile-time constant)
 const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(DEFAULT_CACHE_CAPACITY_USIZE) {
     Some(nz) => nz,
     None => unreachable!(), // 100 is non-zero, guaranteed at compile time
@@ -148,6 +148,7 @@ impl PermissionCache {
     }
 
     /// Create new cache with capacity and default TTL
+    #[must_use] 
     pub fn new(capacity: usize) -> Self {
         Self::with_ttl(capacity, Duration::from_secs(300)) // 5 minute default TTL
     }
@@ -157,6 +158,7 @@ impl PermissionCache {
     /// # Arguments
     /// * `capacity` - Maximum number of cached entries (uses default if 0)
     /// * `default_ttl` - Time-to-live for cache entries
+    #[must_use] 
     pub fn with_ttl(capacity: usize, default_ttl: Duration) -> Self {
         // Use default capacity if provided capacity is 0
         let effective_capacity = NonZeroUsize::new(capacity).unwrap_or(DEFAULT_CACHE_CAPACITY);

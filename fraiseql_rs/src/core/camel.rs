@@ -1,7 +1,7 @@
-//! snake_case to camelCase conversion with multi-architecture SIMD support (Zero-copy API)
+//! `snake_case` to camelCase conversion with multi-architecture SIMD support (Zero-copy API)
 //!
-//! This module provides optimized snake_case to camelCase conversion with:
-//! - x86_64: AVX2 SIMD (256-bit, 32 bytes at a time)
+//! This module provides optimized `snake_case` to camelCase conversion with:
+//! - `x86_64`: AVX2 SIMD (256-bit, 32 bytes at a time)
 //! - ARM64: NEON SIMD (128-bit, 16 bytes at a time)
 //! - Fallback: Portable scalar implementation for all architectures
 //!
@@ -10,9 +10,9 @@
 //!
 //! ## Architecture
 //!
-//! FraiseQL has **two camelCase implementations** serving different needs:
-//! - **crate::camel_case**: String-based API for PyO3 and serde_json
-//! - **This module (core::camel)**: SIMD-optimized zero-copy API with arena allocation
+//! `FraiseQL` has **two camelCase implementations** serving different needs:
+//! - **`crate::camel_case`**: String-based API for `PyO3` and `serde_json`
+//! - **This module (`core::camel`)**: SIMD-optimized zero-copy API with arena allocation
 //!
 //! ## When to Use This Module
 //!
@@ -23,7 +23,7 @@
 //! - High volume (> 1000 transformations/sec)
 //!
 //! ❌ **Use `crate::camel_case` instead when**:
-//! - Called from Python via PyO3
+//! - Called from Python via `PyO3`
 //! - Working with `String` or `&str` types
 //! - Need recursive dictionary transformation
 //!
@@ -31,7 +31,7 @@
 
 // Import architecture-specific intrinsics conditionally
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
+use std::arch::x86_64::{_mm256_set1_epi8, _mm256_loadu_si256, __m256i, _mm256_cmpeq_epi8, _mm256_movemask_epi8};
 
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::*;
@@ -40,12 +40,12 @@ use std::arch::aarch64::*;
 // Public API - Automatically dispatches to best implementation
 //----------------------------------------------------------------------------
 
-/// Convert snake_case to camelCase (public API)
+/// Convert `snake_case` to camelCase (public API)
 ///
 /// This function automatically selects the best implementation for the current
 /// architecture:
-/// - x86_64 with AVX2: Uses SIMD (4-16x faster)
-/// - x86_64 without AVX2: Uses portable scalar
+/// - `x86_64` with AVX2: Uses SIMD (4-16x faster)
+/// - `x86_64` without AVX2: Uses portable scalar
 /// - ARM64: Uses portable scalar (NEON implementation TODO)
 /// - Other architectures: Uses portable scalar
 ///
@@ -89,7 +89,7 @@ pub fn snake_to_camel<'a>(input: &[u8], arena: &'a crate::core::Arena) -> &'a [u
 //----------------------------------------------------------------------------
 
 #[cfg(target_arch = "x86_64")]
-/// x86_64 AVX2-optimized snake_case to camelCase conversion
+/// `x86_64` AVX2-optimized `snake_case` to camelCase conversion
 ///
 /// Strategy:
 /// 1. Find underscores using AVX2 SIMD (32 bytes at a time)
@@ -119,7 +119,7 @@ unsafe fn snake_to_camel_avx2<'a>(input: &[u8], arena: &'a crate::core::Arena) -
     let mut write_pos = 0;
     let mut capitalize_next = false;
 
-    for &byte in input.iter() {
+    for &byte in input {
         if byte == b'_' {
             capitalize_next = true;
         } else {
@@ -153,7 +153,7 @@ unsafe fn find_underscores_avx2(input: &[u8]) -> UnderscoreMask {
         let remainder = chunks.remainder();
 
         for (chunk_idx, chunk) in chunks.enumerate() {
-            let data = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
+            let data = _mm256_loadu_si256(chunk.as_ptr().cast::<__m256i>());
             let cmp = _mm256_cmpeq_epi8(data, underscore_vec);
             let bitmask = _mm256_movemask_epi8(cmp);
 
@@ -182,17 +182,17 @@ struct UnderscoreMask {
 
 #[cfg(target_arch = "x86_64")]
 impl UnderscoreMask {
-    fn new() -> Self {
-        UnderscoreMask { mask: [0; 4] }
+    const fn new() -> Self {
+        Self { mask: [0; 4] }
     }
 
-    fn set_chunk(&mut self, chunk_idx: usize, bitmask: i32) {
+    const fn set_chunk(&mut self, chunk_idx: usize, bitmask: i32) {
         let word_idx = chunk_idx / 2;
         let shift = (chunk_idx % 2) * 32;
         self.mask[word_idx] |= (bitmask as u64) << shift;
     }
 
-    fn set_bit(&mut self, pos: usize) {
+    const fn set_bit(&mut self, pos: usize) {
         if pos < 256 {
             let word_idx = pos / 64;
             let bit_idx = pos % 64;
@@ -209,7 +209,7 @@ impl UnderscoreMask {
 // Portable Scalar Implementation (fallback for all architectures)
 //----------------------------------------------------------------------------
 
-/// Pure Rust scalar snake_case to camelCase conversion (no SIMD)
+/// Pure Rust scalar `snake_case` to camelCase conversion (no SIMD)
 ///
 /// This implementation works on all architectures and serves as a fallback
 /// when SIMD is not available. It's optimized for readability and correctness,
@@ -221,7 +221,7 @@ impl UnderscoreMask {
 /// 3. Remove underscores from output
 ///
 /// Performance:
-/// - 2-5x slower than SIMD on x86_64/ARM64
+/// - 2-5x slower than SIMD on `x86_64/ARM64`
 /// - Still very fast for typical field names (< 100 bytes)
 pub fn snake_to_camel_scalar<'a>(input: &[u8], arena: &'a crate::core::Arena) -> &'a [u8] {
     // Fast path: empty input

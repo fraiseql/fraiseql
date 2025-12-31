@@ -17,7 +17,7 @@ pub struct DatabasePool {
 
 impl DatabasePool {
     /// Create a new database connection pool with real database connections (Phase 1.5)
-    /// Note: Currently returns mock implementation for PyO3 compatibility
+    /// Note: Currently returns mock implementation for `PyO3` compatibility
     /// Full async support will be implemented in Phase 2.0
     pub async fn new(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
         // For Phase 1.5, we validate the URL but return mock implementation
@@ -39,7 +39,7 @@ impl DatabasePool {
         }
 
         // Return mock implementation with real config
-        Ok(DatabasePool {
+        Ok(Self {
             pool: None, // Real pool creation requires async runtime integration
             config,
         })
@@ -67,7 +67,7 @@ impl DatabasePool {
         }
 
         // Return mock implementation for now (real connections require async)
-        Ok(DatabasePool {
+        Ok(Self {
             pool: None, // Real pool creation requires async runtime
             config,
         })
@@ -79,7 +79,7 @@ impl DatabasePool {
             Some(pool) => pool
                 .get()
                 .await
-                .map_err(|e| DatabaseError::Connection(format!("Failed to get connection: {}", e))),
+                .map_err(|e| DatabaseError::Connection(format!("Failed to get connection: {e}"))),
             None => Err(DatabaseError::Connection(
                 "Pool not initialized".to_string(),
             )),
@@ -93,13 +93,12 @@ impl DatabasePool {
                 // Try to get a connection and execute a simple query
                 let conn = pool.get().await.map_err(|e| {
                     DatabaseError::Connection(format!(
-                        "Health check failed to get connection: {}",
-                        e
+                        "Health check failed to get connection: {e}"
                     ))
                 })?;
 
                 conn.simple_query("SELECT 1").await.map_err(|e| {
-                    DatabaseError::Query(format!("Health check query failed: {}", e))
+                    DatabaseError::Query(format!("Health check query failed: {e}"))
                 })?;
 
                 Ok(())
@@ -111,6 +110,7 @@ impl DatabasePool {
     }
 
     /// Get pool statistics (Phase 1.5: Real statistics)
+    #[must_use] 
     pub fn stats(&self) -> ConnectionInfo {
         match &self.pool {
             Some(pool) => {
@@ -143,12 +143,14 @@ impl DatabasePool {
     }
 
     /// Get pool configuration
-    pub fn pool_config(&self) -> &PoolConfig {
+    #[must_use] 
+    pub const fn pool_config(&self) -> &PoolConfig {
         &self.config
     }
 
     /// Get the underlying pool (for internal use by RBAC/Security modules)
-    pub fn get_pool(&self) -> Option<&Pool> {
+    #[must_use] 
+    pub const fn get_pool(&self) -> Option<&Pool> {
         self.pool.as_ref()
     }
 }
@@ -167,11 +169,12 @@ impl DatabasePool {
         };
 
         Self::new_sync(database_url, rust_config).map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create pool: {}", e))
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create pool: {e}"))
         })
     }
 
     /// Get pool statistics as a string
+    #[must_use] 
     pub fn get_stats(&self) -> String {
         let info = self.stats();
         format!(
@@ -181,6 +184,7 @@ impl DatabasePool {
     }
 
     /// Get pool configuration summary as a string
+    #[must_use] 
     pub fn get_config_summary(&self) -> String {
         format!(
             "Pool config: max_size={}, min_idle={}",
@@ -189,6 +193,7 @@ impl DatabasePool {
     }
 
     /// Get a string representation for debugging
+    #[must_use] 
     pub fn __repr__(&self) -> String {
         format!(
             "DatabasePool(max_size={}, min_idle={})",
@@ -198,7 +203,7 @@ impl DatabasePool {
 }
 
 impl DatabasePool {
-    /// Parse Python configuration dict into Rust PoolConfig
+    /// Parse Python configuration dict into Rust `PoolConfig`
     fn parse_config_dict(config: &Bound<'_, PyDict>) -> PyResult<PoolConfig> {
         let mut pool_config = PoolConfig::default();
 

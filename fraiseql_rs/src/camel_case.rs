@@ -1,18 +1,18 @@
 //! Snake case to camel case conversion (String-based API)
 //!
-//! This module provides ultra-fast snake_case → camelCase conversion
+//! This module provides ultra-fast `snake_case` → camelCase conversion
 //! for GraphQL field names.
 //!
 //! ## Architecture
 //!
-//! FraiseQL has **two camelCase implementations** serving different needs:
-//! - **This module (camel_case.rs)**: String-based API for PyO3 and serde_json
-//! - **core::camel**: SIMD-optimized zero-copy API for streaming transformation
+//! `FraiseQL` has **two camelCase implementations** serving different needs:
+//! - **This module (`camel_case.rs`)**: String-based API for `PyO3` and `serde_json`
+//! - **`core::camel`**: SIMD-optimized zero-copy API for streaming transformation
 //!
 //! ## When to Use This Module
 //!
 //! ✅ **Use `camel_case.rs` when**:
-//! - Called from Python via PyO3
+//! - Called from Python via `PyO3`
 //! - Transforming `serde_json::Value` objects
 //! - Working with `String` or `&str` types
 //! - Need recursive dictionary transformation
@@ -27,7 +27,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-/// Convert a snake_case string to camelCase
+/// Convert a `snake_case` string to camelCase
 ///
 /// This function is optimized for GraphQL field names which are typically:
 /// - Short (< 50 characters)
@@ -35,11 +35,11 @@ use pyo3::types::{PyDict, PyList};
 /// - Few underscores (1-3)
 ///
 /// # Examples
-/// - "user_name" → "userName"
-/// - "email_address" → "emailAddress"
+/// - "`user_name`" → "userName"
+/// - "`email_address`" → "emailAddress"
 /// - "_private" → "_private" (leading underscore preserved)
 /// - "user" → "user" (single word unchanged)
-/// - "user__name" → "userName" (multiple underscores handled)
+/// - "`user__name`" → "userName" (multiple underscores handled)
 ///
 /// # Performance
 /// - Pre-allocates string capacity
@@ -47,7 +47,7 @@ use pyo3::types::{PyDict, PyList};
 /// - Inline hints for hot path
 ///
 /// # Arguments
-/// * `s` - The snake_case string to convert
+/// * `s` - The `snake_case` string to convert
 ///
 /// # Returns
 /// The camelCase string
@@ -91,7 +91,7 @@ pub fn to_camel_case(s: &str) -> String {
     result
 }
 
-/// Convert all keys in a dictionary from snake_case to camelCase
+/// Convert all keys in a dictionary from `snake_case` to camelCase
 ///
 /// Creates a new dictionary with transformed keys. Values are preserved unless
 /// recursive mode is enabled.
@@ -103,7 +103,7 @@ pub fn to_camel_case(s: &str) -> String {
 ///
 /// # Arguments
 /// * `py` - Python interpreter reference
-/// * `obj` - Python dictionary with snake_case keys
+/// * `obj` - Python dictionary with `snake_case` keys
 /// * `recursive` - If true, recursively transform nested dicts and lists
 ///
 /// # Returns

@@ -22,8 +22,8 @@ pub struct Auth0Provider {
 impl Auth0Provider {
     /// Create a new Auth0 provider.
     pub fn new(domain: &str, audience: Vec<String>) -> Result<Self> {
-        let issuer = format!("https://{}/", domain);
-        let jwks_url = format!("https://{}/.well-known/jwks.json", domain);
+        let issuer = format!("https://{domain}/");
+        let jwks_url = format!("https://{domain}/.well-known/jwks.json");
 
         Ok(Self {
             validator: JWTValidator::new(issuer, audience, jwks_url)?,

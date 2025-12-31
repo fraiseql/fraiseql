@@ -1,11 +1,11 @@
 //! Role-Based Access Control (RBAC) system for GraphQL operations.
 //!
 //! This module provides a complete Rust-native RBAC implementation with:
-//! - **Models**: Role, Permission, UserRole, RolePermission with PostgreSQL serialization
-//! - **Hierarchy**: Recursive role inheritance using PostgreSQL CTEs (computed in <2ms)
+//! - **Models**: Role, Permission, `UserRole`, `RolePermission` with `PostgreSQL` serialization
+//! - **Hierarchy**: Recursive role inheritance using `PostgreSQL` CTEs (computed in <2ms)
 //! - **Permission Resolution**: Multi-layer caching with LRU eviction and TTL expiry
 //! - **Field Authorization**: Pre-execution permission checks for GraphQL fields
-//! - **Caching Strategy**: In-process LRU cache + PostgreSQL storage for durability
+//! - **Caching Strategy**: In-process LRU cache + `PostgreSQL` storage for durability
 //! - **Performance**: <0.1ms cached, <1ms uncached, 10-100x faster than Python
 //! - **Multi-Tenant**: Full tenant isolation across all components
 //! - **GraphQL Integration**: Directive framework ready for Phase 12 full implementation
@@ -59,16 +59,16 @@
 //! ## Tenant Isolation
 //!
 //! Tenant isolation is enforced at every layer:
-//! - Role queries filter by tenant_id
+//! - Role queries filter by `tenant_id`
 //! - User-role assignments scoped to tenant
-//! - Cache keys include tenant_id
+//! - Cache keys include `tenant_id`
 //! - Hierarchy computation respects tenant boundaries
 //!
 //! ## Phase 12 Roadmap
 //!
 //! - Full GraphQL directive argument parsing
-//! - Custom constraint evaluation (age_check, region_check, etc.)
-//! - Async Python bindings with pyo3_asyncio
+//! - Custom constraint evaluation (`age_check`, `region_check`, etc.)
+//! - Async Python bindings with `pyo3_asyncio`
 //! - Audit logging framework
 //! - Cache invalidation optimization with reverse index
 

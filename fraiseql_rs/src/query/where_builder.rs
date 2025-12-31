@@ -23,7 +23,8 @@ pub enum ParameterValue {
 }
 
 impl WhereClauseBuilder {
-    pub fn new(schema: SchemaMetadata, view_name: String) -> Self {
+    #[must_use] 
+    pub const fn new(schema: SchemaMetadata, view_name: String) -> Self {
         Self {
             schema,
             view_name,
@@ -36,7 +37,7 @@ impl WhereClauseBuilder {
     pub fn build_where(&mut self, where_arg: &GraphQLArgument) -> Result<String> {
         // Parse WHERE argument as JSON
         let where_json: JsonValue = serde_json::from_str(&where_arg.value_json)
-            .map_err(|e| anyhow!("Invalid WHERE argument JSON: {}", e))?;
+            .map_err(|e| anyhow!("Invalid WHERE argument JSON: {e}"))?;
 
         // Build WHERE clause recursively
         self.build_where_recursive(&where_json)
@@ -80,10 +81,10 @@ impl WhereClauseBuilder {
         // Determine if field is SQL column, FK, or JSONB
         let column_expr = if self.schema.is_sql_column(&self.view_name, field_name) {
             // Direct SQL column
-            format!("t.{}", field_name)
+            format!("t.{field_name}")
         } else if let Some(fk_col) = self.schema.get_fk_column(&self.view_name, field_name) {
             // Foreign key column
-            format!("t.{}", fk_col)
+            format!("t.{fk_col}")
         } else {
             // JSONB field
             let table = self
@@ -109,7 +110,7 @@ impl WhereClauseBuilder {
                     .push((param, ParameterValue::String(val.clone())));
                 Ok(format!("{} = ${}", column_expr, self.param_counter))
             }
-            _ => Err(anyhow!("Invalid field condition for {}", field_name)),
+            _ => Err(anyhow!("Invalid field condition for {field_name}")),
         }
     }
 
@@ -172,7 +173,7 @@ impl WhereClauseBuilder {
                 let param = self.next_param();
                 match value {
                     JsonValue::String(s) => {
-                        let pattern = format!("%{}%", s);
+                        let pattern = format!("%{s}%");
                         self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
@@ -183,7 +184,7 @@ impl WhereClauseBuilder {
                 let param = self.next_param();
                 match value {
                     JsonValue::String(s) => {
-                        let pattern = format!("{}%", s);
+                        let pattern = format!("{s}%");
                         self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
@@ -194,14 +195,14 @@ impl WhereClauseBuilder {
                 let param = self.next_param();
                 match value {
                     JsonValue::String(s) => {
-                        let pattern = format!("%{}", s);
+                        let pattern = format!("%{s}");
                         self.params.push((param, ParameterValue::String(pattern)));
                         Ok(format!("{} LIKE ${}", column_expr, self.param_counter))
                     }
                     _ => Err(anyhow!("endsWith requires string value")),
                 }
             }
-            _ => Err(anyhow!("Unknown operator: {}", operator)),
+            _ => Err(anyhow!("Unknown operator: {operator}")),
         }
     }
 
@@ -233,7 +234,7 @@ impl WhereClauseBuilder {
 
     fn build_not_clause(&mut self, value: &JsonValue) -> Result<String> {
         let inner = self.build_where_recursive(value)?;
-        Ok(format!("NOT ({})", inner))
+        Ok(format!("NOT ({inner})"))
     }
 
     fn next_param(&mut self) -> String {
@@ -261,6 +262,7 @@ impl WhereClauseBuilder {
         Ok(())
     }
 
+    #[must_use] 
     pub fn get_params(self) -> Vec<(String, ParameterValue)> {
         self.params
     }

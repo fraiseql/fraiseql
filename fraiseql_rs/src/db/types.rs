@@ -21,7 +21,7 @@ pub struct PoolConfig {
 
 impl Default for PoolConfig {
     fn default() -> Self {
-        PoolConfig {
+        Self {
             max_size: 10,
             min_idle: 1,
             connection_timeout: Duration::from_secs(30),
@@ -54,61 +54,61 @@ pub enum QueryParam {
 // Implement From traits for QueryParam to enable easy construction
 impl From<i32> for QueryParam {
     fn from(value: i32) -> Self {
-        QueryParam::Int(value)
+        Self::Int(value)
     }
 }
 
 impl From<i64> for QueryParam {
     fn from(value: i64) -> Self {
-        QueryParam::BigInt(value)
+        Self::BigInt(value)
     }
 }
 
 impl From<f32> for QueryParam {
     fn from(value: f32) -> Self {
-        QueryParam::Float(value)
+        Self::Float(value)
     }
 }
 
 impl From<f64> for QueryParam {
     fn from(value: f64) -> Self {
-        QueryParam::Double(value)
+        Self::Double(value)
     }
 }
 
 impl From<bool> for QueryParam {
     fn from(value: bool) -> Self {
-        QueryParam::Bool(value)
+        Self::Bool(value)
     }
 }
 
 impl From<String> for QueryParam {
     fn from(value: String) -> Self {
-        QueryParam::Text(value)
+        Self::Text(value)
     }
 }
 
 impl From<&str> for QueryParam {
     fn from(value: &str) -> Self {
-        QueryParam::Text(value.to_string())
+        Self::Text(value.to_string())
     }
 }
 
 impl From<serde_json::Value> for QueryParam {
     fn from(value: serde_json::Value) -> Self {
-        QueryParam::Json(value)
+        Self::Json(value)
     }
 }
 
 impl From<chrono::NaiveDateTime> for QueryParam {
     fn from(value: chrono::NaiveDateTime) -> Self {
-        QueryParam::Timestamp(value)
+        Self::Timestamp(value)
     }
 }
 
 impl From<uuid::Uuid> for QueryParam {
     fn from(value: uuid::Uuid) -> Self {
-        QueryParam::Uuid(value)
+        Self::Uuid(value)
     }
 }
 

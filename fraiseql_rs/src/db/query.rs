@@ -16,7 +16,7 @@ pub struct QueryExecutor<'a> {
 
 impl<'a> QueryExecutor<'a> {
     /// Create a new query executor with a database client.
-    pub fn new(client: &'a mut Client) -> Self {
+    pub const fn new(client: &'a mut Client) -> Self {
         QueryExecutor { client }
     }
 
@@ -44,7 +44,7 @@ impl<'a> QueryExecutor<'a> {
             .client
             .query(&sql, &sql_params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("SELECT query failed: {}", e)))?;
+            .map_err(|e| DatabaseError::Query(format!("SELECT query failed: {e}")))?;
 
         let result = self.rows_to_query_result(rows);
         Ok(result)
@@ -71,7 +71,7 @@ impl<'a> QueryExecutor<'a> {
             .client
             .execute(&sql, &sql_params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("INSERT query failed: {}", e)))?;
+            .map_err(|e| DatabaseError::Query(format!("INSERT query failed: {e}")))?;
 
         Ok(affected)
     }
@@ -96,7 +96,7 @@ impl<'a> QueryExecutor<'a> {
             .client
             .execute(&sql, &sql_params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("UPDATE query failed: {}", e)))?;
+            .map_err(|e| DatabaseError::Query(format!("UPDATE query failed: {e}")))?;
 
         Ok(affected)
     }
@@ -110,13 +110,13 @@ impl<'a> QueryExecutor<'a> {
         let (where_sql, params) = if let Some(builder) = where_clause {
             builder.build()
         } else {
-            ("".to_string(), vec![])
+            (String::new(), vec![])
         };
 
         let sql = if where_sql.is_empty() {
-            format!("DELETE FROM {}", table)
+            format!("DELETE FROM {table}")
         } else {
-            format!("DELETE FROM {} {}", table, where_sql)
+            format!("DELETE FROM {table} {where_sql}")
         };
 
         // Validate parameters before execution
@@ -130,7 +130,7 @@ impl<'a> QueryExecutor<'a> {
             .client
             .execute(&sql, &sql_params)
             .await
-            .map_err(|e| DatabaseError::Query(format!("DELETE query failed: {}", e)))?;
+            .map_err(|e| DatabaseError::Query(format!("DELETE query failed: {e}")))?;
 
         Ok(affected)
     }
@@ -146,7 +146,7 @@ impl<'a> QueryExecutor<'a> {
         offset: Option<i64>,
     ) -> DatabaseResult<String> {
         let column_list = columns.join(", ");
-        let mut sql = format!("SELECT {} FROM {}", column_list, table);
+        let mut sql = format!("SELECT {column_list} FROM {table}");
 
         if let Some(builder) = where_clause {
             let (where_sql, _) = builder.clone().build();
@@ -156,15 +156,15 @@ impl<'a> QueryExecutor<'a> {
         }
 
         if let Some(order) = order_by {
-            sql.push_str(&format!(" ORDER BY {}", order));
+            sql.push_str(&format!(" ORDER BY {order}"));
         }
 
         if let Some(limit_val) = limit {
-            sql.push_str(&format!(" LIMIT {}", limit_val));
+            sql.push_str(&format!(" LIMIT {limit_val}"));
         }
 
         if let Some(offset_val) = offset {
-            sql.push_str(&format!(" OFFSET {}", offset_val));
+            sql.push_str(&format!(" OFFSET {offset_val}"));
         }
 
         Ok(sql)
@@ -178,12 +178,11 @@ impl<'a> QueryExecutor<'a> {
         value_count: usize,
     ) -> DatabaseResult<String> {
         let column_list = columns.join(", ");
-        let placeholders: Vec<String> = (1..=value_count).map(|i| format!("${}", i)).collect();
+        let placeholders: Vec<String> = (1..=value_count).map(|i| format!("${i}")).collect();
         let value_placeholders = placeholders.join(", ");
 
         Ok(format!(
-            "INSERT INTO {} ({}) VALUES ({})",
-            table, column_list, value_placeholders
+            "INSERT INTO {table} ({column_list}) VALUES ({value_placeholders})"
         ))
     }
 
@@ -204,7 +203,7 @@ impl<'a> QueryExecutor<'a> {
             .collect();
 
         let set_sql = set_clauses.join(", ");
-        let mut sql = format!("UPDATE {} SET {}", table, set_sql);
+        let mut sql = format!("UPDATE {table} SET {set_sql}");
 
         if let Some(builder) = where_clause {
             let (where_sql, where_params) = builder.build();
@@ -213,7 +212,7 @@ impl<'a> QueryExecutor<'a> {
                 let mut adjusted_where_sql = where_sql;
                 // Replace in reverse order to avoid conflicts (e.g., $1 becoming $11 if offset is 10)
                 for i in (1..=where_params.len()).rev() {
-                    let old_placeholder = format!("${}", i);
+                    let old_placeholder = format!("${i}");
                     let new_placeholder = format!("${}", param_offset + i);
                     adjusted_where_sql =
                         adjusted_where_sql.replace(&old_placeholder, &new_placeholder);
@@ -236,7 +235,7 @@ impl<'a> QueryExecutor<'a> {
         }
     }
 
-    /// Convert HashMap updates to parameter vector.
+    /// Convert `HashMap` updates to parameter vector.
     fn hashmap_to_params(
         &self,
         updates: &std::collections::HashMap<&str, QueryParam>,
@@ -244,7 +243,7 @@ impl<'a> QueryExecutor<'a> {
         updates.values().cloned().collect()
     }
 
-    /// Convert PostgreSQL rows to QueryResult.
+    /// Convert `PostgreSQL` rows to `QueryResult`.
     fn rows_to_query_result(&self, rows: Vec<Row>) -> QueryResult {
         if rows.is_empty() {
             return QueryResult {
@@ -276,7 +275,7 @@ impl<'a> QueryExecutor<'a> {
         }
     }
 
-    /// Convert PostgreSQL value to QueryParam.
+    /// Convert `PostgreSQL` value to `QueryParam`.
     fn postgres_value_to_query_param(&self, row: &Row, index: usize) -> QueryParam {
         // Try different PostgreSQL types in order of preference
         if let Ok(Some(val)) = row.try_get::<_, Option<i32>>(index) {
@@ -296,7 +295,7 @@ impl<'a> QueryExecutor<'a> {
             // These require proper tokio-postgres feature configuration
             // For now, fall back to text representation
             // For unsupported types or NULL values, return empty text
-            QueryParam::Text("".to_string())
+            QueryParam::Text(String::new())
         }
     }
 }
@@ -309,17 +308,17 @@ impl ToSql for QueryParam {
         out: &mut BytesMut,
     ) -> Result<tokio_postgres::types::IsNull, Box<dyn std::error::Error + Sync + Send>> {
         match self {
-            QueryParam::Null => Ok(tokio_postgres::types::IsNull::Yes),
-            QueryParam::Bool(val) => val.to_sql(ty, out),
-            QueryParam::Int(val) => val.to_sql(ty, out),
-            QueryParam::BigInt(val) => val.to_sql(ty, out),
-            QueryParam::Float(val) => val.to_sql(ty, out),
-            QueryParam::Double(val) => val.to_sql(ty, out),
-            QueryParam::Text(val) => val.to_sql(ty, out),
+            Self::Null => Ok(tokio_postgres::types::IsNull::Yes),
+            Self::Bool(val) => val.to_sql(ty, out),
+            Self::Int(val) => val.to_sql(ty, out),
+            Self::BigInt(val) => val.to_sql(ty, out),
+            Self::Float(val) => val.to_sql(ty, out),
+            Self::Double(val) => val.to_sql(ty, out),
+            Self::Text(val) => val.to_sql(ty, out),
             // TODO Phase 4.1: Add proper ToSql for advanced types
-            QueryParam::Json(val) => val.to_string().to_sql(ty, out),
-            QueryParam::Timestamp(val) => val.to_string().to_sql(ty, out),
-            QueryParam::Uuid(val) => val.to_string().to_sql(ty, out),
+            Self::Json(val) => val.to_string().to_sql(ty, out),
+            Self::Timestamp(val) => val.to_string().to_sql(ty, out),
+            Self::Uuid(val) => val.to_string().to_sql(ty, out),
         }
     }
 
@@ -337,7 +336,7 @@ impl QueryParam {
     /// Validate that the parameter value is reasonable
     pub fn validate(&self) -> DatabaseResult<()> {
         match self {
-            QueryParam::Text(s) => {
+            Self::Text(s) => {
                 if s.len() > 1_000_000 {
                     // 1MB limit for text fields
                     return Err(DatabaseError::Config(
@@ -345,10 +344,10 @@ impl QueryParam {
                     ));
                 }
             }
-            QueryParam::Json(val) => {
+            Self::Json(val) => {
                 // Basic JSON validation - ensure it's not too large
                 if serde_json::to_string(val)
-                    .map_err(|e| DatabaseError::Config(format!("Invalid JSON parameter: {}", e)))?
+                    .map_err(|e| DatabaseError::Config(format!("Invalid JSON parameter: {e}")))?
                     .len()
                     > 1_000_000
                 {
@@ -366,8 +365,6 @@ impl QueryParam {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_query_executor_api() {
         // Test that the API compiles and types work correctly

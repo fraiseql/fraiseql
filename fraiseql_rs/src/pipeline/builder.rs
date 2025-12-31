@@ -1,7 +1,7 @@
 //! Pipeline response builder for GraphQL responses
 //!
 //! This module provides the high-level API for building complete GraphQL
-//! responses from PostgreSQL JSON rows using schema-aware transformation.
+//! responses from `PostgreSQL` JSON rows using schema-aware transformation.
 
 use crate::core::arena::Arena;
 use crate::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer, MAX_JSON_DEPTH};
@@ -14,14 +14,14 @@ use serde_json::{json, Value};
 /// Type alias for multi-field response field definition.
 ///
 /// Represents a single field in a multi-field GraphQL query response:
-/// - String: field_name (e.g., "users")
-/// - String: type_name (e.g., "User")
-/// - Vec<String>: json_rows (raw JSON from database)
-/// - Option<String>: field_selections (JSON-encoded field selection metadata)
-/// - Option<bool>: is_list (whether field returns list or single object)
+/// - String: `field_name` (e.g., "users")
+/// - String: `type_name` (e.g., "User")
+/// - Vec<String>: `json_rows` (raw JSON from database)
+/// - Option<String>: `field_selections` (JSON-encoded field selection metadata)
+/// - Option<bool>: `is_list` (whether field returns list or single object)
 type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
 
-/// Build complete GraphQL response from PostgreSQL JSON rows
+/// Build complete GraphQL response from `PostgreSQL` JSON rows
 ///
 /// This is the TOP-LEVEL API called from lib.rs (FFI layer):
 /// ```rust
@@ -36,8 +36,8 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 ///
 /// Pipeline:
 /// ┌──────────────┐
-/// │ PostgreSQL   │ → JSON strings (already in memory)
-/// │ json_rows    │
+/// │ `PostgreSQL`   │ → JSON strings (already in memory)
+/// │ `json_rows`    │
 /// └──────┬───────┘
 ///        │
 ///        ▼
@@ -106,7 +106,7 @@ pub fn build_graphql_response(
 ///
 /// This internal function handles schema-aware transformation with optional
 /// field selections. The parameters are grouped as received from the caller
-/// (build_graphql_response) to maintain API clarity.
+/// (`build_graphql_response`) to maintain API clarity.
 #[allow(clippy::too_many_arguments)]
 fn build_with_schema(
     json_rows: Vec<String>,
@@ -123,7 +123,7 @@ fn build_with_schema(
         .map(|row_str| {
             serde_json::from_str::<Value>(row_str)
                 .map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(format!("Failed to parse JSON: {}", e))
+                    pyo3::exceptions::PyValueError::new_err(format!("Failed to parse JSON: {e}"))
                 })
                 .map(|value| {
                     if let Some(ref selections) = field_selections {
@@ -155,8 +155,7 @@ fn build_with_schema(
 
         return serde_json::to_vec(&field_data).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!(
-                "Failed to serialize field data: {}",
-                e
+                "Failed to serialize field data: {e}"
             ))
         });
     }
@@ -187,7 +186,7 @@ fn build_with_schema(
     };
 
     serde_json::to_vec(&response_data).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize response: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize response: {e}"))
     })
 }
 
@@ -213,7 +212,7 @@ fn build_zero_copy(
 
     let mut transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
 
-    let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
+    let total_input_size: usize = json_rows.iter().map(std::string::String::len).sum();
 
     // Check if we should include GraphQL wrapper (defaults to true for backward compatibility)
     let include_wrapper = include_graphql_wrapper.unwrap_or(true);
@@ -297,11 +296,11 @@ fn build_zero_copy(
 }
 
 fn estimate_arena_size(json_rows: &[String]) -> usize {
-    let total_input_size: usize = json_rows.iter().map(|s| s.len()).sum();
+    let total_input_size: usize = json_rows.iter().map(std::string::String::len).sum();
     (total_input_size / 4).clamp(8192, 65536)
 }
 
-/// Build complete multi-field GraphQL response from PostgreSQL JSON rows
+/// Build complete multi-field GraphQL response from `PostgreSQL` JSON rows
 ///
 /// This function handles multi-field queries entirely in Rust, bypassing graphql-core
 /// to avoid type validation errors. It processes multiple root fields and combines
@@ -325,7 +324,7 @@ fn estimate_arena_size(json_rows: &[String]) -> usize {
 /// ```
 ///
 /// Args:
-///     fields: List of (field_name, type_name, json_rows, field_selections, is_list)
+///     fields: List of (`field_name`, `type_name`, `json_rows`, `field_selections`, `is_list`)
 ///
 /// Returns:
 ///     Complete GraphQL response as UTF-8 bytes
@@ -342,8 +341,7 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
             Some(json_str) if !json_str.is_empty() => serde_json::from_str::<Vec<Value>>(&json_str)
                 .map_err(|e| {
                     pyo3::exceptions::PyValueError::new_err(format!(
-                        "Invalid field_selections JSON for field '{}': {}",
-                        field_name, e
+                        "Invalid field_selections JSON for field '{field_name}': {e}"
                     ))
                 })?,
             _ => Vec::new(),
@@ -362,8 +360,7 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
                 serde_json::from_str::<Value>(row_str)
                     .map_err(|e| {
                         pyo3::exceptions::PyValueError::new_err(format!(
-                            "Failed to parse JSON for field '{}': {}",
-                            field_name, e
+                            "Failed to parse JSON for field '{field_name}': {e}"
                         ))
                     })
                     .map(|value| {
@@ -401,8 +398,7 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
     // Serialize to UTF-8 bytes
     serde_json::to_vec(&response).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!(
-            "Failed to serialize multi-field response: {}",
-            e
+            "Failed to serialize multi-field response: {e}"
         ))
     })
 }

@@ -9,13 +9,15 @@ pub struct ResponseBuilder {
 }
 
 impl ResponseBuilder {
-    pub fn new() -> Self {
-        ResponseBuilder {
+    #[must_use] 
+    pub const fn new() -> Self {
+        Self {
             chunk_size: 8192, // 8KB chunks
         }
     }
 
-    pub fn with_chunk_size(mut self, size: usize) -> Self {
+    #[must_use] 
+    pub const fn with_chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;
         self
     }
@@ -54,6 +56,7 @@ impl ResponseBuilder {
     }
 
     /// Create a chunked writer for streaming
+    #[must_use] 
     pub fn create_chunked_writer(&self) -> ChunkedWriter {
         ChunkedWriter::new(self.chunk_size)
     }

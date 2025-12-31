@@ -31,9 +31,9 @@
 //! ## Query Patterns
 //!
 //! All queries use parameterized statements (safe from SQL injection):
-//! - User roles: filters by user_id and expiration
+//! - User roles: filters by `user_id` and expiration
 //! - Hierarchy: recursive CTE with tenant scoping
-//! - Permissions: DISTINCT join on role_permissions + permissions
+//! - Permissions: DISTINCT join on `role_permissions` + permissions
 //!
 //! ## Thread Safety
 //!
@@ -54,7 +54,7 @@ use uuid::Uuid;
 
 /// Permission resolver with caching and hierarchy support.
 ///
-/// The main API for permission checking in FraiseQL. Combines efficient
+/// The main API for permission checking in `FraiseQL`. Combines efficient
 /// database queries with multi-layer caching for sub-millisecond performance.
 ///
 /// # Example
@@ -81,6 +81,7 @@ pub struct PermissionResolver {
 }
 
 impl PermissionResolver {
+    #[must_use] 
     pub fn new(pool: Pool, cache_capacity: usize) -> Self {
         let hierarchy = RoleHierarchy::new(pool.clone());
         let cache = Arc::new(PermissionCache::new(cache_capacity));
@@ -153,7 +154,7 @@ impl PermissionResolver {
         ";
 
         let client = self.pool.get().await?;
-        let role_id_strings: Vec<String> = all_role_ids.iter().map(|id| id.to_string()).collect();
+        let role_id_strings: Vec<String> = all_role_ids.iter().map(std::string::ToString::to_string).collect();
         let rows = client.query(sql, &[&role_id_strings]).await?;
         let permissions: Vec<Permission> = rows.into_iter().map(Permission::from_row).collect();
 
@@ -196,6 +197,7 @@ impl PermissionResolver {
     }
 
     /// Get cache statistics
+    #[must_use] 
     pub fn cache_stats(&self) -> super::cache::CacheStats {
         self.cache.stats()
     }

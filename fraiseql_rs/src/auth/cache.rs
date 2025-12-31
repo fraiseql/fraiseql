@@ -16,6 +16,7 @@ pub struct UserContextCache {
 
 impl UserContextCache {
     /// Create a new user context cache.
+    #[must_use]
     pub fn new(capacity: usize, ttl_seconds: u64) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
@@ -26,6 +27,7 @@ impl UserContextCache {
     }
 
     /// Get user context from cache.
+    #[must_use]
     pub fn get(&self, token: &str) -> Option<UserContext> {
         let key = Self::hash_token(token);
 

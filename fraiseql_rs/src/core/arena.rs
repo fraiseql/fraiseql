@@ -34,10 +34,10 @@ pub enum ArenaError {
 impl std::fmt::Display for ArenaError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ArenaError::SizeExceeded => {
-                write!(f, "Arena size limit exceeded ({} bytes)", MAX_ARENA_SIZE)
+            Self::SizeExceeded => {
+                write!(f, "Arena size limit exceeded ({MAX_ARENA_SIZE} bytes)")
             }
-            ArenaError::Overflow => write!(f, "Arena size calculation overflow"),
+            Self::Overflow => write!(f, "Arena size calculation overflow"),
         }
     }
 }
@@ -66,7 +66,7 @@ impl std::error::Error for ArenaError {}
 /// 2. **Lifetime safety** - Returned slices are tied to arena lifetime via Rust's borrow checker
 /// 3. **No aliasing** - Each allocation returns non-overlapping slices from sequential memory
 /// 4. **Bounds checked** - All allocations verify size limits before modifying buffer
-/// 5. **Interior mutability** - UnsafeCell required for bump pointer pattern, but access is serialized
+/// 5. **Interior mutability** - `UnsafeCell` required for bump pointer pattern, but access is serialized
 ///
 /// **Unsafe code justification:**
 /// - `UnsafeCell<Vec<u8>>`: Required for interior mutability in bump allocator pattern
@@ -101,8 +101,9 @@ impl Arena {
     /// # Recommended Capacities
     /// - 8KB for small requests (< 50 fields)
     /// - 64KB for large requests (> 500 fields)
+    #[must_use] 
     pub fn with_capacity(capacity: usize) -> Self {
-        Arena {
+        Self {
             buf: UnsafeCell::new(Vec::with_capacity(capacity.min(MAX_ARENA_SIZE))),
             pos: UnsafeCell::new(0),
             max_size: MAX_ARENA_SIZE,
@@ -114,10 +115,11 @@ impl Arena {
     ///
     /// # Arguments
     /// * `capacity` - Initial buffer capacity
-    /// * `max_size` - Maximum allowed size (capped at MAX_ARENA_SIZE)
+    /// * `max_size` - Maximum allowed size (capped at `MAX_ARENA_SIZE`)
+    #[must_use] 
     pub fn with_capacity_and_max(capacity: usize, max_size: usize) -> Self {
         let effective_max = max_size.min(MAX_ARENA_SIZE);
-        Arena {
+        Self {
             buf: UnsafeCell::new(Vec::with_capacity(capacity.min(effective_max))),
             pos: UnsafeCell::new(0),
             max_size: effective_max,
@@ -175,7 +177,7 @@ impl Arena {
     /// For error handling, use `try_alloc_bytes` instead.
     ///
     /// # Panics
-    /// Panics if allocation would exceed max_size limit.
+    /// Panics if allocation would exceed `max_size` limit.
     ///
     /// # Safety
     /// Same safety guarantees as `try_alloc_bytes`.

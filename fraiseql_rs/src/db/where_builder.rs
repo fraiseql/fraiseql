@@ -45,8 +45,9 @@ pub struct WhereBuilder {
 
 impl WhereBuilder {
     /// Create a new WHERE clause builder.
-    pub fn new() -> Self {
-        WhereBuilder {
+    #[must_use] 
+    pub const fn new() -> Self {
+        Self {
             conditions: Vec::new(),
             params: Vec::new(),
             param_index: 1, // PostgreSQL parameters start at $1
@@ -108,8 +109,9 @@ impl WhereBuilder {
     }
 
     /// Add an IN condition.
+    #[must_use] 
     pub fn in_list<T: Into<QueryParam>>(mut self, field: &str, values: Vec<T>) -> Self {
-        let params: Vec<QueryParam> = values.into_iter().map(|v| v.into()).collect();
+        let params: Vec<QueryParam> = values.into_iter().map(std::convert::Into::into).collect();
         self.conditions
             .push(WhereCondition::In(field.to_string(), params.clone()));
         self.params.extend(params);
@@ -117,6 +119,7 @@ impl WhereBuilder {
     }
 
     /// Add a LIKE condition.
+    #[must_use] 
     pub fn like(mut self, field: &str, pattern: &str) -> Self {
         self.conditions
             .push(WhereCondition::Like(field.to_string(), pattern.to_string()));
@@ -125,6 +128,7 @@ impl WhereBuilder {
     }
 
     /// Add an IS NULL condition.
+    #[must_use] 
     pub fn is_null(mut self, field: &str) -> Self {
         self.conditions
             .push(WhereCondition::IsNull(field.to_string()));
@@ -132,6 +136,7 @@ impl WhereBuilder {
     }
 
     /// Add an IS NOT NULL condition.
+    #[must_use] 
     pub fn is_not_null(mut self, field: &str) -> Self {
         self.conditions
             .push(WhereCondition::IsNotNull(field.to_string()));
@@ -139,7 +144,8 @@ impl WhereBuilder {
     }
 
     /// Combine with AND.
-    pub fn and(mut self, other: WhereBuilder) -> Self {
+    #[must_use] 
+    pub fn and(mut self, other: Self) -> Self {
         if let (Some(left), Some(right)) =
             (self.conditions.pop(), other.conditions.first().cloned())
         {
@@ -151,7 +157,8 @@ impl WhereBuilder {
     }
 
     /// Combine with OR.
-    pub fn or(mut self, other: WhereBuilder) -> Self {
+    #[must_use] 
+    pub fn or(mut self, other: Self) -> Self {
         if let (Some(left), Some(right)) =
             (self.conditions.pop(), other.conditions.first().cloned())
         {
@@ -163,9 +170,10 @@ impl WhereBuilder {
     }
 
     /// Build the WHERE clause SQL and return parameters.
+    #[must_use] 
     pub fn build(self) -> (String, Vec<QueryParam>) {
         if self.conditions.is_empty() {
-            return ("".to_string(), vec![]);
+            return (String::new(), vec![]);
         }
 
         let mut sql_parts = Vec::new();
@@ -198,8 +206,8 @@ impl WhereBuilder {
                 format!("{} IN ({})", field, placeholders.join(", "))
             }
             WhereCondition::Like(field, _) => format!("{} LIKE ${}", field, self.param_index),
-            WhereCondition::IsNull(field) => format!("{} IS NULL", field),
-            WhereCondition::IsNotNull(field) => format!("{} IS NOT NULL", field),
+            WhereCondition::IsNull(field) => format!("{field} IS NULL"),
+            WhereCondition::IsNotNull(field) => format!("{field} IS NOT NULL"),
             WhereCondition::And(left, right) => format!(
                 "({}) AND ({})",
                 self.build_condition_sql(left),

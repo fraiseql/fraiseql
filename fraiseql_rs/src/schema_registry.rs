@@ -7,19 +7,18 @@
 //! and then used for all subsequent query transformations.
 
 use arc_swap::ArcSwap;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Empty registry constant for efficient atomic operations
-/// This avoids allocating new Arc instances during compare_and_swap
-static EMPTY_REGISTRY: Lazy<Arc<SchemaRegistry>> = Lazy::new(|| Arc::new(SchemaRegistry::empty()));
+/// This avoids allocating new Arc instances during `compare_and_swap`
+static EMPTY_REGISTRY: std::sync::LazyLock<Arc<SchemaRegistry>> = std::sync::LazyLock::new(|| Arc::new(SchemaRegistry::empty()));
 
 /// Global schema registry using lock-free atomic access
-/// Instead of RwLock<Option<T>>, we use ArcSwap<T> directly
-static REGISTRY: Lazy<ArcSwap<SchemaRegistry>> =
-    Lazy::new(|| ArcSwap::from(EMPTY_REGISTRY.clone()));
+/// Instead of `RwLock`<Option<T>>, we use `ArcSwap`<T> directly
+static REGISTRY: std::sync::LazyLock<ArcSwap<SchemaRegistry>> =
+    std::sync::LazyLock::new(|| ArcSwap::from(EMPTY_REGISTRY.clone()));
 
 /// Field metadata describing a GraphQL field's type information
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -41,17 +40,20 @@ pub struct FieldInfo {
 
 impl FieldInfo {
     /// Get the type name of this field
+    #[must_use] 
     pub fn type_name(&self) -> &str {
         &self.type_name
     }
 
     /// Check if this is a nested object type
-    pub fn is_nested_object(&self) -> bool {
+    #[must_use] 
+    pub const fn is_nested_object(&self) -> bool {
         self.is_nested_object
     }
 
     /// Check if this is a list type
-    pub fn is_list(&self) -> bool {
+    #[must_use] 
+    pub const fn is_list(&self) -> bool {
         self.is_list
     }
 }
@@ -80,9 +82,10 @@ pub struct SchemaRegistry {
 }
 
 impl SchemaRegistry {
-    /// Create an empty SchemaRegistry
+    /// Create an empty `SchemaRegistry`
     ///
     /// Used internally for initializing the global registry before it's populated.
+    #[must_use] 
     pub fn empty() -> Self {
         Self {
             version: String::new(),
@@ -91,7 +94,7 @@ impl SchemaRegistry {
         }
     }
 
-    /// Create a new SchemaRegistry from JSON schema IR
+    /// Create a new `SchemaRegistry` from JSON schema IR
     ///
     /// # Arguments
     /// * `json` - JSON string containing the schema IR from Python
@@ -106,15 +109,17 @@ impl SchemaRegistry {
     /// let registry = SchemaRegistry::from_json(schema_json)?;
     /// ```
     pub fn from_json(json: &str) -> Result<Self, String> {
-        serde_json::from_str(json).map_err(|e| format!("Failed to parse schema JSON: {}", e))
+        serde_json::from_str(json).map_err(|e| format!("Failed to parse schema JSON: {e}"))
     }
 
     /// Get the schema IR version
+    #[must_use] 
     pub fn version(&self) -> &str {
         &self.version
     }
 
     /// Check if a feature is enabled in this schema
+    #[must_use] 
     pub fn has_feature(&self, feature: &str) -> bool {
         self.features.contains(&feature.to_string())
     }
@@ -123,20 +128,21 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     /// * `type_name` - The parent type name (e.g., "Assignment")
-    /// * `field_name` - The field name (e.g., "equipment" or "network_config")
+    /// * `field_name` - The field name (e.g., "equipment" or "`network_config`")
     ///
     /// # Returns
     /// * `Some(&FieldInfo)` - Field information if found
     /// * `None` - Type or field not found
     ///
     /// # Performance
-    /// This is an O(1) HashMap lookup (or 2 lookups if camelCase fallback is needed)
+    /// This is an O(1) `HashMap` lookup (or 2 lookups if camelCase fallback is needed)
     ///
     /// # Note
-    /// Field names can be in snake_case (from database) or camelCase (from GraphQL).
+    /// Field names can be in `snake_case` (from database) or camelCase (from GraphQL).
     /// This method tries both formats to find the field:
     /// 1. First tries the original field name
-    /// 2. If not found, tries camelCase version (for snake_case inputs)
+    /// 2. If not found, tries camelCase version (for `snake_case` inputs)
+    #[must_use] 
     pub fn get_field_type(&self, type_name: &str, field_name: &str) -> Option<&FieldInfo> {
         let type_info = self.types.get(type_name)?;
 
@@ -153,6 +159,7 @@ impl SchemaRegistry {
     }
 
     /// Get the number of types in the registry
+    #[must_use] 
     pub fn type_count(&self) -> usize {
         self.types.len()
     }
@@ -195,7 +202,7 @@ pub fn with_registry<T, F: FnOnce(&SchemaRegistry) -> T>(f: F) -> T {
 /// This should be called once at application startup
 ///
 /// # Arguments
-/// * `registry` - The SchemaRegistry to install
+/// * `registry` - The `SchemaRegistry` to install
 ///
 /// # Returns
 /// * `true` - Registry was initialized (was previously empty)
@@ -216,7 +223,7 @@ pub fn initialize_registry(registry: SchemaRegistry) -> bool {
 /// Do not cache raw references across calls to this function.
 ///
 /// # Safety Note
-/// This is safe, but callers must not cache &SchemaRegistry references
+/// This is safe, but callers must not cache &`SchemaRegistry` references
 /// across calls to this function.
 pub fn set_registry(registry: SchemaRegistry) {
     REGISTRY.store(Arc::new(registry));

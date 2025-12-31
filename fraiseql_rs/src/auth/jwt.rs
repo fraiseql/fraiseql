@@ -41,8 +41,7 @@ impl JWTValidator {
         // Validate HTTPS for JWKS URL
         if !jwks_url.starts_with("https://") {
             return Err(AuthError::InvalidToken(format!(
-                "JWKS URL must use HTTPS: {}",
-                jwks_url
+                "JWKS URL must use HTTPS: {jwks_url}"
             )));
         }
 
@@ -65,7 +64,7 @@ impl JWTValidator {
     pub async fn validate(&self, token: &str) -> Result<Claims> {
         // Decode header to get key ID
         let header = decode_header(token)
-            .map_err(|e| AuthError::InvalidToken(format!("Invalid header: {}", e)))?;
+            .map_err(|e| AuthError::InvalidToken(format!("Invalid header: {e}")))?;
 
         let kid = header
             .kid
@@ -79,7 +78,7 @@ impl JWTValidator {
 
         // Use built-in JWK to DecodingKey conversion
         let decoding_key = DecodingKey::from_jwk(&jwk)
-            .map_err(|e| AuthError::InvalidToken(format!("Invalid JWK: {}", e)))?;
+            .map_err(|e| AuthError::InvalidToken(format!("Invalid JWK: {e}")))?;
 
         // Set up validation
         let mut validation = Validation::new(Algorithm::RS256);

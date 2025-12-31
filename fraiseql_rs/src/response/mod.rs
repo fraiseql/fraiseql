@@ -1,6 +1,6 @@
 //! Zero-copy result streaming and response building.
 //!
-//! This module implements memory-efficient streaming from PostgreSQL
+//! This module implements memory-efficient streaming from `PostgreSQL`
 //! directly to HTTP response bytes, eliminating intermediate buffering.
 
 pub mod builder;

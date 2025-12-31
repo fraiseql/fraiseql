@@ -24,15 +24,14 @@ pub fn build_sql_query(
 ) -> PyResult<GeneratedQuery> {
     // Deserialize schema
     let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e))
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {e}"))
     })?;
 
     // Compose SQL
     let composer = SQLComposer::new(schema);
     let sql_query = composer.compose(&parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-            "Query composition failed: {}",
-            e
+            "Query composition failed: {e}"
         ))
     })?;
 
@@ -78,14 +77,13 @@ pub fn build_sql_query_cached(
 
     // Cache miss - build query normally
     let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {}", e))
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {e}"))
     })?;
 
     let composer = SQLComposer::new(schema);
     let sql_query = composer.compose(&parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-            "Query composition failed: {}",
-            e
+            "Query composition failed: {e}"
         ))
     })?;
 
@@ -130,7 +128,7 @@ pub fn build_sql_query_cached(
 #[pyfunction]
 pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
     let stats = QUERY_PLAN_CACHE.stats().map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache stats error: {}", e))
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache stats error: {e}"))
     })?;
 
     let dict = pyo3::types::PyDict::new(_py);
@@ -147,7 +145,7 @@ pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
 #[pyfunction]
 pub fn clear_cache() -> PyResult<()> {
     QUERY_PLAN_CACHE.clear().map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache clear error: {}", e))
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache clear error: {e}"))
     })
 }
 

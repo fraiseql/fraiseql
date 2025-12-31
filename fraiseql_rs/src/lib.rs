@@ -1,6 +1,6 @@
-//! FraiseQL Rust PostgreSQL Driver
+//! `FraiseQL` Rust `PostgreSQL` Driver
 //!
-//! High-performance Rust backend for PostgreSQL operations with GraphQL integration.
+//! High-performance Rust backend for `PostgreSQL` operations with `GraphQL` integration.
 
 // ============================================================================
 // CLIPPY SUPPRESSION POLICY
@@ -41,7 +41,7 @@ pub mod response;
 pub mod schema_registry;
 pub mod security;
 
-/// Version of the fraiseql_rs module
+/// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Global unified GraphQL pipeline instance (Phase 9).
@@ -53,11 +53,11 @@ lazy_static! {
 /// Type alias for multi-field response field definition.
 ///
 /// Represents a single field in a multi-field GraphQL query response:
-/// - String: field_name (e.g., "users")
-/// - String: type_name (e.g., "User")
-/// - Vec<String>: json_rows (raw JSON from database)
-/// - Option<String>: field_selections (JSON-encoded field selection metadata)
-/// - Option<bool>: is_list (whether field returns list or single object)
+/// - String: `field_name` (e.g., "users")
+/// - String: `type_name` (e.g., "User")
+/// - Vec<String>: `json_rows` (raw JSON from database)
+/// - Option<String>: `field_selections` (JSON-encoded field selection metadata)
+/// - Option<bool>: `is_list` (whether field returns list or single object)
 type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
 
 /// Initialize the global GraphQL pipeline (called from Python on startup).
@@ -104,16 +104,16 @@ pub fn execute_graphql_query(
     }
 }
 
-/// Convert a snake_case string to camelCase
+/// Convert a `snake_case` string to camelCase
 ///
 /// Examples:
-///     >>> to_camel_case("user_name")
+///     >>> `to_camel_case("user_name`")
 ///     "userName"
-///     >>> to_camel_case("email_address")
+///     >>> `to_camel_case("email_address`")
 ///     "emailAddress"
 ///
 /// Args:
-///     s: The snake_case string to convert
+///     s: The `snake_case` string to convert
 ///
 /// Returns:
 ///     The camelCase string
@@ -122,14 +122,14 @@ fn to_camel_case(s: &str) -> String {
     camel_case::to_camel_case(s)
 }
 
-/// Transform all keys in a dictionary from snake_case to camelCase
+/// Transform all keys in a dictionary from `snake_case` to camelCase
 ///
 /// Examples:
-///     >>> transform_keys({"user_name": "John", "email_address": "..."})
+///     >>> `transform_keys({"user_name"`: "John", "`email_address"`: "..."})
 ///     {"userName": "John", "emailAddress": "..."}
 ///
 /// Args:
-///     obj: Dictionary with snake_case keys
+///     obj: Dictionary with `snake_case` keys
 ///     recursive: If True, recursively transform nested dicts and lists (default: False)
 ///
 /// Returns:
@@ -140,30 +140,30 @@ fn transform_keys(py: Python, obj: &Bound<'_, PyDict>, recursive: bool) -> PyRes
     camel_case::transform_dict_keys(py, obj, recursive)
 }
 
-/// Transform a JSON string by converting all keys from snake_case to camelCase
+/// Transform a JSON string by converting all keys from `snake_case` to camelCase
 ///
 /// This is the fastest way to transform JSON as it avoids Python dict conversion.
 ///
 /// Examples:
-///     >>> transform_json('{"user_name": "John", "email_address": "john@example.com"}')
+///     >>> `transform_json`('{"`user_name"`: "John", "`email_address"`: "john@example.com"}')
 ///     '{"userName":"John","emailAddress":"john@example.com"}'
 ///
 /// Args:
-///     json_str: JSON string with snake_case keys
+///     `json_str`: JSON string with `snake_case` keys
 ///
 /// Returns:
 ///     Transformed JSON string with camelCase keys
 ///
 /// Raises:
-///     ValueError: If json_str is not valid JSON
+///     `ValueError`: If `json_str` is not valid JSON
 #[pyfunction]
 fn transform_json(json_str: &str) -> PyResult<String> {
     json_transform::transform_json_string(json_str)
 }
 
-/// Simple test function to verify PyO3 is working
+/// Simple test function to verify `PyO3` is working
 #[pyfunction]
-fn test_function() -> PyResult<&'static str> {
+const fn test_function() -> PyResult<&'static str> {
     Ok("Hello from Rust!")
 }
 
@@ -183,13 +183,13 @@ struct Arena {
 impl Arena {
     #[new]
     fn new() -> Self {
-        Arena {
+        Self {
             inner: core::Arena::with_capacity(8192),
         }
     }
 }
 
-/// Multi-architecture snake_to_camel (for testing)
+/// Multi-architecture `snake_to_camel` (for testing)
 ///
 /// This automatically dispatches to the best implementation for the current CPU.
 #[pyfunction]
@@ -198,7 +198,7 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
     result.to_vec()
 }
 
-/// Convert a Python object to serde_json::Value recursively
+/// Convert a Python object to `serde_json::Value` recursively
 ///
 /// Handles all Python types comprehensively:
 /// - None → Null
@@ -210,7 +210,7 @@ fn test_snake_to_camel(input: &[u8], arena: &Arena) -> Vec<u8> {
 /// - list → Array (recursive)
 /// - fallback → String (via __str__)
 ///
-/// This ensures complete type fidelity when converting Python field_selections
+/// This ensures complete type fidelity when converting Python `field_selections`
 /// to JSON for the Rust pipeline.
 fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json::Value> {
     use pyo3::types::{PyDict, PyList};
@@ -227,8 +227,7 @@ fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json:
             .map(serde_json::Value::Number)
             .ok_or_else(|| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Invalid float value: {}",
-                    f
+                    "Invalid float value: {f}"
                 ))
             })
     } else if let Ok(s) = value.extract::<String>() {
@@ -256,32 +255,32 @@ fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json:
     }
 }
 
-/// Build complete GraphQL response from PostgreSQL JSON rows
+/// Build complete GraphQL response from `PostgreSQL` JSON rows
 ///
 /// This is the unified API for building GraphQL responses from database JSON.
 /// It handles camelCase conversion, __typename injection, field projection, and aliases.
 ///
 /// Examples:
-///     >>> result = build_graphql_response(
-///     ...     json_strings=['{"user_id": 1}', '{"user_id": 2}'],
-///     ...     field_name="users",
-///     ...     type_name="User",
-///     ...     field_paths=None,
-///     ...     field_selections=None,
-///     ...     is_list=True,
-///     ...     include_graphql_wrapper=True
+///     >>> result = `build_graphql_response`(
+///     ...     `json_strings`=['{"`user_id"`: 1}', '{"`user_id"`: 2}'],
+///     ...     `field_name="users`",
+///     ...     `type_name="User`",
+///     ...     `field_paths=None`,
+///     ...     `field_selections=None`,
+///     ...     `is_list=True`,
+///     ...     `include_graphql_wrapper=True`
 ///     ... )
 ///     >>> result.decode('utf-8')
 ///     '{"data":{"users":[{"__typename":"User","userId":1},{"__typename":"User","userId":2}]}}'
 ///
 /// Args:
-///     json_strings: List of JSON strings from database (snake_case keys)
-///     field_name: GraphQL field name (e.g., "users", "user")
-///     type_name: Optional type name for __typename injection
-///     field_paths: Optional field projection paths (DEPRECATED - use field_selections)
-///     field_selections: Optional Python list of dicts with selection metadata (materialized_path, alias, type_name)
-///     is_list: True for list responses (always array), False for single object responses
-///     include_graphql_wrapper: True to wrap in {"data":{"field_name":...}} (default), False for field-only mode
+///     `json_strings`: List of JSON strings from database (`snake_case` keys)
+///     `field_name`: GraphQL field name (e.g., "users", "user")
+///     `type_name`: Optional type name for __typename injection
+///     `field_paths`: Optional field projection paths (DEPRECATED - use `field_selections`)
+///     `field_selections`: Optional Python list of dicts with selection metadata (`materialized_path`, alias, `type_name`)
+///     `is_list`: True for list responses (always array), False for single object responses
+///     `include_graphql_wrapper`: True to wrap in {"`data":{"field_name"`:...}} (default), False for field-only mode
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
@@ -336,15 +335,15 @@ pub fn build_graphql_response(
 ///
 /// Examples:
 ///     >>> import json
-///     >>> schema_ir = {"version": "1.0", "features": ["type_resolution"], "types": {...}}
-///     >>> initialize_schema_registry(json.dumps(schema_ir))
+///     >>> `schema_ir` = {"version": "1.0", "features": ["`type_resolution`"], "types": {...}}
+///     >>> `initialize_schema_registry(json.dumps(schema_ir))`
 ///
 /// Args:
-///     schema_json: JSON string containing the schema IR from SchemaSerializer
+///     `schema_json`: JSON string containing the schema IR from `SchemaSerializer`
 ///
 /// Raises:
-///     ValueError: If JSON is malformed, missing required fields, or has unsupported version
-///     RuntimeError: If registry is already initialized
+///     `ValueError`: If JSON is malformed, missing required fields, or has unsupported version
+///     `RuntimeError`: If registry is already initialized
 ///
 /// Returns:
 ///     None on success
@@ -360,8 +359,7 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
     // Parse the schema JSON with detailed error messages
     let registry = schema_registry::SchemaRegistry::from_json(&schema_json).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!(
-            "Failed to parse schema JSON: {}. Expected format: {{\"version\": \"1.0\", \"features\": [...], \"types\": {{...}}}}",
-            e
+            "Failed to parse schema JSON: {e}. Expected format: {{\"version\": \"1.0\", \"features\": [...], \"types\": {{...}}}}"
         ))
     })?;
 
@@ -380,7 +378,7 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
         registry
             .features
             .iter()
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .collect::<Vec<_>>()
             .join(", "),
         registry.type_count()
@@ -406,19 +404,19 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
 /// based on GraphQL query field selections to reduce response payload size.
 ///
 /// Examples:
-///     >>> cascade_json = '{"updated": [{"__typename": "Post", "id": "1"}]}'
+///     >>> `cascade_json` = '{"updated": [{"__typename": "Post", "id": "1"}]}'
 ///     >>> selections = '{"fields": ["updated"], "updated": {"include": ["Post"]}}'
-///     >>> result = filter_cascade_data(cascade_json, selections)
+///     >>> result = `filter_cascade_data(cascade_json`, selections)
 ///
 /// Args:
-///     cascade_json: JSON string of cascade data from PostgreSQL
-///     selections_json: Optional JSON string of GraphQL field selections
+///     `cascade_json`: JSON string of cascade data from `PostgreSQL`
+///     `selections_json`: Optional JSON string of GraphQL field selections
 ///
 /// Returns:
 ///     Filtered cascade data as JSON string
 ///
 /// Raises:
-///     ValueError: If JSON is malformed or filtering fails
+///     `ValueError`: If JSON is malformed or filtering fails
 #[pyfunction]
 #[pyo3(signature = (cascade_json, selections_json=None))]
 pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) -> PyResult<String> {
@@ -426,37 +424,37 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
         .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
-/// Build complete GraphQL mutation response from PostgreSQL JSON
+/// Build complete GraphQL mutation response from `PostgreSQL` JSON
 ///
-/// This function transforms PostgreSQL mutation_response JSON into GraphQL responses.
+/// This function transforms `PostgreSQL` `mutation_response` JSON into GraphQL responses.
 /// It supports both simple format (just entity JSONB) and full format with status.
 ///
 /// Examples:
 ///     >>> # Simple format
-///     >>> result = build_mutation_response(
+///     >>> result = `build_mutation_response`(
 ///     ...     '{"id": "123", "name": "John"}',
 ///     ...     "createUser",
-///     ...     "CreateUserSuccess",
-///     ...     "CreateUserError",
+///     ...     "`CreateUserSuccess`",
+///     ...     "`CreateUserError`",
 ///     ...     "user",
 ///     ...     "User",
 ///     ...     None
 ///     ... )
 ///
 /// Args:
-///     mutation_json: Raw JSON from PostgreSQL (simple or full format)
-///     field_name: GraphQL field name (e.g., "createUser")
-///     success_type: Success type name (e.g., "CreateUserSuccess")
-///     error_type: Error type name (e.g., "CreateUserError")
-///     entity_field_name: Field name for entity (e.g., "user")
-///     entity_type: Entity type for __typename (e.g., "User") - REQUIRED for simple format
-///     cascade_selections: Optional cascade selections JSON string
+///     `mutation_json`: Raw JSON from `PostgreSQL` (simple or full format)
+///     `field_name`: GraphQL field name (e.g., "createUser")
+///     `success_type`: Success type name (e.g., "`CreateUserSuccess`")
+///     `error_type`: Error type name (e.g., "`CreateUserError`")
+///     `entity_field_name`: Field name for entity (e.g., "user")
+///     `entity_type`: Entity type for __typename (e.g., "User") - REQUIRED for simple format
+///     `cascade_selections`: Optional cascade selections JSON string
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
 ///
 /// Raises:
-///     ValueError: If JSON is malformed or transformation fails
+///     `ValueError`: If JSON is malformed or transformation fails
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
 #[allow(clippy::too_many_arguments)]
@@ -498,8 +496,8 @@ pub fn build_mutation_response(
 ///
 /// Examples:
 ///     >>> from fraiseql import _fraiseql_rs
-///     >>> _fraiseql_rs.reset_schema_registry_for_testing()
-///     >>> # Now you can call initialize_schema_registry with a new schema
+///     >>> _`fraiseql_rs.reset_schema_registry_for_testing()`
+///     >>> # Now you can call `initialize_schema_registry` with a new schema
 ///
 /// Returns:
 ///     None
@@ -514,6 +512,7 @@ pub fn reset_schema_registry_for_testing() -> PyResult<()> {
 /// Returns:
 ///     True if the registry has been initialized, False otherwise
 #[pyfunction]
+#[must_use] 
 pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }
@@ -521,7 +520,7 @@ pub fn is_schema_registry_initialized() -> bool {
 /// Execute GraphQL query via Rust backend
 ///
 /// Args:
-///     query_def: JSON string containing query definition
+///     `query_def`: JSON string containing query definition
 ///
 /// Returns:
 ///     JSON string with query results
@@ -529,21 +528,21 @@ pub fn is_schema_registry_initialized() -> bool {
 pub fn execute_query_async(query_def: String) -> PyResult<String> {
     // Parse the query definition
     let _query_def: serde_json::Value = serde_json::from_str(&query_def).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {e}"))
     })?;
 
     // For now, return a placeholder response
     // In Phase 4, this would execute the actual query
     let response = serde_json::json!([{"id": 1, "name": "Test User"}]);
     serde_json::to_string(&response).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {e}"))
     })
 }
 
 /// Execute GraphQL mutation via Rust backend
 ///
 /// Args:
-///     mutation_def: JSON string containing mutation definition
+///     `mutation_def`: JSON string containing mutation definition
 ///
 /// Returns:
 ///     JSON string with mutation results
@@ -551,7 +550,7 @@ pub fn execute_query_async(query_def: String) -> PyResult<String> {
 pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
     // Parse the mutation definition
     let mutation_def: serde_json::Value = serde_json::from_str(&mutation_def).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {e}"))
     })?;
 
     // Extract mutation parameters
@@ -573,7 +572,7 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
         });
 
@@ -584,8 +583,7 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
         "delete" => crate::mutations::MutationType::Delete,
         _ => {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Unknown mutation type: {}",
-                mutation_type
+                "Unknown mutation type: {mutation_type}"
             )))
         }
     };
@@ -625,11 +623,11 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
     };
 
     serde_json::to_string(&response).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {}", e))
+        pyo3::exceptions::PyValueError::new_err(format!("Response serialization failed: {e}"))
     })
 }
 
-/// Build complete multi-field GraphQL response from PostgreSQL JSON rows
+/// Build complete multi-field GraphQL response from `PostgreSQL` JSON rows
 ///
 /// This function handles multi-field queries entirely in Rust, bypassing graphql-core
 /// to avoid type validation errors. It processes multiple root fields and combines
@@ -637,8 +635,8 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
 ///
 /// Examples:
 ///     >>> # Query: { dnsServers { id } gateways { id } }
-///     >>> result = build_multi_field_response([
-///     ...     ("dnsServers", "DnsServer", ['{"id": 1}', '{"id": 2}'], '["id"]', True),
+///     >>> result = `build_multi_field_response`([
+///     ...     ("dnsServers", "`DnsServer`", ['{"id": 1}', '{"id": 2}'], '["id"]', True),
 ///     ...     ("gateways", "Gateway", ['{"id": 10}'], '["id"]', True)
 ///     ... ])
 ///     >>> result.decode('utf-8')
@@ -646,17 +644,17 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
 ///
 /// Args:
 ///     fields: List of tuples, each containing:
-///         - field_name (str): GraphQL field name (e.g., "dnsServers")
-///         - type_name (str): GraphQL type name (e.g., "DnsServer")
-///         - json_rows (list[str]): List of JSON strings from database
-///         - field_selections (str): JSON string with field selections info
-///         - is_list (bool): True for list fields, False for single object fields
+///         - `field_name` (str): GraphQL field name (e.g., "dnsServers")
+///         - `type_name` (str): GraphQL type name (e.g., "`DnsServer`")
+///         - `json_rows` (list[str]): List of JSON strings from database
+///         - `field_selections` (str): JSON string with field selections info
+///         - `is_list` (bool): True for list fields, False for single object fields
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes: {"data": {"field1": [...], "field2": [...]}}
 ///
 /// Raises:
-///     ValueError: If field data is malformed or transformation fails
+///     `ValueError`: If field data is malformed or transformation fails
 #[pyfunction]
 pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     pipeline::builder::build_multi_field_response(fields)
@@ -665,10 +663,10 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
 /// This module provides:
-/// - snake_case → camelCase conversion (SIMD optimized)
+/// - `snake_case` → camelCase conversion (SIMD optimized)
 /// - JSON parsing and transformation (zero-copy)
 /// - __typename injection
-/// - Nested array resolution for list[CustomType]
+/// - Nested array resolution for list[`CustomType`]
 /// - Nested object resolution
 ///
 /// Performance target: 10-50x faster than pure Python implementation

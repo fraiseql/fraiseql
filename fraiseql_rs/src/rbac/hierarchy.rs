@@ -1,6 +1,6 @@
-//! Role hierarchy computation using PostgreSQL recursive CTEs.
+//! Role hierarchy computation using `PostgreSQL` recursive CTEs.
 //!
-//! This module efficiently computes role inheritance relationships using PostgreSQL's
+//! This module efficiently computes role inheritance relationships using `PostgreSQL`'s
 //! recursive Common Table Expressions (CTEs). Instead of N+1 Python queries to traverse
 //! a role hierarchy, a single CTE query handles the entire traversal in <2ms.
 //!
@@ -16,7 +16,7 @@
 //! Time: 50-200ms (5-10 queries × 5-20ms per database round-trip)
 //! ```
 //!
-//! **Rust + PostgreSQL CTE (Optimized)**:
+//! **Rust + `PostgreSQL` CTE (Optimized)**:
 //! ```
 //! 1. Single query with recursive CTE
 //! Time: <2ms (single database round-trip, server-side recursion)
@@ -26,8 +26,8 @@
 //!
 //! ## Recursive CTE Query
 //!
-//! The query uses PostgreSQL's `UNION` to combine:
-//! 1. **Base case**: Direct user roles from user_roles table
+//! The query uses `PostgreSQL`'s `UNION` to combine:
+//! 1. **Base case**: Direct user roles from `user_roles` table
 //! 2. **Recursive case**: Parent roles of current roles
 //!
 //! The CTE automatically handles:
@@ -62,13 +62,14 @@ use uuid::Uuid;
 /// ```
 ///
 /// If a user is assigned the "user" role, `get_all_roles()` returns:
-/// [user, manager, admin, super_admin] (all roles in the inheritance chain)
+/// [user, manager, admin, `super_admin`] (all roles in the inheritance chain)
 pub struct RoleHierarchy {
     pool: Pool,
 }
 
 impl RoleHierarchy {
-    pub fn new(pool: Pool) -> Self {
+    #[must_use] 
+    pub const fn new(pool: Pool) -> Self {
         Self { pool }
     }
 
@@ -103,7 +104,7 @@ impl RoleHierarchy {
         ";
 
         let client = self.pool.get().await?;
-        let role_id_strings: Vec<String> = role_ids.iter().map(|id| id.to_string()).collect();
+        let role_id_strings: Vec<String> = role_ids.iter().map(std::string::ToString::to_string).collect();
         let tenant_id_string = tenant_id.map(|id| id.to_string());
         let rows = client
             .query(sql, &[&role_id_strings, &tenant_id_string])

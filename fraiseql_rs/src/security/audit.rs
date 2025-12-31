@@ -37,14 +37,15 @@ pub enum AuditEventType {
 }
 
 impl AuditEventType {
-    pub fn severity(&self) -> AuditSeverity {
+    #[must_use] 
+    pub const fn severity(&self) -> AuditSeverity {
         match self {
-            AuditEventType::LoginFailure
-            | AuditEventType::PermissionDenied
-            | AuditEventType::InvalidToken
-            | AuditEventType::SecurityViolation => AuditSeverity::High,
+            Self::LoginFailure
+            | Self::PermissionDenied
+            | Self::InvalidToken
+            | Self::SecurityViolation => AuditSeverity::High,
 
-            AuditEventType::RateLimitExceeded | AuditEventType::SuspiciousActivity => {
+            Self::RateLimitExceeded | Self::SuspiciousActivity => {
                 AuditSeverity::Medium
             }
 
@@ -52,27 +53,28 @@ impl AuditEventType {
         }
     }
 
-    pub fn category(&self) -> &'static str {
+    #[must_use] 
+    pub const fn category(&self) -> &'static str {
         match self {
-            AuditEventType::LoginSuccess
-            | AuditEventType::LoginFailure
-            | AuditEventType::Logout
-            | AuditEventType::TokenRefresh
-            | AuditEventType::TokenRevoke => "authentication",
+            Self::LoginSuccess
+            | Self::LoginFailure
+            | Self::Logout
+            | Self::TokenRefresh
+            | Self::TokenRevoke => "authentication",
 
-            AuditEventType::PermissionGranted
-            | AuditEventType::PermissionDenied
-            | AuditEventType::RoleAssigned
-            | AuditEventType::RoleRevoked => "authorization",
+            Self::PermissionGranted
+            | Self::PermissionDenied
+            | Self::RoleAssigned
+            | Self::RoleRevoked => "authorization",
 
-            AuditEventType::DataRead | AuditEventType::DataWrite | AuditEventType::DataDelete => {
+            Self::DataRead | Self::DataWrite | Self::DataDelete => {
                 "data_access"
             }
 
-            AuditEventType::RateLimitExceeded
-            | AuditEventType::InvalidToken
-            | AuditEventType::SuspiciousActivity
-            | AuditEventType::SecurityViolation => "security",
+            Self::RateLimitExceeded
+            | Self::InvalidToken
+            | Self::SuspiciousActivity
+            | Self::SecurityViolation => "security",
         }
     }
 }
@@ -103,6 +105,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
+    #[must_use] 
     pub fn new(event_type: AuditEventType) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -120,43 +123,51 @@ impl AuditEvent {
         }
     }
 
-    pub fn with_user(mut self, user_id: Uuid) -> Self {
+    #[must_use] 
+    pub const fn with_user(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
-    pub fn with_tenant(mut self, tenant_id: Uuid) -> Self {
+    #[must_use] 
+    pub const fn with_tenant(mut self, tenant_id: Uuid) -> Self {
         self.tenant_id = Some(tenant_id);
         self
     }
 
+    #[must_use] 
     pub fn with_resource(mut self, resource: String, action: String) -> Self {
         self.resource = Some(resource);
         self.action = Some(action);
         self
     }
 
+    #[must_use] 
     pub fn with_status(mut self, status: String) -> Self {
         self.status = status;
         self
     }
 
+    #[must_use] 
     pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
         self.metadata = Some(metadata);
         self
     }
 
+    #[must_use] 
     pub fn with_ip(mut self, ip_address: String) -> Self {
         self.ip_address = Some(ip_address);
         self
     }
 
+    #[must_use] 
     pub fn with_user_agent(mut self, user_agent: String) -> Self {
         self.user_agent = Some(user_agent);
         self
     }
 
-    pub fn with_severity(mut self, severity: AuditSeverity) -> Self {
+    #[must_use] 
+    pub const fn with_severity(mut self, severity: AuditSeverity) -> Self {
         self.severity = severity;
         self
     }
@@ -169,6 +180,7 @@ pub struct AuditLogger {
 
 impl AuditLogger {
     /// Create audit logger with async worker
+    #[must_use] 
     pub fn new(pool: Pool) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
@@ -194,20 +206,19 @@ impl AuditLogger {
 
         while let Some(event) = rx.recv().await {
             match Self::write_event(&pool, &event).await {
-                Ok(_) => {
+                Ok(()) => {
                     consecutive_errors = 0; // Reset error counter on success
                 }
                 Err(e) => {
                     consecutive_errors += 1;
                     eprintln!(
-                        "Failed to write audit log (attempt {}): {}",
-                        consecutive_errors, e
+                        "Failed to write audit log (attempt {consecutive_errors}): {e}"
                     );
 
                     // If too many consecutive errors, log to stderr and continue
                     // In production, this might trigger alerts or fallback logging
                     if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                        eprintln!("WARNING: {} consecutive audit log failures. Check database connectivity.", consecutive_errors);
+                        eprintln!("WARNING: {consecutive_errors} consecutive audit log failures. Check database connectivity.");
                         // Could implement circuit breaker pattern here
                     }
 
@@ -222,7 +233,7 @@ impl AuditLogger {
     }
 
     /// Check if we should retry writing this event
-    fn should_retry(event: &AuditEvent, consecutive_errors: u32) -> bool {
+    const fn should_retry(event: &AuditEvent, consecutive_errors: u32) -> bool {
         Self::is_critical_event(event) && consecutive_errors < 3
     }
 
@@ -234,7 +245,7 @@ impl AuditLogger {
     ) -> u32 {
         // Exponential backoff
         tokio::time::sleep(tokio::time::Duration::from_millis(
-            100 * consecutive_errors as u64,
+            100 * u64::from(consecutive_errors),
         ))
         .await;
 
@@ -247,7 +258,7 @@ impl AuditLogger {
     }
 
     /// Check if event is critical and should be retried
-    fn is_critical_event(event: &AuditEvent) -> bool {
+    const fn is_critical_event(event: &AuditEvent) -> bool {
         matches!(
             event.event_type,
             AuditEventType::LoginFailure
@@ -272,14 +283,12 @@ impl AuditLogger {
 
         let event_type_json = serde_json::to_string(&event.event_type).map_err(|e| {
             super::errors::SecurityError::AuditLogFailure(format!(
-                "Failed to serialize event type: {}",
-                e
+                "Failed to serialize event type: {e}"
             ))
         })?;
         let severity_json = serde_json::to_string(&event.severity).map_err(|e| {
             super::errors::SecurityError::AuditLogFailure(format!(
-                "Failed to serialize severity: {}",
-                e
+                "Failed to serialize severity: {e}"
             ))
         })?;
 

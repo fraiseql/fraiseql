@@ -1,7 +1,7 @@
 //! GraphQL Cascade field selection and filtering
 //!
 //! This module provides high-performance filtering of cascade data based on
-//! GraphQL field selections. It operates on raw JSONB from PostgreSQL and
+//! GraphQL field selections. It operates on raw JSONB from `PostgreSQL` and
 //! applies filtering before Python serialization.
 
 use serde::Deserialize;
@@ -68,13 +68,13 @@ impl CascadeSelections {
     /// ```
     pub fn from_json(json_str: &str) -> Result<Self, String> {
         serde_json::from_str(json_str)
-            .map_err(|e| format!("Invalid cascade selections JSON: {}", e))
+            .map_err(|e| format!("Invalid cascade selections JSON: {e}"))
     }
 }
 
 /// Filter cascade value based on GraphQL field selections
 ///
-/// This function operates on serde_json::Value for cases where
+/// This function operates on `serde_json::Value` for cases where
 /// you already have parsed JSON and want to avoid serialize/deserialize overhead.
 pub fn filter_cascade_by_selections(
     cascade: &Value,
@@ -140,7 +140,7 @@ fn convert_field_name(field_name: &str, auto_camel_case: bool) -> String {
 /// This is the main entry point called from Python.
 ///
 /// # Arguments
-/// * `cascade_json` - Raw JSONB cascade data from PostgreSQL (JSON string)
+/// * `cascade_json` - Raw JSONB cascade data from `PostgreSQL` (JSON string)
 /// * `selections_json` - Parsed GraphQL field selections (JSON string)
 ///
 /// # Returns
@@ -148,7 +148,7 @@ fn convert_field_name(field_name: &str, auto_camel_case: bool) -> String {
 ///
 /// # Performance
 /// - Zero-copy JSON manipulation where possible
-/// - Operates on serde_json::Value for efficiency
+/// - Operates on `serde_json::Value` for efficiency
 /// - Target: < 0.5ms for typical cascade payloads
 pub fn filter_cascade_data(
     cascade_json: &str,
@@ -161,7 +161,7 @@ pub fn filter_cascade_data(
 
     // Parse cascade data
     let mut cascade: Value =
-        serde_json::from_str(cascade_json).map_err(|e| format!("Invalid cascade JSON: {}", e))?;
+        serde_json::from_str(cascade_json).map_err(|e| format!("Invalid cascade JSON: {e}"))?;
 
     // Parse selections
     let selections = CascadeSelections::from_json(sel_json)?;
@@ -173,7 +173,7 @@ pub fn filter_cascade_data(
 
     // Serialize back to JSON
     serde_json::to_string(&cascade)
-        .map_err(|e| format!("Failed to serialize filtered cascade: {}", e))
+        .map_err(|e| format!("Failed to serialize filtered cascade: {e}"))
 }
 
 /// Filter the cascade object in place

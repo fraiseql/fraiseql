@@ -13,12 +13,11 @@ pub enum MutationType {
 impl MutationType {
     pub fn parse(s: &str) -> Result<Self, DatabaseError> {
         match s {
-            "insert" => Ok(MutationType::Insert),
-            "update" => Ok(MutationType::Update),
-            "delete" => Ok(MutationType::Delete),
+            "insert" => Ok(Self::Insert),
+            "update" => Ok(Self::Update),
+            "delete" => Ok(Self::Delete),
             _ => Err(DatabaseError::Query(format!(
-                "Unknown mutation type: {}",
-                s
+                "Unknown mutation type: {s}"
             ))),
         }
     }
@@ -57,7 +56,7 @@ async fn insert_record(
     let rows = client
         .execute(&sql, &sql_params)
         .await
-        .map_err(|e| DatabaseError::Query(format!("INSERT failed: {}", e)))?;
+        .map_err(|e| DatabaseError::Query(format!("INSERT failed: {e}")))?;
 
     // If return_fields specified, query the inserted record
     if let Some(fields) = return_fields {
@@ -103,7 +102,7 @@ async fn update_record(
     let rows = client
         .execute(&sql, &sql_params)
         .await
-        .map_err(|e| DatabaseError::Query(format!("UPDATE failed: {}", e)))?;
+        .map_err(|e| DatabaseError::Query(format!("UPDATE failed: {e}")))?;
 
     // If return_fields specified, query the updated records
     if let Some(_fields) = return_fields {
@@ -143,7 +142,7 @@ async fn delete_record(
     let rows = client
         .execute(&sql, &sql_params)
         .await
-        .map_err(|e| DatabaseError::Query(format!("DELETE failed: {}", e)))?;
+        .map_err(|e| DatabaseError::Query(format!("DELETE failed: {e}")))?;
 
     Ok(Value::Object(
         serde_json::json!({
@@ -175,8 +174,7 @@ fn build_insert_sql(
     let columns_str = columns.join(", ");
     let values_str = values.join(", ");
     let sql = format!(
-        "INSERT INTO {} ({}) VALUES ({})",
-        table, columns_str, values_str
+        "INSERT INTO {table} ({columns_str}) VALUES ({values_str})"
     );
 
     Ok((sql, params))
@@ -193,14 +191,14 @@ fn build_update_sql(
 
     if let Value::Object(obj) = input {
         for (key, value) in obj {
-            sets.push(format!("{} = ${}", key, param_index));
+            sets.push(format!("{key} = ${param_index}"));
             params.push(value_to_query_param(value));
             param_index += 1;
         }
     }
 
     let sets_str = sets.join(", ");
-    let mut sql = format!("UPDATE {} SET {}", table, sets_str);
+    let mut sql = format!("UPDATE {table} SET {sets_str}");
 
     // Add WHERE clause if filters provided
     if let Some(where_clause) = build_where_clause(filters, param_index) {
@@ -215,7 +213,7 @@ fn build_delete_sql_with_params(
     table: &str,
     filters: Option<&Value>,
 ) -> Result<(String, Vec<QueryParam>), DatabaseError> {
-    let mut sql = format!("DELETE FROM {}", table);
+    let mut sql = format!("DELETE FROM {table}");
     let mut params = Vec::new();
 
     // Add WHERE clause if filters provided
@@ -255,7 +253,7 @@ fn build_where_clause(
         _ => "=",
     };
 
-    let sql = format!(" WHERE {} {} ${}", field_str, op, param_index);
+    let sql = format!(" WHERE {field_str} {op} ${param_index}");
     let params = vec![value_to_query_param(value)];
 
     Some((sql, params))

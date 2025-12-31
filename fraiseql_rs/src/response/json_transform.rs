@@ -1,8 +1,9 @@
-//! In-stream JSON transformation (snake_case → camelCase).
+//! In-stream JSON transformation (`snake_case` → camelCase).
 
 use serde_json::{Map, Value};
 
-/// Convert snake_case to camelCase
+/// Convert `snake_case` to camelCase
+#[must_use] 
 pub fn to_camel_case(snake: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = false;
@@ -21,12 +22,12 @@ pub fn to_camel_case(snake: &str) -> String {
     result
 }
 
-/// Transform row from PostgreSQL to GraphQL format with key transformation
+/// Transform row from `PostgreSQL` to GraphQL format with key transformation
 pub fn transform_row_keys(row: &Value) -> Value {
     match row {
         Value::Object(map) => {
             let mut new_map = Map::new();
-            for (key, value) in map.iter() {
+            for (key, value) in map {
                 let camel_key = to_camel_case(key);
                 let transformed_value = transform_row_keys(value);
                 new_map.insert(camel_key, transformed_value);

@@ -1,6 +1,6 @@
 //! Mutation result transformation module
 //!
-//! Transforms PostgreSQL mutation_response JSON into GraphQL responses.
+//! Transforms `PostgreSQL` `mutation_response` JSON into GraphQL responses.
 
 mod entity_processor;
 mod parser;
@@ -27,18 +27,18 @@ use serde_json::Value;
 
 /// Build complete GraphQL mutation response
 ///
-/// This is the main entry point. It takes PostgreSQL JSON and returns
+/// This is the main entry point. It takes `PostgreSQL` JSON and returns
 /// HTTP-ready bytes with proper GraphQL structure.
 ///
 /// Supports TWO formats:
 /// 1. **Simple format**: Just entity JSONB (no status field) - auto-detected
-/// 2. **Full format**: Complete mutation_response with status, message, etc.
+/// 2. **Full format**: Complete `mutation_response` with status, message, etc.
 ///
 /// # Arguments
-/// * `mutation_json` - Raw JSON from PostgreSQL (simple or full format)
+/// * `mutation_json` - Raw JSON from `PostgreSQL` (simple or full format)
 /// * `field_name` - GraphQL field name (e.g., "createUser")
-/// * `success_type` - Success type name (e.g., "CreateUserSuccess")
-/// * `error_type` - Error type name (e.g., "CreateUserError")
+/// * `success_type` - Success type name (e.g., "`CreateUserSuccess`")
+/// * `error_type` - Error type name (e.g., "`CreateUserError`")
 /// * `entity_field_name` - Field name for entity (e.g., "user")
 /// * `entity_type` - Entity type for __typename (e.g., "User") - REQUIRED for simple format
 /// * `cascade_selections` - Optional cascade field selections JSON
@@ -87,7 +87,7 @@ pub fn build_mutation_response(
     )?;
 
     // Step 3: Serialize to bytes
-    serde_json::to_vec(&graphql_response).map_err(|e| format!("Failed to serialize: {}", e))
+    serde_json::to_vec(&graphql_response).map_err(|e| format!("Failed to serialize: {e}"))
 }
 
 #[cfg(test)]
@@ -154,7 +154,7 @@ mod integration_tests {
 }
 
 /// Mutation result status classification
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationStatus {
     Success(String), // "success", "new", "updated", "deleted"
     Noop(String),    // "noop:reason" - no changes made
@@ -164,9 +164,9 @@ pub enum MutationStatus {
 impl std::fmt::Display for MutationStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MutationStatus::Success(s) => write!(f, "{}", s),
-            MutationStatus::Noop(s) => write!(f, "{}", s),
-            MutationStatus::Error(s) => write!(f, "{}", s),
+            Self::Success(s) => write!(f, "{s}"),
+            Self::Noop(s) => write!(f, "{s}"),
+            Self::Error(s) => write!(f, "{s}"),
         }
     }
 }
@@ -180,7 +180,7 @@ impl MutationStatus {
     /// - "success", "created", "updated", "deleted"
     ///
     /// ## Error (colon-separated)
-    /// - "failed:", "unauthorized:", "forbidden:", "not_found:", "conflict:", "timeout:"
+    /// - "failed:", "unauthorized:", "forbidden:", "`not_found`:", "conflict:", "timeout:"
     ///
     /// ## Noop (colon-separated, success with no changes)
     /// - "noop:"
@@ -196,6 +196,7 @@ impl MutationStatus {
     /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
     /// ```
     #[allow(clippy::should_implement_trait)]
+    #[must_use] 
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
@@ -208,53 +209,58 @@ impl MutationStatus {
             || status_lower.starts_with("conflict:")
             || status_lower.starts_with("timeout:")
         {
-            MutationStatus::Error(status.to_string())
+            Self::Error(status.to_string())
         }
         // NOOP PREFIX - Return Noop with full status string
         else if status_lower.starts_with("noop:") {
-            MutationStatus::Noop(status.to_string())
+            Self::Noop(status.to_string())
         }
         // SUCCESS KEYWORDS - Return Success with full status string
         else if matches!(
             status_lower.as_str(),
             "success" | "created" | "updated" | "deleted"
         ) {
-            MutationStatus::Success(status.to_string())
+            Self::Success(status.to_string())
         }
         // DEFAULT - Unknown statuses become Success (backward compatibility)
         else {
             // Note: In production, this should log a warning
-            MutationStatus::Success(status.to_string())
+            Self::Success(status.to_string())
         }
     }
 
-    pub fn is_success(&self) -> bool {
-        matches!(self, MutationStatus::Success(_))
+    #[must_use] 
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Success(_))
     }
 
-    pub fn is_noop(&self) -> bool {
-        matches!(self, MutationStatus::Noop(_))
+    #[must_use] 
+    pub const fn is_noop(&self) -> bool {
+        matches!(self, Self::Noop(_))
     }
 
     /// Returns true if this status should return Error type
     ///
     /// Both Noop and Error return Error type
-    pub fn is_error(&self) -> bool {
-        matches!(self, MutationStatus::Error(_) | MutationStatus::Noop(_))
+    #[must_use] 
+    pub const fn is_error(&self) -> bool {
+        matches!(self, Self::Error(_) | Self::Noop(_))
     }
 
     /// Returns true if this status should return Success type
     ///
     /// Only Success(_) returns Success type
-    pub fn is_graphql_success(&self) -> bool {
-        matches!(self, MutationStatus::Success(_))
+    #[must_use] 
+    pub const fn is_graphql_success(&self) -> bool {
+        matches!(self, Self::Success(_))
     }
 
     /// Map status to HTTP code (ALWAYS 200 for GraphQL)
     ///
     /// GraphQL always returns HTTP 200 OK.
-    /// Use application_code() for REST-like categorization.
-    pub fn http_code(&self) -> i32 {
+    /// Use `application_code()` for REST-like categorization.
+    #[must_use] 
+    pub const fn http_code(&self) -> i32 {
         200 // Always 200 OK for GraphQL
     }
 
@@ -262,11 +268,12 @@ impl MutationStatus {
     ///
     /// This is NOT an HTTP status code. It's an application-level field
     /// that mirrors REST semantics for better developer experience.
+    #[must_use] 
     pub fn application_code(&self) -> i32 {
         match self {
-            MutationStatus::Success(_) => 200,
-            MutationStatus::Noop(_) => 422, // Validation/business rule
-            MutationStatus::Error(reason) => {
+            Self::Success(_) => 200,
+            Self::Noop(_) => 422, // Validation/business rule
+            Self::Error(reason) => {
                 let reason_lower = reason.to_lowercase();
                 // Map error reasons to HTTP-like codes
                 if reason_lower.starts_with("not_found:") {
@@ -289,11 +296,11 @@ impl MutationStatus {
     }
 }
 
-/// Parsed mutation result from PostgreSQL
+/// Parsed mutation result from `PostgreSQL`
 ///
 /// Supports TWO formats:
 /// 1. Simple: Just entity JSONB (detected by absence of "status" field)
-/// 2. Full: Complete mutation_response with status, message, entity, etc.
+/// 2. Full: Complete `mutation_response` with status, message, entity, etc.
 #[derive(Debug, Clone)]
 pub struct MutationResult {
     pub status: MutationStatus,
@@ -336,6 +343,7 @@ impl MutationResult {
     }
 
     /// Check if JSON is simple format (entity only, no mutation status)
+    #[must_use] 
     pub fn is_simple_format_json(json_str: &str) -> bool {
         let v: Value = match serde_json::from_str(json_str) {
             Ok(v) => v,
@@ -354,19 +362,19 @@ impl MutationResult {
         }
     }
 
-    /// Parse from PostgreSQL JSON string with smart format detection
+    /// Parse from `PostgreSQL` JSON string with smart format detection
     ///
     /// # Arguments
-    /// * `json_str` - Raw JSON from PostgreSQL
+    /// * `json_str` - Raw JSON from `PostgreSQL`
     /// * `default_entity_type` - Entity type to use for simple format (e.g., "User")
     pub fn from_json(json_str: &str, default_entity_type: Option<&str>) -> Result<Self, String> {
         let v: Value =
-            serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
+            serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {e}"))?;
 
         Self::from_value(&v, default_entity_type)
     }
 
-    /// Parse from serde_json Value with smart format detection
+    /// Parse from `serde_json` Value with smart format detection
     pub fn from_value(v: &Value, default_entity_type: Option<&str>) -> Result<Self, String> {
         // SMART DETECTION: Check if this is simple format
         let is_simple = match v.get("status").and_then(|s| s.as_str()) {
@@ -379,7 +387,7 @@ impl MutationResult {
             // Extract '_cascade' field from simple format (note underscore prefix)
             let cascade = v.get("_cascade").filter(|c| !c.is_null()).cloned();
 
-            return Ok(MutationResult {
+            return Ok(Self {
                 status: MutationStatus::Success("success".to_string()),
                 message: "Success".to_string(),
                 entity_id: v.get("id").and_then(|id| id.as_str()).map(String::from),
@@ -430,7 +438,7 @@ impl MutationResult {
         let cascade = v.get("cascade").filter(|c| !c.is_null()).cloned();
         let metadata = v.get("metadata").filter(|m| !m.is_null()).cloned();
 
-        Ok(MutationResult {
+        Ok(Self {
             status: MutationStatus::from_str(status_str),
             message,
             entity_id,
@@ -444,6 +452,7 @@ impl MutationResult {
     }
 
     /// Get errors array from metadata
+    #[must_use] 
     pub fn errors(&self) -> Option<&Vec<Value>> {
         self.metadata
             .as_ref()
