@@ -53,6 +53,7 @@ pub enum AuditEventType {
 }
 
 impl AuditEventType {
+    /// Get the default severity level for this event type
     #[must_use]
     pub const fn severity(&self) -> AuditSeverity {
         match self {
@@ -67,6 +68,7 @@ impl AuditEventType {
         }
     }
 
+    /// Get the category name for this event type
     #[must_use]
     pub const fn category(&self) -> &'static str {
         match self {
