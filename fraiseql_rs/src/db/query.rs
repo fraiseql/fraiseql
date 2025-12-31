@@ -21,6 +21,13 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Execute a SELECT query and return results.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - SQL query building fails
+    /// - Parameter validation fails
+    /// - Query execution fails
     pub async fn execute_select(
         &mut self,
         table: &str,
@@ -51,6 +58,13 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Execute an INSERT query and return the number of affected rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - SQL query building fails
+    /// - Parameter validation fails
+    /// - Query execution fails
     pub async fn execute_insert(
         &mut self,
         table: &str,
@@ -77,6 +91,13 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Execute an UPDATE query and return the number of affected rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - SQL query building fails
+    /// - Parameter validation fails
+    /// - Query execution fails
     pub async fn execute_update(
         &mut self,
         table: &str,
@@ -102,6 +123,13 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Execute a DELETE query and return the number of affected rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - SQL query building fails
+    /// - Parameter validation fails
+    /// - Query execution fails
     pub async fn execute_delete(
         &mut self,
         table: &str,
@@ -334,6 +362,12 @@ impl ToSql for QueryParam {
 // QueryParam validation utilities
 impl QueryParam {
     /// Validate that the parameter value is reasonable
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Text parameter exceeds 1MB
+    /// - JSON parameter is too large or cannot be serialized
     pub fn validate(&self) -> DatabaseResult<()> {
         match self {
             Self::Text(s) => {
