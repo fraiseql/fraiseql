@@ -11,6 +11,12 @@ pub struct DirectiveExtractor;
 
 impl DirectiveExtractor {
     /// Extract all field permissions from parsed query
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Directive extraction fails (invalid directive format)
+    /// - Recursive field selection extraction fails
     pub fn extract_field_permissions(
         query: &ParsedQuery,
     ) -> RbacResult<Vec<(String, FieldPermissions)>> {
