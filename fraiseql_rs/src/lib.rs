@@ -61,6 +61,12 @@ lazy_static! {
 type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>);
 
 /// Initialize the global GraphQL pipeline (called from Python on startup).
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Schema JSON is invalid or cannot be parsed
+/// - Pipeline initialization fails
 #[pyfunction]
 pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
     let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
@@ -80,6 +86,14 @@ pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
 }
 
 /// Execute GraphQL query using global pipeline (Phase 9 unified interface).
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Pipeline is not initialized
+/// - Query parsing fails
+/// - Query execution fails
+/// - User context is invalid
 #[pyfunction]
 pub fn execute_graphql_query(
     py: Python,
@@ -282,6 +296,12 @@ fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json:
 ///
 /// Returns:
 ///     UTF-8 encoded GraphQL response bytes ready for HTTP
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Field selections cannot be converted from Python to JSON
+/// - Response building fails
 #[pyfunction]
 #[pyo3(signature = (json_strings, field_name, type_name=None, field_paths=None, field_selections=None, is_list=None, include_graphql_wrapper=None))]
 pub fn build_graphql_response(
@@ -345,6 +365,13 @@ pub fn build_graphql_response(
 ///
 /// Returns:
 ///     None on success
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Schema JSON is empty, malformed, or missing required fields
+/// - Schema version is unsupported
+/// - Registry is already initialized (singleton pattern)
 #[pyfunction]
 pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
     // Validate input
@@ -415,6 +442,13 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
 ///
 /// Raises:
 ///     `ValueError`: If JSON is malformed or filtering fails
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Cascade JSON is malformed
+/// - Selections JSON is malformed
+/// - Filtering operation fails
 #[pyfunction]
 #[pyo3(signature = (cascade_json, selections_json=None))]
 pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) -> PyResult<String> {
@@ -453,6 +487,13 @@ pub fn filter_cascade_data(cascade_json: &str, selections_json: Option<&str>) ->
 ///
 /// Raises:
 ///     `ValueError`: If JSON is malformed or transformation fails
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Mutation JSON is malformed
+/// - Transformation to GraphQL response fails
+/// - Required fields are missing
 #[pyfunction]
 #[pyo3(signature = (mutation_json, field_name, success_type, error_type, entity_field_name=None, entity_type=None, cascade_selections=None, auto_camel_case=true, success_type_fields=None, error_type_fields=None))]
 #[allow(clippy::too_many_arguments)]
@@ -499,6 +540,10 @@ pub fn build_mutation_response(
 ///
 /// Returns:
 ///     None
+///
+/// # Errors
+///
+/// Currently never returns an error, but the Result type allows for future validation.
 #[pyfunction]
 pub fn reset_schema_registry_for_testing() -> PyResult<()> {
     schema_registry::reset_for_testing();
@@ -522,6 +567,12 @@ pub fn is_schema_registry_initialized() -> bool {
 ///
 /// Returns:
 ///     JSON string with query results
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Query definition JSON is invalid
+/// - Query execution fails
 #[pyfunction]
 pub fn execute_query_async(query_def: String) -> PyResult<String> {
     // Parse the query definition
@@ -544,6 +595,13 @@ pub fn execute_query_async(query_def: String) -> PyResult<String> {
 ///
 /// Returns:
 ///     JSON string with mutation results
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Mutation definition JSON is invalid
+/// - Required fields (type, table) are missing
+/// - Mutation execution fails
 #[pyfunction]
 pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
     // Parse the mutation definition
@@ -653,6 +711,13 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
 ///
 /// Raises:
 ///     `ValueError`: If field data is malformed or transformation fails
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Field data is malformed
+/// - JSON transformation fails
+/// - Response building fails
 #[pyfunction]
 pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     pipeline::builder::build_multi_field_response(fields)
