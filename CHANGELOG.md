@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2025-12-31
+
+**Stable Release - GraphQL Info Auto-Injection + Test Coverage Improvements**
+
+This release adds automatic GraphQL info injection middleware that enables the Rust zero-copy pipeline without requiring developers to manually pass `info=info` to repository methods.
+
+### Added
+
+#### GraphQL Info Auto-Injection (Issue #199)
+
+Added `GraphQLInfoInjector` middleware that automatically injects GraphQL info into resolver contexts, enabling optimal Rust pipeline performance without manual info parameter passing.
+
+**Benefits**:
+- 7-10x faster serialization (automatic Rust pipeline activation)
+- 60-80% smaller payloads (field selection works automatically)
+- Improved developer experience (no need to remember `info=info`)
+- Backwards compatible with existing code
+
+**Implementation**:
+- `src/fraiseql/middleware/graphql_info_injector.py` - Auto-injection middleware
+- `tests/unit/middleware/test_graphql_info_injector.py` - Comprehensive test coverage (24 tests)
+
+**Testing**:
+- 24 unit tests (async + sync resolvers)
+- 80%+ code coverage
+- Edge cases: positional args, kwargs, missing context, None values
+- Backwards compatibility verified
+
+**Credit**: Middleware implementation and tests by @purvanshjoshi (PR #201)
+
+### Fixed
+
+- Improved test coverage for GraphQLInfoInjector middleware (54% → 80%+)
+- Added sync resolver test coverage (11 additional tests)
+- Added positional argument handling tests
+- Added edge case tests for robustness
+
 ## [1.9.0b1] - 2024-12-30
 
 **Beta Release - Nested JSONB Field Fix + Rust Performance Optimizations**
