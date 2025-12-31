@@ -790,16 +790,24 @@ fn escape_json_string_scalar(input: &[u8], output: &mut Vec<u8>) {
     }
 }
 
-/// Transform errors
+/// JSON transformation errors
 #[derive(Debug)]
 pub enum TransformError {
+    /// Unexpected end of input while parsing
     UnexpectedEof,
+    /// Encountered unexpected byte in input
     UnexpectedByte(u8),
+    /// Expected specific byte but got different one
     ExpectedByte(u8, u8),
+    /// String literal not properly terminated with quote
     UnterminatedString,
+    /// Invalid boolean value (not true/false)
     InvalidBool,
+    /// Invalid null value
     InvalidNull,
+    /// Invalid number format
     InvalidNumber,
+    /// JSON nesting depth exceeds maximum allowed
     MaxDepthExceeded(usize),
 }
 
