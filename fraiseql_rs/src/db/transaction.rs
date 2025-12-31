@@ -13,6 +13,10 @@ pub struct Transaction<'a> {
 
 impl<'a> Transaction<'a> {
     /// Begin a new transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database fails to begin the transaction.
     pub async fn begin(client: &'a mut Client) -> Result<Self, DatabaseError> {
         client
             .execute("BEGIN", &[])
@@ -26,6 +30,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Commit the transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database fails to commit the transaction.
     pub async fn commit(mut self) -> Result<(), DatabaseError> {
         if self.active {
             self.client
@@ -38,6 +46,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Rollback the transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database fails to rollback the transaction.
     pub async fn rollback(mut self) -> Result<(), DatabaseError> {
         if self.active {
             self.client
@@ -50,6 +62,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Create a savepoint for nested transactions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database fails to create the savepoint.
     pub async fn savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
         self.client
             .execute(&format!("SAVEPOINT {name}"), &[])
@@ -59,6 +75,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Rollback to a savepoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database fails to rollback to the savepoint.
     pub async fn rollback_to_savepoint(&mut self, name: &str) -> Result<(), DatabaseError> {
         self.client
             .execute(&format!("ROLLBACK TO {name}"), &[])
@@ -70,6 +90,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Execute a query within this transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query execution fails.
     pub async fn execute(
         &mut self,
         sql: &str,
@@ -82,6 +106,10 @@ impl<'a> Transaction<'a> {
     }
 
     /// Execute a query and return results within this transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query execution fails.
     pub async fn query(
         &mut self,
         sql: &str,
