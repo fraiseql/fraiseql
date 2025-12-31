@@ -11,6 +11,12 @@ pub enum MutationType {
 }
 
 impl MutationType {
+    /// Parse mutation type from string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - String is not a valid mutation type ("insert", "update", "delete")
     pub fn parse(s: &str) -> Result<Self, DatabaseError> {
         match s {
             "insert" => Ok(Self::Insert),
@@ -21,6 +27,14 @@ impl MutationType {
     }
 }
 
+/// Execute mutation based on type
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Required input is missing for INSERT or UPDATE operations
+/// - SQL building fails (invalid input structure)
+/// - Database execution fails (connection error, constraint violation, etc.)
 pub async fn execute_mutation(
     client: &mut Client,
     mutation_type: MutationType,
