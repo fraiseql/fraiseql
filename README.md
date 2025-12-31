@@ -174,7 +174,7 @@ FraiseQL separates testing into two workflows:
 **Standard CI/CD:** Validates that features work correctly
 **Chaos Tests:** Validates that system recovers from failures
 
-[→ Learn about chaos engineering strategy](docs/testing/chaos-engineering-strategy.md)
+[→ Learn about chaos engineering strategy](docs/archive/testing/chaos-engineering-strategy.md)
 
 ---
 

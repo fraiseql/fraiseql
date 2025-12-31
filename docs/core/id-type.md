@@ -148,6 +148,6 @@ Currently, `ID` is backed by UUID. Support for other identifier types (ULID, KSU
 
 ## Related
 
-- [Scalars](scalars.md)
-- [Trinity Pattern](../patterns/trinity.md)
-- [Database Integration](database-integration.md)
+- [Types and Schema](types-and-schema.md)
+- [Trinity Pattern](trinity-pattern.md)
+- [Database API](database-api.md)

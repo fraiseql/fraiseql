@@ -408,7 +408,7 @@ flowchart LR
 - [Type System Architecture](type-system.md) - How Python types map to GraphQL
 - [Trinity Pattern](trinity-pattern.md) - Database identifier pattern
 - [CQRS Design](cqrs-design.md) - Query/Mutation separation
-- [Performance Guide](../performance/rust-pipeline.md) - Optimization techniques
+- [Performance Guide](../core/rust-pipeline-integration.md) - Optimization techniques
 
 ---
 

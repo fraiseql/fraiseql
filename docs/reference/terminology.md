@@ -293,7 +293,7 @@ The Command Query Responsibility Segregation pattern allows...
 
 **Always link to definition:**
 ```markdown
-FraiseQL follows [CQRS](concepts-glossary.md#cqrs) principles...
+FraiseQL follows [CQRS](../core/concepts-glossary.md#cqrs) principles...
 ```
 
 ---
@@ -549,7 +549,7 @@ When mentioning these concepts, always link to canonical definitions:
 
 | Concept | Link To |
 |---------|---------|
-| CQRS | `[CQRS](../core/concepts-glossary.md#cqrs)` |
+| CQRS | `[CQRS](../core/../core/concepts-glossary.md#cqrs)` |
 | Trinity Pattern | `[Trinity pattern](../core/concepts-glossary.md#trinity-identifiers)` |
 | JSONB View Pattern | `[JSONB view](../core/concepts-glossary.md#jsonb-view-pattern)` |
 | Projection Tables | `[Projection tables](../core/concepts-glossary.md#projection-tables-tv_)` |
