@@ -181,6 +181,13 @@ impl DatabasePool {
 #[pymethods]
 impl DatabasePool {
     /// Create a new database connection pool
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python error if:
+    /// - Database URL is invalid or malformed
+    /// - Pool configuration is invalid
+    /// - Pool creation fails
     #[new]
     #[pyo3(signature = (database_url, config=None))]
     pub fn py_new(database_url: &str, config: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
