@@ -17,6 +17,7 @@ impl ResponseBuilder {
         }
     }
 
+    /// Set custom chunk size for streaming responses
     #[must_use]
     pub const fn with_chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;

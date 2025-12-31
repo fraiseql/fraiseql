@@ -11,6 +11,7 @@ pub struct ResponseStream<W: Write> {
 }
 
 impl<W: Write> ResponseStream<W> {
+    /// Create a new response stream that writes to the specified writer
     pub const fn new(writer: W) -> Self {
         Self {
             writer,
