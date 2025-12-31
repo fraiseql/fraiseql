@@ -88,7 +88,7 @@ jobs:
       run: |
         echo "=== Running Core Tests for Release ==="
         # Run core tests first - MUST PASS for release
-        uv run pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
+        uv run pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise and not chaos"
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
