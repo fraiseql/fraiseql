@@ -16,6 +16,12 @@ lazy_static! {
 }
 
 /// Build complete SQL query from parsed GraphQL.
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Schema JSON is invalid or malformed
+/// - Query composition fails
 #[pyfunction]
 pub fn build_sql_query(
     _py: Python,
@@ -55,6 +61,12 @@ pub fn build_sql_query(
 }
 
 /// Build complete SQL query with caching.
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Schema JSON is invalid or malformed
+/// - Query composition fails
 #[pyfunction]
 pub fn build_sql_query_cached(
     _py: Python,
@@ -121,6 +133,12 @@ pub fn build_sql_query_cached(
 }
 
 /// Get cache statistics.
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Cache statistics retrieval fails
+/// - Python dictionary creation fails
 #[pyfunction]
 pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
     let stats = QUERY_PLAN_CACHE.stats().map_err(|e| {
@@ -138,6 +156,10 @@ pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
 }
 
 /// Clear cache (for schema changes).
+///
+/// # Errors
+///
+/// Returns a Python error if cache clearing fails.
 #[pyfunction]
 pub fn clear_cache() -> PyResult<()> {
     QUERY_PLAN_CACHE.clear().map_err(|e| {
