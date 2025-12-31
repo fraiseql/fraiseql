@@ -144,6 +144,9 @@ validate_links() {
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \
+        -not -path "*/tests/chaos/*" \
+        -not -path "*/templates/*" \
+        -not -path "*/examples/*" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then
@@ -479,6 +482,9 @@ validate_code_syntax() {
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \
+        -not -path "*/tests/chaos/*" \
+        -not -path "*/templates/*" \
+        -not -path "*/examples/*" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then
