@@ -60,6 +60,13 @@ impl PyAuthProvider {
     /// Returns:
     ///     `PyAuthProvider` instance
     ///
+    /// # Errors
+    ///
+    /// Returns a Python `ValueError` if:
+    /// - Domain is invalid or malformed
+    /// - Audience list is empty or contains invalid values
+    /// - Auth0 provider initialization fails
+    ///
     /// Raises:
     ///     `ValueError`: If domain or audience is invalid
     #[staticmethod]
@@ -89,6 +96,14 @@ impl PyAuthProvider {
     ///
     /// Returns:
     ///     `PyAuthProvider` instance
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python `ValueError` if:
+    /// - Issuer URL is not HTTPS or is malformed
+    /// - JWKS URL is not HTTPS or is malformed
+    /// - Audience list is empty or contains invalid values
+    /// - Custom JWT provider initialization fails
     ///
     /// Raises:
     ///     `ValueError`: If URLs are invalid or other parameters are malformed
@@ -155,6 +170,13 @@ impl PyAuthProvider {
     /// For best compatibility with Python async code, call this from
     /// an executor like `asyncio.to_thread.run_in_executor()` or
     /// concurrent.futures.ThreadPoolExecutor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python `RuntimeError` if:
+    /// - No tokio runtime is available (must call from async context or use executor)
+    /// - Token validation fails (expired, invalid signature, wrong audience, etc.)
+    /// - Token format is invalid or malformed
     ///
     /// Example:
     ///     ```python
