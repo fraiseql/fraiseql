@@ -31,6 +31,7 @@ pub enum ParameterValue {
 }
 
 impl WhereClauseBuilder {
+    /// Create a new WHERE clause builder for the specified view
     #[must_use]
     pub const fn new(schema: SchemaMetadata, view_name: String) -> Self {
         Self {
@@ -277,6 +278,7 @@ impl WhereClauseBuilder {
         Ok(())
     }
 
+    /// Get the collected query parameters
     #[must_use]
     pub fn get_params(self) -> Vec<(String, ParameterValue)> {
         self.params

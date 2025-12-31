@@ -19,6 +19,7 @@ pub struct ComposedSQL {
 }
 
 impl SQLComposer {
+    /// Create a new SQL composer with schema metadata
     #[must_use]
     pub const fn new(schema: SchemaMetadata) -> Self {
         Self { schema }
