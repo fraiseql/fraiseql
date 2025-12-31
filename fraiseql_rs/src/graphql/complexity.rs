@@ -7,6 +7,7 @@ use crate::graphql::types::ParsedQuery;
 use std::collections::HashMap;
 
 /// Complexity analysis result
+#[derive(Debug)]
 pub struct ComplexityResult {
     /// Calculated complexity score
     pub score: u32,
@@ -17,7 +18,7 @@ pub struct ComplexityResult {
 }
 
 /// Complexity analyzer configuration
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ComplexityConfig {
     /// Maximum allowed complexity score
     pub max_complexity: u32,
@@ -44,6 +45,7 @@ impl Default for ComplexityConfig {
 }
 
 /// Query complexity analyzer
+#[derive(Debug)]
 pub struct ComplexityAnalyzer {
     config: ComplexityConfig,
 }
