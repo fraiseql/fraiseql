@@ -65,6 +65,13 @@ impl RateLimiter {
     }
 
     /// Check if request is allowed (returns Ok or rate limit error)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No rate limit rule is configured for the path
+    /// - Rate limit is exceeded for the client key
+    /// - Rate limit check algorithm fails
     pub async fn check(&self, key: &str, path: &str) -> Result<()> {
         // Find matching limit
         let limit = self
