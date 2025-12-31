@@ -12,6 +12,13 @@ use serde_json::{json, Map, Value};
 ///
 /// This is the main entry point that dispatches to success or error builders
 /// based on the mutation status.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Success response building fails (e.g., missing required entity)
+/// - Error response building fails (e.g., invalid error format)
+/// - Cascade filtering fails when cascade selections are provided
 #[allow(clippy::too_many_arguments)]
 pub fn build_graphql_response(
     result: &MutationResult,
@@ -89,6 +96,13 @@ fn add_cascade_if_selected(
 /// - Wrapper fields promoted to success level
 /// - __typename added to response and entity
 /// - camelCase applied if requested
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Success type requires non-null entity but entity is None
+/// - Cascade selections JSON is invalid when cascade filtering is requested
+/// - Cascade filtering fails
 pub fn build_success_response(
     result: &MutationResult,
     success_type: &str,
