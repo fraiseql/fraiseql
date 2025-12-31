@@ -104,6 +104,13 @@ impl SchemaRegistry {
     /// * `Ok(SchemaRegistry)` - Successfully parsed schema
     /// * `Err(String)` - Parse error with description
     ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON string is invalid or malformed
+    /// - Schema structure does not match expected format
+    /// - Required fields are missing
+    ///
     /// # Example
     /// ```ignore
     /// let schema_json = r#"{"version": "1.0", "features": [], "types": {}}"#;
