@@ -12,13 +12,20 @@ pub struct WhereClauseBuilder {
     param_counter: usize,
 }
 
+/// SQL parameter value types for WHERE clause building
 #[derive(Debug, Clone)]
 pub enum ParameterValue {
+    /// String/text parameter
     String(String),
+    /// Integer parameter (i64)
     Integer(i64),
+    /// Floating point parameter (f64)
     Float(f64),
+    /// Boolean parameter
     Boolean(bool),
+    /// JSON object parameter (serialized as string)
     JsonObject(String),
+    /// Array of parameter values
     Array(Vec<ParameterValue>),
 }
 
