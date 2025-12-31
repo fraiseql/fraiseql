@@ -6,6 +6,7 @@ use crate::db::types::DatabaseError;
 use tokio_postgres::Client;
 
 /// Represents an active database transaction.
+#[derive(Debug)]
 pub struct Transaction<'a> {
     client: &'a mut Client,
     active: bool,

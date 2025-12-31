@@ -34,6 +34,7 @@ pub struct ParamInfo {
 }
 
 /// Thread-safe query plan cache.
+#[derive(Debug)]
 pub struct QueryPlanCache {
     cache: Arc<Mutex<LruCache<String, CachedQueryPlan>>>,
     max_size: usize,

@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime};
 use crate::pipeline::unified::UserContext;
 
 /// User context cache with LRU eviction and TTL validation.
+#[derive(Debug)]
 pub struct UserContextCache {
     cache: Arc<Mutex<LruCache<String, (UserContext, SystemTime)>>>,
     ttl: Duration,

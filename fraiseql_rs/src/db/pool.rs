@@ -7,7 +7,7 @@ use pyo3::types::PyDict;
 use crate::db::types::{ConnectionInfo, DatabaseError, DatabaseResult, PoolConfig};
 
 /// Database connection pool manager
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[pyclass(name = "DatabasePool")]
 pub struct DatabasePool {
     #[allow(dead_code)] // Phase 1: Validation only, pool will be used in Phase 1.5+

@@ -10,6 +10,7 @@ use tokio_postgres::{types::ToSql, Client, Row};
 
 /// Query executor for database operations.
 /// Phase 2.0: Full implementation with parameter binding
+#[derive(Debug)]
 pub struct QueryExecutor<'a> {
     client: &'a mut Client,
 }
