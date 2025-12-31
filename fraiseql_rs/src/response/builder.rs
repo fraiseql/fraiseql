@@ -23,6 +23,11 @@ impl ResponseBuilder {
     }
 
     /// Build a complete response from all rows (for small result sets)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON serialization of the response fails
     pub fn build_response(&self, rows: &[Value]) -> Result<String, serde_json::Error> {
         let mut transformed_rows = Vec::with_capacity(rows.len());
         for row in rows {
@@ -39,6 +44,13 @@ impl ResponseBuilder {
     }
 
     /// Build a streaming response (for large result sets)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Stream initialization fails
+    /// - Writing rows to stream fails
+    /// - Finalizing stream fails
     pub fn build_streaming_response<W: std::io::Write>(
         &self,
         rows: &[Value],
