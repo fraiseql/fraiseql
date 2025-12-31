@@ -201,6 +201,7 @@ impl RateLimiter {
 }
 
 /// In-memory rate limit store (production would use Redis)
+#[derive(Debug)]
 struct RateLimitStore {
     buckets: HashMap<String, TokenBucket>,
     windows: HashMap<String, FixedWindow>,
