@@ -107,6 +107,13 @@ impl CORSHandler {
     }
 
     /// Handle CORS preflight request
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Origin is not in the allowed list
+    /// - HTTP method is not allowed
+    /// - Requested headers are not permitted
     pub fn handle_preflight(
         &self,
         origin: Option<&str>,
