@@ -66,8 +66,7 @@ impl QueryPlanCache {
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
-                std::num::NonZeroUsize::new(max_size)
-                    .expect("cache size must be non-zero"),
+                std::num::NonZeroUsize::new(max_size).expect("cache size must be non-zero"),
             ))),
             max_size,
             hits: Arc::new(Mutex::new(0)),

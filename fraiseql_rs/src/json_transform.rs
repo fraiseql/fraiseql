@@ -638,7 +638,9 @@ fn transform_with_aliases(
                             )
                         } else {
                             // No nested selections - use generic transformation
-                            transform_value(owned_map.remove(key).expect("key exists in cloned map"))
+                            transform_value(
+                                owned_map.remove(key).expect("key exists in cloned map"),
+                            )
                         }
                     }
                 };

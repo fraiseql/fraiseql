@@ -14,6 +14,7 @@
 /// Performance:
 /// - Lookup: 1 instruction (bit test)
 /// - Memory: 16 bytes for 128 fields (vs 1KB+ for `HashMap`)
+#[derive(Debug)]
 pub struct FieldSet {
     // For up to 64 fields (covers 95% of cases)
     bitmap: u64,
