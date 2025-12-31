@@ -20,6 +20,15 @@ impl FieldAuthChecker {
     }
 
     /// Check field-level permissions before execution
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User is missing a required role
+    /// - User context is missing user_id when permissions are required
+    /// - User ID is not a valid UUID
+    /// - User does not have a required permission
+    /// - Permission string format is invalid (not "resource:action")
     pub async fn check_field_access(
         &self,
         user_context: &UserContext,
@@ -74,6 +83,12 @@ impl FieldAuthChecker {
     }
 
     /// Check field access for multiple fields (bulk operation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Any field check fails (stops at first failure)
+    /// - See `check_field_access()` for detailed error conditions
     pub async fn check_fields_access(
         &self,
         user_context: &UserContext,
