@@ -92,6 +92,16 @@ pub struct Arena {
     _marker: PhantomData<*const ()>,
 }
 
+impl std::fmt::Debug for Arena {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Arena")
+            .field("capacity", &unsafe { (*self.buf.get()).capacity() })
+            .field("used", &unsafe { *self.pos.get() })
+            .field("max_size", &self.max_size)
+            .finish()
+    }
+}
+
 impl Arena {
     /// Create arena with initial capacity and default max size.
     ///
