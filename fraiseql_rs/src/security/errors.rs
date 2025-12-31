@@ -7,24 +7,33 @@ use std::fmt;
 pub enum SecurityError {
     /// Rate limiting errors
     RateLimitExceeded {
+        /// Seconds to wait before retrying
         retry_after: u64,
+        /// Maximum allowed requests
         limit: usize,
+        /// Time window in seconds
         window_secs: u64,
     },
 
     /// Query validation errors
     QueryTooDeep {
+        /// Actual query depth
         depth: usize,
+        /// Maximum allowed depth
         max_depth: usize,
     },
 
     QueryTooComplex {
+        /// Actual query complexity score
         complexity: usize,
+        /// Maximum allowed complexity
         max_complexity: usize,
     },
 
     QueryTooLarge {
+        /// Actual query size in bytes
         size: usize,
+        /// Maximum allowed size in bytes
         max_size: usize,
     },
 

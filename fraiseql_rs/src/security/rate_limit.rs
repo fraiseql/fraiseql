@@ -17,9 +17,13 @@ pub enum RateLimitStrategy {
 /// Rate limit configuration
 #[derive(Debug, Clone)]
 pub struct RateLimit {
+    /// Maximum number of requests allowed
     pub requests: usize,
+    /// Time window in seconds
     pub window_secs: u64,
+    /// Optional burst capacity for token bucket
     pub burst: Option<usize>,
+    /// Rate limiting strategy to use
     pub strategy: RateLimitStrategy,
 }
 
@@ -223,11 +227,16 @@ impl RateLimitStore {
     }
 }
 
+/// Rate limiting statistics
 #[derive(Debug)]
 pub struct RateLimitStats {
+    /// Number of active rate limit rules
     pub rules_count: usize,
+    /// Number of token buckets
     pub buckets_count: usize,
+    /// Number of sliding windows
     pub windows_count: usize,
+    /// Total requests tracked
     pub requests_count: usize,
 }
 

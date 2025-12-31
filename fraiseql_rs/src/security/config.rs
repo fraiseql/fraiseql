@@ -220,11 +220,17 @@ impl SecurityConfig {
 
 /// Security components builder
 pub struct SecurityComponents {
+    /// Optional rate limiter for request throttling
     pub rate_limiter: Option<RateLimiter>,
+    /// Security headers handler
     pub security_headers: SecurityHeaders,
+    /// Optional audit logger for security events
     pub audit_logger: Option<AuditLogger>,
+    /// Query validator for GraphQL queries
     pub query_validator: QueryValidator,
+    /// Optional CSRF protection manager
     pub csrf_manager: Option<CSRFManager>,
+    /// CORS request handler
     pub cors_handler: CORSHandler,
 }
 
@@ -334,9 +340,12 @@ impl SecurityComponents {
     }
 }
 
+/// Security system statistics
 #[derive(Debug)]
 pub struct SecurityStats {
+    /// Rate limiting statistics
     pub rate_limiting: super::rate_limit::RateLimitStats,
+    /// Audit logging statistics
     pub audit: super::audit::AuditStats,
 }
 

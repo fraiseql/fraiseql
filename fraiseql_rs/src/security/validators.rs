@@ -6,9 +6,13 @@ use crate::graphql::types::ParsedQuery;
 /// Query validation limits
 #[derive(Debug, Clone)]
 pub struct QueryLimits {
+    /// Maximum query nesting depth
     pub max_depth: usize,
+    /// Maximum query complexity score
     pub max_complexity: usize,
+    /// Maximum query size in bytes
     pub max_query_size: usize,
+    /// Maximum list result size
     pub max_list_size: usize,
 }
 

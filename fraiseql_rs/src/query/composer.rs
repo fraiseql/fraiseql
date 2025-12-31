@@ -9,8 +9,11 @@ pub struct SQLComposer {
     schema: SchemaMetadata,
 }
 
+/// Composed SQL query with typed parameters
 pub struct ComposedSQL {
+    /// SQL query string
     pub sql: String,
+    /// Query parameters with typed values
     pub parameters: Vec<(String, ParameterValue)>,
 }
 

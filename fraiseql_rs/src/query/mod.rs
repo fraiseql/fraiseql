@@ -145,11 +145,14 @@ pub fn clear_cache() -> PyResult<()> {
     })
 }
 
+/// Generated SQL query with parameters for Python binding
 #[pyclass]
 pub struct GeneratedQuery {
+    /// SQL query string
     #[pyo3(get)]
     pub sql: String,
 
+    /// Query parameters as (name, value) tuples
     #[pyo3(get)]
     pub parameters: Vec<(String, String)>,
 }
