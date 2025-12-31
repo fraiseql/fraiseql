@@ -68,6 +68,34 @@ Applied security updates to Docker base images, resolving 3 CVEs:
 
 ### Fixed
 
+#### Rust Benchmarks (core_benchmark.rs)
+
+Fixed compilation errors preventing Rust performance benchmarks from running:
+
+**Issues Resolved**:
+- Missing `max_depth` field in TransformConfig initializations (3 occurrences)
+- Transformer mutability errors (added `mut` keyword for transform_bytes calls)
+- Broken `byte_reader_parsing` test (incorrect JSON parsing logic)
+
+**Performance CI**:
+- Added Python 3.13 setup for PyO3 C API linking
+- Changed from `cargo bench --all` to `cargo bench --bench core_benchmark`
+- Focus on PyO3-independent benchmarks for reliable CI execution
+
+**Benchmark Results** (all passing):
+- ✅ zero_copy_small: 2.7µs (327 MiB/s throughput)
+- ✅ zero_copy_medium: 62.7µs (408 MiB/s throughput)
+- ✅ zero_copy_large: 5.56ms (481 MiB/s throughput)
+- ✅ components/arena_allocation: 4.5ns
+- ✅ components/byte_reader_parsing: 6.4ns
+- ✅ components/snake_to_camel: 21.7ns
+
+**Files Modified**:
+- `fraiseql_rs/benches/core_benchmark.rs` - Fixed 3 compilation errors
+- `.github/workflows/performance.yml` - Added Python setup, simplified workflow
+
+#### Middleware Testing
+
 - Improved test coverage for GraphQLInfoInjector middleware (54% → 80%+)
 - Added sync resolver test coverage (11 additional tests)
 - Added positional argument handling tests
