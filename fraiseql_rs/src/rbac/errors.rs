@@ -51,6 +51,7 @@ pub enum RbacError {
     DirectiveError(String),
 }
 
+/// Convenience type alias for RBAC operation results
 pub type Result<T> = std::result::Result<T, RbacError>;
 
 impl fmt::Display for RbacError {

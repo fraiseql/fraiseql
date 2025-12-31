@@ -153,6 +153,7 @@ pub enum DatabaseError {
     Transaction(String),
 }
 
+/// Convenience type alias for database operation results
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
 /// Connection state information

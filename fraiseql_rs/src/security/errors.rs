@@ -58,6 +58,7 @@ pub enum SecurityError {
     SecurityConfigError(String),
 }
 
+/// Convenience type alias for security operation results
 pub type Result<T> = std::result::Result<T, SecurityError>;
 
 impl fmt::Display for SecurityError {
