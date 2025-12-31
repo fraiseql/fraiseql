@@ -6,6 +6,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Python wrapper for `PermissionResolver`
+#[derive(Debug)]
 #[pyclass]
 pub struct PyPermissionResolver {
     resolver: Arc<PermissionResolver>,
@@ -98,6 +99,7 @@ impl PyPermissionResolver {
 }
 
 /// Python wrapper for `FieldAuthChecker`
+#[derive(Debug)]
 #[pyclass]
 pub struct PyFieldAuthChecker {
     #[allow(dead_code)]

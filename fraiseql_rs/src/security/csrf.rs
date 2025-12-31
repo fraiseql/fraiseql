@@ -5,6 +5,7 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 
 /// CSRF token manager
+#[derive(Debug)]
 pub struct CSRFManager {
     secret: String,
 }

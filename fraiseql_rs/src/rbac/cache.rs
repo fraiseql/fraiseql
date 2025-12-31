@@ -116,6 +116,7 @@ const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(DEFAULT_CAC
 /// // Invalidate on role changes
 /// cache.invalidate_user(user_id);
 /// ```
+#[derive(Debug)]
 pub struct PermissionCache {
     cache: Mutex<LruCache<CacheKey, CacheEntry>>,
     default_ttl: Duration,
@@ -305,6 +306,7 @@ pub struct CacheStats {
 }
 
 /// Cache invalidation strategies for RBAC changes
+#[derive(Debug)]
 pub struct CacheInvalidation;
 
 impl CacheInvalidation {

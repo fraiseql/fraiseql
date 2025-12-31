@@ -4,6 +4,7 @@ use crate::response::{transform_row_keys, ChunkedWriter, ResponseStream};
 use serde_json::Value;
 
 /// Builder for GraphQL responses with streaming support
+#[derive(Debug)]
 pub struct ResponseBuilder {
     chunk_size: usize,
 }

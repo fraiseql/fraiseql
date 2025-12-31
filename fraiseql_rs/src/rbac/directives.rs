@@ -7,6 +7,7 @@ use super::{
 use crate::graphql::types::{Directive, FieldSelection, ParsedQuery};
 
 /// Extract RBAC directives from parsed query
+#[derive(Debug)]
 pub struct DirectiveExtractor;
 
 impl DirectiveExtractor {

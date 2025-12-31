@@ -214,6 +214,7 @@ impl AuditEvent {
 }
 
 /// Async audit logger with buffered writes
+#[derive(Debug)]
 pub struct AuditLogger {
     tx: mpsc::UnboundedSender<AuditEvent>,
 }

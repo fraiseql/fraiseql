@@ -42,6 +42,7 @@ impl Default for RateLimit {
 }
 
 /// Rate limiter with token bucket algorithm
+#[derive(Debug)]
 pub struct RateLimiter {
     limits: HashMap<String, RateLimit>,
     store: Arc<Mutex<RateLimitStore>>,

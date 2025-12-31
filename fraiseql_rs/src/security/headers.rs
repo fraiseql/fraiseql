@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 /// Security headers configuration
+#[derive(Debug)]
 pub struct SecurityHeaders {
     headers: HashMap<String, String>,
 }

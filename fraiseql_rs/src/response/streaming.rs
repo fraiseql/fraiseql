@@ -75,7 +75,18 @@ impl<W: Write> ResponseStream<W> {
     }
 }
 
+impl<W: Write + std::fmt::Debug> std::fmt::Debug for ResponseStream<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResponseStream")
+            .field("writer", &self.writer)
+            .field("row_count", &self.row_count)
+            .field("started", &self.started)
+            .finish()
+    }
+}
+
 /// Memory-efficient buffered writer with configurable chunk size.
+#[derive(Debug)]
 pub struct ChunkedWriter {
     buffer: Vec<u8>,
     chunk_size: usize,

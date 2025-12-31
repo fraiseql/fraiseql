@@ -74,6 +74,7 @@ use uuid::Uuid;
 /// // On role changes, invalidate cache
 /// resolver.invalidate_user(user_id);
 /// ```
+#[derive(Debug)]
 pub struct PermissionResolver {
     pool: Pool,
     hierarchy: RoleHierarchy,

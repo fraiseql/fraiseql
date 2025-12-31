@@ -63,6 +63,7 @@ use uuid::Uuid;
 ///
 /// If a user is assigned the "user" role, `get_all_roles()` returns:
 /// [user, manager, admin, `super_admin`] (all roles in the inheritance chain)
+#[derive(Debug)]
 pub struct RoleHierarchy {
     pool: Pool,
 }

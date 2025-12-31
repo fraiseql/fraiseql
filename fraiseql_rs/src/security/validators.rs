@@ -52,6 +52,7 @@ impl QueryLimits {
 }
 
 /// Query validator
+#[derive(Debug)]
 pub struct QueryValidator {
     limits: QueryLimits,
 }

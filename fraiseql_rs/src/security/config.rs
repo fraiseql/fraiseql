@@ -230,6 +230,7 @@ impl SecurityConfig {
 }
 
 /// Security components builder
+#[derive(Debug)]
 pub struct SecurityComponents {
     /// Optional rate limiter for request throttling
     pub rate_limiter: Option<RateLimiter>,

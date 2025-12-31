@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Field authorization checker
+#[derive(Debug)]
 pub struct FieldAuthChecker {
     resolver: Arc<PermissionResolver>,
 }

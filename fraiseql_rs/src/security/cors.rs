@@ -96,6 +96,7 @@ impl CORSConfig {
 }
 
 /// CORS policy enforcer
+#[derive(Debug)]
 pub struct CORSHandler {
     config: CORSConfig,
 }

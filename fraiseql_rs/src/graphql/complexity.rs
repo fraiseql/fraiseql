@@ -276,6 +276,7 @@ impl ComplexityAnalyzer {
 }
 
 /// High-complexity query detector
+#[derive(Debug)]
 pub struct ComplexityDetector {
     analyzer: ComplexityAnalyzer,
 }
