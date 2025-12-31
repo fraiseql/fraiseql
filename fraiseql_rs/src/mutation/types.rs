@@ -26,7 +26,7 @@ pub struct FullResponse {
     pub status: String,
     /// Human-readable message (required)
     pub message: String,
-    /// PascalCase type name
+    /// `PascalCase` type name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_type: Option<String>,
     /// Entity data

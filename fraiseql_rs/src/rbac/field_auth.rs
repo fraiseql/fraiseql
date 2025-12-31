@@ -25,7 +25,7 @@ impl FieldAuthChecker {
     ///
     /// Returns an error if:
     /// - User is missing a required role
-    /// - User context is missing user_id when permissions are required
+    /// - User context is missing `user_id` when permissions are required
     /// - User ID is not a valid UUID
     /// - User does not have a required permission
     /// - Permission string format is invalid (not "resource:action")

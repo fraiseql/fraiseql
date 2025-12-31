@@ -17,7 +17,7 @@ pub struct SchemaMetadata {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSchema {
-    /// View name (e.g., "v_users")
+    /// View name (e.g., "`v_users`")
     #[pyo3(get)]
     pub view_name: String,
 

@@ -66,7 +66,7 @@ impl PostgresMutationResponse {
     ///
     /// Returns an error if:
     /// - JSON string is invalid or malformed
-    /// - Missing required fields (status, message, entity_id, entity_type, entity, updated_fields, cascade, metadata)
+    /// - Missing required fields (status, message, `entity_id`, `entity_type`, entity, `updated_fields`, cascade, metadata)
     /// - Field types do not match expected schema
     ///
     /// # Example

@@ -61,7 +61,7 @@ pub const MAX_JSON_DEPTH: usize = 64;
 pub struct TransformConfig {
     /// Add __typename field to objects
     pub add_typename: bool,
-    /// Convert snake_case keys to camelCase
+    /// Convert `snake_case` keys to camelCase
     pub camel_case: bool,
     /// Apply field projection filtering
     pub project_fields: bool,
