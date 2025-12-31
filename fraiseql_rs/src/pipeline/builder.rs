@@ -66,6 +66,13 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 /// │ (Vec<u8>)    │
 /// └──────────────┘
 ///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - JSON parsing fails for any row
+/// - Schema transformation fails
+/// - Zero-copy transformation exceeds buffer capacity
+/// - GraphQL response serialization fails
 pub fn build_graphql_response(
     json_rows: Vec<String>,
     field_name: &str,
@@ -326,6 +333,14 @@ fn estimate_arena_size(json_rows: &[String]) -> usize {
 ///
 /// Returns:
 ///     Complete GraphQL response as UTF-8 bytes
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - Field selections JSON is invalid or malformed
+/// - JSON row parsing fails for any field
+/// - Schema transformation fails
+/// - GraphQL response serialization fails
 pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8>> {
     let registry = schema_registry::get_registry();
 
