@@ -68,6 +68,7 @@ impl<W: Write> ResponseStream<W> {
         Ok(())
     }
 
+    /// Get the number of rows written so far
     pub const fn row_count(&self) -> usize {
         self.row_count
     }
@@ -81,6 +82,7 @@ pub struct ChunkedWriter {
 }
 
 impl ChunkedWriter {
+    /// Create a new chunked writer with specified chunk size
     #[must_use]
     pub fn new(chunk_size: usize) -> Self {
         Self {
@@ -90,11 +92,13 @@ impl ChunkedWriter {
         }
     }
 
+    /// Check if buffer should be flushed (reached chunk size)
     #[must_use]
     pub const fn should_flush(&self) -> bool {
         self.buffer.len() >= self.chunk_size
     }
 
+    /// Get current chunk and reset buffer
     pub fn get_chunk(&mut self) -> Option<Vec<u8>> {
         if self.buffer.is_empty() {
             return None;
@@ -105,6 +109,7 @@ impl ChunkedWriter {
         ))
     }
 
+    /// Get total bytes written
     #[must_use]
     pub const fn total_written(&self) -> usize {
         self.total_written
