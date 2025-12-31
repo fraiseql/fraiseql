@@ -29,6 +29,13 @@ impl CSRFManager {
     }
 
     /// Validate CSRF token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token format is invalid (not 3 colon-separated parts)
+    /// - Session ID does not match the token's session
+    /// - Token hash is invalid or tampered with
     pub fn validate_token(&self, session_id: &str, token: &str) -> Result<()> {
         let parts: Vec<&str> = token.split(':').collect();
         if parts.len() != 3 {
