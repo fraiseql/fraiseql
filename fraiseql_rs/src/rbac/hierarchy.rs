@@ -74,6 +74,12 @@ impl RoleHierarchy {
     }
 
     /// Get all roles in hierarchy (including inherited)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection pool fails to provide a connection
+    /// - SQL query execution fails
     pub async fn get_all_roles(
         &self,
         role_ids: &[Uuid],
@@ -118,6 +124,12 @@ impl RoleHierarchy {
     }
 
     /// Get all child roles (for role deletion validation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection pool fails to provide a connection
+    /// - SQL query execution fails
     pub async fn get_child_roles(
         &self,
         role_id: Uuid,
@@ -153,6 +165,12 @@ impl RoleHierarchy {
     }
 
     /// Check for hierarchy cycles
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection pool fails to provide a connection
+    /// - SQL query execution fails
     pub async fn detect_cycles(&self, tenant_id: Option<Uuid>) -> Result<Vec<String>> {
         // Find cycles by looking for roles that appear in their own hierarchy
         let sql = r"
