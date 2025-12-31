@@ -20,6 +20,11 @@ impl<W: Write> ResponseStream<W> {
     }
 
     /// Start the GraphQL response array
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Writing to the underlying writer fails
     pub fn start(&mut self) -> std::io::Result<()> {
         if !self.started {
             // Write opening of GraphQL response
@@ -30,6 +35,13 @@ impl<W: Write> ResponseStream<W> {
     }
 
     /// Write a single row (automatically formatted as JSON)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Writing comma separator fails
+    /// - JSON serialization of row fails
+    /// - Writing to the underlying writer fails
     pub fn write_row(&mut self, row: &Value) -> std::io::Result<()> {
         if self.row_count > 0 {
             self.writer.write_all(b",")?; // Comma separator
@@ -44,6 +56,12 @@ impl<W: Write> ResponseStream<W> {
     }
 
     /// Finish the response
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Writing response closing brackets fails
+    /// - Flushing the underlying writer fails
     pub fn finish(&mut self) -> std::io::Result<()> {
         self.writer.write_all(b"]}}")?; // Close array and response
         self.writer.flush()?;
