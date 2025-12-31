@@ -109,6 +109,7 @@ pub struct ZeroCopyTransformer<'a> {
 }
 
 impl<'a> ZeroCopyTransformer<'a> {
+    /// Create a new zero-copy transformer with specified configuration
     pub const fn new(
         arena: &'a Arena,
         config: TransformConfig,
@@ -347,16 +348,19 @@ impl ByteBuf {
         }
     }
 
+    /// Append a single byte to the buffer
     #[inline(always)]
     pub fn push(&mut self, byte: u8) {
         self.buf.push(byte);
     }
 
+    /// Extend the buffer with a byte slice
     #[inline(always)]
     pub fn extend_from_slice(&mut self, bytes: &[u8]) {
         self.buf.extend_from_slice(bytes);
     }
 
+    /// Convert the buffer into its underlying `Vec<u8>`
     #[must_use]
     pub fn into_vec(self) -> Vec<u8> {
         self.buf
@@ -376,6 +380,7 @@ pub struct ByteReader<'a> {
 }
 
 impl<'a> ByteReader<'a> {
+    /// Create a new byte reader from a byte slice
     #[inline]
     #[must_use]
     pub const fn new(bytes: &'a [u8]) -> Self {
@@ -650,6 +655,7 @@ pub struct JsonWriter<'a> {
 }
 
 impl<'a> JsonWriter<'a> {
+    /// Create a new JSON writer that writes to the specified buffer
     #[inline]
     pub const fn new(output: &'a mut ByteBuf) -> Self {
         JsonWriter {
