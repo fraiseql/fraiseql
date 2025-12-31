@@ -641,4 +641,4 @@ cascade_effects = [
 
 - [Decorators Reference](../reference/decorators.md) - Complete decorator documentation
 - [Database API](../reference/database.md) - Advanced query patterns
-- [Performance Guide](performance.md) - Optimization tips
+- [Performance Guide](performance-guide.md) - Optimization tips

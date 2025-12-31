@@ -99,8 +99,8 @@ New to FraiseQL? Start here:
 ## 🚀 Production & Deployment
 
 - **[Production Deployment](../tutorials/production-deployment.md)** - Complete production setup
-- **[Docker Deployment](../deployment/docker.md)** - Containerized deployment
-- **[Kubernetes](../deployment/kubernetes.md)** - K8s configuration
+- **[Docker Deployment](../production/deployment.md)** - Containerized deployment
+- **[Kubernetes](../archive/deployment/production-deployment.md)** - K8s configuration
 - **[Health Checks](../production/health-checks.md)** - Monitoring endpoints
 - **[Observability](../production/observability.md)** - Metrics and logging
 

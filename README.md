@@ -65,7 +65,7 @@ app = create_fraiseql_app(
 
 ---
 
-## Is This For You?
+## Is this for me?
 
 **✅ Perfect if you:**
 - Build high-performance APIs with PostgreSQL
@@ -174,7 +174,7 @@ FraiseQL separates testing into two workflows:
 **Standard CI/CD:** Validates that features work correctly
 **Chaos Tests:** Validates that system recovers from failures
 
-[→ Learn about chaos engineering strategy](docs/testing/chaos-engineering-strategy.md)
+[→ Learn about chaos engineering strategy](docs/archive/testing/chaos-engineering-strategy.md)
 
 ---
 

@@ -290,9 +290,20 @@ jobs:
 
     - name: Test imports from built wheels
       run: |
-        echo "=== Skipping import test (ID scalar redefinition issue - tracked separately) ==="
-        echo "Wheel validation completed via twine check and content verification"
-        echo "✅ Wheels are ready for PyPI"
+        echo "=== Testing imports from built wheels ==="
+        for whl in dist/*manylinux*.whl dist/*linux*.whl; do
+          if [ -f "$whl" ]; then
+            echo "Testing imports from $whl..."
+            pip install --force-reinstall "$whl"
+
+            # Test critical imports (ID scalar, vector scalar)
+            python -c "from fraiseql.types.scalars.vector import VectorScalar; from fraiseql.types import ID; from fraiseql.types.scalars import IDScalar; print(f'✅ VectorScalar: {VectorScalar}'); print(f'✅ ID: {ID}'); print(f'✅ IDScalar: {IDScalar}')" || {
+              echo "ERROR: Import test failed for $whl"
+              exit 1
+            }
+            echo "✅ Imports successful for $whl"
+          fi
+        done
 
     - name: List all artifacts
       run: |

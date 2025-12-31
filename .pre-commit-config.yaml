@@ -1,5 +1,19 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+
+# Configuration for pre-commit.ci
+ci:
+  # Skip Rust hooks in pre-commit.ci due to network connectivity issues
+  # (index.crates.io not accessible in pre-commit.ci environment)
+  # Rust checks are covered by GitHub Actions: Clippy Strict, Rustfmt
+  skip: [cargo-clippy, cargo-fmt]
+
+  # Auto-update pre-commit hooks weekly
+  autoupdate_schedule: weekly
+
+  # Commit message for auto-updates
+  autoupdate_commit_msg: 'chore: auto-update pre-commit hooks'
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -31,22 +45,17 @@ repos:
       - id: ruff-format
         exclude: ^(examples|tools|conftest\.py|experimental_tests)/
 
-  # Rust linting (local hooks - prek not needed for this)
-  - repo: local
+  # Rust linting (using pre-commit-cargo for proper CI support)
+  - repo: https://github.com/AndrejOrsula/pre-commit-cargo
+    rev: 0.5.0  # Latest stable release (Dec 23, 2025)
     hooks:
-      - id: clippy
+      - id: cargo-clippy
         name: Clippy Check
-        entry: bash -c 'cargo update --quiet && cargo clippy --lib -- -D warnings'
-        language: system
-        files: \.rs$
-        pass_filenames: false
+        args: ["--lib", "--", "-D", "warnings"]
 
-      - id: rustfmt
+      - id: cargo-fmt
         name: Rustfmt
-        entry: cargo fmt --all
-        language: system
-        files: \.rs$
-        pass_filenames: false
+        args: ["--all"]
 
   # Temporarily disabled pytest hook for Marie Kondo cleanup PR
   # This is because pre-commit.ci has persistent issues detecting CI environment
