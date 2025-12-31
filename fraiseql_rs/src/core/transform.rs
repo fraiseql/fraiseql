@@ -57,7 +57,7 @@ use pyo3::PyErr;
 pub const MAX_JSON_DEPTH: usize = 64;
 
 /// Transform configuration (zero-cost at compile time)
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct TransformConfig {
     /// Add __typename field to objects
     pub add_typename: bool,
@@ -100,6 +100,7 @@ impl Default for TransformConfig {
 /// │ Output Buffer (write-only, pre-sized)           │ → HTTP response
 /// └─────────────────────────────────────────────────┘
 ///
+#[derive(Debug)]
 pub struct ZeroCopyTransformer<'a> {
     arena: &'a Arena,
     config: TransformConfig,
@@ -318,6 +319,7 @@ impl<'a> ZeroCopyTransformer<'a> {
 }
 
 /// Growable byte buffer with smart capacity estimation
+#[derive(Debug)]
 pub struct ByteBuf {
     buf: Vec<u8>,
 }
@@ -374,6 +376,7 @@ impl ByteBuf {
 }
 
 /// Streaming byte reader (zero-copy)
+#[derive(Debug)]
 pub struct ByteReader<'a> {
     bytes: &'a [u8],
     pos: usize,
@@ -649,6 +652,7 @@ impl<'a> ByteReader<'a> {
 }
 
 /// Streaming JSON writer
+#[derive(Debug)]
 pub struct JsonWriter<'a> {
     output: &'a mut ByteBuf,
     needs_comma: bool,
