@@ -217,7 +217,7 @@ pub fn transform_with_schema(
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - use schema to resolve correct type
                         // Still need to borrow here for nested transformation
-                        let val = owned_map.get(key).unwrap();
+                        let val = owned_map.get(key).expect("key exists in cloned map");
                         transform_nested_object(
                             val,
                             field_info.type_name(),
@@ -227,11 +227,11 @@ pub fn transform_with_schema(
                     }
                     Some(_) => {
                         // Scalar field - take ownership, no clone needed!
-                        owned_map.remove(key).unwrap()
+                        owned_map.remove(key).expect("key exists in cloned map")
                     }
                     None => {
                         // Field not in schema - take ownership and transform recursively
-                        transform_value(owned_map.remove(key).unwrap())
+                        transform_value(owned_map.remove(key).expect("key exists in cloned map"))
                     }
                 };
 
@@ -595,7 +595,7 @@ fn transform_with_aliases(
                     Some(field_info) if field_info.is_nested_object() => {
                         // Nested object or array - recursively transform with updated path
                         // Still need to borrow here for nested transformation
-                        let val = owned_map.get(key).unwrap();
+                        let val = owned_map.get(key).expect("key exists in cloned map");
                         transform_nested_field_with_aliases(
                             val,
                             Some(field_info.type_name()),
@@ -609,7 +609,7 @@ fn transform_with_aliases(
                     }
                     Some(_) => {
                         // Scalar field - take ownership, no clone needed!
-                        owned_map.remove(key).unwrap()
+                        owned_map.remove(key).expect("key exists in cloned map")
                     }
                     None => {
                         // Field not in schema
@@ -622,7 +622,7 @@ fn transform_with_aliases(
 
                         if has_nested_selections {
                             // Field has nested selections, so recursively transform with filtering
-                            let val = owned_map.get(key).unwrap();
+                            let val = owned_map.get(key).expect("key exists in cloned map");
                             // Determine if it's a list by checking the value type
                             let is_list = matches!(val, Value::Array(_));
                             // Type not in schema - pass None to skip __typename injection
@@ -638,7 +638,7 @@ fn transform_with_aliases(
                             )
                         } else {
                             // No nested selections - use generic transformation
-                            transform_value(owned_map.remove(key).unwrap())
+                            transform_value(owned_map.remove(key).expect("key exists in cloned map"))
                         }
                     }
                 };
@@ -709,6 +709,7 @@ fn transform_nested_field_with_aliases(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Tests can use unwrap for simplicity
 mod tests {
     use super::*;
     use crate::schema_registry::SchemaRegistry;
