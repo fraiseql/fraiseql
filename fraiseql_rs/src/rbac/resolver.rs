@@ -94,6 +94,12 @@ impl PermissionResolver {
     }
 
     /// Get all effective permissions for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query fails (connection error, SQL error)
+    /// - Permission computation fails
     pub async fn get_user_permissions(
         &self,
         user_id: Uuid,
@@ -114,6 +120,12 @@ impl PermissionResolver {
     }
 
     /// Check if user has specific permission
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Getting user permissions fails
+    /// - See `get_user_permissions()` for detailed error conditions
     pub async fn has_permission(
         &self,
         user_id: Uuid,
