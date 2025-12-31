@@ -7,26 +7,33 @@ use serde::{Deserialize, Serialize};
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedQuery {
+    /// Operation type: "query" or "mutation"
     #[pyo3(get)]
-    pub operation_type: String, // "query" | "mutation"
+    pub operation_type: String,
 
+    /// Optional operation name
     #[pyo3(get)]
     pub operation_name: Option<String>,
 
+    /// First field in selection set (root field)
     #[pyo3(get)]
-    pub root_field: String, // First field in selection set
+    pub root_field: String,
 
+    /// Field selections in query
     #[pyo3(get)]
     pub selections: Vec<FieldSelection>,
 
+    /// Variable definitions
     #[pyo3(get)]
     pub variables: Vec<VariableDefinition>,
 
+    /// Fragment definitions
     #[pyo3(get)]
-    pub fragments: Vec<FragmentDefinition>, // Fragment definitions
+    pub fragments: Vec<FragmentDefinition>,
 
+    /// Original query string (for caching key)
     #[pyo3(get)]
-    pub source: String, // Original query string (for caching key)
+    pub source: String,
 }
 
 #[pymethods]
@@ -49,31 +56,38 @@ impl ParsedQuery {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldSelection {
+    /// GraphQL field name (e.g., "users")
     #[pyo3(get)]
-    pub name: String, // GraphQL field name (e.g., "users")
+    pub name: String,
 
+    /// Alias if provided (e.g., device: equipment)
     #[pyo3(get)]
-    pub alias: Option<String>, // Alias if provided (e.g., device: equipment)
+    pub alias: Option<String>,
 
+    /// Arguments like where: {...}, limit: 10
     #[pyo3(get)]
-    pub arguments: Vec<GraphQLArgument>, // Args like where: {...}, limit: 10
+    pub arguments: Vec<GraphQLArgument>,
 
+    /// Recursive nested field selections
     #[pyo3(get)]
-    pub nested_fields: Vec<FieldSelection>, // Recursive nested selections
+    pub nested_fields: Vec<FieldSelection>,
 
+    /// Directives: @include, @skip, etc with arguments
     #[pyo3(get)]
-    pub directives: Vec<Directive>, // @include, @skip, etc with arguments
+    pub directives: Vec<Directive>,
 }
 
 /// GraphQL directive (e.g., @requiresRole(role: "admin")).
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Directive {
+    /// Directive name (e.g., "requiresRole")
     #[pyo3(get)]
-    pub name: String, // Directive name (e.g., "requiresRole")
+    pub name: String,
 
+    /// Directive arguments
     #[pyo3(get)]
-    pub arguments: Vec<GraphQLArgument>, // Directive arguments
+    pub arguments: Vec<GraphQLArgument>,
 }
 
 /// GraphQL argument (e.g., where: {...}).

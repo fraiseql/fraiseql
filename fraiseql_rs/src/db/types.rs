@@ -115,8 +115,11 @@ impl From<uuid::Uuid> for QueryParam {
 /// Result of a database query
 #[derive(Debug)]
 pub struct QueryResult {
+    /// Number of rows affected by the query
     pub rows_affected: u64,
+    /// Column names in result set
     pub columns: Vec<String>,
+    /// Query result rows
     pub rows: Vec<Vec<QueryParam>>,
 }
 
@@ -140,10 +143,16 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 /// Connection state information
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
+    /// Database host
     pub host: String,
+    /// Database port
     pub port: u16,
+    /// Database name
     pub database: String,
+    /// Database user
     pub user: String,
+    /// Total number of connections in pool
     pub connection_count: u32,
+    /// Number of idle connections
     pub idle_count: u32,
 }

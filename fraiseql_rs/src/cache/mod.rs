@@ -41,10 +41,15 @@ pub struct QueryPlanCache {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CacheStats {
+    /// Number of cache hits
     pub hits: u64,
+    /// Number of cache misses
     pub misses: u64,
+    /// Hit rate (hits / total requests)
     pub hit_rate: f64,
+    /// Current number of entries in cache
     pub size: usize,
+    /// Maximum cache capacity
     pub max_size: usize,
 }
 
