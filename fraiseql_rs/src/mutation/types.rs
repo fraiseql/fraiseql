@@ -46,9 +46,12 @@ pub struct FullResponse {
 /// Status classification (parsed from status string)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusKind {
-    Success(String), // success, created, updated, deleted
-    Noop(String),    // noop:reason
-    Error(String),   // failed:reason, not_found:reason, etc.
+    /// Successful operation (success, created, updated, deleted)
+    Success(String),
+    /// No-operation with reason (noop:reason)
+    Noop(String),
+    /// Error with reason (failed:reason, not_found:reason, etc.)
+    Error(String),
 }
 
 impl StatusKind {
