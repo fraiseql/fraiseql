@@ -12,7 +12,7 @@ pub fn to_camel_case(snake: &str) -> String {
         if c == '_' {
             capitalize_next = true;
         } else if capitalize_next {
-            result.push(c.to_uppercase().next().unwrap());
+            result.push(c.to_uppercase().next().expect("char uppercased"));
             capitalize_next = false;
         } else {
             result.push(c);
@@ -52,6 +52,7 @@ pub fn transform_jsonb_field(field_str: &str) -> Result<Value, serde_json::Error
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Tests can use unwrap for simplicity
 mod tests {
     use super::*;
     use serde_json::json;

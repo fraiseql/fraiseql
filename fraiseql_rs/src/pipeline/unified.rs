@@ -98,7 +98,7 @@ impl GraphQLPipeline {
                 parameters: vec![], // Simplified for Phase 9
                 created_at: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .expect("system time before UNIX epoch")
                     .as_secs(),
                 hit_count: 0,
             };
@@ -297,7 +297,9 @@ fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<JsonValue> {
     } else if let Ok(i) = obj.extract::<i64>() {
         Ok(JsonValue::Number(i.into()))
     } else if let Ok(f) = obj.extract::<f64>() {
-        Ok(JsonValue::Number(serde_json::Number::from_f64(f).unwrap()))
+        Ok(JsonValue::Number(
+            serde_json::Number::from_f64(f).expect("finite f64"),
+        ))
     } else if let Ok(b) = obj.extract::<bool>() {
         Ok(JsonValue::Bool(b))
     } else {

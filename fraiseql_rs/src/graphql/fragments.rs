@@ -132,7 +132,10 @@ impl FragmentGraph {
 
         if recursion_stack.contains(dep) {
             // Cycle found - extract cycle path
-            let cycle_start = cycle_path.iter().position(|f| f == dep).unwrap();
+            let cycle_start = cycle_path
+                .iter()
+                .position(|f| f == dep)
+                .expect("dep must be in cycle_path when in recursion_stack");
             let cycle = cycle_path[cycle_start..].to_vec();
             return Some(cycle);
         }
