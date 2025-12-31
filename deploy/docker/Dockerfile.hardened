@@ -9,8 +9,8 @@
 # =============================================================================
 FROM python:3.13-slim AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install build dependencies and security updates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpq-dev \
@@ -50,18 +50,20 @@ FROM python:3.13-slim AS production
 
 # Labels for compliance and metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team" \
-      org.opencontainers.image.version="1.8.0-beta.4" \
-      org.opencontainers.image.description="Government-grade GraphQL-to-PostgreSQL framework" \
+      org.opencontainers.image.version="1.9.1" \
+      org.opencontainers.image.description="Government-grade GraphQL-to-PostgreSQL framework with native Rust performance" \
       org.opencontainers.image.vendor="FraiseQL Project" \
       org.opencontainers.image.licenses="MIT" \
       security.compliance="Government Agency Ready" \
       security.scan.trivy="enabled" \
       security.sbom="generated" \
       security.vulnerabilities.critical="0" \
-      security.vulnerabilities.high="0"
+      security.vulnerabilities.high="0" \
+      security.cve.fixes="CVE-2025-14104,CVE-2025-6141,CVE-2024-56433"
 
-# Install only runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install runtime dependencies and security updates
+# CVE Fixes: CVE-2025-14104 (util-linux), CVE-2025-6141 (ncurses), CVE-2024-56433 (shadow-utils)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libpq5 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

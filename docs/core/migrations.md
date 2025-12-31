@@ -1,19 +1,19 @@
+---
+title: Database Migrations
+description: Database schema migrations and version management
+tags:
+  - migrations
+  - schema
+  - database
+  - versioning
+  - DDL
+---
+
 # Database Migrations
 
 > **Manage your database schema with confidence using FraiseQL's integrated migration system**
 
 FraiseQL provides a robust migration management system through the `fraiseql migrate` CLI, making it easy to evolve your database schema over time while maintaining consistency across development, staging, and production environments.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Quick Start](#quick-start)
-- [Migration Commands](#migration-commands)
-- [Migration File Structure](#migration-file-structure)
-- [Best Practices](#migration-best-practices)
-- [CQRS Migrations](#cqrs-migrations)
-- [Production Deployment](#production-deployment)
-- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -205,7 +205,7 @@ fraiseql migrate status
 ### Basic Structure
 
 ```sql
--- Migration XXX: Description of what this migration does
+-- Migration 001: Description of what this migration does
 --
 -- Author: Your Name
 -- Date: 2024-01-15
@@ -593,27 +593,10 @@ async def setup_ivm():
 ## See Also
 
 - Complete CQRS Example (../../examples/complete_cqrs_blog/)
-- [CASCADE Best Practices](../guides/cascade-best-practices/)
-- [Explicit Sync Guide](./explicit-sync/)
-- [Database Patterns](../advanced/database-patterns/)
+- [CASCADE Best Practices](../guides/cascade-best-practices.md)
+- [Explicit Sync Guide](./explicit-sync.md)
+- [Database Patterns](../advanced/database-patterns.md)
 - [confiture on GitHub](https://github.com/fraiseql/confiture) - Migration library
-
----
-
-## Summary
-
-FraiseQL's migration system provides:
-
-✅ **Simple** SQL-based migrations
-✅ **Safe** tracking of applied changes
-✅ **Integrated** with the `fraiseql` CLI
-✅ **Production-ready** deployment patterns
-
-**Next Steps**:
-1. Initialize migrations: `fraiseql migrate init`
-2. Create your first migration: `fraiseql migrate create initial_schema`
-3. Apply migrations: `fraiseql migrate up`
-4. See the [Complete CQRS Example](../../examples/complete_cqrs_blog/) for a full working demo
 
 ---
 

@@ -1,3 +1,14 @@
+---
+title: Event Sourcing
+description: Event sourcing patterns with audit logs and event streams
+tags:
+  - event-sourcing
+  - audit
+  - events
+  - CQRS
+  - patterns
+---
+
 # Event Sourcing & Audit Trails
 
 Event sourcing patterns in FraiseQL: entity change logs, temporal queries, audit trails, and CQRS with event-driven architectures.
@@ -13,17 +24,6 @@ Event sourcing stores all changes to application state as a sequence of events. 
 - Temporal queries (state at timestamp)
 - Audit trail patterns
 - CQRS with event sourcing
-
-## Table of Contents
-
-- [Entity Change Log](#entity-change-log)
-- [Before/After Snapshots](#beforeafter-snapshots)
-- [Event Replay](#event-replay)
-- [Temporal Queries](#temporal-queries)
-- [Audit Trails](#audit-trails)
-- [CQRS Pattern](#cqrs-pattern)
-- [Event Versioning](#event-versioning)
-- [Performance Optimization](#performance-optimization)
 
 ## Entity Change Log
 
@@ -284,6 +284,7 @@ Rebuild entity state from event log:
 ```python
 from datetime import datetime
 from decimal import Decimal
+from fraiseql.types import ID
 
 class OrderEventReplayer:
     """Replay order events to rebuild state."""
@@ -699,7 +700,7 @@ LIMIT 1;
 
 ## Next Steps
 
-- [Bounded Contexts](bounded-contexts/) - Event-driven context integration
-- [CQRS](../advanced/database-patterns/) - Command Query Responsibility Segregation
-- [Monitoring](../production/monitoring/) - Event sourcing metrics
-- [Performance](../performance/index/) - Audit log optimization
+- [Bounded Contexts](bounded-contexts.md) - Event-driven context integration
+- [CQRS](../advanced/database-patterns.md) - Command Query Responsibility Segregation
+- [Monitoring](../production/monitoring.md) - Event sourcing metrics
+- [Performance](../performance/index.md) - Audit log optimization

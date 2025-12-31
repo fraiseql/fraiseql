@@ -32,6 +32,7 @@ from .daterange import DateRangeField, DateRangeScalar
 from .datetime import DateTimeScalar
 from .email_address import EmailAddressField, EmailAddressScalar
 from .hostname import HostnameField, HostnameScalar
+from .id_scalar import IDField, IDScalar
 from .ip_address import IpAddressField, IpAddressScalar, SubnetMaskScalar
 from .json import JSONField, JSONScalar
 from .ltree import LTreeField, LTreeScalar
@@ -51,6 +52,7 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         dict: JSONScalar,
         uuid.UUID: GraphQLID,
         UUIDField: GraphQLID,
+        IDField: IDScalar,
         datetime.date: DateScalar,
         datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,

@@ -1,3 +1,14 @@
+---
+title: LangChain Integration
+description: Integrate FraiseQL with LangChain for AI applications
+tags:
+  - LangChain
+  - AI
+  - integration
+  - RAG
+  - machine-learning
+---
+
 # LangChain Integration Guide
 
 This guide shows you how to integrate LangChain with FraiseQL to build Retrieval-Augmented Generation (RAG) applications. You'll learn how to create a GraphQL API that can search documents and generate answers using LangChain's powerful AI capabilities.
@@ -83,13 +94,14 @@ Define your GraphQL types and queries:
 import fraiseql
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 from typing import List, Optional
+from fraiseql.types import ID
 
 @fraiseql.type
 class Document:
     """A document in the RAG system."""
-    id: UUID = fraise_field(description="Document ID")
+    id: ID = fraise_field(description="Document ID")
     content: str = fraise_field(description="Document content")
     metadata: dict = fraise_field(description="Document metadata")
     created_at: str = fraise_field(description="Creation timestamp")
@@ -393,7 +405,7 @@ CREATE EXTENSION vector;
 ## Next Steps
 
 - Explore [LangChain documentation](https://python.langchain.com/) for advanced features
-- Check out [FraiseQL examples](../examples/) for more patterns
+- Check out [FraiseQL examples](../../examples/README.md) for more patterns
 - Consider adding authentication and authorization to your API
 - Implement document versioning and updates
 

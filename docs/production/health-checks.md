@@ -1,3 +1,15 @@
+---
+title: Health Checks
+description: Composable health check patterns for monitoring application dependencies
+tags:
+  - health-checks
+  - production
+  - monitoring
+  - kubernetes
+  - liveness
+  - readiness
+---
+
 # Health Checks
 
 Composable health check patterns for monitoring application dependencies and system health.
@@ -13,16 +25,6 @@ FraiseQL provides **built-in health and readiness endpoints** for production dep
 - **Composable custom checks**: Extend with application-specific monitoring
 - **Pre-built checks**: Ready-to-use functions for common dependencies
 - **Async-first**: Built for modern Python async applications
-
-## Table of Contents
-
-- [Built-in Health Endpoints](#built-in-health-endpoints)
-- [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-- [Pre-built Checks](#pre-built-checks)
-- [Custom Checks](#custom-checks)
-- [FastAPI Integration](#fastapi-integration)
-- [Production Patterns](#production-patterns)
 
 ## Built-in Health Endpoints
 
@@ -737,6 +739,6 @@ async def health_endpoint():
 
 ## See Also
 
-- [Production Deployment](../production/deployment/) - Kubernetes health probes
-- [Monitoring](../production/monitoring/) - Metrics and observability
+- [Production Deployment](../production/deployment.md) - Kubernetes health probes
+- [Monitoring](../production/monitoring.md) - Metrics and observability
 - [Sentry Integration](../production/monitoring.md#sentry-integration-legacyoptional) - Error tracking

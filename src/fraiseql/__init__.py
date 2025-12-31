@@ -35,9 +35,12 @@ from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
 from .types.scalars.json import JSONField as JSON  # noqa: N814
 
-# Core aliases
-type = fraise_type  # noqa: A001
-input = fraise_input  # noqa: A001
+# Core aliases (internal - not exported to prevent shadowing builtins)
+# Use fraiseql.type instead of importing 'type' directly
+_type_decorator = fraise_type  # For fraiseql.type access via __getattr__
+_input_decorator = fraise_input  # For fraiseql.input access via __getattr__
+
+# These are safe to alias (don't shadow builtins)
 enum = fraise_enum
 interface = fraise_interface
 
@@ -73,7 +76,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.8.9"
+__version__ = "1.9.1"
 
 
 # Lazy Rust extension loading for performance optimization
@@ -95,7 +98,18 @@ def _get_fraiseql_rs():
 
 
 def __getattr__(name: str):
-    """Lazy loading for Rust extension attributes."""
+    """Lazy loading for Rust extension and namespaced decorators.
+
+    This allows fraiseql.type and fraiseql.input to work without them being
+    in __all__ (which would encourage dangerous 'from fraiseql import type').
+    """
+    # Support fraiseql.type and fraiseql.input via attribute access
+    if name == "type":
+        return _type_decorator
+    if name == "input":
+        return _input_decorator
+
+    # Lazy load Rust extension
     if name == "fraiseql_rs":
         rs = _get_fraiseql_rs()
         # Cache it for future access
@@ -106,6 +120,7 @@ def __getattr__(name: str):
         # Cache it for future access
         globals()["_fraiseql_rs"] = rs
         return rs
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
@@ -141,11 +156,11 @@ __all__ = [
     "field",
     "fraise_enum",
     "fraise_field",
-    "fraise_input",
+    "fraise_input",  # Explicit name - safe to import
     "fraise_interface",
-    "fraise_type",
+    "fraise_type",  # Explicit name - safe to import
     "fraiseql_rs",
-    "input",
+    # "input",  # REMOVED: Shadows builtin - use fraiseql.input or fraise_input
     "interface",
     "mutation",
     "query",
@@ -155,5 +170,5 @@ __all__ = [
     "result",
     "subscription",
     "success",
-    "type",
+    # "type",  # REMOVED: Shadows builtin - use fraiseql.type or fraise_type
 ]

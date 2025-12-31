@@ -20,12 +20,12 @@ To enable where filtering on a nested array field, use the `fraise_field` functi
 ```python
 import fraiseql
 from fraiseql.fields import fraise_field
-from uuid import UUID
+from fraiseql.types import ID
 from typing import Optional
 
 @fraiseql.type
 class PrintServer:
-    id: UUID
+    id: ID
     hostname: str
     ip_address: Optional[str] = None
     operating_system: str
@@ -33,7 +33,7 @@ class PrintServer:
 
 @fraiseql.type(sql_source="v_network", jsonb_column="data")
 class NetworkConfiguration:
-    id: UUID
+    id: ID
     name: str
     # Enable where filtering on this field
     print_servers: list[PrintServer] = fraise_field(
@@ -50,7 +50,7 @@ FraiseQL automatically generates the WhereInput types:
 
 ```graphql
 type NetworkConfiguration {
-  id: UUID!
+  id: ID!
   name: String!
   printServers(where: PrintServerWhereInput): [PrintServer!]!
 }
@@ -123,7 +123,7 @@ query {
 ```python
 import fraiseql
 from fraiseql.fields import fraise_field
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 from typing import Optional
 from enum import Enum
@@ -138,7 +138,7 @@ class ServerStatus(str, Enum):
 # Define nested types
 @fraiseql.type
 class Server:
-    id: UUID
+    id: ID
     hostname: str
     ip_address: Optional[str] = None
     status: ServerStatus = ServerStatus.ACTIVE
@@ -148,7 +148,7 @@ class Server:
 
 @fraiseql.type(sql_source="v_datacenter", jsonb_column="data")
 class Datacenter:
-    id: UUID
+    id: ID
     name: str
     location: str
 
@@ -162,7 +162,7 @@ class Datacenter:
 
 # Define query
 @fraiseql.query
-async def datacenter(id: UUID) -> Datacenter:
+async def datacenter(id: ID) -> Datacenter:
     """Get datacenter by ID."""
     # Your implementation here
     pass

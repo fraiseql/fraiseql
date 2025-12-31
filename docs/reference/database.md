@@ -1,3 +1,15 @@
+---
+title: Database API Reference
+description: Complete reference for FraiseQLRepository and database operations
+tags:
+  - database
+  - API
+  - repository
+  - queries
+  - PostgreSQL
+  - CRUD
+---
+
 # Database API Reference
 
 Complete reference for FraiseQL database operations and repository methods.
@@ -8,14 +20,16 @@ FraiseQL provides a high-performance database API through the `FraiseQLRepositor
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     db = info.context["db"]
-    return await db.find_one("v_user", where={"id": id})
+    # field_name auto-inferred as "user" from function name
+    return await db.find_one("v_user", id=id)
 ```
 
-> **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories/) for details on when to use each.
+> **Note**: FraiseQL has two repository classes: `FraiseQLRepository` (modern, recommended) and `CQRSRepository` (legacy). See [Repository Classes Comparison](repositories.md) for details on when to use each.
 
 ## Accessing the Database
 
@@ -30,64 +44,93 @@ db = info.context["db"]  # FraiseQLRepository instance
 
 ### find()
 
-**Purpose**: Find multiple records
+**Purpose**: Find multiple records with automatic GraphQL field selection
 
 **Signature**:
 ```python
 async def find(
     view_name: str,
-    where: dict | WhereType | None = None,
-    limit: int | None = None,
-    offset: int | None = None,
-    order_by: str | OrderByType | None = None
-) -> list[dict[str, Any]]
+    field_name: str | None = None,
+    **kwargs: Any
+) -> Any
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| view_name | str | Yes | Database view or table name |
-| where | dict \| WhereType \| None | No | Filter conditions |
-| limit | int \| None | No | Maximum number of records to return |
-| offset | int \| None | No | Number of records to skip |
-| order_by | str \| OrderByType \| None | No | Ordering specification |
+| view_name | str | Yes | Database view or table name (e.g., "v_user") |
+| field_name | str \| None | No | GraphQL field name for response wrapping. **Auto-inferred** from `info.field_name` (your resolver function name). Only specify if you need to override. |
+| **kwargs | Any | No | Query parameters: `where`, `limit`, `offset`, `order_by` |
 
-**Returns**: List of dictionaries (one per record)
+> **Note**: The `info` parameter is automatically injected from the GraphQL context. The `field_name` is also **automatically extracted from `info.field_name`**, so you typically don't need to specify it!
+
+**Modern API (recommended)**:
+```python
+@fraiseql.query
+async def users(info, limit: int = 100) -> list[User]:
+    db = info.context["db"]
+    # field_name auto-inferred from function name "users"
+    return await db.find("v_user", limit=limit)
+```
+
+**Explicit field_name (only if needed)**:
+```python
+# Only specify field_name if it differs from the function name
+return await db.find("v_user", "userList", limit=limit)
+```
+
+**Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `list[User]`).
 
 **Examples**:
+
 ```python
-# Simple query
-users = await db.find("v_user")
+# Simple query (field_name auto-inferred from function name)
+@fraiseql.query
+async def users(info, limit: int = 100) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", limit=limit)
 
 # With filter
-active_users = await db.find("v_user", where={"is_active": True})
+@fraiseql.query
+async def active_users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", where={"is_active": True})
 
-# With limit and offset
-page_users = await db.find("v_user", limit=20, offset=40)
+# With pagination
+@fraiseql.query
+async def paginated_users(info, page: int = 1, page_size: int = 20) -> list[User]:
+    db = info.context["db"]
+    offset = (page - 1) * page_size
+    return await db.find("v_user", limit=page_size, offset=offset)
 
-# With ordering
-sorted_users = await db.find("v_user", order_by="created_at DESC")
+# With ordering (list of tuples format)
+@fraiseql.query
+async def recent_users(info, limit: int = 10) -> list[User]:
+    db = info.context["db"]
+    return await db.find(
+        "v_user",
+        order_by=[("created_at", "DESC")],
+        limit=limit
+    )
 
 # Complex filter (dict-based)
-filtered_users = await db.find(
-    "v_user",
-    where={
-        "name__icontains": "john",
-        "created_at__gte": datetime(2025, 1, 1)
-    }
-)
-
-# Using typed WhereInput
-from fraiseql.types import UserWhere
-
-filtered_users = await db.find(
-    "v_user",
-    where=UserWhere(
-        name={"contains": "john"},
-        created_at={"gte": datetime(2025, 1, 1)}
+@fraiseql.query
+async def search_users(info, name: str) -> list[User]:
+    db = info.context["db"]
+    return await db.find(
+        "v_user",
+        where={
+            "name__icontains": name,
+            "created_at__gte": datetime(2025, 1, 1)
+        }
     )
-)
+
+# Using typed WhereInput (auto-generated)
+@fraiseql.query
+async def filtered_users(info, where: UserWhereInput | None = None) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user", where=where)
 ```
 
 **Filter Operators** (dict-based):
@@ -110,45 +153,62 @@ filtered_users = await db.find(
 
 ### find_one()
 
-**Purpose**: Find a single record
+**Purpose**: Find a single record with automatic GraphQL field selection
 
 **Signature**:
 ```python
 async def find_one(
     view_name: str,
-    where: dict | WhereType | None = None,
-    **kwargs
-) -> dict[str, Any] | None
+    field_name: str | None = None,
+    **kwargs: Any
+) -> Any | None
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| view_name | str | Yes | Database view or table name |
-| where | dict \| WhereType \| None | No | Filter conditions |
-| **kwargs | Any | No | Additional filter conditions (merged with where) |
+| view_name | str | Yes | Database view or table name (e.g., "v_user") |
+| field_name | str \| None | No | GraphQL field name for response wrapping. **Auto-inferred** from `info.field_name`. Only specify if needed. |
+| **kwargs | Any | No | Filter conditions (e.g., `id=user_id`, `where={...}`) |
 
-**Returns**: Dictionary representing the record, or None if not found
+> **Note**: Both `info` and `field_name` are automatically handled. You typically only need to specify `view_name` and filter conditions.
+
+**Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `User | None`). Returns `None` if not found.
 
 **Examples**:
 ```python
-# Find by ID
-user = await db.find_one("v_user", where={"id": user_id})
+from fraiseql.types import ID
 
-# Using kwargs
-user = await db.find_one("v_user", id=user_id)
+# Find by ID (field_name auto-inferred from function name "user")
+@fraiseql.query
+async def user(info, id: ID) -> User | None:
+    db = info.context["db"]
+    return await db.find_one("v_user", id=id)
+
+# Using where parameter
+@fraiseql.query
+async def user_by_email(info, email: str) -> User | None:
+    db = info.context["db"]
+    return await db.find_one("v_user", where={"email": email})
 
 # Find with complex filter
-user = await db.find_one(
-    "v_user",
-    where={"email": "user@example.com", "is_active": True}
-)
+@fraiseql.query
+async def active_user_by_email(info, email: str) -> User | None:
+    db = info.context["db"]
+    return await db.find_one(
+        "v_user",
+        where={"email": email, "is_active": True}
+    )
 
-# Returns None if not found
-user = await db.find_one("v_user", where={"id": "nonexistent"})
-if user is None:
-    raise GraphQLError("User not found")
+# Handle not found case
+@fraiseql.query
+async def get_user(info, id: ID) -> User:
+    db = info.context["db"]
+    user = await db.find_one("v_user", id=id)
+    if user is None:
+        raise GraphQLError("User not found")
+    return user
 ```
 
 ### count()
@@ -323,78 +383,82 @@ connection = create_connection(result, User)
 
 **Note**: Usually accessed via `@connection` decorator rather than directly
 
-## Mutation Methods
+## Mutation Patterns
 
-### create_one()
+FraiseQL follows the CQRS (Command Query Responsibility Segregation) pattern. Mutations are handled by PostgreSQL functions, not direct repository methods.
 
-**Purpose**: Create a single record
+### Creating Records
 
-**Signature**:
-```python
-async def create_one(
-    view_name: str,
-    data: dict[str, Any]
-) -> dict[str, Any]
-```
+Use `execute_function()` with a PostgreSQL function, then fetch the result with `find_one()`:
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
-
-**Example Pattern**:
 ```python
 import fraiseql
 
 @fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
+
+    # Execute PostgreSQL function to create record
     result = await db.execute_function("fn_create_user", {
         "name": input.name,
         "email": input.email
     })
-    return await db.find_one("v_user", "user", info, id=result["id"])
+
+    # Fetch created record via Rust pipeline
+    # field_name auto-inferred from function name "create_user" → "user"
+    return await db.find_one("v_user", id=result["id"])
 ```
 
-### update_one()
+**PostgreSQL Function**:
 
-**Purpose**: Update a single record
+See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for a complete example with validation and error handling.
 
-**Signature**:
-```python
-async def update_one(
-    view_name: str,
-    where: dict[str, Any],
-    updates: dict[str, Any]
-) -> dict[str, Any]
+Simple version:
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(input jsonb) RETURNS jsonb AS $$
+BEGIN
+    RETURN jsonb_build_object('id',
+        (INSERT INTO tb_user (name, email)
+         VALUES (input->>'name', input->>'email')
+         RETURNING id)
+    );
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
+### Updating Records
 
-**Example Pattern**:
 ```python
-import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
+async def update_user(info, id: ID, input: UpdateUserInput) -> User:
     db = info.context["db"]
+
+    # Execute PostgreSQL function to update record
     result = await db.execute_function("fn_update_user", {
         "id": id,
         **input.__dict__
     })
-    return await db.find_one("v_user", "user", info, id=id)
+
+    # Fetch updated record
+    return await db.find_one("v_user", id=id)
 ```
 
-### delete_one()
+### Deleting Records
 
-**Purpose**: Delete a single record
-
-**Signature**:
 ```python
-async def delete_one(
-    view_name: str,
-    where: dict[str, Any]
-) -> bool
-```
+from fraiseql.types import ID
 
-**Note**: Not directly available in current FraiseQLRepository. Use `execute_raw()` or PostgreSQL functions.
+@fraiseql.mutation
+async def delete_user(info, id: ID) -> bool:
+    db = info.context["db"]
+
+    # Execute PostgreSQL function to delete record
+    result = await db.execute_function("fn_delete_user", {"id": id})
+
+    return result.get("success", False)
+```
 
 ## PostgreSQL Function Execution
 
@@ -933,12 +997,13 @@ stats = await db.find("v_user_stats")
 **Error Handling**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User | None:
+async def get_user(info, id: ID) -> User | None:
     try:
         db = info.context["db"]
-        return await db.find_one("v_user", "user", info, id=id)
+        return await db.find_one("v_user", id=id)
     except Exception as e:
         logger.error(f"Failed to fetch user {id}: {e}")
         raise GraphQLError("Failed to fetch user")
@@ -970,6 +1035,6 @@ result = await db.run_in_transaction(complex_operation, data)
 
 ## See Also
 
-- [Queries and Mutations](../core/queries-and-mutations/) - Using database in resolvers
-- [Configuration](../core/configuration/) - Database configuration options
-- [PostgreSQL Functions](../core/database-api/) - Writing database functions
+- [Queries and Mutations](../core/queries-and-mutations.md) - Using database in resolvers
+- [Configuration](../core/configuration.md) - Database configuration options
+- [PostgreSQL Functions](../core/database-api.md) - Writing database functions

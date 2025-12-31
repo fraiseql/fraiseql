@@ -1,3 +1,14 @@
+---
+title: pgvector Integration
+description: Vector similarity search with PostgreSQL pgvector extension
+tags:
+  - pgvector
+  - vector-search
+  - AI
+  - similarity
+  - embeddings
+---
+
 # PostgreSQL pgvector Support
 
 FraiseQL provides native support for PostgreSQL's pgvector extension, enabling high-performance vector similarity search through type-safe GraphQL interfaces.
@@ -91,16 +102,16 @@ Define vector fields using `list[float]` with vector-related field names:
 ```python
 from fraiseql import fraise_type
 from typing import List
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraise_type
 class Document:
-    id: UUID
+    id: ID
     title: str
     content: str
     embedding: List[float]  # Detected as vector field by name pattern
     text_embedding: List[float]  # Also detected as vector
-    tenant_id: UUID
+    tenant_id: ID
     created_at: str
 ```
 
@@ -748,7 +759,7 @@ from typing import List
 
 @fraise_type
 class Document:
-    id: UUID
+    id: ID
     title: str
     content: str
     embedding: List[float]  # Vector field

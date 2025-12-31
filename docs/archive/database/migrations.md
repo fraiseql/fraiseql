@@ -154,14 +154,14 @@ GROUP BY u.id, u.name, u.email;
 # Before (simple)
 @fraiseql.type(sql_source="users")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 
 # After (trinity)
 @fraiseql.type(sql_source="tv_user_with_stats")
 class UserWithStats:
-    id: UUID
+    id: ID
     email: str
     name: str
     post_count: int
@@ -169,7 +169,7 @@ class UserWithStats:
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str
 ```
@@ -178,13 +178,13 @@ class User:
 ```python
 # Before
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     db = info.context["db"]
     return await db.find_one("users", id=id)
 
 # After
 @fraiseql.query
-async def user_with_stats(info, id: UUID) -> UserWithStats:
+async def user_with_stats(info, id: ID) -> UserWithStats:
     db = info.context["db"]
     return await db.find_one("tv_user_with_stats", id=id)
 ```
@@ -403,7 +403,7 @@ class User:
 
 # Revert queries
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     db = info.context["db"]
     return await db.find_one("users", id=id)
 ```

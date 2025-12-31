@@ -1,3 +1,14 @@
+---
+title: FraiseQL Philosophy
+description: Design principles, PostgreSQL-native patterns, and developer experience focus
+tags:
+  - philosophy
+  - principles
+  - design
+  - PostgreSQL
+  - architecture
+---
+
 # FraiseQL Philosophy
 
 Understanding FraiseQL's design principles and innovative approaches.
@@ -25,8 +36,7 @@ FraiseQL might seem different if you're used to traditional web frameworks. Here
 **Key Concepts to Know**:
 - **[CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Separate reading data from writing data
 - **[JSONB Views](../core/concepts-glossary.md#view)**: Pre-packaged data ready for GraphQL
-- **[Trinity Identifiers](../database/trinity-identifiers/)**: Three types of IDs per entity
-- **[Database-First](../core/concepts-glossary/)**: Business logic lives in PostgreSQL
+- **[Database-First](../core/concepts-glossary.md)**: Business logic lives in PostgreSQL
 
 **Why This Matters**: Traditional frameworks often fight against the database. FraiseQL works *with* PostgreSQL, using its strengths (JSONB, functions, views) to build faster, more maintainable APIs.
 
@@ -48,10 +58,11 @@ Most GraphQL frameworks require manual database setup in every resolver:
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # ❌ Traditional approach - repetitive and error-prone
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     # Must manually get database from somewhere
     db = get_database_from_somewhere()
     # Or pass it through complex dependency injection
@@ -64,10 +75,11 @@ async def get_user(info, id: UUID) -> User:
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # ✅ FraiseQL - database automatically available
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]  # Always available!
     return await db.find_one("v_user", where={"id": id})
 ```
@@ -179,6 +191,7 @@ FROM tb_user;
 **1. Schema Evolution Without Migrations**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # Add new field - no migration needed!
 @fraiseql.type(sql_source="v_user")
@@ -191,7 +204,7 @@ class User:
         name: Full name
         preferences: User preferences (NEW! Just add it)
     """
-    id: UUID
+    id: ID
     email: str
     name: str
     preferences: UserPreferences | None = None  # Added without ALTER TABLE
@@ -200,11 +213,12 @@ class User:
 **2. JSON Passthrough Performance**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 # PostgreSQL JSONB → GraphQL JSON directly
 # No Python object instantiation needed!
 @fraiseql.query
-async def user(info, id: UUID) -> User:
+async def user(info, id: ID) -> User:
     db = info.context["db"]
     # Returns JSONB directly - 10-100x faster
     return await db.find_one("v_user", where={"id": id})
@@ -299,6 +313,7 @@ FraiseQL extracts documentation from Python docstrings, eliminating manual schem
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -316,7 +331,7 @@ class User:
         is_active: Whether user account is active
     """
 
-    id: UUID
+    id: ID
     email: str
     first_name: str
     last_name: str
@@ -335,7 +350,7 @@ based on their assigned roles and permissions.
 """
 type User {
   "Unique user identifier (UUID v4)"
-  id: UUID!
+  id: ID!
 
   "Email address used for login (must be unique)"
   email: String!
@@ -593,9 +608,10 @@ $$ LANGUAGE sql;
 
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.query
-async def order_totals(info, id: UUID) -> OrderTotals:
+async def order_totals(info, id: ID) -> OrderTotals:
     db = info.context["db"]
     # Database does the heavy lifting
     return await db.execute_function(
@@ -604,21 +620,9 @@ async def order_totals(info, id: UUID) -> OrderTotals:
     )
 ```
 
-## Conclusion
-
-FraiseQL's philosophy:
-
-1. **Automate the obvious** - Database injection, session variables, documentation
-2. **Embrace PostgreSQL** - JSONB, functions, views, RLS
-3. **Security by default** - Session variables, context injection
-4. **Performance through simplicity** - JSON passthrough, minimal abstractions
-5. **Composable patterns** - Tools, not opinions
-
-These principles enable rapid development without sacrificing security or performance.
-
 ## See Also
 
-- [Database API](../reference/database/) - Auto-injected database methods
+- [Database API](../reference/database.md) - Auto-injected database methods
 - [Session Variables](../reference/database.md#context-and-session-variables) - Automatic injection details
-- [Decorators](../reference/decorators/) - FraiseQL decorator patterns
-- [Performance](../performance/index/) - JSON passthrough and optimization layers
+- [Decorators](../reference/decorators.md) - FraiseQL decorator patterns
+- [Performance](../performance/index.md) - JSON passthrough and optimization layers

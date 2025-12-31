@@ -1,3 +1,14 @@
+---
+title: First Hour Guide
+description: Progressive tutorial for your first hour with FraiseQL
+tags:
+  - tutorial
+  - getting-started
+  - learning
+  - guide
+  - beginner
+---
+
 # Your First Hour with FraiseQL
 
 Welcome! You've just completed the 5-minute quickstart and have a working GraphQL API. Now let's spend the next 55 minutes building your skills progressively. By the end, you'll understand how to extend FraiseQL applications and implement production patterns.
@@ -7,7 +18,7 @@ Welcome! You've just completed the 5-minute quickstart and have a working GraphQ
 Before starting, ensure you have the necessary imports in your `app.py`:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 from datetime import datetime
 
 import fraiseql
@@ -19,7 +30,7 @@ from fraiseql.sql import create_graphql_where_input
 
 ## Minute 0-5: Quickstart Recap
 
-**[Complete the 5-minute quickstart first](quickstart/)**
+**[Complete the 5-minute quickstart first](quickstart.md)**
 
 You should now have:
 
@@ -41,18 +52,18 @@ query {
 
 ## Minute 5-15: Understanding What You Built
 
-**[Read the Understanding Guide](../guides/understanding-fraiseql/)**
+**[Read the Understanding Guide](../guides/understanding-fraiseql.md)**
 
 Key concepts you should now understand:
 
 - **Database-first GraphQL**: Start with PostgreSQL, not GraphQL types
-- **JSONB Views**: `tb_*` tables → `v_*` views → GraphQL responses
-- **CQRS Pattern**: Reads (views) vs Writes (functions)
+- **JSONB Views**: `tb_*` tables → `v_*` views → GraphQL responses (see [JSONB View Pattern](../core/concepts-glossary.md#jsonb-view-pattern))
+- **[CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Reads (views) vs Writes (PostgreSQL functions)
 - **Naming Conventions**: `tb_*`, `v_*`, `fn_*`, `tv_*`
 
 ✅ **Checkpoint**: Can you explain why FraiseQL uses JSONB views instead of traditional ORMs?
 
-> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](../advanced/filter-operators/) for details.
+> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](../advanced/filter-operators.md) for details.
 
 ## Minute 15-30: Extend Your API - Add Tags to Notes
 
@@ -106,7 +117,7 @@ Add tags to your Note type:
 # app.py
 @fraiseql.type
 class Note:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]  # Add this line
@@ -209,7 +220,7 @@ Add a simple mutation to your app:
 ```python
 # app.py
 @fraiseql.mutation
-async def delete_note(info, id: UUID) -> bool:
+async def delete_note(info, id: ID) -> bool:
     """Delete a note by ID (returns true if deleted, false if not found)."""
     db = info.context["db"]
     return await db.fetchval("SELECT fn_delete_note($1)", id)
@@ -275,7 +286,7 @@ class DeleteNoteError:
     code: str = "NOT_FOUND"
 
 @fraiseql.mutation
-async def delete_note(info, id: UUID) -> DeleteNoteSuccess | DeleteNoteError:
+async def delete_note(info, id: ID) -> DeleteNoteSuccess | DeleteNoteError:
     """Delete a note by ID with detailed error handling."""
     db = info.context["db"]
     # Call function that returns JSONB directly from database
@@ -360,7 +371,7 @@ FROM tb_note;
 # app.py
 @fraiseql.type(sql_source="v_note")
 class Note:
-    id: UUID
+    id: ID
     title: str
     content: str
     tags: list[str]
@@ -397,8 +408,8 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Immediate Next Steps (2-3 hours)
 
-- **[Beginner Learning Path](../tutorials/beginner-path/)** - Deep dive into all core concepts
-- **[Blog API Tutorial](../tutorials/blog-api/)** - Build a complete application
+- **[Beginner Learning Path](../tutorials/beginner-path.md)** - Deep dive into all core concepts
+- **[Blog API Tutorial](../tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
 
@@ -408,16 +419,16 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Advanced Topics
 
-- **[Performance Guide](../guides/performance-guide/)** - Optimization techniques
-- **[Multi-tenancy](../advanced/multi-tenancy/)** - Building SaaS applications
+- **[Performance Guide](../guides/performance-guide.md)** - Optimization techniques
+- **[Multi-tenancy](../advanced/multi-tenancy.md)** - Building SaaS applications
 
 
 ### Need Help?
 
-- **[Troubleshooting Guide](../guides/troubleshooting/)** - Common issues and solutions
-- **[Quick Reference](../reference/quick-reference/)** - Copy-paste code patterns
+- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
+- **[Quick Reference](../reference/quick-reference.md)** - Copy-paste code patterns
 - **[GitHub Discussions](../discussions)** - Community support
 
 ---
 
-**Ready for more?** The [Beginner Learning Path](../tutorials/beginner-path/) will take you from here to building production applications! 🚀
+**Ready for more?** The [Beginner Learning Path](../tutorials/beginner-path.md) will take you from here to building production applications! 🚀

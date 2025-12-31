@@ -1,8 +1,19 @@
+---
+title: Queries & Mutations
+description: GraphQL queries and mutations with resolvers and business logic
+tags:
+  - queries
+  - mutations
+  - resolvers
+  - GraphQL
+  - CQRS
+---
+
 # Queries and Mutations
 
 Decorators and patterns for defining GraphQL queries, mutations, and subscriptions.
 
-**📍 Navigation**: [← Types & Schema](types-and-schema/) • [Database API →](database-api/) • [Performance →](../performance/index/)
+**📍 Navigation**: [← Types & Schema](types-and-schema.md) • [Database API →](database-api.md) • [Performance →](../performance/index.md)
 
 ## @fraiseql.query Decorator
 
@@ -31,13 +42,13 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 Basic query with database access:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]
     # Returns RustResponseBytes - automatically processed by exclusive Rust pipeline
-    return await db.find_one_rust("v_user", "user", info, id=id)
+    return await db.find_one("v_user", id=id)
 ```
 
 Query with multiple parameters:
@@ -55,7 +66,7 @@ async def search_users(
     if name_filter:
         filters["name__icontains"] = name_filter
     # Exclusive Rust pipeline handles camelCase conversion and __typename injection
-    return await db.find_rust("v_user", "users", info, **filters, limit=limit)
+    return await db.find("v_user", **filters, limit=limit)
 ```
 
 Query with authentication:
@@ -72,7 +83,7 @@ async def get_my_profile(info) -> User:
 
     db = info.context["db"]
     # Exclusive Rust pipeline works with authentication automatically
-    return await db.find_one_rust("v_user", "user", info, id=user_context.user_id)
+    return await db.find_one("v_user", id=user_context.user_id)
 ```
 
 Query with error handling:
@@ -80,15 +91,16 @@ Query with error handling:
 import fraiseql
 
 import logging
+from fraiseql.types import ID
 
 logger = logging.getLogger(__name__)
 
 @fraiseql.query
-async def get_post(info, id: UUID) -> Post | None:
+async def get_post(info, id: ID) -> Post | None:
     try:
         db = info.context["db"]
         # Exclusive Rust pipeline handles JSON processing automatically
-        return await db.find_one_rust("v_post", "post", info, id=id)
+        return await db.find_one("v_post", id=id)
     except Exception as e:
         logger.error(f"Failed to fetch post {id}: {e}")
         return None
@@ -97,10 +109,11 @@ async def get_post(info, id: UUID) -> Post | None:
 Query using custom repository methods:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 
 @fraiseql.query
-async def get_user_stats(info, user_id: UUID) -> UserStats:
+async def get_user_stats(info, user_id: ID) -> UserStats:
     db = info.context["db"]
     # Custom SQL query for complex aggregations
     # Exclusive Rust pipeline handles result processing automatically
@@ -140,7 +153,7 @@ Queries returning `list[FraiseType]` automatically get these parameters:
 @fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]
-    return await db.find("v_user", info=info)
+    return await db.find("v_user")
 ```
 
 GraphQL schema automatically includes:
@@ -205,7 +218,7 @@ async def users(
     limit: int = 50  # Custom default
 ) -> list[User]:
     db = info.context["db"]
-    return await db.find("v_user", info=info, where=where, limit=limit)
+    return await db.find("v_user", where=where, limit=limit)
 ```
 
 ### Validation
@@ -264,20 +277,22 @@ class User:
 Async field with database access:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Posts authored by this user")
     async def posts(self, info) -> list[Post]:
         db = info.context["db"]
-        return await db.find_rust("v_post", "posts", info, user_id=self.id)
+        return await db.find("v_post", user_id=self.id)
 ```
 
 Field with custom resolver function:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 async def fetch_user_posts_optimized(root, info):
     """Custom resolver with optimized batch loading."""
@@ -287,7 +302,7 @@ async def fetch_user_posts_optimized(root, info):
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(
         resolver=fetch_user_posts_optimized,
@@ -302,10 +317,11 @@ class User:
 Field with parameters:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="User's posts with optional filtering")
     async def posts(
@@ -318,16 +334,17 @@ class User:
         filters = {"user_id": self.id}
         if published_only:
             filters["status"] = "published"
-        return await db.find_rust("v_post", "posts", info, **filters, limit=limit)
+        return await db.find("v_post", **filters, limit=limit)
 ```
 
 Field with authentication/authorization:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Private user settings (owner only)")
     async def settings(self, info) -> UserSettings | None:
@@ -336,16 +353,17 @@ class User:
             return None  # Don't expose private data
 
         db = info.context["db"]
-        return await db.find_one_rust("v_user_settings", "settings", info, user_id=self.id)
+        return await db.find_one("v_user_settings", user_id=self.id)
 ```
 
 Field with caching:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
 
     @fraiseql.field(description="Number of likes (cached)")
     async def like_count(self, info) -> int:
@@ -433,10 +451,11 @@ Basic connection query:
 ```python
 import fraiseql
 from fraiseql.types import Connection
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
 
@@ -554,7 +573,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See [Status String Conventions](../mutations/status-strings/) for HTTP mode error handling |
+| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See [Status String Conventions](../archive/mutations/status-strings.md) for HTTP mode error handling |
 
 **Examples**:
 
@@ -569,7 +588,7 @@ async def create_user(info, input: CreateUserInput) -> User:
         "name": input.name,
         "email": input.email
     })
-    return await db.find_one("v_user", "user", info, id=result["id"])
+    return await db.find_one("v_user", id=result["id"])
 ```
 
 Basic class-based mutation:
@@ -640,10 +659,11 @@ class CreateLocation:
 Mutation with validation:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None = None
     email: str | None = None
 
@@ -860,10 +880,12 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 
 Filtered subscription with parameters:
 ```python
+from fraiseql.types import ID
+
 @subscription
 async def on_user_posts(
     info,
-    user_id: UUID
+    user_id: ID
 ) -> AsyncGenerator[Post, None]:
     # Only yield posts from specific user
     async for post in post_event_stream():
@@ -888,11 +910,12 @@ async def on_private_messages(info) -> AsyncGenerator[Message, None]:
 Subscription with database polling:
 ```python
 import asyncio
+from fraiseql.types import ID
 
 @subscription
 async def on_task_updates(
     info,
-    project_id: UUID
+    project_id: ID
 ) -> AsyncGenerator[Task, None]:
     db = info.context["db"]
     last_check = datetime.utcnow()
@@ -925,8 +948,8 @@ async def on_task_updates(
 
 ## See Also
 
-- **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete guide to writing PostgreSQL functions for mutations
-- **[Error Handling Patterns](../guides/error-handling-patterns/)** - Error handling philosophy and advanced patterns
-- [Types and Schema](./types-and-schema/) - Define types for use in queries and mutations
-- [Decorators Reference](../reference/decorators/) - Complete decorator API
-- [Database API](../reference/database/) - Database operations for queries and mutations
+- **[Mutation SQL Requirements](../guides/mutation-sql-requirements.md)** - Complete guide to writing PostgreSQL functions for mutations
+- **[Error Handling Patterns](../guides/error-handling-patterns.md)** - Error handling philosophy and advanced patterns
+- [Types and Schema](./types-and-schema.md) - Define types for use in queries and mutations
+- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+- [Database API](../reference/database.md) - Database operations for queries and mutations

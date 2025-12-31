@@ -4,20 +4,6 @@
 
 ---
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Understanding APQ](#understanding-apq)
-3. [APQ Modes](#apq-modes) *(NEW in v1.6.1)*
-4. [When to Enable APQ](#when-to-enable-apq)
-5. [Configuration Guide](#configuration-guide)
-6. [Monitoring & Metrics](#monitoring-metrics)
-7. [Optimization Strategies](#optimization-strategies)
-8. [Troubleshooting](#troubleshooting)
-9. [Production Best Practices](#production-best-practices)
-
----
-
 ## Overview
 
 APQ (Automatic Persisted Queries) is a GraphQL optimization technique that eliminates query parsing overhead by caching parsed queries by their SHA256 hash. FraiseQL's APQ implementation provides **two layers of caching**:
@@ -924,34 +910,10 @@ Combine FraiseQL caching layers:
 
 ---
 
-## Summary
-
-### Quick Decision Matrix
-
-| Scenario | Query Cache | Response Cache | Backend |
-|----------|-------------|----------------|---------|
-| Development | ✅ Memory | ❌ Disabled | Memory |
-| Single instance production | ✅ Memory | ⚠️ Selective | Memory |
-| Multi-instance production | ✅ PostgreSQL | ⚠️ Selective | PostgreSQL |
-| High-traffic (>1000 req/s) | ✅ PostgreSQL | ✅ Enabled | PostgreSQL |
-| Read-heavy public API | ✅ PostgreSQL | ✅ Enabled | PostgreSQL |
-| Real-time data | ✅ Memory | ❌ Disabled | Memory |
-| User-specific queries | ✅ PostgreSQL | ⚠️ With isolation | PostgreSQL |
-
-### Key Takeaways
-
-1. **Always use query caching** - no downside, pure performance gain
-2. **Response caching is powerful but selective** - only for appropriate workloads
-3. **Monitor hit rates continuously** - <70% indicates optimization opportunity
-4. **Choose backend based on deployment** - memory for single, PostgreSQL/Redis for distributed
-5. **Combine with materialized views** - FraiseQL's two-layer caching strategy is ideal
-
----
-
 ## Further Reading
 
-- [FraiseQL Performance Guide](./index/)
-- [Caching Guide](./caching/)
+- [FraiseQL Performance Guide](./index.md)
+- [Caching Guide](./caching.md)
 - [GraphQL APQ Specification](https://www.apollographql.com/docs/react/api/link/persisted-queries/)
 
 ---

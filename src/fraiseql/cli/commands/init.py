@@ -284,13 +284,13 @@ def create_blog_template(project_path: Path) -> None:
 
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 
 @fraiseql.type
 class User:
     """A blog author."""
-    id: UUID
+    id: ID
     username: str = fraise_field(description="Unique username")
     email: str = fraise_field(description="Email address")
     bio: str | None = fraise_field(description="User biography")
@@ -303,7 +303,7 @@ class User:
 
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 from .user import User
 from .comment import Comment
@@ -312,7 +312,7 @@ from .comment import Comment
 @fraiseql.type
 class Post:
     """A blog post."""
-    id: UUID
+    id: ID
     title: str = fraise_field(description="Post title")
     slug: str = fraise_field(description="URL-friendly slug")
     content: str = fraise_field(description="Post content in Markdown")
@@ -329,7 +329,7 @@ class Post:
 
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 from .user import User
 
@@ -337,7 +337,7 @@ from .user import User
 @fraiseql.type
 class Comment:
     """A comment on a blog post."""
-    id: UUID
+    id: ID
     content: str = fraise_field(description="Comment text")
     author: User = fraise_field(description="Comment author")
     created_at: str = fraise_field(description="When comment was posted")

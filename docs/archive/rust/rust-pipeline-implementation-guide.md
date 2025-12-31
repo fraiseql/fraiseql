@@ -66,7 +66,7 @@ async def users(info) -> RustResponseBytes:
     return await repo.find_rust("v_user", "users", info)
 
 @fraiseql.query
-async def user(info, id: UUID) -> RustResponseBytes:
+async def user(info, id: ID) -> RustResponseBytes:
     """Get single user using Rust pipeline."""
     db = info.context["db"]
     return await repo.find_one_rust("v_user", "user", info, id=id)
@@ -99,7 +99,7 @@ import fraiseql
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
 
     @field
     async def posts(self, info) -> RustResponseBytes:
@@ -310,11 +310,11 @@ assert response.json()["data"]["users"]  # Works seamlessly
 ```python
 import fraiseql
 from fraiseql.core.rust_pipeline import RustResponseBytes
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
 
@@ -329,7 +329,7 @@ async def users(info, limit: int = 20) -> RustResponseBytes:
     return await repo.find_rust("v_user", "users", info, limit=limit)
 
 @fraiseql.query
-async def user(info, id: UUID) -> RustResponseBytes:
+async def user(info, id: ID) -> RustResponseBytes:
     db = info.context["db"]
     return await repo.find_one_rust("v_user", "user", info, id=id)
 ```

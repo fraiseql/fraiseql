@@ -211,4 +211,4 @@ type CreateUserError {
 
 ## Migration from Python
 
-See [Migration Guide](./migration-guide/) for details on transitioning from the Python mutation pipeline to the Rust implementation.
+See [Migration Guide](./migration-guide.md) for details on transitioning from the Python mutation pipeline to the Rust implementation.

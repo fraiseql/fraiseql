@@ -1,14 +1,20 @@
+---
+title: Advanced Filtering Examples
+description: Real-world filtering recipes for e-commerce, CMS, user management, logs, and multi-tenant SaaS
+tags:
+  - examples
+  - filtering
+  - recipes
+  - e-commerce
+  - CMS
+  - full-text search
+  - JSONB
+  - arrays
+---
+
 # Advanced Filtering Examples
 
 This guide provides practical, real-world examples of using FraiseQL's advanced PostgreSQL filter operators. Each example includes the complete GraphQL query, generated SQL, and explanations.
-
-## Table of Contents
-
-- [E-commerce Product Catalog](#e-commerce-product-catalog)
-- [Content Management System](#content-management-system)
-- [User Management & Permissions](#user-management--permissions)
-- [Log Analysis & Monitoring](#log-analysis--monitoring)
-- [Multi-tenant SaaS Application](#multi-tenant-saas-application)
 
 ---
 
@@ -182,7 +188,7 @@ query SimilarProducts($productTags: [String!]!) {
 
 ### Example 3: Validate Product SKU Format
 
-**Scenario**: Find products with invalid SKU codes (should be `PROD-XXXX` where X is digit).
+**Scenario**: Find products with invalid SKU codes (should be `PROD-XXXX` where each X is a digit 0-9).
 
 **GraphQL Query**:
 ```graphql
@@ -917,9 +923,9 @@ AND price >= 100;
 
 ## Next Steps
 
-- **[Filter Operators Reference](../advanced/filter-operators/)** - Complete operator documentation
-- **[Where Input Types](../advanced/where-input-types/)** - Basic filtering guide
-- **[PostgreSQL Extensions](../core/postgresql-extensions/)** - Required PostgreSQL setup
+- **[Filter Operators Reference](../advanced/filter-operators.md)** - Complete operator documentation
+- **[Where Input Types](../advanced/where-input-types.md)** - Basic filtering guide
+- **[PostgreSQL Extensions](../core/postgresql-extensions.md)** - Required PostgreSQL setup
 
 ---
 

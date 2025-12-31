@@ -143,7 +143,7 @@ const CustomResolversPlugin = makeExtendSchemaPlugin({
 ```python
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     first_name: str
     last_name: str
 
@@ -184,7 +184,7 @@ query {
 @fraiseql.query
 class Query:
     @fraiseql.field
-    async def user(self, info, id: UUID) -> User | None:
+    async def user(self, info, id: ID) -> User | None:
         """Get user by ID"""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_user", where={"id": id})
@@ -244,7 +244,7 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 **After (FraiseQL):**
 ```sql
--- Same database function!
+-- Same PostgreSQL function!
 -- (Or rename to fn_create_user for consistency)
 ```
 
@@ -308,7 +308,7 @@ class CreatePost:
     """Create a new post"""
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 ```
 
 **CASCADE Benefits:**
@@ -316,7 +316,7 @@ class CreatePost:
 - Client cache automatically invalidated
 - No manual refetch needed
 
-**See:** [CASCADE Documentation](../features/graphql-cascade/)
+**See:** [CASCADE Documentation](../features/graphql-cascade.md)
 
 ---
 
@@ -468,7 +468,7 @@ PostGraphile uses promises, FraiseQL uses async/await.
 **Fix:**
 ```python
 # ✅ Correct
-async def user(self, info, id: UUID) -> User | None:
+async def user(self, info, id: ID) -> User | None:
     return await db.find_one("v_user", where={"id": id})
 ```
 
@@ -493,7 +493,7 @@ COMMENT ON TABLE users IS E'@omit create,update';
 PostGraphile supports nested `create`/`connect` patterns.
 FraiseQL uses explicit mutations.
 
-**Solution:** Create separate mutations or use database functions with logic.
+**Solution:** Create separate mutations or use PostgreSQL functions with logic.
 
 ---
 
@@ -520,7 +520,7 @@ FraiseQL uses explicit mutations.
 - [ ] Database schema reviewed (trinity pattern optional)
 - [ ] Views created if needed
 - [ ] Custom TypeScript resolvers converted to Python
-- [ ] Mutations mapped to database functions
+- [ ] Mutations mapped to PostgreSQL functions
 - [ ] RLS policies verified (should work as-is)
 - [ ] Tests converted to pytest
 - [ ] Performance benchmarks run
@@ -545,7 +545,7 @@ FraiseQL uses explicit mutations.
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README/)
+- **Documentation**: [FraiseQL Docs](../README.md)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -553,9 +553,9 @@ FraiseQL uses explicit mutations.
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
-2. Review [CASCADE Documentation](../features/graphql-cascade/)
-3. Check [Production Deployment Checklist](../deployment/production-deployment/)
+1. Read [Trinity Pattern Guide](../core/trinity-pattern.md)
+2. Review [CASCADE Documentation](../features/graphql-cascade.md)
+3. Check [Production Deployment Checklist](../tutorials/production-deployment.md)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 3-4 days for 1 engineer

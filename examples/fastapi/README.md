@@ -341,6 +341,6 @@ async def test_create_project():
 
 ## Related Examples
 
-- [`../turborouter/`](../turborouter/) - High-performance query optimization
-- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/) - Advanced CQRS patterns
+- [`../turborouter/`](../turborouter/README.md) - High-performance query optimization
+- [`../enterprise_patterns/cqrs/`](../enterprise_patterns/cqrs/README.md) - Advanced CQRS patterns
 - [`../documented_api.py`](../documented_api.py) - Auto-generated documentation

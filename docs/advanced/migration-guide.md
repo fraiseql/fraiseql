@@ -1,3 +1,13 @@
+---
+title: Migration Guide
+description: Migrating from other GraphQL frameworks to FraiseQL
+tags:
+  - migration
+  - upgrade
+  - guide
+  - transition
+---
+
 # Migration Guide: Python to Rust Mutation Pipeline
 
 ## Overview

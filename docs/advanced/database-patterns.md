@@ -1,10 +1,23 @@
+---
+title: Database Patterns
+description: Advanced PostgreSQL patterns for production applications
+tags:
+  - database
+  - patterns
+  - PostgreSQL
+  - best-practices
+  - advanced
+---
+
 # Database Patterns
 
 ## The tv_ Pattern: Projected Tables for GraphQL
 
 ### Overview
 
-The **tv_** (table view) pattern is FraiseQL's foundational architecture for efficient GraphQL queries. Despite the name, `tv_` tables are **actual PostgreSQL tables** (not VIEWs), serving as denormalized projections of normalized write tables.
+The **tv_** (projection table) pattern is FraiseQL's foundational architecture for efficient GraphQL queries. Despite the name, `tv_` tables are **actual PostgreSQL tables** (not VIEWs), serving as denormalized projections of normalized write tables.
+
+See [Projection Tables](../core/concepts-glossary.md#projection-tables-tv_) in the Core Concepts Glossary for the canonical definition.
 
 **Key Principle**: Write to normalized tables, read from denormalized tv_ projections.
 
@@ -134,7 +147,7 @@ CREATE INDEX idx_tv_order_status
 
 **Trigger-Based Synchronization** (not generated columns):
 
-tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See [Explicit Sync Documentation](../core/explicit-sync/) for details.
+tv_ tables are maintained via explicit sync functions that rebuild the JSONB data when called. This provides predictable performance and full control over when synchronization occurs. See [Explicit Sync Documentation](../core/explicit-sync.md) for details.
 
 **Step 1: Create tv_ Table**
 
@@ -200,7 +213,7 @@ FROM tb_order o;
 
 **Step 2: Explicit Synchronization (FraiseQL Approach)**
 
-> **Note**: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See [Explicit Sync Documentation](../core/explicit-sync/) for details.
+> **Note**: Traditional CQRS implementations use database triggers for automatic synchronization. FraiseQL uses explicit sync functions for better visibility and control. See [Explicit Sync Documentation](../core/explicit-sync.md) for details.
 
 ```sql
 -- Explicit sync function (FraiseQL approach)
@@ -656,14 +669,14 @@ $$ LANGUAGE plpgsql;
 **Python Resolver**:
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import fraiseql
 from fraiseql.db import execute_mutation
 
 @fraiseql.mutation
 async def update_order(
     info,
-    id: UUID,
+    id: ID,
     status: str,
     notes: str | None = None
 ) -> MutationLogResult:
@@ -1717,7 +1730,29 @@ ORDER BY created_at DESC;
 
 **Purpose**: Centralized audit log for tracking all object-level changes across the system.
 
-**Table Structure**:
+#### When to Use Entity Change Log
+
+**✅ Always Use For**:
+- **Financial transactions** - Regulatory compliance (SOX, PCI-DSS)
+- **User account changes** - Security audit trail (login, permissions, roles)
+- **Permission/role modifications** - Access control audit
+- **Critical business data** - Orders, contracts, invoices, payments
+
+**✅ Consider Using For**:
+- **Content management** - Track edits, revisions, who changed what
+- **Configuration changes** - System settings, feature flags
+- **Multi-user collaboration** - Attribution and conflict resolution
+- **Compliance requirements** - GDPR, HIPAA, industry-specific regulations
+
+**❌ Consider Skipping For**:
+- **High-frequency analytics events** - Use dedicated analytics table instead
+- **Temporary/ephemeral data** - Session state, cache, temporary calculations
+- **Read-only operations** - Queries don't need audit trail
+- **Performance-critical hot paths** - Consider async audit logging
+
+**Rule of Thumb**: If you'd need to answer "Who changed X and when?" during an investigation, use change_log.
+
+#### Table Structure
 ```sql
 CREATE TABLE core.tb_entity_change_log (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -1772,9 +1807,10 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 **Usage in Mutations**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def update_order(info, id: UUID, name: str) -> MutationResult:
+async def update_order(info, id: ID, name: str) -> MutationResult:
     db = info.context["db"]
 
     # Log the mutation
@@ -1805,6 +1841,124 @@ async def update_order(info, id: UUID, name: str) -> MutationResult:
 - Rollback support (reconstruct previous state)
 - Analytics on mutation patterns
 
+#### Performance & Retention Considerations
+
+**Write Cost**: Each mutation performs 2 writes (data table + change_log)
+- **Latency Impact**: ~10-20% increase per mutation
+- **Throughput Impact**: ~15-25% reduction in max mutations/second
+- **Mitigation**: Use async audit logging for non-critical operations
+
+**Storage Growth**: Unbounded growth without cleanup strategy
+- **Estimate**: ~500-800 bytes per change entry
+- **Example**: 10,000 mutations/day = ~5MB/day = ~1.8GB/year
+- **Production Scale**: 100,000 mutations/day = ~50MB/day = ~18GB/year
+
+**Retention Strategy - Partitioning by Month**:
+
+```sql
+-- Create partitioned change_log table
+CREATE TABLE core.tb_entity_change_log (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    pk_entity_change_log UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    user_id UUID,
+    object_type TEXT NOT NULL,
+    object_id UUID NOT NULL,
+    modification_type TEXT NOT NULL,
+    change_status TEXT NOT NULL,
+    object_data JSONB NOT NULL,
+    extra_metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id, created_at)  -- Include created_at in PK for partitioning
+) PARTITION BY RANGE (created_at);
+
+-- Create monthly partitions
+CREATE TABLE core.tb_entity_change_log_2025_01
+    PARTITION OF core.tb_entity_change_log
+    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+
+CREATE TABLE core.tb_entity_change_log_2025_02
+    PARTITION OF core.tb_entity_change_log
+    FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
+
+-- Indexes on each partition (created automatically)
+CREATE INDEX idx_entity_log_object_2025_01
+    ON core.tb_entity_change_log_2025_01 (object_type, object_id);
+CREATE INDEX idx_entity_log_tenant_2025_01
+    ON core.tb_entity_change_log_2025_01 (tenant_id, created_at);
+```
+
+**Automated Partition Management**:
+
+```sql
+-- Function to create next month's partition
+CREATE OR REPLACE FUNCTION core.create_next_change_log_partition()
+RETURNS void AS $$
+DECLARE
+    next_month DATE := date_trunc('month', CURRENT_DATE + interval '1 month');
+    partition_name TEXT := 'tb_entity_change_log_' || to_char(next_month, 'YYYY_MM');
+BEGIN
+    EXECUTE format(
+        'CREATE TABLE IF NOT EXISTS core.%I PARTITION OF core.tb_entity_change_log
+         FOR VALUES FROM (%L) TO (%L)',
+        partition_name,
+        next_month,
+        next_month + interval '1 month'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule monthly (via pg_cron or external scheduler)
+-- Run on 1st of each month: SELECT core.create_next_change_log_partition();
+```
+
+**Retention Policy - Archive Old Partitions**:
+
+```sql
+-- Archive partitions older than 1 year to separate table
+CREATE TABLE core.tb_entity_change_log_archive (
+    LIKE core.tb_entity_change_log INCLUDING ALL
+);
+
+-- Archive and drop old partition (manual or scheduled)
+DO $$
+DECLARE
+    old_partition TEXT := 'tb_entity_change_log_2024_01';
+BEGIN
+    -- Move data to archive
+    EXECUTE format(
+        'INSERT INTO core.tb_entity_change_log_archive
+         SELECT * FROM core.%I',
+        old_partition
+    );
+
+    -- Drop old partition
+    EXECUTE format('DROP TABLE core.%I', old_partition);
+END $$;
+```
+
+**Best Practices**:
+- ✅ Keep 12-18 months in partitioned table (fast queries)
+- ✅ Archive older data to separate table or cold storage
+- ✅ Compress archived partitions with pg_repack or similar
+- ✅ Monitor partition sizes weekly
+- ✅ Set up alerts for partition creation failures
+
+**Query Performance on Partitioned Table**:
+```sql
+-- Efficient query (uses partition pruning)
+SELECT * FROM core.tb_entity_change_log
+WHERE created_at >= '2025-01-01'
+  AND object_type = 'order'
+  AND object_id = '123e4567-...';
+-- Only scans 2025_01 partition
+
+-- Inefficient query (scans all partitions)
+SELECT * FROM core.tb_entity_change_log
+WHERE object_type = 'order';
+-- Always include created_at filter for partition pruning
+```
+
 ### tv_ Tables as Performance Layer
 
 **Purpose**: tv_ tables serve as the primary high-performance data access layer.
@@ -1829,11 +1983,13 @@ Since Rust provides excellent JSON concatenation performance, tv_ tables elimina
 
 **GraphQL Type**:
 ```python
+from fraiseql.types import ID
+
 @fraise_type
 class MutationResultBase:
     """Standardized result for all mutations."""
     status: str
-    id: UUID | None = None
+    id: ID | None = None
     updated_fields: list[str] | None = None
     message: str | None = None
     errors: list[dict[str, Any]] | None = None
@@ -1854,11 +2010,12 @@ class MutationLogResult:
 **Usage in Resolver**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.mutation
 async def update_product(
     info,
-    id: UUID,
+    id: ID,
     name: str,
     price: float
 ) -> MutationLogResult:

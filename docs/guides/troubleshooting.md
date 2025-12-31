@@ -1,9 +1,20 @@
+---
+title: Troubleshooting Guide
+description: Common issues, solutions, and debugging strategies
+tags:
+  - troubleshooting
+  - debugging
+  - errors
+  - solutions
+  - problems
+---
+
 # Troubleshooting Guide
 
 Common issues and solutions for FraiseQL beginners.
 
 **💡 Quick Navigation:**
-- **[Troubleshooting Decision Tree](troubleshooting-decision-tree/)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- **[Troubleshooting Decision Tree](troubleshooting-decision-tree.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - **This guide** - Specific error messages and detailed solutions
 
 Can't find your issue? Check the [GitHub Issues](../issues) or ask in [Discussions](../discussions).
@@ -91,7 +102,7 @@ psql -h localhost -U postgres -d postgres
 **Solution**:
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Check your view definition
 psql your_db -c "SELECT * FROM v_note LIMIT 1;"
@@ -99,7 +110,7 @@ psql your_db -c "SELECT * FROM v_note LIMIT 1;"
 # Compare with Python type
 @type(sql_source="v_note")
 class Note:
-    id: UUID        # Must match database column type
+    id: ID        # Must match database column type
     title: str      # Must match database column type
     content: str    # Must match database column type
 ```
@@ -263,7 +274,6 @@ import fraiseql
 # import fraiseql as fq; fq.type
 ```
 
-**Prevention**: Check the [Style Guide](../development/style-guide/) for correct imports
 
 ---
 
@@ -303,12 +313,12 @@ lsof -i :8000
 6. ✅ GraphQL endpoint responds: `curl http://localhost:8000/graphql`
 
 ### Getting Help
-- 📖 Check the [First Hour Guide](../getting-started/first-hour/) for step-by-step help
+- 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
 - 🔍 Search [existing issues](../issues)
 - 💬 Ask in [GitHub Discussions](../discussions)
 - 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
-- [Quick Reference](../reference/quick-reference/) - Copy-paste code patterns
+- [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns
 - Examples (../../examples/) - Working applications you can study
-- [Beginner Learning Path](../tutorials/beginner-path/) - Complete skill progression
+- [Beginner Learning Path](../tutorials/beginner-path.md) - Complete skill progression

@@ -1,3 +1,14 @@
+---
+title: Bounded Contexts
+description: Domain-driven design with schema separation and context boundaries
+tags:
+  - bounded-contexts
+  - DDD
+  - domain
+  - architecture
+  - design
+---
+
 # Bounded Contexts & DDD
 
 Domain-Driven Design patterns in FraiseQL: bounded contexts, repositories, aggregates, and integration strategies for complex domain models.
@@ -13,17 +24,6 @@ Bounded contexts are explicit boundaries within which a domain model is defined.
 - Shared kernel (common types)
 - Anti-corruption layers
 - Event-driven communication
-
-## Table of Contents
-
-- [Bounded Context Design](#bounded-context-design)
-- [Repository Pattern](#repository-pattern)
-- [Schema Organization](#schema-organization)
-- [Aggregate Roots](#aggregate-roots)
-- [Context Integration](#context-integration)
-- [Shared Kernel](#shared-kernel)
-- [Anti-Corruption Layer](#anti-corruption-layer)
-- [Event-Driven Communication](#event-driven-communication)
 
 ## Bounded Context Design
 
@@ -84,7 +84,7 @@ FraiseQL repositories encapsulate database access per bounded context:
 
 ```python
 from abc import ABC, abstractmethod
-from uuid import UUID
+from fraiseql.types import ID
 from fraiseql.db import DatabasePool
 
 T = TypeVar('T')
@@ -102,7 +102,7 @@ class Repository(ABC, Generic[T]):
         """Get table name for this repository."""
         pass
 
-    async def get_by_id(self, id: UUID) -> T | None:
+    async def get_by_id(self, id: ID) -> T | None:
         """Get entity by ID."""
         async with self.db.connection() as conn:
             result = await conn.execute(
@@ -126,7 +126,7 @@ class Repository(ABC, Generic[T]):
         # Implemented by subclasses
         raise NotImplementedError
 
-    async def delete(self, id: UUID) -> bool:
+    async def delete(self, id: ID) -> bool:
         """Delete entity by ID."""
         async with self.db.connection() as conn:
             result = await conn.execute(
@@ -147,14 +147,14 @@ class Repository(ABC, Generic[T]):
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
+from fraiseql.types import ID
 
 # Orders Context Domain Model
 @dataclass
 class Order:
     """Order aggregate root."""
-    id: UUID
-    customer_id: UUID
+    id: ID
+    customer_id: ID
     items: list['OrderItem']
     total: Decimal
     status: str
@@ -164,9 +164,9 @@ class Order:
 @dataclass
 class OrderItem:
     """Order line item."""
-    id: UUID
-    order_id: UUID
-    product_id: UUID
+    id: ID
+    order_id: ID
+    product_id: ID
     quantity: int
     price: Decimal
     total: Decimal
@@ -287,7 +287,7 @@ from uuid import uuid4
 class Order:
     """Order aggregate root - enforces all business rules."""
 
-    id: UUID = field(default_factory=lambda: str(uuid4()))
+    id: ID = field(default_factory=lambda: str(uuid4()))
     customer_id: str = ""
     items: list['OrderItem'] = field(default_factory=list)
     status: str = "draft"
@@ -360,7 +360,7 @@ class Order:
 @dataclass
 class OrderItem:
     """Order item - part of Order aggregate."""
-    id: UUID
+    id: ID
     order_id: str
     product_id: str
     quantity: int
@@ -373,10 +373,10 @@ class OrderItem:
 ```python
 import fraiseql
 from graphql import GraphQLResolveInfo
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.mutation
-async def create_order(info: GraphQLResolveInfo, customer_id: UUID) -> Order:
+async def create_order(info: GraphQLResolveInfo, customer_id: ID) -> Order:
     """Create new order."""
     order = Order(customer_id=customer_id)
     order_repo = get_order_repository()
@@ -385,8 +385,8 @@ async def create_order(info: GraphQLResolveInfo, customer_id: UUID) -> Order:
 @fraiseql.mutation
 async def add_order_item(
     info: GraphQLResolveInfo,
-    order_id: UUID,
-    product_id: UUID,
+    order_id: ID,
+    product_id: ID,
     quantity: int,
     price: float
 ) -> Order:
@@ -405,7 +405,7 @@ async def add_order_item(
     return await order_repo.save(order)
 
 @fraiseql.mutation
-async def submit_order(info: GraphQLResolveInfo, order_id: UUID) -> Order:
+async def submit_order(info: GraphQLResolveInfo, order_id: ID) -> Order:
     """Submit order for processing."""
     order_repo = get_order_repository()
 
@@ -447,18 +447,18 @@ async def submit_order(info: GraphQLResolveInfo, order_id: UUID) -> Order:
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 # Orders Context exports queries
 @fraiseql.query
-async def get_order(info, order_id: UUID) -> Order:
+async def get_order(info, order_id: ID) -> Order:
     """Orders context: Get order details."""
     order_repo = get_order_repository()
     return await order_repo.get_by_id(order_id)
 
 # Billing Context consumes Orders data
 @fraiseql.mutation
-async def create_invoice_for_order(info, order_id: UUID) -> Invoice:
+async def create_invoice_for_order(info, order_id: ID) -> Invoice:
     """Billing context: Create invoice from order."""
     # Fetch order data via internal call or event
     order = await get_order(info, order_id)
@@ -484,6 +484,7 @@ Common types shared across contexts:
 # shared/types.py
 from dataclasses import dataclass
 from decimal import Decimal
+from fraiseql.types import ID
 
 @dataclass
 class Money:
@@ -519,7 +520,7 @@ class CustomerId:
 # Usage in Orders Context
 @dataclass
 class Order:
-    id: UUID
+    id: ID
     customer_id: CustomerId  # Shared type
     shipping_address: Address  # Shared type
     items: list['OrderItem']
@@ -529,7 +530,7 @@ class Order:
 # Usage in Billing Context
 @dataclass
 class Invoice:
-    id: UUID
+    id: ID
     customer_id: CustomerId  # Same shared type
     billing_address: Address  # Same shared type
     amount: Money  # Same shared type
@@ -554,7 +555,7 @@ class ExternalProduct:
 @dataclass
 class Product:
     """Internal product model."""
-    id: UUID
+    id: ID
     name: str
     price: Money
     quantity_available: int
@@ -585,6 +586,7 @@ class ProductACL:
 
 # Usage
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.query
 async def get_product_from_external(info, sku: str) -> Product:
@@ -601,6 +603,8 @@ Contexts communicate via domain events:
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from fraiseql.types import ID
+import fraiseql
 
 @dataclass
 class DomainEvent:
@@ -611,11 +615,8 @@ class DomainEvent:
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 # Orders Context: Publish event
-import fraiseql
-from uuid import UUID
-
 @fraiseql.mutation
-async def submit_order(info, order_id: UUID) -> Order:
+async def submit_order(info, order_id: ID) -> Order:
     """Submit order and publish event."""
     order_repo = get_order_repository()
     order = await order_repo.get_by_id(order_id)
@@ -661,7 +662,6 @@ async def handle_order_submitted(event: DomainEvent):
 
 ## Next Steps
 
-- [Event Sourcing](event-sourcing/) - Event-driven architecture patterns
-- [Repository Pattern](../api-reference/database/) - Complete repository API
-- [Multi-Tenancy](multi-tenancy/) - Tenant isolation in bounded contexts
-- [Performance](../performance/index/) - Context-specific optimization
+- [Event Sourcing](event-sourcing.md) - Event-driven architecture patterns
+- [Multi-Tenancy](multi-tenancy.md) - Tenant isolation in bounded contexts
+- [Performance](../performance/index.md) - Context-specific optimization

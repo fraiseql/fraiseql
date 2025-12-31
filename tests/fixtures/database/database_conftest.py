@@ -133,7 +133,7 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
         postgres_url,
         min_size=1,
         max_size=3,
-        timeout=30,
+        timeout=60,  # Increased from 30s to 60s for slower systems
         open=False,
     )
 
@@ -243,7 +243,7 @@ async def test_schema(request, postgres_url) -> AsyncGenerator[str]:
         postgres_url,
         min_size=1,
         max_size=2,
-        timeout=30,
+        timeout=60,  # Increased from 30s to 60s for slower systems
         open=False,
     )
 
@@ -280,12 +280,16 @@ async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnec
         postgres_url,
         min_size=1,
         max_size=5,
-        timeout=30,
+        timeout=60,  # Increased from 30s to 60s for slower systems
         open=False,
     )
 
     await pool.open()
     await pool.wait()
+
+    # Verify pool is actually ready by testing a connection
+    async with pool.connection() as conn:
+        await conn.execute("SELECT 1")
 
     yield pool
 

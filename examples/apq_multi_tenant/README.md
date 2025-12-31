@@ -537,9 +537,9 @@ pytest tests/integration/test_apq_multi_tenant.py -v
 
 ## Related Examples
 
-- [`../turborouter/`](../turborouter/) - Pre-compiled queries for even better performance
-- [`../fastapi/`](../fastapi/) - Complete FastAPI integration with APQ
-- [`../security/`](../security/) - JWT authentication patterns
+- [`../turborouter/`](../turborouter/README.md) - Pre-compiled queries for even better performance
+- [`../fastapi/`](../fastapi/README.md) - Complete FastAPI integration with APQ
+- [`../security/`](../security/README.md) - JWT authentication patterns
 
 ## References
 

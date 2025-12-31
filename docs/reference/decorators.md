@@ -1,3 +1,15 @@
+---
+title: Decorators Reference
+description: Complete reference for all FraiseQL decorators (@fraiseql.type, @fraiseql.query, @fraiseql.mutation)
+tags:
+  - decorators
+  - API
+  - type
+  - query
+  - mutation
+  - Python
+---
+
 # Decorators Reference
 
 Complete reference for all FraiseQL decorators with signatures, parameters, and examples.
@@ -29,7 +41,7 @@ import fraiseql
 | implements | list[type] \| None | None | List of GraphQL interface types |
 | resolve_nested | bool | False | Resolve nested instances via separate queries |
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @input / @fraise_input
 
@@ -47,7 +59,7 @@ class InputName:
 
 **Parameters**: None (decorator takes no arguments)
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @enum / @fraise_enum
 
@@ -63,7 +75,7 @@ class EnumName(Enum):
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @interface / @fraise_interface
 
@@ -79,7 +91,7 @@ class InterfaceName:
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema/)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ## Query Decorators
 
@@ -105,9 +117,10 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 **Examples**:
 ```python
 import fraiseql
+from fraiseql.types import ID
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def get_user(info, id: ID) -> User:
     db = info.context["db"]
     return await db.find_one("v_user", where={"id": id})
 
@@ -167,10 +180,11 @@ import fraiseql
 ```python
 import fraiseql
 from fraiseql.types import Connection
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     name: str
 
 @connection(node_type=User)
@@ -234,7 +248,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../mutations/status-strings/) |
+| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](../archive/mutations/status-strings.md) |
 
 **Global Default**: If you don't specify `error_config` on a mutation, FraiseQL will use `default_error_config` from your `FraiseQLConfig` (if set). This allows you to set a global error handling strategy and override it per-mutation when needed.
 
@@ -500,6 +514,7 @@ async def method_name(self, info) -> ReturnType:
 ```python
 from fraiseql import dataloader_field
 from fraiseql.optimization.dataloader import DataLoader
+from fraiseql.types import ID
 
 # Define DataLoader
 class UserDataLoader(DataLoader):
@@ -513,7 +528,7 @@ class UserDataLoader(DataLoader):
 # Use in type
 @fraiseql.type
 class Post:
-    author_id: UUID
+    author_id: ID
 
     @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self, info) -> User | None:
@@ -558,6 +573,7 @@ async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]
 **Examples**:
 ```python
 from typing import AsyncGenerator
+from fraiseql.types import ID
 
 @subscription
 async def on_post_created(info) -> AsyncGenerator[Post, None]:
@@ -567,7 +583,7 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 @subscription
 async def on_user_posts(
     info,
-    user_id: UUID
+    user_id: ID
 ) -> AsyncGenerator[Post, None]:
     async for post in post_event_stream():
         if post.user_id == user_id:
@@ -640,6 +656,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_permission
+from fraiseql.types import ID
 
 @fraiseql.mutation
 @requires_permission("users:write")
@@ -649,7 +666,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 
 @fraiseql.mutation
 @requires_permission("users:delete")
-async def delete_user(info, id: UUID) -> bool:
+async def delete_user(info, id: ID) -> bool:
     db = info.context["db"]
     await db.delete_one("v_user", where={"id": id})
     return True
@@ -721,10 +738,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_any_permission
+from fraiseql.types import ID
 
 @fraiseql.mutation
 @requires_any_permission("users:write", "admin:all")
-async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
+async def update_user(info, id: ID, input: UpdateUserInput) -> User:
     # Can be performed by users:write OR admin:all
     db = info.context["db"]
     return await db.update_one("v_user", where={"id": id}, updates=input.__dict__)
@@ -756,10 +774,11 @@ async def resolver_name(info, ...params) -> ReturnType:
 import fraiseql
 
 from fraiseql.auth import requires_any_role
+from fraiseql.types import ID
 
 @fraiseql.query
 @requires_any_role("admin", "moderator")
-async def moderate_content(info, id: UUID) -> ModerationResult:
+async def moderate_content(info, id: ID) -> ModerationResult:
     # Can be performed by admin OR moderator
     pass
 ```
@@ -775,6 +794,7 @@ async def moderate_content(info, id: UUID) -> ModerationResult:
 import fraiseql, connection, type
 from fraiseql.auth import requires_auth, requires_permission
 from fraiseql.types import Connection
+from fraiseql.types import ID
 
 # Multiple decorators - order matters
 @connection(node_type=User)
@@ -787,7 +807,7 @@ async def users_connection(info, first: int | None = None) -> Connection[User]:
 # Field-level auth
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
 
     @field(description="Private settings")
@@ -806,6 +826,6 @@ class User:
 
 ## See Also
 
-- [Types and Schema](../core/types-and-schema/) - Type system details
-- [Queries and Mutations](../core/queries-and-mutations/) - Query and mutation patterns
-- [Configuration](../core/configuration/) - Configure decorator behavior
+- [Types and Schema](../core/types-and-schema.md) - Type system details
+- [Queries and Mutations](../core/queries-and-mutations.md) - Query and mutation patterns
+- [Configuration](../core/configuration.md) - Configure decorator behavior

@@ -434,26 +434,9 @@ await db.find("users", where={"age": {"gt": 18}})
 
 ---
 
-## Summary
-
-| Aspect | WhereType | Dict |
-|--------|-----------|------|
-| **Type Safety** | ✅ Full | ⚠️ Runtime only |
-| **IDE Support** | ✅ Autocomplete | ❌ No autocomplete |
-| **Syntax Verbosity** | More verbose | More concise |
-| **Dynamic Queries** | Possible but awkward | Natural and easy |
-| **Learning Curve** | Steeper | Gentler |
-| **Best For** | Type-safe resolvers | Dynamic queries |
-| **GraphQL Client Compat** | Manual conversion | Direct usage |
-| **CamelCase Input** | Manual conversion | Auto-conversion |
-
-**Bottom Line:** Use WhereType for type safety in static queries, Dict for flexibility in dynamic queries. Both support the same operators and nested filtering capabilities!
-
----
-
 ## See Also
 
-- **[Where Input Types - Full Guide](../advanced/where-input-types/)** - Complete documentation
-- **[Dict-Based Nested Filtering](../examples/dict-based-nested-filtering/)** - Dict syntax deep-dive
-- **[Filter Operators Reference](../advanced/filter-operators/)** - All available operators
-- **[Advanced Filtering Examples](../examples/advanced-filtering/)** - Real-world use cases
+- **[Where Input Types - Full Guide](../advanced/where-input-types.md)** - Complete documentation
+- **[Dict-Based Nested Filtering](../examples/dict-based-nested-filtering.md)** - Dict syntax deep-dive
+- **[Filter Operators Reference](../advanced/filter-operators.md)** - All available operators
+- **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases

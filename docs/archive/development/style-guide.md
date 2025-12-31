@@ -32,11 +32,11 @@ from fraiseql import *
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="v_user")  # Always specify source for queryable types
 class User:
-    id: UUID  # Always use UUID not str for IDs
+    id: ID  # Always use ID not str for IDs
     name: str
     email: str
     created_at: str  # ISO format datetime strings
@@ -60,7 +60,7 @@ def get_users() -> list[User]:
     pass  # Implementation handled by framework
 
 @fraiseql.query
-def get_user_by_id(id: UUID) -> User:
+def get_user_by_id(id: ID) -> User:
     """Get a single user by ID."""
     pass  # Implementation handled by framework
 ```
@@ -76,7 +76,7 @@ def get_user_by_id(id: UUID) -> User:
 
 ```python
 from fraiseql import mutation, input
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.input
 class CreateUserInput:
@@ -134,7 +134,7 @@ import fraiseql
 
 # Queries: camelCase
 @fraiseql.query
-def getUserById(id: UUID) -> User:
+def getUserById(id: ID) -> User:
     pass
 
 # Mutations: camelCase
@@ -191,7 +191,7 @@ import fraiseql
 
 @type(sql_source="v_user")
 class User:
-    id: UUID  # Primary key, auto-generated
+    id: ID  # Primary key, auto-generated
     name: str  # User's full name, required
     email: str  # Unique email address, validated
     created_at: str  # ISO 8601 timestamp, auto-set
@@ -210,7 +210,7 @@ import fraiseql
 
 # In documentation examples, show both the code and expected GraphQL usage
 @fraiseql.query
-def get_user(id: UUID) -> User:
+def get_user(id: ID) -> User:
     """Get user by ID."""
     pass
 
@@ -239,7 +239,7 @@ import fraiseql as gql_type
 
 @gql_type(sql_source="v_user")
 class User:
-    id: UUID  # Wrong type
+    id: ID  # Wrong type
     name: str
 
 # New ✅
@@ -247,7 +247,7 @@ import fraiseql
 
 @type(sql_source="v_user")
 class User:
-    id: UUID  # Correct type
+    id: ID  # Correct type
     name: str
 ```
 

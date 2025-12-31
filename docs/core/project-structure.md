@@ -1,3 +1,13 @@
+---
+title: Project Structure
+description: Recommended project layout and file organization
+tags:
+  - project
+  - structure
+  - organization
+  - best-practices
+---
+
 # Project Structure Guide
 
 This guide explains the recommended project structure for FraiseQL applications, created automatically by `fraiseql init`.
@@ -100,7 +110,7 @@ Prototypes   Apps       Apps      Apps
 - ❌ Don't use for production applications
 - ❌ Don't add complex business logic
 
-**Example Projects**: [Todo App Quickstart](../getting-started/quickstart/)
+**Example Projects**: [Todo App Quickstart](../getting-started/quickstart.md)
 
 ### Minimal Template Best Practices
 - ✅ Single-file schema for simple domains
@@ -202,13 +212,12 @@ my-project/
 # src/types/user.py
 import fraiseql
 from fraiseql import fraise_field
-from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
     """A user in the system."""
-    id: UUID = fraise_field(description="User ID")
+    id: ID = fraise_field(description="User ID")
     username: str = fraise_field(description="Unique username")
     email: str = fraise_field(description="Email address")
     created_at: str = fraise_field(description="Account creation date")
@@ -237,7 +246,7 @@ class UserQueries:
 
     async def resolve_user_by_username(self, info, username: str):
         db = info.context["db"]
-        return await db.find_one("v_user", "user", info, username=username)
+        return await db.find_one("v_user", username=username)
 ```
 
 ### Mutation Handlers (`src/mutations/`)
@@ -247,7 +256,7 @@ class UserQueries:
 import fraiseql
 from fraiseql import fraise_field
 from fraiseql import fraise_field
-from fraiseql.types.scalars import UUID
+from fraiseql.types import ID
 
 from ..types.user import User
 
@@ -269,7 +278,7 @@ class UserMutations:
             "username": input.username,
             "email": input.email
         })
-        return await db.find_one("v_user", "user", info, id=result["id"])
+        return await db.find_one("v_user", id=result["id"])
 ```
 
 ### Main Application (`src/main.py`)

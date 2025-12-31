@@ -203,10 +203,3 @@ print(f"Total time: {duration*1000:.2f}ms")
 ## Advanced: Custom Rust Transformations
 
 For very specialized needs, you can extend fraiseql-rs. See [Contributing Guide](../../CONTRIBUTING.md).
-
-## Summary
-
-The Rust pipeline itself is already optimized. Focus your optimization efforts on:
-1. **Database query speed** (biggest impact)
-2. **APQ caching** (easiest win)
-3. **JSONB size** (if working with large objects)

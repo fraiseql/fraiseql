@@ -622,7 +622,7 @@ result.metadata := jsonb_build_object(
 Still stuck?
 
 1. **Check Examples:** `examples/mutation-patterns/` has real-world cases
-2. **Read Full Guide:** [Mutation SQL Requirements](./mutation-sql-requirements/)
+2. **Read Full Guide:** [Mutation SQL Requirements](./mutation-sql-requirements.md)
 3. **GitHub Issues:** Search existing issues or create new one
 4. **Discussions:** Ask in GitHub Discussions for community help
 

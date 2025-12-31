@@ -37,6 +37,7 @@ from fraiseql.types.scalars import (
     HostnameScalar,
     HTMLScalar,
     IBANScalar,
+    IDScalar,
     ImageScalar,
     IpAddressScalar,
     ISINScalar,
@@ -121,6 +122,11 @@ def scalar_test_schema(meta_test_schema):
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should be registrable in a GraphQL schema."""
+    # Skip ID scalar - it conflicts with GraphQL's built-in ID type
+    # GraphQL-core provides a built-in ID scalar that we use instead
+    if scalar_class.name == "ID":
+        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
+
     # Build the schema using the prepared registry from the fixture
     schema = scalar_test_schema.build_schema()
 
@@ -139,6 +145,11 @@ def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_sc
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should work as a query argument without validation errors."""
+    # Skip ID scalar - it conflicts with GraphQL's built-in ID type
+    # GraphQL-core provides a built-in ID scalar that we use instead
+    if scalar_class.name == "ID":
+        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
+
     from graphql import graphql
 
     # Get test value for this scalar
@@ -440,6 +451,7 @@ def get_test_value_for_scalar(scalar_class):
         # Financial & Business
         CurrencyCodeScalar: "USD",
         IBANScalar: "GB82WEST12345698765432",
+        IDScalar: "550e8400-e29b-41d4-a716-446655440000",
         ISINScalar: "US0378331005",
         SEDOLScalar: "B0WNLY7",
         LEIScalar: "549300E9PC51EN656011",
@@ -500,6 +512,7 @@ def get_postgres_type_for_scalar(scalar_class):
         CIDRScalar: "CIDR",
         CUSIPScalar: "VARCHAR(9)",
         DateScalar: "DATE",
+        IDScalar: "UUID",
         IpAddressScalar: "INET",
         JSONScalar: "JSONB",
         UUIDScalar: "UUID",

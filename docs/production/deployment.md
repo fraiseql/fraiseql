@@ -1,3 +1,15 @@
+---
+title: Production Deployment
+description: Complete guide for deploying FraiseQL with Docker, Kubernetes, and scaling strategies
+tags:
+  - deployment
+  - production
+  - docker
+  - kubernetes
+  - scaling
+  - CI/CD
+---
+
 # Production Deployment
 
 Complete production deployment guide for FraiseQL: Docker, Kubernetes, environment management, health checks, scaling strategies, and rollback procedures.
@@ -11,17 +23,6 @@ Deploy FraiseQL applications to production with confidence using battle-tested p
 - Kubernetes (with Helm charts)
 - Cloud platforms (GCP, AWS, Azure)
 - Edge/CDN deployments
-
-## Table of Contents
-
-- [Docker Deployment](#docker-deployment)
-- [Kubernetes Deployment](#kubernetes-deployment)
-- [Environment Configuration](#environment-configuration)
-- [Database Migrations](#database-migrations)
-- [Health Checks](#health-checks)
-- [Scaling Strategies](#scaling-strategies)
-- [Zero-Downtime Deployment](#zero-downtime-deployment)
-- [Rollback Procedures](#rollback-procedures)
 
 ## Docker Deployment
 
@@ -732,6 +733,6 @@ echo "✓ Rollback completed successfully"
 
 ## Next Steps
 
-- [Monitoring](monitoring/) - Metrics, logs, and alerting
-- [Security](security/) - Production security hardening
-- [Performance](../performance/index/) - Production optimization
+- [Monitoring](monitoring.md) - Metrics, logs, and alerting
+- [Security](security.md) - Production security hardening
+- [Performance](../performance/index.md) - Production optimization

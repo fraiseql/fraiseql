@@ -288,21 +288,69 @@ prek run --all
 
 ### Python
 
-**Version**: 3.10+ with modern type hints
+**Version**: Python 3.13+ (required for Rust pipeline and advanced features)
+
+### Type Annotations
+
+FraiseQL has **different type annotation requirements** for user code vs framework code:
+
+#### User Code (Your GraphQL Types)
+
+**✅ Use Python 3.13 modern syntax:**
 
 ```python
-# ✅ CORRECT (3.10+ style)
-def get_user(user_id: int) -> User | None:
-    ...
+@fraiseql.type
+class User:
+    """A user in the system.
 
-def process(items: list[str] | None = None) -> dict[str, int]:
-    ...
+    Fields:
+        id: Unique identifier
+        name: User's full name
+        email: Optional email address
+        roles: List of assigned roles
+    """
+    id: ID
+    name: str
+    email: str | None = None  # ✅ Modern syntax
+    roles: list[str] = []      # ✅ Modern syntax
+    metadata: dict[str, Any] = {}  # ✅ Modern syntax
+```
 
-# ❌ AVOID (pre-3.10 style)
-from typing import Optional, List, Dict
-def get_user(user_id: int) -> Optional[User]:
+**Advantages:**
+- ✅ Clean, readable code
+- ✅ Standard Python 3.13 syntax
+- ✅ Less verbose than old-style typing
+
+#### FraiseQL Framework Code (Internal Implementation)
+
+**⚠️ Uses `typing` module for runtime introspection:**
+
+```python
+from typing import Optional, List, Dict, Union
+
+# FraiseQL internal code uses old-style for introspection
+def convert_type(field_type: Optional[type]) -> Union[str, None]:
+    """Framework needs to introspect these at runtime."""
     ...
 ```
+
+**Why the difference?**
+- FraiseQL's core inspects type hints at runtime using `get_origin()` and `get_args()`
+- `Optional[T]` and `Union[T, None]` have predictable runtime representations
+- `T | None` (new-style) uses `types.UnionType` which requires different handling
+- Framework code needs consistent, introspectable types
+
+**Important:** When contributing to FraiseQL itself, use old-style typing in framework code, but user-facing examples should use modern syntax.
+
+#### Quick Reference
+
+| Context | Style | Example |
+|---------|-------|---------|
+| **User types** (`@fraiseql.type`) | Modern (3.13+) | `email: str \| None` |
+| **User types** (`@fraiseql.type`) | Modern (3.13+) | `roles: list[str]` |
+| **FraiseQL internals** | `typing` module | `Optional[str]` |
+| **FraiseQL internals** | `typing` module | `List[str]` |
+| **Documentation examples** | Modern (3.13+) | `str \| None` |
 
 ### Tools
 

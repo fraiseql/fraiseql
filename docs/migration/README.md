@@ -12,13 +12,13 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 
 | Framework | Difficulty | Time Estimate | Guide |
 |-----------|-----------|---------------|-------|
-| **PostGraphile** | ⭐ Low | 3-4 days (1 engineer) | [Migration Guide](./from-postgraphile/) |
-| **Graphene** | ⭐⭐ Medium | 1-2 weeks (2 engineers) | [Migration Guide](./from-graphene/) |
-| **Strawberry** | ⭐⭐ Medium | 2-3 weeks (2 engineers) | [Migration Guide](./from-strawberry/) |
+| **PostGraphile** | ⭐ Low | 3-4 days (1 engineer) | [Migration Guide](./from-postgraphile.md) |
+| **Graphene** | ⭐⭐ Medium | 1-2 weeks (2 engineers) | [Migration Guide](./from-graphene.md) |
+| **Strawberry** | ⭐⭐ Medium | 2-3 weeks (2 engineers) | [Migration Guide](./from-strawberry.md) |
 
 ### Generic Resources
 
-- **[Migration Checklist](./migration-checklist/)**: Universal 10-phase checklist applicable to any framework migration
+- **[Migration Checklist](./migration-checklist.md)**: Universal 10-phase checklist applicable to any framework migration
 
 ---
 
@@ -26,7 +26,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 
 ### Migrating from PostGraphile → FraiseQL
 
-**[PostGraphile Migration Guide](./from-postgraphile/)**
+**[PostGraphile Migration Guide](./from-postgraphile.md)**
 
 - **Best for:** Teams already using PostgreSQL-first architecture
 - **Why easiest:** Both frameworks share database-first philosophy
@@ -42,7 +42,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 
 ### Migrating from Graphene → FraiseQL
 
-**[Graphene Migration Guide](./from-graphene/)**
+**[Graphene Migration Guide](./from-graphene.md)**
 
 - **Best for:** Django-based applications with ORM models
 - **Why moderate:** Need to migrate from ORM to database-first approach
@@ -58,7 +58,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 
 ### Migrating from Strawberry → FraiseQL
 
-**[Strawberry Migration Guide](./from-strawberry/)**
+**[Strawberry Migration Guide](./from-strawberry.md)**
 
 - **Best for:** Modern Python shops already using type hints
 - **Why moderate:** Database layer needs restructuring
@@ -78,13 +78,13 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 
 | Your Current Setup | Recommended Guide | Key Challenge |
 |-------------------|------------------|---------------|
-| **PostGraphile + TypeScript** | [PostGraphile](./from-postgraphile/) | Language switch (TS → Python) |
-| **PostGraphile + Minimal plugins** | [PostGraphile](./from-postgraphile/) | Almost no changes needed |
-| **Graphene + Django** | [Graphene](./from-graphene/) | ORM → Database-first |
-| **Graphene + SQLAlchemy** | [Graphene](./from-graphene/) | ORM → Database-first |
-| **Strawberry + Manual resolvers** | [Strawberry](./from-strawberry/) | Database restructuring |
-| **Strawberry + ORM** | [Strawberry](./from-strawberry/) | Full architecture shift |
-| **Other framework** | [Migration Checklist](./migration-checklist/) | Follow generic process |
+| **PostGraphile + TypeScript** | [PostGraphile](./from-postgraphile.md) | Language switch (TS → Python) |
+| **PostGraphile + Minimal plugins** | [PostGraphile](./from-postgraphile.md) | Almost no changes needed |
+| **Graphene + Django** | [Graphene](./from-graphene.md) | ORM → Database-first |
+| **Graphene + SQLAlchemy** | [Graphene](./from-graphene.md) | ORM → Database-first |
+| **Strawberry + Manual resolvers** | [Strawberry](./from-strawberry.md) | Database restructuring |
+| **Strawberry + ORM** | [Strawberry](./from-strawberry.md) | Full architecture shift |
+| **Other framework** | [Migration Checklist](./migration-checklist.md) | Follow generic process |
 
 ---
 
@@ -122,7 +122,7 @@ All migrations follow a similar high-level process:
 - Blue-green deployment
 - Monitor for 24-48 hours
 
-**See:** [Migration Checklist](./migration-checklist/) for complete 10-phase breakdown
+**See:** [Migration Checklist](./migration-checklist.md) for complete 10-phase breakdown
 
 ---
 
@@ -153,7 +153,7 @@ CREATE VIEW v_user AS SELECT * FROM tb_user;
 ```python
 @fraiseql.type(sql_source="v_user")
 class User:
-    id: UUID
+    id: ID
     email: str
     name: str | None
 ```
@@ -221,7 +221,7 @@ query {
 class CreatePost:
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
 ```
 
 ```graphql
@@ -263,9 +263,9 @@ wrk -t4 -c100 -d30s http://localhost:8000/graphql
 ## Support & Resources
 
 ### Documentation
-- [Trinity Pattern Guide](../core/trinity-pattern/) - Database naming conventions
-- [CASCADE Documentation](../features/graphql-cascade/) - Automatic cache invalidation
-- [Production Deployment Checklist](../deployment/production-deployment/) - Go-live preparation
+- [Trinity Pattern Guide](../core/trinity-pattern.md) - Database naming conventions
+- [CASCADE Documentation](../features/graphql-cascade.md) - Automatic cache invalidation
+- [Production Deployment Checklist](../tutorials/production-deployment.md) - Go-live preparation
 
 ### Community Support
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
@@ -303,7 +303,7 @@ Found an issue or want to improve a guide?
 ---
 
 **Ready to migrate?** Start with your framework-specific guide:
-- [From PostGraphile](./from-postgraphile/)
-- [From Graphene](./from-graphene/)
-- [From Strawberry](./from-strawberry/)
-- [Generic Checklist](./migration-checklist/)
+- [From PostGraphile](./from-postgraphile.md)
+- [From Graphene](./from-graphene.md)
+- [From Strawberry](./from-strawberry.md)
+- [Generic Checklist](./migration-checklist.md)

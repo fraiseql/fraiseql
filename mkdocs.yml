@@ -145,6 +145,10 @@ nav:
     - Migrating to Cascade: guides/migrating-to-cascade.md
   - Architecture:
     - Overview: architecture/README.md
+    - Request Flow: architecture/request-flow.md
+    - Trinity Pattern: architecture/trinity-pattern.md
+    - Type System: architecture/type-system.md
+    - CQRS Design: architecture/cqrs-design.md
     - Architecture Decisions: architecture/decisions/README.md
 
 extra_css:

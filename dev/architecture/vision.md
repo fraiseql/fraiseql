@@ -765,5 +765,3 @@ docs/
 **Next**: Start docs/philosophy/WHY_FRAISEQL.md
 **Timeline**: 15 weeks to production v1.0
 **Target**: Production adoption by engineering teams
-
-**Let's build a production-grade framework!** 🚀

@@ -13,13 +13,13 @@ Trinity Identifiers provide a consistent way to handle entity identification acr
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class Product:
     """Product with Trinity identifiers."""
     # Internal database ID
-    id: UUID
+    id: ID
 
     # Public-facing ID (e.g., SKU)
     public_id: str

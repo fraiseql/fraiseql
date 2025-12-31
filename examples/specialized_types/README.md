@@ -787,9 +787,9 @@ query FirewallRules {
 
 ## Related Examples
 
-- [`../hybrid_tables/`](../hybrid_tables/) - Combining indexed columns with JSONB
-- [`../filtering/`](../filtering/) - Type-aware filtering and where clauses
-- [`../fastapi/`](../fastapi/) - Complete FastAPI integration
+- [`../hybrid_tables/`](../hybrid_tables/README.md) - Combining indexed columns with JSONB
+- [`../filtering/`](../filtering/README.md) - Type-aware filtering and where clauses
+- [`../fastapi/`](../fastapi/README.md) - Complete FastAPI integration
 
 ## Key Takeaways
 

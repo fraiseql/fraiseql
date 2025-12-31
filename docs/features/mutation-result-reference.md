@@ -2,7 +2,7 @@
 
 **⚠️ This document has been consolidated into the new comprehensive guide.**
 
-**📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements/)**
+**📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)**
 
 This new guide provides:
 - Complete PostgreSQL function requirements
@@ -131,7 +131,7 @@ CREATE TYPE mutation_response AS (
 
 ### Status Values
 
-FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Status String Conventions](../mutations/status-strings/) for complete details.
+FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Status String Conventions](../archive/mutations/status-strings.md) for complete details.
 
 #### Success States
 - `success` - Generic success
@@ -301,7 +301,7 @@ For REST-like semantics, error responses include a `code` field with equivalent 
 
 ### Status to Code Mapping
 
-FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See [Status String Conventions](../mutations/status-strings/) for complete reference.
+FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See [Status String Conventions](../archive/mutations/status-strings.md) for complete reference.
 
 | Status Pattern | Code | Description | Use Case |
 |----------------|------|-------------|----------|
@@ -434,7 +434,7 @@ Cascade data represents side effects and related entity changes from mutations.
 
 ### Overview
 
-Cascade data is stored in the `cascade` field and describes operations that occurred on related entities. See the [GraphQL Cascade documentation](graphql-cascade/) for complete details.
+Cascade data is stored in the `cascade` field and describes operations that occurred on related entities. See the [GraphQL Cascade documentation](graphql-cascade.md) for complete details.
 
 ### Integration with Mutation Formats
 
@@ -521,6 +521,6 @@ $$ LANGUAGE plpgsql;
 ---
 
 **Related Documentation**:
-- [SQL Function Return Format](sql-function-return-format/) - Existing return format guide
-- [GraphQL Cascade](graphql-cascade/) - Complete cascade specification
+- [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) - Comprehensive PostgreSQL function guide
+- [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
 - [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) - SQL type definition and helpers

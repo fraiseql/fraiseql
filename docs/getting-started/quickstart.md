@@ -1,3 +1,15 @@
+---
+title: 5-Minute Quick Start
+description: Get started with FraiseQL in 5 minutes - create a complete GraphQL note-taking API
+tags:
+  - quickstart
+  - tutorial
+  - getting started
+  - first app
+  - notes API
+  - beginner
+---
+
 # Quick Start Guide
 
 Get started with FraiseQL in 5 minutes! This guide will walk you through creating a simple note-taking GraphQL API.
@@ -65,7 +77,7 @@ $$ LANGUAGE plpgsql;
 -- Sample data
 INSERT INTO tb_note (title, content) VALUES
     ('Welcome to FraiseQL', 'This is your first note!'),
-    ('GraphQL is awesome', 'Queries and mutations made simple'),
+    ('Type-safe queries', 'Automatic GraphQL schema from PostgreSQL views'),
     ('Database-first design', 'Views compose data for optimal performance');
 ```
 
@@ -89,7 +101,14 @@ from fraiseql.fastapi import create_fraiseql_app
 # Define GraphQL types
 @fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
-    """A simple note with title and content."""
+    """A simple note with title and content.
+
+    Fields:
+        id: Unique note identifier
+        title: Note title (max 200 characters)
+        content: Note content in plain text
+        created_at: When the note was created
+    """
     id: uuid.UUID
     title: str
     content: str | None
@@ -102,14 +121,14 @@ class CreateNoteInput:
     title: str
     content: str | None = None
 
-# Define success/failure types
+# Define success/error types
 @fraiseql.success
 class CreateNoteSuccess:
     """Success response for note creation."""
     note: Note
-    message: str = "Note created successfully"
+    # Note: @success auto-injects: status, message, updated_fields, id
 
-@fraiseql.failure
+@fraiseql.error
 class ValidationError:
     """Validation error."""
     message: str
@@ -120,13 +139,15 @@ class ValidationError:
 async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
-    return await db.find("v_note", "notes", info, order_by=[("created_at", "DESC")])
+    # field_name auto-inferred from function name "notes"
+    return await db.find("v_note", order_by=[("created_at", "DESC")])
 
 @fraiseql.query
 async def note(info, id: uuid.UUID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
-    return await db.find_one("v_note", "note", info, id=id)
+    # field_name auto-inferred from function name "note"
+    return await db.find_one("v_note", id=id)
 
 # Mutations
 @fraiseql.mutation
@@ -150,7 +171,7 @@ class CreateNote:
                 return ValidationError(message="Failed to create note")
 
             # Fetch the created note via Rust pipeline
-            note = await db.find_one("v_note", "note", info, id=result["id"])
+            note = await db.find_one("v_note", id=result["id"])
             return CreateNoteSuccess(note=note)
 
         except Exception as e:
@@ -222,7 +243,7 @@ query {
 ### Create a new note:
 ```graphql
 mutation {
-  createNote(input: { title: "My New Note", content: "This is awesome!" }) {
+  createNote(input: { title: "My New Note", content: "GraphQL mutations made simple" }) {
     ... on CreateNoteSuccess {
       note {
         id
@@ -250,20 +271,93 @@ mutation {
 - **Mutations**: Create new notes with success/failure handling
 - **FastAPI Integration**: Ready-to-deploy web server
 
+## 💡 Best Practices
+
+### Import Style
+
+**Always use namespaced imports to avoid shadowing Python builtins:**
+
+```python
+# ✅ RECOMMENDED (safe, clear)
+import fraiseql
+
+@fraiseql.type(sql_source="v_user")
+class User: ...
+
+@fraiseql.input
+class CreateUserInput: ...
+```
+
+**Alternative with explicit imports:**
+
+```python
+# ✅ SAFE (explicit names)
+from fraiseql import fraise_type, fraise_input
+
+@fraise_type(sql_source="v_user")
+class User: ...
+
+@fraise_input
+class CreateUserInput: ...
+```
+
+**⚠️ AVOID - Shadows Python builtins:**
+
+```python
+# ❌ DANGEROUS - shadows builtin type() and input()
+from fraiseql import type, input
+
+@type  # Now you can't use Python's type() function!
+class User: ...
+```
+
+### Auto-Inference Magic
+
+FraiseQL automatically infers parameters to reduce boilerplate:
+
+```python
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    # field_name auto-inferred from function name "users"
+    # info parameter auto-injected from GraphQL context
+    return await db.find("v_user")
+```
+
+The GraphQL response will automatically use the correct field name:
+```json
+{
+  "data": {
+    "users": [...]  // ← Matches function name
+  }
+}
+```
+
 ## Next Steps
 
-- [Understanding FraiseQL](../guides/understanding-fraiseql/) - Learn the architecture
-- [First Hour Guide](first-hour/) - Progressive tutorial
-- [Troubleshooting](../guides/troubleshooting/) - Common issues and solutions
-- Examples (../../examples/) - More complete examples
-- [Style Guide](../development/style-guide/) - Best practices
+### Continue Learning
+
+- **[First Hour Guide](first-hour.md)** - Progressive hands-on tutorial
+- **[Core Concepts & Glossary](../core/concepts-glossary.md)** - Understand [CQRS](../core/concepts-glossary.md#cqrs), [Trinity pattern](../core/concepts-glossary.md#trinity-identifiers), and [JSONB views](../core/concepts-glossary.md#jsonb-view-pattern)
+- **[Auto-Inference Guide](../core/auto-inference.md)** - Learn how FraiseQL reduces boilerplate
+
+### Decision Support
+
+- **[Decision Matrices](../guides/decision-matrices.md)** - Choose the right patterns (views vs projection tables, mutation patterns, etc.)
+- **[Understanding FraiseQL](../guides/understanding-fraiseql.md)** - Architecture and philosophy
+
+### Practical Guides
+
+- **[Blog API Tutorial](../tutorials/blog-api.md)** - Build a complete API from scratch
+- **[Troubleshooting](../guides/troubleshooting.md)** - Common issues and solutions
+- **[Examples](../../examples/)** - More complete examples
 
 ## Need Help?
 
 - [GitHub Discussions](../discussions)
 - [Documentation](https://docs.fraiseql.com)
-- [Troubleshooting Guide](../guides/troubleshooting/)
+- [Troubleshooting Guide](../guides/troubleshooting.md)
 
 ---
 
-Ready to build something amazing? Let's go! 🚀
+Continue with the [First Hour Tutorial](first-hour.md) for hands-on examples.

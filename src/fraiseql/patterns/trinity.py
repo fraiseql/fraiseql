@@ -2,18 +2,18 @@
 
 Provides three-tier ID system:
 - pk_* (int) - Internal primary key for fast joins
-- id (UUID) - Public API identifier
+- id (ID) - Public API identifier
 - identifier (str) - Human-readable URL slug
 
 Usage:
     from fraiseql.patterns import TrinityMixin
-    from uuid import UUID
+    from fraiseql.types import ID
 
     class User(TrinityMixin):
         '''User with Trinity identifiers.'''
 
         # Public fields (exposed to GraphQL)
-        id: UUID
+        id: ID
         identifier: str | None
 
         username: str
@@ -31,7 +31,7 @@ class TrinityMixin:
 
     Automatically manages:
     - Internal pk_* field (hidden from GraphQL)
-    - Public id field (UUID)
+    - Public id field (ID)
     - Optional identifier field (human-readable slug)
 
     The internal pk_* field is stored as a private attribute and used
@@ -86,10 +86,10 @@ def trinity_field(**kwargs: Any) -> dict:
     Example:
         # With Strawberry
         import strawberry
-        id: UUID = strawberry.field(**trinity_field(description="User UUID"))
+        id: ID = strawberry.field(**trinity_field(description="User ID"))
 
         # Or just for documentation
-        metadata = trinity_field(description="User UUID")
+        metadata = trinity_field(description="User ID")
     """
     return kwargs
 

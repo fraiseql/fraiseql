@@ -4,18 +4,6 @@
 
 FraiseQL's explicit sync pattern is a fundamental design decision that prioritizes **visibility, testability, and control** over automatic behavior. Instead of hidden database triggers, you explicitly call sync functions in your code—giving you complete control over when and how data synchronizes from the command side (tb_*) to the query side (tv_*).
 
-## Table of Contents
-
-- [Philosophy: Explicit > Implicit](#philosophy-explicit-implicit)
-- [How Explicit Sync Works](#how-explicit-sync-works)
-- [Implementing Sync Functions](#implementing-sync-functions)
-- [Usage Patterns](#usage-patterns)
-- [Performance Optimization](#performance-optimization)
-- [Testing and Debugging](#testing-and-debugging)
-- [IVM Integration](#ivm-integration)
-- [Common Patterns](#common-patterns)
-- [Migration from Triggers](#migration-from-triggers)
-
 ---
 
 ## Philosophy: Explicit > Implicit
@@ -46,8 +34,10 @@ EXECUTE FUNCTION sync_post_to_tv();
 ### FraiseQL's Solution: Explicit Sync
 
 ```python
+from fraiseql.types import ID
+
 # ✅ Explicit sync (visible in your code)
-async def create_post(title: str, author_id: UUID) -> Post:
+async def create_post(title: str, author_id: ID) -> Post:
     # 1. Write to command side
     post_id = await db.execute(
         "INSERT INTO tb_post (title, author_id) VALUES ($1, $2) RETURNING id",
@@ -117,7 +107,7 @@ async def create_post(title: str, author_id: UUID) -> Post:
 ### Basic Sync Function
 
 ```python
-from uuid import UUID
+from fraiseql.types import ID
 import asyncpg
 
 
@@ -193,6 +183,8 @@ class EntitySync:
 ### Sync with Nested Data
 
 ```python
+from fraiseql.types import ID
+
 async def sync_post_with_comments(self, post_ids: list[UUID]) -> None:
     """Sync posts with embedded comments (denormalized)."""
     async with self.pool.acquire() as conn:
@@ -270,12 +262,14 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
 
     # 4. Read from query side
     db = info.context["db"]
-    return await db.find_one("tv_post", "post", info, id=post_id)
+    return await db.find_one("tv_post", id=post_id)
 ```
 
 ### Pattern 2: Batch Sync
 
 ```python
+from fraiseql.types import ID
+
 async def create_many_posts(posts: list[dict]) -> list[UUID]:
     """Create multiple posts and batch sync."""
     post_ids = []
@@ -301,7 +295,9 @@ async def create_many_posts(posts: list[dict]) -> list[UUID]:
 ### Pattern 3: Deferred Sync
 
 ```python
-async def update_post(post_id: UUID, data: dict, background_tasks: BackgroundTasks):
+from fraiseql.types import ID
+
+async def update_post(post_id: ID, data: dict, background_tasks: BackgroundTasks):
     """Update post and defer sync to background."""
     # 1. Write to command side
     await db.execute("UPDATE tb_post SET ... WHERE id = $1", post_id)
@@ -321,7 +317,9 @@ async def update_post(post_id: UUID, data: dict, background_tasks: BackgroundTas
 ### Pattern 4: Conditional Sync
 
 ```python
-async def update_post(post_id: UUID, old_data: dict, new_data: dict):
+from fraiseql.types import ID
+
+async def update_post(post_id: ID, old_data: dict, new_data: dict):
     """Only sync if data changed in a way that affects queries."""
     # Update command side
     await db.execute("UPDATE tb_post SET ... WHERE id = $1", post_id)
@@ -335,7 +333,9 @@ async def update_post(post_id: UUID, old_data: dict, new_data: dict):
 ### Pattern 5: Cascade Sync
 
 ```python
-async def delete_user(user_id: UUID):
+from fraiseql.types import ID
+
+async def delete_user(user_id: ID):
     """Delete user and cascade sync related entities."""
     # 1. Get user's posts before deleting
     post_ids = await db.fetch("SELECT id FROM tb_post WHERE author_id = $1", user_id)
@@ -514,6 +514,8 @@ CREATE INCREMENTAL MATERIALIZED VIEW tv_post;
 **With IVM**, sync becomes simpler:
 
 ```python
+from fraiseql.types import ID
+
 async def sync_post_with_ivm(self, post_ids: list[UUID]):
     """Sync with IVM extension (faster!)."""
     # IVM automatically maintains tv_post when tb_post changes
@@ -549,7 +551,9 @@ async def setup_ivm():
 ### Pattern: Multi-Entity Sync
 
 ```python
-async def create_comment(post_id: UUID, author_id: UUID, content: str):
+from fraiseql.types import ID
+
+async def create_comment(post_id: ID, author_id: ID, content: str):
     """Create comment and sync all affected entities."""
     # 1. Write to command side
     comment_id = await db.execute(
@@ -570,7 +574,9 @@ async def create_comment(post_id: UUID, author_id: UUID, content: str):
 ### Pattern: Optimistic Sync
 
 ```python
-async def like_post(post_id: UUID, user_id: UUID):
+from fraiseql.types import ID
+
+async def like_post(post_id: ID, user_id: ID):
     """Optimistic sync: update cache immediately, sync later."""
     # 1. Update cache optimistically (fast!)
     cached_post = await cache.get(f"post:{post_id}")
@@ -592,6 +598,8 @@ async def like_post(post_id: UUID, user_id: UUID):
 ### Pattern: Sync Validation
 
 ```python
+from fraiseql.types import ID
+
 async def sync_with_validation(self, post_ids: list[UUID]):
     """Sync with validation to ensure data integrity."""
     for post_id in post_ids:
@@ -681,6 +689,7 @@ for post_id in post_ids:
 
 ```python
 import time
+from fraiseql.types import ID
 
 async def sync_post(self, post_ids: list[UUID]):
     start = time.time()
@@ -697,6 +706,8 @@ async def sync_post(self, post_ids: list[UUID]):
 ### 4. Handle Sync Errors
 
 ```python
+from fraiseql.types import ID
+
 async def sync_post(self, post_ids: list[UUID]):
     for post_id in post_ids:
         try:
@@ -712,29 +723,9 @@ async def sync_post(self, post_ids: list[UUID]):
 ## See Also
 
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/) - See explicit sync in action
-- [CASCADE Best Practices](../guides/cascade-best-practices/) - Cache invalidation with sync
-- [Migrations Guide](./migrations/) - Setting up tb_/tv_ tables
-- [Database Patterns](../advanced/database-patterns/) - Advanced sync patterns
-
----
-
-## Summary
-
-FraiseQL's explicit sync pattern provides:
-
-✅ **Visibility** - Sync is in your code, not hidden
-✅ **Testability** - Easy to mock and test
-✅ **Control** - Batch, defer, or skip as needed
-✅ **Performance** - 10-100x faster than triggers
-✅ **Observability** - Track metrics and debug easily
-
-**Key Philosophy**: "Explicit is better than implicit" - we'd rather have sync visible in code than hidden in database triggers.
-
-**Next Steps**:
-1. Implement sync functions for your entities
-2. Call sync explicitly after mutations
-3. Monitor sync performance
-4. See the [Complete CQRS Example](../../examples/complete_cqrs_blog/) for reference
+- [CASCADE Best Practices](../guides/cascade-best-practices.md) - Cache invalidation with sync
+- [Migrations Guide](./migrations.md) - Setting up tb_/tv_ tables
+- [Database Patterns](../advanced/database-patterns.md) - Advanced sync patterns
 
 ---
 

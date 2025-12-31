@@ -1,3 +1,13 @@
+---
+title: Installation
+description: Install FraiseQL with Python, Rust extensions, and PostgreSQL setup
+tags:
+  - installation
+  - setup
+  - getting-started
+  - requirements
+---
+
 # Installation Guide
 
 🟢 Beginner · 🟡 Production - Complete installation guide for FraiseQL with different use cases, requirements, and troubleshooting.
@@ -7,14 +17,16 @@
 **Minimum Requirements:**
 - **Python**: 3.13+
 - **PostgreSQL**: 13+
-- **RAM**: 512MB
-- **Disk**: 100MB
+- **Rust Toolchain**: 1.70+ (for building from source)
+- **RAM**: 1GB (2GB+ with Rust compilation)
+- **Disk**: 200MB (500MB+ with Rust toolchain)
 
 **Recommended for Most Users:**
 - **Python**: 3.13+
 - **PostgreSQL**: 15+
-- **RAM**: 2GB+
-- **Disk**: 1GB+
+- **Rust Toolchain**: Latest stable (for optimal performance)
+- **RAM**: 4GB+ (for concurrent queries and compilation)
+- **Disk**: 2GB+ (including Rust toolchain and dependencies)
 
 ## Quick Decision Tree
 
@@ -64,8 +76,8 @@ fraiseql dev
 ```
 
 **What you get**:
-- ✅ Core GraphQL framework
-- ✅ PostgreSQL integration
+- ✅ Core GraphQL framework with Rust backend
+- ✅ High-performance PostgreSQL integration
 - ✅ Basic CLI tools
 - ✅ Development server
 - ❌ Testing tools
@@ -92,6 +104,7 @@ pip install fraiseql[all]
 - ✅ OpenTelemetry tracing
 - ✅ Auth0 authentication
 - ✅ Documentation building tools
+- ✅ Full Rust backend development support
 
 ### Option 3: Production with Tracing
 
@@ -187,12 +200,33 @@ After installation, verify everything works:
 python --version  # Should be 3.13+
 ```
 
-### 2. FraiseQL Installation Check
+### 2. Rust Toolchain Check
 ```bash
-fraiseql --version  # Should show version number
+# Check if Rust is installed
+rustc --version  # Should show version 1.70+
+
+# Check Cargo (Rust package manager)
+cargo --version  # Should show version
+
+# Verify Rust compilation works
+rustc --print target-list | head -5
 ```
 
-### 3. PostgreSQL Connection Check
+### 3. FraiseQL Installation Check
+```bash
+fraiseql --version  # Should show version number (includes Rust backend)
+```
+
+### 4. Rust Extension Verification
+```bash
+# Test that Rust backend loads correctly
+python -c "from fraiseql.core.database import DatabasePool; print('✅ Rust backend available')"
+
+# Verify performance optimizations are active
+python -c "import fraiseql; print('✅ FraiseQL with Rust backend loaded')"
+```
+
+### 5. PostgreSQL Connection Check
 ```bash
 # Make sure PostgreSQL is running
 psql --version
@@ -201,7 +235,7 @@ psql --version
 psql "postgresql://localhost/postgres" -c "SELECT version();"
 ```
 
-### 4. Create Test Project
+### 6. Create Test Project
 ```bash
 # Create a test project
 fraiseql init test-project
@@ -212,7 +246,7 @@ ls -la
 # Should see: src/, pyproject.toml, etc.
 ```
 
-### 5. Run Development Server
+### 7. Run Development Server
 ```bash
 # Start the dev server
 fraiseql dev
@@ -227,6 +261,38 @@ curl http://localhost:8000/graphql \
 ## Troubleshooting
 
 ### Common Issues
+
+#### Issue: "Rust toolchain not found"
+**Solution**: Install Rust toolchain
+```bash
+# Install Rust using rustup (recommended)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Verify installation
+rustc --version
+cargo --version
+
+# Add to PATH permanently (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+#### Issue: "Rust extension failed to build"
+**Solution**: Install build dependencies and retry
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install build-essential pkg-config libssl-dev
+
+# macOS
+xcode-select --install
+
+# Windows (use Rust for Windows installer)
+
+# Then reinstall FraiseQL
+pip uninstall fraiseql
+pip install fraiseql --no-cache-dir
+```
 
 #### Issue: "Python version 3.13+ required"
 **Solution**: Upgrade Python
@@ -303,6 +369,20 @@ lsof -ti:8000 | xargs kill -9
 # Or use a different port (not currently supported)
 ```
 
+#### Issue: "Rust backend not available"
+**Solution**: Check Rust extension loading
+```bash
+# Test Rust backend import
+python -c "from fraiseql.core.database import DatabasePool; print('Rust backend OK')"
+
+# If import fails, reinstall with Rust
+pip uninstall fraiseql
+pip install fraiseql --no-cache-dir --verbose
+
+# Check for missing dependencies
+python -c "import sys; print('Python path:'); [print(p) for p in sys.path]"
+```
+
 ### Advanced Troubleshooting
 
 #### Check Installation Details
@@ -346,6 +426,10 @@ source venv/bin/activate  # or your venv path
 
 ### macOS
 ```bash
+# Install Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
 # Install PostgreSQL
 brew install postgresql
 
@@ -358,8 +442,15 @@ createdb mydb
 
 ### Ubuntu/Debian
 ```bash
-# Install Python 3.13
+# Install Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Install build dependencies for Rust
 sudo apt update
+sudo apt install build-essential pkg-config libssl-dev
+
+# Install Python 3.13
 sudo apt install software-properties-common
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt install python3.13 python3.13-venv
@@ -376,6 +467,11 @@ sudo -u postgres createdb mydb
 
 ### Windows
 ```bash
+# Install Rust toolchain from https://rustup.rs/
+# Or use winget/chocolatey:
+winget install --id Microsoft.VisualStudio.2022.BuildTools  # Includes Rust support
+# Or: choco install rust
+
 # Install Python 3.13 from python.org
 
 # Install PostgreSQL from postgresql.org
@@ -399,15 +495,15 @@ docker exec -it postgres psql -U postgres
 
 After successful installation:
 
-1. **[Quickstart Guide](quickstart/)** - Build your first API
-2. **[Core Concepts](../core/concepts-glossary/)** - Understand FraiseQL patterns
+1. **[Quickstart Guide](quickstart.md)** - Build your first API
+2. **[Core Concepts](../core/concepts-glossary.md)** - Understand FraiseQL patterns
 3. **Examples (../examples/)** - See real implementations
-4. **[Configuration](../core/configuration/)** - Advanced setup options
+4. **[Configuration](../core/configuration.md)** - Advanced setup options
 
 ## Getting Help
 
 - **Installation issues**: Check this troubleshooting section
-- **Framework questions**: See [Quickstart Guide](quickstart/)
+- **Framework questions**: See [Quickstart Guide](quickstart.md)
 - **Bug reports**: [GitHub Issues](../issues)
 - **Community**: [GitHub Discussions](../discussions)
 

@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to FraiseQL!
 
-> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft. See [docs/development/philosophy.md](docs/development/philosophy.md) to understand the project's design principles and collaborative approach.
+> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft in all contributions.
 
 ## Getting Started
 
@@ -115,12 +115,12 @@ pre-commit run --all-files
 ## Pull Request Process
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Make your changes
 4. Add tests for new functionality
 5. Ensure all tests pass
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to your fork (`git push origin feature/amazing-feature`)
+6. Commit your changes (`git commit -m 'Add your feature'`)
+7. Push to your fork (`git push origin feature/your-feature`)
 8. Open a Pull Request
 
 ### PR Guidelines
@@ -190,8 +190,6 @@ def test_feature():
 ```
 
 Available fixtures: `test_config`, `development_config`, `production_config`, `custom_config`
-
-See [docs/testing/config-fixtures.md](docs/testing/config-fixtures.md) for details.
 
 #### Integration Test Structure
 

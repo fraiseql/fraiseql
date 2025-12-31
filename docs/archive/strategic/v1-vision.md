@@ -302,11 +302,11 @@ fraiseql-v1/
 
 ```python
 import fraiseql
-from uuid import UUID
+from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     identifier: str
     name: str
     email: str
@@ -339,7 +339,7 @@ class CommandRepository:
 
 class QueryRepository:
     """Reads from tv_* views"""
-    async def find_one(self, view: str, id: UUID = None, identifier: str = None) -> dict:
+    async def find_one(self, view: str, id: ID = None, identifier: str = None) -> dict:
         if id:
             return await self.db.fetchrow(f"SELECT data FROM {view} WHERE id = $1", id)
         elif identifier:
@@ -358,7 +358,7 @@ class QueryRepository:
 import fraiseql
 
 @fraiseql.query
-async def user(info, id: UUID = None, identifier: str = None) -> User:
+async def user(info, id: ID = None, identifier: str = None) -> User:
     """Get user by UUID or identifier"""
     repo = QueryRepository(info.context["db"])
     if id:
@@ -829,11 +829,7 @@ Before considering v1 "done":
 
 ---
 
-**You're ready to build something impressive!** 🚀
-
 **Status**: Vision complete, documentation plan ready, implementation path clear
 **Next Step**: Start `docs/philosophy/WHY_FRAISEQL.md` (Week 1, Day 1)
 **Timeline**: 8 weeks to interview-ready showcase
 **Goal**: Land Staff+ engineering role at top company
-
-Let's build this. 💪

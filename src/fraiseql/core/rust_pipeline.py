@@ -321,15 +321,14 @@ async def execute_via_rust_pipeline(
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
 
-            # Convert field_selections to JSON string for Rust
-            field_selections_json = json.dumps(field_selections) if field_selections else None
-
+            # Pass field_selections directly to Rust (PyO3 will handle conversion)
+            # DON'T convert to JSON string - PyO3 needs Python objects
             response_bytes = fraiseql_rs.build_graphql_response(
                 json_strings=json_strings,
                 field_name=field_name,
                 type_name=type_name,
                 field_paths=field_paths,
-                field_selections=field_selections_json,
+                field_selections=field_selections,  # Pass list directly, not JSON string
                 is_list=True,
                 include_graphql_wrapper=include_graphql_wrapper,
             )
@@ -358,15 +357,14 @@ async def execute_via_rust_pipeline(
 
         json_string = row[0]
 
-        # Convert field_selections to JSON string for Rust
-        field_selections_json = json.dumps(field_selections) if field_selections else None
-
+        # Pass field_selections directly to Rust (PyO3 will handle conversion)
+        # DON'T convert to JSON string - PyO3 needs Python objects
         response_bytes = fraiseql_rs.build_graphql_response(
             json_strings=[json_string],
             field_name=field_name,
             type_name=type_name,
             field_paths=field_paths,
-            field_selections=field_selections_json,
+            field_selections=field_selections,  # Pass list directly, not JSON string
             is_list=False,
             include_graphql_wrapper=include_graphql_wrapper,
         )

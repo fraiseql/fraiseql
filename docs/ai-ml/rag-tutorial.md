@@ -794,9 +794,9 @@ Congratulations! You've built a complete RAG system with FraiseQL. Here's what t
 
 ### 📚 Advanced Topics
 
-- **[Vector Operators Reference](../features/pgvector/)** - All pgvector operators and use cases
-- **[Embedding Strategies](../guides/langchain-integration/)** - Different embedding models and techniques
-- **[Performance Guide](../performance/index/)** - Optimize your RAG system for production
+- **[Vector Operators Reference](../features/pgvector.md)** - All pgvector operators and use cases
+- **[Embedding Strategies](../guides/langchain-integration.md)** - Different embedding models and techniques
+- **[Performance Guide](../performance/index.md)** - Optimize your RAG system for production
 
 ### 🚀 Production Features
 

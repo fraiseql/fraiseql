@@ -1,0 +1,33 @@
+{
+  "collected_at": "2025-12-21T12:35:00Z",
+  "db_connection": {
+    "mean_ms": 12.5,
+    "p95_ms": 22.0,
+    "p99_ms": 30.0,
+    "error_count": 0
+  },
+  "simple_user_query": {
+    "mean_ms": 18.0,
+    "p95_ms": 32.0,
+    "p99_ms": 48.0,
+    "error_count": 0
+  },
+  "complex_nested_query": {
+    "mean_ms": 45.0,
+    "p95_ms": 75.0,
+    "p99_ms": 110.0,
+    "error_count": 0
+  },
+  "search_query": {
+    "mean_ms": 25.0,
+    "p95_ms": 42.0,
+    "p99_ms": 62.0,
+    "error_count": 0
+  },
+  "mutation_create_post": {
+    "mean_ms": 35.0,
+    "p95_ms": 58.0,
+    "p99_ms": 85.0,
+    "error_count": 0
+  }
+}

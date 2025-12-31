@@ -47,16 +47,18 @@ results = await db.find("users", where=where_filter)
 ### Nested Object Filtering (WhereType)
 
 ```python
+from fraiseql.types import ID
+
 # Define types with relationships
 @fraiseql.type
 class Device:
-    id: UUID
+    id: ID
     name: str
     is_active: bool
 
 @fraiseql.type
 class Assignment:
-    id: UUID
+    id: ID
     device: Device
     status: str
 
@@ -247,10 +249,11 @@ Where input types are automatically generated GraphQL input types that provide o
 import fraiseql
 import fraiseql
 from fraiseql import fraise_field
+from fraiseql.types import ID
 
 @fraiseql.type(sql_source="users")
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     age: int
@@ -280,8 +283,8 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ## Filter Operators by Field Type
 
 > **💡 Advanced Operators**: FraiseQL provides comprehensive PostgreSQL operator support including arrays, full-text search, JSONB, and regex. See:
-> - **[Filter Operators Reference](./filter-operators/)** - Complete operator documentation with examples
-> - **[Advanced Filtering Examples](../examples/advanced-filtering/)** - Real-world use cases
+> - **[Filter Operators Reference](./filter-operators.md)** - Complete operator documentation with examples
+> - **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases
 
 ### String Fields
 
@@ -481,11 +484,13 @@ When your types have relationships, you can filter on nested object properties. 
 ### GraphQL Query (WhereType)
 
 ```python
+from fraiseql.types import ID
+
 @fraiseql.type(sql_source="posts")
 class Post:
-    id: UUID
+    id: ID
     title: str
-    author_id: UUID
+    author_id: ID
     author: User  # Nested relationship
 
 # Generate Where input for nested filtering
@@ -525,7 +530,7 @@ posts = await db.find("posts", where=where_dict)
 ```
 
 **See also:**
-- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering/)** - Comprehensive dict syntax documentation
+- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering.md)** - Comprehensive dict syntax documentation
 - Examples include multiple nested fields, camelCase support, and performance tips
 
 ## Advanced Filtering Examples
@@ -816,6 +821,6 @@ query {
 
 ## Next Steps
 
-- **[Filter Operators Reference](./filter-operators/)** - Complete operator documentation
-- **[Advanced Filtering Examples](../examples/advanced-filtering/)** - Real-world use cases
-- **[Nested Array Filtering](./nested-array-filtering/)** - Complex array queries
+- **[Filter Operators Reference](./filter-operators.md)** - Complete operator documentation
+- **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases
+- **[Nested Array Filtering](./nested-array-filtering.md)** - Complex array queries
