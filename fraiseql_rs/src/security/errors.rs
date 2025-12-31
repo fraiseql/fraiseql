@@ -23,6 +23,7 @@ pub enum SecurityError {
         max_depth: usize,
     },
 
+    /// Query complexity exceeds configured limit
     QueryTooComplex {
         /// Actual query complexity score
         complexity: usize,
@@ -30,6 +31,7 @@ pub enum SecurityError {
         max_complexity: usize,
     },
 
+    /// Query size exceeds maximum allowed bytes
     QueryTooLarge {
         /// Actual query size in bytes
         size: usize,
@@ -37,19 +39,22 @@ pub enum SecurityError {
         max_size: usize,
     },
 
-    /// CORS errors
+    /// CORS origin not in allowed list
     OriginNotAllowed(String),
+    /// CORS HTTP method not allowed
     MethodNotAllowed(String),
+    /// CORS header not in allowed list
     HeaderNotAllowed(String),
 
-    /// CSRF errors
+    /// CSRF token validation failed
     InvalidCSRFToken(String),
+    /// CSRF token session ID mismatch
     CSRFSessionMismatch,
 
-    /// Audit logging errors
+    /// Audit log write failure
     AuditLogFailure(String),
 
-    /// Configuration errors
+    /// Security configuration error
     SecurityConfigError(String),
 }
 
