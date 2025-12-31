@@ -239,11 +239,13 @@ impl MutationStatus {
         }
     }
 
+    /// Check if this status is a success variant
     #[must_use]
     pub const fn is_success(&self) -> bool {
         matches!(self, Self::Success(_))
     }
 
+    /// Check if this status is a noop variant
     #[must_use]
     pub const fn is_noop(&self) -> bool {
         matches!(self, Self::Noop(_))
