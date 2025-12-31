@@ -142,6 +142,13 @@ impl Arena {
     /// 1. Arena is `!Send + !Sync` (via _marker field), ensuring single-threaded access
     /// 2. Returned slice lifetime is tied to arena lifetime
     /// 3. We check bounds before growing buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Allocation would cause position overflow
+    /// - Allocation would exceed maximum arena size
+    /// - Buffer growth fails
     #[inline]
     #[allow(clippy::mut_from_ref)] // Interior mutability pattern - safe via !Send + !Sync marker
     pub fn try_alloc_bytes(&self, len: usize) -> Result<&mut [u8], ArenaError> {
