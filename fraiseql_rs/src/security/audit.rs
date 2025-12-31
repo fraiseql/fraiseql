@@ -12,27 +12,43 @@ use uuid::Uuid;
 #[serde(rename_all = "snake_case")]
 pub enum AuditEventType {
     // Authentication
+    /// Successful user login
     LoginSuccess,
+    /// Failed login attempt
     LoginFailure,
+    /// User logout
     Logout,
+    /// Authentication token refreshed
     TokenRefresh,
+    /// Authentication token revoked
     TokenRevoke,
 
     // Authorization
+    /// Permission check passed
     PermissionGranted,
+    /// Permission check failed
     PermissionDenied,
+    /// Role assigned to user
     RoleAssigned,
+    /// Role removed from user
     RoleRevoked,
 
     // Data access
+    /// Data read operation
     DataRead,
+    /// Data write operation
     DataWrite,
+    /// Data delete operation
     DataDelete,
 
     // Security
+    /// Rate limit threshold exceeded
     RateLimitExceeded,
+    /// Invalid or expired token used
     InvalidToken,
+    /// Suspicious activity detected
     SuspiciousActivity,
+    /// Security policy violation
     SecurityViolation,
 }
 
@@ -75,11 +91,16 @@ impl AuditEventType {
     }
 }
 
+/// Audit event severity levels
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuditSeverity {
+    /// Low severity - informational events
     Low,
+    /// Medium severity - potential issues
     Medium,
+    /// High severity - security concerns
     High,
+    /// Critical severity - immediate action required
     Critical,
 }
 
