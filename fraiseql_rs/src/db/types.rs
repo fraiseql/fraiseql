@@ -35,15 +35,25 @@ impl Default for PoolConfig {
 /// Query parameter types for prepared statements
 #[derive(Debug, Clone)]
 pub enum QueryParam {
+    /// SQL NULL value
     Null,
+    /// Boolean value
     Bool(bool),
+    /// 32-bit integer
     Int(i32),
+    /// 64-bit integer (BIGINT)
     BigInt(i64),
+    /// 32-bit floating point
     Float(f32),
+    /// 64-bit floating point (DOUBLE PRECISION)
     Double(f64),
+    /// Text/string value (TEXT/VARCHAR)
     Text(String),
+    /// JSON/JSONB value
     Json(serde_json::Value),
+    /// Timestamp without timezone
     Timestamp(chrono::NaiveDateTime),
+    /// UUID value
     Uuid(uuid::Uuid),
 }
 
@@ -126,14 +136,19 @@ pub struct QueryResult {
 /// Error types for database operations
 #[derive(Debug, thiserror::Error)]
 pub enum DatabaseError {
+    /// Connection pool errors (acquisition, timeout, etc.)
     #[error("Connection pool error: {0}")]
     Pool(String),
+    /// Query execution errors (syntax, constraints, etc.)
     #[error("Query execution error: {0}")]
     Query(String),
+    /// Database connection errors (network, authentication, etc.)
     #[error("Connection error: {0}")]
     Connection(String),
+    /// Configuration errors (invalid URL, bad parameters, etc.)
     #[error("Configuration error: {0}")]
     Config(String),
+    /// Transaction errors (commit, rollback, isolation, etc.)
     #[error("Transaction error: {0}")]
     Transaction(String),
 }
