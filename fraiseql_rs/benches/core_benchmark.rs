@@ -49,9 +49,10 @@ fn benchmark_zero_copy_small(c: &mut Criterion) {
                 camel_case: true,
                 project_fields: false,
                 add_graphql_wrapper: false,
+                max_depth: 64,
             };
 
-            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
+            let mut transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
@@ -82,9 +83,10 @@ fn benchmark_zero_copy_medium(c: &mut Criterion) {
                 camel_case: true,
                 project_fields: false,
                 add_graphql_wrapper: false,
+                max_depth: 64,
             };
 
-            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
+            let mut transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
@@ -116,9 +118,10 @@ fn benchmark_zero_copy_large(c: &mut Criterion) {
                 camel_case: true,
                 project_fields: false,
                 add_graphql_wrapper: false,
+                max_depth: 64,
             };
 
-            let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
+            let mut transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
@@ -150,9 +153,10 @@ fn benchmark_components(c: &mut Criterion) {
         b.iter(|| {
             use fraiseql_rs::core::transform::ByteReader;
             let mut reader = ByteReader::new(json_str.as_bytes());
-            black_box(reader.read_string().unwrap());
-            black_box(reader.expect_byte(b':').unwrap());
-            black_box(reader.read_string().unwrap());
+            black_box(reader.expect_byte(b'{').unwrap());  // Skip opening brace
+            black_box(reader.read_string().unwrap());       // Read field name "user_id"
+            black_box(reader.expect_byte(b':').unwrap());   // Skip colon
+            black_box(reader.read_number().unwrap());       // Read number value
         })
     });
 
