@@ -130,7 +130,9 @@ impl JWKSCache {
     /// Panics if the cache capacity is 0 (which cannot happen with the hardcoded value of 100).
     fn new() -> Self {
         Self {
-            cache: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap()))),
+            cache: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(100).expect("100 is non-zero"),
+            ))),
             ttl: Duration::from_secs(3600), // 1 hour
         }
     }
@@ -149,7 +151,7 @@ impl JWKSCache {
     async fn get_jwk(&self, kid: &str, jwks_url: &str, client: &reqwest::Client) -> Result<Jwk> {
         // Check cache with TTL validation
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self.cache.lock().expect("JWK cache mutex poisoned");
             if let Some((jwk, cached_at)) = cache.get(kid) {
                 let elapsed = SystemTime::now()
                     .duration_since(*cached_at)
@@ -177,7 +179,7 @@ impl JWKSCache {
 
         // Store in cache
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self.cache.lock().expect("JWK cache mutex poisoned");
             cache.put(kid.to_string(), (jwk.clone(), SystemTime::now()));
         }
 

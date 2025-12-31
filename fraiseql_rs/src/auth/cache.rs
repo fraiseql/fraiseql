@@ -24,7 +24,7 @@ impl UserContextCache {
     pub fn new(capacity: usize, ttl_seconds: u64) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
-                NonZeroUsize::new(capacity).unwrap(),
+                NonZeroUsize::new(capacity).expect("cache capacity must be non-zero"),
             ))),
             ttl: Duration::from_secs(ttl_seconds),
         }
@@ -39,7 +39,7 @@ impl UserContextCache {
     pub fn get(&self, token: &str) -> Option<UserContext> {
         let key = Self::hash_token(token);
 
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
 
         if let Some((context, cached_at)) = cache.get(&key) {
             // Check TTL
@@ -51,7 +51,7 @@ impl UserContextCache {
                 // Also check token expiration
                 let now = SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
+                    .expect("system time before UNIX epoch")
                     .as_secs();
 
                 if context.exp > now {
@@ -74,7 +74,7 @@ impl UserContextCache {
     pub fn put(&self, token: &str, context: UserContext) {
         let key = Self::hash_token(token);
 
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
         cache.put(key, (context, SystemTime::now()));
     }
 
@@ -84,7 +84,7 @@ impl UserContextCache {
     ///
     /// Panics if the cache mutex is poisoned.
     pub fn clear(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().expect("auth cache mutex poisoned");
         cache.clear();
     }
 
@@ -104,6 +104,7 @@ impl Default for UserContextCache {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Tests can use unwrap for simplicity
 mod tests {
     use super::*;
 
