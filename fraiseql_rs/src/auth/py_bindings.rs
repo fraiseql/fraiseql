@@ -10,12 +10,16 @@ use crate::pipeline::unified::UserContext;
 #[pyclass]
 #[derive(Clone)]
 pub struct PyUserContext {
+    /// User identifier
     #[pyo3(get)]
     pub user_id: Option<String>,
+    /// User roles
     #[pyo3(get)]
     pub roles: Vec<String>,
+    /// User permissions
     #[pyo3(get)]
     pub permissions: Vec<String>,
+    /// Token expiration timestamp
     #[pyo3(get)]
     pub exp: u64,
 }

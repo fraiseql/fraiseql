@@ -16,13 +16,19 @@ type Result<T> = std::result::Result<T, AuthError>;
 /// JWT claims structure.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,      // Subject (user ID)
-    pub iss: String,      // Issuer
-    pub aud: Vec<String>, // Audience
-    pub exp: u64,         // Expiration time
-    pub iat: u64,         // Issued at
+    /// Subject (user ID)
+    pub sub: String,
+    /// Issuer
+    pub iss: String,
+    /// Audience
+    pub aud: Vec<String>,
+    /// Expiration time
+    pub exp: u64,
+    /// Issued at
+    pub iat: u64,
+    /// Custom claims
     #[serde(flatten)]
-    pub custom: HashMap<String, serde_json::Value>, // Custom claims
+    pub custom: HashMap<String, serde_json::Value>,
 }
 
 /// JWT validator with JWKS caching.

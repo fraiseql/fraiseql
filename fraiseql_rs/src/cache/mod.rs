@@ -9,18 +9,26 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedQueryPlan {
+    /// Query signature (hash of query structure)
     pub signature: String,
+    /// SQL template with parameter placeholders
     pub sql_template: String,
+    /// Parameter information
     pub parameters: Vec<ParamInfo>,
-    pub created_at: u64, // Unix timestamp
+    /// Unix timestamp when cache entry was created
+    pub created_at: u64,
+    /// Number of cache hits
     pub hit_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParamInfo {
+    /// Parameter name
     pub name: String,
+    /// Parameter position in query
     pub position: usize,
-    pub expected_type: String, // "string", "int", "float", "bool", "json"
+    /// Expected parameter type: "string", "int", "float", "bool", "json"
+    pub expected_type: String,
 }
 
 /// Thread-safe query plan cache.
