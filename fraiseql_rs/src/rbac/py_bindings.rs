@@ -13,6 +13,9 @@ pub struct PyPermissionResolver {
 
 #[pymethods]
 impl PyPermissionResolver {
+    /// # Errors
+    ///
+    /// Returns a Python error if the database pool is not initialized.
     #[new]
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {
@@ -33,6 +36,10 @@ impl PyPermissionResolver {
     }
 
     /// Get user permissions (placeholder - full async implementation needed)
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error (placeholder implementation).
     pub fn get_user_permissions(
         &self,
         _user_id: String,
@@ -43,6 +50,10 @@ impl PyPermissionResolver {
     }
 
     /// Check specific permission (placeholder)
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error (placeholder implementation).
     pub fn has_permission(
         &self,
         _user_id: String,
@@ -55,6 +66,10 @@ impl PyPermissionResolver {
     }
 
     /// Invalidate user cache
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python error if the user ID is not a valid UUID.
     pub fn invalidate_user(&self, user_id: String) -> PyResult<()> {
         let user_uuid = Uuid::parse_str(&user_id)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
@@ -69,6 +84,10 @@ impl PyPermissionResolver {
     }
 
     /// Get cache statistics
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     pub fn cache_stats(&self) -> PyResult<String> {
         let stats = self.resolver.cache_stats();
         Ok(format!(
@@ -87,6 +106,9 @@ pub struct PyFieldAuthChecker {
 
 #[pymethods]
 impl PyFieldAuthChecker {
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[new]
     pub fn new(resolver: &PyPermissionResolver) -> PyResult<Self> {
         let checker = super::field_auth::FieldAuthChecker::new(Arc::clone(&resolver.resolver));
@@ -94,6 +116,10 @@ impl PyFieldAuthChecker {
     }
 
     /// Check field access (placeholder)
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error (placeholder implementation).
     pub fn check_field_access(
         &self,
         _user_id: Option<String>,
@@ -107,6 +133,10 @@ impl PyFieldAuthChecker {
     }
 
     /// Get cache statistics from the associated resolver
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error (placeholder implementation).
     pub fn get_resolver_stats(&self) -> PyResult<String> {
         Ok("FieldAuthChecker stats not yet implemented".to_string())
     }
