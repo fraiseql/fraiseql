@@ -325,6 +325,13 @@ impl AuditLogger {
     }
 
     /// Get audit statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database pool connection fails
+    /// - SQL query execution fails
+    /// - Result row extraction fails
     pub async fn stats(&self, pool: &Pool) -> Result<AuditStats> {
         let client = pool.get().await?;
 
