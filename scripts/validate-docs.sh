@@ -147,6 +147,7 @@ validate_links() {
         -not -path "*/tests/chaos/*" \
         -not -path "*/templates/*" \
         -not -path "*/examples/*" \
+        -not -path "*/.claude/*" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then
@@ -485,6 +486,7 @@ validate_code_syntax() {
         -not -path "*/tests/chaos/*" \
         -not -path "*/templates/*" \
         -not -path "*/examples/*" \
+        -not -path "*/.claude/*" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then
