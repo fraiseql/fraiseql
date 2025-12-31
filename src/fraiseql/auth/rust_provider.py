@@ -35,7 +35,7 @@ class RustAuth0Provider(AuthProvider):
 
         # Try to import Rust implementation
         try:
-            import _fraiseql_rs as rs
+            import _fraiseql_rs  # noqa: F401
 
             self._has_rust = True
             logger.info("✓ Using Rust Auth0 provider (5-10x faster)")
@@ -111,7 +111,7 @@ class RustCustomJWTProvider(AuthProvider):
 
         # Try to import Rust implementation
         try:
-            import _fraiseql_rs as rs
+            import _fraiseql_rs  # noqa: F401
 
             self._has_rust = True
             logger.info("✓ Using Rust CustomJWT provider (5-10x faster)")

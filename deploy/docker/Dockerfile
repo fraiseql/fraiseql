@@ -11,6 +11,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    libssl-dev \
+    pkg-config \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
