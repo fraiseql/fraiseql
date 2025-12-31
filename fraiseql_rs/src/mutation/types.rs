@@ -50,7 +50,7 @@ pub enum StatusKind {
     Success(String),
     /// No-operation with reason (noop:reason)
     Noop(String),
-    /// Error with reason (failed:reason, not_found:reason, etc.)
+    /// Error with reason (failed:reason, `not_found:reason`, etc.)
     Error(String),
 }
 
