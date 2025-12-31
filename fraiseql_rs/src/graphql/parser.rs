@@ -9,6 +9,12 @@ use graphql_parser::query::{
 };
 
 /// Parse GraphQL query string into Rust AST.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - GraphQL syntax is invalid or malformed
+/// - Query structure is invalid (missing operation, invalid selections)
 pub fn parse_query(source: &str) -> Result<ParsedQuery> {
     // Use graphql-parser to parse query string
     let doc: Document<String> =

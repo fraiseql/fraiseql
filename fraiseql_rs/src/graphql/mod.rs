@@ -13,6 +13,12 @@ use pyo3::prelude::*;
 /// Parse GraphQL query string into structured AST.
 ///
 /// Called from Python: result = `fraiseql_rs.parse_graphql_query(query_string)`
+///
+/// # Errors
+///
+/// Returns a Python `SyntaxError` if:
+/// - GraphQL query syntax is invalid
+/// - Query structure is malformed
 #[pyfunction]
 pub fn parse_graphql_query(_py: Python, query_string: String) -> PyResult<ParsedQuery> {
     match parse_query(&query_string) {

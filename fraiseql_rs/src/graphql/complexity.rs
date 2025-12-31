@@ -255,6 +255,11 @@ impl ComplexityAnalyzer {
     }
 
     /// Validate that query complexity is within limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Query complexity score exceeds the configured maximum limit
     pub fn validate_complexity(&self, query: &ParsedQuery) -> Result<(), String> {
         let result = self.analyze(query);
         if result.exceeded {
