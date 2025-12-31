@@ -59,10 +59,15 @@ pub const MAX_JSON_DEPTH: usize = 64;
 /// Transform configuration (zero-cost at compile time)
 #[derive(Clone, Copy)]
 pub struct TransformConfig {
+    /// Add __typename field to objects
     pub add_typename: bool,
+    /// Convert snake_case keys to camelCase
     pub camel_case: bool,
+    /// Apply field projection filtering
     pub project_fields: bool,
+    /// Wrap result in GraphQL data envelope
     pub add_graphql_wrapper: bool,
+    /// Maximum JSON nesting depth
     pub max_depth: usize,
 }
 

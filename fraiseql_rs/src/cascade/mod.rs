@@ -22,27 +22,37 @@ mod tests;
 /// Cascade field selection metadata from GraphQL query
 #[derive(Debug, Deserialize)]
 pub struct CascadeSelections {
+    /// Top-level fields selected in cascade
     #[serde(deserialize_with = "deserialize_fields_as_hashset")]
     pub fields: HashSet<String>,
+    /// Selections for updated entities
     #[serde(default)]
     pub updated: Option<FieldSelections>,
+    /// Selections for deleted entities
     #[serde(default)]
     pub deleted: Option<FieldSelections>,
+    /// Selections for invalidations
     #[serde(default)]
     pub invalidations: Option<FieldSelections>,
+    /// Selections for metadata
     #[serde(default)]
     pub metadata: Option<FieldSelections>,
 }
 
+/// Field selections for cascade operations
 #[derive(Debug, Deserialize)]
 pub struct FieldSelections {
+    /// List of fields to select
     pub fields: Vec<String>,
+    /// Entity-specific field selections
     #[serde(default)]
     pub entity_selections: Option<EntitySelections>,
 }
 
+/// Entity-specific field selections by type
 #[derive(Debug, Deserialize)]
 pub struct EntitySelections {
+    /// Map from entity type name to list of selected fields
     #[serde(flatten)]
     pub type_selections: std::collections::HashMap<String, Vec<String>>,
 }
