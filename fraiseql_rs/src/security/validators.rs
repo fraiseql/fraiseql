@@ -61,6 +61,13 @@ impl QueryValidator {
     }
 
     /// Validate query against all limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Query size (in bytes) exceeds the maximum allowed
+    /// - Query depth (nesting level) exceeds the maximum allowed
+    /// - Query complexity score exceeds the maximum allowed
     pub fn validate(&self, query: &str, parsed: &ParsedQuery) -> Result<()> {
         // Check query size
         if query.len() > self.limits.max_query_size {
