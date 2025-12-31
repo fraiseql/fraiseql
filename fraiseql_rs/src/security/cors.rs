@@ -101,6 +101,7 @@ pub struct CORSHandler {
 }
 
 impl CORSHandler {
+    /// Create a new CORS handler with specified configuration
     #[must_use]
     pub const fn new(config: CORSConfig) -> Self {
         Self { config }

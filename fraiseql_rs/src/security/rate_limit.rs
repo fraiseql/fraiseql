@@ -54,6 +54,7 @@ impl Default for RateLimiter {
 }
 
 impl RateLimiter {
+    /// Create a new rate limiter with empty rules
     #[must_use]
     pub fn new() -> Self {
         Self {

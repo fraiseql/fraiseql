@@ -10,6 +10,7 @@ pub struct CSRFManager {
 }
 
 impl CSRFManager {
+    /// Create a new CSRF manager with specified secret
     #[must_use]
     pub const fn new(secret: String) -> Self {
         Self { secret }

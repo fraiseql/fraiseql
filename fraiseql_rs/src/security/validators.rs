@@ -28,6 +28,7 @@ impl Default for QueryLimits {
 }
 
 impl QueryLimits {
+    /// Production-recommended query limits (balanced security and usability)
     #[must_use]
     pub const fn production() -> Self {
         Self {
@@ -38,6 +39,7 @@ impl QueryLimits {
         }
     }
 
+    /// Strict query limits for high-security environments
     #[must_use]
     pub const fn strict() -> Self {
         Self {
@@ -55,6 +57,7 @@ pub struct QueryValidator {
 }
 
 impl QueryValidator {
+    /// Create a new query validator with specified limits
     #[must_use]
     pub const fn new(limits: QueryLimits) -> Self {
         Self { limits }
