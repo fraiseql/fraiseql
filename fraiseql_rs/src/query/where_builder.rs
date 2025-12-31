@@ -34,6 +34,13 @@ impl WhereClauseBuilder {
     }
 
     /// Build WHERE clause from arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - WHERE argument JSON is invalid or malformed
+    /// - Recursive WHERE clause building fails (invalid operators, missing fields)
+    /// - Unsupported filter operations are used
     pub fn build_where(&mut self, where_arg: &GraphQLArgument) -> Result<String> {
         // Parse WHERE argument as JSON
         let where_json: JsonValue = serde_json::from_str(&where_arg.value_json)
