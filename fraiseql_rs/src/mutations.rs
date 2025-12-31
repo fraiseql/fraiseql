@@ -4,9 +4,13 @@ use crate::db::types::{DatabaseError, QueryParam};
 use serde_json::Value;
 use tokio_postgres::Client;
 
+/// Type of database mutation operation
 pub enum MutationType {
+    /// INSERT operation - create new rows
     Insert,
+    /// UPDATE operation - modify existing rows
     Update,
+    /// DELETE operation - remove rows
     Delete,
 }
 
