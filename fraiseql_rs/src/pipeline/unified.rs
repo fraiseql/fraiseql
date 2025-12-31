@@ -39,6 +39,7 @@ pub struct GraphQLPipeline {
 }
 
 impl GraphQLPipeline {
+    /// Create a new unified GraphQL pipeline with schema and cache
     #[must_use]
     pub const fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>) -> Self {
         Self { schema, cache }
