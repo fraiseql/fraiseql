@@ -118,6 +118,10 @@ impl Default for SecurityConfig {
 
 impl SecurityConfig {
     /// Load configuration from environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if configuration validation fails.
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
         let mut config = Self::default();
 
@@ -198,6 +202,13 @@ impl SecurityConfig {
     }
 
     /// Validate configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - CSRF is enabled but secret is missing
+    /// - Audit logging is enabled but database URL is missing
+    /// - Rate limit requests is zero
     pub fn validate(&self) -> Result<(), Box<dyn std::error::Error>> {
         // Validate CSRF secret if enabled
         if self.csrf.enabled && self.csrf.secret.is_none() {
@@ -236,6 +247,10 @@ pub struct SecurityComponents {
 
 impl SecurityComponents {
     /// Build security components from configuration
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     pub async fn from_config(
         config: &SecurityConfig,
         pool: Option<deadpool_postgres::Pool>,
