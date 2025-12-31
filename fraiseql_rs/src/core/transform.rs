@@ -132,6 +132,14 @@ impl<'a> ZeroCopyTransformer<'a> {
     /// - Time complexity: O(n) where n = input size
     /// - Space complexity: O(k) where k = output size (pre-allocated)
     /// - Allocations: 1 (output buffer), rest uses arena
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Input is not valid JSON (malformed syntax)
+    /// - JSON nesting depth exceeds `MAX_JSON_DEPTH` (64 levels)
+    /// - String is unterminated
+    /// - Boolean, null, or number has invalid format
     pub fn transform_bytes(
         &mut self,
         input: &[u8],
@@ -374,6 +382,9 @@ impl<'a> ByteReader<'a> {
         ByteReader { bytes, pos: 0 }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the end of input is reached unexpectedly.
     #[inline(always)]
     pub fn peek_byte(&mut self) -> Result<u8, TransformError> {
         self.skip_whitespace();
@@ -383,6 +394,11 @@ impl<'a> ByteReader<'a> {
             .ok_or(TransformError::UnexpectedEof)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The end of input is reached unexpectedly
+    /// - The next byte does not match the expected byte
     #[inline]
     pub fn expect_byte(&mut self, expected: u8) -> Result<(), TransformError> {
         self.skip_whitespace();
@@ -403,6 +419,12 @@ impl<'a> ByteReader<'a> {
     /// Read JSON string (returns slice into input buffer - ZERO COPY!)
     ///
     /// This is critical for performance: we NEVER allocate for keys!
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - String is not properly quoted
+    /// - String is unterminated (missing closing quote)
     #[inline]
     pub fn read_string(&mut self) -> Result<&'a [u8], TransformError> {
         self.skip_whitespace();
@@ -445,6 +467,10 @@ impl<'a> ByteReader<'a> {
     }
 
     /// Read escaped string (slow path)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string is unterminated.
     fn read_escaped_string(&mut self, start: usize) -> Result<&'a [u8], TransformError> {
         // For now, just skip to end - full escaping handled by writer
         while self.pos < self.bytes.len() {
@@ -459,6 +485,10 @@ impl<'a> ByteReader<'a> {
     }
 
     /// Read boolean value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value is not `true` or `false`.
     pub fn read_bool(&mut self) -> Result<&'a [u8], TransformError> {
         self.skip_whitespace();
         if self.bytes[self.pos..].starts_with(b"true") {
@@ -473,6 +503,10 @@ impl<'a> ByteReader<'a> {
     }
 
     /// Read null value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value is not `null`.
     pub fn read_null(&mut self) -> Result<(), TransformError> {
         self.skip_whitespace();
         if self.bytes[self.pos..].starts_with(b"null") {
@@ -484,6 +518,10 @@ impl<'a> ByteReader<'a> {
     }
 
     /// Read number
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no valid number is found at the current position.
     pub fn read_number(&mut self) -> Result<&'a [u8], TransformError> {
         self.skip_whitespace();
         let start = self.pos;
@@ -614,6 +652,9 @@ impl<'a> JsonWriter<'a> {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if string escaping fails (currently never fails).
     #[inline(always)]
     pub fn write_key(&mut self, key: &[u8]) -> Result<(), TransformError> {
         if self.needs_comma {
@@ -627,6 +668,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if string escaping fails (currently never fails).
     #[inline(always)]
     pub fn write_string(&mut self, value: &[u8]) -> Result<(), TransformError> {
         self.output.push(b'"');
@@ -636,6 +680,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_raw(&mut self, value: &[u8]) -> Result<(), TransformError> {
         self.output.extend_from_slice(value);
@@ -643,6 +690,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_null(&mut self) -> Result<(), TransformError> {
         self.output.extend_from_slice(b"null");
@@ -650,6 +700,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_object_start(&mut self) -> Result<(), TransformError> {
         self.output.push(b'{');
@@ -657,6 +710,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_object_end(&mut self) -> Result<(), TransformError> {
         self.output.push(b'}');
@@ -664,6 +720,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_array_start(&mut self) -> Result<(), TransformError> {
         self.output.push(b'[');
@@ -671,6 +730,9 @@ impl<'a> JsonWriter<'a> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_array_end(&mut self) -> Result<(), TransformError> {
         self.output.push(b']');
@@ -679,6 +741,10 @@ impl<'a> JsonWriter<'a> {
     }
 
     /// Write comma separator (for array elements)
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error, but the Result type allows for future validation.
     #[inline(always)]
     pub fn write_comma(&mut self) -> Result<(), TransformError> {
         self.output.push(b',');
