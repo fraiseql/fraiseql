@@ -237,7 +237,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py"]
+exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py", ".phases"]
 fix = true
 
 [tool.ruff.lint]
@@ -361,6 +361,19 @@ ignore = [
 ]
 "frameworks/**/*.py" = [
   "ALL", # Prototype frameworks - not production code
+]
+"src/fraiseql/resolvers/**/*.py" = [
+  "ANN001",  # Example/template resolvers - type annotations optional
+  "DTZ003",  # datetime.utcnow() acceptable in examples
+  "TRY002",  # Generic exceptions OK in example code
+]
+"src/fraiseql/core/query_builder.py" = [
+  "ANN205",  # Staticmethod return type annotation optional
+]
+"src/fraiseql/fastapi/middleware.py" = [
+  "ANN001",  # FastAPI middleware signature compatibility
+  "ANN201",  # FastAPI middleware return type compatibility
+  "D102",    # FastAPI middleware method docstring optional
 ]
 "fraiseql_rs/**/*.py" = [
   "ALL", # Rust bridge code - has special requirements
