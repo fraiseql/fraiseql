@@ -8,6 +8,13 @@ use serde_json::Value;
 /// Automatically detects format:
 /// - Full: Has valid status field
 /// - Simple: No status field OR invalid status value
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - JSON string is invalid or malformed
+/// - Full format parsing fails (missing required fields)
+/// - Simple format parsing fails (invalid structure)
 pub fn parse_mutation_response(
     json_str: &str,
     default_entity_type: Option<&str>,
