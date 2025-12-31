@@ -24,6 +24,14 @@ impl SQLComposer {
     }
 
     /// Compose complete SQL query from parsed GraphQL.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Root table/view not found in schema metadata
+    /// - WHERE clause building fails (invalid filter syntax)
+    /// - ORDER BY clause construction fails
+    /// - SQL composition fails
     pub fn compose(&self, parsed_query: &ParsedQuery) -> Result<ComposedSQL> {
         // Get root field
         let root_field = &parsed_query.selections[0];
