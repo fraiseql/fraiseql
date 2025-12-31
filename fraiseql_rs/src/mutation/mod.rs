@@ -45,6 +45,13 @@ use serde_json::Value;
 /// * `auto_camel_case` - Whether to convert field names and JSON keys to camelCase
 /// * `success_type_fields` - Optional list of expected fields in success type for validation
 /// * `error_type_fields` - Optional list of expected fields in error type for field selection
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - JSON parsing fails for mutation response
+/// - GraphQL response building fails
+/// - Response serialization to bytes fails
 #[allow(clippy::too_many_arguments)]
 pub fn build_mutation_response(
     mutation_json: &str,
@@ -375,6 +382,12 @@ impl MutationResult {
     /// # Arguments
     /// * `json_str` - Raw JSON from `PostgreSQL`
     /// * `default_entity_type` - Entity type to use for simple format (e.g., "User")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON string is not valid JSON syntax
+    /// - JSON value parsing fails
     pub fn from_json(json_str: &str, default_entity_type: Option<&str>) -> Result<Self, String> {
         let v: Value = serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {e}"))?;
 
@@ -382,6 +395,13 @@ impl MutationResult {
     }
 
     /// Parse from `serde_json` Value with smart format detection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON value structure is invalid or unexpected
+    /// - Required fields are missing in full format
+    /// - Status value is invalid
     pub fn from_value(v: &Value, default_entity_type: Option<&str>) -> Result<Self, String> {
         // SMART DETECTION: Check if this is simple format
         let is_simple = match v.get("status").and_then(|s| s.as_str()) {
