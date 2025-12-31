@@ -1,17 +1,29 @@
-use lazy_static::lazy_static;
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use std::sync::{Arc, Mutex};
+//! FraiseQL Rust PostgreSQL Driver
+//!
+//! High-performance Rust backend for PostgreSQL operations with GraphQL integration.
 
 // ============================================================================
 // CLIPPY SUPPRESSION POLICY
 // ============================================================================
 // Allow specific exceptions at module level with justification
-#[allow(
+#![allow(
     // Justification: Required by PyO3 FFI bindings
     unsafe_code,
 )]
+
+// Deny specific anti-patterns
+#![deny(
+    // Force completion of placeholder code
+    clippy::todo,
+)]
+
 // Warn on everything else (configured in Cargo.toml)
+
+use lazy_static::lazy_static;
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use std::sync::{Arc, Mutex};
+
 // Sub-modules
 pub mod auth;
 pub mod cache;

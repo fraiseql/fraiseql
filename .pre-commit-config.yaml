@@ -36,14 +36,14 @@ repos:
     hooks:
       - id: clippy
         name: Clippy Check
-        entry: bash -c 'cargo update --quiet && cargo clippy --lib -- -D warnings'
+        entry: bash -c 'cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings'
         language: system
         files: \.rs$
         pass_filenames: false
 
       - id: rustfmt
         name: Rustfmt
-        entry: cargo fmt --all
+        entry: bash -c 'cd fraiseql_rs && cargo fmt --all'
         language: system
         files: \.rs$
         pass_filenames: false

@@ -92,11 +92,21 @@ check:
 ## clippy: Run Clippy linter with strict warnings
 clippy:
 	@echo "🔍 Running Clippy..."
-	@cd fraiseql_rs && cargo clippy --lib -- -D warnings
+	@cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings
 	@echo "✅ Clippy checks passed"
 
-## lint: Alias for clippy
-lint: clippy
+## lint-clippy: Alias for clippy
+lint-clippy: clippy
+
+## lint: Run all linting checks (Clippy + fmt)
+lint: lint-clippy lint-fmt
+	@echo "✅ All linting checks passed"
+
+## lint-fmt: Check code formatting (no changes)
+lint-fmt:
+	@echo "📋 Checking formatting..."
+	@cd fraiseql_rs && cargo fmt --all -- --check
+	@echo "✅ Code formatting is correct"
 
 ## fmt: Auto-format Rust code
 fmt format:
@@ -104,11 +114,11 @@ fmt format:
 	@cd fraiseql_rs && cargo fmt --all
 	@echo "✅ Code formatted"
 
-## fmt-check: Check formatting without changes
-fmt-check:
-	@echo "📋 Checking formatting..."
-	@cd fraiseql_rs && cargo fmt --all -- --check
-	@echo "✅ Formatting is correct"
+## clean-clippy: Clear Clippy warnings cache
+clean-clippy:
+	@echo "🧹 Clearing Clippy cache..."
+	@cd fraiseql_rs && cargo clean && cargo build --message-format=short
+	@echo "✅ Clippy cache cleared"
 
 # ============================================================================
 # TESTING TARGETS (Phase 0.2)

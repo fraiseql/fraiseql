@@ -12,50 +12,40 @@ categories = ["web-programming", "api-bindings"]
 publish = false
 
 # ============================================================================
-# LINTING CONFIGURATION - Phase 0.1: Quality Enforcement Foundation
+# LINTING CONFIGURATION - Phase 0.1: Strict Mode for Production Code
 # ============================================================================
 [lints.clippy]
-# Core quality lints (allow some flexibility initially)
-todo = "deny"                     # FORCE completion before merge
-unwrap_used = "allow"             # Allow unwrap() calls temporarily
+# All clippy lints as baseline (lower priority than specific lints)
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+# Specific strict enforcement
+unwrap_used = "warn"              # Catch unwrap() calls
 expect_used = "warn"              # Catch expect() calls
 panic = "warn"                    # Catch panic!() calls
 unimplemented = "warn"            # Catch unimplemented!()
+todo = "deny"                     # FORCE completion before merge
 dbg_macro = "warn"                # Catch debug macros
 
-# Performance basics
-redundant_clone = "warn"
-vec_init_then_push = "warn"
+# Performance anti-patterns
 inefficient_to_string = "warn"
 manual_str_repeat = "warn"
+redundant_clone = "warn"
 explicit_deref_methods = "warn"
+vec_init_then_push = "warn"
 
-# Code clarity basics
-too_many_arguments = "warn"       # Enforce function argument limits
+# Code clarity
 cognitive_complexity = "warn"     # Detect overly complex functions
-
-# Allow existing patterns temporarily (will tighten in future phases)
-excessive_nesting = "allow"       # Allow existing nested code
-unreadable_literal = "allow"      # Allow existing numeric literals
-needless_raw_string_hashes = "allow"  # Allow existing raw strings
-doc_markdown = "allow"            # Allow missing backticks in docs
-missing_errors_doc = "allow"      # Allow missing error docs
-uninlined_format_args = "allow"   # Allow existing format strings
-manual_let_else = "allow"         # Allow existing match patterns
-unnecessary_wraps = "allow"       # Allow existing Result wrapping
-must_use_candidate = "allow"      # Allow missing must_use
-use_self = "allow"                # Allow explicit type names
-inline_always = "allow"           # Allow inline(always) attributes
-empty_line_after_outer_attr = "allow"  # Allow existing formatting
+too_many_arguments = "warn"       # Enforce function argument limits
 type_complexity = "warn"          # Detect overly complex types
-manual_is_multiple_of = "allow"   # Allow existing modulo checks
-unit_arg = "allow"                # Allow existing unit args
+excessive_nesting = "warn"        # Limit nesting depth
 
 [lints.rust]
-unsafe_code = "allow"             # Allow unsafe code (documented and justified)
-missing_docs = "allow"            # Allow missing docs temporarily
-missing_debug_implementations = "allow"  # Allow missing Debug impls temporarily
-unsafe_op_in_unsafe_fn = "allow"  # Allow unsafe ops in unsafe fns
+unsafe_code = "warn"              # Track all unsafe blocks
+missing_docs = "warn"             # Require docs on public items
+missing_debug_implementations = "warn"  # Require Debug impls
+unsafe_op_in_unsafe_fn = "warn"   # Require docs in unsafe fns
 
 [lib]
 name = "fraiseql_rs"
