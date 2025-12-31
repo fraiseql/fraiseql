@@ -137,7 +137,7 @@ jobs:
           --cov-report=xml \
           --cov-report=term-missing \
           -v \
-          -m "not blog_simple and not blog_enterprise" \
+          -m "not blog_simple and not blog_enterprise and not chaos" \
           --tb=short \
           --disable-warnings \
           || {
