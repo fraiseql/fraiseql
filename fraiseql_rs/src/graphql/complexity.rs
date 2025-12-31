@@ -285,6 +285,7 @@ impl Default for ComplexityDetector {
 }
 
 impl ComplexityDetector {
+    /// Create a new complexity detector with default configuration
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -292,6 +293,7 @@ impl ComplexityDetector {
         }
     }
 
+    /// Create a new complexity detector with custom configuration
     #[must_use]
     pub const fn with_config(config: ComplexityConfig) -> Self {
         Self {
