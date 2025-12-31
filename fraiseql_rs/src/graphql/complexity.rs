@@ -56,7 +56,7 @@ impl Default for ComplexityAnalyzer {
 
 impl ComplexityAnalyzer {
     /// Create a new complexity analyzer with default config
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: ComplexityConfig::default(),
@@ -64,13 +64,13 @@ impl ComplexityAnalyzer {
     }
 
     /// Create analyzer with custom configuration
-    #[must_use] 
+    #[must_use]
     pub const fn with_config(config: ComplexityConfig) -> Self {
         Self { config }
     }
 
     /// Analyze query complexity
-    #[must_use] 
+    #[must_use]
     pub fn analyze(&self, query: &ParsedQuery) -> ComplexityResult {
         let score = self.calculate_complexity(query);
         let exceeded = score > self.config.max_complexity;
@@ -83,7 +83,7 @@ impl ComplexityAnalyzer {
     }
 
     /// Analyze query complexity with detailed breakdown
-    #[must_use] 
+    #[must_use]
     pub fn analyze_detailed(
         &self,
         query: &ParsedQuery,
@@ -94,7 +94,7 @@ impl ComplexityAnalyzer {
     }
 
     /// Get complexity breakdown for debugging
-    #[must_use] 
+    #[must_use]
     pub fn get_complexity_breakdown(&self, query: &ParsedQuery) -> HashMap<String, u32> {
         let mut breakdown = HashMap::new();
 
@@ -280,14 +280,14 @@ impl Default for ComplexityDetector {
 }
 
 impl ComplexityDetector {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             analyzer: ComplexityAnalyzer::new(),
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_config(config: ComplexityConfig) -> Self {
         Self {
             analyzer: ComplexityAnalyzer::with_config(config),
@@ -295,7 +295,7 @@ impl ComplexityDetector {
     }
 
     /// Check if a query is potentially malicious based on complexity
-    #[must_use] 
+    #[must_use]
     pub fn is_potentially_malicious(&self, query: &ParsedQuery) -> bool {
         let result = self.analyzer.analyze(query);
 

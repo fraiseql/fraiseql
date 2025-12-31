@@ -46,7 +46,7 @@ impl FieldSet {
 
     /// Check if field is in projection set
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn contains(&self, field_name: &[u8]) -> bool {
         let hash = field_hash(field_name);
         self.contains_hash(hash)

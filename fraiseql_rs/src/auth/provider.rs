@@ -11,6 +11,10 @@ type Result<T> = std::result::Result<T, AuthError>;
 #[async_trait]
 pub trait AuthProvider: Send + Sync {
     /// Validate a token and return user context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token is invalid, expired, or cannot be validated.
     async fn validate_token(&self, token: &str) -> Result<UserContext>;
 }
 
@@ -21,6 +25,10 @@ pub struct Auth0Provider {
 
 impl Auth0Provider {
     /// Create a new Auth0 provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the JWT validator cannot be initialized.
     pub fn new(domain: &str, audience: Vec<String>) -> Result<Self> {
         let issuer = format!("https://{domain}/");
         let jwks_url = format!("https://{domain}/.well-known/jwks.json");
@@ -78,6 +86,10 @@ pub struct CustomJWTProvider {
 
 impl CustomJWTProvider {
     /// Create a new custom JWT provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the JWT validator cannot be initialized.
     pub fn new(
         issuer: String,
         audience: Vec<String>,

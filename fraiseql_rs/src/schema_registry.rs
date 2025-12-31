@@ -13,7 +13,8 @@ use std::sync::Arc;
 
 /// Empty registry constant for efficient atomic operations
 /// This avoids allocating new Arc instances during `compare_and_swap`
-static EMPTY_REGISTRY: std::sync::LazyLock<Arc<SchemaRegistry>> = std::sync::LazyLock::new(|| Arc::new(SchemaRegistry::empty()));
+static EMPTY_REGISTRY: std::sync::LazyLock<Arc<SchemaRegistry>> =
+    std::sync::LazyLock::new(|| Arc::new(SchemaRegistry::empty()));
 
 /// Global schema registry using lock-free atomic access
 /// Instead of `RwLock`<Option<T>>, we use `ArcSwap`<T> directly
@@ -40,19 +41,19 @@ pub struct FieldInfo {
 
 impl FieldInfo {
     /// Get the type name of this field
-    #[must_use] 
+    #[must_use]
     pub fn type_name(&self) -> &str {
         &self.type_name
     }
 
     /// Check if this is a nested object type
-    #[must_use] 
+    #[must_use]
     pub const fn is_nested_object(&self) -> bool {
         self.is_nested_object
     }
 
     /// Check if this is a list type
-    #[must_use] 
+    #[must_use]
     pub const fn is_list(&self) -> bool {
         self.is_list
     }
@@ -85,7 +86,7 @@ impl SchemaRegistry {
     /// Create an empty `SchemaRegistry`
     ///
     /// Used internally for initializing the global registry before it's populated.
-    #[must_use] 
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             version: String::new(),
@@ -113,13 +114,13 @@ impl SchemaRegistry {
     }
 
     /// Get the schema IR version
-    #[must_use] 
+    #[must_use]
     pub fn version(&self) -> &str {
         &self.version
     }
 
     /// Check if a feature is enabled in this schema
-    #[must_use] 
+    #[must_use]
     pub fn has_feature(&self, feature: &str) -> bool {
         self.features.contains(&feature.to_string())
     }
@@ -142,7 +143,7 @@ impl SchemaRegistry {
     /// This method tries both formats to find the field:
     /// 1. First tries the original field name
     /// 2. If not found, tries camelCase version (for `snake_case` inputs)
-    #[must_use] 
+    #[must_use]
     pub fn get_field_type(&self, type_name: &str, field_name: &str) -> Option<&FieldInfo> {
         let type_info = self.types.get(type_name)?;
 
@@ -159,7 +160,7 @@ impl SchemaRegistry {
     }
 
     /// Get the number of types in the registry
-    #[must_use] 
+    #[must_use]
     pub fn type_count(&self) -> usize {
         self.types.len()
     }

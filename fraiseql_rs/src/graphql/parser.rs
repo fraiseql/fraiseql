@@ -1,6 +1,8 @@
 //! GraphQL query parser using graphql-parser crate.
 
-use crate::graphql::types::{ParsedQuery, FieldSelection, VariableDefinition, GraphQLArgument, Directive, GraphQLType};
+use crate::graphql::types::{
+    Directive, FieldSelection, GraphQLArgument, GraphQLType, ParsedQuery, VariableDefinition,
+};
 use anyhow::{anyhow, Result};
 use graphql_parser::query::{
     self, Definition, Directive as GraphQLDirective, Document, OperationDefinition, Selection,
@@ -188,7 +190,8 @@ fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Ve
                 // TODO Phase 9: Implement proper inline fragment handling
                 let type_name = frag
                     .type_condition
-                    .as_ref().map_or_else(|| "(unknown)".to_string(), |t| format!("{t}"));
+                    .as_ref()
+                    .map_or_else(|| "(unknown)".to_string(), |t| format!("{t}"));
                 return Err(anyhow!(
                     "Inline fragments not yet supported: ... on {type_name}"
                 ));

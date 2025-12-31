@@ -316,7 +316,7 @@ impl ByteBuf {
     /// - Field names: +50% if camelCase (longer keys)
     /// - Projection: -50% if projecting (fewer fields)
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn with_estimated_capacity(input_size: usize, config: &TransformConfig) -> Self {
         let base = (input_size as f32 * 1.2) as usize;
 
@@ -344,7 +344,7 @@ impl ByteBuf {
         self.buf.extend_from_slice(bytes);
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn into_vec(self) -> Vec<u8> {
         self.buf
     }
@@ -364,7 +364,7 @@ pub struct ByteReader<'a> {
 
 impl<'a> ByteReader<'a> {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn new(bytes: &'a [u8]) -> Self {
         ByteReader { bytes, pos: 0 }
     }

@@ -10,13 +10,13 @@ pub struct CSRFManager {
 }
 
 impl CSRFManager {
-    #[must_use] 
+    #[must_use]
     pub const fn new(secret: String) -> Self {
         Self { secret }
     }
 
     /// Generate CSRF token for session
-    #[must_use] 
+    #[must_use]
     pub fn generate_token(&self, session_id: &str) -> String {
         let nonce: [u8; 32] = rand::thread_rng().gen();
         let payload = format!("{}:{}", session_id, hex::encode(nonce));
@@ -63,14 +63,14 @@ impl CSRFManager {
     }
 
     /// Check if token format is valid (without full validation)
-    #[must_use] 
+    #[must_use]
     pub fn is_valid_format(&self, token: &str) -> bool {
         let parts: Vec<&str> = token.split(':').collect();
         parts.len() == 3 && !parts.iter().any(|part| part.is_empty())
     }
 
     /// Get token expiry time (CSRF tokens don't expire but this could be extended)
-    #[must_use] 
+    #[must_use]
     pub const fn token_lifetime_seconds(&self) -> u64 {
         // CSRF tokens are typically valid for the session
         // This could be made configurable for per-token expiry

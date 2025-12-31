@@ -3,7 +3,7 @@
 use serde_json::{Map, Value};
 
 /// Convert `snake_case` to camelCase
-#[must_use] 
+#[must_use]
 pub fn to_camel_case(snake: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = false;

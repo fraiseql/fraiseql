@@ -101,7 +101,7 @@ impl Arena {
     /// # Recommended Capacities
     /// - 8KB for small requests (< 50 fields)
     /// - 64KB for large requests (> 500 fields)
-    #[must_use] 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             buf: UnsafeCell::new(Vec::with_capacity(capacity.min(MAX_ARENA_SIZE))),
@@ -116,7 +116,7 @@ impl Arena {
     /// # Arguments
     /// * `capacity` - Initial buffer capacity
     /// * `max_size` - Maximum allowed size (capped at `MAX_ARENA_SIZE`)
-    #[must_use] 
+    #[must_use]
     pub fn with_capacity_and_max(capacity: usize, max_size: usize) -> Self {
         let effective_max = max_size.min(MAX_ARENA_SIZE);
         Self {

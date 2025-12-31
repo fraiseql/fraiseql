@@ -35,7 +35,7 @@ pub struct GraphQLPipeline {
 }
 
 impl GraphQLPipeline {
-    #[must_use] 
+    #[must_use]
     pub const fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>) -> Self {
         Self { schema, cache }
     }

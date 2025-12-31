@@ -37,6 +37,12 @@ pub struct JWTValidator {
 
 impl JWTValidator {
     /// Create a new JWT validator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The JWKS URL does not use HTTPS
+    /// - The HTTP client fails to initialize
     pub fn new(issuer: String, audience: Vec<String>, jwks_url: String) -> Result<Self> {
         // Validate HTTPS for JWKS URL
         if !jwks_url.starts_with("https://") {
@@ -61,6 +67,17 @@ impl JWTValidator {
     }
 
     /// Validate a JWT token.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The token header is invalid or missing
+    /// - The key ID (kid) is missing from the header
+    /// - The JWKS fetch fails
+    /// - The JWK conversion fails
+    /// - The token signature is invalid
+    /// - The token is expired
+    /// - The issuer or audience validation fails
     pub async fn validate(&self, token: &str) -> Result<Claims> {
         // Decode header to get key ID
         let header = decode_header(token)
@@ -100,6 +117,11 @@ struct JWKSCache {
 }
 
 impl JWKSCache {
+    /// Create a new JWKS cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache capacity is 0 (which cannot happen with the hardcoded value of 100).
     fn new() -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap()))),
@@ -108,6 +130,16 @@ impl JWKSCache {
     }
 
     /// Get a JWK by key ID, from cache or by fetching.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The JWKS fetch from the URL fails
+    /// - The requested key ID is not found in the JWKS
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache mutex is poisoned.
     async fn get_jwk(&self, kid: &str, jwks_url: &str, client: &reqwest::Client) -> Result<Jwk> {
         // Check cache with TTL validation
         {
@@ -147,6 +179,13 @@ impl JWKSCache {
     }
 
     /// Fetch JWKS from URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The HTTP request fails
+    /// - The server returns a non-success status code
+    /// - The response body cannot be parsed as JSON
     async fn fetch_jwks(&self, url: &str, client: &reqwest::Client) -> Result<JwkSet> {
         let response = client.get(url).send().await?;
 

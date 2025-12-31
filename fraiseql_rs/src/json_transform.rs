@@ -141,9 +141,7 @@ fn transform_nested_object(
             // Unexpected type - pass through with warning in debug mode
             _ => {
                 #[cfg(debug_assertions)]
-                eprintln!(
-                    "Warning: Expected array for list type '{type_name}', got {value}"
-                );
+                eprintln!("Warning: Expected array for list type '{type_name}', got {value}");
                 value.clone()
             }
         }
@@ -188,7 +186,7 @@ fn transform_nested_object(
 /// let result = transform_with_schema(&input, "Assignment", &registry);
 /// // result: {"__typename": "Assignment", "id": "1", "equipment": {"__typename": "Equipment", ...}}
 /// ```
-#[must_use] 
+#[must_use]
 pub fn transform_with_schema(
     value: &Value,
     current_type: &str,
@@ -287,7 +285,7 @@ pub fn transform_with_schema(
 /// let result = transform_with_selections(&input, "User", &selections, &registry);
 /// // result: {"__typename": "User", "username": "John"}
 /// ```
-#[must_use] 
+#[must_use]
 pub fn transform_with_selections(
     value: &Value,
     current_type: &str,

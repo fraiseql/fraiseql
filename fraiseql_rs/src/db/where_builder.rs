@@ -45,7 +45,7 @@ pub struct WhereBuilder {
 
 impl WhereBuilder {
     /// Create a new WHERE clause builder.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             conditions: Vec::new(),
@@ -109,7 +109,7 @@ impl WhereBuilder {
     }
 
     /// Add an IN condition.
-    #[must_use] 
+    #[must_use]
     pub fn in_list<T: Into<QueryParam>>(mut self, field: &str, values: Vec<T>) -> Self {
         let params: Vec<QueryParam> = values.into_iter().map(std::convert::Into::into).collect();
         self.conditions
@@ -119,7 +119,7 @@ impl WhereBuilder {
     }
 
     /// Add a LIKE condition.
-    #[must_use] 
+    #[must_use]
     pub fn like(mut self, field: &str, pattern: &str) -> Self {
         self.conditions
             .push(WhereCondition::Like(field.to_string(), pattern.to_string()));
@@ -128,7 +128,7 @@ impl WhereBuilder {
     }
 
     /// Add an IS NULL condition.
-    #[must_use] 
+    #[must_use]
     pub fn is_null(mut self, field: &str) -> Self {
         self.conditions
             .push(WhereCondition::IsNull(field.to_string()));
@@ -136,7 +136,7 @@ impl WhereBuilder {
     }
 
     /// Add an IS NOT NULL condition.
-    #[must_use] 
+    #[must_use]
     pub fn is_not_null(mut self, field: &str) -> Self {
         self.conditions
             .push(WhereCondition::IsNotNull(field.to_string()));
@@ -144,7 +144,7 @@ impl WhereBuilder {
     }
 
     /// Combine with AND.
-    #[must_use] 
+    #[must_use]
     pub fn and(mut self, other: Self) -> Self {
         if let (Some(left), Some(right)) =
             (self.conditions.pop(), other.conditions.first().cloned())
@@ -157,7 +157,7 @@ impl WhereBuilder {
     }
 
     /// Combine with OR.
-    #[must_use] 
+    #[must_use]
     pub fn or(mut self, other: Self) -> Self {
         if let (Some(left), Some(right)) =
             (self.conditions.pop(), other.conditions.first().cloned())
@@ -170,7 +170,7 @@ impl WhereBuilder {
     }
 
     /// Build the WHERE clause SQL and return parameters.
-    #[must_use] 
+    #[must_use]
     pub fn build(self) -> (String, Vec<QueryParam>) {
         if self.conditions.is_empty() {
             return (String::new(), vec![]);

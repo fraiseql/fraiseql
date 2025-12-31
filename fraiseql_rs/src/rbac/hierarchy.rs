@@ -68,7 +68,7 @@ pub struct RoleHierarchy {
 }
 
 impl RoleHierarchy {
-    #[must_use] 
+    #[must_use]
     pub const fn new(pool: Pool) -> Self {
         Self { pool }
     }
@@ -104,7 +104,10 @@ impl RoleHierarchy {
         ";
 
         let client = self.pool.get().await?;
-        let role_id_strings: Vec<String> = role_ids.iter().map(std::string::ToString::to_string).collect();
+        let role_id_strings: Vec<String> = role_ids
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         let tenant_id_string = tenant_id.map(|id| id.to_string());
         let rows = client
             .query(sql, &[&role_id_strings, &tenant_id_string])

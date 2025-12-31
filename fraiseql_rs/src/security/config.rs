@@ -151,7 +151,7 @@ impl SecurityConfig {
     }
 
     /// Create production configuration
-    #[must_use] 
+    #[must_use]
     pub fn production() -> Self {
         let mut config = Self::default();
 
@@ -164,7 +164,7 @@ impl SecurityConfig {
     }
 
     /// Create strict configuration for high-security environments
-    #[must_use] 
+    #[must_use]
     pub fn strict() -> Self {
         let mut config = Self::production();
 

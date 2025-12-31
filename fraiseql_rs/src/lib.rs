@@ -226,9 +226,7 @@ fn python_to_json(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<serde_json:
         serde_json::Number::from_f64(f)
             .map(serde_json::Value::Number)
             .ok_or_else(|| {
-                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Invalid float value: {f}"
-                ))
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid float value: {f}"))
             })
     } else if let Ok(s) = value.extract::<String>() {
         Ok(serde_json::Value::String(s))
@@ -512,7 +510,7 @@ pub fn reset_schema_registry_for_testing() -> PyResult<()> {
 /// Returns:
 ///     True if the registry has been initialized, False otherwise
 #[pyfunction]
-#[must_use] 
+#[must_use]
 pub fn is_schema_registry_initialized() -> bool {
     schema_registry::is_initialized()
 }

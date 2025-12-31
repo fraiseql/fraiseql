@@ -23,7 +23,7 @@ pub enum ParameterValue {
 }
 
 impl WhereClauseBuilder {
-    #[must_use] 
+    #[must_use]
     pub const fn new(schema: SchemaMetadata, view_name: String) -> Self {
         Self {
             schema,
@@ -262,7 +262,7 @@ impl WhereClauseBuilder {
         Ok(())
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get_params(self) -> Vec<(String, ParameterValue)> {
         self.params
     }

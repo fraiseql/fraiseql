@@ -37,7 +37,7 @@ pub enum AuditEventType {
 }
 
 impl AuditEventType {
-    #[must_use] 
+    #[must_use]
     pub const fn severity(&self) -> AuditSeverity {
         match self {
             Self::LoginFailure
@@ -45,15 +45,13 @@ impl AuditEventType {
             | Self::InvalidToken
             | Self::SecurityViolation => AuditSeverity::High,
 
-            Self::RateLimitExceeded | Self::SuspiciousActivity => {
-                AuditSeverity::Medium
-            }
+            Self::RateLimitExceeded | Self::SuspiciousActivity => AuditSeverity::Medium,
 
             _ => AuditSeverity::Low,
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn category(&self) -> &'static str {
         match self {
             Self::LoginSuccess
@@ -67,9 +65,7 @@ impl AuditEventType {
             | Self::RoleAssigned
             | Self::RoleRevoked => "authorization",
 
-            Self::DataRead | Self::DataWrite | Self::DataDelete => {
-                "data_access"
-            }
+            Self::DataRead | Self::DataWrite | Self::DataDelete => "data_access",
 
             Self::RateLimitExceeded
             | Self::InvalidToken
@@ -105,7 +101,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
-    #[must_use] 
+    #[must_use]
     pub fn new(event_type: AuditEventType) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -123,50 +119,50 @@ impl AuditEvent {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_user(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_tenant(mut self, tenant_id: Uuid) -> Self {
         self.tenant_id = Some(tenant_id);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_resource(mut self, resource: String, action: String) -> Self {
         self.resource = Some(resource);
         self.action = Some(action);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_status(mut self, status: String) -> Self {
         self.status = status;
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
         self.metadata = Some(metadata);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_ip(mut self, ip_address: String) -> Self {
         self.ip_address = Some(ip_address);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_user_agent(mut self, user_agent: String) -> Self {
         self.user_agent = Some(user_agent);
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_severity(mut self, severity: AuditSeverity) -> Self {
         self.severity = severity;
         self
@@ -180,7 +176,7 @@ pub struct AuditLogger {
 
 impl AuditLogger {
     /// Create audit logger with async worker
-    #[must_use] 
+    #[must_use]
     pub fn new(pool: Pool) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
@@ -211,9 +207,7 @@ impl AuditLogger {
                 }
                 Err(e) => {
                     consecutive_errors += 1;
-                    eprintln!(
-                        "Failed to write audit log (attempt {consecutive_errors}): {e}"
-                    );
+                    eprintln!("Failed to write audit log (attempt {consecutive_errors}): {e}");
 
                     // If too many consecutive errors, log to stderr and continue
                     // In production, this might trigger alerts or fallback logging

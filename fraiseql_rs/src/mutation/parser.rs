@@ -1,6 +1,6 @@
 // fraiseql_rs/src/mutation/parser.rs
 
-use crate::mutation::types::{MutationResponse, MutationError, SimpleResponse, FullResponse};
+use crate::mutation::types::{FullResponse, MutationError, MutationResponse, SimpleResponse};
 use serde_json::Value;
 
 /// Parse JSONB string into `MutationResponse`
@@ -59,7 +59,9 @@ fn is_valid_mutation_status(status: &str) -> bool {
 }
 
 /// Parse simple format (entity only)
-const fn parse_simple(value: Value) -> Result<SimpleResponse, crate::mutation::types::MutationError> {
+const fn parse_simple(
+    value: Value,
+) -> Result<SimpleResponse, crate::mutation::types::MutationError> {
     Ok(SimpleResponse { entity: value })
 }
 

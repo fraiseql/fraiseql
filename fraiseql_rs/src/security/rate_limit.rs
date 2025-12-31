@@ -47,7 +47,7 @@ impl Default for RateLimiter {
 }
 
 impl RateLimiter {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             limits: HashMap::new(),

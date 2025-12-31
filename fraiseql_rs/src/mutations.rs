@@ -16,9 +16,7 @@ impl MutationType {
             "insert" => Ok(Self::Insert),
             "update" => Ok(Self::Update),
             "delete" => Ok(Self::Delete),
-            _ => Err(DatabaseError::Query(format!(
-                "Unknown mutation type: {s}"
-            ))),
+            _ => Err(DatabaseError::Query(format!("Unknown mutation type: {s}"))),
         }
     }
 }
@@ -173,9 +171,7 @@ fn build_insert_sql(
 
     let columns_str = columns.join(", ");
     let values_str = values.join(", ");
-    let sql = format!(
-        "INSERT INTO {table} ({columns_str}) VALUES ({values_str})"
-    );
+    let sql = format!("INSERT INTO {table} ({columns_str}) VALUES ({values_str})");
 
     Ok((sql, params))
 }

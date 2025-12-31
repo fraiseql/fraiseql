@@ -32,14 +32,14 @@ pub struct ParsedQuery {
 #[pymethods]
 impl ParsedQuery {
     /// Get query signature for caching (ignores variables).
-    #[must_use] 
+    #[must_use]
     pub fn signature(&self) -> String {
         // Used by Phase 8 for query plan caching
         format!("{}::{}", self.operation_type, self.root_field)
     }
 
     /// Check if query is cacheable (no variables).
-    #[must_use] 
+    #[must_use]
     pub const fn is_cacheable(&self) -> bool {
         self.variables.is_empty()
     }

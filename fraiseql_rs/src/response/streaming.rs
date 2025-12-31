@@ -63,7 +63,7 @@ pub struct ChunkedWriter {
 }
 
 impl ChunkedWriter {
-    #[must_use] 
+    #[must_use]
     pub fn new(chunk_size: usize) -> Self {
         Self {
             buffer: Vec::with_capacity(chunk_size),
@@ -72,7 +72,7 @@ impl ChunkedWriter {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn should_flush(&self) -> bool {
         self.buffer.len() >= self.chunk_size
     }
@@ -87,7 +87,7 @@ impl ChunkedWriter {
         ))
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn total_written(&self) -> usize {
         self.total_written
     }

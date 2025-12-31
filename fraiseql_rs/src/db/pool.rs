@@ -19,6 +19,12 @@ impl DatabasePool {
     /// Create a new database connection pool with real database connections (Phase 1.5)
     /// Note: Currently returns mock implementation for `PyO3` compatibility
     /// Full async support will be implemented in Phase 2.0
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database URL format is invalid
+    /// - The database URL structure is incomplete
     pub async fn new(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
         // For Phase 1.5, we validate the URL but return mock implementation
         // Real async database connections will be implemented in Phase 2.0
@@ -46,6 +52,12 @@ impl DatabasePool {
     }
 
     /// Create a new database connection pool (Phase 1.5: Real connections available)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database URL format is invalid
+    /// - The database URL structure is incomplete
     pub fn new_sync(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
         // For Phase 1.5, we provide real connections but still use sync API for PyO3 compatibility
         // Full async support will come in Phase 2.0
@@ -74,6 +86,12 @@ impl DatabasePool {
     }
 
     /// Get a connection from the pool (Phase 1.5: Real connections)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The pool is not initialized
+    /// - Failed to acquire a connection from the pool
     pub async fn get_connection(&self) -> DatabaseResult<deadpool_postgres::Object> {
         match &self.pool {
             Some(pool) => pool
@@ -87,19 +105,24 @@ impl DatabasePool {
     }
 
     /// Perform a health check on the pool (Phase 1.5: Real health checks)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The pool is not initialized
+    /// - Failed to acquire a connection for health check
+    /// - The health check query fails
     pub async fn health_check(&self) -> DatabaseResult<()> {
         match &self.pool {
             Some(pool) => {
                 // Try to get a connection and execute a simple query
                 let conn = pool.get().await.map_err(|e| {
-                    DatabaseError::Connection(format!(
-                        "Health check failed to get connection: {e}"
-                    ))
+                    DatabaseError::Connection(format!("Health check failed to get connection: {e}"))
                 })?;
 
-                conn.simple_query("SELECT 1").await.map_err(|e| {
-                    DatabaseError::Query(format!("Health check query failed: {e}"))
-                })?;
+                conn.simple_query("SELECT 1")
+                    .await
+                    .map_err(|e| DatabaseError::Query(format!("Health check query failed: {e}")))?;
 
                 Ok(())
             }
@@ -110,7 +133,7 @@ impl DatabasePool {
     }
 
     /// Get pool statistics (Phase 1.5: Real statistics)
-    #[must_use] 
+    #[must_use]
     pub fn stats(&self) -> ConnectionInfo {
         match &self.pool {
             Some(pool) => {
@@ -143,13 +166,13 @@ impl DatabasePool {
     }
 
     /// Get pool configuration
-    #[must_use] 
+    #[must_use]
     pub const fn pool_config(&self) -> &PoolConfig {
         &self.config
     }
 
     /// Get the underlying pool (for internal use by RBAC/Security modules)
-    #[must_use] 
+    #[must_use]
     pub const fn get_pool(&self) -> Option<&Pool> {
         self.pool.as_ref()
     }
@@ -174,7 +197,7 @@ impl DatabasePool {
     }
 
     /// Get pool statistics as a string
-    #[must_use] 
+    #[must_use]
     pub fn get_stats(&self) -> String {
         let info = self.stats();
         format!(
@@ -184,7 +207,7 @@ impl DatabasePool {
     }
 
     /// Get pool configuration summary as a string
-    #[must_use] 
+    #[must_use]
     pub fn get_config_summary(&self) -> String {
         format!(
             "Pool config: max_size={}, min_idle={}",
@@ -193,7 +216,7 @@ impl DatabasePool {
     }
 
     /// Get a string representation for debugging
-    #[must_use] 
+    #[must_use]
     pub fn __repr__(&self) -> String {
         format!(
             "DatabasePool(max_size={}, min_idle={})",
@@ -204,6 +227,10 @@ impl DatabasePool {
 
 impl DatabasePool {
     /// Parse Python configuration dict into Rust `PoolConfig`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any configuration value cannot be extracted or converted to the expected type.
     fn parse_config_dict(config: &Bound<'_, PyDict>) -> PyResult<PoolConfig> {
         let mut pool_config = PoolConfig::default();
 

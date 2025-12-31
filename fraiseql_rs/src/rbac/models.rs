@@ -60,8 +60,10 @@ impl Role {
                 .get::<_, Option<String>>(4)
                 .and_then(|s| Uuid::parse_str(&s).ok()),
             is_system: row.get(5),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(7)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6))
+                .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(7))
+                .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
         }
     }
 }
@@ -104,7 +106,7 @@ pub struct Permission {
 
 impl Permission {
     /// Check if permission matches resource:action pattern
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, resource: &str, action: &str) -> bool {
         // Exact match
         if self.resource == resource && self.action == action {
@@ -135,7 +137,8 @@ impl Permission {
             constraints: row
                 .get::<_, Option<String>>(4)
                 .and_then(|s| serde_json::from_str(&s).ok()),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
+                .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
         }
     }
 }
@@ -188,7 +191,7 @@ pub struct UserRole {
 
 impl UserRole {
     /// Check if role assignment is still valid
-    #[must_use] 
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
             Utc::now() < expires_at
@@ -209,7 +212,8 @@ impl UserRole {
             granted_by: row
                 .get::<_, Option<String>>(4)
                 .and_then(|s| Uuid::parse_str(&s).ok()),
-            granted_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)).map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+            granted_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5))
+                .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
             expires_at: row
                 .get::<_, Option<String>>(6)
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())

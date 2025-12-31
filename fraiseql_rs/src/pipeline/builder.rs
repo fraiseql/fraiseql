@@ -154,9 +154,7 @@ fn build_with_schema(
         };
 
         return serde_json::to_vec(&field_data).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "Failed to serialize field data: {e}"
-            ))
+            pyo3::exceptions::PyValueError::new_err(format!("Failed to serialize field data: {e}"))
         });
     }
 

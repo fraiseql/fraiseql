@@ -148,7 +148,7 @@ impl PermissionCache {
     }
 
     /// Create new cache with capacity and default TTL
-    #[must_use] 
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self::with_ttl(capacity, Duration::from_secs(300)) // 5 minute default TTL
     }
@@ -158,7 +158,7 @@ impl PermissionCache {
     /// # Arguments
     /// * `capacity` - Maximum number of cached entries (uses default if 0)
     /// * `default_ttl` - Time-to-live for cache entries
-    #[must_use] 
+    #[must_use]
     pub fn with_ttl(capacity: usize, default_ttl: Duration) -> Self {
         // Use default capacity if provided capacity is 0
         let effective_capacity = NonZeroUsize::new(capacity).unwrap_or(DEFAULT_CACHE_CAPACITY);

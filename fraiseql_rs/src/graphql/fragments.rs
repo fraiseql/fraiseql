@@ -14,7 +14,7 @@ pub struct FragmentGraph {
 
 impl FragmentGraph {
     /// Create a new fragment graph from parsed query
-    #[must_use] 
+    #[must_use]
     pub fn new(query: &ParsedQuery) -> Self {
         let mut dependencies = HashMap::new();
 

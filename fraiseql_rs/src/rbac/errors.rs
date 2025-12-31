@@ -58,10 +58,7 @@ impl fmt::Display for RbacError {
                 user_id,
             } => {
                 if let Some(user) = user_id {
-                    write!(
-                        f,
-                        "Permission denied: {resource}:{action} for user {user}"
-                    )
+                    write!(f, "Permission denied: {resource}:{action} for user {user}")
                 } else {
                     write!(f, "Permission denied: {resource}:{action}")
                 }

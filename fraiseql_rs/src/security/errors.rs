@@ -66,10 +66,7 @@ impl fmt::Display for SecurityError {
                 complexity,
                 max_complexity,
             } => {
-                write!(
-                    f,
-                    "Query too complex: {complexity} (max: {max_complexity})"
-                )
+                write!(f, "Query too complex: {complexity} (max: {max_complexity})")
             }
             Self::QueryTooLarge { size, max_size } => {
                 write!(f, "Query too large: {size} bytes (max: {max_size})")

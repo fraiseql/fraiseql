@@ -67,8 +67,7 @@ impl CascadeSelections {
     /// }
     /// ```
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        serde_json::from_str(json_str)
-            .map_err(|e| format!("Invalid cascade selections JSON: {e}"))
+        serde_json::from_str(json_str).map_err(|e| format!("Invalid cascade selections JSON: {e}"))
     }
 }
 

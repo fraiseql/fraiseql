@@ -81,7 +81,7 @@ pub struct PermissionResolver {
 }
 
 impl PermissionResolver {
-    #[must_use] 
+    #[must_use]
     pub fn new(pool: Pool, cache_capacity: usize) -> Self {
         let hierarchy = RoleHierarchy::new(pool.clone());
         let cache = Arc::new(PermissionCache::new(cache_capacity));
@@ -154,7 +154,10 @@ impl PermissionResolver {
         ";
 
         let client = self.pool.get().await?;
-        let role_id_strings: Vec<String> = all_role_ids.iter().map(std::string::ToString::to_string).collect();
+        let role_id_strings: Vec<String> = all_role_ids
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         let rows = client.query(sql, &[&role_id_strings]).await?;
         let permissions: Vec<Permission> = rows.into_iter().map(Permission::from_row).collect();
 
@@ -197,7 +200,7 @@ impl PermissionResolver {
     }
 
     /// Get cache statistics
-    #[must_use] 
+    #[must_use]
     pub fn cache_stats(&self) -> super::cache::CacheStats {
         self.cache.stats()
     }

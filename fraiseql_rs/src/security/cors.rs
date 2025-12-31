@@ -53,7 +53,7 @@ impl Default for CORSConfig {
 
 impl CORSConfig {
     /// Create production CORS config
-    #[must_use] 
+    #[must_use]
     pub fn production() -> Self {
         let mut config = Self::default();
         config.allowed_origins.clear(); // Must be explicitly configured
@@ -77,19 +77,19 @@ impl CORSConfig {
     }
 
     /// Check if origin is allowed
-    #[must_use] 
+    #[must_use]
     pub fn is_origin_allowed(&self, origin: &str) -> bool {
         self.allowed_origins.contains(origin) || self.allowed_origins.contains("*")
     }
 
     /// Check if method is allowed
-    #[must_use] 
+    #[must_use]
     pub fn is_method_allowed(&self, method: &str) -> bool {
         self.allowed_methods.contains(method) || self.allowed_methods.contains("*")
     }
 
     /// Check if header is allowed
-    #[must_use] 
+    #[must_use]
     pub fn is_header_allowed(&self, header: &str) -> bool {
         self.allowed_headers.contains(header) || self.allowed_headers.contains("*")
     }
@@ -101,7 +101,7 @@ pub struct CORSHandler {
 }
 
 impl CORSHandler {
-    #[must_use] 
+    #[must_use]
     pub const fn new(config: CORSConfig) -> Self {
         Self { config }
     }
@@ -144,8 +144,7 @@ impl CORSHandler {
 
         // Validate headers
         if let Some(request_headers) = headers {
-            let requested_headers: Vec<&str> =
-                request_headers.split(',').map(str::trim).collect();
+            let requested_headers: Vec<&str> = request_headers.split(',').map(str::trim).collect();
             for header in &requested_headers {
                 if !self.config.is_header_allowed(header) {
                     return Err(SecurityError::HeaderNotAllowed((*header).to_string()));
@@ -174,7 +173,7 @@ impl CORSHandler {
     }
 
     /// Add CORS headers to response
-    #[must_use] 
+    #[must_use]
     pub fn add_cors_headers(
         &self,
         origin: Option<&str>,
@@ -212,7 +211,7 @@ impl CORSHandler {
     }
 
     /// Check if request is a CORS preflight
-    #[must_use] 
+    #[must_use]
     pub fn is_preflight_request(method: &str, headers: &http::HeaderMap) -> bool {
         method == "OPTIONS"
             && headers.contains_key("origin")
@@ -221,7 +220,7 @@ impl CORSHandler {
     }
 
     /// Get the configuration
-    #[must_use] 
+    #[must_use]
     pub const fn config(&self) -> &CORSConfig {
         &self.config
     }

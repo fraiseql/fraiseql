@@ -14,9 +14,10 @@ pub struct Transaction<'a> {
 impl<'a> Transaction<'a> {
     /// Begin a new transaction.
     pub async fn begin(client: &'a mut Client) -> Result<Self, DatabaseError> {
-        client.execute("BEGIN", &[]).await.map_err(|e| {
-            DatabaseError::Transaction(format!("Failed to begin transaction: {e}"))
-        })?;
+        client
+            .execute("BEGIN", &[])
+            .await
+            .map_err(|e| DatabaseError::Transaction(format!("Failed to begin transaction: {e}")))?;
 
         Ok(Transaction {
             client,

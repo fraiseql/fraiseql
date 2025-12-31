@@ -196,7 +196,7 @@ impl MutationStatus {
     /// assert!(MutationStatus::from_str("CONFLICT:duplicate").is_error());
     /// ```
     #[allow(clippy::should_implement_trait)]
-    #[must_use] 
+    #[must_use]
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
@@ -229,12 +229,12 @@ impl MutationStatus {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn is_success(&self) -> bool {
         matches!(self, Self::Success(_))
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn is_noop(&self) -> bool {
         matches!(self, Self::Noop(_))
     }
@@ -242,7 +242,7 @@ impl MutationStatus {
     /// Returns true if this status should return Error type
     ///
     /// Both Noop and Error return Error type
-    #[must_use] 
+    #[must_use]
     pub const fn is_error(&self) -> bool {
         matches!(self, Self::Error(_) | Self::Noop(_))
     }
@@ -250,7 +250,7 @@ impl MutationStatus {
     /// Returns true if this status should return Success type
     ///
     /// Only Success(_) returns Success type
-    #[must_use] 
+    #[must_use]
     pub const fn is_graphql_success(&self) -> bool {
         matches!(self, Self::Success(_))
     }
@@ -259,7 +259,7 @@ impl MutationStatus {
     ///
     /// GraphQL always returns HTTP 200 OK.
     /// Use `application_code()` for REST-like categorization.
-    #[must_use] 
+    #[must_use]
     pub const fn http_code(&self) -> i32 {
         200 // Always 200 OK for GraphQL
     }
@@ -268,7 +268,7 @@ impl MutationStatus {
     ///
     /// This is NOT an HTTP status code. It's an application-level field
     /// that mirrors REST semantics for better developer experience.
-    #[must_use] 
+    #[must_use]
     pub fn application_code(&self) -> i32 {
         match self {
             Self::Success(_) => 200,
@@ -343,7 +343,7 @@ impl MutationResult {
     }
 
     /// Check if JSON is simple format (entity only, no mutation status)
-    #[must_use] 
+    #[must_use]
     pub fn is_simple_format_json(json_str: &str) -> bool {
         let v: Value = match serde_json::from_str(json_str) {
             Ok(v) => v,
@@ -368,8 +368,7 @@ impl MutationResult {
     /// * `json_str` - Raw JSON from `PostgreSQL`
     /// * `default_entity_type` - Entity type to use for simple format (e.g., "User")
     pub fn from_json(json_str: &str, default_entity_type: Option<&str>) -> Result<Self, String> {
-        let v: Value =
-            serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {e}"))?;
+        let v: Value = serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {e}"))?;
 
         Self::from_value(&v, default_entity_type)
     }
@@ -452,7 +451,7 @@ impl MutationResult {
     }
 
     /// Get errors array from metadata
-    #[must_use] 
+    #[must_use]
     pub fn errors(&self) -> Option<&Vec<Value>> {
         self.metadata
             .as_ref()

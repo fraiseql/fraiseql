@@ -89,7 +89,7 @@ impl PostgresMutationResponse {
     ///
     /// # Returns
     /// Internal `MutationResult` ready for GraphQL response building
-    #[must_use] 
+    #[must_use]
     pub fn to_mutation_result(self, _entity_type_fallback: Option<&str>) -> MutationResult {
         // CASCADE is already at Position 7 - just filter out nulls
         let cascade = self.cascade.filter(|c| !c.is_null());

@@ -31,7 +31,9 @@
 
 // Import architecture-specific intrinsics conditionally
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{_mm256_set1_epi8, _mm256_loadu_si256, __m256i, _mm256_cmpeq_epi8, _mm256_movemask_epi8};
+use std::arch::x86_64::{
+    __m256i, _mm256_cmpeq_epi8, _mm256_loadu_si256, _mm256_movemask_epi8, _mm256_set1_epi8,
+};
 
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::*;

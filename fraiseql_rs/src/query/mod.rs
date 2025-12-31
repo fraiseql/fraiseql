@@ -30,9 +30,7 @@ pub fn build_sql_query(
     // Compose SQL
     let composer = SQLComposer::new(schema);
     let sql_query = composer.compose(&parsed_query).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-            "Query composition failed: {e}"
-        ))
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {e}"))
     })?;
 
     // Return GeneratedQuery
@@ -82,9 +80,7 @@ pub fn build_sql_query_cached(
 
     let composer = SQLComposer::new(schema);
     let sql_query = composer.compose(&parsed_query).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-            "Query composition failed: {e}"
-        ))
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {e}"))
     })?;
 
     let result = GeneratedQuery {

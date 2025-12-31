@@ -14,7 +14,7 @@ pub struct FieldAuthChecker {
 }
 
 impl FieldAuthChecker {
-    #[must_use] 
+    #[must_use]
     pub const fn new(resolver: Arc<PermissionResolver>) -> Self {
         Self { resolver }
     }
@@ -48,9 +48,8 @@ impl FieldAuthChecker {
                 )
             })?;
 
-            let user_id = Uuid::parse_str(user_id_str).map_err(|e| {
-                RbacError::ConfigError(format!("Invalid user ID in context: {e}"))
-            })?;
+            let user_id = Uuid::parse_str(user_id_str)
+                .map_err(|e| RbacError::ConfigError(format!("Invalid user ID in context: {e}")))?;
 
             for perm in &field_permissions.required_permissions {
                 let (resource, action) = parse_permission(perm)?;
@@ -99,7 +98,7 @@ pub struct FieldPermissions {
 
 impl FieldPermissions {
     /// Check if any permissions are required
-    #[must_use] 
+    #[must_use]
     pub const fn has_requirements(&self) -> bool {
         !self.required_roles.is_empty()
             || !self.required_permissions.is_empty()

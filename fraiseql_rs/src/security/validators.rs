@@ -24,7 +24,7 @@ impl Default for QueryLimits {
 }
 
 impl QueryLimits {
-    #[must_use] 
+    #[must_use]
     pub const fn production() -> Self {
         Self {
             max_depth: 7,
@@ -34,7 +34,7 @@ impl QueryLimits {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn strict() -> Self {
         Self {
             max_depth: 5,
@@ -51,7 +51,7 @@ pub struct QueryValidator {
 }
 
 impl QueryValidator {
-    #[must_use] 
+    #[must_use]
     pub const fn new(limits: QueryLimits) -> Self {
         Self { limits }
     }
@@ -112,7 +112,7 @@ impl QueryValidator {
     }
 
     /// Calculate query complexity (estimated cost)
-    #[must_use] 
+    #[must_use]
     pub fn calculate_complexity(&self, query: &ParsedQuery) -> usize {
         query
             .selections
@@ -158,7 +158,7 @@ impl QueryValidator {
     }
 
     /// Get the configured limits
-    #[must_use] 
+    #[must_use]
     pub const fn limits(&self) -> &QueryLimits {
         &self.limits
     }

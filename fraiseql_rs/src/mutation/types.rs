@@ -47,7 +47,7 @@ pub enum StatusKind {
 impl StatusKind {
     /// Parse status string into classification
     #[allow(clippy::should_implement_trait)]
-    #[must_use] 
+    #[must_use]
     pub fn from_str(status: &str) -> Self {
         let status_lower = status.to_lowercase();
 
@@ -79,18 +79,18 @@ impl StatusKind {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn is_success(&self) -> bool {
         matches!(self, Self::Success(_))
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn is_error(&self) -> bool {
         matches!(self, Self::Error(_))
     }
 
     /// Map to HTTP status code
-    #[must_use] 
+    #[must_use]
     pub fn http_code(&self) -> u16 {
         match self {
             Self::Success(_) | Self::Noop(_) => 200,

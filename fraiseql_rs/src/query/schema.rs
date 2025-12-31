@@ -49,27 +49,27 @@ pub struct FieldType {
 
 impl SchemaMetadata {
     /// Get table schema by view name.
-    #[must_use] 
+    #[must_use]
     pub fn get_table(&self, view_name: &str) -> Option<&TableSchema> {
         self.tables.get(view_name)
     }
 
     /// Check if field is a direct SQL column.
-    #[must_use] 
+    #[must_use]
     pub fn is_sql_column(&self, view_name: &str, field_name: &str) -> bool {
         self.get_table(view_name)
             .is_some_and(|t| t.sql_columns.contains(&field_name.to_string()))
     }
 
     /// Check if field is a foreign key.
-    #[must_use] 
+    #[must_use]
     pub fn is_foreign_key(&self, view_name: &str, field_name: &str) -> bool {
         self.get_table(view_name)
             .is_some_and(|t| t.fk_mappings.contains_key(field_name))
     }
 
     /// Get foreign key column name.
-    #[must_use] 
+    #[must_use]
     pub fn get_fk_column(&self, view_name: &str, field_name: &str) -> Option<String> {
         self.get_table(view_name)
             .and_then(|t| t.fk_mappings.get(field_name).cloned())

@@ -39,7 +39,7 @@ impl Default for SecurityHeaders {
 
 impl SecurityHeaders {
     /// Create production-grade security headers
-    #[must_use] 
+    #[must_use]
     pub fn production() -> Self {
         let mut headers = Self::default().headers;
 
@@ -59,7 +59,7 @@ impl SecurityHeaders {
     }
 
     /// Get headers as Vec for HTTP response
-    #[must_use] 
+    #[must_use]
     pub fn to_vec(&self) -> Vec<(String, String)> {
         self.headers
             .iter()
@@ -78,19 +78,19 @@ impl SecurityHeaders {
     }
 
     /// Get header value
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&String> {
         self.headers.get(name)
     }
 
     /// Check if header exists
-    #[must_use] 
+    #[must_use]
     pub fn has(&self, name: &str) -> bool {
         self.headers.contains_key(name)
     }
 
     /// Get all header names
-    #[must_use] 
+    #[must_use]
     pub fn names(&self) -> Vec<String> {
         self.headers.keys().cloned().collect()
     }
@@ -103,7 +103,7 @@ impl SecurityHeaders {
     }
 
     /// Create headers for development environment
-    #[must_use] 
+    #[must_use]
     pub fn development() -> Self {
         let mut headers = Self::default().headers;
 

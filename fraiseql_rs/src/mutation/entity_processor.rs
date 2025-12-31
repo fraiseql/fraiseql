@@ -6,7 +6,7 @@ use crate::camel_case::to_camel_case;
 use serde_json::{Map, Value};
 
 /// Process entity: extract from wrapper if needed
-#[must_use] 
+#[must_use]
 pub fn process_entity(entity: &Value, entity_field_name: Option<&str>) -> ProcessedEntity {
     // Check if entity is a wrapper object
     let (actual_entity, wrapper_fields) = detect_and_extract_wrapper(entity, entity_field_name);
@@ -63,7 +63,7 @@ fn detect_and_extract_wrapper<'a>(
 }
 
 /// Add __typename to entity (recursively for nested objects)
-#[must_use] 
+#[must_use]
 pub fn add_typename_to_entity(entity: &Value, entity_type: &str, auto_camel_case: bool) -> Value {
     match entity {
         Value::Object(map) => {
@@ -126,7 +126,7 @@ fn transform_value(value: &Value, auto_camel_case: bool) -> Value {
 }
 
 /// Update `ProcessedEntity` to include entity with __typename
-#[must_use] 
+#[must_use]
 pub fn process_entity_with_typename(
     entity: &Value,
     entity_type: &str,
@@ -146,7 +146,7 @@ pub fn process_entity_with_typename(
 }
 
 /// Process CASCADE data: add __typename
-#[must_use] 
+#[must_use]
 pub fn process_cascade(cascade: &Value, auto_camel_case: bool) -> Value {
     match cascade {
         Value::Object(map) => {

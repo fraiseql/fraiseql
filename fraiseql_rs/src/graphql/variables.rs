@@ -22,7 +22,7 @@ pub struct VariableProcessor {
 
 impl VariableProcessor {
     /// Create a new variable processor
-    #[must_use] 
+    #[must_use]
     pub fn new(query: &ParsedQuery) -> Self {
         // Extract variable definitions from query
         let definitions = query
@@ -35,7 +35,7 @@ impl VariableProcessor {
     }
 
     /// Process and validate variables against their definitions
-    #[must_use] 
+    #[must_use]
     pub fn process_variables(
         &self,
         input_variables: &HashMap<String, serde_json::Value>,
@@ -147,7 +147,10 @@ impl VariableProcessor {
             serde_json::Value::String(s) => s
                 .parse::<f64>()
                 .map(|n| {
-                    serde_json::Number::from_f64(n).map_or_else(|| serde_json::Value::String(s.clone()), serde_json::Value::Number)
+                    serde_json::Number::from_f64(n).map_or_else(
+                        || serde_json::Value::String(s.clone()),
+                        serde_json::Value::Number,
+                    )
                 })
                 .map_err(|_| "Cannot coerce string to Float".to_string()),
             _ => Err("Cannot coerce value to Float".to_string()),
