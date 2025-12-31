@@ -134,6 +134,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
+    /// Create a new audit event with default values
     #[must_use]
     pub fn new(event_type: AuditEventType) -> Self {
         Self {
@@ -152,18 +153,21 @@ impl AuditEvent {
         }
     }
 
+    /// Set the user ID for this audit event
     #[must_use]
     pub const fn with_user(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
+    /// Set the tenant ID for this audit event
     #[must_use]
     pub const fn with_tenant(mut self, tenant_id: Uuid) -> Self {
         self.tenant_id = Some(tenant_id);
         self
     }
 
+    /// Set the resource and action for this audit event
     #[must_use]
     pub fn with_resource(mut self, resource: String, action: String) -> Self {
         self.resource = Some(resource);
@@ -171,30 +175,35 @@ impl AuditEvent {
         self
     }
 
+    /// Set the status for this audit event
     #[must_use]
     pub fn with_status(mut self, status: String) -> Self {
         self.status = status;
         self
     }
 
+    /// Set additional metadata for this audit event
     #[must_use]
     pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
         self.metadata = Some(metadata);
         self
     }
 
+    /// Set the IP address for this audit event
     #[must_use]
     pub fn with_ip(mut self, ip_address: String) -> Self {
         self.ip_address = Some(ip_address);
         self
     }
 
+    /// Set the user agent for this audit event
     #[must_use]
     pub fn with_user_agent(mut self, user_agent: String) -> Self {
         self.user_agent = Some(user_agent);
         self
     }
 
+    /// Set the severity level for this audit event
     #[must_use]
     pub const fn with_severity(mut self, severity: AuditSeverity) -> Self {
         self.severity = severity;
