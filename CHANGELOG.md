@@ -94,6 +94,30 @@ Fixed compilation errors preventing Rust performance benchmarks from running:
 - `fraiseql_rs/benches/core_benchmark.rs` - Fixed 3 compilation errors
 - `.github/workflows/performance.yml` - Added Python setup, simplified workflow
 
+#### ID Scalar Redefinition (PyPI Release Blocker)
+
+Fixed critical error preventing PyPI package installation: "Redefinition of reserved type 'ID'"
+
+**Root Cause**: FraiseQL was creating a custom GraphQLScalarType with name="ID", which conflicts with GraphQL's built-in reserved ID type. GraphQL-core 3.2.7+ prevents redefinition of reserved types.
+
+**Solution**: Use GraphQL's built-in `GraphQLID` instead of custom scalar
+- `src/fraiseql/types/scalars/id_scalar.py` - Changed `IDScalar` to alias GraphQL's built-in ID
+- `src/fraiseql/types/scalars/graphql_utils.py` - Map `IDField` to `GraphQLID`
+- `tests/types/test_id_type.py` - Updated tests to match built-in ID behavior
+
+**Impact**:
+- ✅ PyPI wheel installation works (no more import errors)
+- ✅ Backward compatible (IDScalar still exported, just aliases GraphQLID)
+- ✅ Follows GraphQL spec (ID is opaque string identifier)
+- ✅ Built-in ID handles UUID serialization natively
+
+**Behavior Change**: ID type now follows GraphQL spec:
+- `parse_value()` returns string (was: UUID object)
+- Accepts integers and converts to string (was: strict UUID validation)
+- More permissive per GraphQL spec (IDs are opaque identifiers)
+
+**Testing**: 6/6 ID scalar tests passing, 2/2 integration tests passing
+
 #### Middleware Testing
 
 - Improved test coverage for GraphQLInfoInjector middleware (54% → 80%+)
