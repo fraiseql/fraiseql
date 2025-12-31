@@ -36,13 +36,21 @@ use uuid::Uuid;
 /// - viewer (tenant, inherits user)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Role {
+    /// Unique role identifier
     pub id: Uuid,
+    /// Human-readable role name
     pub name: String,
+    /// Optional role description
     pub description: Option<String>,
+    /// Parent role for inheritance
     pub parent_role_id: Option<Uuid>,
+    /// Tenant scope (NULL = global)
     pub tenant_id: Option<Uuid>,
+    /// System role flag (cannot be deleted)
     pub is_system: bool,
+    /// Creation timestamp
     pub created_at: DateTime<Utc>,
+    /// Last update timestamp
     pub updated_at: DateTime<Utc>,
 }
 
@@ -96,11 +104,17 @@ impl Role {
 /// - "document:read" ✗
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Permission {
+    /// Unique permission identifier
     pub id: Uuid,
+    /// Resource name (e.g., "user", "document")
     pub resource: String,
+    /// Action type (e.g., "read", "write")
     pub action: String,
+    /// Optional permission description
     pub description: Option<String>,
+    /// Optional JSON constraints
     pub constraints: Option<serde_json::Value>,
+    /// Creation timestamp
     pub created_at: DateTime<Utc>,
 }
 
@@ -180,12 +194,19 @@ impl Permission {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRole {
+    /// Unique assignment identifier
     pub id: Uuid,
+    /// User receiving the role
     pub user_id: Uuid,
+    /// Role being assigned
     pub role_id: Uuid,
+    /// Tenant scope (NULL = global)
     pub tenant_id: Option<Uuid>,
+    /// Admin who granted this role
     pub granted_by: Option<Uuid>,
+    /// When role was granted
     pub granted_at: DateTime<Utc>,
+    /// Optional expiration time
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -246,8 +267,12 @@ impl UserRole {
 /// This is computed efficiently by the `PermissionResolver` with caching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RolePermission {
+    /// Unique mapping identifier
     pub id: Uuid,
+    /// Role that has this permission
     pub role_id: Uuid,
+    /// Permission granted to the role
     pub permission_id: Uuid,
+    /// When permission was assigned
     pub granted_at: DateTime<Utc>,
 }

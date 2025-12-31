@@ -91,9 +91,12 @@ impl FieldAuthChecker {
 /// Field permission requirements (from GraphQL directives)
 #[derive(Debug, Default, Clone)]
 pub struct FieldPermissions {
+    /// Roles required to access field
     pub required_roles: Vec<String>,
+    /// Permissions required to access field
     pub required_permissions: Vec<String>,
-    pub custom_checks: Vec<String>, // For Phase 12 advanced constraints
+    /// Custom permission checks (Phase 12)
+    pub custom_checks: Vec<String>,
 }
 
 impl FieldPermissions {

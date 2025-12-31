@@ -293,10 +293,14 @@ impl PermissionCache {
     }
 }
 
+/// Permission cache statistics
 #[derive(Debug)]
 pub struct CacheStats {
+    /// Maximum cache capacity
     pub capacity: usize,
+    /// Current number of entries
     pub size: usize,
+    /// Number of expired entries
     pub expired_count: usize,
 }
 
