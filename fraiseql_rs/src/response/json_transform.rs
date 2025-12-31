@@ -40,6 +40,12 @@ pub fn transform_row_keys(row: &Value) -> Value {
 }
 
 /// Transform JSONB field (nested) to camelCase
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - JSONB field string is invalid JSON
+/// - JSON parsing fails
 pub fn transform_jsonb_field(field_str: &str) -> Result<Value, serde_json::Error> {
     let value: Value = serde_json::from_str(field_str)?;
     Ok(transform_row_keys(&value))
