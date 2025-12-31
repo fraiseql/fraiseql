@@ -66,7 +66,8 @@ impl QueryPlanCache {
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
-                std::num::NonZeroUsize::new(max_size).unwrap(),
+                std::num::NonZeroUsize::new(max_size)
+                    .expect("cache size must be non-zero"),
             ))),
             max_size,
             hits: Arc::new(Mutex::new(0)),
@@ -91,10 +92,10 @@ impl QueryPlanCache {
 
         if let Some(plan) = cache.get_mut(signature) {
             plan.hit_count += 1;
-            *self.hits.lock().unwrap() += 1;
+            *self.hits.lock().expect("hits counter mutex poisoned") += 1;
             Ok(Some(plan.clone()))
         } else {
-            *self.misses.lock().unwrap() += 1;
+            *self.misses.lock().expect("misses counter mutex poisoned") += 1;
             Ok(None)
         }
     }
@@ -130,8 +131,8 @@ impl QueryPlanCache {
         cache.clear();
 
         // Reset counters
-        *self.hits.lock().unwrap() = 0;
-        *self.misses.lock().unwrap() = 0;
+        *self.hits.lock().expect("hits counter mutex poisoned") = 0;
+        *self.misses.lock().expect("misses counter mutex poisoned") = 0;
 
         Ok(())
     }
@@ -146,8 +147,8 @@ impl QueryPlanCache {
     ///
     /// Panics if the hits/misses counter mutex is poisoned.
     pub fn stats(&self) -> Result<CacheStats> {
-        let hits = *self.hits.lock().unwrap();
-        let misses = *self.misses.lock().unwrap();
+        let hits = *self.hits.lock().expect("hits counter mutex poisoned");
+        let misses = *self.misses.lock().expect("misses counter mutex poisoned");
         let size = self
             .cache
             .lock()
@@ -175,6 +176,7 @@ impl Default for QueryPlanCache {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Tests can use unwrap for simplicity
 mod tests {
     use super::*;
 
