@@ -5,6 +5,7 @@ use crate::query::schema::SchemaMetadata;
 use crate::query::where_builder::{ParameterValue, WhereClauseBuilder};
 use anyhow::{Context, Result};
 
+/// Composes SQL queries from GraphQL parsed queries
 pub struct SQLComposer {
     schema: SchemaMetadata,
 }
