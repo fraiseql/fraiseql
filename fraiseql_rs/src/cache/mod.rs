@@ -7,6 +7,7 @@ use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
+/// Cached GraphQL query execution plan
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedQueryPlan {
     /// Query signature (hash of query structure)
@@ -21,6 +22,7 @@ pub struct CachedQueryPlan {
     pub hit_count: u64,
 }
 
+/// Parameter metadata for cached query plans
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParamInfo {
     /// Parameter name
@@ -39,6 +41,7 @@ pub struct QueryPlanCache {
     misses: Arc<Mutex<u64>>,
 }
 
+/// Query plan cache statistics
 #[derive(Debug, Clone, Serialize)]
 pub struct CacheStats {
     /// Number of cache hits
