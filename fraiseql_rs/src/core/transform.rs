@@ -542,6 +542,12 @@ impl<'a> ByteReader<'a> {
     }
 
     /// Skip a JSON value (for field projection)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Unexpected byte encountered at current position
+    /// - JSON structure is malformed (unclosed objects/arrays, invalid strings, etc.)
     pub fn skip_value(&mut self) -> Result<(), TransformError> {
         self.skip_whitespace();
         match self.bytes[self.pos] {
