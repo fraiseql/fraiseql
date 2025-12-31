@@ -20,10 +20,14 @@ use crate::query::schema::SchemaMetadata;
 /// User context for authorization and personalization.
 #[derive(Debug, Clone)]
 pub struct UserContext {
+    /// User identifier
     pub user_id: Option<String>,
+    /// User permissions
     pub permissions: Vec<String>,
+    /// User roles
     pub roles: Vec<String>,
-    pub exp: u64, // Expiration timestamp for cache management
+    /// Expiration timestamp for cache management
+    pub exp: u64,
 }
 
 /// Complete unified GraphQL pipeline.

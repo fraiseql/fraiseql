@@ -94,59 +94,73 @@ pub struct Directive {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphQLArgument {
+    /// Argument name
     #[pyo3(get)]
-    pub name: String, // Argument name
+    pub name: String,
 
+    /// Value type: "object", "variable", or "scalar"
     #[pyo3(get)]
-    pub value_type: String, // "object" | "variable" | "scalar"
+    pub value_type: String,
 
+    /// Serialized value as JSON string
     #[pyo3(get)]
-    pub value_json: String, // Serialized value (JSON)
+    pub value_json: String,
 }
 
 /// GraphQL type representation
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphQLType {
+    /// Type name (e.g., "String", "User")
     #[pyo3(get)]
-    pub name: String, // Type name (e.g., "String", "User")
+    pub name: String,
+    /// Whether the type is nullable
     #[pyo3(get)]
-    pub nullable: bool, // Whether the type is nullable
+    pub nullable: bool,
+    /// Whether it's a list type
     #[pyo3(get)]
-    pub list: bool, // Whether it's a list type
+    pub list: bool,
+    /// Whether list items are nullable
     #[pyo3(get)]
-    pub list_nullable: bool, // Whether list items are nullable
+    pub list_nullable: bool,
 }
 
 /// Variable definition.
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableDefinition {
+    /// Variable name without $ prefix
     #[pyo3(get)]
-    pub name: String, // Variable name without $
+    pub name: String,
 
+    /// Structured type information
     #[pyo3(get)]
-    pub var_type: GraphQLType, // Structured type information
+    pub var_type: GraphQLType,
 
+    /// Default value as JSON string
     #[pyo3(get)]
-    pub default_value: Option<String>, // Default value as JSON string
+    pub default_value: Option<String>,
 }
 
 /// Fragment definition.
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentDefinition {
+    /// Fragment name
     #[pyo3(get)]
-    pub name: String, // Fragment name
+    pub name: String,
 
+    /// Type this fragment applies to (e.g., "User")
     #[pyo3(get)]
-    pub type_condition: String, // Type this fragment applies to (e.g., "User")
+    pub type_condition: String,
 
+    /// Fields selected in fragment
     #[pyo3(get)]
-    pub selections: Vec<FieldSelection>, // Fields selected in fragment
+    pub selections: Vec<FieldSelection>,
 
+    /// Names of other fragments this one spreads
     #[pyo3(get)]
-    pub fragment_spreads: Vec<String>, // Names of other fragments this one spreads
+    pub fragment_spreads: Vec<String>,
 }
 
 impl Default for ParsedQuery {

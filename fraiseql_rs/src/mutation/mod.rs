@@ -303,13 +303,21 @@ impl MutationStatus {
 /// 2. Full: Complete `mutation_response` with status, message, entity, etc.
 #[derive(Debug, Clone)]
 pub struct MutationResult {
+    /// Mutation status classification
     pub status: MutationStatus,
+    /// Human-readable message
     pub message: String,
+    /// Entity identifier
     pub entity_id: Option<String>,
+    /// Entity type name
     pub entity_type: Option<String>,
+    /// Entity data
     pub entity: Option<Value>,
+    /// List of updated fields
     pub updated_fields: Option<Vec<String>>,
+    /// Cascade data
     pub cascade: Option<Value>,
+    /// Additional metadata
     pub metadata: Option<Value>,
     /// True if this was parsed from simple JSONB format (no status field)
     pub is_simple_format: bool,

@@ -22,16 +22,23 @@ pub struct SimpleResponse {
 /// Full mutation response format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FullResponse {
-    pub status: String,  // REQUIRED
-    pub message: String, // REQUIRED
+    /// Status string (required)
+    pub status: String,
+    /// Human-readable message (required)
+    pub message: String,
+    /// PascalCase type name
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_type: Option<String>, // PascalCase type name
+    pub entity_type: Option<String>,
+    /// Entity data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity: Option<Value>,
+    /// List of updated fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_fields: Option<Vec<String>>,
+    /// Cascade data
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cascade: Option<Value>, // Just another optional field
+    pub cascade: Option<Value>,
+    /// Additional metadata
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
 }
