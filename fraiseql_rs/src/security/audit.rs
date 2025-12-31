@@ -86,17 +86,29 @@ pub enum AuditSeverity {
 /// Audit event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
+    /// Unique event identifier
     pub id: Uuid,
+    /// Type of audit event
     pub event_type: AuditEventType,
+    /// User who triggered the event
     pub user_id: Option<Uuid>,
+    /// Tenant context
     pub tenant_id: Option<Uuid>,
+    /// Resource being accessed
     pub resource: Option<String>,
+    /// Action performed
     pub action: Option<String>,
-    pub status: String, // "success" or "failure"
+    /// Event status: "success" or "failure"
+    pub status: String,
+    /// Client IP address
     pub ip_address: Option<String>,
+    /// Client user agent
     pub user_agent: Option<String>,
+    /// Additional event metadata
     pub metadata: Option<serde_json::Value>,
+    /// Event timestamp
     pub timestamp: DateTime<Utc>,
+    /// Event severity level
     pub severity: AuditSeverity,
 }
 
@@ -337,8 +349,11 @@ impl Clone for AuditLogger {
     }
 }
 
+/// Audit log statistics
 #[derive(Debug)]
 pub struct AuditStats {
+    /// Total number of audit events
     pub total_events: usize,
+    /// Number of recent events (last 24 hours)
     pub recent_events: usize,
 }

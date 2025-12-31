@@ -13,42 +13,64 @@ use std::env;
 /// Master security configuration
 #[derive(Debug)]
 pub struct SecurityConfig {
+    /// Rate limiting configuration
     pub rate_limiting: RateLimitingConfig,
+    /// Security headers configuration
     pub headers: SecurityHeadersConfig,
+    /// Audit logging configuration
     pub audit: AuditConfig,
+    /// Query validation configuration
     pub query_validation: QueryValidationConfig,
+    /// CSRF protection configuration
     pub csrf: CSRFConfig,
+    /// CORS configuration
     pub cors: CORSConfig,
 }
 
+/// Rate limiting configuration
 #[derive(Debug)]
 pub struct RateLimitingConfig {
+    /// Whether rate limiting is enabled
     pub enabled: bool,
+    /// Default rate limit for all endpoints
     pub default_limit: RateLimit,
+    /// Per-endpoint rate limits
     pub endpoint_limits: Vec<(String, RateLimit)>,
 }
 
+/// Security headers configuration
 #[derive(Debug)]
 pub struct SecurityHeadersConfig {
+    /// Whether security headers are enabled
     pub enabled: bool,
-    pub environment: String, // "development" | "production"
+    /// Environment: "development" or "production"
+    pub environment: String,
 }
 
+/// Audit logging configuration
 #[derive(Debug)]
 pub struct AuditConfig {
+    /// Whether audit logging is enabled
     pub enabled: bool,
+    /// Database URL for audit logs
     pub database_url: Option<String>,
 }
 
+/// Query validation configuration
 #[derive(Debug)]
 pub struct QueryValidationConfig {
+    /// Whether query validation is enabled
     pub enabled: bool,
+    /// Query limits to enforce
     pub limits: QueryLimits,
 }
 
+/// CSRF protection configuration
 #[derive(Debug)]
 pub struct CSRFConfig {
+    /// Whether CSRF protection is enabled
     pub enabled: bool,
+    /// Secret for CSRF token generation
     pub secret: Option<String>,
 }
 
