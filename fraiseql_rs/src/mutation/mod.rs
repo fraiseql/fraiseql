@@ -163,9 +163,12 @@ mod integration_tests {
 /// Mutation result status classification
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationStatus {
-    Success(String), // "success", "new", "updated", "deleted"
-    Noop(String),    // "noop:reason" - no changes made
-    Error(String),   // "failed:reason" - actual error
+    /// Successful mutation (success, new, updated, deleted)
+    Success(String),
+    /// No operation performed with reason (noop:reason)
+    Noop(String),
+    /// Mutation failed with error reason (failed:reason)
+    Error(String),
 }
 
 impl std::fmt::Display for MutationStatus {
