@@ -6,8 +6,8 @@
 # Stage 1: Builder
 FROM python:3.13-slim AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
+# Install build dependencies and security updates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
@@ -50,11 +50,12 @@ FROM python:3.13-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team"
-LABEL org.opencontainers.image.version="0.1.0"
-LABEL org.opencontainers.image.description="Production-ready GraphQL-to-PostgreSQL framework"
+LABEL org.opencontainers.image.version="1.9.1"
+LABEL org.opencontainers.image.description="Production-ready GraphQL-to-PostgreSQL framework with native Rust performance"
 
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+# Install runtime dependencies and security updates
+# CVE Fixes: CVE-2025-14104, CVE-2025-6141, CVE-2024-56433
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
