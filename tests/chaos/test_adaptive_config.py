@@ -8,6 +8,7 @@ fixtures work correctly.
 import pytest
 
 
+@pytest.mark.chaos
 def test_environment_info_fixture(environment_info):
     """Test that environment_info fixture works."""
     assert environment_info is not None
@@ -20,7 +21,8 @@ def test_environment_info_fixture(environment_info):
     # Hardware should be detected
     assert environment_info.hardware.cpu_count > 0
     assert environment_info.hardware.memory_gb > 0
-    assert environment_info.hardware.cpu_freq_mhz > 0
+    # CPU frequency might not be available in CI/containerized environments
+    assert environment_info.hardware.cpu_freq_mhz >= 0
 
 
 def test_chaos_config_fixture(chaos_config):
