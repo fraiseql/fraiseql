@@ -9,6 +9,7 @@ pub struct ResponseBuilder {
 }
 
 impl ResponseBuilder {
+    /// Create a new response builder with default chunk size (8KB)
     #[must_use]
     pub const fn new() -> Self {
         Self {
