@@ -7,6 +7,7 @@ use crate::graphql::types::{GraphQLType, ParsedQuery, VariableDefinition};
 use std::collections::HashMap;
 
 /// Variable processing result
+#[derive(Debug)]
 pub struct VariableResult {
     /// Processed variables with coerced values
     pub variables: HashMap<String, serde_json::Value>,
@@ -15,6 +16,7 @@ pub struct VariableResult {
 }
 
 /// Variable processor for advanced GraphQL variable handling
+#[derive(Debug)]
 pub struct VariableProcessor {
     /// Variable definitions from the query
     definitions: HashMap<String, VariableDefinition>,

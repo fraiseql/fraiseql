@@ -168,6 +168,7 @@ pub fn clear_cache() -> PyResult<()> {
 }
 
 /// Generated SQL query with parameters for Python binding
+#[derive(Debug)]
 #[pyclass]
 pub struct GeneratedQuery {
     /// SQL query string

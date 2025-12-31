@@ -7,6 +7,7 @@ use crate::graphql::types::{FragmentDefinition, ParsedQuery};
 use std::collections::{HashMap, HashSet};
 
 /// Fragment dependency graph and cycle detection
+#[derive(Debug)]
 pub struct FragmentGraph {
     /// Map of fragment name to set of fragment names it depends on
     dependencies: HashMap<String, HashSet<String>>,

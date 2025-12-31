@@ -6,11 +6,13 @@ use crate::query::where_builder::{ParameterValue, WhereClauseBuilder};
 use anyhow::{Context, Result};
 
 /// Composes SQL queries from GraphQL parsed queries
+#[derive(Debug)]
 pub struct SQLComposer {
     schema: SchemaMetadata,
 }
 
 /// Composed SQL query with typed parameters
+#[derive(Debug)]
 pub struct ComposedSQL {
     /// SQL query string
     pub sql: String,

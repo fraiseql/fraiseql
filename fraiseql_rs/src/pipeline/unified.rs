@@ -31,6 +31,7 @@ pub struct UserContext {
 }
 
 /// Complete unified GraphQL pipeline.
+#[derive(Debug)]
 pub struct GraphQLPipeline {
     schema: SchemaMetadata,
     cache: Arc<QueryPlanCache>,
@@ -226,6 +227,7 @@ impl GraphQLPipeline {
 }
 
 /// Python wrapper for the unified pipeline.
+#[derive(Debug)]
 #[pyclass]
 pub struct PyGraphQLPipeline {
     pipeline: Arc<GraphQLPipeline>,

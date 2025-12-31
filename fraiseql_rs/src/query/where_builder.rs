@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 use serde_json::Value as JsonValue;
 
 /// Builds SQL WHERE clauses from GraphQL filter arguments
+#[derive(Debug)]
 pub struct WhereClauseBuilder {
     schema: SchemaMetadata,
     view_name: String,

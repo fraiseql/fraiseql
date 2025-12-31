@@ -5,6 +5,7 @@ use serde_json::Value;
 use tokio_postgres::Client;
 
 /// Type of database mutation operation
+#[derive(Debug)]
 pub enum MutationType {
     /// INSERT operation - create new rows
     Insert,
