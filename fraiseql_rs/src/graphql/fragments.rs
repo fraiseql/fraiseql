@@ -63,6 +63,12 @@ impl FragmentGraph {
     /// Detect cycles in fragment dependencies using DFS
     ///
     /// Returns Ok(()) if no cycles found, `Err(cycle_path)` if cycle detected
+    ///
+    /// # Errors
+    ///
+    /// Returns an error with the cycle path if:
+    /// - A circular fragment dependency is detected
+    /// - A fragment references itself directly or indirectly
     pub fn detect_cycles(&self) -> Result<(), Vec<String>> {
         let mut visited = HashSet::new();
         let mut recursion_stack = HashSet::new();
@@ -135,6 +141,11 @@ impl FragmentGraph {
     }
 
     /// Validate all fragments in the query
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Fragment cycle is detected (with formatted cycle path in error message)
     pub fn validate_fragments(&self) -> Result<(), String> {
         self.detect_cycles()
             .map_err(|cycle| format!("Fragment cycle detected: {}", cycle.join(" -> ")))
