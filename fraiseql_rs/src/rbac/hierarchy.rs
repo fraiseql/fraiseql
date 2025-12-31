@@ -68,6 +68,7 @@ pub struct RoleHierarchy {
 }
 
 impl RoleHierarchy {
+    /// Create a new role hierarchy manager with database pool
     #[must_use]
     pub const fn new(pool: Pool) -> Self {
         Self { pool }

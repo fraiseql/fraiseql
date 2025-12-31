@@ -81,6 +81,7 @@ pub struct PermissionResolver {
 }
 
 impl PermissionResolver {
+    /// Create a new permission resolver with database pool and cache
     #[must_use]
     pub fn new(pool: Pool, cache_capacity: usize) -> Self {
         let hierarchy = RoleHierarchy::new(pool.clone());

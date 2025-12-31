@@ -14,6 +14,7 @@ pub struct FieldAuthChecker {
 }
 
 impl FieldAuthChecker {
+    /// Create a new field-level authorization checker
     #[must_use]
     pub const fn new(resolver: Arc<PermissionResolver>) -> Self {
         Self { resolver }
