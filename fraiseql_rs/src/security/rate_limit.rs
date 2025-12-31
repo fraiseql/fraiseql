@@ -6,11 +6,14 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
-/// Rate limit strategy
+/// Rate limiting algorithm strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RateLimitStrategy {
+    /// Fixed time window - simple, fast, but allows bursts
     FixedWindow,
+    /// Sliding window - smoother rate limiting, more memory
     SlidingWindow,
+    /// Token bucket - recommended, smooth with burst allowance
     TokenBucket,
 }
 
