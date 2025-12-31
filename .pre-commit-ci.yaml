@@ -1,13 +1,14 @@
 # Configuration for pre-commit.ci
 # See https://pre-commit.ci/#configuration
 
-# Skip Rust hooks in pre-commit.ci due to network connectivity issues
-# (index.crates.io not accessible in pre-commit.ci environment)
-# Rust checks are covered by GitHub Actions: Clippy Strict, Rustfmt
-skip: [cargo-clippy, cargo-fmt]
+ci:
+  # Skip Rust hooks in pre-commit.ci due to network connectivity issues
+  # (index.crates.io not accessible in pre-commit.ci environment)
+  # Rust checks are covered by GitHub Actions: Clippy Strict, Rustfmt
+  skip: [cargo-clippy, cargo-fmt]
 
-# Auto-update pre-commit hooks weekly
-autoupdate_schedule: weekly
+  # Auto-update pre-commit hooks weekly
+  autoupdate_schedule: weekly
 
-# Commit message for auto-updates
-autoupdate_commit_msg: 'chore: auto-update pre-commit hooks'
+  # Commit message for auto-updates
+  autoupdate_commit_msg: 'chore: auto-update pre-commit hooks'
