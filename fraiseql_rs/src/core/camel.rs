@@ -105,7 +105,8 @@ pub fn snake_to_camel<'a>(input: &[u8], arena: &'a crate::core::Arena) -> &'a [u
 #[target_feature(enable = "avx2")]
 unsafe fn snake_to_camel_avx2<'a>(input: &[u8], arena: &'a crate::core::Arena) -> &'a [u8] {
     // Fast path: no underscores (checked via SIMD)
-    let underscore_mask = find_underscores_avx2(input);
+    // SAFETY: This function requires AVX2 support, ensured by target_feature attribute
+    let underscore_mask = unsafe { find_underscores_avx2(input) };
     if underscore_mask.is_empty() {
         // For zero-copy case, we need to allocate in arena anyway for consistency
         let output = arena.alloc_bytes(input.len());
@@ -141,31 +142,35 @@ unsafe fn snake_to_camel_avx2<'a>(input: &[u8], arena: &'a crate::core::Arena) -
 /// Returns: Bitmask of underscore positions
 #[target_feature(enable = "avx2")]
 unsafe fn find_underscores_avx2(input: &[u8]) -> UnderscoreMask {
-    let underscore_vec = _mm256_set1_epi8(b'_' as i8);
-    let mut mask = UnderscoreMask::new();
+    // SAFETY: This function requires AVX2 support, ensured by target_feature attribute.
+    // All SIMD intrinsics are safe to use within this unsafe block.
+    unsafe {
+        let underscore_vec = _mm256_set1_epi8(b'_' as i8);
+        let mut mask = UnderscoreMask::new();
 
-    let chunks = input.chunks_exact(32);
-    let chunks_len = chunks.len();
-    let remainder = chunks.remainder();
+        let chunks = input.chunks_exact(32);
+        let chunks_len = chunks.len();
+        let remainder = chunks.remainder();
 
-    for (chunk_idx, chunk) in chunks.enumerate() {
-        let data = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
-        let cmp = _mm256_cmpeq_epi8(data, underscore_vec);
-        let bitmask = _mm256_movemask_epi8(cmp);
+        for (chunk_idx, chunk) in chunks.enumerate() {
+            let data = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
+            let cmp = _mm256_cmpeq_epi8(data, underscore_vec);
+            let bitmask = _mm256_movemask_epi8(cmp);
 
-        if bitmask != 0 {
-            mask.set_chunk(chunk_idx, bitmask);
+            if bitmask != 0 {
+                mask.set_chunk(chunk_idx, bitmask);
+            }
         }
-    }
 
-    // Handle remainder (< 32 bytes)
-    for (i, &byte) in remainder.iter().enumerate() {
-        if byte == b'_' {
-            mask.set_bit(chunks_len * 32 + i);
+        // Handle remainder (< 32 bytes)
+        for (i, &byte) in remainder.iter().enumerate() {
+            if byte == b'_' {
+                mask.set_bit(chunks_len * 32 + i);
+            }
         }
-    }
 
-    mask
+        mask
+    }
 }
 
 /// Bitmask for tracking underscore positions (used by AVX2 implementation)

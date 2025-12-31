@@ -71,12 +71,12 @@ impl GraphQLPipeline {
         } else {
             // Cache miss - build SQL
             let composer = SQLComposer::new(self.schema.clone());
-            let composed = composer.compose(&parsed_query)?;
+            let sql_query = composer.compose(&parsed_query)?;
 
             // Store in cache
             let cached_plan = CachedQueryPlan {
                 signature: signature.clone(),
-                sql_template: composed.sql.clone(),
+                sql_template: sql_query.sql.clone(),
                 parameters: vec![], // Simplified for Phase 9
                 created_at: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -89,7 +89,7 @@ impl GraphQLPipeline {
                 eprintln!("Cache put error: {}", e); // Log but don't fail
             }
 
-            composed.sql
+            sql_query.sql
         };
 
         // Phase 1 + 2 + 3: Database execution (mocked for Phase 9)

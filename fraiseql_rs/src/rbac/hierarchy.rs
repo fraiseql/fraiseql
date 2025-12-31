@@ -83,7 +83,7 @@ impl RoleHierarchy {
         }
 
         // Use PostgreSQL recursive CTE to traverse hierarchy
-        let sql = r#"
+        let sql = r"
             WITH RECURSIVE role_hierarchy AS (
                 -- Base case: direct roles
                 SELECT r.*
@@ -100,7 +100,7 @@ impl RoleHierarchy {
                 WHERE $2::text IS NULL OR r.tenant_id::text = $2 OR r.tenant_id IS NULL
             )
             SELECT DISTINCT * FROM role_hierarchy
-        "#;
+        ";
 
         let client = self.pool.get().await?;
         let role_id_strings: Vec<String> = role_ids.iter().map(|id| id.to_string()).collect();
@@ -119,7 +119,7 @@ impl RoleHierarchy {
         role_id: Uuid,
         tenant_id: Option<Uuid>,
     ) -> Result<Vec<Role>> {
-        let sql = r#"
+        let sql = r"
             WITH RECURSIVE role_children AS (
                 -- Base case: direct role
                 SELECT r.*
@@ -135,7 +135,7 @@ impl RoleHierarchy {
                 WHERE $2::text IS NULL OR r.tenant_id::text = $2
             )
             SELECT * FROM role_children WHERE id != $1
-        "#;
+        ";
 
         let client = self.pool.get().await?;
         let role_id_string = role_id.to_string();
@@ -151,7 +151,7 @@ impl RoleHierarchy {
     /// Check for hierarchy cycles
     pub async fn detect_cycles(&self, tenant_id: Option<Uuid>) -> Result<Vec<String>> {
         // Find cycles by looking for roles that appear in their own hierarchy
-        let sql = r#"
+        let sql = r"
             WITH RECURSIVE role_paths AS (
                 SELECT
                     r.id,
@@ -177,7 +177,7 @@ impl RoleHierarchy {
             FROM role_paths
             WHERE cycle_detected
             ORDER BY name
-        "#;
+        ";
 
         let client = self.pool.get().await?;
         let tenant_id_string = tenant_id.map(|id| id.to_string());

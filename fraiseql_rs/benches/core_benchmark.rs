@@ -153,10 +153,10 @@ fn benchmark_components(c: &mut Criterion) {
         b.iter(|| {
             use fraiseql_rs::core::transform::ByteReader;
             let mut reader = ByteReader::new(json_str.as_bytes());
-            black_box(reader.expect_byte(b'{').unwrap());  // Skip opening brace
-            black_box(reader.read_string().unwrap());       // Read field name "user_id"
-            black_box(reader.expect_byte(b':').unwrap());   // Skip colon
-            black_box(reader.read_number().unwrap());       // Read number value
+            black_box(reader.expect_byte(b'{').unwrap()); // Skip opening brace
+            black_box(reader.read_string().unwrap()); // Read field name "user_id"
+            black_box(reader.expect_byte(b':').unwrap()); // Skip colon
+            black_box(reader.read_number().unwrap()); // Read number value
         })
     });
 

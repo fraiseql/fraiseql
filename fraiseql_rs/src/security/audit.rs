@@ -262,13 +262,13 @@ impl AuditLogger {
     async fn write_event(pool: &Pool, event: &AuditEvent) -> Result<()> {
         let client = pool.get().await?;
 
-        let sql = r#"
+        let sql = r"
             INSERT INTO audit_logs (
                 id, event_type, user_id, tenant_id, resource, action,
                 status, ip_address, user_agent, metadata, timestamp, severity
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        "#;
+        ";
 
         let event_type_json = serde_json::to_string(&event.event_type).map_err(|e| {
             super::errors::SecurityError::AuditLogFailure(format!(

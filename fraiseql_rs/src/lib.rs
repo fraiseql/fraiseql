@@ -10,7 +10,6 @@
     // Justification: Required by PyO3 FFI bindings
     unsafe_code,
 )]
-
 // Deny specific anti-patterns
 #![deny(
     // Force completion of placeholder code

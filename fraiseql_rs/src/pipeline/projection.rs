@@ -84,8 +84,8 @@ impl FieldSet {
 /// Collisions are handled by the bitmap approach (multiple fields can map to same bit).
 #[inline(always)]
 fn field_hash(bytes: &[u8]) -> u32 {
-    const FNV_PRIME: u32 = 16777619;
-    const FNV_OFFSET: u32 = 2166136261;
+    const FNV_PRIME: u32 = 16_777_619;
+    const FNV_OFFSET: u32 = 2_166_136_261;
 
     let mut hash = FNV_OFFSET;
     for &byte in bytes {

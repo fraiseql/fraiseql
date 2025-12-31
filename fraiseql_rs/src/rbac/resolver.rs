@@ -144,13 +144,13 @@ impl PermissionResolver {
         let all_role_ids: Vec<Uuid> = all_roles.iter().map(|r| r.id).collect();
 
         // 3. Get permissions for all roles
-        let sql = r#"
+        let sql = r"
             SELECT DISTINCT p.id, p.resource, p.action, p.description, p.constraints, p.created_at
             FROM permissions p
             INNER JOIN role_permissions rp ON p.id = rp.permission_id
             WHERE rp.role_id::text = ANY($1)
             ORDER BY p.resource, p.action
-        "#;
+        ";
 
         let client = self.pool.get().await?;
         let role_id_strings: Vec<String> = all_role_ids.iter().map(|id| id.to_string()).collect();
@@ -166,13 +166,13 @@ impl PermissionResolver {
         user_id: Uuid,
         tenant_id: Option<Uuid>,
     ) -> Result<Vec<UserRole>> {
-        let sql = r#"
+        let sql = r"
             SELECT id, user_id, role_id, tenant_id, granted_by, granted_at, expires_at
             FROM user_roles
             WHERE user_id::text = $1
               AND ($2::text IS NULL OR tenant_id::text = $2)
               AND (expires_at IS NULL OR expires_at > NOW())
-        "#;
+        ";
 
         let client = self.pool.get().await?;
         let user_id_string = user_id.to_string();

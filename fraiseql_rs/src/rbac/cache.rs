@@ -175,10 +175,9 @@ impl PermissionCache {
         if let Some(entry) = cache.get(&key) {
             if Instant::now() < entry.expires_at {
                 return Some(entry.permissions.clone());
-            } else {
-                // Entry expired, remove it
-                cache.pop(&key);
             }
+            // Entry expired, remove it
+            cache.pop(&key);
         }
         None
     }

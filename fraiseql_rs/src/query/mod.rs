@@ -29,7 +29,7 @@ pub fn build_sql_query(
 
     // Compose SQL
     let composer = SQLComposer::new(schema);
-    let composed = composer.compose(&parsed_query).map_err(|e| {
+    let sql_query = composer.compose(&parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
             "Query composition failed: {}",
             e
@@ -38,8 +38,8 @@ pub fn build_sql_query(
 
     // Return GeneratedQuery
     Ok(GeneratedQuery {
-        sql: composed.sql,
-        parameters: composed
+        sql: sql_query.sql,
+        parameters: sql_query
             .parameters
             .into_iter()
             .map(|(name, value)| {
@@ -82,7 +82,7 @@ pub fn build_sql_query_cached(
     })?;
 
     let composer = SQLComposer::new(schema);
-    let composed = composer.compose(&parsed_query).map_err(|e| {
+    let sql_query = composer.compose(&parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
             "Query composition failed: {}",
             e
@@ -90,8 +90,8 @@ pub fn build_sql_query_cached(
     })?;
 
     let result = GeneratedQuery {
-        sql: composed.sql.clone(),
-        parameters: composed
+        sql: sql_query.sql.clone(),
+        parameters: sql_query
             .parameters
             .into_iter()
             .map(|(name, value)| {
@@ -113,7 +113,7 @@ pub fn build_sql_query_cached(
         signature.clone(),
         crate::cache::CachedQueryPlan {
             signature,
-            sql_template: composed.sql,
+            sql_template: sql_query.sql,
             parameters: vec![],
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
