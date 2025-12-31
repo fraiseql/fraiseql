@@ -45,6 +45,10 @@ impl GraphQLPipeline {
     }
 
     /// Execute complete GraphQL query end-to-end (async version for production).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if query parsing, SQL building, or execution fails.
     pub async fn execute(
         &self,
         query_string: &str,
@@ -56,6 +60,14 @@ impl GraphQLPipeline {
     }
 
     /// Execute complete GraphQL query end-to-end (sync version for Phase 9 demo).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - GraphQL query parsing fails
+    /// - Advanced feature validation fails
+    /// - SQL building or composition fails
+    /// - JSON transformation fails
     pub fn execute_sync(
         &self,
         query_string: &str,
@@ -220,6 +232,9 @@ pub struct PyGraphQLPipeline {
 
 #[pymethods]
 impl PyGraphQLPipeline {
+    /// # Errors
+    ///
+    /// Returns a Python error if schema JSON is invalid or cannot be parsed.
     #[new]
     pub fn new(schema_json: String) -> PyResult<Self> {
         let schema: SchemaMetadata = serde_json::from_str(&schema_json)
@@ -233,6 +248,13 @@ impl PyGraphQLPipeline {
     }
 
     /// Execute GraphQL query (Python interface).
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python error if:
+    /// - Variable or user context conversion fails
+    /// - Query execution fails
+    /// - Response conversion to Python fails
     #[pyo3(name = "execute")]
     pub fn execute_py(
         &self,
