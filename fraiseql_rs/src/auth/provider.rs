@@ -19,6 +19,7 @@ pub trait AuthProvider: Send + Sync {
 }
 
 /// Auth0 authentication provider.
+#[derive(Debug)]
 pub struct Auth0Provider {
     validator: JWTValidator,
 }
@@ -78,6 +79,7 @@ impl AuthProvider for Auth0Provider {
 }
 
 /// Custom JWT authentication provider.
+#[derive(Debug)]
 pub struct CustomJWTProvider {
     validator: JWTValidator,
     roles_claim: String,
