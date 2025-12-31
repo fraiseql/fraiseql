@@ -65,7 +65,7 @@ app = create_fraiseql_app(
 
 ---
 
-## Is This For You?
+## Is this for me?
 
 **✅ Perfect if you:**
 - Build high-performance APIs with PostgreSQL
