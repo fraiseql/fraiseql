@@ -191,20 +191,34 @@ impl PyAuthProvider {
     pub fn validate_token_blocking(&self, token: &str) -> PyResult<PyUserContext> {
         let provider = self.provider.clone();
 
-        // Run the async validation on the current tokio runtime
-        // Using block_on, which requires a tokio runtime to be available
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "No tokio runtime available. Call from async context or use asyncio.to_thread.run_in_executor()"
-            ))?;
+        // Try to use existing tokio runtime, or create a new one
+        let context = match tokio::runtime::Handle::try_current() {
+            // Use existing runtime if available (e.g., when called from Rust async context)
+            Ok(handle) => handle.block_on(provider.validate_token(token)),
 
-        let context = rt.block_on(provider.validate_token(token)).map_err(|e| {
+            // Create a new single-threaded runtime for this validation
+            // This allows calling from Python asyncio without requiring tokio runtime
+            Err(_) => {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                            "Failed to create tokio runtime: {e}"
+                        ))
+                    })?;
+
+                rt.block_on(provider.validate_token(token))
+            }
+        };
+
+        let user_context = context.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Token validation failed: {e}"
             ))
         })?;
 
-        Ok(PyUserContext::from(context))
+        Ok(PyUserContext::from(user_context))
     }
 
     /// Get provider type (for debugging)
