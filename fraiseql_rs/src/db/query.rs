@@ -6,6 +6,7 @@
 use crate::db::types::{DatabaseError, DatabaseResult, QueryParam, QueryResult};
 use crate::db::where_builder::WhereBuilder;
 use bytes::BytesMut;
+use std::fmt::Write;
 use tokio_postgres::{types::ToSql, Client, Row};
 
 /// Query executor for database operations.
@@ -181,15 +182,15 @@ impl<'a> QueryExecutor<'a> {
         }
 
         if let Some(order) = order_by {
-            sql.push_str(&format!(" ORDER BY {order}"));
+            let _ = write!(sql, " ORDER BY {order}");
         }
 
         if let Some(limit_val) = limit {
-            sql.push_str(&format!(" LIMIT {limit_val}"));
+            let _ = write!(sql, " LIMIT {limit_val}");
         }
 
         if let Some(offset_val) = offset {
-            sql.push_str(&format!(" OFFSET {offset_val}"));
+            let _ = write!(sql, " OFFSET {offset_val}");
         }
 
         sql
