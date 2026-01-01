@@ -46,7 +46,7 @@ impl VariableProcessor {
         let mut errors = Vec::new();
 
         for (var_name, definition) in &self.definitions {
-            match self.process_variable(var_name, definition, input_variables) {
+            match Self::process_variable(var_name, definition, input_variables) {
                 Ok(value) => {
                     processed.insert(var_name.clone(), value);
                 }
@@ -71,7 +71,6 @@ impl VariableProcessor {
 
     /// Process a single variable
     fn process_variable(
-        &self,
         var_name: &str,
         definition: &VariableDefinition,
         input_variables: &HashMap<String, serde_json::Value>,
@@ -223,7 +222,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable(
+        let result = VariableProcessor::process_variable(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(42))]),
@@ -248,7 +247,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable(
+        let result = VariableProcessor::process_variable(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(123))]),
@@ -273,7 +272,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable(
+        let result = VariableProcessor::process_variable(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(3.14))]),
@@ -298,7 +297,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable(
+        let result = VariableProcessor::process_variable(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!(true))]),
@@ -367,7 +366,7 @@ mod tests {
             default_value: None,
         };
 
-        let result = processor.process_variable(
+        let result = VariableProcessor::process_variable(
             "test",
             &var_def,
             &HashMap::from([("test".to_string(), serde_json::json!("not_a_number"))]),
