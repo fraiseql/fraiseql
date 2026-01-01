@@ -242,8 +242,8 @@ impl AuditLogger {
 
     /// Async worker to write audit logs to database
     async fn audit_worker(pool: Pool, mut rx: mpsc::UnboundedReceiver<AuditEvent>) {
-        let mut consecutive_errors = 0;
         const MAX_CONSECUTIVE_ERRORS: u32 = 10;
+        let mut consecutive_errors = 0;
 
         while let Some(event) = rx.recv().await {
             match Self::write_event(&pool, &event).await {
