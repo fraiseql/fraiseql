@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::cache::{CachedQueryPlan, QueryPlanCache};
+use crate::db::pool::DatabasePool;
 use crate::graphql::{
     complexity::{ComplexityAnalyzer, ComplexityConfig},
     fragments::FragmentGraph,
@@ -31,19 +32,18 @@ pub struct UserContext {
 }
 
 /// Complete unified GraphQL pipeline.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GraphQLPipeline {
     schema: SchemaMetadata,
     cache: Arc<QueryPlanCache>,
-    // Note: In a real implementation, this would include database pool
-    // For Phase 9 demo, we'll mock the database operations
+    pool: Arc<DatabasePool>,
 }
 
 impl GraphQLPipeline {
-    /// Create a new unified GraphQL pipeline with schema and cache
+    /// Create a new unified GraphQL pipeline with schema, cache, and database pool
     #[must_use]
-    pub const fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>) -> Self {
-        Self { schema, cache }
+    pub fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>, pool: Arc<DatabasePool>) -> Self {
+        Self { schema, cache, pool }
     }
 
     /// Execute complete GraphQL query end-to-end (async version for production).
@@ -117,12 +117,11 @@ impl GraphQLPipeline {
             sql_query.sql
         };
 
-        // Phase 1 + 2 + 3: Database execution (mocked for Phase 9)
-        // In production, this would execute the SQL and stream results
-        let mock_results = Self::execute_mock_query(&sql, variables)?;
+        // Phase 1 + 2 + 3: Database execution (real production database)
+        let db_results = self.execute_database_query(&sql)?;
 
         // Phase 3 + 4: Transform to GraphQL response
-        let response = Self::build_graphql_response(&parsed_query, mock_results)?;
+        let response = Self::build_graphql_response(&parsed_query, db_results)?;
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
@@ -165,42 +164,51 @@ impl GraphQLPipeline {
         Ok(())
     }
 
-    /// Mock database execution for Phase 9 demo.
-    fn execute_mock_query(
-        sql: &str,
-        _variables: &HashMap<String, JsonValue>,
-    ) -> Result<Vec<String>> {
-        // Simple mock based on SQL content
-        if sql.contains("user") {
-            // Matches "users", "v_user", etc.
-            let limit = if sql.contains("LIMIT") {
-                // Extract limit from SQL (simplified)
-                sql.split("LIMIT ").nth(1).map_or(10, |limit_part| {
-                    limit_part
-                        .split_whitespace()
-                        .next()
-                        .and_then(|s| s.parse::<usize>().ok())
-                        .unwrap_or(10)
-                })
-            } else {
-                10
-            };
+    /// Execute database query using production pool.
+    ///
+    /// This function bridges the sync execution context with the async database pool.
+    /// It uses the Tokio runtime that was initialized at module load time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection fails
+    /// - Query execution fails
+    /// - JSON serialization fails
+    fn execute_database_query(&self, sql: &str) -> Result<Vec<String>> {
+        // Use the global Tokio runtime to execute async database query
+        // The runtime was initialized in lib.rs during module import
 
-            // Generate mock user data
-            let mut results = Vec::new();
-            for i in 0..limit {
-                let user = serde_json::json!({
-                    "id": i + 1,
-                    "name": format!("User {}", i + 1),
-                    "email": format!("user{}@example.com", i + 1),
-                    "status": if i % 2 == 0 { "active" } else { "inactive" }
-                });
-                results.push(serde_json::to_string(&user)?);
-            }
-            Ok(results)
-        } else {
-            Ok(vec![])
-        }
+        // Get the underlying pool from DatabasePool
+        let underlying_pool = self.pool.get_pool()
+            .ok_or_else(|| anyhow::anyhow!("Database pool not available"))?;
+
+        // Execute query asynchronously and block on result
+        let db_results = tokio::runtime::Handle::current()
+            .block_on(async {
+                // Execute raw SQL query
+                let client = underlying_pool.get().await
+                    .map_err(|e| anyhow::anyhow!("Failed to get connection: {}", e))?;
+
+                let rows = client.query(sql, &[]).await
+                    .map_err(|e| anyhow::anyhow!("Query execution failed: {}", e))?;
+
+                // Convert rows to JSON values (FraiseQL CQRS pattern)
+                let results: Vec<serde_json::Value> = rows.iter()
+                    .filter_map(|row| {
+                        // Extract JSONB column (FraiseQL uses `data` column)
+                        row.try_get::<_, serde_json::Value>(0).ok()
+                    })
+                    .collect();
+
+                Ok::<Vec<serde_json::Value>, anyhow::Error>(results)
+            })?;
+
+        // Convert serde_json::Value results to JSON strings
+        db_results
+            .iter()
+            .map(|value| serde_json::to_string(value).map_err(Into::into))
+            .collect()
     }
 
     /// Build GraphQL response from database results.
@@ -240,13 +248,13 @@ impl PyGraphQLPipeline {
     ///
     /// Returns a Python error if schema JSON is invalid or cannot be parsed.
     #[new]
-    pub fn new(schema_json: &str) -> PyResult<Self> {
+    pub fn new(schema_json: &str, pool: &DatabasePool) -> PyResult<Self> {
         let schema: SchemaMetadata = serde_json::from_str(schema_json)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         let cache = Arc::new(QueryPlanCache::new(5000));
 
-        let pipeline = Arc::new(GraphQLPipeline::new(schema, cache));
+        let pipeline = Arc::new(GraphQLPipeline::new(schema, cache, Arc::new(pool.clone())));
 
         Ok(Self { pipeline })
     }
