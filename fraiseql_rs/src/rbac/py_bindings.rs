@@ -75,6 +75,19 @@ impl PyPermissionResolver {
         Ok(())
     }
 
+    /// Invalidate tenant cache
+    ///
+    /// # Errors
+    ///
+    /// Returns a Python error if the tenant ID is not a valid UUID.
+    pub fn invalidate_tenant(&self, tenant_id: &str) -> PyResult<()> {
+        let tenant_uuid = Uuid::parse_str(tenant_id)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+        self.resolver.invalidate_tenant(tenant_uuid);
+        Ok(())
+    }
+
     /// Clear entire cache
     pub fn clear_cache(&self) {
         self.resolver.clear_cache();
@@ -128,6 +141,22 @@ impl PyFieldAuthChecker {
     ) -> PyResult<String> {
         // TODO: Implement full async Python binding
         Ok("check_field_access not yet implemented".to_string())
+    }
+
+    /// Check multiple fields access (placeholder)
+    ///
+    /// # Errors
+    ///
+    /// Currently never returns an error (placeholder implementation).
+    pub fn check_fields_access(
+        &self,
+        _user_id: Option<String>,
+        _roles: Vec<String>,
+        _fields: Vec<(String, PyObject)>,
+        _tenant_id: Option<String>,
+    ) -> PyResult<String> {
+        // TODO: Implement full async Python binding
+        Ok("check_fields_access not yet implemented".to_string())
     }
 
     /// Get cache statistics from the associated resolver

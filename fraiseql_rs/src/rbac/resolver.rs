@@ -208,6 +208,11 @@ impl PermissionResolver {
         self.cache.invalidate_user(user_id);
     }
 
+    /// Clear cache for specific tenant
+    pub fn invalidate_tenant(&self, tenant_id: Uuid) {
+        self.cache.invalidate_tenant(tenant_id);
+    }
+
     /// Clear entire cache
     pub fn clear_cache(&self) {
         self.cache.clear();
