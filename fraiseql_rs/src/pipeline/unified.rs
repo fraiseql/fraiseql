@@ -281,28 +281,28 @@ fn dict_to_hashmap(dict: &Bound<'_, PyDict>) -> PyResult<HashMap<String, JsonVal
     let mut result = HashMap::new();
     for (key, value) in dict.iter() {
         let key_str = key.extract::<String>()?;
-        let value_json = py_to_json(&value)?;
+        let value_json = py_to_json(&value);
         result.insert(key_str, value_json);
     }
     Ok(result)
 }
 
 /// Convert Python object to JSON value.
-fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<JsonValue> {
+fn py_to_json(obj: &Bound<'_, PyAny>) -> JsonValue {
     if obj.is_none() {
-        Ok(JsonValue::Null)
+        JsonValue::Null
     } else if let Ok(s) = obj.extract::<String>() {
-        Ok(JsonValue::String(s))
+        JsonValue::String(s)
     } else if let Ok(i) = obj.extract::<i64>() {
-        Ok(JsonValue::Number(i.into()))
+        JsonValue::Number(i.into())
     } else if let Ok(f) = obj.extract::<f64>() {
-        Ok(JsonValue::Number(
+        JsonValue::Number(
             serde_json::Number::from_f64(f).expect("finite f64"),
-        ))
+        )
     } else if let Ok(b) = obj.extract::<bool>() {
-        Ok(JsonValue::Bool(b))
+        JsonValue::Bool(b)
     } else {
-        Ok(JsonValue::Null) // Simplified fallback
+        JsonValue::Null // Simplified fallback
     }
 }
 

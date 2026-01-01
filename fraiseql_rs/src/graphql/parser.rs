@@ -181,7 +181,7 @@ fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Ve
                     .directives
                     .iter()
                     .map(|d| parse_directive(d))
-                    .collect::<Result<Vec<_>>>()?;
+                    .collect();
 
                 fields.push(FieldSelection {
                     name: field.name.clone(),
@@ -264,7 +264,7 @@ fn serialize_value(value: &query::Value<String>) -> String {
 }
 
 /// Parse GraphQL directive from graphql-parser Directive.
-fn parse_directive(directive: &GraphQLDirective<String>) -> Result<Directive> {
+fn parse_directive(directive: &GraphQLDirective<String>) -> Directive {
     let arguments = directive
         .arguments
         .iter()
@@ -275,10 +275,10 @@ fn parse_directive(directive: &GraphQLDirective<String>) -> Result<Directive> {
         })
         .collect();
 
-    Ok(Directive {
+    Directive {
         name: directive.name.clone(),
         arguments,
-    })
+    }
 }
 
 /// Parse GraphQL type from graphql-parser Type to our `GraphQLType`.
