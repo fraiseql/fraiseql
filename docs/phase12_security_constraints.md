@@ -11,7 +11,7 @@
 Implement security constraints in Rust for production-ready GraphQL API protection:
 1. **Rate Limiting**: Token bucket algorithm (per user, per IP, per tenant)
 2. **IP Filtering**: Allowlist/blocklist with CIDR notation support
-3. **Query Complexity Analysis**: Prevent expensive queries (OPTIONAL - use if DB views don't enforce limits)
+3. **Query Complexity Analysis**: Prevent expensive queries (OPTIONAL - FraiseQL's JSONB architecture naturally limits query shapes)
 
 **Key Goals**:
 - ✅ 10-100x faster than Python implementations

@@ -145,9 +145,10 @@ class IpFilter:
 class ComplexityAnalyzer:
     """GraphQL query complexity analyzer (OPTIONAL).
 
-    **Note**: This is optional if your PostgreSQL views already enforce
-    query complexity limits. Use this to reject expensive queries BEFORE
-    hitting the database, saving DB resources.
+    **Note**: This is optional for FraiseQL. Since FraiseQL uses JSONB fields
+    to store data, queries that don't match the data structure will fail anyway.
+    Use this only if you want to reject overly complex queries BEFORE hitting
+    the database to save resources.
 
     Uses a simple heuristic to prevent expensive queries:
     - Complexity = (depth * 10) + field_count
