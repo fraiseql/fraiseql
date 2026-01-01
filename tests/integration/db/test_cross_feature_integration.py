@@ -51,9 +51,7 @@ class TestTransactionWithStreaming:
         # Insert test data
         for i in range(50):
             data = json.dumps({"id": i, "value": f"item_{i:03d}"})
-            await pool.execute_query(
-                f"INSERT INTO test_integration (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
         # Begin transaction
         await pool.begin_transaction()
@@ -89,9 +87,7 @@ class TestTransactionWithStreaming:
             # Insert 30 rows in transaction
             for i in range(30):
                 data = json.dumps({"id": i, "value": f"tx_item_{i}"})
-                await pool.execute_query(
-                    f"INSERT INTO test_integration (data) VALUES ('{data}')"
-                )
+                await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
             # Verify data is visible within transaction using chunked query
             chunk = await pool.execute_query_chunked(
@@ -119,17 +115,13 @@ class TestTransactionWithStreaming:
         # Insert initial data
         for i in range(20):
             data = json.dumps({"id": i, "value": f"initial_{i}"})
-            await pool.execute_query(
-                f"INSERT INTO test_integration (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
         # Transaction that will be rolled back
         await pool.begin_transaction()
         for i in range(10):
             data = json.dumps({"id": i + 100, "value": f"rollback_{i}"})
-            await pool.execute_query(
-                f"INSERT INTO test_integration (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
         await pool.rollback_transaction()
 
         # Streaming query should only see initial data
@@ -200,9 +192,7 @@ class TestStreamingWithMetrics:
         # Insert test data
         for i in range(100):
             data = json.dumps({"id": i, "value": f"item_{i}"})
-            await pool.execute_query(
-                f"INSERT INTO test_integration (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
         initial_metrics = pool.metrics()
         initial_count = initial_metrics["queries_executed"]
@@ -224,9 +214,7 @@ class TestStreamingWithMetrics:
         # Insert test data
         for i in range(50):
             data = json.dumps({"id": i, "value": f"item_{i}"})
-            await pool.execute_query(
-                f"INSERT INTO test_integration (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
         initial_metrics = pool.metrics()
         initial_count = initial_metrics["queries_executed"]
@@ -262,9 +250,7 @@ class TestAllFeaturesTogether:
             # Insert data in transaction
             for i in range(50):
                 data = json.dumps({"id": i, "value": f"integrated_{i}"})
-                await pool.execute_query(
-                    f"INSERT INTO test_integration (data) VALUES ('{data}')"
-                )
+                await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
             # Create savepoint
             await pool.savepoint("sp1")
@@ -272,9 +258,7 @@ class TestAllFeaturesTogether:
             # Insert more data
             for i in range(50, 75):
                 data = json.dumps({"id": i, "value": f"integrated_{i}"})
-                await pool.execute_query(
-                    f"INSERT INTO test_integration (data) VALUES ('{data}')"
-                )
+                await pool.execute_query(f"INSERT INTO test_integration (data) VALUES ('{data}')")
 
             # Stream data within transaction
             chunk1 = await pool.execute_query_chunked(

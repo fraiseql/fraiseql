@@ -4,7 +4,9 @@ from graphql import GraphQLError
 from psycopg.sql import SQL, Composed
 
 from fraiseql.core.ast_parser import extract_flat_paths, parse_query_ast
-from fraiseql.sql.sql_generator import build_sql_query
+
+# Phase 7: Use adapter that can switch between Python and Rust query builders
+from fraiseql.sql.query_builder_adapter import build_sql_query
 
 
 def translate_query(

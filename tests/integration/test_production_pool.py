@@ -40,9 +40,7 @@ class TestBasicQueries:
 
     async def test_multiple_rows(self, pool):
         """Test query returning multiple rows."""
-        results = await pool.execute_query(
-            "SELECT generate_series(1, 10) as num"
-        )
+        results = await pool.execute_query("SELECT generate_series(1, 10) as num")
         assert len(results) == 10
 
 
@@ -51,6 +49,7 @@ class TestConcurrentQueries:
 
     async def test_concurrent_queries(self, pool):
         """Test running multiple queries concurrently."""
+
         async def query():
             return await pool.execute_query("SELECT 1")
 
@@ -65,10 +64,7 @@ class TestConcurrentQueries:
         stats_before = pool.stats()
 
         # Run queries
-        await asyncio.gather(*[
-            pool.execute_query("SELECT 1")
-            for _ in range(50)
-        ])
+        await asyncio.gather(*[pool.execute_query("SELECT 1") for _ in range(50)])
 
         # Stats after - should have connections available
         stats_after = pool.stats()
@@ -140,9 +136,7 @@ class TestURLParsing:
         """Test pool creation from URL."""
         from fraiseql._fraiseql_rs import DatabasePool
 
-        pool = DatabasePool(
-            url="postgresql://user:pass@localhost:5432/testdb"
-        )
+        pool = DatabasePool(url="postgresql://user:pass@localhost:5432/testdb")
         assert pool is not None
 
     def test_url_overrides_params(self):
@@ -150,10 +144,7 @@ class TestURLParsing:
         from fraiseql._fraiseql_rs import DatabasePool
 
         # URL should be used, database param ignored
-        pool = DatabasePool(
-            url="postgresql://user@localhost/fromurl",
-            database="ignored"
-        )
+        pool = DatabasePool(url="postgresql://user@localhost/fromurl", database="ignored")
         assert pool is not None
 
 
@@ -177,6 +168,7 @@ class TestPerformance:
 
     async def test_query_latency(self, pool, benchmark):
         """Benchmark single query latency."""
+
         async def query():
             return await pool.execute_query("SELECT 1")
 
@@ -190,10 +182,7 @@ class TestPerformance:
         start = time.perf_counter()
 
         # 100 concurrent queries
-        await asyncio.gather(*[
-            pool.execute_query("SELECT 1")
-            for _ in range(100)
-        ])
+        await asyncio.gather(*[pool.execute_query("SELECT 1") for _ in range(100)])
 
         elapsed = time.perf_counter() - start
 

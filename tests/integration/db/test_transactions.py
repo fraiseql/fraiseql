@@ -54,7 +54,9 @@ class TestBasicTransactions:
         await pool.commit_transaction()
 
         # Verify data was committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'test1'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'test1'"
+        )
         assert len(results) == 1
 
     async def test_rollback_transaction(self, pool):
@@ -69,7 +71,9 @@ class TestBasicTransactions:
         await pool.rollback_transaction()
 
         # Verify data was NOT committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'test_rollback'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'test_rollback'"
+        )
         assert len(results) == 0
 
     async def test_transaction_isolation(self, pool):
@@ -87,7 +91,9 @@ class TestBasicTransactions:
         await pool.rollback_transaction()
 
         # Verify
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'isolated'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'isolated'"
+        )
         assert len(results) == 0
 
     async def test_multiple_operations_in_transaction(self, pool):
@@ -102,7 +108,9 @@ class TestBasicTransactions:
         await pool.commit_transaction()
 
         # Verify all were committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value LIKE 'multi%' ORDER BY value")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value LIKE 'multi%' ORDER BY value"
+        )
         assert len(results) == 3
 
 
@@ -129,10 +137,14 @@ class TestSavepoints:
         await pool.commit_transaction()
 
         # Verify: first record exists, second doesn't
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'before_sp'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'before_sp'"
+        )
         assert len(results) == 1
 
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'after_sp'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'after_sp'"
+        )
         assert len(results) == 0
 
     async def test_nested_savepoints(self, pool):
@@ -161,7 +173,9 @@ class TestSavepoints:
 
         # Verify: level0 and level1 exist (inserted before sp2)
         # level2 and level3 don't exist (inserted after sp2, so rolled back)
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value IN ('level0', 'level1', 'level2', 'level3') ORDER BY value")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value IN ('level0', 'level1', 'level2', 'level3') ORDER BY value"
+        )
         assert len(results) == 2  # Should have level0 and level1
 
     async def test_savepoint_partial_rollback(self, pool):
@@ -186,16 +200,24 @@ class TestSavepoints:
         await pool.commit_transaction()
 
         # Verify: before_sp exists, everything after sp1 is rolled back
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'before_sp'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'before_sp'"
+        )
         assert len(results) == 1
 
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'sp1_data'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'sp1_data'"
+        )
         assert len(results) == 0
 
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'sp2_data'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'sp2_data'"
+        )
         assert len(results) == 0
 
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'sp3_data'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'sp3_data'"
+        )
         assert len(results) == 0
 
 
@@ -219,7 +241,9 @@ class TestErrorHandling:
         await pool.rollback_transaction()
 
         # Verify nothing was committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'before_error'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'before_error'"
+        )
         assert len(results) == 0
 
     async def test_transaction_context_manager_pattern(self, pool):
@@ -234,7 +258,9 @@ class TestErrorHandling:
             raise
 
         # Verify committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'success'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'success'"
+        )
         assert len(results) == 1
 
         # Failure case
@@ -247,7 +273,9 @@ class TestErrorHandling:
             await pool.rollback_transaction()
 
         # Verify NOT committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value = 'failure'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value = 'failure'"
+        )
         assert len(results) == 0
 
 
@@ -256,6 +284,7 @@ class TestConcurrentTransactions:
 
     async def test_concurrent_transactions(self, pool):
         """Test that multiple transactions can run concurrently."""
+
         async def transaction(value):
             await pool.begin_transaction()
             await pool.execute_query(f"INSERT INTO test_transactions (value) VALUES ('{value}')")
@@ -266,5 +295,7 @@ class TestConcurrentTransactions:
         await asyncio.gather(*[transaction(f"concurrent_{i}") for i in range(5)])
 
         # Verify all were committed
-        results = await pool.execute_query("SELECT value FROM test_transactions WHERE value LIKE 'concurrent_%'")
+        results = await pool.execute_query(
+            "SELECT value FROM test_transactions WHERE value LIKE 'concurrent_%'"
+        )
         assert len(results) == 5

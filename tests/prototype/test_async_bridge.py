@@ -56,17 +56,13 @@ class TestBasicQueries:
 
     async def test_select_with_multiple_rows(self, pool):
         """Test SELECT query with multiple rows"""
-        results = await pool.execute_query(
-            "SELECT generate_series(1, 5) as num"
-        )
+        results = await pool.execute_query("SELECT generate_series(1, 5) as num")
         assert len(results) == 5
         print(f"✅ Multiple rows query works (got {len(results)} rows)")
 
     async def test_select_with_multiple_columns(self, pool):
         """Test SELECT query with multiple columns"""
-        results = await pool.execute_query(
-            "SELECT 1 as id, 'test' as name, true as active"
-        )
+        results = await pool.execute_query("SELECT 1 as id, 'test' as name, true as active")
         assert len(results) == 1
         result = results[0]
         assert '"id"' in result or '"Id"' in result
@@ -76,9 +72,7 @@ class TestBasicQueries:
 
     async def test_jsonb_support(self, pool):
         """Test JSONB column support"""
-        results = await pool.execute_query(
-            "SELECT '{\"key\": \"value\"}'::jsonb as data"
-        )
+        results = await pool.execute_query('SELECT \'{"key": "value"}\'::jsonb as data')
         assert len(results) == 1
         print("✅ JSONB support works")
 
@@ -103,10 +97,7 @@ class TestConcurrentQueries:
     async def test_many_concurrent_queries(self, pool):
         """Test many concurrent queries (stress test for GIL)"""
         num_queries = 50
-        tasks = [
-            pool.execute_query("SELECT 1 as value")
-            for _ in range(num_queries)
-        ]
+        tasks = [pool.execute_query("SELECT 1 as value") for _ in range(num_queries)]
 
         results = await asyncio.gather(*tasks)
         assert len(results) == num_queries
@@ -131,6 +122,7 @@ class TestCancellation:
 
     async def test_query_cancellation(self, pool):
         """Test canceling a long-running query"""
+
         # Note: future_into_py() returns a Future, wrap in async function
         async def long_query():
             return await pool.execute_query("SELECT pg_sleep(5)")
@@ -149,6 +141,7 @@ class TestCancellation:
 
     async def test_partial_cancellation(self, pool):
         """Test canceling some queries while others complete"""
+
         # Wrap pool calls in async functions for create_task compatibility
         async def query1():
             return await pool.execute_query("SELECT pg_sleep(0.1), 1 as id")
@@ -194,7 +187,9 @@ class TestErrorHandling:
         with pytest.raises(Exception) as exc_info:
             await pool.execute_query("INVALID SQL SYNTAX")
 
-        assert "syntax error" in str(exc_info.value).lower() or "error" in str(exc_info.value).lower()
+        assert (
+            "syntax error" in str(exc_info.value).lower() or "error" in str(exc_info.value).lower()
+        )
         print("✅ Syntax error propagation works")
 
     async def test_table_not_found(self, pool):
@@ -278,7 +273,7 @@ class TestMemoryLeaks:
             await pool.execute_query("SELECT 1")
 
         snapshot2 = tracemalloc.take_snapshot()
-        top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        top_stats = snapshot2.compare_to(snapshot1, "lineno")
 
         # Print top memory consumers (for debugging)
         print("\nTop memory consumers:")

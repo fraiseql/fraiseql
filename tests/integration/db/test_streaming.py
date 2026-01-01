@@ -35,10 +35,9 @@ async def pool(postgres_url):
         # Insert 100 test rows with JSONB data
         for i in range(100):
             import json
+
             data = json.dumps({"id": i, "value": f"row_{i:03d}"})
-            await pool.execute_query(
-                f"INSERT INTO test_streaming (data) VALUES ('{data}')"
-            )
+            await pool.execute_query(f"INSERT INTO test_streaming (data) VALUES ('{data}')")
 
         yield pool
 
@@ -53,14 +52,13 @@ class TestBasicChunking:
         """Test fetching first chunk of results."""
         # Fetch first 10 rows (select JSONB column)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=10,
-            offset=0
+            "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=0
         )
 
         assert len(results) == 10
         # First row should be row_000
         import json
+
         first_row = json.loads(results[0])
         assert first_row["value"] == "row_000"
 
@@ -68,13 +66,12 @@ class TestBasicChunking:
         """Test fetching middle chunk of results."""
         # Fetch rows 30-39 (offset 30, limit 10)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=10,
-            offset=30
+            "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=30
         )
 
         assert len(results) == 10
         import json
+
         first_row = json.loads(results[0])
         assert first_row["value"] == "row_030"
 
@@ -82,13 +79,12 @@ class TestBasicChunking:
         """Test fetching last chunk of results."""
         # Fetch last 10 rows (offset 90, limit 10)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=10,
-            offset=90
+            "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=90
         )
 
         assert len(results) == 10
         import json
+
         last_row = json.loads(results[9])
         assert last_row["value"] == "row_099"
 
@@ -96,14 +92,13 @@ class TestBasicChunking:
         """Test fetching partial chunk at end of result set."""
         # Fetch beyond the last row (offset 95, limit 10)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=10,
-            offset=95
+            "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=95
         )
 
         # Should get only 5 rows (95-99)
         assert len(results) == 5
         import json
+
         last_row = json.loads(results[4])
         assert last_row["value"] == "row_099"
 
@@ -111,9 +106,7 @@ class TestBasicChunking:
         """Test fetching chunk beyond result set."""
         # Fetch beyond all rows (offset 1000, limit 10)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=10,
-            offset=1000
+            "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=1000
         )
 
         # Should get empty result
@@ -131,15 +124,14 @@ class TestPaginationPatterns:
 
         while True:
             chunk = await pool.execute_query_chunked(
-                "SELECT data FROM test_streaming ORDER BY id",
-                limit=chunk_size,
-                offset=offset
+                "SELECT data FROM test_streaming ORDER BY id", limit=chunk_size, offset=offset
             )
 
             if not chunk:
                 break
 
             import json
+
             for row_json in chunk:
                 row = json.loads(row_json)
                 all_values.append(row["value"])
@@ -160,9 +152,7 @@ class TestPaginationPatterns:
         for batch_num in range(5):  # 5 batches of 20
             offset = batch_num * batch_size
             chunk = await pool.execute_query_chunked(
-                "SELECT data FROM test_streaming ORDER BY id",
-                limit=batch_size,
-                offset=offset
+                "SELECT data FROM test_streaming ORDER BY id", limit=batch_size, offset=offset
             )
 
             batch_count += 1
@@ -175,25 +165,19 @@ class TestPaginationPatterns:
         """Test using different chunk sizes."""
         # Small chunks
         small_chunk = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=5,
-            offset=0
+            "SELECT data FROM test_streaming ORDER BY id", limit=5, offset=0
         )
         assert len(small_chunk) == 5
 
         # Medium chunks
         medium_chunk = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=25,
-            offset=0
+            "SELECT data FROM test_streaming ORDER BY id", limit=25, offset=0
         )
         assert len(medium_chunk) == 25
 
         # Large chunks
         large_chunk = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY id",
-            limit=50,
-            offset=0
+            "SELECT data FROM test_streaming ORDER BY id", limit=50, offset=0
         )
         assert len(large_chunk) == 50
 
@@ -205,13 +189,12 @@ class TestQueryVariations:
         """Test chunked query with WHERE clause."""
         # Query should work with WHERE clause
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming WHERE id > 50 ORDER BY id",
-            limit=10,
-            offset=0
+            "SELECT data FROM test_streaming WHERE id > 50 ORDER BY id", limit=10, offset=0
         )
 
         assert len(results) == 10
         import json
+
         first_row = json.loads(results[0])
         # First row should be row_050 (id > 50, since we have id=1..100 and data has id=0..99)
         assert first_row["value"] == "row_050"
@@ -220,9 +203,7 @@ class TestQueryVariations:
         """Test that trailing semicolon is handled correctly."""
         # Query with semicolon should work
         results = await pool.execute_query_chunked(
-            "SELECT * FROM test_streaming ORDER BY id;",
-            limit=10,
-            offset=0
+            "SELECT * FROM test_streaming ORDER BY id;", limit=10, offset=0
         )
 
         assert len(results) == 10
@@ -231,9 +212,7 @@ class TestQueryVariations:
         """Test chunked query with aggregation (though less common)."""
         # Even aggregation queries can be chunked (e.g., GROUP BY with many groups)
         results = await pool.execute_query_chunked(
-            "SELECT data FROM test_streaming ORDER BY (data->>'value')",
-            limit=5,
-            offset=0
+            "SELECT data FROM test_streaming ORDER BY (data->>'value')", limit=5, offset=0
         )
 
         assert len(results) == 5
@@ -244,24 +223,21 @@ class TestConcurrentChunking:
 
     async def test_concurrent_chunks(self, pool):
         """Test fetching multiple chunks concurrently."""
+
         async def fetch_chunk(offset):
             return await pool.execute_query_chunked(
-                "SELECT data FROM test_streaming ORDER BY id",
-                limit=10,
-                offset=offset
+                "SELECT data FROM test_streaming ORDER BY id", limit=10, offset=offset
             )
 
         # Fetch 5 chunks concurrently
-        chunks = await asyncio.gather(*[
-            fetch_chunk(i * 10)
-            for i in range(5)
-        ])
+        chunks = await asyncio.gather(*[fetch_chunk(i * 10) for i in range(5)])
 
         # All chunks should have 10 rows
         assert all(len(chunk) == 10 for chunk in chunks)
 
         # Verify no overlap/duplication
         import json
+
         all_values = []
         for chunk in chunks:
             for row_json in chunk:
@@ -291,9 +267,7 @@ class TestMemoryEfficiency:
 
         while True:
             chunk = await pool.execute_query_chunked(
-                "SELECT data FROM test_streaming ORDER BY id",
-                limit=chunk_size,
-                offset=offset
+                "SELECT data FROM test_streaming ORDER BY id", limit=chunk_size, offset=offset
             )
 
             if not chunk:
@@ -314,9 +288,7 @@ class TestMemoryEfficiency:
         # Simulate streaming: process each chunk as it arrives
         while True:
             chunk = await pool.execute_query_chunked(
-                "SELECT data FROM test_streaming ORDER BY id",
-                limit=chunk_size,
-                offset=offset
+                "SELECT data FROM test_streaming ORDER BY id", limit=chunk_size, offset=offset
             )
 
             if not chunk:

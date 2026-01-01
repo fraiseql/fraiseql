@@ -181,9 +181,7 @@ class TestConcurrentMetrics:
                 pass
 
         # 10 successes and 5 failures concurrently
-        tasks = [success_query() for _ in range(10)] + [
-            fail_query() for _ in range(5)
-        ]
+        tasks = [success_query() for _ in range(10)] + [fail_query() for _ in range(5)]
         await asyncio.gather(*tasks)
 
         metrics = pool.metrics()

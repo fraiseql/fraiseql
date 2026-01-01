@@ -54,7 +54,7 @@ class ToxiproxyManager:
                 "listen": listen_addr,
                 "upstream": upstream_addr,
                 "enabled": True,
-                "toxics": []
+                "toxics": [],
             }
             self.proxies[name] = proxy
             return proxy
@@ -71,7 +71,7 @@ class ToxiproxyManager:
                 "listen": listen_addr,
                 "upstream": upstream_addr,
                 "enabled": True,
-                "toxics": []
+                "toxics": [],
             }
             self.mock_mode = True
 
@@ -187,7 +187,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:
@@ -229,7 +231,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:
@@ -269,7 +273,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:

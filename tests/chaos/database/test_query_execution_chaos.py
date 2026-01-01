@@ -98,8 +98,6 @@ class TestQueryExecutionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(5, int(10 * self.chaos_config.load_multiplier))
 
-
-
         for i in range(iterations):
             try:
                 # Simulate potential deadlock with random delays
@@ -153,8 +151,6 @@ class TestQueryExecutionChaos(ChaosTestCase):
         # Scale iterations based on hardware (8 on baseline, 4-32 adaptive)
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(4, int(8 * self.chaos_config.load_multiplier))
-
-
 
         for i in range(iterations):
             retry_count = 0
@@ -216,8 +212,6 @@ class TestQueryExecutionChaos(ChaosTestCase):
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(3, int(5 * self.chaos_config.load_multiplier))
 
-
-
         for i in range(iterations):
             try:
                 result = client.execute_query(operation)
@@ -273,8 +267,6 @@ class TestQueryExecutionChaos(ChaosTestCase):
         # Scale iterations based on hardware (5 on baseline, 3-20 adaptive)
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(3, int(5 * self.chaos_config.load_multiplier))
-
-
 
         for i in range(iterations):
             try:
@@ -338,7 +330,6 @@ class TestQueryExecutionChaos(ChaosTestCase):
         # Scale iterations based on hardware (3 on baseline, 3-12 adaptive)
         # Uses multiplier-based formula to ensure meaningful test on all hardware
         iterations = max(3, int(3 * self.chaos_config.load_multiplier))
-
 
         for i in range(iterations):
             thread = threading.Thread(target=execute_concurrent_query, args=(i,))

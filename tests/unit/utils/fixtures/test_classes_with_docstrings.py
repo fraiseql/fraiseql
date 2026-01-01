@@ -84,13 +84,13 @@ class AllQuoteTypes:
     """Class with all quote types."""
 
     single: str
-    'Single quotes docstring.'
+    "Single quotes docstring."
 
     double: str
     "Double quotes docstring."
 
     triple_single: str
-    '''Triple single quotes docstring.'''
+    """Triple single quotes docstring."""
 
     triple_double: str
     """Triple double quotes docstring."""

@@ -24,7 +24,9 @@ class TestDatabasePoolInitialization:
             DatabasePool("invalid://not-a-postgres-url")
 
         # Production pool validates URL format
-        assert "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
+        assert (
+            "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
+        )
 
     def test_pool_initialization_with_missing_components(self):
         """Test that pool rejects URLs missing required components."""
@@ -86,7 +88,9 @@ class TestDatabasePoolValidation:
         with pytest.raises(Exception) as exc_info:
             DatabasePool("mysql://user:pass@localhost:5432/db")
         # Should mention postgresql or postgres
-        assert "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
+        assert (
+            "postgresql" in str(exc_info.value).lower() or "postgres" in str(exc_info.value).lower()
+        )
 
     def test_pool_validates_url_structure(self):
         """Test that URL must contain @ and / characters."""

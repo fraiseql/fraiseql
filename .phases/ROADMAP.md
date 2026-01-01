@@ -148,22 +148,54 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 
 ---
 
-### ✅ Phase 7: SQL Query Building (Complete)
+### ✅ Phase 7: SQL Query Building (Production Ready)
 
 **Objective**: Generate SQL queries in Rust from parsed GraphQL
 
+**Status**: **Production integrated with feature flags** (2026-01-01)
+
 **Benefits**:
-- 5-8x faster SQL generation
+- 10-20x faster SQL generation (2-4ms → 100-200μs)
 - Better WHERE clause optimization
 - Efficient parameter binding
+- Gradual rollout capability
 
 **Key Files**:
-- `fraiseql_rs/src/query/composer.rs`
-- `fraiseql_rs/src/query/where_builder.rs`
+- `fraiseql_rs/src/query/composer.rs` - SQL composition
+- `fraiseql_rs/src/query/where_builder.rs` - WHERE clause building
+- `fraiseql_rs/src/query/schema.rs` - Schema metadata
+- `src/fraiseql/sql/query_builder_adapter.py` - Production adapter (**NEW**)
+- `src/fraiseql/config/__init__.py` - Feature flags (**NEW**)
+- `src/fraiseql/monitoring/query_builder_metrics.py` - Prometheus metrics (**NEW**)
+
+**Production Features**:
+- Feature flag system for safe rollout
+- Gradual percentage-based rollout (0-100%)
+- Automatic fallback to Python on errors
+- Comprehensive Prometheus metrics
+- Built-in performance monitoring
 
 **Performance**:
-- SQL generation: <1ms (vs 5-10ms Python)
+- SQL generation: 100-200μs (vs 2-4ms Python) - **10-20x faster**
 - WHERE clause building: 5-8x faster
+- Cache integration: 30-50x improvement (combined with Phase 8)
+
+**Rollout Strategy**:
+```bash
+# Default: Python (safe)
+FRAISEQL_USE_RUST_QUERY_BUILDER=false
+
+# Gradual rollout
+FRAISEQL_RUST_QB_PERCENTAGE=1   # 1% canary
+FRAISEQL_RUST_QB_PERCENTAGE=10  # 10%
+FRAISEQL_RUST_QB_PERCENTAGE=50  # 50%
+FRAISEQL_RUST_QB_PERCENTAGE=100 # 100%
+
+# Full enable
+FRAISEQL_USE_RUST_QUERY_BUILDER=true
+```
+
+**Documentation**: `docs/PHASE7_MIGRATION.md`
 
 ---
 

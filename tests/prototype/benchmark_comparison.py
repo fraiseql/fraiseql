@@ -24,6 +24,7 @@ from contextlib import asynccontextmanager
 try:
     import psycopg
     from psycopg_pool import AsyncConnectionPool
+
     HAS_PSYCOPG = True
 except ImportError:
     HAS_PSYCOPG = False
@@ -33,6 +34,7 @@ except ImportError:
 # Check if fraiseql_rs is available (prototype)
 try:
     from fraiseql._fraiseql_rs import PrototypePool
+
     HAS_PROTOTYPE = True
 except ImportError:
     HAS_PROTOTYPE = False
@@ -154,15 +156,14 @@ async def psycopg_simple_query(pool):
 async def psycopg_1000_rows(pool):
     """Execute 1000-row query with psycopg"""
     async with pool.connection() as conn:
-        cursor = await conn.execute(
-            "SELECT generate_series(1, 1000) as num"
-        )
+        cursor = await conn.execute("SELECT generate_series(1, 1000) as num")
         rows = await cursor.fetchall()
         return len(rows)
 
 
 async def psycopg_concurrent_10(pool):
     """Execute 10 concurrent queries with psycopg"""
+
     async def query():
         async with pool.connection() as conn:
             cursor = await conn.execute("SELECT 1")
@@ -195,9 +196,7 @@ async def rust_simple_query(pool):
 
 async def rust_1000_rows(pool):
     """Execute 1000-row query with Rust"""
-    results = await pool.execute_query(
-        "SELECT generate_series(1, 1000) as num"
-    )
+    results = await pool.execute_query("SELECT generate_series(1, 1000) as num")
     return len(results)
 
 
@@ -354,4 +353,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n❌ Benchmark failed: {e}")
         import traceback
+
         traceback.print_exc()
