@@ -15,7 +15,7 @@ lazy_static! {
     static ref QUERY_PLAN_CACHE: QueryPlanCache = QueryPlanCache::new(5000);
 }
 
-/// Convert a ParameterValue to its string representation
+/// Convert a `ParameterValue` to its string representation
 fn parameter_value_to_string(value: where_builder::ParameterValue) -> String {
     match value {
         where_builder::ParameterValue::String(s) | where_builder::ParameterValue::JsonObject(s) => {
