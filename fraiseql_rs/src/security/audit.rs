@@ -138,7 +138,7 @@ pub struct AuditEvent {
 impl AuditEvent {
     /// Create a new audit event with default values
     #[must_use]
-    pub fn new(event_type: AuditEventType) -> Self {
+    pub fn new(event_type: &AuditEventType) -> Self {
         Self {
             id: Uuid::new_v4(),
             event_type: event_type.clone(),

@@ -173,7 +173,7 @@ impl PermissionResolver {
             .map(std::string::ToString::to_string)
             .collect();
         let rows = client.query(sql, &[&role_id_strings]).await?;
-        let permissions: Vec<Permission> = rows.into_iter().map(Permission::from_row).collect();
+        let permissions: Vec<Permission> = rows.iter().map(Permission::from_row).collect();
 
         Ok(permissions)
     }
@@ -198,7 +198,7 @@ impl PermissionResolver {
         let rows = client
             .query(sql, &[&user_id_string, &tenant_id_string])
             .await?;
-        let user_roles: Vec<UserRole> = rows.into_iter().map(UserRole::from_row).collect();
+        let user_roles: Vec<UserRole> = rows.iter().map(UserRole::from_row).collect();
 
         Ok(user_roles)
     }

@@ -120,7 +120,7 @@ impl RoleHierarchy {
         let rows = client
             .query(sql, &[&role_id_strings, &tenant_id_string])
             .await?;
-        let roles: Vec<Role> = rows.into_iter().map(Role::from_row).collect();
+        let roles: Vec<Role> = rows.iter().map(Role::from_row).collect();
 
         Ok(roles)
     }
@@ -161,7 +161,7 @@ impl RoleHierarchy {
         let rows = client
             .query(sql, &[&role_id_string, &tenant_id_string])
             .await?;
-        let roles: Vec<Role> = rows.into_iter().map(Role::from_row).collect();
+        let roles: Vec<Role> = rows.iter().map(Role::from_row).collect();
 
         Ok(roles)
     }

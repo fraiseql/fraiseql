@@ -71,8 +71,8 @@ impl PyPermissionResolver {
     /// # Errors
     ///
     /// Returns a Python error if the user ID is not a valid UUID.
-    pub fn invalidate_user(&self, user_id: String) -> PyResult<()> {
-        let user_uuid = Uuid::parse_str(&user_id)
+    pub fn invalidate_user(&self, user_id: &str) -> PyResult<()> {
+        let user_uuid = Uuid::parse_str(user_id)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         self.resolver.invalidate_user(user_uuid);

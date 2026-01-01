@@ -56,7 +56,7 @@ pub struct Role {
 
 impl Role {
     /// Create Role from `tokio_postgres` Row
-    pub fn from_row(row: tokio_postgres::Row) -> Self {
+    pub fn from_row(row: &tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
             name: row.get(1),
@@ -142,7 +142,7 @@ impl Permission {
     }
 
     /// Create Permission from `tokio_postgres` Row
-    pub fn from_row(row: tokio_postgres::Row) -> Self {
+    pub fn from_row(row: &tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
             resource: row.get(1),
@@ -218,7 +218,7 @@ impl UserRole {
     }
 
     /// Create `UserRole` from `tokio_postgres` Row
-    pub fn from_row(row: tokio_postgres::Row) -> Self {
+    pub fn from_row(row: &tokio_postgres::Row) -> Self {
         Self {
             id: Uuid::parse_str(&row.get::<_, String>(0)).unwrap_or_default(),
             user_id: Uuid::parse_str(&row.get::<_, String>(1)).unwrap_or_default(),

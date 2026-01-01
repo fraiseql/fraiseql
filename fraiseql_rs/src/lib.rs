@@ -88,8 +88,8 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 /// - Schema JSON is invalid or cannot be parsed
 /// - Pipeline initialization fails
 #[pyfunction]
-pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
-    let pipeline = pipeline::unified::PyGraphQLPipeline::new(&schema_json)?;
+pub fn initialize_graphql_pipeline(schema_json: &str) -> PyResult<()> {
+    let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
 
     // Handle mutex poisoning gracefully
     match GLOBAL_PIPELINE.lock() {
@@ -117,7 +117,7 @@ pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
 #[pyfunction]
 pub fn execute_graphql_query(
     py: Python,
-    query_string: String,
+    query_string: &str,
     variables: Bound<'_, PyDict>,
     user_context: Bound<'_, PyDict>,
 ) -> PyResult<PyObject> {
@@ -355,7 +355,7 @@ pub fn build_graphql_response(
         &json_strings,
         field_name,
         type_name,
-        field_paths,
+        field_paths.as_deref(),
         selections_opt.as_deref(),
         is_list,
         include_graphql_wrapper,
@@ -395,7 +395,7 @@ pub fn build_graphql_response(
 /// - Schema version is unsupported
 /// - Registry is already initialized (singleton pattern)
 #[pyfunction]
-pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
+pub fn initialize_schema_registry(schema_json: &str) -> PyResult<()> {
     // Validate input
     if schema_json.is_empty() {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -404,7 +404,7 @@ pub fn initialize_schema_registry(schema_json: String) -> PyResult<()> {
     }
 
     // Parse the schema JSON with detailed error messages
-    let registry = schema_registry::SchemaRegistry::from_json(&schema_json).map_err(|e| {
+    let registry = schema_registry::SchemaRegistry::from_json(schema_json).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "Failed to parse schema JSON: {e}. Expected format: {{\"version\": \"1.0\", \"features\": [...], \"types\": {{...}}}}"
         ))
@@ -596,9 +596,9 @@ pub fn is_schema_registry_initialized() -> bool {
 /// - Query definition JSON is invalid
 /// - Query execution fails
 #[pyfunction]
-pub fn execute_query_async(query_def: String) -> PyResult<String> {
+pub fn execute_query_async(query_def: &str) -> PyResult<String> {
     // Parse the query definition
-    let _query_def: serde_json::Value = serde_json::from_str(&query_def).map_err(|e| {
+    let _query_def: serde_json::Value = serde_json::from_str(query_def).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!("Invalid query definition: {e}"))
     })?;
 
@@ -625,9 +625,9 @@ pub fn execute_query_async(query_def: String) -> PyResult<String> {
 /// - Required fields (type, table) are missing
 /// - Mutation execution fails
 #[pyfunction]
-pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
+pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
     // Parse the mutation definition
-    let mutation_def: serde_json::Value = serde_json::from_str(&mutation_def).map_err(|e| {
+    let mutation_def: serde_json::Value = serde_json::from_str(mutation_def).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!("Invalid mutation definition: {e}"))
     })?;
 
