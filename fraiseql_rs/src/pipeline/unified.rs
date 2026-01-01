@@ -113,7 +113,7 @@ impl GraphQLPipeline {
 
         // Phase 1 + 2 + 3: Database execution (mocked for Phase 9)
         // In production, this would execute the SQL and stream results
-        let mock_results = Self::execute_mock_query(&sql, &variables)?;
+        let mock_results = Self::execute_mock_query(&sql, variables)?;
 
         // Phase 3 + 4: Transform to GraphQL response
         let response = Self::build_graphql_response(&parsed_query, mock_results)?;
