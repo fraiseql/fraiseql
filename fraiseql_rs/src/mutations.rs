@@ -64,7 +64,7 @@ async fn insert_record(
     let input =
         input.ok_or_else(|| DatabaseError::Query("Input required for INSERT".to_string()))?;
 
-    let (sql, params) = build_insert_sql(table, input)?;
+    let (sql, params) = build_insert_sql(table, input);
 
     let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
         .iter()
@@ -110,7 +110,7 @@ async fn update_record(
     let input =
         input.ok_or_else(|| DatabaseError::Query("Input required for UPDATE".to_string()))?;
 
-    let (sql, params) = build_update_sql(table, input, filters)?;
+    let (sql, params) = build_update_sql(table, input, filters);
 
     let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
         .iter()
@@ -150,7 +150,7 @@ async fn delete_record(
     table: &str,
     filters: Option<&Value>,
 ) -> Result<Value, DatabaseError> {
-    let (sql, params) = build_delete_sql_with_params(table, filters)?;
+    let (sql, params) = build_delete_sql_with_params(table, filters);
 
     let sql_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
         .iter()
@@ -175,7 +175,7 @@ async fn delete_record(
 fn build_insert_sql(
     table: &str,
     input: &Value,
-) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+) -> (String, Vec<QueryParam>) {
     let mut columns = Vec::new();
     let mut values = Vec::new();
     let mut params = Vec::new();
@@ -192,14 +192,14 @@ fn build_insert_sql(
     let values_str = values.join(", ");
     let sql = format!("INSERT INTO {table} ({columns_str}) VALUES ({values_str})");
 
-    Ok((sql, params))
+    (sql, params)
 }
 
 fn build_update_sql(
     table: &str,
     input: &Value,
     filters: Option<&Value>,
-) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+) -> (String, Vec<QueryParam>) {
     let mut sets = Vec::new();
     let mut params = Vec::new();
     let mut param_index = 1;
@@ -221,13 +221,13 @@ fn build_update_sql(
         params.extend(where_clause.1);
     }
 
-    Ok((sql, params))
+    (sql, params)
 }
 
 fn build_delete_sql_with_params(
     table: &str,
     filters: Option<&Value>,
-) -> Result<(String, Vec<QueryParam>), DatabaseError> {
+) -> (String, Vec<QueryParam>) {
     let mut sql = format!("DELETE FROM {table}");
     let mut params = Vec::new();
 
@@ -237,7 +237,7 @@ fn build_delete_sql_with_params(
         params.extend(where_clause.1);
     }
 
-    Ok((sql, params))
+    (sql, params)
 }
 
 fn build_where_clause(

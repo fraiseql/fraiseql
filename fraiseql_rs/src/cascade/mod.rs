@@ -198,7 +198,7 @@ pub fn filter_cascade_data(
 
     // Filter cascade object
     if let Some(obj) = cascade.as_object_mut() {
-        filter_cascade_object(obj, &selections)?;
+        filter_cascade_object(obj, &selections);
     }
 
     // Serialize back to JSON
@@ -210,7 +210,7 @@ pub fn filter_cascade_data(
 fn filter_cascade_object(
     obj: &mut Map<String, Value>,
     selections: &CascadeSelections,
-) -> Result<(), String> {
+) {
     // Remove fields not in selections
     obj.retain(|key, _| selections.fields.contains(key));
 
@@ -227,8 +227,6 @@ fn filter_cascade_object(
             *value = filtered_value;
         }
     }
-
-    Ok(())
 }
 
 fn filter_updated_field(value: &Value, field_selections: Option<&FieldSelections>) -> Value {
