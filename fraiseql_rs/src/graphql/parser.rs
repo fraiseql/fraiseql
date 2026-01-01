@@ -26,7 +26,7 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
         .iter()
         .find_map(|def| match def {
             query::Definition::Operation(op) => Some(op),
-            _ => None,
+            query::Definition::Fragment(_) => None,
         })
         .ok_or_else(|| anyhow!("No query or mutation operation found"))?;
 
