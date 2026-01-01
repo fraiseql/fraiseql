@@ -856,10 +856,11 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<rbac::PyPermissionResolver>()?;
     m.add_class::<rbac::PyFieldAuthChecker>()?;
 
-    // Add security (Phase 12: Constraints only, audit logging in Phase 14)
+    // Add security (Phase 12: Constraints, Phase 14: Audit logging)
     m.add_class::<security::py_bindings::PyRateLimiter>()?;
     m.add_class::<security::py_bindings::PyIpFilter>()?;
     m.add_class::<security::py_bindings::PyComplexityAnalyzer>()?;
+    m.add_class::<security::py_bindings::PyAuditLogger>()?;
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
