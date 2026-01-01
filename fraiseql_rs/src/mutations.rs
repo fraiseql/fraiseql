@@ -78,14 +78,9 @@ async fn insert_record(
     // If return_fields specified, query the inserted record
     return_fields.map_or_else(
         || {
-            Ok(Value::Object(
-                serde_json::json!({
-                    "affected_rows": rows
-                })
-                .as_object()
-                .unwrap()
-                .clone(),
-            ))
+            let mut map = serde_json::Map::new();
+            map.insert("affected_rows".to_string(), serde_json::json!(rows));
+            Ok(Value::Object(map))
         },
         |fields| {
             // For simplicity, return the input data transformed
@@ -127,14 +122,9 @@ async fn update_record(
     // If return_fields specified, query the updated records
     // For simplicity, return affected row count
     // In a full implementation, we'd use RETURNING clause
-    Ok(Value::Object(
-        serde_json::json!({
-            "affected_rows": rows
-        })
-        .as_object()
-        .unwrap()
-        .clone(),
-    ))
+    let mut map = serde_json::Map::new();
+    map.insert("affected_rows".to_string(), serde_json::json!(rows));
+    Ok(Value::Object(map))
 }
 
 async fn delete_record(
@@ -153,15 +143,10 @@ async fn delete_record(
         .await
         .map_err(|e| DatabaseError::Query(format!("DELETE failed: {e}")))?;
 
-    Ok(Value::Object(
-        serde_json::json!({
-            "affected_rows": rows,
-            "success": true
-        })
-        .as_object()
-        .unwrap()
-        .clone(),
-    ))
+    let mut map = serde_json::Map::new();
+    map.insert("affected_rows".to_string(), serde_json::json!(rows));
+    map.insert("success".to_string(), serde_json::json!(true));
+    Ok(Value::Object(map))
 }
 
 fn build_insert_sql(table: &str, input: &Value) -> (String, Vec<QueryParam>) {

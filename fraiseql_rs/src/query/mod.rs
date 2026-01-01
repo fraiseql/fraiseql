@@ -116,7 +116,7 @@ pub fn build_sql_query_cached(
             parameters: vec![],
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system time before UNIX epoch")
                 .as_secs(),
             hit_count: 0,
         },
