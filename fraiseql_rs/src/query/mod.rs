@@ -133,12 +133,12 @@ pub fn build_sql_query_cached(
 /// - Cache statistics retrieval fails
 /// - Python dictionary creation fails
 #[pyfunction]
-pub fn get_cache_stats(_py: Python) -> PyResult<PyObject> {
+pub fn get_cache_stats(py: Python) -> PyResult<PyObject> {
     let stats = QUERY_PLAN_CACHE.stats().map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Cache stats error: {e}"))
     })?;
 
-    let dict = pyo3::types::PyDict::new(_py);
+    let dict = pyo3::types::PyDict::new(py);
     dict.set_item("hits", stats.hits)?;
     dict.set_item("misses", stats.misses)?;
     dict.set_item("hit_rate", stats.hit_rate)?;

@@ -642,7 +642,7 @@ pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Missing table"))?;
 
-    let _input = mutation_def.get("input");
+    let input = mutation_def.get("input");
     let _filters = mutation_def.get("filters");
     let _return_fields = mutation_def
         .get("return_fields")
@@ -671,7 +671,7 @@ pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
     let response = match mutation_type {
         crate::mutations::MutationType::Insert => {
             // Use mutations.rs logic to validate and transform input
-            _input.map_or_else(
+            input.map_or_else(
                 || serde_json::json!({"error": "Input required for INSERT"}),
                 |input_val| {
                     // For demo: return the input with an auto-generated ID
@@ -684,7 +684,7 @@ pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
             )
         }
         crate::mutations::MutationType::Update => {
-            _input.map_or_else(
+            input.map_or_else(
                 || serde_json::json!({"error": "Input required for UPDATE"}),
                 |input_val| {
                     // For demo: return updated record
