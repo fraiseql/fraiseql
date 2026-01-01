@@ -137,6 +137,7 @@ impl QueryValidator {
     }
 
     /// Calculate complexity for a single selection
+    #[allow(clippy::only_used_in_recursion)]
     fn calculate_selection_complexity(
         &self,
         selection: &crate::graphql::types::FieldSelection,
