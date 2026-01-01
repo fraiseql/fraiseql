@@ -36,6 +36,18 @@ pub struct TableSchema {
     /// Whether table has JSONB data column
     #[pyo3(get)]
     pub has_jsonb_data: bool,
+
+    /// Pre-compiled WHERE SQL (Phase 7.1)
+    /// Optional WHERE clause already compiled to SQL by Python
+    #[pyo3(get)]
+    #[serde(default)]
+    pub where_sql: Option<String>,
+
+    /// ORDER BY clauses (Phase 7.1)
+    /// List of (field_name, direction) tuples
+    #[pyo3(get)]
+    #[serde(default)]
+    pub order_by: Vec<(String, String)>,
 }
 
 /// Type definition for GraphQL types.

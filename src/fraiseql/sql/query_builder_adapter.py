@@ -255,15 +255,14 @@ def _build_with_rust(
     Args:
         table: Table name
         field_paths: Field paths to select
-        where_clause: WHERE clause (currently not fully supported)
-        **kwargs: Additional parameters (for future compatibility)
+        where_clause: WHERE clause (Phase 7.1: converted to SQL string)
+        **kwargs: Additional parameters (order_by, group_by, etc.)
 
     Returns:
         Composed SQL query
 
     Note:
-        This is a Phase 7 implementation. Some advanced features may not
-        be fully supported yet (e.g., complex WHERE clauses, GROUP BY).
+        Phase 7.1: Supports WHERE SQL pass-through and ORDER BY tuples.
     """
     # Import here to avoid circular dependencies
     from fraiseql.core.graphql_parser import ParsedQuery
@@ -279,22 +278,8 @@ def _build_with_rust(
         for fp in field_paths
     ]
 
-    # 2. Build arguments (WHERE, ORDER BY, LIMIT, etc.)
+    # 2. Build arguments (empty - WHERE/ORDER BY passed via schema metadata)
     arguments = []
-
-    # WHERE clause support (basic - convert SQL to GraphQL WHERE)
-    if where_clause is not None:
-        # For Phase 7.0, we'll log unsupported WHERE clauses
-        # Full WHERE clause conversion will be added in Phase 7.1
-        logger.debug(f"WHERE clause passed but not yet converted to Rust format: {where_clause}")
-        # TODO(Phase 7.1): Convert SQL WHERE to GraphQL WHERE argument  # noqa: TD003
-        # For now, queries with WHERE will use simple format or fallback
-
-    # ORDER BY support
-    if kwargs.get("order_by"):
-        order_by = kwargs["order_by"]
-        # TODO(Phase 7.1): Convert to GraphQL order_by argument  # noqa: TD003
-        logger.debug(f"ORDER BY passed but not yet converted: {order_by}")
 
     # Create root field selection
     root_field = FieldSelection(
@@ -311,49 +296,93 @@ def _build_with_rust(
         fragments=[],
     )
 
-    # 3. Build schema metadata
-    # For Phase 7.0, use simplified schema
-    # Full schema introspection will be added in Phase 7.1
-    schema_metadata = {
-        "tables": {
-            table: {
-                "view_name": table,
-                "sql_columns": _infer_sql_columns(table, field_paths),
-                "jsonb_column": "data",  # Standard for FraiseQL
-                "fk_mappings": {},  # TODO(Phase 7.1): Extract from registry  # noqa: TD003
-                "has_jsonb_data": True,
-            }
-        },
-        "types": {},
-    }
+    # 3. Build schema metadata with Phase 7.1 enhancements
+    schema_metadata = _build_schema_metadata(table, field_paths, where_clause, kwargs)
 
     # 4. Call Rust builder
     builder = RustQueryBuilder()
     rust_result = builder.build_cached(parsed_query, schema_metadata)
 
     # 5. Convert Rust GeneratedQuery to Composed SQL
-    # For now, simple conversion - parameters not yet bound
     sql_text = rust_result.sql
-
-    # TODO(Phase 7.1): Bind parameters if present  # noqa: TD003
-    # For Phase 7.0, we use the SQL as-is
-    # Parameter binding will be added in Phase 7.1
 
     return Composed([SQL(sql_text)])
 
 
-def _infer_sql_columns(table: str, field_paths: Sequence[Any]) -> list[str]:
-    """Infer SQL columns from field paths.
+def _build_schema_metadata(
+    table: str,
+    field_paths: Sequence[Any],
+    where_clause: SQL | None,
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    """Build schema metadata for Rust query builder.
 
-    This is a simplified version for Phase 7.0. Full schema integration
-    will be added in Phase 7.1.
+    Phase 7.1: Integrates schema registry and passes WHERE SQL + ORDER BY.
+
+    Args:
+        table: Table name
+        field_paths: Field paths to select
+        where_clause: Optional WHERE clause (psycopg SQL object)
+        kwargs: Additional parameters (order_by, etc.)
+
+    Returns:
+        Schema metadata dict for Rust
+    """
+    # Try to get schema from registry
+    from fraiseql.db import _table_metadata
+
+    metadata = _table_metadata.get(table, {})
+
+    # Extract SQL columns from metadata or infer
+    sql_columns = list(metadata.get("columns", set())) if metadata.get("columns") else _infer_sql_columns(table, field_paths)
+
+    # Convert WHERE clause to SQL string (Phase 7.1)
+    where_sql = None
+    if where_clause is not None:
+        from fraiseql.sql.sql_to_string import sql_to_string
+
+        where_sql = sql_to_string(where_clause)
+        if LOG_QUERY_BUILDER_MODE:
+            logger.debug(f"Phase 7.1: Passing WHERE SQL to Rust: {where_sql}")
+
+    # Convert ORDER BY to tuples (Phase 7.1)
+    order_by_tuples = []
+    if kwargs.get("order_by"):
+        order_by = kwargs["order_by"]
+        # order_by comes as list of (field, direction) tuples
+        order_by_tuples = [(str(field), str(direction)) for field, direction in order_by]
+        if LOG_QUERY_BUILDER_MODE:
+            logger.debug(f"Phase 7.1: Passing ORDER BY to Rust: {order_by_tuples}")
+
+    # Build table schema
+    table_schema = {
+        "view_name": table,
+        "sql_columns": sql_columns,
+        "jsonb_column": metadata.get("jsonb_column", "data"),
+        "fk_mappings": metadata.get("fk_mappings", {}),
+        "has_jsonb_data": metadata.get("has_jsonb_data", True),
+        # Phase 7.1 additions
+        "where_sql": where_sql,
+        "order_by": order_by_tuples,
+    }
+
+    return {
+        "tables": {table: table_schema},
+        "types": {},
+    }
+
+
+def _infer_sql_columns(table: str, field_paths: Sequence[Any]) -> list[str]:
+    """Infer SQL columns from field paths (fallback when schema unavailable).
+
+    Phase 7.1: This is now a fallback - primary source is schema registry.
 
     Args:
         table: Table name
         field_paths: Field paths being selected
 
     Returns:
-        List of SQL column names
+        List of common SQL column names
     """
     # Common SQL columns in FraiseQL
     # These are typically direct columns, not JSONB fields
@@ -369,6 +398,5 @@ def _infer_sql_columns(table: str, field_paths: Sequence[Any]) -> list[str]:
         "type",
     }
 
-    # For now, return common columns
-    # TODO(Phase 7.1): Query schema registry for actual columns  # noqa: TD003
+    # Return common columns as fallback
     return list(common_sql_columns)

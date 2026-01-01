@@ -50,20 +50,50 @@ impl SQLComposer {
         let mut where_builder =
             WhereClauseBuilder::new(self.schema.clone(), root_field.name.clone());
 
-        // Extract WHERE argument if present
-        let where_clause =
-            if let Some(where_arg) = root_field.arguments.iter().find(|arg| arg.name == "where") {
+        // Extract WHERE clause
+        // Phase 7.1: Check for pre-compiled WHERE SQL in schema first (pass-through)
+        let where_clause = if let Some(table_schema) = self.schema.get_table(&root_field.name) {
+            if let Some(ref where_sql) = table_schema.where_sql {
+                // Use pre-compiled WHERE SQL from schema (Phase 7.1)
+                where_sql.clone()
+            } else if let Some(where_arg) =
+                root_field.arguments.iter().find(|arg| arg.name == "where")
+            {
+                // Build WHERE from GraphQL argument (existing behavior)
                 where_builder.build_where(where_arg)?
             } else {
                 String::new()
-            };
+            }
+        } else if let Some(where_arg) = root_field.arguments.iter().find(|arg| arg.name == "where")
+        {
+            // Fallback: build WHERE from GraphQL argument
+            where_builder.build_where(where_arg)?
+        } else {
+            String::new()
+        };
 
         // Extract ORDER BY
-        let order_clause = root_field
-            .arguments
-            .iter()
-            .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
-            .map_or(String::new(), Self::build_order_clause);
+        // Phase 7.1: Check for ORDER BY in schema first
+        let order_clause = if let Some(table_schema) = self.schema.get_table(&root_field.name) {
+            if !table_schema.order_by.is_empty() {
+                // Use ORDER BY from schema (Phase 7.1)
+                Self::build_order_from_tuples(&table_schema.order_by)
+            } else {
+                // Check GraphQL argument
+                root_field
+                    .arguments
+                    .iter()
+                    .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
+                    .map_or(String::new(), Self::build_order_clause)
+            }
+        } else {
+            // Fallback: check GraphQL argument
+            root_field
+                .arguments
+                .iter()
+                .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
+                .map_or(String::new(), Self::build_order_clause)
+        };
 
         // Extract pagination
         let limit_clause = root_field
@@ -114,6 +144,39 @@ impl SQLComposer {
         // Parse ORDER BY argument
         // TODO: Implement proper ORDER BY parsing from GraphQL argument
         "ORDER BY t.id DESC".to_string()
+    }
+
+    /// Build ORDER BY clause from tuples (Phase 7.1).
+    ///
+    /// # Arguments
+    ///
+    /// * `order_by` - List of (field_name, direction) tuples
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// build_order_from_tuples(&[("created_at".to_string(), "DESC".to_string())])
+    /// // Returns: "ORDER BY t.created_at DESC"
+    /// ```
+    fn build_order_from_tuples(order_by: &[(String, String)]) -> String {
+        if order_by.is_empty() {
+            return String::new();
+        }
+
+        let clauses: Vec<String> = order_by
+            .iter()
+            .map(|(field, direction)| {
+                // Validate direction
+                let dir = match direction.to_uppercase().as_str() {
+                    "ASC" | "DESC" => direction.to_uppercase(),
+                    _ => "ASC".to_string(), // Default to ASC if invalid
+                };
+
+                format!("t.{field} {dir}")
+            })
+            .collect();
+
+        format!("ORDER BY {}", clauses.join(", "))
     }
 
     fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> String {
