@@ -2,6 +2,7 @@
 
 use crate::db::{
     errors::{DatabaseError, DatabaseResult},
+    metrics::PoolMetrics,
     pool_config::{DatabaseConfig, SslMode},
 };
 use deadpool_postgres::{
@@ -19,6 +20,8 @@ pub struct ProductionPool {
     pool: Arc<Pool>,
     /// Configuration (for stats/debugging)
     config: DatabaseConfig,
+    /// Metrics collector
+    metrics: Arc<PoolMetrics>,
 }
 
 impl ProductionPool {
@@ -66,6 +69,7 @@ impl ProductionPool {
         Ok(Self {
             pool: Arc::new(pool),
             config,
+            metrics: Arc::new(PoolMetrics::new()),
         })
     }
 
@@ -170,10 +174,16 @@ impl ProductionPool {
     pub async fn execute_query(&self, sql: &str) -> DatabaseResult<Vec<serde_json::Value>> {
         let client = self.get_connection().await?;
 
-        let rows = client
-            .query(sql, &[])
-            .await
-            .map_err(|e| DatabaseError::QueryExecution(e.to_string()))?;
+        let rows = match client.query(sql, &[]).await {
+            Ok(rows) => {
+                self.metrics.record_query_executed();
+                rows
+            }
+            Err(e) => {
+                self.metrics.record_query_error();
+                return Err(DatabaseError::QueryExecution(e.to_string()));
+            }
+        };
 
         // Extract JSONB from column 0 (FraiseQL CQRS pattern)
         let results = rows
@@ -220,6 +230,14 @@ impl ProductionPool {
     #[must_use]
     pub fn get_underlying_pool(&self) -> deadpool_postgres::Pool {
         (*self.pool).clone()
+    }
+
+    /// Get a snapshot of pool metrics.
+    ///
+    /// Returns counters for queries executed, errors, and health checks.
+    #[must_use]
+    pub fn metrics(&self) -> crate::db::metrics::MetricsSnapshot {
+        self.metrics.snapshot()
     }
 }
 

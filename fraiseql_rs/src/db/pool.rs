@@ -483,6 +483,37 @@ impl DatabasePool {
         })
     }
 
+    /// Get pool metrics.
+    ///
+    /// Returns dictionary with execution metrics:
+    /// - queries_executed: Total successful queries
+    /// - query_errors: Total failed queries
+    /// - health_checks: Total health checks performed
+    /// - health_check_failures: Total failed health checks
+    /// - query_success_rate: Success rate (0.0-1.0)
+    /// - health_check_success_rate: Health check success rate (0.0-1.0)
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// metrics = pool.metrics()
+    /// print(f"Queries: {metrics['queries_executed']}")
+    /// print(f"Success rate: {metrics['query_success_rate']:.2%}")
+    /// ```
+    fn metrics(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let metrics = self.inner.metrics();
+
+        let dict = PyDict::new(py);
+        dict.set_item("queries_executed", metrics.queries_executed)?;
+        dict.set_item("query_errors", metrics.query_errors)?;
+        dict.set_item("health_checks", metrics.health_checks)?;
+        dict.set_item("health_check_failures", metrics.health_check_failures)?;
+        dict.set_item("query_success_rate", metrics.query_success_rate())?;
+        dict.set_item("health_check_success_rate", metrics.health_check_success_rate())?;
+
+        Ok(dict.into())
+    }
+
     /// String representation.
     fn __repr__(&self) -> String {
         let stats = self.inner.stats();

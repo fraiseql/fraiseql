@@ -18,6 +18,7 @@
 
 pub mod errors;
 pub mod health;
+pub mod metrics;
 pub mod pool;
 pub mod pool_config;
 pub mod pool_production;
@@ -31,6 +32,7 @@ pub mod where_builder;
 // Re-export main types
 pub use errors::{DatabaseError, DatabaseResult};
 pub use health::{HealthCheckResult, PoolHealthStats};
+pub use metrics::{MetricsSnapshot, PoolMetrics};
 pub use pool::DatabasePool;
 pub use pool_config::{DatabaseConfig, SslMode};
 pub use pool_production::{PoolStats, ProductionPool};
