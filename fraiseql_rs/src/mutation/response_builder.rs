@@ -162,23 +162,24 @@ pub fn build_success_response(
         let entity_type = result.entity_type.as_deref().unwrap_or("Entity");
 
         // Determine the field name for the entity in the response
-        let field_name = entity_field_name
-            .map(|name| {
-                // Convert entity_field_name based on auto_camel_case flag
-                if auto_camel_case {
-                    to_camel_case(name)
-                } else {
-                    name.to_string()
-                }
-            })
-            .unwrap_or_else(|| {
+        let field_name = entity_field_name.map_or_else(
+            || {
                 // No entity_field_name provided, derive from type
                 if auto_camel_case {
                     to_camel_case(&entity_type.to_lowercase())
                 } else {
                     entity_type.to_lowercase()
                 }
-            });
+            },
+            |name| {
+                // Convert entity_field_name based on auto_camel_case flag
+                if auto_camel_case {
+                    to_camel_case(name)
+                } else {
+                    name.to_string()
+                }
+            },
+        );
 
         // Only add entity if the field is selected
         if is_selected(&field_name) {
