@@ -64,6 +64,7 @@ impl WhereBuilder {
     }
 
     /// Add an inequality condition.
+    #[must_use]
     pub fn ne<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
@@ -73,6 +74,7 @@ impl WhereBuilder {
     }
 
     /// Add a greater than condition.
+    #[must_use]
     pub fn gt<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
@@ -82,6 +84,7 @@ impl WhereBuilder {
     }
 
     /// Add a greater than or equal condition.
+    #[must_use]
     pub fn gte<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
@@ -91,6 +94,7 @@ impl WhereBuilder {
     }
 
     /// Add a less than condition.
+    #[must_use]
     pub fn lt<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
@@ -100,6 +104,7 @@ impl WhereBuilder {
     }
 
     /// Add a less than or equal condition.
+    #[must_use]
     pub fn lte<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
