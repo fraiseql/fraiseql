@@ -392,7 +392,7 @@ fn test_filter_all_cascade_fields() {
 
 #[test]
 fn test_invalid_cascade_json() {
-    let cascade = r#"invalid json"#;
+    let cascade = r"invalid json";
     let selections = r#"{"fields": []}"#;
 
     let result = filter_cascade_data(cascade, Some(selections));
@@ -403,7 +403,7 @@ fn test_invalid_cascade_json() {
 #[test]
 fn test_invalid_selections_json() {
     let cascade = r#"{"updated": []}"#;
-    let selections = r#"invalid json"#;
+    let selections = r"invalid json";
 
     let result = filter_cascade_data(cascade, Some(selections));
     assert!(result.is_err());
@@ -414,7 +414,7 @@ fn test_invalid_selections_json() {
 
 #[test]
 fn test_empty_cascade() {
-    let cascade = r#"{}"#;
+    let cascade = r"{}";
     let selections = r#"{"fields": ["updated", "deleted"]}"#;
 
     let result = filter_cascade_data(cascade, Some(selections)).unwrap();

@@ -350,13 +350,13 @@ mod tests {
 
     #[test]
     fn test_parse_query_with_variables() {
-        let query = r#"
+        let query = r"
             query GetUsers($where: UserWhere!) {
                 users(where: $where) {
                     id
                 }
             }
-        "#;
+        ";
         let parsed = parse_query(query).unwrap();
 
         assert_eq!(parsed.variables.len(), 1);
@@ -366,13 +366,13 @@ mod tests {
     #[test]
     fn test_parse_query_with_integer_argument() {
         // This test verifies the unsafe Number -> i64 conversion works correctly
-        let query = r#"
+        let query = r"
             query {
                 users(limit: 42, offset: 100) {
                     id
                 }
             }
-        "#;
+        ";
         let parsed = parse_query(query).unwrap();
 
         let first_field = &parsed.selections[0];
@@ -391,7 +391,7 @@ mod tests {
     #[test]
     fn test_parse_query_with_inline_fragment_fails() {
         // Inline fragments should return error (not silently skip)
-        let query = r#"
+        let query = r"
             query {
                 users {
                     id
@@ -400,7 +400,7 @@ mod tests {
                     }
                 }
             }
-        "#;
+        ";
         let result = parse_query(query);
         assert!(result.is_err());
         assert!(result
@@ -412,13 +412,13 @@ mod tests {
     #[test]
     fn test_parse_query_with_fragment_spread_fails() {
         // Fragment spreads should return error
-        let query = r#"
+        let query = r"
             query {
                 users {
                     ...UserFields
                 }
             }
-        "#;
+        ";
         let result = parse_query(query);
         assert!(result.is_err());
         assert!(result

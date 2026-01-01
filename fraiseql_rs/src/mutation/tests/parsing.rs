@@ -135,14 +135,14 @@ fn test_format_detection_simple_vs_full() {
 #[test]
 fn test_parse_missing_status_fails() {
     // Empty JSON should fail
-    let json = r#"{}"#;
+    let json = r"{}";
     let result = MutationResult::from_json(json, None);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_parse_invalid_json_fails() {
-    let json = r#"not valid json"#;
+    let json = r"not valid json";
     let result = MutationResult::from_json(json, None);
     assert!(result.is_err());
 }
