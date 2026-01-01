@@ -716,8 +716,8 @@ pub fn execute_mutation_async(mutation_def: &str) -> PyResult<String> {
 /// Examples:
 ///     >>> # Query: { dnsServers { id } gateways { id } }
 ///     >>> result = `build_multi_field_response`([
-///     ...     ("dnsServers", "`DnsServer`", ['{"id": 1}', '{"id": 2}'], '["id"]', True),
-///     ...     ("gateways", "Gateway", ['{"id": 10}'], '["id"]', True)
+///     ...     ("dnsServers", "`DnsServer`", `['{"id": 1}', '{"id": 2}']`, `'["id"]'`, True),
+///     ...     ("gateways", "Gateway", `['{"id": 10}']`, `'["id"]'`, True)
 ///     ... ])
 ///     >>> result.decode('utf-8')
 ///     '{"data":{"dnsServers":[{"__typename":"DnsServer","id":1},{"__typename":"DnsServer","id":2}],"gateways":[{"__typename":"Gateway","id":10}]}}'

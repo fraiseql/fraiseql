@@ -27,7 +27,7 @@ impl FieldSet {
     /// Create from field paths
     ///
     /// # Arguments
-    /// * `paths` - Field paths like [["id"], ["firstName"], ["posts", "title"]]
+    /// * `paths` - Field paths like `[["id"], ["firstName"], ["posts", "title"]]`
     /// * `_arena` - Arena for allocations (not used in bitmap implementation)
     pub fn from_paths(paths: &[Vec<String>], _arena: &crate::core::arena::Arena) -> Self {
         let mut field_set = Self {

@@ -21,7 +21,7 @@ pub struct TableSchema {
     #[pyo3(get)]
     pub view_name: String,
 
-    /// Direct SQL columns (e.g., ["id", "email", "status"])
+    /// Direct SQL columns (e.g., `["id", "email", "status"]`)
     #[pyo3(get)]
     pub sql_columns: Vec<String>,
 
