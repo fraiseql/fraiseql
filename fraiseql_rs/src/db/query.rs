@@ -105,7 +105,7 @@ impl<'a> QueryExecutor<'a> {
         updates: &std::collections::HashMap<&str, QueryParam>,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
-        let (sql, params) = self.build_update_sql_with_params(table, updates, where_clause)?;
+        let (sql, params) = Self::build_update_sql_with_params(table, updates, where_clause)?;
 
         // Validate parameters before execution
         for param in &params {
@@ -215,7 +215,6 @@ impl<'a> QueryExecutor<'a> {
 
     /// Build UPDATE SQL statement and collect parameters.
     fn build_update_sql_with_params(
-        &self,
         table: &str,
         updates: &std::collections::HashMap<&str, QueryParam>,
         where_clause: Option<WhereBuilder>,

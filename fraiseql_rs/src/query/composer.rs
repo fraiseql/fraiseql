@@ -64,7 +64,7 @@ impl SQLComposer {
             .iter()
             .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
         {
-            self.build_order_clause(order_arg)?
+            Self::build_order_clause(order_arg)?
         } else {
             String::new()
         };
@@ -72,7 +72,7 @@ impl SQLComposer {
         // Extract pagination
         let limit_clause =
             if let Some(limit_arg) = root_field.arguments.iter().find(|arg| arg.name == "limit") {
-                self.build_limit_clause(limit_arg)?
+                Self::build_limit_clause(limit_arg)?
             } else {
                 "LIMIT 100".to_string() // Default limit
             };
@@ -80,7 +80,7 @@ impl SQLComposer {
         let offset_clause = if let Some(offset_arg) =
             root_field.arguments.iter().find(|arg| arg.name == "offset")
         {
-            self.build_offset_clause(offset_arg)?
+            Self::build_offset_clause(offset_arg)?
         } else {
             String::new()
         };
@@ -118,7 +118,6 @@ impl SQLComposer {
     }
 
     fn build_order_clause(
-        &self,
         _order_arg: &crate::graphql::types::GraphQLArgument,
     ) -> Result<String> {
         // Parse ORDER BY argument
@@ -127,7 +126,6 @@ impl SQLComposer {
     }
 
     fn build_limit_clause(
-        &self,
         limit_arg: &crate::graphql::types::GraphQLArgument,
     ) -> Result<String> {
         // Extract limit value
@@ -138,7 +136,6 @@ impl SQLComposer {
     }
 
     fn build_offset_clause(
-        &self,
         offset_arg: &crate::graphql::types::GraphQLArgument,
     ) -> Result<String> {
         // Extract offset value

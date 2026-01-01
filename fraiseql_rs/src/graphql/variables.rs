@@ -109,7 +109,7 @@ impl VariableProcessor {
             "Int" => Self::coerce_to_int(value),
             "Float" => Self::coerce_to_float(value),
             "Boolean" => Self::coerce_to_boolean(value),
-            "ID" => self.coerce_to_id(value),
+            "ID" => Self::coerce_to_id(value),
             _ => {
                 // For custom types, just validate nullability
                 if value.is_null() && !expected_type.nullable {
@@ -171,7 +171,7 @@ impl VariableProcessor {
         }
     }
 
-    fn coerce_to_id(&self, value: &serde_json::Value) -> Result<serde_json::Value, String> {
+    fn coerce_to_id(value: &serde_json::Value) -> Result<serde_json::Value, String> {
         // ID is serialized as String
         Self::coerce_to_string(value)
     }

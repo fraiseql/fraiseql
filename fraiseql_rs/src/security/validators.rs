@@ -152,7 +152,7 @@ impl QueryValidator {
         }
 
         // Add cost for list fields (pagination/multiplier)
-        if self.is_list_field(selection) {
+        if Self::is_list_field(selection) {
             complexity *= 10; // Assume pagination limits this
         }
 
@@ -160,7 +160,7 @@ impl QueryValidator {
     }
 
     /// Check if field returns a list (affects complexity)
-    fn is_list_field(&self, selection: &crate::graphql::types::FieldSelection) -> bool {
+    fn is_list_field(selection: &crate::graphql::types::FieldSelection) -> bool {
         // This would need schema introspection to determine if field returns a list
         // For now, use heuristics based on field name
         let list_indicators = ["list", "all", "many", "items", "edges", "nodes"];
@@ -303,7 +303,7 @@ mod tests {
             directives: vec![],
         };
 
-        assert!(validator.is_list_field(&list_field)); // ends with 's'
-        assert!(!validator.is_list_field(&non_list_field));
+        assert!(QueryValidator::is_list_field(&list_field)); // ends with 's'
+        assert!(!QueryValidator::is_list_field(&non_list_field));
     }
 }

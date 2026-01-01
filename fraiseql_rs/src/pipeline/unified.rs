@@ -80,7 +80,7 @@ impl GraphQLPipeline {
         let parsed_query = crate::graphql::parser::parse_query(query_string)?;
 
         // Phase 13: Advanced GraphQL Features Validation
-        self.validate_advanced_graphql_features(&parsed_query, &variables)?;
+        Self::validate_advanced_graphql_features(&parsed_query, &variables)?;
 
         // Phase 7 + 8: Build SQL (with caching)
         let signature = crate::cache::signature::generate_signature(&parsed_query);
@@ -113,10 +113,10 @@ impl GraphQLPipeline {
 
         // Phase 1 + 2 + 3: Database execution (mocked for Phase 9)
         // In production, this would execute the SQL and stream results
-        let mock_results = self.execute_mock_query(&sql, &variables)?;
+        let mock_results = Self::execute_mock_query(&sql, &variables)?;
 
         // Phase 3 + 4: Transform to GraphQL response
-        let response = self.build_graphql_response(&parsed_query, mock_results)?;
+        let response = Self::build_graphql_response(&parsed_query, mock_results)?;
 
         // Return JSON bytes
         Ok(serde_json::to_vec(&response)?)
@@ -124,7 +124,6 @@ impl GraphQLPipeline {
 
     /// Validate advanced GraphQL features (Phase 13).
     fn validate_advanced_graphql_features(
-        &self,
         query: &ParsedQuery,
         variables: &HashMap<String, JsonValue>,
     ) -> Result<()> {
@@ -162,7 +161,6 @@ impl GraphQLPipeline {
 
     /// Mock database execution for Phase 9 demo.
     fn execute_mock_query(
-        &self,
         sql: &str,
         _variables: &HashMap<String, JsonValue>,
     ) -> Result<Vec<String>> {
@@ -203,7 +201,6 @@ impl GraphQLPipeline {
 
     /// Build GraphQL response from database results.
     fn build_graphql_response(
-        &self,
         parsed_query: &ParsedQuery,
         db_results: Vec<String>,
     ) -> Result<serde_json::Value> {
