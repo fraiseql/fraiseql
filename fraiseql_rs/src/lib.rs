@@ -69,7 +69,7 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 /// - Pipeline initialization fails
 #[pyfunction]
 pub fn initialize_graphql_pipeline(schema_json: String) -> PyResult<()> {
-    let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json)?;
+    let pipeline = pipeline::unified::PyGraphQLPipeline::new(&schema_json)?;
 
     // Handle mutex poisoning gracefully
     match GLOBAL_PIPELINE.lock() {
@@ -111,7 +111,7 @@ pub fn execute_graphql_query(
     };
 
     match &*pipeline_guard {
-        Some(pipeline) => pipeline.execute_py(py, query_string, &variables, &user_context),
+        Some(pipeline) => pipeline.execute_py(py, &query_string, &variables, &user_context),
         None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
             "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
         )),
@@ -330,11 +330,11 @@ pub fn build_graphql_response(
     };
 
     pipeline::builder::build_graphql_response(
-        json_strings,
+        &json_strings,
         field_name,
         type_name,
         field_paths,
-        selections_opt,
+        selections_opt.as_deref(),
         is_list,
         include_graphql_wrapper,
     )
@@ -518,8 +518,8 @@ pub fn build_mutation_response(
         entity_type,
         cascade_selections,
         auto_camel_case,
-        success_type_fields,
-        error_type_fields,
+        success_type_fields.as_deref(),
+        error_type_fields.as_deref(),
     )
     .map_err(pyo3::exceptions::PyValueError::new_err)
 }

@@ -25,7 +25,7 @@ pub fn parse_mutation_response(
 
     // Detect format
     if is_full_format(&value) {
-        parse_full(value, default_entity_type).map(MutationResponse::Full)
+        parse_full(&value, default_entity_type).map(MutationResponse::Full)
     } else {
         parse_simple(value).map(MutationResponse::Simple)
     }
@@ -74,7 +74,7 @@ const fn parse_simple(
 
 /// Parse full mutation response format
 fn parse_full(
-    value: Value,
+    value: &Value,
     default_entity_type: Option<&str>,
 ) -> Result<FullResponse, crate::mutation::types::MutationError> {
     // Required fields

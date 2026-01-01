@@ -188,7 +188,7 @@ impl PyAuthProvider {
     ///         user = await loop.run_in_executor(None, auth.validate_token_blocking, token)
     ///         return user
     ///     ```
-    pub fn validate_token_blocking(&self, token: String) -> PyResult<PyUserContext> {
+    pub fn validate_token_blocking(&self, token: &str) -> PyResult<PyUserContext> {
         let provider = self.provider.clone();
 
         // Run the async validation on the current tokio runtime
@@ -198,7 +198,7 @@ impl PyAuthProvider {
                 "No tokio runtime available. Call from async context or use asyncio.to_thread.run_in_executor()"
             ))?;
 
-        let context = rt.block_on(provider.validate_token(&token)).map_err(|e| {
+        let context = rt.block_on(provider.validate_token(token)).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Token validation failed: {e}"
             ))

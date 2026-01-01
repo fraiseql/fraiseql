@@ -58,7 +58,7 @@ impl GraphQLPipeline {
         user_context: UserContext,
     ) -> Result<Vec<u8>> {
         // For Phase 9, delegate to sync version
-        self.execute_sync(query_string, variables, user_context)
+        self.execute_sync(query_string, &variables, user_context)
     }
 
     /// Execute complete GraphQL query end-to-end (sync version for Phase 9 demo).
@@ -73,14 +73,14 @@ impl GraphQLPipeline {
     pub fn execute_sync(
         &self,
         query_string: &str,
-        variables: HashMap<String, JsonValue>,
+        variables: &HashMap<String, JsonValue>,
         _user_context: UserContext,
     ) -> Result<Vec<u8>> {
         // Phase 6: Parse GraphQL query
         let parsed_query = crate::graphql::parser::parse_query(query_string)?;
 
         // Phase 13: Advanced GraphQL Features Validation
-        Self::validate_advanced_graphql_features(&parsed_query, &variables)?;
+        Self::validate_advanced_graphql_features(&parsed_query, variables)?;
 
         // Phase 7 + 8: Build SQL (with caching)
         let signature = crate::cache::signature::generate_signature(&parsed_query);
@@ -236,8 +236,8 @@ impl PyGraphQLPipeline {
     ///
     /// Returns a Python error if schema JSON is invalid or cannot be parsed.
     #[new]
-    pub fn new(schema_json: String) -> PyResult<Self> {
-        let schema: SchemaMetadata = serde_json::from_str(&schema_json)
+    pub fn new(schema_json: &str) -> PyResult<Self> {
+        let schema: SchemaMetadata = serde_json::from_str(schema_json)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         let cache = Arc::new(QueryPlanCache::new(5000));
@@ -259,7 +259,7 @@ impl PyGraphQLPipeline {
     pub fn execute_py(
         &self,
         py: Python,
-        query_string: String,
+        query_string: &str,
         variables: &Bound<'_, PyDict>,
         user_context: &Bound<'_, PyDict>,
     ) -> PyResult<PyObject> {
@@ -269,7 +269,7 @@ impl PyGraphQLPipeline {
         // For Phase 9 demo, execute synchronously with mock data
         let result_bytes = self
             .pipeline
-            .execute_sync(&query_string, vars, user)
+            .execute_sync(query_string, &vars, user)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(PyBytes::new(py, &result_bytes).into())

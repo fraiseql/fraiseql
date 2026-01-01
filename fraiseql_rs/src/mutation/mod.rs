@@ -62,8 +62,8 @@ pub fn build_mutation_response(
     entity_type: Option<&str>,
     cascade_selections: Option<&str>,
     auto_camel_case: bool,
-    success_type_fields: Option<Vec<String>>,
-    error_type_fields: Option<Vec<String>>,
+    success_type_fields: Option<&[String]>,
+    error_type_fields: Option<&[String]>,
 ) -> Result<Vec<u8>, String> {
     // Step 1: Try parsing as PostgreSQL 8-field mutation_response FIRST
     let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
@@ -88,8 +88,8 @@ pub fn build_mutation_response(
         entity_field_name,
         entity_type,
         auto_camel_case,
-        success_type_fields.as_ref(),
-        error_type_fields.as_ref(),
+        success_type_fields,
+        error_type_fields,
         cascade_selections,
     )?;
 

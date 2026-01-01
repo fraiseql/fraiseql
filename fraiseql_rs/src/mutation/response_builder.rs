@@ -28,8 +28,8 @@ pub fn build_graphql_response(
     entity_field_name: Option<&str>,
     _entity_type: Option<&str>,
     auto_camel_case: bool,
-    success_type_fields: Option<&Vec<String>>,
-    error_type_fields: Option<&Vec<String>>,
+    success_type_fields: Option<&[String]>,
+    error_type_fields: Option<&[String]>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     // Success status returns Success type, all others return Error type
@@ -108,7 +108,7 @@ pub fn build_success_response(
     success_type: &str,
     entity_field_name: Option<&str>,
     auto_camel_case: bool,
-    success_type_fields: Option<&Vec<String>>,
+    success_type_fields: Option<&[String]>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     let mut obj = Map::new();
@@ -303,7 +303,7 @@ pub fn build_error_response_with_code(
     result: &MutationResult,
     error_type: &str,
     auto_camel_case: bool,
-    error_type_fields: Option<&Vec<String>>,
+    error_type_fields: Option<&[String]>,
     cascade_selections: Option<&str>,
 ) -> Result<Value, String> {
     // DEBUG: Log function call and parameters

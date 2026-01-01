@@ -74,11 +74,11 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 /// - Zero-copy transformation exceeds buffer capacity
 /// - GraphQL response serialization fails
 pub fn build_graphql_response(
-    json_rows: Vec<String>,
+    json_rows: &[String],
     field_name: &str,
     type_name: Option<&str>,
     field_paths: Option<Vec<Vec<String>>>,
-    field_selections: Option<Vec<Value>>,
+    field_selections: Option<&[Value]>,
     is_list: Option<bool>,
     include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
@@ -116,11 +116,11 @@ pub fn build_graphql_response(
 /// (`build_graphql_response`) to maintain API clarity.
 #[allow(clippy::too_many_arguments)]
 fn build_with_schema(
-    json_rows: Vec<String>,
+    json_rows: &[String],
     field_name: &str,
     type_name: &str,
     _field_paths: Option<Vec<Vec<String>>>,
-    field_selections: Option<Vec<Value>>,
+    field_selections: Option<&[Value]>,
     registry: &schema_registry::SchemaRegistry,
     is_list: Option<bool>,
     include_graphql_wrapper: Option<bool>,
@@ -133,7 +133,7 @@ fn build_with_schema(
                     pyo3::exceptions::PyValueError::new_err(format!("Failed to parse JSON: {e}"))
                 })
                 .map(|value| {
-                    if let Some(ref selections) = field_selections {
+                    if let Some(selections) = field_selections {
                         json_transform::transform_with_selections(
                             &value, type_name, selections, registry,
                         )
@@ -196,14 +196,14 @@ fn build_with_schema(
 }
 
 fn build_zero_copy(
-    json_rows: Vec<String>,
+    json_rows: &[String],
     field_name: &str,
     type_name: Option<&str>,
     field_paths: Option<Vec<Vec<String>>>,
     is_list: Option<bool>,
     include_graphql_wrapper: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    let arena = Arena::with_capacity(estimate_arena_size(&json_rows));
+    let arena = Arena::with_capacity(estimate_arena_size(json_rows));
 
     let config = TransformConfig {
         add_typename: type_name.is_some(),

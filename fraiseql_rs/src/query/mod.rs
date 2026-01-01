@@ -25,17 +25,17 @@ lazy_static! {
 #[pyfunction]
 pub fn build_sql_query(
     _py: Python,
-    parsed_query: ParsedQuery,
-    schema_json: String,
+    parsed_query: &ParsedQuery,
+    schema_json: &str,
 ) -> PyResult<GeneratedQuery> {
     // Deserialize schema
-    let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
+    let schema: SchemaMetadata = serde_json::from_str(schema_json).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {e}"))
     })?;
 
     // Compose SQL
     let composer = SQLComposer::new(schema);
-    let sql_query = composer.compose(&parsed_query).map_err(|e| {
+    let sql_query = composer.compose(parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {e}"))
     })?;
 
@@ -70,11 +70,11 @@ pub fn build_sql_query(
 #[pyfunction]
 pub fn build_sql_query_cached(
     _py: Python,
-    parsed_query: ParsedQuery,
-    schema_json: String,
+    parsed_query: &ParsedQuery,
+    schema_json: &str,
 ) -> PyResult<GeneratedQuery> {
     // Generate query signature
-    let signature = crate::cache::signature::generate_signature(&parsed_query);
+    let signature = crate::cache::signature::generate_signature(parsed_query);
 
     // Check cache
     if let Ok(Some(cached_plan)) = QUERY_PLAN_CACHE.get(&signature) {
@@ -86,12 +86,12 @@ pub fn build_sql_query_cached(
     }
 
     // Cache miss - build query normally
-    let schema: SchemaMetadata = serde_json::from_str(&schema_json).map_err(|e| {
+    let schema: SchemaMetadata = serde_json::from_str(schema_json).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid schema JSON: {e}"))
     })?;
 
     let composer = SQLComposer::new(schema);
-    let sql_query = composer.compose(&parsed_query).map_err(|e| {
+    let sql_query = composer.compose(parsed_query).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Query composition failed: {e}"))
     })?;
 
