@@ -64,7 +64,7 @@ impl SQLComposer {
             .iter()
             .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
         {
-            Self::build_order_clause(order_arg)?
+            Self::build_order_clause(order_arg)
         } else {
             String::new()
         };
@@ -72,7 +72,7 @@ impl SQLComposer {
         // Extract pagination
         let limit_clause =
             if let Some(limit_arg) = root_field.arguments.iter().find(|arg| arg.name == "limit") {
-                Self::build_limit_clause(limit_arg)?
+                Self::build_limit_clause(limit_arg)
             } else {
                 "LIMIT 100".to_string() // Default limit
             };
@@ -80,7 +80,7 @@ impl SQLComposer {
         let offset_clause = if let Some(offset_arg) =
             root_field.arguments.iter().find(|arg| arg.name == "offset")
         {
-            Self::build_offset_clause(offset_arg)?
+            Self::build_offset_clause(offset_arg)
         } else {
             String::new()
         };
@@ -117,25 +117,25 @@ impl SQLComposer {
         })
     }
 
-    fn build_order_clause(_order_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
+    fn build_order_clause(_order_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Parse ORDER BY argument
         // TODO: Implement proper ORDER BY parsing from GraphQL argument
-        Ok("ORDER BY t.id DESC".to_string())
+        "ORDER BY t.id DESC".to_string()
     }
 
-    fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
+    fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Extract limit value
         match limit_arg.value_json.parse::<i64>() {
-            Ok(limit) => Ok(format!("LIMIT {limit}")),
-            Err(_) => Ok("LIMIT 100".to_string()),
+            Ok(limit) => format!("LIMIT {limit}"),
+            Err(_) => "LIMIT 100".to_string(),
         }
     }
 
-    fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
+    fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Extract offset value
         match offset_arg.value_json.parse::<i64>() {
-            Ok(offset) => Ok(format!("OFFSET {offset}")),
-            Err(_) => Ok(String::new()),
+            Ok(offset) => format!("OFFSET {offset}"),
+            Err(_) => String::new(),
         }
     }
 }
