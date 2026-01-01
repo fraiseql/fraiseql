@@ -81,7 +81,7 @@ impl VariableProcessor {
         match input_value {
             Some(value) => {
                 // Validate and coerce the provided value
-                self.validate_and_coerce_value(value, &definition.var_type)
+                Self::validate_and_coerce_value(value, &definition.var_type)
             }
             None => {
                 // Use default value if available
@@ -100,7 +100,6 @@ impl VariableProcessor {
 
     /// Validate and coerce a value to the expected GraphQL type
     fn validate_and_coerce_value(
-        &self,
         value: &serde_json::Value,
         expected_type: &GraphQLType,
     ) -> Result<serde_json::Value, String> {
