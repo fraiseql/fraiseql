@@ -143,7 +143,11 @@ class IpFilter:
 
 
 class ComplexityAnalyzer:
-    """GraphQL query complexity analyzer.
+    """GraphQL query complexity analyzer (OPTIONAL).
+
+    **Note**: This is optional if your PostgreSQL views already enforce
+    query complexity limits. Use this to reject expensive queries BEFORE
+    hitting the database, saving DB resources.
 
     Uses a simple heuristic to prevent expensive queries:
     - Complexity = (depth * 10) + field_count
