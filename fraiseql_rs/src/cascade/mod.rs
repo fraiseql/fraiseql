@@ -119,10 +119,10 @@ pub fn filter_cascade_by_selections(
 
         if let Some(value) = cascade_obj.get(&key) {
             let filtered_value = match field_name.as_str() {
-                "updated" => filter_updated_field(value, selections.updated.as_ref())?,
-                "deleted" => filter_simple_field(value, selections.deleted.as_ref())?,
-                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref())?,
-                "metadata" => filter_simple_field(value, selections.metadata.as_ref())?,
+                "updated" => filter_updated_field(value, selections.updated.as_ref()),
+                "deleted" => filter_simple_field(value, selections.deleted.as_ref()),
+                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref()),
+                "metadata" => filter_simple_field(value, selections.metadata.as_ref()),
                 _ => value.clone(),
             };
 
@@ -218,10 +218,10 @@ fn filter_cascade_object(
     for field_name in &selections.fields {
         if let Some(value) = obj.get_mut(field_name) {
             let filtered_value = match field_name.as_str() {
-                "updated" => filter_updated_field(value, selections.updated.as_ref())?,
-                "deleted" => filter_simple_field(value, selections.deleted.as_ref())?,
-                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref())?,
-                "metadata" => filter_simple_field(value, selections.metadata.as_ref())?,
+                "updated" => filter_updated_field(value, selections.updated.as_ref()),
+                "deleted" => filter_simple_field(value, selections.deleted.as_ref()),
+                "invalidations" => filter_simple_field(value, selections.invalidations.as_ref()),
+                "metadata" => filter_simple_field(value, selections.metadata.as_ref()),
                 _ => continue, // No filtering needed for unknown fields
             };
             *value = filtered_value;
@@ -231,52 +231,46 @@ fn filter_cascade_object(
     Ok(())
 }
 
-fn filter_updated_field(
-    value: &Value,
-    field_selections: Option<&FieldSelections>,
-) -> Result<Value, String> {
+fn filter_updated_field(value: &Value, field_selections: Option<&FieldSelections>) -> Value {
     let Some(selections) = field_selections else {
-        return Ok(value.clone());
+        return value.clone();
     };
 
     if let Value::Array(entities) = value {
         let filtered_entities: Vec<Value> = entities
             .iter()
             .map(|entity| filter_entity_fields(entity, &selections.fields))
-            .collect::<Result<_, _>>()?;
+            .collect();
 
-        Ok(Value::Array(filtered_entities))
+        Value::Array(filtered_entities)
     } else {
-        Ok(value.clone())
+        value.clone()
     }
 }
 
-fn filter_simple_field(
-    value: &Value,
-    field_selections: Option<&FieldSelections>,
-) -> Result<Value, String> {
+fn filter_simple_field(value: &Value, field_selections: Option<&FieldSelections>) -> Value {
     let Some(selections) = field_selections else {
-        return Ok(value.clone());
+        return value.clone();
     };
 
     if let Value::Array(items) = value {
         let filtered_items: Vec<Value> = items
             .iter()
             .map(|item| filter_object_fields(item, &selections.fields))
-            .collect::<Result<_, _>>()?;
+            .collect();
 
-        Ok(Value::Array(filtered_items))
+        Value::Array(filtered_items)
     } else if let Value::Object(_) = value {
         filter_object_fields(value, &selections.fields)
     } else {
-        Ok(value.clone())
+        value.clone()
     }
 }
 
-fn filter_entity_fields(entity: &Value, fields: &[String]) -> Result<Value, String> {
+fn filter_entity_fields(entity: &Value, fields: &[String]) -> Value {
     let entity_obj = match entity {
         Value::Object(obj) => obj,
-        _ => return Ok(entity.clone()),
+        _ => return entity.clone(),
     };
 
     let mut filtered = Map::new();
@@ -293,13 +287,13 @@ fn filter_entity_fields(entity: &Value, fields: &[String]) -> Result<Value, Stri
         }
     }
 
-    Ok(Value::Object(filtered))
+    Value::Object(filtered)
 }
 
-fn filter_object_fields(obj: &Value, fields: &[String]) -> Result<Value, String> {
+fn filter_object_fields(obj: &Value, fields: &[String]) -> Value {
     let obj_map = match obj {
         Value::Object(map) => map,
-        _ => return Ok(obj.clone()),
+        _ => return obj.clone(),
     };
 
     let mut filtered = Map::new();
@@ -310,5 +304,5 @@ fn filter_object_fields(obj: &Value, fields: &[String]) -> Result<Value, String>
         }
     }
 
-    Ok(Value::Object(filtered))
+    Value::Object(filtered)
 }

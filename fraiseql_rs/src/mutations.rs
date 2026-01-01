@@ -56,7 +56,7 @@ pub async fn execute_mutation(
 }
 
 async fn insert_record(
-    client: &mut Client,
+    client: &Client,
     table: &str,
     input: Option<&Value>,
     return_fields: Option<&Vec<String>>,
@@ -101,7 +101,7 @@ async fn insert_record(
 }
 
 async fn update_record(
-    client: &mut Client,
+    client: &Client,
     table: &str,
     input: Option<&Value>,
     filters: Option<&Value>,
@@ -146,7 +146,7 @@ async fn update_record(
 }
 
 async fn delete_record(
-    client: &mut Client,
+    client: &Client,
     table: &str,
     filters: Option<&Value>,
 ) -> Result<Value, DatabaseError> {

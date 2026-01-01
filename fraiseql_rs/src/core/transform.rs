@@ -564,7 +564,10 @@ impl<'a> ByteReader<'a> {
             b'"' => self.skip_string(),
             b't' | b'f' => self.skip_bool(),
             b'n' => self.skip_null(),
-            b'-' | b'0'..=b'9' => self.skip_number(),
+            b'-' | b'0'..=b'9' => {
+                self.skip_number();
+                Ok(())
+            }
             other => Err(TransformError::UnexpectedByte(other)),
         }
     }
@@ -639,7 +642,7 @@ impl<'a> ByteReader<'a> {
         Ok(())
     }
 
-    fn skip_number(&mut self) -> Result<(), TransformError> {
+    fn skip_number(&mut self) {
         while self.pos < self.bytes.len() {
             let byte = self.bytes[self.pos];
             if !matches!(byte, b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9') {
@@ -647,7 +650,6 @@ impl<'a> ByteReader<'a> {
             }
             self.pos += 1;
         }
-        Ok(())
     }
 }
 
@@ -677,7 +679,7 @@ impl<'a> JsonWriter<'a> {
             self.output.push(b',');
         }
         self.output.push(b'"');
-        self.write_escaped(key)?;
+        self.write_escaped(key);
         self.output.push(b'"');
         self.output.push(b':');
         self.needs_comma = false;
@@ -690,7 +692,7 @@ impl<'a> JsonWriter<'a> {
     #[inline(always)]
     pub fn write_string(&mut self, value: &[u8]) -> Result<(), TransformError> {
         self.output.push(b'"');
-        self.write_escaped(value)?;
+        self.write_escaped(value);
         self.output.push(b'"');
         self.needs_comma = true;
         Ok(())
@@ -772,9 +774,8 @@ impl<'a> JsonWriter<'a> {
     ///
     /// Properly escapes JSON special characters
     #[inline]
-    fn write_escaped(&mut self, bytes: &[u8]) -> Result<(), TransformError> {
+    fn write_escaped(&mut self, bytes: &[u8]) {
         escape_json_string_scalar(bytes, self.output.as_mut_vec());
-        Ok(())
     }
 }
 
