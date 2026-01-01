@@ -215,7 +215,7 @@ impl UserRole {
     #[must_use]
     pub fn is_valid(&self) -> bool {
         self.expires_at
-            .map_or(true, |expires_at| Utc::now() < expires_at)
+            .is_none_or(|expires_at| Utc::now() < expires_at)
     }
 
     /// Create `UserRole` from `tokio_postgres` Row

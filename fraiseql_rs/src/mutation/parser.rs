@@ -36,7 +36,7 @@ fn is_full_format(value: &Value) -> bool {
     value
         .get("status")
         .and_then(|s| s.as_str())
-        .map_or(false, is_valid_mutation_status)
+        .is_some_and(is_valid_mutation_status)
 }
 
 /// Check if status string is a valid mutation status
