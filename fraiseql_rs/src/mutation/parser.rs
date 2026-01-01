@@ -27,7 +27,7 @@ pub fn parse_mutation_response(
     if is_full_format(&value) {
         parse_full(&value, default_entity_type).map(MutationResponse::Full)
     } else {
-        parse_simple(value).map(MutationResponse::Simple)
+        Ok(MutationResponse::Simple(parse_simple(value)))
     }
 }
 
@@ -66,10 +66,8 @@ fn is_valid_mutation_status(status: &str) -> bool {
 }
 
 /// Parse simple format (entity only)
-const fn parse_simple(
-    value: Value,
-) -> Result<SimpleResponse, crate::mutation::types::MutationError> {
-    Ok(SimpleResponse { entity: value })
+const fn parse_simple(value: Value) -> SimpleResponse {
+    SimpleResponse { entity: value }
 }
 
 /// Parse full mutation response format

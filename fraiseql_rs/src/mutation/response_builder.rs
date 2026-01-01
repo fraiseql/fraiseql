@@ -370,7 +370,7 @@ pub fn build_error_response_with_code(
 
     // Add errors array if selected
     if is_selected("errors") {
-        let errors = generate_errors_array(result, result.status.application_code())?;
+        let errors = generate_errors_array(result, result.status.application_code());
         obj.insert("errors".to_string(), errors);
     }
 
@@ -407,23 +407,23 @@ pub fn build_error_response_with_code(
 /// Priority order:
 /// 1. Use explicit errors from metadata.errors if present
 /// 2. Auto-generate single error from status string
-pub fn generate_errors_array(result: &MutationResult, code: i32) -> Result<Value, String> {
+pub fn generate_errors_array(result: &MutationResult, code: i32) -> Value {
     // Check if explicit errors provided in metadata.errors
     if let Some(metadata) = &result.metadata {
         if let Some(explicit_errors) = metadata.get("errors") {
             // Use explicit errors from database
-            return Ok(explicit_errors.clone());
+            return explicit_errors.clone();
         }
     }
 
     // Auto-generate single error from status string
     let identifier = extract_identifier_from_status(&result.status);
-    Ok(json!([{
+    json!([{
         "code": code,
         "identifier": identifier,
         "message": result.message,
         "details": null
-    }]))
+    }])
 }
 
 /// Extract error identifier from mutation status

@@ -197,8 +197,8 @@ fn transform_json(json_str: &str) -> PyResult<String> {
 
 /// Simple test function to verify `PyO3` is working
 #[pyfunction]
-const fn test_function() -> PyResult<&'static str> {
-    Ok("Hello from Rust!")
+const fn test_function() -> &'static str {
+    "Hello from Rust!"
 }
 
 //----------------------------------------------------------------------------
