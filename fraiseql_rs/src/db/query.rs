@@ -138,7 +138,7 @@ impl<'a> QueryExecutor<'a> {
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
         let (where_sql, params) =
-            where_clause.map_or((String::new(), vec![]), |builder| builder.build());
+            where_clause.map_or((String::new(), vec![]), WhereBuilder::build);
 
         let sql = if where_sql.is_empty() {
             format!("DELETE FROM {table}")
