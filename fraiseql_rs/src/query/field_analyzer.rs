@@ -36,7 +36,7 @@ pub struct FieldCondition {
 pub struct FieldAnalyzer<'a> {
     /// Set of SQL column names for this table
     table_columns: &'a std::collections::HashSet<String>,
-    /// Map of FK field names to their SQL column names (e.g., "machine" -> "machine_id")
+    /// Map of FK field names to their SQL column names (e.g., "machine" -> "`machine_id`")
     fk_mappings: &'a HashMap<String, String>,
     /// Name of the JSONB column (usually "data")
     jsonb_column: &'a str,
@@ -51,7 +51,7 @@ impl<'a> FieldAnalyzer<'a> {
     /// * `fk_mappings` - Map of FK field names to column names
     /// * `jsonb_column` - Name of the JSONB column
     #[must_use]
-    pub fn new(
+    pub const fn new(
         table_columns: &'a std::collections::HashSet<String>,
         fk_mappings: &'a HashMap<String, String>,
         jsonb_column: &'a str,
@@ -67,7 +67,7 @@ impl<'a> FieldAnalyzer<'a> {
     ///
     /// This handles both flat and nested formats:
     /// - Flat: `{"status": {"eq": "active"}}` → status = 'active'
-    /// - Nested: `{"machine": {"id": {"eq": "123"}}}` → machine_id = '123'
+    /// - Nested: `{"machine": {"id": {"eq": "123"}}}` → `machine_id` = '123'
     ///
     /// # Arguments
     ///
@@ -115,19 +115,21 @@ impl<'a> FieldAnalyzer<'a> {
         let field_type = self.determine_field_type(field_name);
 
         for (op_name, op_value) in operators {
-            let op_info = match get_operator_info(op_name) {
-                Some(info) => info,
-                None => continue, // Skip unknown operators
+            let Some(op_info) = get_operator_info(op_name) else {
+                continue; // Skip unknown operators
             };
 
             let sql = match field_type {
                 FieldType::SqlColumn => {
-                    self.build_sql_column_condition(field_name, op_info, op_value, stmt)
+                    Self::build_sql_column_condition(field_name, op_info, op_value, stmt)
                 }
                 FieldType::ForeignKey => {
                     // Use the FK column name
-                    let fk_col = self.fk_mappings.get(field_name).map_or(field_name, String::as_str);
-                    self.build_sql_column_condition(fk_col, op_info, op_value, stmt)
+                    let fk_col = self
+                        .fk_mappings
+                        .get(field_name)
+                        .map_or(field_name, String::as_str);
+                    Self::build_sql_column_condition(fk_col, op_info, op_value, stmt)
                 }
                 FieldType::JsonbPath => {
                     self.build_jsonb_condition(field_name, op_info, op_value, stmt)
@@ -195,7 +197,7 @@ impl<'a> FieldAnalyzer<'a> {
         conditions: &mut Vec<FieldCondition>,
     ) {
         for (nested_field, nested_value) in nested_map {
-            let full_path = format!("{}.{}", parent_field, nested_field);
+            let full_path = format!("{parent_field}.{nested_field}");
             let nested_snake = to_snake_case(&full_path);
 
             let JsonValue::Object(operators) = nested_value else {
@@ -213,12 +215,9 @@ impl<'a> FieldAnalyzer<'a> {
                     continue;
                 };
 
-                if let Some(sql) = self.build_jsonb_nested_condition(
-                    &nested_snake,
-                    op_info,
-                    op_value,
-                    stmt,
-                ) {
+                if let Some(sql) =
+                    self.build_jsonb_nested_condition(&nested_snake, op_info, op_value, stmt)
+                {
                     conditions.push(FieldCondition {
                         sql,
                         is_not: false,
@@ -242,7 +241,6 @@ impl<'a> FieldAnalyzer<'a> {
 
     /// Build a SQL column condition.
     fn build_sql_column_condition(
-        &self,
         column: &str,
         op_info: &super::operators::OperatorInfo,
         value: &JsonValue,
@@ -326,17 +324,13 @@ impl<'a> FieldAnalyzer<'a> {
         value: &JsonValue,
         stmt: &mut PreparedStatement,
     ) -> Option<String> {
+        use super::operators::OperatorCategory;
+
         // Split the path: "device.sensor.value" → ["device", "sensor", "value"]
         let path_segments: Vec<&str> = field_path.split('.').collect();
 
         // Build JSONB path: data->'device'->'sensor'->>'value'
-        let column_expr = stmt.build_jsonb_path(
-            self.jsonb_column,
-            &path_segments,
-            true,
-        );
-
-        use super::operators::OperatorCategory;
+        let column_expr = stmt.build_jsonb_path(self.jsonb_column, &path_segments, true);
 
         match op_info.category {
             OperatorCategory::Comparison => {
@@ -383,8 +377,14 @@ mod tests {
         let (columns, fk_mappings) = setup_test_metadata();
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
 
-        assert_eq!(analyzer.determine_field_type("status"), FieldType::SqlColumn);
-        assert_eq!(analyzer.determine_field_type("created_at"), FieldType::SqlColumn);
+        assert_eq!(
+            analyzer.determine_field_type("status"),
+            FieldType::SqlColumn
+        );
+        assert_eq!(
+            analyzer.determine_field_type("created_at"),
+            FieldType::SqlColumn
+        );
     }
 
     #[test]
@@ -392,7 +392,10 @@ mod tests {
         let (columns, fk_mappings) = setup_test_metadata();
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
 
-        assert_eq!(analyzer.determine_field_type("machine"), FieldType::ForeignKey);
+        assert_eq!(
+            analyzer.determine_field_type("machine"),
+            FieldType::ForeignKey
+        );
     }
 
     #[test]
@@ -400,8 +403,14 @@ mod tests {
         let (columns, fk_mappings) = setup_test_metadata();
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
 
-        assert_eq!(analyzer.determine_field_type("device_name"), FieldType::JsonbPath);
-        assert_eq!(analyzer.determine_field_type("sensor_value"), FieldType::JsonbPath);
+        assert_eq!(
+            analyzer.determine_field_type("device_name"),
+            FieldType::JsonbPath
+        );
+        assert_eq!(
+            analyzer.determine_field_type("sensor_value"),
+            FieldType::JsonbPath
+        );
     }
 
     #[test]
@@ -410,9 +419,9 @@ mod tests {
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
         let mut stmt = PreparedStatement::new();
 
-        let operators = serde_json::from_value::<serde_json::Map<String, JsonValue>>(
-            json!({"eq": "active"})
-        ).unwrap();
+        let operators =
+            serde_json::from_value::<serde_json::Map<String, JsonValue>>(json!({"eq": "active"}))
+                .unwrap();
 
         let conditions = analyzer.analyze_flat_field("status", &operators, &mut stmt);
 
@@ -427,9 +436,9 @@ mod tests {
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
         let mut stmt = PreparedStatement::new();
 
-        let operators = serde_json::from_value::<serde_json::Map<String, JsonValue>>(
-            json!({"eq": "sensor1"})
-        ).unwrap();
+        let operators =
+            serde_json::from_value::<serde_json::Map<String, JsonValue>>(json!({"eq": "sensor1"}))
+                .unwrap();
 
         let conditions = analyzer.analyze_flat_field("device_name", &operators, &mut stmt);
 
@@ -463,7 +472,9 @@ mod tests {
         let conditions = analyzer.analyze_nested("device", &nested_value, &mut stmt);
 
         assert_eq!(conditions.len(), 1);
-        assert!(conditions[0].sql.contains("data->'device'->'sensor'->>'value'"));
+        assert!(conditions[0]
+            .sql
+            .contains("data->'device'->'sensor'->>'value'"));
     }
 
     #[test]
@@ -472,9 +483,9 @@ mod tests {
         let analyzer = FieldAnalyzer::new(&columns, &fk_mappings, "data");
         let mut stmt = PreparedStatement::new();
 
-        let operators = serde_json::from_value::<serde_json::Map<String, JsonValue>>(
-            json!({"eq": "test"})
-        ).unwrap();
+        let operators =
+            serde_json::from_value::<serde_json::Map<String, JsonValue>>(json!({"eq": "test"}))
+                .unwrap();
 
         // camelCase should be converted to snake_case
         let conditions = analyzer.analyze_flat_field("deviceName", &operators, &mut stmt);

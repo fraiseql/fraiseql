@@ -20,7 +20,7 @@ pub struct NormalizedWhere {
 impl NormalizedWhere {
     /// Create a new empty normalized WHERE clause.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             sql: String::new(),
             params: Vec::new(),
@@ -29,7 +29,7 @@ impl NormalizedWhere {
 
     /// Check if the normalized WHERE is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.sql.is_empty()
     }
 }
@@ -44,7 +44,7 @@ impl Default for NormalizedWhere {
 ///
 /// # Arguments
 ///
-/// * `where_dict` - The WHERE clause as a HashMap
+/// * `where_dict` - The WHERE clause as a `HashMap`
 /// * `table_columns` - Set of SQL column names
 /// * `fk_mappings` - Map of FK field names to SQL columns
 /// * `jsonb_column` - Name of the JSONB column
@@ -76,6 +76,8 @@ impl Default for NormalizedWhere {
 /// assert!(!result.is_empty());
 /// assert!(result.sql.contains("status = $1"));
 /// ```
+#[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn normalize_dict_where(
     where_dict: &HashMap<String, JsonValue>,
     table_columns: &std::collections::HashSet<String>,
@@ -112,17 +114,19 @@ fn process_where_dict(
                 // Handle OR: {"OR": [{"status": {"eq": "a"}}, {"status": {"eq": "b"}}]}
                 if let Some(or_sql) = process_or_clause(field_value, analyzer, stmt) {
                     if is_not {
-                        sql_parts.push(format!("NOT ({})", or_sql));
+                        sql_parts.push(format!("NOT ({or_sql})"));
                     } else {
-                        sql_parts.push(format!("({})", or_sql));
+                        sql_parts.push(format!("({or_sql})"));
                     }
                 }
             }
             "NOT" => {
                 // Handle NOT: {"NOT": {"status": {"eq": "deleted"}}}
                 if let JsonValue::Object(not_map) = field_value {
-                    let not_dict: HashMap<String, JsonValue> =
-                        not_map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                    let not_dict: HashMap<String, JsonValue> = not_map
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
                     let not_parts = process_where_dict(&not_dict, analyzer, stmt, true);
                     if !not_parts.is_empty() {
                         sql_parts.push(format!("NOT ({})", not_parts.join(" AND ")));
@@ -161,17 +165,18 @@ fn process_or_clause(
     analyzer: &FieldAnalyzer,
     stmt: &mut PreparedStatement,
 ) -> Option<String> {
-    let or_array = match or_value {
-        JsonValue::Array(arr) => arr,
-        _ => return None,
+    let JsonValue::Array(or_array) = or_value else {
+        return None;
     };
 
     let mut or_parts = Vec::new();
 
     for item in or_array {
         if let JsonValue::Object(item_map) = item {
-            let item_dict: HashMap<String, JsonValue> =
-                item_map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let item_dict: HashMap<String, JsonValue> = item_map
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
 
             let item_sql = process_where_dict(&item_dict, analyzer, stmt, false);
             if !item_sql.is_empty() {
@@ -332,7 +337,10 @@ mod tests {
         let (columns, fk_mappings) = setup_test_metadata();
 
         let mut where_dict = HashMap::new();
-        where_dict.insert("status".to_string(), json!({"in": ["active", "pending", "review"]}));
+        where_dict.insert(
+            "status".to_string(),
+            json!({"in": ["active", "pending", "review"]}),
+        );
 
         let result = normalize_dict_where(&where_dict, &columns, &fk_mappings, "data");
 

@@ -1,9 +1,9 @@
-//! Field name case conversion (camelCase → snake_case).
+//! Field name case conversion (camelCase → `snake_case`).
 //!
 //! This module handles converting GraphQL field names (typically camelCase)
-//! to PostgreSQL column names (typically snake_case) to match Python behavior.
+//! to `PostgreSQL` column names (typically `snake_case`) to match Python behavior.
 
-/// Convert camelCase or PascalCase to snake_case.
+/// Convert camelCase or `PascalCase` to `snake_case`.
 ///
 /// This implementation matches Python's behavior for field name conversion.
 ///
@@ -17,9 +17,10 @@
 /// assert_eq!(to_snake_case("HTTPResponse"), "http_response");
 /// assert_eq!(to_snake_case("already_snake"), "already_snake");
 /// ```
+#[must_use] 
 pub fn to_snake_case(s: &str) -> String {
     // If already snake_case (no uppercase letters), return as-is
-    if !s.chars().any(|c| c.is_uppercase()) {
+    if !s.chars().any(char::is_uppercase) {
         return s.to_string();
     }
 
@@ -33,7 +34,7 @@ pub fn to_snake_case(s: &str) -> String {
             // 1. Not the first character
             // 2. Previous was lowercase OR next is lowercase (handles "HTTPResponse" → "http_response")
             if i > 0 {
-                let next_is_lower = s.chars().nth(i + 1).map_or(false, |ch| ch.is_lowercase());
+                let next_is_lower = s.chars().nth(i + 1).is_some_and(char::is_lowercase);
                 if prev_was_lower || (prev_was_upper && next_is_lower) {
                     result.push('_');
                 }
@@ -51,7 +52,7 @@ pub fn to_snake_case(s: &str) -> String {
     result
 }
 
-/// Convert snake_case to camelCase.
+/// Convert `snake_case` to camelCase.
 ///
 /// This is the reverse operation, used for output formatting.
 ///
@@ -65,6 +66,7 @@ pub fn to_snake_case(s: &str) -> String {
 /// assert_eq!(to_camel_case("http_response"), "httpResponse");
 /// assert_eq!(to_camel_case("alreadyCamel"), "alreadyCamel");
 /// ```
+#[must_use] 
 pub fn to_camel_case(s: &str) -> String {
     // If no underscores, assume already camelCase
     if !s.contains('_') {

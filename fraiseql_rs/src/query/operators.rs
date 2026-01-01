@@ -1,7 +1,7 @@
 //! GraphQL WHERE clause operator definitions and registry.
 //!
 //! This module provides a comprehensive registry of all GraphQL operators
-//! supported by FraiseQL, including comparison, string, array, vector,
+//! supported by `FraiseQL`, including comparison, string, array, vector,
 //! and full-text search operators.
 
 use lazy_static::lazy_static;
@@ -20,7 +20,7 @@ pub enum OperatorCategory {
     Array,
     /// pgvector distance operators
     Vector,
-    /// PostgreSQL full-text search
+    /// `PostgreSQL` full-text search
     Fulltext,
     /// Containment for JSONB: @>, <@
     Containment,
@@ -417,7 +417,9 @@ mod tests {
 
     #[test]
     fn test_string_operators() {
-        let operators = ["like", "ilike", "nlike", "nilike", "regex", "iregex", "nregex", "niregex"];
+        let operators = [
+            "like", "ilike", "nlike", "nilike", "regex", "iregex", "nregex", "niregex",
+        ];
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
@@ -441,11 +443,21 @@ mod tests {
 
     #[test]
     fn test_containment_operators() {
-        let operators = ["contains", "contained_in", "has_key", "has_any_keys", "has_all_keys"];
+        let operators = [
+            "contains",
+            "contained_in",
+            "has_key",
+            "has_any_keys",
+            "has_all_keys",
+        ];
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Containment operator {} should exist", op_name);
+            assert!(
+                op.is_some(),
+                "Containment operator {} should exist",
+                op_name
+            );
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Containment);
@@ -489,7 +501,12 @@ mod tests {
 
     #[test]
     fn test_fulltext_operators() {
-        let operators = ["search", "plainto_tsquery", "phraseto_tsquery", "websearch_to_tsquery"];
+        let operators = [
+            "search",
+            "plainto_tsquery",
+            "phraseto_tsquery",
+            "websearch_to_tsquery",
+        ];
 
         for op_name in &operators {
             let op = get_operator_info(op_name);

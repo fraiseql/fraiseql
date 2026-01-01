@@ -32,7 +32,7 @@ pub struct PreparedStatement {
 impl PreparedStatement {
     /// Create a new empty prepared statement.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             sql: String::new(),
             params: Vec::new(),
@@ -74,7 +74,7 @@ impl PreparedStatement {
     /// ```
     pub fn build_comparison(&mut self, column: &str, operator: &str, value: JsonValue) -> String {
         let placeholder = self.add_param(value);
-        format!("{} {} {}", column, operator, placeholder)
+        format!("{column} {operator} {placeholder}")
     }
 
     /// Build an IN clause (column IN ($1, $2, ...)).
@@ -97,10 +97,7 @@ impl PreparedStatement {
         operator: &str,
         values: &[JsonValue],
     ) -> String {
-        let placeholders: Vec<String> = values
-            .iter()
-            .map(|v| self.add_param(v.clone()))
-            .collect();
+        let placeholders: Vec<String> = values.iter().map(|v| self.add_param(v.clone())).collect();
         format!("{} {} ({})", column, operator, placeholders.join(", "))
     }
 
@@ -117,7 +114,7 @@ impl PreparedStatement {
     /// assert_eq!(stmt.params.len(), 0); // NULL checks don't use parameters
     /// ```
     pub fn build_null_check(&mut self, column: &str, operator: &str) -> String {
-        format!("{} {}", column, operator)
+        format!("{column} {operator}")
     }
 
     /// Build a LIKE pattern expression with proper escaping.
@@ -134,7 +131,7 @@ impl PreparedStatement {
     /// ```
     pub fn build_like(&mut self, column: &str, operator: &str, pattern: JsonValue) -> String {
         let placeholder = self.add_param(pattern);
-        format!("{} {} {}", column, operator, placeholder)
+        format!("{column} {operator} {placeholder}")
     }
 
     /// Build a JSONB path expression (data->'path'->>'key').
@@ -164,16 +161,16 @@ impl PreparedStatement {
 
         // All but last segment use -> (JSON output)
         for segment in &path[..path.len().saturating_sub(1)] {
-            result.push_str(&format!("->'{}'", segment));
+            result.push_str("->'");
+            result.push_str(segment);
+            result.push('\'');
         }
 
         // Last segment uses ->> (text output) if text_output is true
         if let Some(last) = path.last() {
-            if text_output {
-                result.push_str(&format!("->>'{}'", last));
-            } else {
-                result.push_str(&format!("->'{}'", last));
-            }
+            result.push_str(if text_output { "->>'" } else { "->'" });
+            result.push_str(last);
+            result.push('\'');
         }
 
         result
@@ -198,7 +195,7 @@ impl PreparedStatement {
         value: JsonValue,
     ) -> String {
         let placeholder = self.add_param(value);
-        format!("{} {} {}", column, operator, placeholder)
+        format!("{column} {operator} {placeholder}")
     }
 
     /// Build a vector distance expression (embedding <=> $1).
@@ -221,10 +218,10 @@ impl PreparedStatement {
         vector: JsonValue,
     ) -> String {
         let placeholder = self.add_param(vector);
-        format!("{} {} {}", column, operator, placeholder)
+        format!("{column} {operator} {placeholder}")
     }
 
-    /// Build a full-text search expression (tsvector @@ query_func($1)).
+    /// Build a full-text search expression (tsvector @@ `query_func($1)`).
     ///
     /// # Example
     ///
@@ -247,7 +244,7 @@ impl PreparedStatement {
         search_term: JsonValue,
     ) -> String {
         let placeholder = self.add_param(search_term);
-        format!("{} @@ {}({})", column, query_func, placeholder)
+        format!("{column} @@ {query_func}({placeholder})")
     }
 
     /// Build an array operator expression (tags @> $1, tags && $1, etc.).
@@ -269,7 +266,7 @@ impl PreparedStatement {
         value: JsonValue,
     ) -> String {
         let placeholder = self.add_param(value);
-        format!("{} {} {}", column, operator, placeholder)
+        format!("{column} {operator} {placeholder}")
     }
 
     /// Clear the statement (for reuse).
@@ -280,13 +277,13 @@ impl PreparedStatement {
 
     /// Get the number of parameters.
     #[must_use]
-    pub fn param_count(&self) -> usize {
+    pub const fn param_count(&self) -> usize {
         self.params.len()
     }
 
     /// Check if the statement is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.sql.is_empty() && self.params.is_empty()
     }
 }
