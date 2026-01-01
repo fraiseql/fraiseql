@@ -277,6 +277,7 @@ impl DatabaseConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_default_config() {
@@ -349,10 +350,22 @@ mod tests {
 
     #[test]
     fn test_ssl_mode_parsing() {
-        assert_eq!(SslMode::from_str("disable").unwrap(), SslMode::Disable);
-        assert_eq!(SslMode::from_str("prefer").unwrap(), SslMode::Prefer);
-        assert_eq!(SslMode::from_str("require").unwrap(), SslMode::Require);
-        assert_eq!(SslMode::from_str("DISABLE").unwrap(), SslMode::Disable);
+        assert_eq!(
+            SslMode::from_str("disable").expect("disable should parse"),
+            SslMode::Disable
+        );
+        assert_eq!(
+            SslMode::from_str("prefer").expect("prefer should parse"),
+            SslMode::Prefer
+        );
+        assert_eq!(
+            SslMode::from_str("require").expect("require should parse"),
+            SslMode::Require
+        );
+        assert_eq!(
+            SslMode::from_str("DISABLE").expect("DISABLE should parse"),
+            SslMode::Disable
+        );
         assert!(SslMode::from_str("invalid").is_err());
     }
 }

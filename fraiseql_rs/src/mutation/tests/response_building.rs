@@ -518,8 +518,8 @@ fn test_generate_errors_array_auto() {
         is_simple_format: false,
     };
 
-    let errors = generate_errors_array(&result, 400).unwrap();
-    let errors_array = errors.as_array().unwrap();
+    let errors = generate_errors_array(&result, 400);
+    let errors_array = errors.as_array().expect("errors should be an array");
 
     assert_eq!(errors_array.len(), 1);
     assert_eq!(errors_array[0]["code"], 400);
@@ -552,8 +552,8 @@ fn test_generate_errors_array_explicit_override() {
         is_simple_format: false,
     };
 
-    let errors = generate_errors_array(&result, 400).unwrap();
-    let errors_array = errors.as_array().unwrap();
+    let errors = generate_errors_array(&result, 400);
+    let errors_array = errors.as_array().expect("errors should be an array");
 
     // Should use explicit errors, NOT auto-generated
     assert_eq!(errors_array.len(), 1);
@@ -577,8 +577,8 @@ fn test_generate_errors_array_noop_status() {
         is_simple_format: false,
     };
 
-    let errors = generate_errors_array(&result, 404).unwrap();
-    let errors_array = errors.as_array().unwrap();
+    let errors = generate_errors_array(&result, 404);
+    let errors_array = errors.as_array().expect("errors should be an array");
 
     assert_eq!(errors_array.len(), 1);
     assert_eq!(errors_array[0]["code"], 404);

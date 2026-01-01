@@ -17,7 +17,7 @@
 /// assert_eq!(to_snake_case("HTTPResponse"), "http_response");
 /// assert_eq!(to_snake_case("already_snake"), "already_snake");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn to_snake_case(s: &str) -> String {
     // If already snake_case (no uppercase letters), return as-is
     if !s.chars().any(char::is_uppercase) {
@@ -66,7 +66,7 @@ pub fn to_snake_case(s: &str) -> String {
 /// assert_eq!(to_camel_case("http_response"), "httpResponse");
 /// assert_eq!(to_camel_case("alreadyCamel"), "alreadyCamel");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn to_camel_case(s: &str) -> String {
     // If no underscores, assume already camelCase
     if !s.contains('_') {

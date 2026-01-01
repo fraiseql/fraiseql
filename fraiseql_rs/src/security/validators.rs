@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_is_list_field() {
-        let validator = QueryValidator::new(QueryLimits::default());
+        let _validator = QueryValidator::new(QueryLimits::default());
 
         let list_field = FieldSelection {
             name: "users".to_string(),

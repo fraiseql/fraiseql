@@ -182,7 +182,7 @@ fn test_multiple_entities_field_selection() {
         Some("Machine"),
         None,
         true,
-        Some(selected_fields),
+        Some(&selected_fields),
         None,
     )
     .unwrap();

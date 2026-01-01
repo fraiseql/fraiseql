@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_int_coercion() {
-        let processor = VariableProcessor::new(&ParsedQuery::default());
+        let _processor = VariableProcessor::new(&ParsedQuery::default());
 
         let var_def = VariableDefinition {
             name: "test".to_string(),
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_string_coercion_from_int() {
-        let processor = VariableProcessor::new(&ParsedQuery::default());
+        let _processor = VariableProcessor::new(&ParsedQuery::default());
 
         let var_def = VariableDefinition {
             name: "test".to_string(),
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_float_coercion() {
-        let processor = VariableProcessor::new(&ParsedQuery::default());
+        let _processor = VariableProcessor::new(&ParsedQuery::default());
 
         let var_def = VariableDefinition {
             name: "test".to_string(),
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_boolean_coercion() {
-        let processor = VariableProcessor::new(&ParsedQuery::default());
+        let _processor = VariableProcessor::new(&ParsedQuery::default());
 
         let var_def = VariableDefinition {
             name: "test".to_string(),
@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_invalid_variable_type() {
-        let processor = VariableProcessor::new(&ParsedQuery::default());
+        let _processor = VariableProcessor::new(&ParsedQuery::default());
 
         let var_def = VariableDefinition {
             name: "test".to_string(),

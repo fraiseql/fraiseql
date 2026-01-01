@@ -460,8 +460,7 @@ mod tests {
                 }
 
                 // Verify each slice still has its original value (no corruption)
-                for (i, expected_value, ptr) in allocated_slices {
-                    let start = i * 10;
+                for (_i, expected_value, ptr) in allocated_slices {
                     // SAFETY: We know the arena is still alive and slices are valid
                     unsafe {
                         let slice = std::slice::from_raw_parts(ptr, 10);

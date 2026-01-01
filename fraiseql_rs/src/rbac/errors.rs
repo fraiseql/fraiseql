@@ -131,9 +131,7 @@ impl From<RbacError> for pyo3::PyErr {
         match error {
             RbacError::PermissionDenied { .. } => PyPermissionError::new_err(error.to_string()),
             // All other variants use PyRuntimeError
-            RbacError::Database(_) | RbacError::UserNotFound(_) | RbacError::NotInitialized => {
-                PyRuntimeError::new_err(error.to_string())
-            }
+            _ => PyRuntimeError::new_err(error.to_string()),
         }
     }
 }

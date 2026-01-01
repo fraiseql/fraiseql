@@ -276,8 +276,8 @@ fn test_generate_errors_array_auto_generation() {
         is_simple_format: false,
     };
 
-    let errors = super::response_builder::generate_errors_array(&result, 422).unwrap();
-    let errors_array = errors.as_array().unwrap();
+    let errors = super::response_builder::generate_errors_array(&result, 422);
+    let errors_array = errors.as_array().expect("errors should be an array");
 
     assert_eq!(errors_array.len(), 1);
     let error = &errors_array[0];
@@ -306,8 +306,8 @@ fn test_generate_errors_array_explicit_errors() {
         is_simple_format: false,
     };
 
-    let errors = super::response_builder::generate_errors_array(&result, 422).unwrap();
-    let errors_array = errors.as_array().unwrap();
+    let errors = super::response_builder::generate_errors_array(&result, 422);
+    let errors_array = errors.as_array().expect("errors should be an array");
 
     // Should use explicit errors, not auto-generate
     assert_eq!(errors_array.len(), 2);
