@@ -103,7 +103,7 @@ async fn update_record(
     table: &str,
     input: Option<&Value>,
     filters: Option<&Value>,
-    return_fields: Option<&Vec<String>>,
+    _return_fields: Option<&Vec<String>>,
 ) -> Result<Value, DatabaseError> {
     let input =
         input.ok_or_else(|| DatabaseError::Query("Input required for UPDATE".to_string()))?;
