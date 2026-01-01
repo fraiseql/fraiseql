@@ -115,6 +115,7 @@ pub fn initialize_graphql_pipeline(schema_json: &str) -> PyResult<()> {
 /// - Query execution fails
 /// - User context is invalid
 #[pyfunction]
+#[allow(clippy::needless_pass_by_value)] // PyO3 requires Bound<T> to be passed by value
 pub fn execute_graphql_query(
     py: Python,
     query_string: &str,

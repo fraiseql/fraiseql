@@ -18,6 +18,7 @@ impl PyPermissionResolver {
     ///
     /// Returns a Python error if the database pool is not initialized.
     #[new]
+    #[allow(clippy::needless_pass_by_value)] // PyO3 requires Py<T> to be passed by value
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {
             let db_pool = pool.borrow(py);
