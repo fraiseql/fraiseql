@@ -55,6 +55,7 @@ impl WhereBuilder {
     }
 
     /// Add an equality condition.
+    #[must_use]
     pub fn eq<T: Into<QueryParam>>(mut self, field: &str, value: T) -> Self {
         let param = value.into();
         self.conditions
