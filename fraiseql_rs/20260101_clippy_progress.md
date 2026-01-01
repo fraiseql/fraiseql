@@ -2,8 +2,8 @@
 **Date**: January 1, 2026
 **Branch**: feature/tokio-driver-implementation
 **Starting Warnings**: 420
-**Current Warnings**: 119
-**Total Reduction**: 301 warnings eliminated (71.7% reduction)
+**Current Warnings**: 78
+**Total Reduction**: 342 warnings eliminated (81.4% reduction)
 
 ---
 
@@ -112,21 +112,69 @@ but were not part of the original Phase 4c scope.
 **Rationale**: These warnings represent intentional design choices for performance, code
 clarity, and established best practices. Suppressing them focuses review on actual issues.
 
+### Phase 5b: Remove unnecessary Result wrapping
+- **Status**: ✅ COMPLETE (100%)
+- **Reduction**: 119 → 98 warnings (21 fixed, 17.6% reduction)
+- **Method**: Changed functions that only return `Ok(...)` to return `T` directly instead of `Result<T>`
+- **Files Modified**: 10 files
+- **Functions Fixed**: 20 functions
+  - core/transform.rs (2): skip_number, write_escaped
+  - cascade/mod.rs (5): filter_entity_fields, filter_object_fields, filter_updated_field, filter_simple_field, filter_cascade_object
+  - mutations.rs (3): build_insert_sql, build_update_sql, build_delete_sql_with_params
+  - query/composer.rs (3): build_order_clause, build_limit_clause, build_offset_clause
+  - db/query.rs (3): build_select_sql, build_insert_sql, build_update_sql_with_params
+  - pipeline/unified.rs (1): py_to_json
+  - graphql/parser.rs (1): parse_directive
+  - mutation/parser.rs (1): parse_simple
+  - mutation/response_builder.rs (1): generate_errors_array
+  - lib.rs (1): test_function
+- **Commits**:
+  - Phase 5b batch 1-5 (systematic function-by-function fixes)
+  - Also fixed auto-detected issues: needless_raw_string_hashes, needless_pass_by_ref_mut
+
+### Phase 5a: Replace if-let-else with map_or/map_or_else
+- **Status**: ✅ COMPLETE (100%)
+- **Reduction**: 98 → 78 warnings (20 fixed, 20.4% reduction)
+- **Method**: Refactored all option_if_let_else patterns to use idiomatic Option methods
+  - `map_or(default, f)` for simple transformations
+  - `map_or_else(default_fn, f)` for complex branches
+- **Files Modified**: 13 files
+- **Locations Fixed**: 26 locations
+  - mutation/parser.rs (1): is_full_format
+  - db/pool.rs (1): stats
+  - graphql/variables.rs (2): process_variable (nested)
+  - db/query.rs (2): delete, extract_params
+  - query/composer.rs (5): order_clause, limit_clause, offset_clause, build_limit_clause, build_offset_clause
+  - json_transform.rs (1): output_key determination
+  - lib.rs (3): pipeline guard, Insert mutation, Update mutation
+  - mutation/mod.rs (2): is_simple_format, from_value
+  - mutation/response_builder.rs (2): nested entity extraction
+  - mutations.rs (3): insert_record, update_record, value_to_query_param
+  - pipeline/builder.rs (2): field selection transformations
+  - pipeline/unified.rs (1): SQL limit extraction
+  - rbac/models.rs (1): is_valid
+- **Commit**: fix(clippy): Phase 5a - replace if-let-else with map_or/map_or_else (26 locations)
+
 ---
 
 ## ⏳ Pending Phases
 
-### Phase 5: Additional Warning Categories
+### Phase 5c: Fix remaining pass-by-value issues
 - **Status**: ⏳ PENDING
-- **Remaining Warnings**: 119 warnings to address
+- **Remaining**: ~16 warnings in rbac/, security/, lib.rs
+- **Method**: Change function signatures to use `&T` instead of `T` where value isn't consumed
+
+### Phase 5d-5i: Additional Warning Categories
+- **Status**: ⏳ PENDING
+- **Remaining Warnings**: 78 warnings to address
 - **Categories**:
-  - `unnecessary_wraps` - Functions returning `Result<T>` that never error (~16 warnings)
-  - `needless_pass_by_value` - Remaining 16 pass-by-value warnings in rbac/, security/, lib.rs
-  - `manual_let_else` - Can use let-else syntax (~10 warnings)
-  - `match_same_arms` - Identical match arms (~7 warnings)
-  - `option_if_let_else` - Can use map_or patterns (~23 warnings)
+  - `needless_pass_by_value` - Remaining 16 pass-by-value warnings
   - `unused_async` - Async functions that don't await (~7 warnings)
-  - Documentation improvements (backticks, panics sections)
+  - `match_same_arms` - Identical match arms (~7 warnings)
+  - `missing_panics_doc` - Missing `# Panics` sections (~4 warnings)
+  - `manual_let_else` - Can use let-else syntax (~3 warnings)
+  - `doc_link_with_quotes` - Use backticks instead of quotes (~6 warnings)
+  - `must_use_candidate` - Functions that should have #[must_use] (~6 warnings)
   - Other pedantic/nursery lints
 
 ---
@@ -142,18 +190,20 @@ clarity, and established best practices. Suppressing them focuses review on actu
 | Phase 4b | 284 | 268 | 16 | 5.6% |
 | Phase 4c | 268 | 214 | 54 | 20.1% |
 | Phase 4d | 214 | 119 | 95 | 44.4% |
-| **Current** | **420** | **119** | **301** | **71.7%** |
+| Phase 5b | 119 | 98 | 21 | 17.6% |
+| Phase 5a | 98 | 78 | 20 | 20.4% |
+| **Current** | **420** | **78** | **342** | **81.4%** |
 
 ---
 
 ## 🎯 Next Steps
 
-1. **Categorize remaining 119 warnings** - Run `cargo clippy` and group by warning type
-2. **Phase 5a** - Fix `unnecessary_wraps` warnings (~16 functions)
-3. **Phase 5b** - Fix remaining `needless_pass_by_value` warnings in rbac/, security/, lib.rs
-4. **Phase 5c** - Fix `manual_let_else` warnings (~10 locations)
-5. **Phase 5d** - Fix `match_same_arms` and `option_if_let_else` warnings
-6. **Phase 5e** - Address documentation improvements (backticks, panics sections)
+1. **Phase 5c** - Fix remaining `needless_pass_by_value` warnings (~16 locations)
+2. **Phase 5d** - Fix `unused_async` warnings (~7 functions)
+3. **Phase 5e** - Fix `match_same_arms` warnings (~7 locations)
+4. **Phase 5f** - Address documentation improvements (backticks ~6, panics ~4)
+5. **Phase 5g** - Fix `manual_let_else` warnings (~3 locations)
+6. **Phase 5h** - Add `#[must_use]` attributes (~6 locations)
 7. **Final review** - Assess remaining pedantic/nursery lints for suppression vs fix
 
 ---
@@ -172,14 +222,16 @@ clarity, and established best practices. Suppressing them focuses review on actu
 
 ---
 
-**Last Updated**: 2026-01-01 (Phase 4d completion)
+**Last Updated**: 2026-01-01 (Phase 5a completion)
 **Total Time Invested**: Multiple sessions across phases
-**Commits**: 18+ commits for systematic warning fixes
+**Commits**: 25+ commits for systematic warning fixes
 
 **Session Summary (2026-01-01):**
 - Fixed compilation errors in tests and benchmarks (4 errors)
 - Completed Phase 4c pass-by-value fixes (12 locations, 268 → 214 warnings)
 - Completed Phase 4d intentional design documentation (95 warnings suppressed, 214 → 119)
+- Completed Phase 5b unnecessary Result wrapping (20 functions, 119 → 98 warnings)
+- Completed Phase 5a option_if_let_else refactoring (26 locations, 98 → 78 warnings)
 - Auto-fixed additional warnings with `cargo clippy --fix`
-- Overall session impact: 268 → 119 warnings (149 warnings eliminated, 55.6% reduction)
-- Total project progress: 420 → 119 warnings (301 warnings eliminated, 71.7% reduction)
+- Overall session impact: 268 → 78 warnings (190 warnings eliminated, 70.9% reduction)
+- Total project progress: 420 → 78 warnings (342 warnings eliminated, 81.4% reduction)
