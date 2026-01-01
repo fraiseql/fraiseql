@@ -15,8 +15,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 @pytest_asyncio.fixture(scope="class")
 async def pool(postgres_url, class_db_pool):
     """Create Rust database pool for testing."""
-    # Use the class-scoped pool URL
-    pool = RustDatabasePool(postgres_url)
+    # Use the class-scoped pool URL with url= keyword argument
+    pool = RustDatabasePool(url=postgres_url)
 
     # Create audit logs table
     async with class_db_pool.connection() as conn:
