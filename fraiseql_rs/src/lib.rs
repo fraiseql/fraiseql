@@ -9,6 +9,26 @@
 #![allow(
     // Justification: Required by PyO3 FFI bindings
     unsafe_code,
+    // Justification: Performance-critical zero-copy transformer uses inline(always) for hot path
+    clippy::inline_always,
+    // Justification: expect() used with descriptive messages for impossible states
+    clippy::expect_used,
+    // Justification: SIMD code requires specific casts for performance
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_ptr_alignment,
+    clippy::cast_possible_wrap,
+    // Justification: TransformConfig uses bools for zero-cost configuration flags
+    clippy::struct_excessive_bools,
+    // Justification: Debug impls intentionally hide internal implementation details
+    clippy::missing_fields_in_debug,
+    // Justification: Nursery lint with frequent false positives for idiomatic mutex patterns
+    clippy::significant_drop_tightening,
+    // Justification: Using lazy_static crate is standard practice
+    clippy::non_std_lazy_statics,
+    // Justification: Complex parser/transformer functions require length for clarity
+    clippy::too_many_lines,
 )]
 // Deny specific anti-patterns
 #![deny(
