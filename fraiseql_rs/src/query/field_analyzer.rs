@@ -276,19 +276,11 @@ impl<'a> FieldAnalyzer<'a> {
             }
             OperatorCategory::Containment => None, // JSONB only
             // New operator categories - use comparison/string logic
-            OperatorCategory::Network => {
-                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
-            }
-            OperatorCategory::DateRange => {
-                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
-            }
-            OperatorCategory::Ltree => {
-                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
-            }
-            OperatorCategory::Spatial => {
-                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
-            }
-            OperatorCategory::Path => {
+            OperatorCategory::Network
+            | OperatorCategory::DateRange
+            | OperatorCategory::Ltree
+            | OperatorCategory::Spatial
+            | OperatorCategory::Path => {
                 Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
             }
         }

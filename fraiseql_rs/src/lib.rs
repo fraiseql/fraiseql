@@ -88,7 +88,10 @@ type MultiFieldDef = (String, String, Vec<String>, Option<String>, Option<bool>)
 /// - Schema JSON is invalid or cannot be parsed
 /// - Pipeline initialization fails
 #[pyfunction]
-pub fn initialize_graphql_pipeline(schema_json: &str, pool: &db::pool::DatabasePool) -> PyResult<()> {
+pub fn initialize_graphql_pipeline(
+    schema_json: &str,
+    pool: &db::pool::DatabasePool,
+) -> PyResult<()> {
     let pipeline = pipeline::unified::PyGraphQLPipeline::new(schema_json, pool)?;
 
     // Handle mutex poisoning gracefully

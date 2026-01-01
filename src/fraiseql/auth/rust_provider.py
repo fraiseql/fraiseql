@@ -5,7 +5,7 @@ Phase 10 implementation with 5-10x performance improvement over Python.
 """
 
 import logging
-from typing import List
+from typing import Any, List
 
 from fraiseql.auth.base import AuthProvider, UserContext
 
@@ -35,7 +35,7 @@ class RustAuth0Provider(AuthProvider):
 
         # Try to import Rust implementation
         try:
-            import _fraiseql_rs  # noqa: F401
+            from fraiseql import _fraiseql_rs  # noqa: F401
 
             self._has_rust = True
             logger.info("✓ Using Rust Auth0 provider (5-10x faster)")
@@ -46,7 +46,7 @@ class RustAuth0Provider(AuthProvider):
                 "Falling back to Python implementation (slower)."
             )
 
-    async def validate_token(self, token: str) -> UserContext:
+    async def get_user_from_token(self, token: str) -> UserContext:
         """Validate JWT token and return user context.
 
         Args:
@@ -57,6 +57,7 @@ class RustAuth0Provider(AuthProvider):
 
         Raises:
             ValueError: If token is invalid or expired
+            RuntimeError: If Rust validation fails
         """
         if not self._has_rust:
             raise NotImplementedError(
@@ -64,13 +65,54 @@ class RustAuth0Provider(AuthProvider):
                 "Install with 'pip install fraiseql[rust]' to use Auth0 provider."
             )
 
-        # NOTE: Rust async bindings would be implemented here
-        # For now, this is a placeholder showing the intended API
-        raise NotImplementedError(
-            "Phase 10 Rust bindings are implemented but not yet exported to Python. "
-            "The Rust code is complete and ready, but PyO3 async integration requires "
-            "additional work. See .phases/phase-10-auth-integration-CORRECTED.md for details."
-        )
+        # Import here to avoid issues if Rust extension is not available
+        from fraiseql._fraiseql_rs import PyAuthProvider
+
+        # Create Rust provider if not cached
+        if not hasattr(self, "_rust_provider"):
+            self._rust_provider = PyAuthProvider.auth0(self.domain, self.audience)
+
+        # Use asyncio to run the blocking Rust call in an executor
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        try:
+            # Call Rust's blocking validation in a thread executor
+            py_user_context = await loop.run_in_executor(
+                None, self._rust_provider.validate_token_blocking, token
+            )
+
+            # Convert PyUserContext to Python UserContext
+            return UserContext(
+                user_id=py_user_context.user_id,
+                roles=py_user_context.roles,
+                permissions=py_user_context.permissions,
+            )
+        except RuntimeError as e:
+            # Re-raise with clearer error message
+            raise ValueError(f"Token validation failed: {e}") from e
+
+    async def validate_token(self, token: str) -> dict[str, Any]:
+        """Validate JWT token and return claims as dict.
+
+        Args:
+            token: JWT token to validate
+
+        Returns:
+            Dict with token claims
+
+        Raises:
+            ValueError: If token is invalid or expired
+        """
+        # Get user context (which validates the token)
+        user_context = await self.get_user_from_token(token)
+
+        # Convert back to dict format for base class interface
+        return {
+            "sub": user_context.user_id,
+            "roles": user_context.roles,
+            "permissions": user_context.permissions,
+        }
 
 
 class RustCustomJWTProvider(AuthProvider):
@@ -111,7 +153,7 @@ class RustCustomJWTProvider(AuthProvider):
 
         # Try to import Rust implementation
         try:
-            import _fraiseql_rs  # noqa: F401
+            from fraiseql import _fraiseql_rs  # noqa: F401
 
             self._has_rust = True
             logger.info("✓ Using Rust CustomJWT provider (5-10x faster)")
@@ -121,7 +163,7 @@ class RustCustomJWTProvider(AuthProvider):
                 "⚠ Rust extension not available. Falling back to Python implementation (slower)."
             )
 
-    async def validate_token(self, token: str) -> UserContext:
+    async def get_user_from_token(self, token: str) -> UserContext:
         """Validate JWT token and return user context.
 
         Args:
@@ -132,6 +174,7 @@ class RustCustomJWTProvider(AuthProvider):
 
         Raises:
             ValueError: If token is invalid or expired
+            RuntimeError: If Rust validation fails
         """
         if not self._has_rust:
             raise NotImplementedError(
@@ -139,12 +182,60 @@ class RustCustomJWTProvider(AuthProvider):
                 "Install with 'pip install fraiseql[rust]' to use CustomJWT provider."
             )
 
-        # NOTE: Rust async bindings would be implemented here
-        raise NotImplementedError(
-            "Phase 10 Rust bindings are implemented but not yet exported to Python. "
-            "The Rust code is complete and ready, but PyO3 async integration requires "
-            "additional work. See .phases/phase-10-auth-integration-CORRECTED.md for details."
-        )
+        # Import here to avoid issues if Rust extension is not available
+        from fraiseql._fraiseql_rs import PyAuthProvider
+
+        # Create Rust provider if not cached
+        if not hasattr(self, "_rust_provider"):
+            self._rust_provider = PyAuthProvider.jwt(
+                self.issuer,
+                self.audience,
+                self.jwks_url,
+                self.roles_claim,
+                self.permissions_claim,
+            )
+
+        # Use asyncio to run the blocking Rust call in an executor
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        try:
+            # Call Rust's blocking validation in a thread executor
+            py_user_context = await loop.run_in_executor(
+                None, self._rust_provider.validate_token_blocking, token
+            )
+
+            # Convert PyUserContext to Python UserContext
+            return UserContext(
+                user_id=py_user_context.user_id,
+                roles=py_user_context.roles,
+                permissions=py_user_context.permissions,
+            )
+        except RuntimeError as e:
+            # Re-raise with clearer error message
+            raise ValueError(f"Token validation failed: {e}") from e
+
+    async def validate_token(self, token: str) -> dict[str, Any]:
+        """Validate JWT token and return claims as dict.
+
+        Args:
+            token: JWT token to validate
+
+        Returns:
+            Dict with token claims
+
+        Raises:
+            ValueError: If token is invalid or expired
+        """
+        # Get user context (which validates the token)
+        user_context = await self.get_user_from_token(token)
+
+        # Convert back to dict format for base class interface
+        return {
+            "sub": user_context.user_id,
+            "roles": user_context.roles,
+            "permissions": user_context.permissions,
+        }
 
 
 __all__ = ["RustAuth0Provider", "RustCustomJWTProvider"]

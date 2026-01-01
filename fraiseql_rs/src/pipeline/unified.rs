@@ -42,8 +42,16 @@ pub struct GraphQLPipeline {
 impl GraphQLPipeline {
     /// Create a new unified GraphQL pipeline with schema, cache, and database pool
     #[must_use]
-    pub fn new(schema: SchemaMetadata, cache: Arc<QueryPlanCache>, pool: Arc<DatabasePool>) -> Self {
-        Self { schema, cache, pool }
+    pub const fn new(
+        schema: SchemaMetadata,
+        cache: Arc<QueryPlanCache>,
+        pool: Arc<DatabasePool>,
+    ) -> Self {
+        Self {
+            schema,
+            cache,
+            pool,
+        }
     }
 
     /// Execute complete GraphQL query end-to-end (async version for production).
@@ -180,29 +188,35 @@ impl GraphQLPipeline {
         // The runtime was initialized in lib.rs during module import
 
         // Get the underlying pool from DatabasePool
-        let underlying_pool = self.pool.get_pool()
+        let underlying_pool = self
+            .pool
+            .get_pool()
             .ok_or_else(|| anyhow::anyhow!("Database pool not available"))?;
 
         // Execute query asynchronously and block on result
-        let db_results = tokio::runtime::Handle::current()
-            .block_on(async {
-                // Execute raw SQL query
-                let client = underlying_pool.get().await
-                    .map_err(|e| anyhow::anyhow!("Failed to get connection: {}", e))?;
+        let db_results = tokio::runtime::Handle::current().block_on(async {
+            // Execute raw SQL query
+            let client = underlying_pool
+                .get()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get connection: {e}"))?;
 
-                let rows = client.query(sql, &[]).await
-                    .map_err(|e| anyhow::anyhow!("Query execution failed: {}", e))?;
+            let rows = client
+                .query(sql, &[])
+                .await
+                .map_err(|e| anyhow::anyhow!("Query execution failed: {e}"))?;
 
-                // Convert rows to JSON values (FraiseQL CQRS pattern)
-                let results: Vec<serde_json::Value> = rows.iter()
-                    .filter_map(|row| {
-                        // Extract JSONB column (FraiseQL uses `data` column)
-                        row.try_get::<_, serde_json::Value>(0).ok()
-                    })
-                    .collect();
+            // Convert rows to JSON values (FraiseQL CQRS pattern)
+            let results: Vec<serde_json::Value> = rows
+                .iter()
+                .filter_map(|row| {
+                    // Extract JSONB column (FraiseQL uses `data` column)
+                    row.try_get::<_, serde_json::Value>(0).ok()
+                })
+                .collect();
 
-                Ok::<Vec<serde_json::Value>, anyhow::Error>(results)
-            })?;
+            Ok::<Vec<serde_json::Value>, anyhow::Error>(results)
+        })?;
 
         // Convert serde_json::Value results to JSON strings
         db_results
