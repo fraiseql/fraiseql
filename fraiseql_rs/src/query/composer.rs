@@ -117,17 +117,13 @@ impl SQLComposer {
         })
     }
 
-    fn build_order_clause(
-        _order_arg: &crate::graphql::types::GraphQLArgument,
-    ) -> Result<String> {
+    fn build_order_clause(_order_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
         // Parse ORDER BY argument
         // TODO: Implement proper ORDER BY parsing from GraphQL argument
         Ok("ORDER BY t.id DESC".to_string())
     }
 
-    fn build_limit_clause(
-        limit_arg: &crate::graphql::types::GraphQLArgument,
-    ) -> Result<String> {
+    fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
         // Extract limit value
         match limit_arg.value_json.parse::<i64>() {
             Ok(limit) => Ok(format!("LIMIT {limit}")),
@@ -135,9 +131,7 @@ impl SQLComposer {
         }
     }
 
-    fn build_offset_clause(
-        offset_arg: &crate::graphql::types::GraphQLArgument,
-    ) -> Result<String> {
+    fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> Result<String> {
         // Extract offset value
         match offset_arg.value_json.parse::<i64>() {
             Ok(offset) => Ok(format!("OFFSET {offset}")),

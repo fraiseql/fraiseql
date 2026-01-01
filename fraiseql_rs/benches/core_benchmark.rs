@@ -1,7 +1,7 @@
 //! Core transformation benchmarks
 //!
 //! This benchmark tests the zero-copy transformation engine performance
-//! without PyO3 overhead, focusing on the raw transformation speed.
+//! without `PyO3` overhead, focusing on the raw transformation speed.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use fraiseql_rs::core::arena::Arena;
@@ -10,7 +10,7 @@ use fraiseql_rs::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer
 /// Generate small workload: 10 objects, 5 fields each (~1KB total)
 fn generate_small_workload() -> Vec<String> {
     (0..10)
-        .map(|i| format!(r#"{{"id":{},"first_name":"User{}","last_name":"Last{}","email":"user{}@example.com","is_active":true}}"#, i, i, i, i))
+        .map(|i| format!(r#"{{"id":{i},"first_name":"User{i}","last_name":"Last{i}","email":"user{i}@example.com","is_active":true}}"#))
         .collect()
 }
 
@@ -56,13 +56,12 @@ fn benchmark_zero_copy_small(c: &mut Criterion) {
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(
-                    transformer
-                        .transform_bytes(json_str.as_bytes(), &mut output)
-                        .unwrap(),
-                );
+                transformer
+                    .transform_bytes(json_str.as_bytes(), &mut output)
+                    .unwrap();
+                black_box(());
             }
-        })
+        });
     });
 
     group.finish();
@@ -90,13 +89,12 @@ fn benchmark_zero_copy_medium(c: &mut Criterion) {
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(
-                    transformer
-                        .transform_bytes(json_str.as_bytes(), &mut output)
-                        .unwrap(),
-                );
+                transformer
+                    .transform_bytes(json_str.as_bytes(), &mut output)
+                    .unwrap();
+                black_box(());
             }
-        })
+        });
     });
 
     group.finish();
@@ -125,13 +123,12 @@ fn benchmark_zero_copy_large(c: &mut Criterion) {
 
             for json_str in &workload {
                 let mut output = ByteBuf::with_estimated_capacity(json_str.len(), &config);
-                black_box(
-                    transformer
-                        .transform_bytes(json_str.as_bytes(), &mut output)
-                        .unwrap(),
-                );
+                transformer
+                    .transform_bytes(json_str.as_bytes(), &mut output)
+                    .unwrap();
+                black_box(());
             }
-        })
+        });
     });
 
     group.finish();
@@ -146,18 +143,20 @@ fn benchmark_components(c: &mut Criterion) {
         b.iter(|| {
             let arena = Arena::with_capacity(1024);
             black_box(arena.alloc_bytes(256));
-        })
+        });
     });
 
     group.bench_function("byte_reader_parsing", |b| {
         b.iter(|| {
             use fraiseql_rs::core::transform::ByteReader;
             let mut reader = ByteReader::new(json_str.as_bytes());
-            black_box(reader.expect_byte(b'{').unwrap()); // Skip opening brace
+            reader.expect_byte(b'{').unwrap();
+            black_box(()); // Skip opening brace
             black_box(reader.read_string().unwrap()); // Read field name "user_id"
-            black_box(reader.expect_byte(b':').unwrap()); // Skip colon
+            reader.expect_byte(b':').unwrap();
+            black_box(()); // Skip colon
             black_box(reader.read_number().unwrap()); // Read number value
-        })
+        });
     });
 
     group.bench_function("snake_to_camel", |b| {
@@ -165,7 +164,7 @@ fn benchmark_components(c: &mut Criterion) {
         b.iter(|| {
             let arena = Arena::with_capacity(1024);
             black_box(fraiseql_rs::core::camel::snake_to_camel(input, &arena));
-        })
+        });
     });
 
     group.finish();

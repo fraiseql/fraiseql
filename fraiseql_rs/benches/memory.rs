@@ -4,7 +4,7 @@ use fraiseql_rs::pipeline::builder::build_graphql_response;
 /// Generate test workload for memory profiling
 fn generate_memory_test_workload() -> Vec<String> {
     (0..1000)
-        .map(|i| format!(r#"{{"id":{},"first_name":"User{}","last_name":"Last{}","email":"user{}@example.com","is_active":true}}"#, i, i, i, i))
+        .map(|i| format!(r#"{{"id":{i},"first_name":"User{i}","last_name":"Last{i}","email":"user{i}@example.com","is_active":true}}"#))
         .collect()
 }
 
@@ -27,7 +27,7 @@ fn profile_memory() {
             println!("  Output size: {} bytes", bytes.len());
         }
         Err(e) => {
-            println!("✗ Error: {:?}", e);
+            println!("✗ Error: {e:?}");
         }
     }
 }

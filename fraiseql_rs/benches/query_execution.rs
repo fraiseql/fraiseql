@@ -10,7 +10,7 @@ use std::time::Duration;
 fn bench_sql_parsing(c: &mut Criterion) {
     let mut group = c.benchmark_group("sql_parsing");
 
-    for query_type in ["simple", "complex", "subquery"].iter() {
+    for query_type in &["simple", "complex", "subquery"] {
         group.bench_with_input(
             BenchmarkId::from_parameter(query_type),
             query_type,
@@ -35,7 +35,7 @@ fn bench_sql_parsing(c: &mut Criterion) {
 fn bench_parameter_processing(c: &mut Criterion) {
     let mut group = c.benchmark_group("parameter_processing");
 
-    for param_count in [5, 10, 20, 50].iter() {
+    for param_count in &[5, 10, 20, 50] {
         group.bench_with_input(
             BenchmarkId::from_parameter(param_count),
             param_count,
@@ -44,7 +44,7 @@ fn bench_parameter_processing(c: &mut Criterion) {
                     // Simulate binding N parameters for prepared statements
                     let mut placeholders = Vec::with_capacity(param_count);
                     for i in 1..=param_count {
-                        placeholders.push(format!("${}", i));
+                        placeholders.push(format!("${i}"));
                     }
                     let _processed = placeholders.join(", ");
                 });
@@ -58,7 +58,7 @@ fn bench_parameter_processing(c: &mut Criterion) {
 fn bench_result_processing(c: &mut Criterion) {
     let mut group = c.benchmark_group("result_processing");
 
-    for row_count in [100, 1000, 10000].iter() {
+    for row_count in &[100, 1000, 10000] {
         group.bench_with_input(
             BenchmarkId::from_parameter(row_count),
             row_count,
@@ -83,7 +83,7 @@ fn bench_query_caching(c: &mut Criterion) {
         b.iter(|| {
             // Simulate query plan lookup/caching
             let query_hash = black_box(0xDEADBEEF_u64);
-            let cache_hit = query_hash % 10 != 0; // 90% cache hit rate
+            let cache_hit = !query_hash.is_multiple_of(10); // 90% cache hit rate
             let _plan = if cache_hit {
                 "cached_plan"
             } else {

@@ -5,7 +5,7 @@ use fraiseql_rs::pipeline::builder::build_graphql_response;
 /// Generate small workload: 10 objects, 5 fields each (~1KB total)
 fn generate_small_workload() -> Vec<String> {
     (0..10)
-        .map(|i| format!(r#"{{"id":{},"first_name":"User{}","last_name":"Last{}","email":"user{}@example.com","is_active":true}}"#, i, i, i, i))
+        .map(|i| format!(r#"{{"id":{i},"first_name":"User{i}","last_name":"Last{i}","email":"user{i}@example.com","is_active":true}}"#))
         .collect()
 }
 
@@ -28,7 +28,7 @@ fn benchmark_implementation<F>(
 where
     F: Fn() -> Result<Vec<u8>, Box<dyn std::error::Error>>,
 {
-    println!("Benchmarking {} - {} iterations...", name, iterations);
+    println!("Benchmarking {name} - {iterations} iterations...");
 
     let mut total_time = Duration::new(0, 0);
     let mut total_bytes = 0;
@@ -42,7 +42,7 @@ where
                 total_bytes += bytes.len();
             }
             Err(e) => {
-                println!("Error in {}: {:?}", name, e);
+                println!("Error in {name}: {e:?}");
                 return (Duration::new(0, 0), 0);
             }
         }
@@ -52,7 +52,7 @@ where
     let avg_bytes = total_bytes / iterations;
 
     println!("  Average time: {:.2}ms", avg_time.as_secs_f64() * 1000.0);
-    println!("  Average output: {} bytes", avg_bytes);
+    println!("  Average output: {avg_bytes} bytes");
     println!("  Throughput: {:.0} ops/sec", 1.0 / avg_time.as_secs_f64());
 
     (avg_time, avg_bytes)
@@ -78,11 +78,12 @@ fn main() {
                 None,
                 None,
                 None,
+                None,
             )
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         });
 
-    println!("  Output size: {} bytes", new_bytes);
+    println!("  Output size: {new_bytes} bytes");
     println!();
 
     // Test medium workload
@@ -100,11 +101,12 @@ fn main() {
                 None,
                 None,
                 None,
+                None,
             )
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         });
 
-    println!("  Output size: {} bytes", new_bytes);
+    println!("  Output size: {new_bytes} bytes");
     println!();
 
     println!("✅ Phase 6 Validation Complete!");

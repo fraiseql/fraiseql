@@ -262,9 +262,7 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Convert `HashMap` updates to parameter vector.
-    fn hashmap_to_params(
-        updates: &std::collections::HashMap<&str, QueryParam>,
-    ) -> Vec<QueryParam> {
+    fn hashmap_to_params(updates: &std::collections::HashMap<&str, QueryParam>) -> Vec<QueryParam> {
         updates.values().cloned().collect()
     }
 

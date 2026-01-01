@@ -6,7 +6,7 @@ use fraiseql_rs::pipeline::builder::build_graphql_response;
 /// Generate small workload: 10 objects, 5 fields each (~1KB total)
 fn generate_small_workload() -> Vec<String> {
     (0..10)
-        .map(|i| format!(r#"{{"id":{},"first_name":"User{}","last_name":"Last{}","email":"user{}@example.com","is_active":true}}"#, i, i, i, i))
+        .map(|i| format!(r#"{{"id":{i},"first_name":"User{i}","last_name":"Last{i}","email":"user{i}@example.com","is_active":true}}"#))
         .collect()
 }
 
@@ -75,7 +75,7 @@ fn benchmark_small_response(c: &mut Criterion) {
                 black_box(None),
                 black_box(None),
             )
-        })
+        });
     });
 
     group.finish();
@@ -100,7 +100,7 @@ fn benchmark_medium_response(c: &mut Criterion) {
                 black_box(None),
                 black_box(None),
             )
-        })
+        });
     });
 
     group.finish();
@@ -126,7 +126,7 @@ fn benchmark_large_response(c: &mut Criterion) {
                 black_box(None),
                 black_box(None),
             )
-        })
+        });
     });
 
     group.finish();
@@ -151,7 +151,7 @@ fn benchmark_nested_response(c: &mut Criterion) {
                 black_box(None),
                 black_box(None),
             )
-        })
+        });
     });
 
     group.finish();

@@ -20,7 +20,7 @@ fn benchmark_simple_format(c: &mut Criterion) {
                 None,
                 None,
             )
-        })
+        });
     });
 }
 
@@ -51,7 +51,7 @@ fn benchmark_full_format_with_cascade(c: &mut Criterion) {
                 None,
                 None,
             )
-        })
+        });
     });
 }
 
@@ -81,7 +81,7 @@ fn benchmark_error_response(c: &mut Criterion) {
                 None,
                 None,
             )
-        })
+        });
     });
 }
 
@@ -106,7 +106,7 @@ fn benchmark_array_entities(c: &mut Criterion) {
                 None,
                 None,
             )
-        })
+        });
     });
 }
 

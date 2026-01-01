@@ -23,7 +23,7 @@ fn main() {
             );
         }
         Err(e) => {
-            println!("✗ Implementation failed: {:?}", e);
+            println!("✗ Implementation failed: {e:?}");
         }
     }
 }

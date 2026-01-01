@@ -8,7 +8,7 @@ fn main() {
     // Test data - single user
     let json_rows = vec![r#"{"id":123,"first_name":"John","last_name":"Doe","email":"john@example.com","is_active":true}"#.to_string()];
 
-    println!("📝 Input JSON rows: {:?}", json_rows);
+    println!("📝 Input JSON rows: {json_rows:?}");
     println!();
 
     // Test the full pipeline
@@ -24,7 +24,7 @@ fn main() {
         Ok(bytes) => {
             let result_str = String::from_utf8_lossy(&bytes);
             println!("✅ Pipeline transformation successful!");
-            println!("📤 Output: {}", result_str);
+            println!("📤 Output: {result_str}");
             println!("📏 Output size: {} bytes", bytes.len());
 
             // Try to parse as JSON to validate structure
@@ -37,12 +37,12 @@ fn main() {
                     );
                 }
                 Err(e) => {
-                    println!("❌ Invalid JSON: {:?}", e);
+                    println!("❌ Invalid JSON: {e:?}");
                 }
             }
         }
         Err(e) => {
-            println!("❌ Pipeline failed: {:?}", e);
+            println!("❌ Pipeline failed: {e:?}");
         }
     }
 

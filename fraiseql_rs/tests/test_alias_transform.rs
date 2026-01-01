@@ -113,16 +113,16 @@ fn create_test_schema() -> SchemaRegistry {
     SchemaRegistry::from_json(schema_ir).expect("Failed to create test schema")
 }
 
-/// Helper to create a FieldSelection structure
+/// Helper to create a `FieldSelection` structure
 ///
-/// FieldSelection structure (matches Python FieldSelection dataclass):
+/// `FieldSelection` structure (matches Python `FieldSelection` dataclass):
 /// {
-///   "materialized_path": "user.posts.author_name",
+///   "`materialized_path"`: "`user.posts.author_name`",
 ///   "alias": "postAuthor",
-///   "type_info": {
-///     "type_name": "String",
-///     "is_list": false,
-///     "is_nested_object": false
+///   "`type_info"`: {
+///     "`type_name"`: "String",
+///     "`is_list"`: false,
+///     "`is_nested_object"`: false
 ///   }
 /// }
 fn make_selection(path: &str, alias: &str, type_name: &str, is_list: bool) -> Value {

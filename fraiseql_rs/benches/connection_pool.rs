@@ -35,7 +35,7 @@ fn bench_connection_parsing(c: &mut Criterion) {
 fn bench_pool_state_management(c: &mut Criterion) {
     let mut group = c.benchmark_group("pool_state_management");
 
-    for pool_size in [10, 50, 100].iter() {
+    for pool_size in &[10, 50, 100] {
         group.bench_with_input(
             BenchmarkId::from_parameter(pool_size),
             pool_size,

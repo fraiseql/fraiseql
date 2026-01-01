@@ -1,4 +1,4 @@
-/// Tests for SchemaRegistry module
+/// Tests for `SchemaRegistry` module
 ///
 /// These tests verify the Rust-side schema registry that stores GraphQL type metadata
 /// for use in type resolution and JSON transformation.
@@ -149,8 +149,7 @@ mod tests {
         // In release mode this will be much faster (< 1ms)
         assert!(
             duration.as_millis() < 100,
-            "Field lookups too slow: {:?}",
-            duration
+            "Field lookups too slow: {duration:?}"
         );
     }
 }
