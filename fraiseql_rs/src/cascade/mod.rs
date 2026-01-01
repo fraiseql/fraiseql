@@ -107,9 +107,8 @@ pub fn filter_cascade_by_selections(
         return Ok(Value::Object(Map::new()));
     }
 
-    let cascade_obj = match cascade {
-        Value::Object(obj) => obj,
-        _ => return Err("CASCADE must be an object".to_string()),
+    let Value::Object(cascade_obj) = cascade else {
+        return Err("CASCADE must be an object".to_string());
     };
 
     let mut filtered = Map::with_capacity(selections.fields.len());
@@ -263,9 +262,8 @@ fn filter_simple_field(value: &Value, field_selections: Option<&FieldSelections>
 }
 
 fn filter_entity_fields(entity: &Value, fields: &[String]) -> Value {
-    let entity_obj = match entity {
-        Value::Object(obj) => obj,
-        _ => return entity.clone(),
+    let Value::Object(entity_obj) = entity else {
+        return entity.clone();
     };
 
     let mut filtered = Map::new();
@@ -286,9 +284,8 @@ fn filter_entity_fields(entity: &Value, fields: &[String]) -> Value {
 }
 
 fn filter_object_fields(obj: &Value, fields: &[String]) -> Value {
-    let obj_map = match obj {
-        Value::Object(map) => map,
-        _ => return obj.clone(),
+    let Value::Object(obj_map) = obj else {
+        return obj.clone();
     };
 
     let mut filtered = Map::new();
