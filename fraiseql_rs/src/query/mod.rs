@@ -4,6 +4,13 @@ pub mod composer;
 pub mod schema;
 pub mod where_builder;
 
+// Phase 7.2: WHERE normalization in Rust
+pub mod operators;
+pub mod casing;
+pub mod prepared_statement;
+pub mod field_analyzer;
+pub mod where_normalization;
+
 use crate::cache::QueryPlanCache;
 use crate::graphql::types::ParsedQuery;
 use crate::query::composer::SQLComposer;

@@ -110,6 +110,9 @@ lru = "0.12"                # LRU cache
 linked-hash-map = "0.5"     # For LRU implementation
 sha2 = "0.10"               # Hashing for signatures
 
+# Python interop (Phase 7.2)
+# Note: pythonize removed due to pyo3 version conflict - using manual conversion
+
 # Authentication (Phase 10)
 jsonwebtoken = "9.2"        # JWT validation with built-in JWK support
 
