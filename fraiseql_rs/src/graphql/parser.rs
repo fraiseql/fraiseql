@@ -112,10 +112,9 @@ fn extract_operation(
     Vec<VariableDefinition>,
 )> {
     let operation_type = match operation {
-        OperationDefinition::Query(_) => "query",
+        OperationDefinition::Query(_) | OperationDefinition::SelectionSet(_) => "query",
         OperationDefinition::Mutation(_) => "mutation",
         OperationDefinition::Subscription(_) => "subscription",
-        OperationDefinition::SelectionSet(_) => "query", // Anonymous query
     }
     .to_string();
 

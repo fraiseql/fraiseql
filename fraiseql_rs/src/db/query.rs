@@ -136,10 +136,8 @@ impl<'a> QueryExecutor<'a> {
         table: &str,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
-        let (where_sql, params) = where_clause.map_or(
-            (String::new(), vec![]),
-            |builder| builder.build(),
-        );
+        let (where_sql, params) =
+            where_clause.map_or((String::new(), vec![]), |builder| builder.build());
 
         let sql = if where_sql.is_empty() {
             format!("DELETE FROM {table}")
@@ -198,18 +196,12 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Build INSERT SQL statement.
-    fn build_insert_sql(
-        table: &str,
-        columns: &[&str],
-        value_count: usize,
-    ) -> String {
+    fn build_insert_sql(table: &str, columns: &[&str], value_count: usize) -> String {
         let column_list = columns.join(", ");
         let placeholders: Vec<String> = (1..=value_count).map(|i| format!("${i}")).collect();
         let value_placeholders = placeholders.join(", ");
 
-        format!(
-            "INSERT INTO {table} ({column_list}) VALUES ({value_placeholders})"
-        )
+        format!("INSERT INTO {table} ({column_list}) VALUES ({value_placeholders})")
     }
 
     /// Build UPDATE SQL statement and collect parameters.

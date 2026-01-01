@@ -295,9 +295,7 @@ fn py_to_json(obj: &Bound<'_, PyAny>) -> JsonValue {
     } else if let Ok(i) = obj.extract::<i64>() {
         JsonValue::Number(i.into())
     } else if let Ok(f) = obj.extract::<f64>() {
-        JsonValue::Number(
-            serde_json::Number::from_f64(f).expect("finite f64"),
-        )
+        JsonValue::Number(serde_json::Number::from_f64(f).expect("finite f64"))
     } else if let Ok(b) = obj.extract::<bool>() {
         JsonValue::Bool(b)
     } else {

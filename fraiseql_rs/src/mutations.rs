@@ -164,10 +164,7 @@ async fn delete_record(
     ))
 }
 
-fn build_insert_sql(
-    table: &str,
-    input: &Value,
-) -> (String, Vec<QueryParam>) {
+fn build_insert_sql(table: &str, input: &Value) -> (String, Vec<QueryParam>) {
     let mut columns = Vec::new();
     let mut values = Vec::new();
     let mut params = Vec::new();
@@ -216,10 +213,7 @@ fn build_update_sql(
     (sql, params)
 }
 
-fn build_delete_sql_with_params(
-    table: &str,
-    filters: Option<&Value>,
-) -> (String, Vec<QueryParam>) {
+fn build_delete_sql_with_params(table: &str, filters: Option<&Value>) -> (String, Vec<QueryParam>) {
     let mut sql = format!("DELETE FROM {table}");
     let mut params = Vec::new();
 
@@ -250,14 +244,13 @@ fn build_where_clause(
     };
 
     let op = match op_str.as_str() {
-        "eq" => "=",
         "ne" => "!=",
         "gt" => ">",
         "gte" => ">=",
         "lt" => "<",
         "lte" => "<=",
         "like" => "LIKE",
-        _ => "=",
+        _ => "=", // "eq" and unknown operators default to "="
     };
 
     let sql = format!(" WHERE {field_str} {op} ${param_index}");
@@ -271,12 +264,14 @@ fn value_to_query_param(value: &Value) -> QueryParam {
         Value::Null => QueryParam::Null,
         Value::Bool(b) => QueryParam::Bool(*b),
         Value::Number(n) => n.as_i64().map_or_else(
-            || n.as_f64().map_or_else(|| QueryParam::Text(n.to_string()), QueryParam::Double),
+            || {
+                n.as_f64()
+                    .map_or_else(|| QueryParam::Text(n.to_string()), QueryParam::Double)
+            },
             QueryParam::BigInt,
         ),
         Value::String(s) => QueryParam::Text(s.clone()),
-        Value::Array(_) => QueryParam::Text(value.to_string()), // JSON array
-        Value::Object(_) => QueryParam::Text(value.to_string()), // JSON object
+        Value::Array(_) | Value::Object(_) => QueryParam::Text(value.to_string()), // JSON types
     }
 }
 

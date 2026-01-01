@@ -337,10 +337,9 @@ impl ByteBuf {
         let base = (input_size as f32 * 1.2) as usize;
 
         let multiplier = match (config.camel_case, config.project_fields) {
-            (true, true) => 1.0,  // +50% -50% = 0
             (true, false) => 1.5, // +50%
             (false, true) => 0.7, // -50%
-            (false, false) => 1.0,
+            _ => 1.0,             // (true, true) or (false, false): +50% -50% = 0
         };
 
         let capacity = (base as f32 * multiplier) as usize;

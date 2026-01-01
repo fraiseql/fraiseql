@@ -174,9 +174,7 @@ pub enum MutationStatus {
 impl std::fmt::Display for MutationStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Success(s) => write!(f, "{s}"),
-            Self::Noop(s) => write!(f, "{s}"),
-            Self::Error(s) => write!(f, "{s}"),
+            Self::Success(s) | Self::Noop(s) | Self::Error(s) => write!(f, "{s}"),
         }
     }
 }

@@ -88,8 +88,9 @@ impl VariableProcessor {
                     },
                     |default_str| {
                         // Parse the JSON string to serde_json::Value
-                        serde_json::from_str(default_str)
-                            .map_err(|_| format!("Invalid default value for variable '${var_name}'"))
+                        serde_json::from_str(default_str).map_err(|_| {
+                            format!("Invalid default value for variable '${var_name}'")
+                        })
                     },
                 )
             },

@@ -15,6 +15,19 @@ lazy_static! {
     static ref QUERY_PLAN_CACHE: QueryPlanCache = QueryPlanCache::new(5000);
 }
 
+/// Convert a ParameterValue to its string representation
+fn parameter_value_to_string(value: where_builder::ParameterValue) -> String {
+    match value {
+        where_builder::ParameterValue::String(s) | where_builder::ParameterValue::JsonObject(s) => {
+            s
+        }
+        where_builder::ParameterValue::Integer(i) => i.to_string(),
+        where_builder::ParameterValue::Float(f) => f.to_string(),
+        where_builder::ParameterValue::Boolean(b) => b.to_string(),
+        where_builder::ParameterValue::Array(_) => "[]".to_string(),
+    }
+}
+
 /// Build complete SQL query from parsed GraphQL.
 ///
 /// # Errors
@@ -45,17 +58,7 @@ pub fn build_sql_query(
         parameters: sql_query
             .parameters
             .into_iter()
-            .map(|(name, value)| {
-                let value_str = match value {
-                    where_builder::ParameterValue::String(s) => s,
-                    where_builder::ParameterValue::Integer(i) => i.to_string(),
-                    where_builder::ParameterValue::Float(f) => f.to_string(),
-                    where_builder::ParameterValue::Boolean(b) => b.to_string(),
-                    where_builder::ParameterValue::JsonObject(s) => s,
-                    where_builder::ParameterValue::Array(_) => "[]".to_string(),
-                };
-                (name, value_str)
-            })
+            .map(|(name, value)| (name, parameter_value_to_string(value)))
             .collect(),
     })
 }
@@ -100,17 +103,7 @@ pub fn build_sql_query_cached(
         parameters: sql_query
             .parameters
             .into_iter()
-            .map(|(name, value)| {
-                let value_str = match value {
-                    where_builder::ParameterValue::String(s) => s,
-                    where_builder::ParameterValue::Integer(i) => i.to_string(),
-                    where_builder::ParameterValue::Float(f) => f.to_string(),
-                    where_builder::ParameterValue::Boolean(b) => b.to_string(),
-                    where_builder::ParameterValue::JsonObject(s) => s,
-                    where_builder::ParameterValue::Array(_) => "[]".to_string(),
-                };
-                (name, value_str)
-            })
+            .map(|(name, value)| (name, parameter_value_to_string(value)))
             .collect(),
     };
 

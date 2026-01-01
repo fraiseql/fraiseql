@@ -207,10 +207,7 @@ pub fn filter_cascade_data(
 }
 
 /// Filter the cascade object in place
-fn filter_cascade_object(
-    obj: &mut Map<String, Value>,
-    selections: &CascadeSelections,
-) {
+fn filter_cascade_object(obj: &mut Map<String, Value>, selections: &CascadeSelections) {
     // Remove fields not in selections
     obj.retain(|key, _| selections.fields.contains(key));
 
