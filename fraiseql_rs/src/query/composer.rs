@@ -70,7 +70,7 @@ impl SQLComposer {
             .arguments
             .iter()
             .find(|arg| arg.name == "limit")
-            .map_or("LIMIT 100".to_string(), Self::build_limit_clause);
+            .map_or_else(|| "LIMIT 100".to_string(), Self::build_limit_clause);
 
         let offset_clause = root_field
             .arguments
@@ -121,7 +121,7 @@ impl SQLComposer {
         limit_arg
             .value_json
             .parse::<i64>()
-            .map_or("LIMIT 100".to_string(), |limit| format!("LIMIT {limit}"))
+            .map_or_else(|_| "LIMIT 100".to_string(), |limit| format!("LIMIT {limit}"))
     }
 
     fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> String {
