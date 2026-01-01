@@ -38,7 +38,7 @@ impl<'a> QueryExecutor<'a> {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> DatabaseResult<QueryResult> {
-        let sql = Self::build_select_sql(table, columns, &where_clause, order_by, limit, offset)?;
+        let sql = Self::build_select_sql(table, columns, &where_clause, order_by, limit, offset);
         let params = Self::extract_params(&where_clause);
 
         // Validate parameters before execution
@@ -72,7 +72,7 @@ impl<'a> QueryExecutor<'a> {
         columns: &[&str],
         values: &[QueryParam],
     ) -> DatabaseResult<u64> {
-        let sql = Self::build_insert_sql(table, columns, values.len())?;
+        let sql = Self::build_insert_sql(table, columns, values.len());
 
         // Validate parameters before execution
         for param in values {
@@ -105,7 +105,7 @@ impl<'a> QueryExecutor<'a> {
         updates: &std::collections::HashMap<&str, QueryParam>,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
-        let (sql, params) = Self::build_update_sql_with_params(table, updates, where_clause)?;
+        let (sql, params) = Self::build_update_sql_with_params(table, updates, where_clause);
 
         // Validate parameters before execution
         for param in &params {
@@ -172,7 +172,7 @@ impl<'a> QueryExecutor<'a> {
         order_by: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
-    ) -> DatabaseResult<String> {
+    ) -> String {
         let column_list = columns.join(", ");
         let mut sql = format!("SELECT {column_list} FROM {table}");
 
@@ -195,7 +195,7 @@ impl<'a> QueryExecutor<'a> {
             sql.push_str(&format!(" OFFSET {offset_val}"));
         }
 
-        Ok(sql)
+        sql
     }
 
     /// Build INSERT SQL statement.
@@ -203,14 +203,14 @@ impl<'a> QueryExecutor<'a> {
         table: &str,
         columns: &[&str],
         value_count: usize,
-    ) -> DatabaseResult<String> {
+    ) -> String {
         let column_list = columns.join(", ");
         let placeholders: Vec<String> = (1..=value_count).map(|i| format!("${i}")).collect();
         let value_placeholders = placeholders.join(", ");
 
-        Ok(format!(
+        format!(
             "INSERT INTO {table} ({column_list}) VALUES ({value_placeholders})"
-        ))
+        )
     }
 
     /// Build UPDATE SQL statement and collect parameters.
@@ -218,7 +218,7 @@ impl<'a> QueryExecutor<'a> {
         table: &str,
         updates: &std::collections::HashMap<&str, QueryParam>,
         where_clause: Option<WhereBuilder>,
-    ) -> DatabaseResult<(String, Vec<QueryParam>)> {
+    ) -> (String, Vec<QueryParam>) {
         let mut params = Self::hashmap_to_params(updates);
         let param_offset = params.len();
 
@@ -248,7 +248,7 @@ impl<'a> QueryExecutor<'a> {
             }
         }
 
-        Ok((sql, params))
+        (sql, params)
     }
 
     /// Extract parameters from WHERE builder.
