@@ -24,6 +24,16 @@ pub enum OperatorCategory {
     Fulltext,
     /// Containment for JSONB: @>, <@
     Containment,
+    /// Network/IP operators
+    Network,
+    /// Date/range operators
+    DateRange,
+    /// Ltree (hierarchical) operators
+    Ltree,
+    /// Spatial/coordinate operators
+    Spatial,
+    /// Path operators
+    Path,
 }
 
 /// Information about a single operator
@@ -338,6 +348,326 @@ lazy_static! {
             sql_op: "@@",
             category: OperatorCategory::Fulltext,
             requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== STRING PATTERN OPERATORS (Extended) ==========
+        m.insert("startswith", OperatorInfo {
+            name: "startswith",
+            sql_op: "LIKE",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("istartswith", OperatorInfo {
+            name: "istartswith",
+            sql_op: "ILIKE",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("endswith", OperatorInfo {
+            name: "endswith",
+            sql_op: "LIKE",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("iendswith", OperatorInfo {
+            name: "iendswith",
+            sql_op: "ILIKE",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("icontains", OperatorInfo {
+            name: "icontains",
+            sql_op: "ILIKE",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("imatches", OperatorInfo {
+            name: "imatches",
+            sql_op: "~*",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("not_matches", OperatorInfo {
+            name: "not_matches",
+            sql_op: "!~",
+            category: OperatorCategory::String,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== NETWORK/IP OPERATORS ==========
+        m.insert("isIPv4", OperatorInfo {
+            name: "isIPv4",
+            sql_op: "family({}) = 4",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("isIPv6", OperatorInfo {
+            name: "isIPv6",
+            sql_op: "family({}) = 6",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("isPrivate", OperatorInfo {
+            name: "isPrivate",
+            sql_op: "CIDR_RANGE_CHECK",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("isPublic", OperatorInfo {
+            name: "isPublic",
+            sql_op: "NOT_CIDR_RANGE_CHECK",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("inSubnet", OperatorInfo {
+            name: "inSubnet",
+            sql_op: "{} <<= {}",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("notInSubnet", OperatorInfo {
+            name: "notInSubnet",
+            sql_op: "NOT ({} <<= {})",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("subnet_contains", OperatorInfo {
+            name: "subnet_contains",
+            sql_op: ">>",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("subnet_overlaps", OperatorInfo {
+            name: "subnet_overlaps",
+            sql_op: "&&",
+            category: OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== DATE/RANGE OPERATORS ==========
+        m.insert("contains_date", OperatorInfo {
+            name: "contains_date",
+            sql_op: "@>",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("adjacent", OperatorInfo {
+            name: "adjacent",
+            sql_op: "-|-",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("strictly_left", OperatorInfo {
+            name: "strictly_left",
+            sql_op: "<<",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("strictly_right", OperatorInfo {
+            name: "strictly_right",
+            sql_op: ">>",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("not_left", OperatorInfo {
+            name: "not_left",
+            sql_op: "&>",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("not_right", OperatorInfo {
+            name: "not_right",
+            sql_op: "&<",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("overlaps", OperatorInfo {
+            name: "overlaps",
+            sql_op: "&&",
+            category: OperatorCategory::DateRange,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== LTREE (HIERARCHICAL) OPERATORS ==========
+        m.insert("ancestor_of", OperatorInfo {
+            name: "ancestor_of",
+            sql_op: "@>",
+            category: OperatorCategory::Ltree,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("descendant_of", OperatorInfo {
+            name: "descendant_of",
+            sql_op: "<@",
+            category: OperatorCategory::Ltree,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("matches_lquery", OperatorInfo {
+            name: "matches_lquery",
+            sql_op: "~",
+            category: OperatorCategory::Ltree,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("matches_ltxtquery", OperatorInfo {
+            name: "matches_ltxtquery",
+            sql_op: "@",
+            category: OperatorCategory::Ltree,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("matches_any_lquery", OperatorInfo {
+            name: "matches_any_lquery",
+            sql_op: "?",
+            category: OperatorCategory::Ltree,
+            requires_array: true,
+            jsonb_operator: false,
+        });
+
+        // ========== PATH OPERATORS ==========
+        m.insert("depth_eq", OperatorInfo {
+            name: "depth_eq",
+            sql_op: "nlevel({}) =",
+            category: OperatorCategory::Path,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("depth_gt", OperatorInfo {
+            name: "depth_gt",
+            sql_op: "nlevel({}) >",
+            category: OperatorCategory::Path,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("depth_lt", OperatorInfo {
+            name: "depth_lt",
+            sql_op: "nlevel({}) <",
+            category: OperatorCategory::Path,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("isdescendant", OperatorInfo {
+            name: "isdescendant",
+            sql_op: "<@",
+            category: OperatorCategory::Path,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== SPATIAL/COORDINATE OPERATORS ==========
+        m.insert("distance_within", OperatorInfo {
+            name: "distance_within",
+            sql_op: "distance_within",
+            category: OperatorCategory::Spatial,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        // ========== JSONB ADVANCED OPERATORS ==========
+        m.insert("strictly_contains", OperatorInfo {
+            name: "strictly_contains",
+            sql_op: "@>",
+            category: OperatorCategory::Containment,
+            requires_array: false,
+            jsonb_operator: true,
+        });
+
+        // ========== ADDITIONAL ALIASES ==========
+        m.insert("neq", OperatorInfo {
+            name: "neq",
+            sql_op: "!=",
+            category: OperatorCategory::Comparison,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("isnull", OperatorInfo {
+            name: "isnull",
+            sql_op: "IS NULL",
+            category: OperatorCategory::Null,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("array_eq", OperatorInfo {
+            name: "array_eq",
+            sql_op: "=",
+            category: OperatorCategory::Array,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("array_neq", OperatorInfo {
+            name: "array_neq",
+            sql_op: "!=",
+            category: OperatorCategory::Array,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("array_contained_by", OperatorInfo {
+            name: "array_contained_by",
+            sql_op: "<@",
+            category: OperatorCategory::Array,
+            requires_array: false,
+            jsonb_operator: false,
+        });
+
+        m.insert("notin", OperatorInfo {
+            name: "notin",
+            sql_op: "NOT IN",
+            category: OperatorCategory::Comparison,
+            requires_array: true,
             jsonb_operator: false,
         });
 

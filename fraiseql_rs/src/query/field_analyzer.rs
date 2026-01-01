@@ -275,6 +275,22 @@ impl<'a> FieldAnalyzer<'a> {
                 Some(stmt.build_fulltext_search(column, op_info.name, value.clone()))
             }
             OperatorCategory::Containment => None, // JSONB only
+            // New operator categories - use comparison/string logic
+            OperatorCategory::Network => {
+                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
+            }
+            OperatorCategory::DateRange => {
+                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
+            }
+            OperatorCategory::Ltree => {
+                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
+            }
+            OperatorCategory::Spatial => {
+                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
+            }
+            OperatorCategory::Path => {
+                Some(stmt.build_comparison(column, op_info.sql_op, value.clone()))
+            }
         }
     }
 
