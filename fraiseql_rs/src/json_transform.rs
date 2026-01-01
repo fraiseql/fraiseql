@@ -180,6 +180,10 @@ fn transform_nested_object(
 /// If a field type is not found in the schema registry, the function falls back
 /// to simple camelCase conversion without __typename injection for that field.
 ///
+/// # Panics
+/// Panics if a cloned map does not contain a key that was just verified to exist.
+/// This should never happen in practice as keys are checked before access.
+///
 /// # Examples
 /// ```ignore
 /// let input = json!({"id": "1", "equipment": {"id": "2", "name": "Device"}});

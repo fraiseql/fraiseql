@@ -71,6 +71,11 @@ impl GraphQLPipeline {
     /// - Advanced feature validation fails
     /// - SQL building or composition fails
     /// - JSON transformation fails
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is before the UNIX epoch (January 1, 1970).
+    /// This should never happen on any modern system.
     pub fn execute_sync(
         &self,
         query_string: &str,

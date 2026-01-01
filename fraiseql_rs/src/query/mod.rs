@@ -70,6 +70,11 @@ pub fn build_sql_query(
 /// Returns a Python error if:
 /// - Schema JSON is invalid or malformed
 /// - Query composition fails
+///
+/// # Panics
+///
+/// Panics if the system time is before the UNIX epoch (January 1, 1970).
+/// This should never happen on any modern system.
 #[pyfunction]
 pub fn build_sql_query_cached(
     _py: Python,

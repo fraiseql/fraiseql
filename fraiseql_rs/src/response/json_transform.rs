@@ -3,6 +3,11 @@
 use serde_json::{Map, Value};
 
 /// Convert `snake_case` to camelCase
+///
+/// # Panics
+///
+/// Panics if a character's uppercase conversion returns no characters.
+/// This should never happen as all valid Unicode characters have an uppercase form.
 #[must_use]
 pub fn to_camel_case(snake: &str) -> String {
     let mut result = String::new();
