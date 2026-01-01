@@ -75,26 +75,29 @@ impl VariableProcessor {
         definition: &VariableDefinition,
         input_variables: &HashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
-        let input_value = input_variables.get(var_name);
-
-        match input_value {
-            Some(value) => {
+        input_variables.get(var_name).map_or_else(
+            || {
+                // Use default value if available
+                definition.default_value.as_ref().map_or_else(
+                    || {
+                        if definition.var_type.nullable {
+                            Ok(serde_json::Value::Null)
+                        } else {
+                            Err(format!("Required variable '${var_name}' is not provided"))
+                        }
+                    },
+                    |default_str| {
+                        // Parse the JSON string to serde_json::Value
+                        serde_json::from_str(default_str)
+                            .map_err(|_| format!("Invalid default value for variable '${var_name}'"))
+                    },
+                )
+            },
+            |value| {
                 // Validate and coerce the provided value
                 Self::validate_and_coerce_value(value, &definition.var_type)
-            }
-            None => {
-                // Use default value if available
-                if let Some(default_str) = &definition.default_value {
-                    // Parse the JSON string to serde_json::Value
-                    serde_json::from_str(default_str)
-                        .map_err(|_| format!("Invalid default value for variable '${var_name}'"))
-                } else if definition.var_type.nullable {
-                    Ok(serde_json::Value::Null)
-                } else {
-                    Err(format!("Required variable '${var_name}' is not provided"))
-                }
-            }
-        }
+            },
+        )
     }
 
     /// Validate and coerce a value to the expected GraphQL type

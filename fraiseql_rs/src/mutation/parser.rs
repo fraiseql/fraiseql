@@ -33,11 +33,10 @@ pub fn parse_mutation_response(
 
 /// Check if value is full format (has valid status field)
 fn is_full_format(value: &Value) -> bool {
-    if let Some(status) = value.get("status").and_then(|s| s.as_str()) {
-        is_valid_mutation_status(status)
-    } else {
-        false
-    }
+    value
+        .get("status")
+        .and_then(|s| s.as_str())
+        .map_or(false, is_valid_mutation_status)
 }
 
 /// Check if status string is a valid mutation status

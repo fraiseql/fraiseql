@@ -130,12 +130,14 @@ pub fn execute_graphql_query(
         }
     };
 
-    match &*pipeline_guard {
-        Some(pipeline) => pipeline.execute_py(py, &query_string, &variables, &user_context),
-        None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-            "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
-        )),
-    }
+    pipeline_guard.as_ref().map_or_else(
+        || {
+            Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
+            ))
+        },
+        |pipeline| pipeline.execute_py(py, &query_string, &variables, &user_context),
+    )
 }
 
 /// Convert a `snake_case` string to camelCase
@@ -669,28 +671,30 @@ pub fn execute_mutation_async(mutation_def: String) -> PyResult<String> {
     let response = match mutation_type {
         crate::mutations::MutationType::Insert => {
             // Use mutations.rs logic to validate and transform input
-            if let Some(input_val) = _input {
-                // For demo: return the input with an auto-generated ID
-                serde_json::json!({
-                    "id": 1,
-                    "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown"),
-                    "email": input_val.get("email").and_then(|v| v.as_str()).unwrap_or("unknown@example.com")
-                })
-            } else {
-                serde_json::json!({"error": "Input required for INSERT"})
-            }
+            _input.map_or_else(
+                || serde_json::json!({"error": "Input required for INSERT"}),
+                |input_val| {
+                    // For demo: return the input with an auto-generated ID
+                    serde_json::json!({
+                        "id": 1,
+                        "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown"),
+                        "email": input_val.get("email").and_then(|v| v.as_str()).unwrap_or("unknown@example.com")
+                    })
+                },
+            )
         }
         crate::mutations::MutationType::Update => {
-            if let Some(input_val) = _input {
-                // For demo: return updated record
-                serde_json::json!({
-                    "id": 1,
-                    "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Updated User"),
-                    "updated_at": "2025-12-20T22:00:00Z"
-                })
-            } else {
-                serde_json::json!({"error": "Input required for UPDATE"})
-            }
+            _input.map_or_else(
+                || serde_json::json!({"error": "Input required for UPDATE"}),
+                |input_val| {
+                    // For demo: return updated record
+                    serde_json::json!({
+                        "id": 1,
+                        "name": input_val.get("name").and_then(|v| v.as_str()).unwrap_or("Updated User"),
+                        "updated_at": "2025-12-20T22:00:00Z"
+                    })
+                },
+            )
         }
         crate::mutations::MutationType::Delete => {
             // For demo: return deletion confirmation

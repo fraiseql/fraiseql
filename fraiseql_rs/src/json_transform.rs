@@ -579,13 +579,16 @@ fn transform_with_aliases(
 
                 // Determine output key: alias or camelCase
                 // If alias is "user.posts.writerName", extract "writerName"
-                let output_key = if let Some(alias) = alias_map.get(&field_path) {
-                    // Extract final segment after last '.' (handles nested paths)
-                    alias.rsplit('.').next().unwrap_or(alias).to_string()
-                } else {
-                    // No alias - default to camelCase transformation
-                    to_camel_case(key)
-                };
+                let output_key = alias_map.get(&field_path).map_or_else(
+                    || {
+                        // No alias - default to camelCase transformation
+                        to_camel_case(key)
+                    },
+                    |alias| {
+                        // Extract final segment after last '.' (handles nested paths)
+                        alias.rsplit('.').next().unwrap_or(alias).to_string()
+                    },
+                );
 
                 // Transform value based on schema type
                 let field_type_opt =

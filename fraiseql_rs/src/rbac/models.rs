@@ -214,11 +214,7 @@ impl UserRole {
     /// Check if role assignment is still valid
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        if let Some(expires_at) = self.expires_at {
-            Utc::now() < expires_at
-        } else {
-            true
-        }
+        self.expires_at.map_or(true, |expires_at| Utc::now() < expires_at)
     }
 
     /// Create `UserRole` from `tokio_postgres` Row

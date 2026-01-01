@@ -169,15 +169,13 @@ impl GraphQLPipeline {
             // Matches "users", "v_user", etc.
             let limit = if sql.contains("LIMIT") {
                 // Extract limit from SQL (simplified)
-                if let Some(limit_part) = sql.split("LIMIT ").nth(1) {
+                sql.split("LIMIT ").nth(1).map_or(10, |limit_part| {
                     limit_part
                         .split_whitespace()
                         .next()
                         .and_then(|s| s.parse::<usize>().ok())
                         .unwrap_or(10)
-                } else {
-                    10
-                }
+                })
             } else {
                 10
             };

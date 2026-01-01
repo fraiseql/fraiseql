@@ -187,18 +187,9 @@ pub fn build_success_response(
             // The entity looks like: {"post": {...}, "message": "..."}
             let actual_entity = if let Value::Object(entity_map) = entity {
                 // Check if the entity wrapper contains a field matching entity_field_name
-                if let Some(entity_field_name_raw) = entity_field_name {
-                    if let Some(nested_entity) = entity_map.get(entity_field_name_raw) {
-                        // Found nested entity - extract it
-                        nested_entity
-                    } else {
-                        // No nested field, use entire entity
-                        entity
-                    }
-                } else {
-                    // No entity_field_name hint, use entire entity
-                    entity
-                }
+                entity_field_name
+                    .and_then(|name| entity_map.get(name))
+                    .unwrap_or(entity)
             } else {
                 // Entity is not an object (array or primitive), use as-is
                 entity

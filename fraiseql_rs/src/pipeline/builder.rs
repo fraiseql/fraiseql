@@ -133,13 +133,14 @@ fn build_with_schema(
                     pyo3::exceptions::PyValueError::new_err(format!("Failed to parse JSON: {e}"))
                 })
                 .map(|value| {
-                    if let Some(selections) = field_selections {
-                        json_transform::transform_with_selections(
-                            &value, type_name, selections, registry,
-                        )
-                    } else {
-                        json_transform::transform_with_schema(&value, type_name, registry)
-                    }
+                    field_selections.map_or_else(
+                        || json_transform::transform_with_schema(&value, type_name, registry),
+                        |selections| {
+                            json_transform::transform_with_selections(
+                                &value, type_name, selections, registry,
+                            )
+                        },
+                    )
                 })
         })
         .collect();
@@ -377,13 +378,14 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
                         ))
                     })
                     .map(|value| {
-                        if let Some(ref selections) = selections_opt {
-                            json_transform::transform_with_selections(
-                                &value, &type_name, selections, &registry,
-                            )
-                        } else {
-                            json_transform::transform_with_schema(&value, &type_name, &registry)
-                        }
+                        selections_opt.as_ref().map_or_else(
+                            || json_transform::transform_with_schema(&value, &type_name, &registry),
+                            |selections| {
+                                json_transform::transform_with_selections(
+                                    &value, &type_name, selections, &registry,
+                                )
+                            },
+                        )
                     })
             })
             .collect();

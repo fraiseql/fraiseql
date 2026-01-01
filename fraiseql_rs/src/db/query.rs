@@ -136,11 +136,10 @@ impl<'a> QueryExecutor<'a> {
         table: &str,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
-        let (where_sql, params) = if let Some(builder) = where_clause {
-            builder.build()
-        } else {
-            (String::new(), vec![])
-        };
+        let (where_sql, params) = where_clause.map_or(
+            (String::new(), vec![]),
+            |builder| builder.build(),
+        );
 
         let sql = if where_sql.is_empty() {
             format!("DELETE FROM {table}")
@@ -253,12 +252,10 @@ impl<'a> QueryExecutor<'a> {
 
     /// Extract parameters from WHERE builder.
     fn extract_params(where_clause: &Option<WhereBuilder>) -> Vec<QueryParam> {
-        if let Some(builder) = where_clause {
+        where_clause.as_ref().map_or(vec![], |builder| {
             let (_, params) = builder.clone().build();
             params
-        } else {
-            vec![]
-        }
+        })
     }
 
     /// Convert `HashMap` updates to parameter vector.

@@ -376,10 +376,9 @@ impl MutationResult {
         }
 
         // Check if has a valid mutation status field
-        match v.get("status").and_then(|s| s.as_str()) {
-            Some(status) => !Self::is_valid_mutation_status(status),
-            None => true, // No status field = simple format
-        }
+        v.get("status")
+            .and_then(|s| s.as_str())
+            .map_or(true, |status| !Self::is_valid_mutation_status(status))
     }
 
     /// Parse from `PostgreSQL` JSON string with smart format detection
@@ -409,10 +408,10 @@ impl MutationResult {
     /// - Status value is invalid
     pub fn from_value(v: &Value, default_entity_type: Option<&str>) -> Result<Self, String> {
         // SMART DETECTION: Check if this is simple format
-        let is_simple = match v.get("status").and_then(|s| s.as_str()) {
-            Some(status) => !Self::is_valid_mutation_status(status),
-            None => true, // No status = simple format
-        };
+        let is_simple = v
+            .get("status")
+            .and_then(|s| s.as_str())
+            .map_or(true, |status| !Self::is_valid_mutation_status(status));
 
         if is_simple || v.is_array() {
             // SIMPLE FORMAT: Treat entire JSON as entity, assume success

@@ -76,28 +76,31 @@ async fn insert_record(
         .map_err(|e| DatabaseError::Query(format!("INSERT failed: {e}")))?;
 
     // If return_fields specified, query the inserted record
-    if let Some(fields) = return_fields {
-        // For simplicity, return the input data transformed
-        // In a full implementation, we'd query the inserted record
-        let mut result = serde_json::Map::new();
-        if let Value::Object(obj) = input {
-            for field in fields {
-                if let Some(value) = obj.get(field) {
-                    result.insert(field.clone(), value.clone());
+    return_fields.map_or_else(
+        || {
+            Ok(Value::Object(
+                serde_json::json!({
+                    "affected_rows": rows
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            ))
+        },
+        |fields| {
+            // For simplicity, return the input data transformed
+            // In a full implementation, we'd query the inserted record
+            let mut result = serde_json::Map::new();
+            if let Value::Object(obj) = input {
+                for field in fields {
+                    if let Some(value) = obj.get(field) {
+                        result.insert(field.clone(), value.clone());
+                    }
                 }
             }
-        }
-        Ok(Value::Object(result))
-    } else {
-        Ok(Value::Object(
-            serde_json::json!({
-                "affected_rows": rows
-            })
-            .as_object()
-            .unwrap()
-            .clone(),
-        ))
-    }
+            Ok(Value::Object(result))
+        },
+    )
 }
 
 async fn update_record(
@@ -122,27 +125,16 @@ async fn update_record(
         .map_err(|e| DatabaseError::Query(format!("UPDATE failed: {e}")))?;
 
     // If return_fields specified, query the updated records
-    if let Some(_fields) = return_fields {
-        // For simplicity, return affected row count
-        // In a full implementation, we'd use RETURNING clause
-        Ok(Value::Object(
-            serde_json::json!({
-                "affected_rows": rows
-            })
-            .as_object()
-            .unwrap()
-            .clone(),
-        ))
-    } else {
-        Ok(Value::Object(
-            serde_json::json!({
-                "affected_rows": rows
-            })
-            .as_object()
-            .unwrap()
-            .clone(),
-        ))
-    }
+    // For simplicity, return affected row count
+    // In a full implementation, we'd use RETURNING clause
+    Ok(Value::Object(
+        serde_json::json!({
+            "affected_rows": rows
+        })
+        .as_object()
+        .unwrap()
+        .clone(),
+    ))
 }
 
 async fn delete_record(
@@ -278,15 +270,10 @@ fn value_to_query_param(value: &Value) -> QueryParam {
     match value {
         Value::Null => QueryParam::Null,
         Value::Bool(b) => QueryParam::Bool(*b),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                QueryParam::BigInt(i)
-            } else if let Some(f) = n.as_f64() {
-                QueryParam::Double(f)
-            } else {
-                QueryParam::Text(n.to_string())
-            }
-        }
+        Value::Number(n) => n.as_i64().map_or_else(
+            || n.as_f64().map_or_else(|| QueryParam::Text(n.to_string()), QueryParam::Double),
+            QueryParam::BigInt,
+        ),
         Value::String(s) => QueryParam::Text(s.clone()),
         Value::Array(_) => QueryParam::Text(value.to_string()), // JSON array
         Value::Object(_) => QueryParam::Text(value.to_string()), // JSON object

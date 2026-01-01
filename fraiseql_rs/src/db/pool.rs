@@ -135,8 +135,16 @@ impl DatabasePool {
     /// Get pool statistics (Phase 1.5: Real statistics)
     #[must_use]
     pub fn stats(&self) -> ConnectionInfo {
-        match &self.pool {
-            Some(pool) => {
+        self.pool.as_ref().map_or_else(
+            || ConnectionInfo {
+                host: "localhost".to_string(),
+                port: 5432,
+                database: "fraiseql".to_string(),
+                user: "postgres".to_string(),
+                connection_count: 0,
+                idle_count: 0,
+            },
+            |pool| {
                 let status = pool.status();
                 ConnectionInfo {
                     host: "localhost".to_string(),    // TODO: Extract from actual config
@@ -146,16 +154,8 @@ impl DatabasePool {
                     connection_count: status.size as u32,
                     idle_count: status.available as u32,
                 }
-            }
-            None => ConnectionInfo {
-                host: "localhost".to_string(),
-                port: 5432,
-                database: "fraiseql".to_string(),
-                user: "postgres".to_string(),
-                connection_count: 0,
-                idle_count: 0,
             },
-        }
+        )
     }
 
     /// Close the pool (Phase 1.5: Real pool shutdown)

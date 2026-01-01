@@ -59,31 +59,24 @@ impl SQLComposer {
             };
 
         // Extract ORDER BY
-        let order_clause = if let Some(order_arg) = root_field
+        let order_clause = root_field
             .arguments
             .iter()
             .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
-        {
-            Self::build_order_clause(order_arg)
-        } else {
-            String::new()
-        };
+            .map_or(String::new(), Self::build_order_clause);
 
         // Extract pagination
-        let limit_clause =
-            if let Some(limit_arg) = root_field.arguments.iter().find(|arg| arg.name == "limit") {
-                Self::build_limit_clause(limit_arg)
-            } else {
-                "LIMIT 100".to_string() // Default limit
-            };
+        let limit_clause = root_field
+            .arguments
+            .iter()
+            .find(|arg| arg.name == "limit")
+            .map_or("LIMIT 100".to_string(), Self::build_limit_clause);
 
-        let offset_clause = if let Some(offset_arg) =
-            root_field.arguments.iter().find(|arg| arg.name == "offset")
-        {
-            Self::build_offset_clause(offset_arg)
-        } else {
-            String::new()
-        };
+        let offset_clause = root_field
+            .arguments
+            .iter()
+            .find(|arg| arg.name == "offset")
+            .map_or(String::new(), Self::build_offset_clause);
 
         // Build base SELECT
         let sql = format!(
@@ -125,17 +118,17 @@ impl SQLComposer {
 
     fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Extract limit value
-        match limit_arg.value_json.parse::<i64>() {
-            Ok(limit) => format!("LIMIT {limit}"),
-            Err(_) => "LIMIT 100".to_string(),
-        }
+        limit_arg
+            .value_json
+            .parse::<i64>()
+            .map_or("LIMIT 100".to_string(), |limit| format!("LIMIT {limit}"))
     }
 
     fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Extract offset value
-        match offset_arg.value_json.parse::<i64>() {
-            Ok(offset) => format!("OFFSET {offset}"),
-            Err(_) => String::new(),
-        }
+        offset_arg
+            .value_json
+            .parse::<i64>()
+            .map_or(String::new(), |offset| format!("OFFSET {offset}"))
     }
 }
