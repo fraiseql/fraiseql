@@ -90,15 +90,14 @@ impl RateLimiter {
         let mut store = self.store.lock().await;
 
         match limit.strategy {
-            RateLimitStrategy::TokenBucket => self.check_token_bucket(&mut store, key, limit),
-            RateLimitStrategy::FixedWindow => self.check_fixed_window(&mut store, key, limit),
-            RateLimitStrategy::SlidingWindow => self.check_sliding_window(&mut store, key, limit),
+            RateLimitStrategy::TokenBucket => Self::check_token_bucket(&mut store, key, limit),
+            RateLimitStrategy::FixedWindow => Self::check_fixed_window(&mut store, key, limit),
+            RateLimitStrategy::SlidingWindow => Self::check_sliding_window(&mut store, key, limit),
         }
     }
 
     /// Token bucket algorithm (recommended)
     fn check_token_bucket(
-        &self,
         store: &mut RateLimitStore,
         key: &str,
         limit: &RateLimit,
@@ -130,7 +129,6 @@ impl RateLimiter {
 
     /// Fixed window algorithm
     fn check_fixed_window(
-        &self,
         store: &mut RateLimitStore,
         key: &str,
         limit: &RateLimit,
@@ -160,7 +158,6 @@ impl RateLimiter {
 
     /// Sliding window algorithm
     fn check_sliding_window(
-        &self,
         store: &mut RateLimitStore,
         key: &str,
         limit: &RateLimit,
