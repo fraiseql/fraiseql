@@ -77,6 +77,10 @@ rand = "0.8"                # Random number generation for CSRF
 hex = "0.4"                 # Hex encoding for tokens
 http = "0.2"                # HTTP header types for CORS
 
+# Phase 12: Advanced Security (Audit Logging, Constraints)
+governor = "0.6"            # Rate limiting (token bucket algorithm)
+ipnetwork = "0.20"          # IP parsing for CIDR matching
+
 [profile.release]
 opt-level = 3
 lto = "fat"
