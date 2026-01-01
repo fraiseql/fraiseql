@@ -39,8 +39,8 @@ impl<'a> QueryExecutor<'a> {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> DatabaseResult<QueryResult> {
-        let sql = Self::build_select_sql(table, columns, &where_clause, order_by, limit, offset);
-        let params = Self::extract_params(&where_clause);
+        let sql = Self::build_select_sql(table, columns, where_clause.as_ref(), order_by, limit, offset);
+        let params = Self::extract_params(where_clause.as_ref());
 
         // Validate parameters before execution
         for param in &params {
@@ -166,7 +166,7 @@ impl<'a> QueryExecutor<'a> {
     fn build_select_sql(
         table: &str,
         columns: &[&str],
-        where_clause: &Option<WhereBuilder>,
+        where_clause: Option<&WhereBuilder>,
         order_by: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
@@ -244,8 +244,8 @@ impl<'a> QueryExecutor<'a> {
     }
 
     /// Extract parameters from WHERE builder.
-    fn extract_params(where_clause: &Option<WhereBuilder>) -> Vec<QueryParam> {
-        where_clause.as_ref().map_or(vec![], |builder| {
+    fn extract_params(where_clause: Option<&WhereBuilder>) -> Vec<QueryParam> {
+        where_clause.map_or(vec![], |builder| {
             let (_, params) = builder.clone().build();
             params
         })
