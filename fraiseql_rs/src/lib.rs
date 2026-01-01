@@ -836,6 +836,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(query::build_sql_query_cached, m)?)?;
     m.add_function(wrap_pyfunction!(query::get_cache_stats, m)?)?;
     m.add_function(wrap_pyfunction!(query::clear_cache, m)?)?;
+    m.add_function(wrap_pyfunction!(query::normalize_where_to_sql, m)?)?; // Phase 7.2
     m.add_class::<query::GeneratedQuery>()?;
     m.add_class::<query::schema::TableSchema>()?;
 

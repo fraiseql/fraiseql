@@ -172,6 +172,60 @@ pub fn clear_cache() -> PyResult<()> {
     })
 }
 
+/// Normalize a WHERE clause dictionary to SQL (Phase 7.2).
+///
+/// # Arguments
+///
+/// * `where_dict` - JSON string representing the WHERE clause
+/// * `table_columns` - List of SQL column names
+/// * `fk_mappings` - JSON string mapping FK field names to SQL columns
+/// * `jsonb_column` - Name of the JSONB column (default: "data")
+///
+/// # Returns
+///
+/// A tuple of (`sql_string`, `parameters_list`) for prepared statement
+///
+/// # Errors
+///
+/// Returns a Python error if:
+/// - JSON parsing fails
+/// - WHERE clause normalization fails
+#[pyfunction]
+#[pyo3(signature = (where_dict, table_columns, fk_mappings = "{}", jsonb_column = "data"))]
+pub fn normalize_where_to_sql(
+    _py: Python,
+    where_dict: &str,
+    table_columns: Vec<String>,
+    fk_mappings: &str,
+    jsonb_column: &str,
+) -> PyResult<(String, Vec<String>)> {
+    // Parse WHERE dictionary from JSON
+    let where_obj: std::collections::HashMap<String, serde_json::Value> =
+        serde_json::from_str(where_dict).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid WHERE dict JSON: {e}"))
+        })?;
+
+    // Parse FK mappings from JSON
+    let fk_map: std::collections::HashMap<String, String> = serde_json::from_str(fk_mappings)
+        .map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid FK mappings JSON: {e}"
+            ))
+        })?;
+
+    // Convert table_columns to HashSet
+    let columns: std::collections::HashSet<String> = table_columns.into_iter().collect();
+
+    // Call Rust WHERE normalization
+    let result =
+        where_normalization::normalize_dict_where(&where_obj, &columns, &fk_map, jsonb_column);
+
+    // Convert parameters to strings for Python
+    let params: Vec<String> = result.params.into_iter().map(|v| v.to_string()).collect();
+
+    Ok((result.sql, params))
+}
+
 /// Generated SQL query with parameters for Python binding
 #[derive(Debug)]
 #[pyclass]
