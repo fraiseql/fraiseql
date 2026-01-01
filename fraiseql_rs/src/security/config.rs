@@ -252,6 +252,7 @@ impl SecurityComponents {
     /// # Errors
     ///
     /// Currently never returns an error, but the Result type allows for future validation.
+    #[allow(clippy::unused_async)]
     pub async fn from_config(
         config: &SecurityConfig,
         pool: Option<deadpool_postgres::Pool>,

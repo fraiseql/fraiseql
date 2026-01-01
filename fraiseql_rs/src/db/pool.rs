@@ -25,7 +25,7 @@ impl DatabasePool {
     /// Returns an error if:
     /// - The database URL format is invalid
     /// - The database URL structure is incomplete
-    pub async fn new(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
+    pub fn new(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
         // For Phase 1.5, we validate the URL but return mock implementation
         // Real async database connections will be implemented in Phase 2.0
         // when we have proper async PyO3 integration
@@ -159,7 +159,7 @@ impl DatabasePool {
     }
 
     /// Close the pool (Phase 1.5: Real pool shutdown)
-    pub async fn close(&self) {
+    pub fn close(&self) {
         if let Some(pool) = &self.pool {
             pool.close();
         }

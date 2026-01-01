@@ -51,6 +51,7 @@ impl GraphQLPipeline {
     /// # Errors
     ///
     /// Returns an error if query parsing, SQL building, or execution fails.
+    #[allow(clippy::unused_async)]
     pub async fn execute(
         &self,
         query_string: &str,
