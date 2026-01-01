@@ -44,7 +44,7 @@ pub struct TableSchema {
     pub where_sql: Option<String>,
 
     /// ORDER BY clauses (Phase 7.1)
-    /// List of (field_name, direction) tuples
+    /// List of (`field_name`, `direction`) tuples
     #[pyo3(get)]
     #[serde(default)]
     pub order_by: Vec<(String, String)>,

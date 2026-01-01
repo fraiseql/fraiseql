@@ -7,6 +7,7 @@ use crate::db::{
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3_async_runtimes::tokio::future_into_py;
+use std::str::FromStr;
 use std::sync::Arc;
 
 /// Python-facing database pool with context manager support.
@@ -486,12 +487,12 @@ impl DatabasePool {
     /// Get pool metrics.
     ///
     /// Returns dictionary with execution metrics:
-    /// - queries_executed: Total successful queries
-    /// - query_errors: Total failed queries
-    /// - health_checks: Total health checks performed
-    /// - health_check_failures: Total failed health checks
-    /// - query_success_rate: Success rate (0.0-1.0)
-    /// - health_check_success_rate: Health check success rate (0.0-1.0)
+    /// - `queries_executed`: Total successful queries
+    /// - `query_errors`: Total failed queries
+    /// - `health_checks`: Total health checks performed
+    /// - `health_check_failures`: Total failed health checks
+    /// - `query_success_rate`: Success rate (0.0-1.0)
+    /// - `health_check_success_rate`: Health check success rate (0.0-1.0)
     ///
     /// # Example
     ///
@@ -509,7 +510,10 @@ impl DatabasePool {
         dict.set_item("health_checks", metrics.health_checks)?;
         dict.set_item("health_check_failures", metrics.health_check_failures)?;
         dict.set_item("query_success_rate", metrics.query_success_rate())?;
-        dict.set_item("health_check_success_rate", metrics.health_check_success_rate())?;
+        dict.set_item(
+            "health_check_success_rate",
+            metrics.health_check_success_rate(),
+        )?;
 
         Ok(dict.into())
     }

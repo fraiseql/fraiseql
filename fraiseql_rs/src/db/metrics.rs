@@ -53,8 +53,7 @@ impl PoolMetrics {
 
     /// Record a failed health check.
     pub fn record_health_check_failure(&self) {
-        self.health_check_failures
-            .fetch_add(1, Ordering::Relaxed);
+        self.health_check_failures.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Get a snapshot of all metrics.

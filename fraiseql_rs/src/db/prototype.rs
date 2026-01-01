@@ -143,6 +143,23 @@ impl PrototypePool {
     /// - Result conversion fails
     #[pyo3(name = "execute_query")]
     fn execute_query_py<'py>(&self, py: Python<'py>, sql: String) -> PyResult<Bound<'py, PyAny>> {
+        // Helper function to extract column value as JSON
+        #[allow(clippy::excessive_nesting, clippy::option_if_let_else)]
+        fn row_column_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::Value {
+            // Extract value as JSON (basic types only for prototype)
+            if let Ok(v) = row.try_get::<_, i32>(idx) {
+                serde_json::json!(v)
+            } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+                serde_json::json!(v)
+            } else if let Ok(v) = row.try_get::<_, String>(idx) {
+                serde_json::json!(v)
+            } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+                serde_json::json!(v)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+
         // Clone Arc for move into async block
         let pool = Arc::clone(&self.pool);
 
@@ -161,6 +178,7 @@ impl PrototypePool {
             // Phase 3: Convert rows to JSON
             // For FraiseQL production: data is JSONB in column 0
             // For prototype testing: handle any column types
+            #[allow(clippy::option_if_let_else)]
             let results: Vec<serde_json::Value> = rows
                 .iter()
                 .map(|row| {
@@ -170,22 +188,10 @@ impl PrototypePool {
                     } else {
                         // Fallback: Build JSON object from all columns
                         let mut map = serde_json::Map::new();
+                        #[allow(clippy::excessive_nesting)]
                         for (idx, column) in row.columns().iter().enumerate() {
                             let key = column.name().to_string();
-
-                            // Extract value as JSON (basic types only for prototype)
-                            let value = if let Ok(v) = row.try_get::<_, i32>(idx) {
-                                serde_json::json!(v)
-                            } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-                                serde_json::json!(v)
-                            } else if let Ok(v) = row.try_get::<_, String>(idx) {
-                                serde_json::json!(v)
-                            } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-                                serde_json::json!(v)
-                            } else {
-                                serde_json::Value::Null
-                            };
-
+                            let value = row_column_to_json(row, idx);
                             map.insert(key, value);
                         }
                         serde_json::Value::Object(map)

@@ -183,7 +183,7 @@ impl QueryValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphql::types::{FieldSelection, GraphQLArgument, ParsedQuery, VariableDefinition};
+    use crate::graphql::types::{FieldSelection, ParsedQuery};
 
     #[test]
     fn test_query_limits_default() {

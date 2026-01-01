@@ -334,7 +334,11 @@ def _build_schema_metadata(
     metadata = _table_metadata.get(table, {})
 
     # Extract SQL columns from metadata or infer
-    sql_columns = list(metadata.get("columns", set())) if metadata.get("columns") else _infer_sql_columns(table, field_paths)
+    sql_columns = (
+        list(metadata.get("columns", set()))
+        if metadata.get("columns")
+        else _infer_sql_columns(table, field_paths)
+    )
 
     # Convert WHERE clause to SQL string (Phase 7.1)
     where_sql = None

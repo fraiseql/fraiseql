@@ -22,14 +22,9 @@ impl PyPermissionResolver {
     pub fn new(pool: Py<crate::db::pool::DatabasePool>, cache_capacity: usize) -> PyResult<Self> {
         Python::with_gil(|py| {
             let db_pool = pool.borrow(py);
-            let rust_pool = db_pool
-                .get_pool()
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                        "Database pool not initialized",
-                    )
-                })?
-                .clone();
+            let rust_pool = db_pool.get_pool().ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Database pool not initialized")
+            })?;
             let resolver = PermissionResolver::new(rust_pool, cache_capacity);
             Ok(Self {
                 resolver: Arc::new(resolver),

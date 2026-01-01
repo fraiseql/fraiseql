@@ -112,7 +112,7 @@ mod tests {
     use crate::db::{pool_config::SslMode, DatabaseConfig};
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_health_check() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -124,7 +124,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_is_healthy() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_health_stats() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();

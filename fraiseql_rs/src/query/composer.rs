@@ -74,26 +74,29 @@ impl SQLComposer {
 
         // Extract ORDER BY
         // Phase 7.1: Check for ORDER BY in schema first
-        let order_clause = if let Some(table_schema) = self.schema.get_table(&root_field.name) {
-            if !table_schema.order_by.is_empty() {
-                // Use ORDER BY from schema (Phase 7.1)
-                Self::build_order_from_tuples(&table_schema.order_by)
-            } else {
-                // Check GraphQL argument
+        let order_clause = self.schema.get_table(&root_field.name).map_or_else(
+            || {
+                // Fallback: check GraphQL argument
                 root_field
                     .arguments
                     .iter()
                     .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
                     .map_or(String::new(), Self::build_order_clause)
-            }
-        } else {
-            // Fallback: check GraphQL argument
-            root_field
-                .arguments
-                .iter()
-                .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
-                .map_or(String::new(), Self::build_order_clause)
-        };
+            },
+            |table_schema| {
+                if table_schema.order_by.is_empty() {
+                    // Check GraphQL argument
+                    root_field
+                        .arguments
+                        .iter()
+                        .find(|arg| arg.name == "order_by" || arg.name == "orderBy")
+                        .map_or(String::new(), Self::build_order_clause)
+                } else {
+                    // Use ORDER BY from schema (Phase 7.1)
+                    Self::build_order_from_tuples(&table_schema.order_by)
+                }
+            },
+        );
 
         // Extract pagination
         let limit_clause = root_field
@@ -150,7 +153,7 @@ impl SQLComposer {
     ///
     /// # Arguments
     ///
-    /// * `order_by` - List of (field_name, direction) tuples
+    /// * `order_by` - List of (`field_name`, `direction`) tuples
     ///
     /// # Examples
     ///

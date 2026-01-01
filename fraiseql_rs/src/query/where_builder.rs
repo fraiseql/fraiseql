@@ -317,6 +317,8 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 fk_mappings: Default::default(),
                 has_jsonb_data: true,
+                where_sql: None,
+                order_by: Vec::new(),
             },
         );
 

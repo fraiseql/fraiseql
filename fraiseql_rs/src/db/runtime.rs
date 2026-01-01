@@ -56,7 +56,7 @@ impl Default for RuntimeConfig {
 /// init_runtime(RuntimeConfig::default())?;
 /// # Ok::<(), fraiseql_rs::db::errors::DatabaseError>(())
 /// ```
-pub fn init_runtime(config: RuntimeConfig) -> DatabaseResult<()> {
+pub fn init_runtime(config: &RuntimeConfig) -> DatabaseResult<()> {
     TOKIO_RUNTIME
         .get_or_try_init(|| {
             let mut builder = tokio::runtime::Builder::new_multi_thread();
@@ -134,17 +134,16 @@ pub fn is_initialized() -> bool {
 /// The `num_workers()` method is stable as of tokio 1.35+.
 #[must_use]
 pub fn stats() -> RuntimeStats {
-    if let Some(rt) = TOKIO_RUNTIME.get() {
-        RuntimeStats {
-            initialized: true,
-            worker_threads: rt.metrics().num_workers(),
-        }
-    } else {
+    TOKIO_RUNTIME.get().map_or(
         RuntimeStats {
             initialized: false,
             worker_threads: 0,
-        }
-    }
+        },
+        |rt| RuntimeStats {
+            initialized: true,
+            worker_threads: rt.metrics().num_workers(),
+        },
+    )
 }
 
 /// Runtime statistics for monitoring.
@@ -163,14 +162,14 @@ mod tests {
     #[test]
     fn test_runtime_initialization() {
         let config = RuntimeConfig::default();
-        let result = init_runtime(config);
+        let result = init_runtime(&config);
         assert!(result.is_ok());
         assert!(is_initialized());
     }
 
     #[test]
     fn test_runtime_access() {
-        init_runtime(RuntimeConfig::default()).unwrap();
+        init_runtime(&RuntimeConfig::default()).unwrap();
         let rt = runtime();
         let result = rt.block_on(async { 42 });
         assert_eq!(result, 42);
@@ -178,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_runtime_stats() {
-        init_runtime(RuntimeConfig::default()).unwrap();
+        init_runtime(&RuntimeConfig::default()).unwrap();
         let stats = stats();
         assert!(stats.initialized);
         assert!(stats.worker_threads > 0);
@@ -187,11 +186,11 @@ mod tests {
     #[test]
     fn test_multiple_init_calls() {
         // First call
-        let result1 = init_runtime(RuntimeConfig::default());
+        let result1 = init_runtime(&RuntimeConfig::default());
         assert!(result1.is_ok());
 
         // Second call should succeed (already initialized)
-        let result2 = init_runtime(RuntimeConfig::default());
+        let result2 = init_runtime(&RuntimeConfig::default());
         assert!(result2.is_ok());
     }
 }

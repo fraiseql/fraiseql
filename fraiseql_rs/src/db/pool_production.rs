@@ -42,7 +42,7 @@ impl ProductionPool {
     /// let config = DatabaseConfig::new("mydb")
     ///     .with_password("secret");
     ///
-    /// let pool = ProductionPool::new(config)?;
+    /// let _pool = ProductionPool::new(config)?;
     /// # Ok::<(), fraiseql_rs::db::errors::DatabaseError>(())
     /// ```
     pub fn new(config: DatabaseConfig) -> DatabaseResult<Self> {
@@ -262,7 +262,7 @@ mod tests {
             .with_max_size(5)
             .with_ssl_mode(SslMode::Disable);
 
-        let pool = ProductionPool::new(config);
+        let _pool = ProductionPool::new(config);
         // May fail if PostgreSQL not running - that's OK for unit test
         // Integration tests will verify actual connectivity
     }

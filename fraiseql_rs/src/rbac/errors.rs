@@ -126,13 +126,14 @@ impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for RbacError {
 #[cfg(feature = "python")]
 impl From<RbacError> for pyo3::PyErr {
     fn from(error: RbacError) -> Self {
-        use pyo3::exceptions::*;
+        use pyo3::exceptions::{PyPermissionError, PyRuntimeError};
 
         match error {
             RbacError::PermissionDenied { .. } => PyPermissionError::new_err(error.to_string()),
-            RbacError::Database(_) => PyRuntimeError::new_err(error.to_string()),
-            RbacError::UserNotFound(_) => PyValueError::new_err(error.to_string()),
-            _ => PyRuntimeError::new_err(error.to_string()),
+            // All other variants use PyRuntimeError
+            RbacError::Database(_) | RbacError::UserNotFound(_) | RbacError::NotInitialized => {
+                PyRuntimeError::new_err(error.to_string())
+            }
         }
     }
 }

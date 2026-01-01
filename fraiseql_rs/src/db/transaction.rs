@@ -289,7 +289,7 @@ mod tests {
     use crate::db::{DatabaseConfig, SslMode};
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_transaction_commit() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_transaction_rollback() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_savepoint() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_nested_savepoints() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_isolation_level() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();
@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
+    #[ignore = "Requires PostgreSQL database connection"]
     async fn test_release_savepoint() {
         let config = DatabaseConfig::new("postgres").with_ssl_mode(SslMode::Disable);
         let pool = ProductionPool::new(config).unwrap();

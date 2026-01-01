@@ -764,7 +764,7 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
 #[pyo3(name = "_fraiseql_rs")]
 fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Initialize Tokio runtime on module import (Phase 1: Production Pool)
-    db::runtime::init_runtime(db::runtime::RuntimeConfig::default())
+    db::runtime::init_runtime(&db::runtime::RuntimeConfig::default())
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
     // Add version string

@@ -128,7 +128,7 @@ impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for SecurityError
 #[cfg(feature = "python")]
 impl From<SecurityError> for pyo3::PyErr {
     fn from(error: SecurityError) -> Self {
-        use pyo3::exceptions::*;
+        use pyo3::exceptions::{PyException, PyPermissionError, PyRuntimeError, PyValueError};
 
         match error {
             SecurityError::RateLimitExceeded { .. } => PyException::new_err(error.to_string()),

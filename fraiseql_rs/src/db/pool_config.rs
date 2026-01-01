@@ -16,8 +16,13 @@ pub enum SslMode {
 }
 
 impl SslMode {
-    /// Parse from string.
-    pub fn from_str(s: &str) -> DatabaseResult<Self> {
+    /// Parse SSL mode from string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError::Configuration` if the string is not a valid SSL mode.
+    /// Valid values are: "disable", "prefer", "require" (case-insensitive).
+    pub fn parse_mode(s: &str) -> DatabaseResult<Self> {
         match s.to_lowercase().as_str() {
             "disable" => Ok(Self::Disable),
             "prefer" => Ok(Self::Prefer),
@@ -26,6 +31,14 @@ impl SslMode {
                 "Invalid ssl_mode: '{s}'. Must be 'disable', 'prefer', or 'require'"
             ))),
         }
+    }
+}
+
+impl std::str::FromStr for SslMode {
+    type Err = DatabaseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_mode(s)
     }
 }
 
@@ -110,6 +123,15 @@ impl DatabaseConfig {
     ///
     /// Returns `DatabaseError::Configuration` if URL is invalid.
     ///
+    /// # Panics
+    ///
+    /// This function uses `expect()` on values that have been pre-validated:
+    /// - URL prefix is validated before `strip_prefix()`
+    /// - Colon presence is checked before `split_once(':')`
+    ///
+    /// These panics indicate bugs in the parsing logic and should never occur
+    /// in production with well-formed input validated by the initial checks.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -130,10 +152,11 @@ impl DatabaseConfig {
             ));
         }
 
+        // Safe unwrap: we just checked starts_with above
         let url = url
             .strip_prefix("postgresql://")
             .or_else(|| url.strip_prefix("postgres://"))
-            .unwrap();
+            .expect("URL prefix was just validated");
 
         // Split user:pass@host:port/database
         let (credentials, rest) = url
@@ -146,7 +169,10 @@ impl DatabaseConfig {
 
         // Parse credentials
         let (username, password) = if credentials.contains(':') {
-            let (u, p) = credentials.split_once(':').unwrap();
+            // Safe expect: we just checked contains(':') above
+            let (u, p) = credentials
+                .split_once(':')
+                .expect("':' was just checked to exist");
             (u.to_string(), Some(p.to_string()))
         } else {
             (credentials.to_string(), None)
@@ -154,7 +180,10 @@ impl DatabaseConfig {
 
         // Parse host:port
         let (host, port) = if host_port.contains(':') {
-            let (h, p) = host_port.split_once(':').unwrap();
+            // Safe expect: we just checked contains(':') above
+            let (h, p) = host_port
+                .split_once(':')
+                .expect("':' was just checked to exist");
             let port = p
                 .parse::<u16>()
                 .map_err(|e| DatabaseError::Configuration(format!("Invalid port: {e}")))?;

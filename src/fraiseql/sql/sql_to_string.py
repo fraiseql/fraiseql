@@ -8,11 +8,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from psycopg.sql import Composed, SQL
+    from psycopg.sql import SQL, Composed
 
 
 def sql_to_string(sql_obj: Composed | SQL | None) -> str | None:
-    """Convert psycopg SQL object to string.
+    r"""Convert psycopg SQL object to string.
 
     This function renders a psycopg Composed/SQL object into its string
     representation without requiring a database connection.
@@ -27,7 +27,7 @@ def sql_to_string(sql_obj: Composed | SQL | None) -> str | None:
         >>> from psycopg.sql import SQL, Identifier, Literal
         >>> where = SQL('WHERE ') + Identifier('status') + SQL(' = ') + Literal('active')
         >>> sql_to_string(where)
-        'WHERE "status" = \\'active\\''
+        'WHERE "status" = \'active\''
 
     Note:
         psycopg's as_string(None) works without a connection - it uses
