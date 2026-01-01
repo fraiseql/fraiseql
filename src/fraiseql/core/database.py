@@ -1,6 +1,6 @@
 """Python wrapper for Rust DatabasePool.
 
-Phase 1: Basic synchronous wrapper. Async support in Phase 1.5.
+Phase 1: Production pool wrapper with backward compatibility.
 """
 
 from typing import Optional
@@ -19,28 +19,34 @@ class DatabasePool:
 
         Args:
             database_url: PostgreSQL connection URL (postgresql://user:pass@host:port/db)
-            config: Optional pool configuration dict (Phase 1.5 enhancement)
+            config: Optional pool configuration dict
 
-        Config options:
+        Config options (passed as kwargs to RustDatabasePool):
             - max_size: Maximum connections in pool (default: 10)
-            - min_idle: Minimum idle connections (default: 1)
-            - connection_timeout: Connection acquisition timeout in seconds (default: 30)
-            - idle_timeout: Idle connection timeout in seconds (default: 300)
-            - max_lifetime: Maximum connection lifetime in seconds (default: 3600)
-            - reap_frequency: Connection reaping frequency in seconds (default: 60)
+            - ssl_mode: SSL mode - "disable", "prefer", "require" (default: "prefer")
         """
+        # Parse config dict into kwargs for Rust pool
         if config is not None:
-            self._rust_pool = RustDatabasePool(database_url, config)
+            # Convert dict config to RustDatabasePool kwargs
+            max_size = config.get("max_size", 10)
+            ssl_mode = config.get("ssl_mode", "prefer")
+            self._rust_pool = RustDatabasePool(
+                url=database_url, max_size=max_size, ssl_mode=ssl_mode
+            )
         else:
-            self._rust_pool = RustDatabasePool(database_url)
+            # Use URL only (defaults apply)
+            self._rust_pool = RustDatabasePool(url=database_url)
 
     def get_stats(self) -> str:
         """Get pool statistics summary.
 
         Returns:
-            String with connection pool statistics
+            String with connection pool statistics (backward compatible format)
         """
-        return self._rust_pool.get_stats()
+        stats = self._rust_pool.stats()
+        active = stats["active"]
+        available = stats["available"]
+        return f"{active} connections, {available} idle"
 
     def get_config_summary(self) -> str:
         """Get pool configuration summary.
@@ -48,8 +54,19 @@ class DatabasePool:
         Returns:
             String with pool configuration details
         """
-        return self._rust_pool.get_config_summary()
+        stats = self._rust_pool.stats()
+        max_size = stats["max_size"]
+        # Assuming min_idle=1 (not exposed by current stats)
+        return f"max_size={max_size}, min_idle=1"
+
+    def stats(self) -> dict:
+        """Get pool statistics (new API).
+
+        Returns:
+            Dict with keys: size, available, max_size, active
+        """
+        return self._rust_pool.stats()
 
     def __repr__(self) -> str:
         """String representation for debugging."""
-        return str(self._rust_pool)
+        return repr(self._rust_pool)

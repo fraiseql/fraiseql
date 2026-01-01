@@ -763,6 +763,10 @@ pub fn build_multi_field_response(fields: Vec<MultiFieldDef>) -> PyResult<Vec<u8
 #[pymodule]
 #[pyo3(name = "_fraiseql_rs")]
 fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Initialize Tokio runtime on module import (Phase 1: Production Pool)
+    db::runtime::init_runtime(db::runtime::RuntimeConfig::default())
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
     // Add version string
     m.add("__version__", VERSION)?;
 
@@ -791,6 +795,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "build_sql_query",
             "build_sql_query_cached",
             "DatabasePool",
+            "PrototypePool", // Phase 0: Async bridge prototype
             "PyAuthProvider",
             "PyUserContext",
         ],
@@ -852,6 +857,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add database pool (Phase 1)
     m.add_class::<db::pool::DatabasePool>()?;
+
+    // Add prototype pool (Phase 0)
+    m.add_class::<db::prototype::PrototypePool>()?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;

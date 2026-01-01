@@ -12,6 +12,55 @@
 
 ---
 
+## 🍓 Part of the FraiseQL Ecosystem
+
+**FraiseQL** is a complete full-stack PostgreSQL + GraphQL solution with extreme performance optimizations:
+
+### **Server Stack (PostgreSQL + Python/Rust)**
+
+| Tool | Purpose | Status | Performance Gain |
+|------|---------|--------|------------------|
+| **[pg_tviews](https://github.com/fraiseql/pg_tviews)** | Incremental materialized views | Beta | **100-500× faster** |
+| **[jsonb_delta](https://github.com/evoludigit/jsonb_delta)** | JSONB surgical updates | Stable | **2-7× faster** |
+| **[pgGit](https://pggit.dev)** | Database version control | Stable | Git for databases |
+| **[confiture](https://github.com/fraiseql/confiture)** | PostgreSQL migrations | Stable | **300-600× faster** |
+| **[fraiseql](https://fraiseql.dev)** | GraphQL framework | **Stable** ⭐ | **7-10× faster** |
+| **[fraiseql-data](https://github.com/fraiseql/fraiseql-seed)** | Seed data generation | Phase 6 | Auto-dependency resolution |
+
+### **Client Libraries (TypeScript/JavaScript)**
+
+| Library | Purpose | Framework Support |
+|---------|---------|-------------------|
+| **[graphql-cascade](https://github.com/graphql-cascade/graphql-cascade)** | Automatic cache invalidation | Apollo, React Query, Relay, URQL |
+
+**Complete workflow:**
+```bash
+# SERVER: PostgreSQL + Python
+# 1. Database version control
+psql -c "CREATE EXTENSION pggit; SELECT pggit.init();"
+
+# 2. Build schema (300-600× faster than Alembic)
+confiture build --env production
+
+# 3. Create incremental views (100-500× faster refresh)
+CREATE EXTENSION pg_tviews;
+CREATE TABLE tv_post AS SELECT ...;
+
+# 4. Seed test data with auto-dependencies
+fraiseql-data add tb_user --count 100 --auto-deps
+
+# 5. GraphQL API (7-10× faster JSON processing)
+fraiseql dev
+
+# CLIENT: TypeScript/JavaScript
+# 6. Automatic cache invalidation (works with any GraphQL server)
+npm install @graphql-cascade/client-apollo
+```
+
+**💰 Cost Savings:** Replace Redis, Sentry, APM → Save **$5-48K/year**
+
+---
+
 ## GraphQL for the LLM era. Simple. Powerful. Rust-fast.
 
 PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.

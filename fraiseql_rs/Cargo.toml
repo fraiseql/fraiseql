@@ -72,6 +72,10 @@ deadpool-postgres = "0.14"
 deadpool = "0.12"
 async-trait = "0.1"
 
+# SSL/TLS support for PostgreSQL (Phase 1: Production Pool)
+native-tls = "0.2"
+postgres-native-tls = "0.5"
+
 # Date/time handling
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -160,6 +164,12 @@ harness = false
 [[bench]]
 name = "streaming"
 harness = false
+
+# Phase 1: Production pool benchmarks
+[[bench]]
+name = "pool_benchmarks"
+harness = false
+path = "../benches/pool_benchmarks.rs"
 
 # Legacy benchmarks (keep for now)
 [[bench]]

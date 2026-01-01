@@ -118,10 +118,10 @@ impl SQLComposer {
 
     fn build_limit_clause(limit_arg: &crate::graphql::types::GraphQLArgument) -> String {
         // Extract limit value
-        limit_arg
-            .value_json
-            .parse::<i64>()
-            .map_or_else(|_| "LIMIT 100".to_string(), |limit| format!("LIMIT {limit}"))
+        limit_arg.value_json.parse::<i64>().map_or_else(
+            |_| "LIMIT 100".to_string(),
+            |limit| format!("LIMIT {limit}"),
+        )
     }
 
     fn build_offset_clause(offset_arg: &crate::graphql::types::GraphQLArgument) -> String {

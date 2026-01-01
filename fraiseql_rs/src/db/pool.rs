@@ -1,304 +1,494 @@
-//! Connection pool implementation using deadpool-postgres.
+//! Database connection pool (production implementation).
 
-use deadpool_postgres::Pool;
+use crate::db::{
+    pool_config::{DatabaseConfig, SslMode},
+    pool_production::ProductionPool,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3_async_runtimes::tokio::future_into_py;
+use std::sync::Arc;
 
-use crate::db::types::{ConnectionInfo, DatabaseError, DatabaseResult, PoolConfig};
-
-/// Database connection pool manager
-#[derive(Debug, Clone)]
+/// Python-facing database pool with context manager support.
 #[pyclass(name = "DatabasePool")]
+#[derive(Clone, Debug)]
 pub struct DatabasePool {
-    #[allow(dead_code)] // Phase 1: Validation only, pool will be used in Phase 1.5+
-    pool: Option<Pool>, // None in Phase 1, Some(Pool) in Phase 1.5+
-    config: PoolConfig,
+    /// Inner production pool
+    inner: Arc<ProductionPool>,
 }
 
 impl DatabasePool {
-    /// Create a new database connection pool with real database connections (Phase 1.5)
-    /// Note: Currently returns mock implementation for `PyO3` compatibility
-    /// Full async support will be implemented in Phase 2.0
+    /// Get the underlying `deadpool_postgres::Pool` for internal use.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The database URL format is invalid
-    /// - The database URL structure is incomplete
-    pub fn new(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
-        // For Phase 1.5, we validate the URL but return mock implementation
-        // Real async database connections will be implemented in Phase 2.0
-        // when we have proper async PyO3 integration
-
-        // Basic URL validation
-        if !database_url.starts_with("postgresql://") {
-            return Err(DatabaseError::Config(
-                "Invalid PostgreSQL URL format".to_string(),
-            ));
-        }
-
-        let url_part = &database_url["postgresql://".len()..];
-        if !url_part.contains('@') || !url_part.contains('/') {
-            return Err(DatabaseError::Config(
-                "Invalid PostgreSQL URL structure".to_string(),
-            ));
-        }
-
-        // Return mock implementation with real config
-        Ok(Self {
-            pool: None, // Real pool creation requires async runtime integration
-            config,
-        })
-    }
-
-    /// Create a new database connection pool (Phase 1.5: Real connections available)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The database URL format is invalid
-    /// - The database URL structure is incomplete
-    pub fn new_sync(database_url: &str, config: PoolConfig) -> DatabaseResult<Self> {
-        // For Phase 1.5, we provide real connections but still use sync API for PyO3 compatibility
-        // Full async support will come in Phase 2.0
-        // For now, return the mock implementation for backward compatibility
-        // TODO: Replace with tokio runtime blocking call in Phase 2.0
-
-        // Basic URL validation (same as before)
-        if !database_url.starts_with("postgresql://") {
-            return Err(DatabaseError::Config(
-                "Invalid PostgreSQL URL format".to_string(),
-            ));
-        }
-
-        let url_part = &database_url["postgresql://".len()..];
-        if !url_part.contains('@') || !url_part.contains('/') {
-            return Err(DatabaseError::Config(
-                "Invalid PostgreSQL URL structure".to_string(),
-            ));
-        }
-
-        // Return mock implementation for now (real connections require async)
-        Ok(Self {
-            pool: None, // Real pool creation requires async runtime
-            config,
-        })
-    }
-
-    /// Get a connection from the pool (Phase 1.5: Real connections)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The pool is not initialized
-    /// - Failed to acquire a connection from the pool
-    pub async fn get_connection(&self) -> DatabaseResult<deadpool_postgres::Object> {
-        match &self.pool {
-            Some(pool) => pool
-                .get()
-                .await
-                .map_err(|e| DatabaseError::Connection(format!("Failed to get connection: {e}"))),
-            None => Err(DatabaseError::Connection(
-                "Pool not initialized".to_string(),
-            )),
-        }
-    }
-
-    /// Perform a health check on the pool (Phase 1.5: Real health checks)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The pool is not initialized
-    /// - Failed to acquire a connection for health check
-    /// - The health check query fails
-    pub async fn health_check(&self) -> DatabaseResult<()> {
-        match &self.pool {
-            Some(pool) => {
-                // Try to get a connection and execute a simple query
-                let conn = pool.get().await.map_err(|e| {
-                    DatabaseError::Connection(format!("Health check failed to get connection: {e}"))
-                })?;
-
-                conn.simple_query("SELECT 1")
-                    .await
-                    .map_err(|e| DatabaseError::Query(format!("Health check query failed: {e}")))?;
-
-                Ok(())
-            }
-            None => Err(DatabaseError::Connection(
-                "Pool not initialized for health check".to_string(),
-            )),
-        }
-    }
-
-    /// Get pool statistics (Phase 1.5: Real statistics)
+    /// This method is for backward compatibility with RBAC and other internal components.
     #[must_use]
-    pub fn stats(&self) -> ConnectionInfo {
-        self.pool.as_ref().map_or_else(
-            || ConnectionInfo {
-                host: "localhost".to_string(),
-                port: 5432,
-                database: "fraiseql".to_string(),
-                user: "postgres".to_string(),
-                connection_count: 0,
-                idle_count: 0,
-            },
-            |pool| {
-                let status = pool.status();
-                ConnectionInfo {
-                    host: "localhost".to_string(),    // TODO: Extract from actual config
-                    port: 5432,                       // TODO: Extract from actual config
-                    database: "fraiseql".to_string(), // TODO: Extract from actual config
-                    user: "postgres".to_string(),     // TODO: Extract from actual config
-                    connection_count: status.size as u32,
-                    idle_count: status.available as u32,
-                }
-            },
-        )
-    }
-
-    /// Close the pool (Phase 1.5: Real pool shutdown)
-    pub fn close(&self) {
-        if let Some(pool) = &self.pool {
-            pool.close();
-        }
-    }
-
-    /// Get pool configuration
-    #[must_use]
-    pub const fn pool_config(&self) -> &PoolConfig {
-        &self.config
-    }
-
-    /// Get the underlying pool (for internal use by RBAC/Security modules)
-    #[must_use]
-    pub const fn get_pool(&self) -> Option<&Pool> {
-        self.pool.as_ref()
+    pub fn get_pool(&self) -> Option<deadpool_postgres::Pool> {
+        // The production pool always has a valid pool, so return Some()
+        Some(self.inner.get_underlying_pool())
     }
 }
 
 #[pymethods]
 impl DatabasePool {
-    /// Create a new database connection pool
+    /// Create a new database pool from Python.
+    ///
+    /// # Arguments
+    ///
+    /// * `database` - Database name
+    /// * `host` - Database host (default: "localhost")
+    /// * `port` - Database port (default: 5432)
+    /// * `username` - Username (default: "postgres")
+    /// * `password` - Password (optional)
+    /// * `max_size` - Max pool size (default: 10)
+    /// * `ssl_mode` - SSL mode: "disable", "prefer", "require" (default: "prefer")
+    /// * `url` - Connection URL (alternative to individual params)
+    ///
+    /// # Returns
+    ///
+    /// A new `DatabasePool` instance
     ///
     /// # Errors
     ///
-    /// Returns a Python error if:
-    /// - Database URL is invalid or malformed
-    /// - Pool configuration is invalid
-    /// - Pool creation fails
+    /// Returns a Python error if pool creation fails
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Individual parameters
+    /// pool = DatabasePool(
+    ///     database="mydb",
+    ///     password="secret",
+    ///     max_size=20
+    /// )
+    ///
+    /// # From URL
+    /// pool = DatabasePool(url="postgresql://user:pass@localhost/mydb")
+    /// ```
     #[new]
-    #[pyo3(signature = (database_url, config=None))]
-    pub fn py_new(database_url: &str, config: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        // Parse Python config dict into Rust PoolConfig (Phase 1.5 enhancement)
-        let rust_config = if let Some(config_dict) = config {
-            Self::parse_config_dict(config_dict)?
+    #[pyo3(signature = (
+        database=None,
+        host="localhost",
+        port=5432,
+        username="postgres",
+        password=None,
+        max_size=10,
+        ssl_mode="prefer",
+        url=None
+    ))]
+    fn py_new(
+        database: Option<&str>,
+        host: &str,
+        port: u16,
+        username: &str,
+        password: Option<&str>,
+        max_size: usize,
+        ssl_mode: &str,
+        url: Option<&str>,
+    ) -> PyResult<Self> {
+        // Build config from URL or individual params
+        let config = if let Some(url_str) = url {
+            DatabaseConfig::from_url(url_str)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?
         } else {
-            PoolConfig::default()
+            let database = database.ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "Either 'database' or 'url' parameter is required",
+                )
+            })?;
+
+            // Parse SSL mode
+            let ssl_mode = SslMode::from_str(ssl_mode)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+            // Build config
+            let mut config = DatabaseConfig::new(database)
+                .with_host(host)
+                .with_port(port)
+                .with_username(username)
+                .with_max_size(max_size)
+                .with_ssl_mode(ssl_mode);
+
+            if let Some(pwd) = password {
+                config = config.with_password(pwd);
+            }
+
+            config
         };
 
-        Self::new_sync(database_url, rust_config).map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create pool: {e}"))
+        // Create pool
+        let inner = ProductionPool::new(config)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        Ok(Self {
+            inner: Arc::new(inner),
         })
     }
 
-    /// Get pool statistics as a string
-    #[must_use]
-    pub fn get_stats(&self) -> String {
-        let info = self.stats();
-        format!(
-            "Pool stats: {} connections, {} idle",
-            info.connection_count, info.idle_count
-        )
-    }
-
-    /// Get pool configuration summary as a string
-    #[must_use]
-    pub fn get_config_summary(&self) -> String {
-        format!(
-            "Pool config: max_size={}, min_idle={}",
-            self.config.max_size, self.config.min_idle
-        )
-    }
-
-    /// Get a string representation for debugging
-    #[must_use]
-    pub fn __repr__(&self) -> String {
-        format!(
-            "DatabasePool(max_size={}, min_idle={})",
-            self.config.max_size, self.config.min_idle
-        )
-    }
-}
-
-impl DatabasePool {
-    /// Parse Python configuration dict into Rust `PoolConfig`
+    /// Execute a SQL query asynchronously.
     ///
-    /// # Errors
+    /// Returns a list of JSON strings (`FraiseQL` CQRS pattern).
     ///
-    /// Returns an error if any configuration value cannot be extracted or converted to the expected type.
-    fn parse_config_dict(config: &Bound<'_, PyDict>) -> PyResult<PoolConfig> {
-        let mut pool_config = PoolConfig::default();
+    /// # Arguments
+    ///
+    /// * `sql` - SQL query string
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to list of JSON strings
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// results = await pool.execute_query("SELECT data FROM tv_users LIMIT 10")
+    /// print(f"Got {len(results)} results")
+    /// ```
+    #[pyo3(name = "execute_query")]
+    fn execute_query_py<'py>(&self, py: Python<'py>, sql: String) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
 
-        // Parse max_size
-        if let Some(max_size) = config.get_item("max_size")? {
-            pool_config.max_size = max_size.extract()?;
-        }
+        future_into_py(py, async move {
+            let results = pool
+                .execute_query(&sql)
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
-        // Parse min_idle
-        if let Some(min_idle) = config.get_item("min_idle")? {
-            pool_config.min_idle = min_idle.extract()?;
-        }
+            // Convert to JSON strings
+            let json_strings: Result<Vec<String>, _> =
+                results.iter().map(serde_json::to_string).collect();
 
-        // Parse timeouts (convert from seconds to Duration)
-        if let Some(connection_timeout) = config.get_item("connection_timeout")? {
-            let timeout_secs: u64 = connection_timeout.extract()?;
-            pool_config.connection_timeout = std::time::Duration::from_secs(timeout_secs);
-        }
+            let json_strings =
+                json_strings.map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
-        if let Some(idle_timeout) = config.get_item("idle_timeout")? {
-            let timeout_secs: u64 = idle_timeout.extract()?;
-            pool_config.idle_timeout = std::time::Duration::from_secs(timeout_secs);
-        }
-
-        if let Some(max_lifetime) = config.get_item("max_lifetime")? {
-            if let Some(lifetime_secs) = max_lifetime.extract::<Option<u64>>()? {
-                pool_config.max_lifetime = Some(std::time::Duration::from_secs(lifetime_secs));
-            }
-        }
-
-        if let Some(reap_frequency) = config.get_item("reap_frequency")? {
-            let freq_secs: u64 = reap_frequency.extract()?;
-            pool_config.reap_frequency = std::time::Duration::from_secs(freq_secs);
-        }
-
-        Ok(pool_config)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_pool_config_default() {
-        let config = PoolConfig::default();
-        assert_eq!(config.max_size, 10);
-        assert_eq!(config.min_idle, 1);
-        assert_eq!(config.connection_timeout, Duration::from_secs(30));
-        assert_eq!(config.idle_timeout, Duration::from_secs(300));
+            Ok(json_strings)
+        })
     }
 
-    #[tokio::test]
-    async fn test_database_pool_creation() {
-        // This test validates the API structure
-        // Full database testing will be in Phase 2 when we have actual DB setup
-        let config = PoolConfig::default();
+    /// Perform a health check.
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to boolean (`True` if healthy)
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// is_healthy = await pool.health_check()
+    /// if not is_healthy:
+    ///     print("Pool unhealthy!")
+    /// ```
+    #[pyo3(name = "health_check")]
+    fn health_check_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
 
-        // For now, just test that the API compiles and the config is accepted
-        // Real database connection testing requires Phase 2 infrastructure
-        assert_eq!(config.max_size, 10);
+        future_into_py(py, async move {
+            let result = pool
+                .health_check()
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+            Ok(result.healthy)
+        })
+    }
+
+    /// Get pool statistics.
+    ///
+    /// # Returns
+    ///
+    /// Dictionary with pool stats
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// stats = pool.stats()
+    /// print(f"Active: {stats['active']}/{stats['max_size']}")
+    /// ```
+    fn stats(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let stats = self.inner.stats();
+
+        let dict = PyDict::new(py);
+        dict.set_item("size", stats.size)?;
+        dict.set_item("available", stats.available)?;
+        dict.set_item("max_size", stats.max_size)?;
+        dict.set_item("active", stats.size - stats.available)?;
+
+        Ok(dict.into())
+    }
+
+    /// Begin a database transaction.
+    ///
+    /// Returns a transaction object that must be explicitly committed or rolled back.
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to None
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// await pool.begin_transaction()
+    /// try:
+    ///     await pool.execute_query("INSERT ...")
+    ///     await pool.execute_query("UPDATE ...")
+    ///     await pool.commit_transaction()
+    /// except Exception:
+    ///     await pool.rollback_transaction()
+    ///     raise
+    /// ```
+    #[pyo3(name = "begin_transaction")]
+    fn begin_transaction_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            pool.execute_query("BEGIN")
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Commit the current transaction.
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to None
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// await pool.begin_transaction()
+    /// # ... execute queries ...
+    /// await pool.commit_transaction()
+    /// ```
+    #[pyo3(name = "commit_transaction")]
+    fn commit_transaction_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            pool.execute_query("COMMIT")
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Rollback the current transaction.
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to None
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// await pool.begin_transaction()
+    /// try:
+    ///     # ... execute queries ...
+    ///     await pool.commit_transaction()
+    /// except Exception:
+    ///     await pool.rollback_transaction()
+    ///     raise
+    /// ```
+    #[pyo3(name = "rollback_transaction")]
+    fn rollback_transaction_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            pool.execute_query("ROLLBACK")
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Create a savepoint within a transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the savepoint
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to None
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// await pool.begin_transaction()
+    /// await pool.savepoint("sp1")
+    /// # ... execute queries ...
+    /// await pool.rollback_to_savepoint("sp1")  # Rollback to savepoint
+    /// await pool.commit_transaction()
+    /// ```
+    #[pyo3(name = "savepoint")]
+    fn savepoint_py<'py>(&self, py: Python<'py>, name: String) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            let sql = format!("SAVEPOINT {name}");
+            pool.execute_query(&sql)
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Rollback to a savepoint.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the savepoint
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to None
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// await pool.begin_transaction()
+    /// await pool.savepoint("sp1")
+    /// # ... execute queries ...
+    /// await pool.rollback_to_savepoint("sp1")
+    /// await pool.commit_transaction()
+    /// ```
+    #[pyo3(name = "rollback_to_savepoint")]
+    fn rollback_to_savepoint_py<'py>(
+        &self,
+        py: Python<'py>,
+        name: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            let sql = format!("ROLLBACK TO SAVEPOINT {name}");
+            pool.execute_query(&sql)
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Execute a query with LIMIT and OFFSET for chunked/paginated results.
+    ///
+    /// This enables memory-efficient processing of large result sets by fetching
+    /// data in chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql` - Base SQL query (without LIMIT/OFFSET)
+    /// * `limit` - Maximum rows to fetch per chunk
+    /// * `offset` - Number of rows to skip
+    ///
+    /// # Returns
+    ///
+    /// Python coroutine resolving to list of JSON strings
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// # Fetch first 100 rows
+    /// chunk1 = await pool.execute_query_chunked("SELECT * FROM users", 100, 0)
+    ///
+    /// # Fetch next 100 rows
+    /// chunk2 = await pool.execute_query_chunked("SELECT * FROM users", 100, 100)
+    ///
+    /// # Process in chunks
+    /// offset = 0
+    /// chunk_size = 1000
+    /// while True:
+    ///     chunk = await pool.execute_query_chunked(
+    ///         "SELECT * FROM large_table",
+    ///         chunk_size,
+    ///         offset
+    ///     )
+    ///     if not chunk:
+    ///         break
+    ///     # Process chunk...
+    ///     offset += chunk_size
+    /// ```
+    #[pyo3(name = "execute_query_chunked")]
+    fn execute_query_chunked_py<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        limit: i64,
+        offset: i64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let pool = Arc::clone(&self.inner);
+
+        future_into_py(py, async move {
+            // Append LIMIT and OFFSET to the query
+            let chunked_sql = format!(
+                "{} LIMIT {} OFFSET {}",
+                sql.trim_end_matches(';'),
+                limit,
+                offset
+            );
+
+            let results = pool
+                .execute_query(&chunked_sql)
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+            // Convert to JSON strings
+            let json_strings: Result<Vec<String>, _> =
+                results.iter().map(serde_json::to_string).collect();
+
+            let json_strings =
+                json_strings.map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+            Ok(json_strings)
+        })
+    }
+
+    /// Close the pool gracefully.
+    ///
+    /// Waits for in-flight queries to complete.
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// pool.close()
+    /// ```
+    fn close(&self) {
+        self.inner.close();
+    }
+
+    /// Async context manager entry.
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// async with DatabasePool(database="mydb") as pool:
+    ///     results = await pool.execute_query("SELECT ...")
+    /// # Pool automatically closed
+    /// ```
+    fn __aenter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pool = self.clone();
+        future_into_py(py, async move { Ok(pool) })
+    }
+
+    /// Async context manager exit.
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: &Bound<'py, PyAny>,
+        _exc_val: &Bound<'py, PyAny>,
+        _exc_tb: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let pool = self.clone();
+        future_into_py(py, async move {
+            pool.inner.close();
+            Ok(())
+        })
+    }
+
+    /// String representation.
+    fn __repr__(&self) -> String {
+        let stats = self.inner.stats();
+        format!(
+            "DatabasePool(size={}/{}, available={})",
+            stats.size, stats.max_size, stats.available
+        )
     }
 }

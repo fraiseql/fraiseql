@@ -39,7 +39,14 @@ impl<'a> QueryExecutor<'a> {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> DatabaseResult<QueryResult> {
-        let sql = Self::build_select_sql(table, columns, where_clause.as_ref(), order_by, limit, offset);
+        let sql = Self::build_select_sql(
+            table,
+            columns,
+            where_clause.as_ref(),
+            order_by,
+            limit,
+            offset,
+        );
         let params = Self::extract_params(where_clause.as_ref());
 
         // Validate parameters before execution
@@ -137,8 +144,7 @@ impl<'a> QueryExecutor<'a> {
         table: &str,
         where_clause: Option<WhereBuilder>,
     ) -> DatabaseResult<u64> {
-        let (where_sql, params) =
-            where_clause.map_or((String::new(), vec![]), WhereBuilder::build);
+        let (where_sql, params) = where_clause.map_or((String::new(), vec![]), WhereBuilder::build);
 
         let sql = if where_sql.is_empty() {
             format!("DELETE FROM {table}")

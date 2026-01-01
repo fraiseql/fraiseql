@@ -1,6 +1,41 @@
-"""Database utilities and repository layer for FraiseQL using psycopg and connection pooling."""
+"""Database utilities and repository layer for FraiseQL using psycopg and connection pooling.
+
+Phase 1: Migration Strategy
+---------------------------
+FraiseQL now supports multiple database pool backends:
+
+1. **Production Pool (Rust)** - Full production implementation with SSL/TLS
+   - Enable: Set FRAISEQL_PRODUCTION_POOL=true
+   - Features: SSL/TLS, health checks, connection pooling
+   - Best for: Production deployments
+
+2. **Prototype Pool (Rust)** - Async bridge prototype
+   - Enable: Default when FRAISEQL_PRODUCTION_POOL not set
+   - Features: Basic async support, connection pooling
+   - Best for: Development, testing
+
+3. **Python Pool (psycopg)** - Legacy Python implementation
+   - Enable: Explicitly via force_pool="python"
+   - Features: Pure Python, no Rust dependencies
+   - Best for: Compatibility, debugging
+
+Usage:
+    # Production pool (recommended)
+    export FRAISEQL_PRODUCTION_POOL=true
+    from fraiseql._fraiseql_rs import DatabasePool
+    pool = DatabasePool(database="mydb", ssl_mode="prefer")
+
+    # Prototype pool (default)
+    from fraiseql._fraiseql_rs import PrototypePool
+    pool = PrototypePool(database="mydb")
+
+    # Python pool (legacy)
+    from fraiseql.db import create_legacy_pool
+    pool = create_legacy_pool(database_url)
+"""
 
 import logging
+import os
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Optional, TypeVar, Union, get_args, get_origin
@@ -19,6 +54,27 @@ from fraiseql.where_clause import WhereClause
 from fraiseql.where_normalization import normalize_dict_where, normalize_whereinput
 
 logger = logging.getLogger(__name__)
+
+# Phase 1: Production pool feature flag
+USE_PRODUCTION_POOL = os.environ.get("FRAISEQL_PRODUCTION_POOL", "false").lower() == "true"
+
+# Pool availability checks
+try:
+    if USE_PRODUCTION_POOL:
+        from fraiseql._fraiseql_rs import DatabasePool as RustProductionPool
+
+        HAS_PRODUCTION_POOL = True
+    else:
+        HAS_PRODUCTION_POOL = False
+except ImportError:
+    HAS_PRODUCTION_POOL = False
+
+try:
+    from fraiseql._fraiseql_rs import PrototypePool as RustPrototypePool
+
+    HAS_PROTOTYPE_POOL = True
+except ImportError:
+    HAS_PROTOTYPE_POOL = False
 
 T = TypeVar("T")
 

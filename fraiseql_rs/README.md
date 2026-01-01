@@ -364,6 +364,193 @@ fraiseql_rs/
 4. **Ergonomic API**: Pythonic interface with Rust performance
 5. **Composable**: Functions build on each other
 
+---
+
+## Database Connection Pool (Phase 1)
+
+**Production-ready PostgreSQL connection pool with Tokio runtime and SSL/TLS support.**
+
+### Features
+
+- **🔒 SSL/TLS support** with native-tls integration
+- **⚡ Async/await** via Tokio runtime
+- **🏥 Health checks** for monitoring
+- **📊 Pool statistics** for observability
+- **🔄 Async context manager** support
+- **🎯 Thread-safe** connection pooling
+- **🚀 High performance** with deadpool-postgres
+
+### Quick Start
+
+```python
+from fraiseql._fraiseql_rs import DatabasePool
+
+# Create pool from URL
+async with DatabasePool(
+    url="postgresql://user:pass@localhost/mydb",
+    max_size=20,
+    ssl_mode="prefer"
+) as pool:
+    # Execute queries
+    results = await pool.execute_query("SELECT data FROM tv_users LIMIT 10")
+
+    # Health check
+    is_healthy = await pool.health_check()
+
+    # Get statistics
+    stats = pool.stats()
+    print(f"Active: {stats['active']}/{stats['max_size']}")
+
+# Pool automatically closed
+```
+
+### Configuration Options
+
+#### From Individual Parameters
+
+```python
+pool = DatabasePool(
+    database="mydb",
+    host="localhost",        # default: localhost
+    port=5432,              # default: 5432
+    username="postgres",    # default: postgres
+    password="secret",      # optional
+    max_size=10,           # default: 10
+    ssl_mode="prefer"      # disable | prefer | require (default: prefer)
+)
+```
+
+#### From Connection URL
+
+```python
+pool = DatabasePool(
+    url="postgresql://user:pass@db.example.com:5432/production"
+)
+```
+
+### SSL/TLS Modes
+
+- **`disable`**: No SSL/TLS (insecure, development only)
+- **`prefer`**: Try SSL/TLS, fallback to plaintext (default)
+- **`require`**: Require SSL/TLS, fail if unavailable (production recommended)
+
+### Health Checks
+
+```python
+# Boolean check
+is_healthy = await pool.health_check()
+
+# Full health check result (internal use)
+result = await pool.health_check()
+# result.healthy: bool
+# result.duration: Duration
+# result.pool_stats: PoolHealthStats
+```
+
+### Pool Statistics
+
+```python
+stats = pool.stats()
+
+# Available metrics:
+# - size: Current number of connections
+# - available: Idle connections
+# - max_size: Maximum pool size
+# - active: Connections in use (size - available)
+```
+
+### Context Manager Support
+
+The pool implements Python's async context manager protocol:
+
+```python
+async with DatabasePool(database="mydb") as pool:
+    results = await pool.execute_query("SELECT ...")
+    # Use pool here
+# Pool automatically closed when exiting context
+```
+
+### Performance Benchmarks
+
+Run benchmarks with:
+
+```bash
+cargo bench --bench pool_benchmarks
+```
+
+Expected performance (MacBook Pro M1):
+- **Pool creation**: < 1ms
+- **Connection acquisition**: 1-5ms
+- **Health check**: 1-3ms
+- **Concurrent queries**: 2x+ speedup with 10+ concurrent queries
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│ Python Layer (PyO3)                         │
+│                                             │
+│  DatabasePool (pool.rs)                     │
+│    ↓                                        │
+│  ProductionPool (pool_production.rs)        │
+│    ↓                                        │
+│  deadpool-postgres                          │
+│    ↓                                        │
+│  tokio-postgres (with native-tls)           │
+└─────────────────────────────────────────────┘
+         ↓
+    PostgreSQL
+```
+
+### Migration from Prototype Pool
+
+```python
+# Old (prototype)
+from fraiseql._fraiseql_rs import PrototypePool
+pool = PrototypePool(database="mydb")
+
+# New (production)
+from fraiseql._fraiseql_rs import DatabasePool
+pool = DatabasePool(database="mydb", ssl_mode="prefer")
+
+# API is compatible - same methods work
+results = await pool.execute_query("SELECT ...")
+```
+
+### Environment-Based Pool Selection
+
+Set in `fraiseql/db.py`:
+
+```python
+# Enable production pool globally
+export FRAISEQL_PRODUCTION_POOL=true
+
+# In code, FraiseQL automatically uses production pool
+```
+
+### Integration Tests
+
+Run integration tests (requires PostgreSQL):
+
+```bash
+# Set database URL
+export POSTGRES_TEST_DB="postgresql://postgres@localhost/postgres"
+
+# Run tests
+pytest tests/integration/test_production_pool.py -v
+```
+
+### Implementation Files
+
+- `fraiseql_rs/src/db/pool_production.rs` - Production pool implementation
+- `fraiseql_rs/src/db/runtime.rs` - Global Tokio runtime
+- `fraiseql_rs/src/db/pool_config.rs` - Configuration types
+- `fraiseql_rs/src/db/health.rs` - Health check utilities
+- `fraiseql_rs/src/db/errors.rs` - Error types
+- `fraiseql_rs/src/db/pool.rs` - Python bindings (PyO3)
+
+---
+
 ## Requirements
 
 - Python 3.8+

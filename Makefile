@@ -336,7 +336,7 @@ install-dev: ## Install all development dependencies
 .PHONY: test
 test: ## Run all tests including examples with Podman
 	@echo -e "$(GREEN)Running all tests including examples with Podman...$(NC)"
-	pytest -xvs
+	uv run pytest -xvs
 
 .PHONY: test-core
 test-core: ## Run core tests only (excluding examples)

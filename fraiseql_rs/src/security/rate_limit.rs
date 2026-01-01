@@ -97,11 +97,7 @@ impl RateLimiter {
     }
 
     /// Token bucket algorithm (recommended)
-    fn check_token_bucket(
-        store: &mut RateLimitStore,
-        key: &str,
-        limit: &RateLimit,
-    ) -> Result<()> {
+    fn check_token_bucket(store: &mut RateLimitStore, key: &str, limit: &RateLimit) -> Result<()> {
         let now = current_timestamp();
         let bucket = store.get_bucket(key, limit.requests, limit.window_secs);
 
@@ -128,11 +124,7 @@ impl RateLimiter {
     }
 
     /// Fixed window algorithm
-    fn check_fixed_window(
-        store: &mut RateLimitStore,
-        key: &str,
-        limit: &RateLimit,
-    ) -> Result<()> {
+    fn check_fixed_window(store: &mut RateLimitStore, key: &str, limit: &RateLimit) -> Result<()> {
         let now = current_timestamp();
         let window = store.get_window(key);
 
@@ -264,16 +256,14 @@ struct FixedWindow {
 /// Returns 0 on system time error (extremely rare edge case).
 #[inline]
 fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or_else(
-            |e| {
-                // System clock is before Unix epoch - should never happen in production
-                // Log and return 0 to avoid panic
-                #[cfg(debug_assertions)]
-                eprintln!("ERROR: System clock before Unix epoch: {e}");
-                0
-            },
-            |d| d.as_secs(),
-        )
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+        |e| {
+            // System clock is before Unix epoch - should never happen in production
+            // Log and return 0 to avoid panic
+            #[cfg(debug_assertions)]
+            eprintln!("ERROR: System clock before Unix epoch: {e}");
+            0
+        },
+        |d| d.as_secs(),
+    )
 }
