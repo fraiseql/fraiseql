@@ -334,20 +334,11 @@ impl SecurityComponents {
             }
         };
 
-        let audit_stats = if let (Some(ref _logger), Some(_pool)) =
-            (&self.audit_logger, None::<&deadpool_postgres::Pool>)
-        {
-            // Note: We can't get audit stats without a pool reference
-            // This would need to be passed in or stored
-            super::audit::AuditStats {
-                total_events: 0,
-                recent_events: 0,
-            }
-        } else {
-            super::audit::AuditStats {
-                total_events: 0,
-                recent_events: 0,
-            }
+        // Note: We can't get audit stats without a pool reference
+        // This would need to be passed in or stored
+        let audit_stats = super::audit::AuditStats {
+            total_events: 0,
+            recent_events: 0,
         };
 
         SecurityStats {
