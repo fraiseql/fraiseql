@@ -214,7 +214,7 @@ fn build_zero_copy(
         max_depth: MAX_JSON_DEPTH,
     };
 
-    let field_set = field_paths.map(|paths| FieldSet::from_paths(&paths, &arena));
+    let field_set = field_paths.map(|paths| FieldSet::from_paths(paths, &arena));
 
     let mut transformer = ZeroCopyTransformer::new(&arena, config, type_name, field_set.as_ref());
 

@@ -136,7 +136,7 @@ pub fn execute_graphql_query(
                 "GraphQL pipeline not initialized. Call initialize_graphql_pipeline() first.",
             ))
         },
-        |pipeline| pipeline.execute_py(py, &query_string, &variables, &user_context),
+        |pipeline| pipeline.execute_py(py, query_string, &variables, &user_context),
     )
 }
 
