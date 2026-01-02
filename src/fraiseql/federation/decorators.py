@@ -32,7 +32,8 @@ Examples:
     ...     reviews: list["Review"]
 """
 
-from typing import List, Optional, Type, TypeVar, Union, overload
+from collections.abc import Callable
+from typing import TypeVar, overload
 
 from .auto_detect import auto_detect_key_python, validate_key_field
 
@@ -60,8 +61,8 @@ class EntityMetadata:
 
     def __init__(
         self,
-        cls: Type,
-        key: Optional[Union[str, List[str]]] = None,
+        cls: type,
+        key: str | list[str] | None = None,
         is_extension: bool = False,
     ):
         self.cls = cls
@@ -76,7 +77,7 @@ class EntityMetadata:
         # Resolve key
         self.resolved_key = self._resolve_key()
 
-    def _resolve_key(self) -> Union[str, List[str]]:
+    def _resolve_key(self) -> str | list[str]:
         """Resolve key: explicit > auto-detected > error.
 
         Returns:
@@ -165,21 +166,21 @@ def external() -> _External:
 
 # Overload signatures for @entity decorator
 @overload
-def entity(cls: Type[T]) -> Type[T]: ...
+def entity(cls: type[T]) -> type[T]: ...
 
 
 @overload
 def entity(
     *,
-    key: Optional[Union[str, List[str]]] = None,
-) -> callable: ...
+    key: str | list[str] | None = None,
+) -> Callable[[type[T]], type[T]]: ...
 
 
 def entity(
-    cls: Optional[Type[T]] = None,
+    cls: type[T] | None = None,
     *,
-    key: Optional[Union[str, List[str]]] = None,
-) -> Union[Type[T], callable]:
+    key: str | list[str] | None = None,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Mark a type as a federated entity.
 
     Decorator for GraphQL types that should participate in Apollo Federation.
@@ -218,7 +219,7 @@ def entity(
         ...     permissions: list[str]
     """
 
-    def decorator(cls_to_decorate: Type[T]) -> Type[T]:
+    def decorator(cls_to_decorate: type[T]) -> type[T]:
         # Create metadata
         metadata = EntityMetadata(cls_to_decorate, key=key, is_extension=False)
 
@@ -238,10 +239,10 @@ def entity(
 
 
 def extend_entity(
-    cls: Optional[Type[T]] = None,
+    cls: type[T] | None = None,
     *,
-    key: Union[str, List[str]],
-) -> Union[Type[T], callable]:
+    key: str | list[str],
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Mark a type as an extended federated entity.
 
     Used for entities defined in other subgraphs that this subgraph
@@ -287,7 +288,7 @@ def extend_entity(
         ...         return int(self.price * 100)
     """
 
-    def decorator(cls_to_decorate: Type[T]) -> Type[T]:
+    def decorator(cls_to_decorate: type[T]) -> type[T]:
         metadata = EntityMetadata(cls_to_decorate, key=key, is_extension=True)
 
         # Mark external fields
@@ -324,7 +325,7 @@ def get_entity_registry() -> dict[str, EntityMetadata]:
     return _ENTITY_REGISTRY.copy()
 
 
-def get_entity_metadata(type_name: str) -> Optional[EntityMetadata]:
+def get_entity_metadata(type_name: str) -> EntityMetadata | None:
     """Get metadata for a specific entity.
 
     Args:

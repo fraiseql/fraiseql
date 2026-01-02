@@ -17,12 +17,12 @@ Example:
 import asyncio
 import contextvars
 from contextlib import asynccontextmanager
-from typing import Any, List, Optional
+from typing import Any
 
 from fraiseql.federation.dataloader import EntityDataLoader
 
 # Context variable to track active batches
-_active_loader: contextvars.ContextVar[Optional[EntityDataLoader]] = contextvars.ContextVar(
+_active_loader: contextvars.ContextVar[EntityDataLoader | None] = contextvars.ContextVar(
     "_active_loader", default=None
 )
 
@@ -38,7 +38,7 @@ class BatchExecutor:
         max_batch_size: Maximum requests per batch (optional)
     """
 
-    def __init__(self, batch_window_ms: float = 1.0, max_batch_size: Optional[int] = None):
+    def __init__(self, batch_window_ms: float = 1.0, max_batch_size: int | None = None):
         """Initialize the batch executor.
 
         Args:
@@ -61,10 +61,10 @@ class BatchExecutor:
 
     async def batch_execute(
         self,
-        requests: List[tuple],
+        requests: list[tuple],
         resolver: Any,
         db_pool: Any,
-    ) -> List[Optional[Any]]:
+    ) -> list[Any | None]:
         """Execute a list of entity resolution requests as a single batch.
 
         Args:
@@ -107,7 +107,7 @@ class BatchExecutor:
             _active_loader.reset(token)
 
     @staticmethod
-    def get_active_loader() -> Optional[EntityDataLoader]:
+    def get_active_loader() -> EntityDataLoader | None:
         """Get the currently active DataLoader in this context.
 
         Returns:
@@ -182,10 +182,10 @@ class ConcurrentBatchExecutor(BatchExecutor):
 
     async def execute_concurrent(
         self,
-        request_groups: List[List[tuple]],
+        request_groups: list[list[tuple]],
         resolver: Any,
         db_pool: Any,
-    ) -> List[List[Optional[Any]]]:
+    ) -> list[list[Any | None]]:
         """Execute multiple request groups concurrently.
 
         Each group is executed in its own batch with its own DataLoader.
@@ -203,11 +203,11 @@ class ConcurrentBatchExecutor(BatchExecutor):
 
     async def execute_grouped(
         self,
-        requests: List[tuple],
+        requests: list[tuple],
         resolver: Any,
         db_pool: Any,
         group_by: str = "typename",
-    ) -> List[Optional[Any]]:
+    ) -> list[Any | None]:
         """Execute requests grouped by a criterion.
 
         Groups requests (e.g., by typename) and executes each group

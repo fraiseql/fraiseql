@@ -20,7 +20,7 @@ Example:
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 @dataclass
@@ -107,18 +107,18 @@ class EntityDataLoader:
         self.batch_window_ms = batch_window_ms
 
         # Deduplication cache: (typename, key_field, key_value) -> Future
-        self._dedup_cache: Dict[Tuple[str, str, Any], asyncio.Future[Optional[Dict]]] = {}
+        self._dedup_cache: dict[tuple[str, str, Any], asyncio.Future[dict[str, Any] | None]] = {}
 
         # Result cache: (typename, key_field, key_value) -> entity_dict
-        self._result_cache: Dict[Tuple[str, str, Any], Optional[Dict]] = {}
+        self._result_cache: dict[tuple[str, str, Any], dict[str, Any] | None] = {}
 
         # Request queue for the current batch
-        self._pending_requests: Dict[Tuple[str, str, Any], List[asyncio.Future[Optional[Dict]]]] = (
-            defaultdict(list)
-        )
+        self._pending_requests: dict[
+            tuple[str, str, Any], list[asyncio.Future[dict[str, Any] | None]]
+        ] = defaultdict(list)
 
         # Batch timer task
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
 
         # Statistics
         self._stats = DataLoaderStats()
@@ -130,7 +130,7 @@ class EntityDataLoader:
 
     def _make_dedup_key(
         self, typename: str, key_field: str, key_value: Any
-    ) -> Tuple[str, str, Any]:
+    ) -> tuple[str, str, Any]:
         """Create deduplication key for a request.
 
         Optimized to minimize memory allocations in hot path.
@@ -146,7 +146,7 @@ class EntityDataLoader:
         # Direct tuple creation is fastest - Python interns small tuples
         return (typename, key_field, key_value)
 
-    async def load(self, typename: str, key_field: str, key_value: Any) -> Optional[Dict[str, Any]]:
+    async def load(self, typename: str, key_field: str, key_value: Any) -> dict[str, Any] | None:
         """Load a single entity, batching and caching automatically.
 
         Returns a Future immediately. The actual database query is executed
@@ -177,7 +177,7 @@ class EntityDataLoader:
             return await self._dedup_cache[dedup_key]
 
         # Create new Future for this request
-        future: asyncio.Future[Optional[Dict]] = asyncio.Future()
+        future: asyncio.Future[dict[str, Any] | None] = asyncio.Future()
         self._dedup_cache[dedup_key] = future
         self._pending_requests[dedup_key].append(future)
 
@@ -190,9 +190,7 @@ class EntityDataLoader:
 
         return await future
 
-    async def load_many(
-        self, requests: List[Tuple[str, str, Any]]
-    ) -> List[Optional[Dict[str, Any]]]:
+    async def load_many(self, requests: list[tuple[str, str, Any]]) -> list[dict[str, Any] | None]:
         """Load multiple entities in a single batch.
 
         More efficient than calling load() multiple times in a loop.
@@ -253,9 +251,9 @@ class EntityDataLoader:
             return
 
         # Group requests by typename and key_field
-        requests_by_type: Dict[Tuple[str, str], List[Any]] = defaultdict(list)
-        request_map: Dict[Tuple[str, str, Any], List[asyncio.Future[Optional[Dict]]]] = defaultdict(
-            list
+        requests_by_type: dict[tuple[str, str], list[Any]] = defaultdict(list)
+        request_map: dict[tuple[str, str, Any], list[asyncio.Future[dict[str, Any] | None]]] = (
+            defaultdict(list)
         )
 
         for (typename, key_field, key_value), futures in self._pending_requests.items():
