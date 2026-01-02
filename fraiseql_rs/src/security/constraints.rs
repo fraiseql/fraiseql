@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Rate limiter using token bucket algorithm
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RateLimiter {
     limiters: Arc<RwLock<HashMap<String, DefaultDirectRateLimiter>>>,
     quota: Quota,
@@ -27,6 +27,11 @@ impl RateLimiter {
     ///
     /// * `max_requests` - Maximum requests allowed per window
     /// * `window_seconds` - Time window in seconds
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max_requests` is 0
+    #[must_use]
     pub fn new(max_requests: u32, _window_seconds: u64) -> Self {
         // Create quota (requests per second)
         let quota =
@@ -65,7 +70,7 @@ impl RateLimiter {
 }
 
 /// IP filter with allowlist and blocklist
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IpFilter {
     allowlist: Vec<IpNetwork>,
     blocklist: Vec<IpNetwork>,
@@ -82,7 +87,7 @@ impl IpFilter {
     /// # Errors
     ///
     /// Returns error if CIDR parsing fails
-    pub fn new(allowlist: Vec<String>, blocklist: Vec<String>) -> Result<Self, String> {
+    pub fn new(allowlist: &[String], blocklist: &[String]) -> Result<Self, String> {
         let allowlist_parsed: Result<Vec<_>, _> =
             allowlist.iter().map(|s| s.parse::<IpNetwork>()).collect();
 
@@ -104,7 +109,8 @@ impl IpFilter {
     /// # Returns
     ///
     /// `true` if IP is allowed, `false` if blocked
-    pub async fn check(&self, ip: &str) -> bool {
+    #[must_use]
+    pub fn check(&self, ip: &str) -> bool {
         let ip_addr: IpAddr = match ip.parse() {
             Ok(addr) => addr,
             Err(_) => return false,
@@ -126,7 +132,7 @@ impl IpFilter {
 }
 
 /// Query complexity analyzer
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ComplexityAnalyzer {
     max_complexity: usize,
 }
@@ -137,7 +143,8 @@ impl ComplexityAnalyzer {
     /// # Arguments
     ///
     /// * `max_complexity` - Maximum allowed complexity score
-    pub fn new(max_complexity: usize) -> Self {
+    #[must_use]
+    pub const fn new(max_complexity: usize) -> Self {
         Self { max_complexity }
     }
 
@@ -150,8 +157,9 @@ impl ComplexityAnalyzer {
     /// # Returns
     ///
     /// `true` if complexity is acceptable, `false` if too complex
-    pub async fn check(&self, query: &str) -> bool {
-        let complexity = self.calculate_complexity(query);
+    #[must_use]
+    pub fn check(&self, query: &str) -> bool {
+        let complexity = Self::calculate_complexity(query);
         complexity <= self.max_complexity
     }
 
@@ -161,7 +169,7 @@ impl ComplexityAnalyzer {
     /// - Depth score: number of nesting levels × 10
     /// - Field score: number of fields
     /// - Total complexity = depth score + field score
-    fn calculate_complexity(&self, query: &str) -> usize {
+    fn calculate_complexity(query: &str) -> usize {
         // Count nesting depth (braces)
         let depth = query.matches('{').count();
 
@@ -196,18 +204,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_ip_filter_blocklist() {
-        let filter = IpFilter::new(vec![], vec!["10.0.0.0/8".to_string()]).unwrap();
+        let blocklist = vec!["10.0.0.0/8".to_string()];
+        let filter = IpFilter::new(&[], &blocklist).unwrap();
 
-        assert!(filter.check("192.168.1.1").await);
-        assert!(!filter.check("10.0.0.1").await);
+        assert!(filter.check("192.168.1.1"));
+        assert!(!filter.check("10.0.0.1"));
     }
 
     #[tokio::test]
     async fn test_ip_filter_allowlist() {
-        let filter = IpFilter::new(vec!["192.168.1.0/24".to_string()], vec![]).unwrap();
+        let allowlist = vec!["192.168.1.0/24".to_string()];
+        let filter = IpFilter::new(&allowlist, &[]).unwrap();
 
-        assert!(filter.check("192.168.1.100").await);
-        assert!(!filter.check("10.0.0.1").await);
+        assert!(filter.check("192.168.1.100"));
+        assert!(!filter.check("10.0.0.1"));
     }
 
     #[tokio::test]
@@ -216,10 +226,10 @@ mod tests {
 
         // Simple query
         let simple = "{ user { id name } }";
-        assert!(analyzer.check(simple).await);
+        assert!(analyzer.check(simple));
 
         // Complex query
         let complex = "{ users { posts { comments { author { posts { comments { id } } } } } } }";
-        assert!(!analyzer.check(complex).await);
+        assert!(!analyzer.check(complex));
     }
 }

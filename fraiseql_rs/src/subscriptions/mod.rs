@@ -5,7 +5,7 @@
 //! Features:
 //! - WebSocket protocol handler (graphql-ws spec)
 //! - Subscription executor
-//! - Event bus with Redis (primary) and PostgreSQL (fallback)
+//! - Event bus with Redis (primary) and `PostgreSQL` (fallback)
 //! - Connection management
 //! - Rate limiting
 //! - Resource limits

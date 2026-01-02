@@ -1,7 +1,7 @@
 //! Event bus abstraction
 //!
 //! Abstract interface for event publishing and subscription.
-//! Supports Redis (primary) and PostgreSQL (fallback) implementations.
+//! Supports Redis (primary) and `PostgreSQL` (fallback) implementations.
 
 pub mod postgresql;
 pub mod redis;
@@ -149,7 +149,7 @@ pub struct EventBusStats {
     /// Active subscribers
     pub active_subscribers: u64,
 
-    /// Event bus mode (Redis, PostgreSQL, etc.)
+    /// Event bus mode (Redis, `PostgreSQL`, etc.)
     pub mode: String,
 }
 

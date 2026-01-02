@@ -1,3 +1,5 @@
+//! Test binary for v0.2 zero-copy implementation validation
+
 // v0.2: Only the unified API is available
 use fraiseql_rs::pipeline::builder::build_graphql_response;
 
@@ -10,7 +12,7 @@ fn main() {
     ];
 
     println!("Testing v0.2 zero-copy implementation...");
-    let result = build_graphql_response(json_rows, "users", Some("User"), None, None, None, None);
+    let result = build_graphql_response(&json_rows, "users", Some("User"), None, None, None, None);
     match result {
         Ok(bytes) => {
             println!("✓ Implementation succeeded");

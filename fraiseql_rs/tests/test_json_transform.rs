@@ -55,7 +55,9 @@ fn create_test_schema() -> fraiseql_rs::schema_registry::SchemaRegistry {
         }
     }"#;
 
-    fraiseql_rs::schema_registry::SchemaRegistry::from_json(schema_json).unwrap()
+    #[allow(clippy::expect_used)]
+    fraiseql_rs::schema_registry::SchemaRegistry::from_json(schema_json)
+        .expect("Failed to create test schema")
 }
 
 /// RED PHASE TEST 1: Nested object should have correct __typename

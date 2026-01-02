@@ -10,6 +10,7 @@ use chrono::Utc;
 
 /// Python wrapper for rate limiter
 #[pyclass]
+#[derive(Debug)]
 pub struct PyRateLimiter {
     limiter: RateLimiter,
 }
@@ -25,12 +26,20 @@ impl PyRateLimiter {
     }
 
     /// Check if request is allowed
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if the async runtime fails
     fn check<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let limiter = self.limiter.clone();
         future_into_py(py, async move { Ok(limiter.check(&key).await) })
     }
 
     /// Reset rate limit for a key
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if the async runtime fails
     fn reset<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let limiter = self.limiter.clone();
         future_into_py(py, async move {
@@ -42,6 +51,7 @@ impl PyRateLimiter {
 
 /// Python wrapper for IP filter
 #[pyclass]
+#[derive(Debug)]
 pub struct PyIpFilter {
     filter: IpFilter,
 }
@@ -49,23 +59,28 @@ pub struct PyIpFilter {
 #[pymethods]
 impl PyIpFilter {
     /// Create a new IP filter
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if IP addresses are invalid
     #[new]
+    #[allow(clippy::needless_pass_by_value)] // PyO3 requires owned Vec
     fn new(allowlist: Vec<String>, blocklist: Vec<String>) -> PyResult<Self> {
-        let filter = IpFilter::new(allowlist, blocklist)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let filter = IpFilter::new(&allowlist, &blocklist)
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)?;
 
         Ok(Self { filter })
     }
 
     /// Check if IP is allowed
-    fn check<'py>(&self, py: Python<'py>, ip: String) -> PyResult<Bound<'py, PyAny>> {
-        let filter = self.filter.clone();
-        future_into_py(py, async move { Ok(filter.check(&ip).await) })
+    fn check(&self, ip: &str) -> bool {
+        self.filter.check(ip)
     }
 }
 
 /// Python wrapper for complexity analyzer
 #[pyclass]
+#[derive(Debug)]
 pub struct PyComplexityAnalyzer {
     analyzer: ComplexityAnalyzer,
 }
@@ -74,21 +89,21 @@ pub struct PyComplexityAnalyzer {
 impl PyComplexityAnalyzer {
     /// Create a new complexity analyzer
     #[new]
-    fn new(max_complexity: usize) -> Self {
+    const fn new(max_complexity: usize) -> Self {
         Self {
             analyzer: ComplexityAnalyzer::new(max_complexity),
         }
     }
 
     /// Check if query complexity is acceptable
-    fn check<'py>(&self, py: Python<'py>, query: String) -> PyResult<Bound<'py, PyAny>> {
-        let analyzer = self.analyzer.clone();
-        future_into_py(py, async move { Ok(analyzer.check(&query).await) })
+    fn check(&self, query: &str) -> bool {
+        self.analyzer.check(query)
     }
 }
 
 /// Python wrapper for audit logger
 #[pyclass]
+#[derive(Debug)]
 pub struct PyAuditLogger {
     logger: AuditLogger,
 }
@@ -96,6 +111,10 @@ pub struct PyAuditLogger {
 #[pymethods]
 impl PyAuditLogger {
     /// Create a new audit logger
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if database pool is not available
     #[new]
     fn new(pool: &crate::db::pool::DatabasePool) -> PyResult<Self> {
         let deadpool = pool.get_pool().ok_or_else(|| {
@@ -108,7 +127,12 @@ impl PyAuditLogger {
     }
 
     /// Log an audit entry
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if variables JSON is invalid or database logging fails
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::needless_pass_by_value)] // PyO3 requires owned String
     fn log<'py>(
         &self,
         py: Python<'py>,
@@ -117,7 +141,7 @@ impl PyAuditLogger {
         tenant_id: i64,
         operation: String,
         query: String,
-        variables: String,
+        variables: &str,
         ip_address: String,
         user_agent: String,
         error: Option<String>,
@@ -129,10 +153,9 @@ impl PyAuditLogger {
         let audit_level = AuditLevel::parse(&level);
 
         // Parse variables JSON
-        let variables_value: serde_json::Value = serde_json::from_str(&variables).map_err(|e| {
+        let variables_value: serde_json::Value = serde_json::from_str(variables).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Invalid JSON in variables: {}",
-                e
+                "Invalid JSON in variables: {e}"
             ))
         })?;
 
@@ -154,8 +177,7 @@ impl PyAuditLogger {
 
             let id = logger.log(entry).await.map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to log audit entry: {}",
-                    e
+                    "Failed to log audit entry: {e}"
                 ))
             })?;
 
@@ -164,6 +186,10 @@ impl PyAuditLogger {
     }
 
     /// Get recent logs for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns `PyErr` if database query fails
     fn get_recent_logs<'py>(
         &self,
         py: Python<'py>,
@@ -180,8 +206,7 @@ impl PyAuditLogger {
                 .await
                 .map_err(|e| {
                     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to get audit logs: {}",
-                        e
+                        "Failed to get audit logs: {e}"
                     ))
                 })?;
 

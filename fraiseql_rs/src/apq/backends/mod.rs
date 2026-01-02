@@ -2,7 +2,7 @@
 //!
 //! Implementations of the `ApqStorage` trait for different backends:
 //! - Memory: In-process LRU cache (single instance)
-//! - PostgreSQL: Distributed persistent storage (multi-instance)
+//! - `PostgreSQL`: Distributed persistent storage (multi-instance)
 
 pub mod memory;
 pub mod postgresql;

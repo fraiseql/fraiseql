@@ -1,6 +1,6 @@
-//! Connection pool manager for Redis and PostgreSQL
+//! Connection pool manager for Redis and `PostgreSQL`
 //!
-//! Manages connection pooling for both Redis and PostgreSQL to optimize
+//! Manages connection pooling for both Redis and `PostgreSQL` to optimize
 //! resource usage and handle connection failures gracefully.
 
 use crate::subscriptions::SubscriptionError;

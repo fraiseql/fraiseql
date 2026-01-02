@@ -110,6 +110,7 @@ fn create_test_schema() -> SchemaRegistry {
         }
     }"#;
 
+    #[allow(clippy::expect_used)]
     SchemaRegistry::from_json(schema_ir).expect("Failed to create test schema")
 }
 
@@ -216,7 +217,9 @@ fn test_alias_in_nested_object() {
     assert_eq!(result["__typename"], "User");
     assert_eq!(result["userName"], "John");
 
-    let posts = result["posts"].as_array().expect("posts should be array");
+    let Some(posts) = result["posts"].as_array() else {
+        panic!("posts should be array, got: {:?}", result["posts"])
+    };
     assert_eq!(posts.len(), 1);
 
     let post = &posts[0];
@@ -276,12 +279,16 @@ fn test_deep_nesting_with_multiple_aliases() {
     assert_eq!(result["__typename"], "User");
     assert_eq!(result["name"], "John"); // root alias
 
-    let posts = result["posts"].as_array().unwrap();
+    let Some(posts) = result["posts"].as_array() else {
+        panic!("posts should be array, got: {:?}", result["posts"])
+    };
     let post = &posts[0];
     assert_eq!(post["postId"], "10"); // array alias
     assert_eq!(post["writer"], "Jane"); // array alias
 
-    let comments = post["comments"].as_array().unwrap();
+    let Some(comments) = post["comments"].as_array() else {
+        panic!("comments should be array, got: {:?}", post["comments"])
+    };
     let comment = &comments[0];
     assert_eq!(comment["commentId"], "100"); // deep alias
     assert_eq!(comment["text"], "Great post!"); // deep alias
@@ -382,8 +389,12 @@ fn test_alias_materialized_path_decomposition() {
 
     let result = transform_with_selections(&input, "User", &selections, &registry);
 
-    let posts = result["posts"].as_array().unwrap();
-    let comments = posts[0]["comments"].as_array().unwrap();
+    let Some(posts) = result["posts"].as_array() else {
+        panic!("posts should be array, got: {:?}", result["posts"])
+    };
+    let Some(comments) = posts[0]["comments"].as_array() else {
+        panic!("comments should be array, got: {:?}", posts[0]["comments"])
+    };
     assert_eq!(comments[0]["author"], "Alice"); // alias applied at correct depth
 }
 

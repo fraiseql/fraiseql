@@ -724,7 +724,7 @@ mod tests {
     use crate::schema_registry::SchemaRegistry;
     use serde_json::json;
 
-    /// Helper to create a FieldSelection structure for testing
+    /// Helper to create a `FieldSelection` structure for testing
     fn make_selection(path: &str, alias: &str, type_name: &str, is_list: bool) -> Value {
         json!({
             "materialized_path": path,

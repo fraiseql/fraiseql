@@ -1,10 +1,10 @@
-//! TestDatabase helper for managing test PostgreSQL instances
+//! TestDatabase helper for managing test `PostgreSQL` instances
 //!
 //! Phase 0.2: Basic infrastructure. Full testcontainers implementation in Phase 1.
 
 use std::sync::Arc;
 
-/// Manages a test PostgreSQL database instance
+/// Manages a test `PostgreSQL` database instance
 #[derive(Clone)]
 pub struct TestDatabase {
     _inner: Arc<TestDatabaseInner>,
@@ -16,41 +16,41 @@ struct TestDatabaseInner {
 
 impl TestDatabase {
     /// Create a new test database with default settings
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    #[must_use]
+    pub fn new() -> Self {
         // Phase 0.2: Return a mock instance
         // Full implementation with testcontainers in Phase 1
-        Ok(TestDatabase {
+        Self {
             _inner: Arc::new(TestDatabaseInner {}),
-        })
+        }
     }
 
     /// Create a test database with custom configuration
     #[allow(dead_code)]
-    pub async fn with_config(
-        _config: TestDatabaseConfig,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    #[must_use]
+    pub fn with_config(_config: TestDatabaseConfig) -> Self {
         // Phase 0.2: Return a mock instance
-        Self::new().await
+        Self::new()
     }
 
     /// Get connection string for this test database
-    pub fn connection_string(&self) -> String {
+    #[must_use]
+    pub fn connection_string() -> String {
         // Phase 0.2: Return mock connection string
         // Real implementation will use actual container port
         "postgresql://postgres:postgres@localhost:5432/test_db".to_string()
     }
 
-    /// Get a PostgreSQL client for queries (placeholder)
+    /// Get a `PostgreSQL` client for queries (placeholder)
     #[allow(dead_code)]
-    pub async fn client(&self) -> Result<tokio_postgres::Client, Box<dyn std::error::Error>> {
+    pub fn client() -> Result<tokio_postgres::Client, Box<dyn std::error::Error>> {
         // Phase 0.2: This will panic - real implementation in Phase 1
         // For now, tests can use the connection_string() method
         Err("TestDatabase client() not implemented in Phase 0.2".into())
     }
 
     /// Execute a query and return results (placeholder)
-    pub async fn query(
-        &self,
+    pub fn query(
         _sql: &str,
         _params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<Vec<tokio_postgres::Row>, Box<dyn std::error::Error>> {
@@ -59,8 +59,7 @@ impl TestDatabase {
 
     /// Execute a statement without returning rows (placeholder)
     #[allow(dead_code)]
-    pub async fn execute(
-        &self,
+    pub fn execute(
         _sql: &str,
         _params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<u64, Box<dyn std::error::Error>> {
@@ -69,7 +68,7 @@ impl TestDatabase {
 
     /// Run migrations on test database (placeholder)
     #[allow(dead_code)]
-    pub async fn migrate(&self, _migrations: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn migrate(_migrations: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
         Err("TestDatabase migrate() not implemented in Phase 0.2".into())
     }
 }
@@ -85,7 +84,7 @@ pub struct TestDatabaseConfig {
 
 impl Default for TestDatabaseConfig {
     fn default() -> Self {
-        TestDatabaseConfig {
+        Self {
             db_name: "test_db".to_string(),
             user: "postgres".to_string(),
             password: "postgres".to_string(),
@@ -97,18 +96,20 @@ impl Default for TestDatabaseConfig {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_database_connection() {
+    #[test]
+    fn test_database_connection() {
         // Phase 0.2: Basic API test - full functionality in Phase 1
-        let db = TestDatabase::new().await.expect("Failed to create test database");
-        assert!(!db.connection_string().is_empty());
+        let db = TestDatabase::new();
+        assert!(!TestDatabase::connection_string().is_empty());
+        // Keep db alive to avoid unused variable warning
+        drop(db);
     }
 
-    #[tokio::test]
-    async fn test_database_query() {
+    #[test]
+    fn test_database_query() {
         // Phase 0.2: API placeholder - real tests in Phase 1
-        let db = TestDatabase::new().await.expect("Failed to create test database");
-        let result = db.query("SELECT 1", &[]).await;
+        let _db = TestDatabase::new();
+        let result = TestDatabase::query("SELECT 1", &[]);
         assert!(result.is_err()); // Should fail in Phase 0.2
     }
 }

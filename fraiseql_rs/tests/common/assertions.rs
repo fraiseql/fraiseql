@@ -1,4 +1,4 @@
-//! Custom assertions for PostgreSQL and JSON testing
+//! Custom assertions for `PostgreSQL` and JSON testing
 
 /// Assert that a SQL query result contains expected rows
 #[macro_export]

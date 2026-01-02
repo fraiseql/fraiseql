@@ -1,3 +1,5 @@
+//! Performance test binary for zero-copy transformer benchmarking
+
 use std::time::{Duration, Instant};
 // v0.2: old build_list_response has been removed
 use fraiseql_rs::pipeline::builder::build_graphql_response;
@@ -48,6 +50,7 @@ where
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     let avg_time = total_time / iterations as u32;
     let avg_bytes = total_bytes / iterations;
 
@@ -72,7 +75,7 @@ fn main() {
     let (_new_time, new_bytes) =
         benchmark_implementation("v0.2 Zero-Copy", &small_workload, iterations, || {
             build_graphql_response(
-                small_workload.clone(),
+                &small_workload,
                 "users",
                 Some("User"),
                 None,
@@ -95,7 +98,7 @@ fn main() {
     let (_new_time, new_bytes) =
         benchmark_implementation("v0.2 Zero-Copy", &medium_workload, iterations, || {
             build_graphql_response(
-                medium_workload.clone(),
+                &medium_workload,
                 "users",
                 Some("User"),
                 None,

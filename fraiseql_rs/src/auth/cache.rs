@@ -124,7 +124,7 @@ mod tests {
                 + 3600,
         };
 
-        cache.put("token123", context.clone());
+        cache.put("token123", context);
 
         let cached = cache.get("token123");
         assert!(cached.is_some());

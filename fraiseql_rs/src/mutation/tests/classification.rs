@@ -97,7 +97,7 @@ fn test_status_with_multiple_colons() {
     assert!(status.is_error());
     match status {
         MutationStatus::Error(full_status) => {
-            assert_eq!(full_status, "failed:validation:email_invalid")
+            assert_eq!(full_status, "failed:validation:email_invalid");
         }
         _ => panic!("Expected Error with full status"),
     }

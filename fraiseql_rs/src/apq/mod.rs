@@ -3,7 +3,7 @@
 //! APQ reduces bandwidth by allowing clients to send query hashes instead of full queries.
 //! This module provides:
 //! - SHA-256 query hashing
-//! - Storage backends (memory LRU, PostgreSQL)
+//! - Storage backends (memory LRU, `PostgreSQL`)
 //! - Request/response handling
 //! - Prometheus metrics
 //!
@@ -119,45 +119,42 @@ impl ApqHandler {
         }
 
         // Try to get query from storage
-        match self.storage.get(&persisted.sha256_hash).await? {
-            Some(stored_query) => {
-                // Query found in cache
-                self.metrics.record_hit();
-                Ok(ApqResponse::QueryFound(stored_query))
-            }
-            None => {
-                // Query not found
-                self.metrics.record_miss();
+        if let Some(stored_query) = self.storage.get(&persisted.sha256_hash).await? {
+            // Query found in cache
+            self.metrics.record_hit();
+            Ok(ApqResponse::QueryFound(stored_query))
+        } else {
+            // Query not found
+            self.metrics.record_miss();
 
-                if let Some(full_query) = query {
-                    // Client provided full query, store it
-                    if full_query.len() > MAX_QUERY_SIZE {
-                        self.metrics.record_error();
-                        return Err(ApqError::QueryTooLarge);
-                    }
-
-                    if verify_hash(&full_query, &persisted.sha256_hash) {
-                        self.storage
-                            .set(persisted.sha256_hash.clone(), full_query.clone())
-                            .await?;
-                        self.metrics.record_store();
-                        Ok(ApqResponse::QueryFound(full_query))
-                    } else {
-                        // Hash mismatch
-                        self.metrics.record_error();
-                        Err(ApqError::StorageError("Query hash mismatch".to_string()))
-                    }
-                } else {
-                    // Client didn't provide query, request it
-                    Ok(ApqResponse::QueryNotFound)
+            if let Some(full_query) = query {
+                // Client provided full query, store it
+                if full_query.len() > MAX_QUERY_SIZE {
+                    self.metrics.record_error();
+                    return Err(ApqError::QueryTooLarge);
                 }
+
+                if verify_hash(&full_query, &persisted.sha256_hash) {
+                    self.storage
+                        .set(persisted.sha256_hash.clone(), full_query.clone())
+                        .await?;
+                    self.metrics.record_store();
+                    Ok(ApqResponse::QueryFound(full_query))
+                } else {
+                    // Hash mismatch
+                    self.metrics.record_error();
+                    Err(ApqError::StorageError("Query hash mismatch".to_string()))
+                }
+            } else {
+                // Client didn't provide query, request it
+                Ok(ApqResponse::QueryNotFound)
             }
         }
     }
 
     /// Get metrics reference
     #[must_use]
-    pub fn metrics(&self) -> &ApqMetrics {
+    pub const fn metrics(&self) -> &ApqMetrics {
         &self.metrics
     }
 

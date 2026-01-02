@@ -1,6 +1,6 @@
-//! PostgreSQL backend for APQ
+//! `PostgreSQL` backend for APQ
 //!
-//! Provides persistent, distributed APQ storage using PostgreSQL.
+//! Provides persistent, distributed APQ storage using `PostgreSQL`.
 //! Suitable for multi-instance deployments or when persistence is required.
 
 use async_trait::async_trait;
@@ -9,10 +9,10 @@ use std::sync::Arc;
 
 use crate::apq::storage::{ApqError, ApqStats, ApqStorage};
 
-/// PostgreSQL APQ storage backend
+/// `PostgreSQL` APQ storage backend
 ///
 /// Provides persistent query storage with multi-instance support.
-/// Requires a PostgreSQL database with the APQ table initialized.
+/// Requires a `PostgreSQL` database with the APQ table initialized.
 #[derive(Debug)]
 pub struct PostgresApqStorage {
     /// Database connection pool
@@ -23,12 +23,12 @@ pub struct PostgresApqStorage {
 }
 
 impl PostgresApqStorage {
-    /// Create new PostgreSQL storage
+    /// Create new `PostgreSQL` storage
     ///
     /// # Arguments
     ///
     /// * `pool` - Database connection pool
-    /// * `table_name` - Optional table name (default: "fraiseql_apq_queries")
+    /// * `table_name` - Optional table name (default: `fraiseql_apq_queries`)
     ///
     /// # Example
     ///

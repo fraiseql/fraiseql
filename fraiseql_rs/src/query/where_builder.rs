@@ -303,7 +303,7 @@ mod tests {
 
         let sql = builder.build_where(&arg).unwrap();
         assert!(sql.contains("status"));
-        assert!(sql.contains("="));
+        assert!(sql.contains('='));
     }
 
     fn create_test_schema() -> SchemaMetadata {
@@ -315,7 +315,7 @@ mod tests {
                 view_name: "v_users".to_string(),
                 sql_columns: vec!["id".to_string(), "email".to_string()],
                 jsonb_column: "data".to_string(),
-                fk_mappings: Default::default(),
+                fk_mappings: std::collections::HashMap::default(),
                 has_jsonb_data: true,
                 where_sql: None,
                 order_by: Vec::new(),
@@ -324,7 +324,7 @@ mod tests {
 
         SchemaMetadata {
             tables,
-            types: Default::default(),
+            types: std::collections::HashMap::default(),
         }
     }
 }

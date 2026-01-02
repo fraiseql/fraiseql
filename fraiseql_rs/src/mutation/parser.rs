@@ -152,7 +152,7 @@ mod tests {
             MutationResponse::Simple(simple) => {
                 assert_eq!(simple.entity.get("id").unwrap(), "123");
             }
-            _ => panic!("Expected Simple format"),
+            MutationResponse::Full(_) => panic!("Expected Simple format"),
         }
     }
 
@@ -174,7 +174,7 @@ mod tests {
                 assert_eq!(full.entity_type, Some("User".to_string()));
                 assert!(full.cascade.is_some());
             }
-            _ => panic!("Expected Full format"),
+            MutationResponse::Simple(_) => panic!("Expected Full format"),
         }
     }
 
@@ -192,7 +192,7 @@ mod tests {
             MutationResponse::Full(full) => {
                 assert!(full.cascade.is_some());
             }
-            _ => panic!("Expected Full format"),
+            MutationResponse::Simple(_) => panic!("Expected Full format"),
         }
     }
 

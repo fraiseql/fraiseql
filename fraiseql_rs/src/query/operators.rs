@@ -737,7 +737,7 @@ mod tests {
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Operator {} should exist", op_name);
+            assert!(op.is_some(), "Operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Comparison);
@@ -753,7 +753,7 @@ mod tests {
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "String operator {} should exist", op_name);
+            assert!(op.is_some(), "String operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::String);
@@ -783,15 +783,11 @@ mod tests {
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(
-                op.is_some(),
-                "Containment operator {} should exist",
-                op_name
-            );
+            assert!(op.is_some(), "Containment operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Containment);
-            assert!(op.jsonb_operator, "{} should be JSONB operator", op_name);
+            assert!(op.jsonb_operator, "{op_name} should be JSONB operator");
         }
     }
 
@@ -801,7 +797,7 @@ mod tests {
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Array operator {} should exist", op_name);
+            assert!(op.is_some(), "Array operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Array);
@@ -821,7 +817,7 @@ mod tests {
 
         for (op_name, expected_sql) in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Vector operator {} should exist", op_name);
+            assert!(op.is_some(), "Vector operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Vector);
@@ -840,7 +836,7 @@ mod tests {
 
         for op_name in &operators {
             let op = get_operator_info(op_name);
-            assert!(op.is_some(), "Fulltext operator {} should exist", op_name);
+            assert!(op.is_some(), "Fulltext operator {op_name} should exist");
 
             let op = op.unwrap();
             assert_eq!(op.category, OperatorCategory::Fulltext);

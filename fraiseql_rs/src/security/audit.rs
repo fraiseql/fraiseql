@@ -1,6 +1,6 @@
 //! Audit logging for GraphQL operations
 //!
-//! Uses PostgreSQL deadpool for database operations
+//! Uses `PostgreSQL` `deadpool` for database operations
 
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
@@ -21,21 +21,22 @@ pub enum AuditLevel {
 
 impl AuditLevel {
     /// Convert to string for database storage
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            AuditLevel::INFO => "INFO",
-            AuditLevel::WARN => "WARN",
-            AuditLevel::ERROR => "ERROR",
+            Self::INFO => "INFO",
+            Self::WARN => "WARN",
+            Self::ERROR => "ERROR",
         }
     }
 
     /// Parse from string
+    #[must_use]
     pub fn parse(s: &str) -> Self {
         match s {
-            "INFO" => AuditLevel::INFO,
-            "WARN" => AuditLevel::WARN,
-            "ERROR" => AuditLevel::ERROR,
-            _ => AuditLevel::INFO,
+            "WARN" => Self::WARN,
+            "ERROR" => Self::ERROR,
+            _ => Self::INFO, // Default to INFO for unknown strings
         }
     }
 }
@@ -69,15 +70,16 @@ pub struct AuditEntry {
     pub duration_ms: Option<i32>,
 }
 
-/// Audit logger with PostgreSQL backend
-#[derive(Clone)]
+/// Audit logger with `PostgreSQL` backend
+#[derive(Clone, Debug)]
 pub struct AuditLogger {
     pool: Arc<Pool>,
 }
 
 impl AuditLogger {
     /// Create a new audit logger
-    pub fn new(pool: Arc<Pool>) -> Self {
+    #[must_use]
+    pub const fn new(pool: Arc<Pool>) -> Self {
         Self { pool }
     }
 
@@ -110,7 +112,7 @@ impl AuditLogger {
         // Convert DateTime<Utc> to SystemTime for PostgreSQL
         let timestamp_system = SystemTime::UNIX_EPOCH
             + std::time::Duration::from_secs(entry.timestamp.timestamp() as u64)
-            + std::time::Duration::from_nanos(entry.timestamp.timestamp_subsec_nanos() as u64);
+            + std::time::Duration::from_nanos(u64::from(entry.timestamp.timestamp_subsec_nanos()));
 
         let row = client
             .query_one(

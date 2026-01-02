@@ -15,7 +15,7 @@ use crate::apq::storage::{ApqError, ApqStats, ApqStorage};
 /// In-memory LRU cache backend for APQ
 ///
 /// Provides fast, thread-safe query caching using an LRU eviction policy.
-/// Suitable for single-instance deployments or when PostgreSQL backend is unavailable.
+/// Suitable for single-instance deployments or when `PostgreSQL` backend is unavailable.
 #[derive(Debug)]
 pub struct MemoryApqStorage {
     /// LRU cache of queries
@@ -78,13 +78,16 @@ impl ApqStorage for MemoryApqStorage {
     async fn get(&self, hash: &str) -> Result<Option<String>, ApqError> {
         let mut cache = self.cache.write().await;
 
-        if let Some(query) = cache.get(hash) {
-            self.hits.fetch_add(1, Ordering::Relaxed);
-            Ok(Some(query.clone()))
-        } else {
-            self.misses.fetch_add(1, Ordering::Relaxed);
-            Ok(None)
-        }
+        cache.get(hash).map_or_else(
+            || {
+                self.misses.fetch_add(1, Ordering::Relaxed);
+                Ok(None)
+            },
+            |query| {
+                self.hits.fetch_add(1, Ordering::Relaxed);
+                Ok(Some(query.clone()))
+            },
+        )
     }
 
     async fn set(&self, hash: String, query: String) -> Result<(), ApqError> {
@@ -201,6 +204,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::float_cmp)]
     async fn test_hit_rate_tracking() {
         let storage = MemoryApqStorage::new(100);
         let hash = "abc123".to_string();

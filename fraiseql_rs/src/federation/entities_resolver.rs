@@ -17,7 +17,7 @@ pub struct EntityMetadata {
     /// GraphQL type name (e.g., "User")
     pub type_name: String,
 
-    /// Database table name (e.g., "tv_user")
+    /// Database table name (e.g., `tv_user`)
     pub table_name: String,
 
     /// Key field name (e.g., "id")
@@ -35,6 +35,7 @@ pub struct EntityMetadata {
 
 impl EntityMetadata {
     /// Create new entity metadata
+    #[must_use]
     pub fn new(type_name: &str, table_name: &str, key_field: &str, is_cqrs: bool) -> Self {
         Self {
             type_name: type_name.to_string(),
@@ -51,6 +52,7 @@ impl EntityMetadata {
     }
 
     /// Set JSONB column name (for CQRS)
+    #[must_use]
     pub fn with_jsonb_column(mut self, column: &str) -> Self {
         if self.is_cqrs {
             self.jsonb_column = Some(column.to_string());
@@ -67,6 +69,7 @@ pub struct EntityResolver {
 
 impl EntityResolver {
     /// Create new entity resolver
+    #[must_use]
     pub fn new() -> Self {
         Self {
             entities: HashMap::new(),
@@ -79,6 +82,7 @@ impl EntityResolver {
     }
 
     /// Get metadata for entity type
+    #[must_use]
     pub fn get(&self, type_name: &str) -> Option<&EntityMetadata> {
         self.entities.get(type_name)
     }
@@ -95,7 +99,11 @@ impl EntityResolver {
     ///
     /// # Returns
     ///
-    /// Tuple of (query_string, [query_params])
+    /// Tuple of (`query_string`, [`query_params`])
+    ///
+    /// # Errors
+    ///
+    /// Returns `EntityResolverError` if type is unknown
     pub fn build_single_query(
         &self,
         type_name: &str,
@@ -103,7 +111,7 @@ impl EntityResolver {
     ) -> Result<(String, Vec<String>), EntityResolverError> {
         let entity = self
             .get(type_name)
-            .ok_or(EntityResolverError::UnknownType(type_name.to_string()))?;
+            .ok_or_else(|| EntityResolverError::UnknownType(type_name.to_string()))?;
 
         let query = if entity.is_cqrs {
             // CQRS: SELECT JSONB data column directly
@@ -140,7 +148,11 @@ impl EntityResolver {
     ///
     /// # Returns
     ///
-    /// Tuple of (query_string, [query_params])
+    /// Tuple of (`query_string`, [`query_params`])
+    ///
+    /// # Errors
+    ///
+    /// Returns `EntityResolverError` if type is unknown or batch is empty
     pub fn build_batch_query(
         &self,
         type_name: &str,
@@ -152,11 +164,11 @@ impl EntityResolver {
 
         let entity = self
             .get(type_name)
-            .ok_or(EntityResolverError::UnknownType(type_name.to_string()))?;
+            .ok_or_else(|| EntityResolverError::UnknownType(type_name.to_string()))?;
 
         // Build placeholders: $1, $2, $3, ...
         let placeholders = (1..=key_values.len())
-            .map(|i| format!("${}", i))
+            .map(|i| format!("${i}"))
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -189,11 +201,15 @@ impl EntityResolver {
     ///
     /// # Arguments
     ///
-    /// * `representations` - List of {__typename, key_field: value}
+    /// * `representations` - List of {__typename, `key_field`: value}
     ///
     /// # Returns
     ///
     /// Vec of (query, params) tuples
+    ///
+    /// # Errors
+    ///
+    /// Returns `EntityResolverError` if any type is unknown or batch is empty
     pub fn build_batch_multi_type_queries(
         &self,
         representations: &[HashMap<String, String>],
@@ -208,11 +224,11 @@ impl EntityResolver {
 
             let entity = self
                 .get(type_name)
-                .ok_or(EntityResolverError::UnknownType(type_name.clone()))?;
+                .ok_or_else(|| EntityResolverError::UnknownType(type_name.clone()))?;
 
             let key_value =
                 rep.get(&entity.key_field)
-                    .ok_or(EntityResolverError::MissingKeyField {
+                    .ok_or_else(|| EntityResolverError::MissingKeyField {
                         type_name: type_name.clone(),
                         key_field: entity.key_field.clone(),
                     })?;
@@ -234,10 +250,14 @@ impl EntityResolver {
     }
 
     /// Get the key field name for an entity type
+    ///
+    /// # Errors
+    ///
+    /// Returns `EntityResolverError` if type is unknown
     pub fn get_key_field(&self, type_name: &str) -> Result<String, EntityResolverError> {
         self.get(type_name)
             .map(|e| e.key_field.clone())
-            .ok_or(EntityResolverError::UnknownType(type_name.to_string()))
+            .ok_or_else(|| EntityResolverError::UnknownType(type_name.to_string()))
     }
 }
 
@@ -261,7 +281,9 @@ pub enum EntityResolverError {
 
     /// Missing key field in representation
     MissingKeyField {
+        /// Type name
         type_name: String,
+        /// Key field name
         key_field: String,
     },
 
@@ -272,7 +294,7 @@ pub enum EntityResolverError {
 impl std::fmt::Display for EntityResolverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownType(t) => write!(f, "Unknown entity type: {}", t),
+            Self::UnknownType(t) => write!(f, "Unknown entity type: {t}"),
             Self::EmptyBatch => write!(f, "Empty batch request"),
             Self::MissingTypeName => write!(f, "Missing __typename in representation"),
             Self::MissingKeyField {
@@ -281,11 +303,10 @@ impl std::fmt::Display for EntityResolverError {
             } => {
                 write!(
                     f,
-                    "Missing key field '{}' in {} representation",
-                    key_field, type_name
+                    "Missing key field '{key_field}' in {type_name} representation"
                 )
             }
-            Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
+            Self::DatabaseError(msg) => write!(f, "Database error: {msg}"),
         }
     }
 }

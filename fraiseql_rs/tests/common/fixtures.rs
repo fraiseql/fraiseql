@@ -154,6 +154,6 @@ mod tests {
     fn test_json_test_values() {
         let obj = JsonTestValues::simple_object();
         assert!(obj.get("key").is_some());
-        assert_eq!(obj.get("number").and_then(|v| v.as_i64()), Some(42));
+        assert_eq!(obj.get("number").and_then(serde_json::Value::as_i64), Some(42));
     }
 }

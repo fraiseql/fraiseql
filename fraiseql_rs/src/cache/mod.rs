@@ -191,7 +191,7 @@ mod tests {
             hit_count: 0,
         };
 
-        cache.put("test_query".to_string(), plan.clone()).unwrap();
+        cache.put("test_query".to_string(), plan).unwrap();
         let retrieved = cache.get("test_query").unwrap().unwrap();
 
         assert_eq!(retrieved.signature, "test_query");
@@ -225,13 +225,13 @@ mod tests {
 
         for i in 0..5 {
             let plan = CachedQueryPlan {
-                signature: format!("query_{}", i),
+                signature: format!("query_{i}"),
                 sql_template: "SELECT *".to_string(),
                 parameters: vec![],
                 created_at: 0,
                 hit_count: 0,
             };
-            cache.put(format!("query_{}", i), plan).unwrap();
+            cache.put(format!("query_{i}"), plan).unwrap();
         }
 
         let stats = cache.stats().unwrap();

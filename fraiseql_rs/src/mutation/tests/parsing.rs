@@ -1,11 +1,11 @@
-//! Parsing Tests - Stage 1: JSON → MutationResult
+//! Parsing Tests - Stage 1: JSON → `MutationResult`
 //!
-//! Tests for parsing JSON responses into MutationResult structures:
+//! Tests for parsing JSON responses into `MutationResult` structures:
 //! - Simple format (entity JSONB only, no status)
-//! - Full format (mutation_response with status field)
+//! - Full format (`mutation_response` with status field)
 //! - Format detection and error handling
 //! - CASCADE integration in parsing
-//! - PostgreSQL composite type parsing
+//! - `PostgreSQL` composite type parsing
 
 use super::*;
 

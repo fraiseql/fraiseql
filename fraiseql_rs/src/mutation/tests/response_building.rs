@@ -1,6 +1,6 @@
-//! Response Building Tests - Stage 3: MutationResult → JSON
+//! Response Building Tests - Stage 3: `MutationResult` → JSON
 //!
-//! Tests for building GraphQL responses from MutationResult structures:
+//! Tests for building GraphQL responses from `MutationResult` structures:
 //! - Simple format response building
 //! - Full format response building
 //! - Auto-populated fields (status, errors, etc.)

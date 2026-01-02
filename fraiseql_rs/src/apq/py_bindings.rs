@@ -1,6 +1,6 @@
 //! Python bindings for APQ
 //!
-//! Exposes APQ functionality to Python through PyO3.
+//! Exposes APQ functionality to Python through `PyO3`.
 
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -11,8 +11,9 @@ use crate::apq::ApqHandler;
 /// Python wrapper for APQ handler
 ///
 /// Provides access to APQ functionality from Python.
-/// Supports memory and PostgreSQL backends.
+/// Supports memory and `PostgreSQL` backends.
 #[pyclass]
+#[derive(Debug)]
 pub struct PyApqHandler {
     handler: Arc<ApqHandler>,
 }
@@ -27,7 +28,7 @@ impl PyApqHandler {
     ///
     /// # Returns
     ///
-    /// PyApqHandler instance with memory backend
+    /// `PyApqHandler` instance with memory backend
     #[staticmethod]
     fn with_memory(capacity: Option<usize>) -> Self {
         let cap = capacity.unwrap_or(1000);
@@ -40,7 +41,7 @@ impl PyApqHandler {
     ///
     /// # Returns
     ///
-    /// JSON string with metrics (hits, misses, stored, errors, hit_rate)
+    /// JSON string with metrics (hits, misses, stored, errors, `hit_rate`)
     fn metrics(&self) -> String {
         self.handler.metrics().as_json().to_string()
     }
@@ -48,11 +49,15 @@ impl PyApqHandler {
 
 /// Python module for APQ bindings
 ///
-/// Provides PyO3 module initialization for APQ functionality.
+/// Provides `PyO3` module initialization for APQ functionality.
+///
+/// # Errors
+///
+/// Returns `PyErr` if class registration fails
 ///
 /// # Note
 ///
-/// This is called automatically when importing fraiseql._fraiseql_rs
+/// This is called automatically when importing `fraiseql._fraiseql_rs`
 pub fn init_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyApqHandler>()?;
     Ok(())

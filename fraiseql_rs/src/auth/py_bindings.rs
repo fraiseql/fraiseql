@@ -192,24 +192,22 @@ impl PyAuthProvider {
         let provider = self.provider.clone();
 
         // Try to use existing tokio runtime, or create a new one
-        let context = match tokio::runtime::Handle::try_current() {
-            // Use existing runtime if available (e.g., when called from Rust async context)
-            Ok(handle) => handle.block_on(provider.validate_token(token)),
-
+        // Use existing runtime if available (e.g., when called from Rust async context)
+        let context = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(provider.validate_token(token))
+        } else {
             // Create a new single-threaded runtime for this validation
             // This allows calling from Python asyncio without requiring tokio runtime
-            Err(_) => {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|e| {
-                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                            "Failed to create tokio runtime: {e}"
-                        ))
-                    })?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "Failed to create tokio runtime: {e}"
+                    ))
+                })?;
 
-                rt.block_on(provider.validate_token(token))
-            }
+            rt.block_on(provider.validate_token(token))
         };
 
         let user_context = context.map_err(|e| {

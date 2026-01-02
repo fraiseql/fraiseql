@@ -301,6 +301,7 @@ mod apq_metrics_tests {
     use fraiseql_rs::apq::metrics::ApqMetrics;
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_metrics_initialization() {
         let metrics = ApqMetrics::default();
 
@@ -346,6 +347,7 @@ mod apq_metrics_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_metrics_hit_rate_perfect() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {
@@ -356,6 +358,7 @@ mod apq_metrics_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_metrics_hit_rate_zero() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {
@@ -420,6 +423,7 @@ mod apq_metrics_tests {
 mod apq_handler_tests {
     use fraiseql_rs::apq::backends::MemoryApqStorage;
     use fraiseql_rs::apq::hasher::hash_query;
+    use fraiseql_rs::apq::storage::ApqStorage;
     use fraiseql_rs::apq::{ApqExtensions, ApqHandler, ApqResponse, PersistedQuery};
     use std::sync::Arc;
 
@@ -464,7 +468,11 @@ mod apq_handler_tests {
         let hash = hash_query(&query);
 
         // Pre-populate cache
-        storage.set(hash.clone(), query.clone()).await.unwrap();
+        storage
+            .as_ref()
+            .set(hash.clone(), query.clone())
+            .await
+            .unwrap();
 
         let extensions = ApqExtensions {
             persisted_query: Some(PersistedQuery {
@@ -580,12 +588,21 @@ mod apq_integration_tests {
         let apq_size = hash.len();
 
         // APQ should be significantly smaller
+        #[allow(clippy::cast_precision_loss)]
         let reduction = (1.0 - (apq_size as f64 / full_size as f64)) * 100.0;
-        assert!(
-            reduction > 90.0,
-            "APQ bandwidth reduction: {:.1}%",
-            reduction
-        );
+        assert!(reduction > 90.0, "APQ bandwidth reduction: {reduction:.1}%");
+    }
+
+    async fn write_queries_to_storage(
+        storage: std::sync::Arc<MemoryApqStorage>,
+        i: usize,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        for j in 0..10 {
+            let hash = format!("hash_{i}_{j}");
+            let query = format!("query_{j}");
+            storage.as_ref().set(hash, query).await?;
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -598,18 +615,16 @@ mod apq_integration_tests {
         for i in 0..10 {
             let storage_clone = storage.clone();
             let handle = tokio::spawn(async move {
-                for j in 0..10 {
-                    let hash = format!("hash_{}_{}", i, j);
-                    let query = format!("query_{}", j);
-                    storage_clone.set(hash, query).await.unwrap();
-                }
+                write_queries_to_storage(storage_clone, i)
+                    .await
+                    .expect("Failed to write queries");
             });
             handles.push(handle);
         }
 
         // Wait for all to complete
         for handle in handles {
-            handle.await.unwrap();
+            handle.await.expect("Task failed");
         }
 
         // Verify total size

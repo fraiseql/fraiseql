@@ -98,9 +98,9 @@ pub enum EventBusConfig {
         /// Message TTL (seconds)
         message_ttl: u64,
     },
-    /// PostgreSQL event bus (fallback)
+    /// `PostgreSQL` event bus (fallback)
     PostgreSQL {
-        /// PostgreSQL connection string
+        /// `PostgreSQL` connection string
         connection_string: String,
         /// Listen channel prefix
         channel_prefix: String,

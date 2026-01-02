@@ -17,21 +17,31 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FederationDirective {
     /// @key(fields: "...") - Specifies entity key fields
-    Key { fields: Vec<String> },
+    Key {
+        /// Key field names
+        fields: Vec<String>,
+    },
 
     /// @external - Marks field as defined in another subgraph
     External,
 
     /// @requires(fields: "...") - Marks field dependencies
-    Requires { fields: Vec<String> },
+    Requires {
+        /// Required field names
+        fields: Vec<String>,
+    },
 
     /// @provides(fields: "...") - Marks eager field loading
-    Provides { fields: Vec<String> },
+    Provides {
+        /// Provided field names
+        fields: Vec<String>,
+    },
 }
 
 impl FederationDirective {
     /// Get directive name
-    pub fn name(&self) -> &'static str {
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Key { .. } => "key",
             Self::External => "external",
@@ -41,12 +51,14 @@ impl FederationDirective {
     }
 
     /// Check if this is an external directive
-    pub fn is_external(&self) -> bool {
+    #[must_use]
+    pub const fn is_external(&self) -> bool {
         matches!(self, Self::External)
     }
 
     /// Check if this directive has fields
-    pub fn has_fields(&self) -> bool {
+    #[must_use]
+    pub const fn has_fields(&self) -> bool {
         matches!(
             self,
             Self::Key { .. } | Self::Requires { .. } | Self::Provides { .. }
@@ -76,22 +88,39 @@ impl std::fmt::Display for FederationDirective {
 pub enum DirectiveError {
     /// Unknown directive
     #[error("Unknown directive: @{name}")]
-    UnknownDirective { name: String },
+    UnknownDirective {
+        /// Directive name
+        name: String,
+    },
 
     /// Missing required argument
     #[error("Directive @{directive} missing required argument: {argument}")]
-    MissingArgument { directive: String, argument: String },
+    MissingArgument {
+        /// Directive name
+        directive: String,
+        /// Argument name
+        argument: String,
+    },
 
     /// Invalid field list format
     #[error("Invalid field list format in @{directive}: {reason}")]
-    InvalidFieldList { directive: String, reason: String },
+    InvalidFieldList {
+        /// Directive name
+        directive: String,
+        /// Error description
+        reason: String,
+    },
 
     /// Incompatible directive combination
     #[error("Incompatible directives on field: {reason}")]
-    IncompatibleDirectives { reason: String },
+    IncompatibleDirectives {
+        /// Error description
+        reason: String,
+    },
 }
 
 /// Parser for Federation directives
+#[derive(Debug)]
 pub struct DirectiveParser;
 
 impl DirectiveParser {
@@ -105,6 +134,10 @@ impl DirectiveParser {
     /// # Returns
     ///
     /// `Ok(FederationDirective)` if parsing succeeds
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError` if directive is unknown or args are invalid
     pub fn parse(
         name: &str,
         args: &HashMap<String, String>,
@@ -122,13 +155,15 @@ impl DirectiveParser {
 
     /// Parse @key directive
     fn parse_key(args: &HashMap<String, String>) -> Result<FederationDirective, DirectiveError> {
-        let fields_str = args.get("fields").ok_or(DirectiveError::MissingArgument {
-            directive: "key".to_string(),
-            argument: "fields".to_string(),
-        })?;
+        let fields_str = args
+            .get("fields")
+            .ok_or_else(|| DirectiveError::MissingArgument {
+                directive: "key".to_string(),
+                argument: "fields".to_string(),
+            })?;
 
         let fields =
-            Self::parse_fields(fields_str).map_err(|_| DirectiveError::InvalidFieldList {
+            Self::parse_fields(fields_str).map_err(|()| DirectiveError::InvalidFieldList {
                 directive: "key".to_string(),
                 reason: "Invalid field list format".to_string(),
             })?;
@@ -147,13 +182,15 @@ impl DirectiveParser {
     fn parse_requires(
         args: &HashMap<String, String>,
     ) -> Result<FederationDirective, DirectiveError> {
-        let fields_str = args.get("fields").ok_or(DirectiveError::MissingArgument {
-            directive: "requires".to_string(),
-            argument: "fields".to_string(),
-        })?;
+        let fields_str = args
+            .get("fields")
+            .ok_or_else(|| DirectiveError::MissingArgument {
+                directive: "requires".to_string(),
+                argument: "fields".to_string(),
+            })?;
 
         let fields =
-            Self::parse_fields(fields_str).map_err(|_| DirectiveError::InvalidFieldList {
+            Self::parse_fields(fields_str).map_err(|()| DirectiveError::InvalidFieldList {
                 directive: "requires".to_string(),
                 reason: "Invalid field list format".to_string(),
             })?;
@@ -172,13 +209,15 @@ impl DirectiveParser {
     fn parse_provides(
         args: &HashMap<String, String>,
     ) -> Result<FederationDirective, DirectiveError> {
-        let fields_str = args.get("fields").ok_or(DirectiveError::MissingArgument {
-            directive: "provides".to_string(),
-            argument: "fields".to_string(),
-        })?;
+        let fields_str = args
+            .get("fields")
+            .ok_or_else(|| DirectiveError::MissingArgument {
+                directive: "provides".to_string(),
+                argument: "fields".to_string(),
+            })?;
 
         let fields =
-            Self::parse_fields(fields_str).map_err(|_| DirectiveError::InvalidFieldList {
+            Self::parse_fields(fields_str).map_err(|()| DirectiveError::InvalidFieldList {
                 directive: "provides".to_string(),
                 reason: "Invalid field list format".to_string(),
             })?;
@@ -212,9 +251,9 @@ impl DirectiveParser {
         // Split by space or comma, filter empties
         let fields: Vec<String> = content
             .split([' ', ','])
-            .map(|s| s.trim())
+            .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
 
         if fields.is_empty() {
@@ -227,6 +266,10 @@ impl DirectiveParser {
     /// Validate directive combination on a field
     ///
     /// Ensures directives used together are compatible
+    ///
+    /// # Errors
+    ///
+    /// Returns `DirectiveError` if directives are incompatible
     pub fn validate_combination(directives: &[FederationDirective]) -> Result<(), DirectiveError> {
         // Check for incompatible combinations
         let has_key = directives

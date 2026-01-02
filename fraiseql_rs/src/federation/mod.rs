@@ -1,4 +1,4 @@
-//! Apollo Federation 2.0 support for FraiseQL
+//! Apollo Federation 2.0 support for `FraiseQL`
 //!
 //! Implements Federation Lite and Federation Standard modes with auto-key detection,
 //! automatic entity resolution, and schema generation.

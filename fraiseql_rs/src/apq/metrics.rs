@@ -170,12 +170,14 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_hit_rate_no_requests() {
         let metrics = ApqMetrics::default();
         assert_eq!(metrics.hit_rate(), 0.0);
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_hit_rate_all_hits() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {
@@ -185,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_hit_rate_all_misses() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {

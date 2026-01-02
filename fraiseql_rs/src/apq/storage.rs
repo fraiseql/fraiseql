@@ -1,7 +1,7 @@
 //! Storage trait and types for APQ backends
 //!
 //! This module defines the abstract storage interface that all APQ backends must implement,
-//! allowing for pluggable storage backends (memory, PostgreSQL, etc.).
+//! allowing for pluggable storage backends (memory, `PostgreSQL`, etc.).
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -10,7 +10,7 @@ use serde_json::json;
 ///
 /// Implementations of this trait provide different storage strategies:
 /// - Memory: In-process LRU cache (single instance, fast)
-/// - PostgreSQL: Distributed storage (multi-instance, persistent)
+/// - `PostgreSQL`: Distributed storage (multi-instance, persistent)
 #[async_trait]
 pub trait ApqStorage: Send + Sync {
     /// Get query by hash
@@ -106,7 +106,11 @@ impl ApqStats {
 
     /// Create new statistics with extra data
     #[must_use]
-    pub fn with_extra(total_queries: usize, backend: String, extra: serde_json::Value) -> Self {
+    pub const fn with_extra(
+        total_queries: usize,
+        backend: String,
+        extra: serde_json::Value,
+    ) -> Self {
         Self {
             total_queries,
             backend,
@@ -134,7 +138,7 @@ pub enum ApqError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
-    /// Database error (for PostgreSQL backend)
+    /// Database error (for `PostgreSQL` backend)
     #[error("Database error: {0}")]
     DatabaseError(String),
 

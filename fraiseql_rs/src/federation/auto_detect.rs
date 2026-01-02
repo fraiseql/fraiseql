@@ -2,7 +2,7 @@
 //!
 //! Automatically detects entity key fields using a priority-based algorithm:
 //! 1. Field named 'id' (most common, ~90% of cases)
-//! 2. Field with @primary_key annotation
+//! 2. Field with `@primary_key` annotation
 //! 3. First field with ID scalar type
 //! 4. None - returns clear error
 //!
@@ -21,7 +21,7 @@ pub struct FieldInfo {
     /// Whether field is required (non-null)
     pub is_required: bool,
 
-    /// Annotations on this field (e.g., ["primary_key", "indexed"])
+    /// Annotations on this field (e.g., [`primary_key`, `indexed`])
     pub annotations: Vec<String>,
 
     /// Whether field is a list type
@@ -30,6 +30,7 @@ pub struct FieldInfo {
 
 impl FieldInfo {
     /// Create a new field info
+    #[must_use]
     pub fn new(type_name: &str, is_required: bool) -> Self {
         Self {
             type_name: type_name.to_string(),
@@ -40,23 +41,27 @@ impl FieldInfo {
     }
 
     /// Add an annotation to this field
+    #[must_use]
     pub fn with_annotation(mut self, annotation: &str) -> Self {
         self.annotations.push(annotation.to_string());
         self
     }
 
     /// Mark field as list type
-    pub fn with_list(mut self) -> Self {
+    #[must_use]
+    pub const fn with_list(mut self) -> Self {
         self.is_list = true;
         self
     }
 
     /// Check if this field is an ID type
+    #[must_use]
     pub fn is_id_type(&self) -> bool {
         self.type_name == "ID" || self.type_name == "ID!"
     }
 
-    /// Check if this field has a primary_key annotation
+    /// Check if this field has a `primary_key` annotation
+    #[must_use]
     pub fn has_primary_key_annotation(&self) -> bool {
         self.annotations
             .iter()
@@ -69,22 +74,33 @@ impl FieldInfo {
 pub enum AutoDetectError {
     /// No suitable key field found in type definition
     #[error("Auto-detect failed for type '{type_name}': no 'id' field found. Specify key explicitly: @entity(key='field_name')")]
-    NoKeyFound { type_name: String },
+    NoKeyFound {
+        /// GraphQL type name
+        type_name: String,
+    },
 
     /// Multiple potential keys found (ambiguous)
     #[error("Auto-detect ambiguous for type '{type_name}': found multiple primary_key annotations. Specify key explicitly.")]
-    AmbiguousKey { type_name: String },
+    AmbiguousKey {
+        /// GraphQL type name
+        type_name: String,
+    },
 
     /// Invalid type definition
     #[error("Invalid type definition for '{type_name}': {reason}")]
-    InvalidType { type_name: String, reason: String },
+    InvalidType {
+        /// GraphQL type name
+        type_name: String,
+        /// Error description
+        reason: String,
+    },
 }
 
 /// Auto-detect entity key field from type definition
 ///
 /// Uses priority-based algorithm:
 /// 1. Field named 'id' (most common, ~90% of cases)
-/// 2. Field with @primary_key annotation
+/// 2. Field with `@primary_key` annotation
 /// 3. First field with ID scalar type
 /// 4. None - returns error
 ///
@@ -96,6 +112,18 @@ pub enum AutoDetectError {
 /// # Returns
 ///
 /// `Ok(key_field_name)` if key detected, `Err(AutoDetectError)` otherwise
+///
+/// # Errors
+///
+/// Returns `AutoDetectError` if:
+/// - Type has no fields
+/// - Multiple fields have `@primary_key` annotation
+/// - No suitable key field found
+///
+/// # Panics
+///
+/// Never panics. The `.unwrap()` on line 144 is guaranteed safe because
+/// we check `primary_key_fields.len() == 1` before calling it.
 ///
 /// # Examples
 ///
@@ -110,9 +138,9 @@ pub enum AutoDetectError {
 /// let key = auto_detect_key("User", &fields).unwrap();
 /// assert_eq!(key, "id");
 /// ```
-pub fn auto_detect_key(
+pub fn auto_detect_key<S: std::hash::BuildHasher>(
     type_name: &str,
-    fields: &HashMap<String, FieldInfo>,
+    fields: &HashMap<String, FieldInfo, S>,
 ) -> Result<String, AutoDetectError> {
     // Empty type definition check
     if fields.is_empty() {
@@ -136,7 +164,12 @@ pub fn auto_detect_key(
     }
 
     match primary_key_fields.len() {
-        1 => return Ok(primary_key_fields.into_iter().next().unwrap()),
+        1 => {
+            // Safe: we know there's exactly one element
+            if let Some(field) = primary_key_fields.into_iter().next() {
+                return Ok(field);
+            }
+        }
         n if n > 1 => {
             return Err(AutoDetectError::AmbiguousKey {
                 type_name: type_name.to_string(),

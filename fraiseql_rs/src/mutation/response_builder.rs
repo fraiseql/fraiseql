@@ -680,8 +680,7 @@ mod tests {
             let obj = response.as_object().unwrap();
             assert_eq!(
                 obj["code"], expected_code,
-                "Status '{}' should map to HTTP code {}",
-                status_str, expected_code
+                "Status '{status_str}' should map to HTTP code {expected_code}"
             );
         }
     }

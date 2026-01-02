@@ -454,8 +454,7 @@ fn test_large_cascade_payload() {
     let mut updated = Vec::new();
     for i in 0..100 {
         updated.push(format!(
-            r#"{{"__typename": "Post", "id": "{}", "entity": {{"id": "{}", "title": "Title {}", "content": "Content {}"}}}}"#,
-            i, i, i, i
+            r#"{{"__typename": "Post", "id": "{i}", "entity": {{"id": "{i}", "title": "Title {i}", "content": "Content {i}"}}}}"#
         ));
     }
 

@@ -1,3 +1,5 @@
+//! Test binary for zero-copy transformer validation
+
 use fraiseql_rs::core::arena::Arena;
 use fraiseql_rs::core::transform::{ByteBuf, TransformConfig, ZeroCopyTransformer};
 
@@ -8,7 +10,7 @@ fn main() {
 
     // Test data
     let json_input = r#"{"id":123,"first_name":"John","last_name":"Doe","email":"john@example.com","is_active":true}"#;
-    println!("📝 Input JSON: {}", json_input);
+    println!("📝 Input JSON: {json_input}");
     println!();
 
     // Setup arena
@@ -24,7 +26,7 @@ fn main() {
     };
 
     // Create transformer
-    let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
+    let mut transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
     // Transform
     let mut output = ByteBuf::with_estimated_capacity(json_input.len(), &config);
@@ -34,16 +36,15 @@ fn main() {
             let result = output.into_vec();
             let result_str = String::from_utf8_lossy(&result);
             println!("✅ Transformation successful!");
-            println!("📤 Output: {}", result_str);
+            println!("📤 Output: {result_str}");
             println!("📏 Input size: {} bytes", json_input.len());
             println!("📏 Output size: {} bytes", result.len());
-            println!(
-                "📈 Overhead: {:.1}x",
-                result.len() as f64 / json_input.len() as f64
-            );
+            #[allow(clippy::cast_precision_loss)]
+            let overhead = result.len() as f64 / json_input.len() as f64;
+            println!("📈 Overhead: {overhead:.1}x");
         }
         Err(e) => {
-            println!("❌ Transformation failed: {:?}", e);
+            println!("❌ Transformation failed: {e:?}");
         }
     }
 

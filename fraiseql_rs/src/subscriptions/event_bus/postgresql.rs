@@ -1,6 +1,6 @@
-//! PostgreSQL event bus implementation (fallback)
+//! `PostgreSQL` event bus implementation (fallback)
 //!
-//! Fallback event bus using PostgreSQL LISTEN/NOTIFY for local deployments
+//! Fallback event bus using `PostgreSQL` LISTEN/NOTIFY for local deployments
 //! and as backup when Redis is unavailable.
 
 use crate::subscriptions::event_bus::{Event, EventBusStats, EventStream};
@@ -9,10 +9,10 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-/// PostgreSQL event bus configuration
+/// `PostgreSQL` event bus configuration
 #[derive(Debug, Clone)]
 pub struct PostgreSQLConfig {
-    /// PostgreSQL connection string
+    /// `PostgreSQL` connection string
     pub connection_string: String,
 
     /// Channel prefix for LISTEN/NOTIFY
@@ -28,7 +28,7 @@ impl Default for PostgreSQLConfig {
     }
 }
 
-/// PostgreSQL event bus using LISTEN/NOTIFY
+/// `PostgreSQL` event bus using LISTEN/NOTIFY
 pub struct PostgreSQLEventBus {
     /// Configuration
     config: Arc<PostgreSQLConfig>,
@@ -41,7 +41,7 @@ pub struct PostgreSQLEventBus {
 }
 
 impl PostgreSQLEventBus {
-    /// Create new PostgreSQL event bus
+    /// Create new `PostgreSQL` event bus
     pub async fn new(connection_string: &str) -> Result<Self, SubscriptionError> {
         let config = PostgreSQLConfig {
             connection_string: connection_string.to_string(),
@@ -50,7 +50,7 @@ impl PostgreSQLEventBus {
         Self::with_config(config).await
     }
 
-    /// Create PostgreSQL event bus with configuration
+    /// Create `PostgreSQL` event bus with configuration
     pub async fn with_config(config: PostgreSQLConfig) -> Result<Self, SubscriptionError> {
         // Verify connection can be established
         // Note: Full PostgreSQL async connection pool would be implemented here
@@ -77,7 +77,7 @@ impl PostgreSQLEventBus {
         format!("{}_{}", self.config.channel_prefix, channel)
     }
 
-    /// Publish event to PostgreSQL NOTIFY channel
+    /// Publish event to `PostgreSQL` NOTIFY channel
     async fn notify_channel(&self, event: &Event) -> Result<(), SubscriptionError> {
         let channel_name = self.build_channel_name(&event.channel);
         let payload = serde_json::to_string(&event)

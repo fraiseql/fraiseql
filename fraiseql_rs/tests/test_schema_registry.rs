@@ -1,7 +1,8 @@
-/// Tests for `SchemaRegistry` module
-///
-/// These tests verify the Rust-side schema registry that stores GraphQL type metadata
-/// for use in type resolution and JSON transformation.
+//! Tests for `SchemaRegistry` module
+//!
+//! These tests verify the Rust-side schema registry that stores GraphQL type metadata
+//! for use in type resolution and JSON transformation.
+
 use fraiseql_rs::schema_registry::SchemaRegistry;
 
 #[cfg(test)]

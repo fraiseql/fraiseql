@@ -1,3 +1,5 @@
+//! Test binary for full pipeline validation
+
 use fraiseql_rs::pipeline::builder::build_graphql_response;
 
 fn main() {
@@ -13,7 +15,7 @@ fn main() {
 
     // Test the full pipeline
     match build_graphql_response(
-        json_rows,
+        &json_rows,
         "users",
         Some("User"),
         None, // No field projection
@@ -31,10 +33,14 @@ fn main() {
             match serde_json::from_slice::<serde_json::Value>(&bytes) {
                 Ok(parsed) => {
                     println!("✅ Valid JSON structure!");
-                    println!(
-                        "📊 Structure: {}",
-                        serde_json::to_string_pretty(&parsed).unwrap()
-                    );
+                    match serde_json::to_string_pretty(&parsed) {
+                        Ok(pretty) => {
+                            println!("📊 Structure: {pretty}");
+                        }
+                        Err(e) => {
+                            println!("❌ Failed to format JSON: {e:?}");
+                        }
+                    }
                 }
                 Err(e) => {
                     println!("❌ Invalid JSON: {e:?}");

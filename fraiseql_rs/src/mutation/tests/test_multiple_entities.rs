@@ -1,6 +1,6 @@
 /// Tests for multiple entity fields in Success/Error types
 ///
-/// This pattern is used in PrintOptim for conflict scenarios, before/after states,
+/// This pattern is used in `PrintOptim` for conflict scenarios, before/after states,
 /// and related entities in mutation responses.
 use super::*;
 
