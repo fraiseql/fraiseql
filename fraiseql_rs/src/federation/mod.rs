@@ -11,9 +11,11 @@
 //! - **Advanced**: All 18 directives (5% of users, Phase 17b)
 
 pub mod auto_detect;
+pub mod directives;
 pub mod entities_resolver;
 
 pub use auto_detect::{auto_detect_key, AutoDetectError, FieldInfo};
+pub use directives::{DirectiveError, DirectiveParser, FederationDirective};
 pub use entities_resolver::{EntityMetadata, EntityResolver, EntityResolverError};
 
 /// Version of federation support

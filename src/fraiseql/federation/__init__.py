@@ -31,9 +31,17 @@ from .decorators import (
     get_entity_metadata,
     get_entity_registry,
 )
+from .directives import (
+    DirectiveMetadata,
+    get_directives,
+    get_method_directives,
+    provides,
+    requires,
+)
 from .entities import EntitiesResolver
 
 __all__ = [
+    "DirectiveMetadata",
     "EntitiesResolver",
     "FederationConfig",
     "Presets",
@@ -41,6 +49,10 @@ __all__ = [
     "entity",
     "extend_entity",
     "external",
+    "get_directives",
     "get_entity_metadata",
     "get_entity_registry",
+    "get_method_directives",
+    "provides",
+    "requires",
 ]
