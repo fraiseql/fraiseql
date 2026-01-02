@@ -22,6 +22,13 @@ Example:
     >>> schema = Schema(federation=True)
 """
 
+from .computed_fields import (
+    ComputedField,
+    ComputedFieldValidator,
+    extract_computed_fields,
+    get_all_field_dependencies,
+    validate_all_computed_fields,
+)
 from .config import FederationConfig, Presets
 from .decorators import (
     clear_entity_registry,
@@ -46,6 +53,8 @@ from .external_fields import (
 )
 
 __all__ = [
+    "ComputedField",
+    "ComputedFieldValidator",
     "DirectiveMetadata",
     "EntitiesResolver",
     "ExternalFieldInfo",
@@ -56,11 +65,14 @@ __all__ = [
     "entity",
     "extend_entity",
     "external",
+    "extract_computed_fields",
     "extract_external_fields",
+    "get_all_field_dependencies",
     "get_directives",
     "get_entity_metadata",
     "get_entity_registry",
     "get_method_directives",
     "provides",
     "requires",
+    "validate_all_computed_fields",
 ]
