@@ -30,7 +30,7 @@ impl AuditLevel {
     }
 
     /// Parse from string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "INFO" => AuditLevel::INFO,
             "WARN" => AuditLevel::WARN,
@@ -194,7 +194,7 @@ impl AuditLogger {
                 AuditEntry {
                     id,
                     timestamp,
-                    level: AuditLevel::from_str(&level_str),
+                    level: AuditLevel::parse(&level_str),
                     user_id,
                     tenant_id,
                     operation,

@@ -15,18 +15,24 @@
 
 pub mod config;
 pub mod connection_manager;
+pub mod consumer_group;
 pub mod event_bus;
+pub mod event_filter;
 pub mod executor;
+pub mod heartbeat;
+pub mod metrics;
 pub mod protocol;
 pub mod rate_limiter;
 pub mod websocket;
 
-// Metrics module will be created in Week 2
-
 pub use config::{SubscriptionConfig, SubscriptionLimits};
 pub use connection_manager::ConnectionManager;
+pub use consumer_group::{ConsumerGroupId, ConsumerId, ConsumerGroupManager};
 pub use event_bus::{EventBus, Event, EventStream, InMemoryEventBus};
+pub use event_filter::{EventFilter, FilterCondition};
 pub use executor::SubscriptionExecutor;
+pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
+pub use metrics::SubscriptionMetrics;
 pub use protocol::{GraphQLMessage, SubscriptionMessage};
 pub use rate_limiter::SubscriptionRateLimiter;
 pub use websocket::{WebSocketConnection, WebSocketServer};

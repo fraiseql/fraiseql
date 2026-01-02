@@ -128,6 +128,17 @@ tokio = { version = "1.35", features = ["full"] }  # Async runtime
 governor = "0.6"            # Rate limiting (token bucket algorithm)
 ipnetwork = "0.20"          # IP parsing for CIDR matching
 
+# Phase 15: Real-time & Caching (GraphQL Subscriptions + APQ)
+tokio-tungstenite = "0.21"  # WebSocket support
+tungstenite = "0.21"        # WebSocket protocol
+futures-util = "0.3"         # Async utilities for WebSocket
+tokio-stream = "0.1"         # Async streams
+async-stream = "0.3"         # Async stream utilities
+dashmap = "5.5"              # Concurrent HashMap for connections
+redis = { version = "0.24", features = ["tokio-comp", "streams"] } # Redis event bus
+prometheus = "0.13"          # Metrics collection
+# pyo3-asyncio for Phase 15b when implementing subscriptions
+
 [dev-dependencies]
 # Testing framework
 tokio-test = "0.4"                    # Async runtime for tests

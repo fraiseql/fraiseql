@@ -52,7 +52,7 @@ impl PyIpFilter {
     #[new]
     fn new(allowlist: Vec<String>, blocklist: Vec<String>) -> PyResult<Self> {
         let filter = IpFilter::new(allowlist, blocklist)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e))?;
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         Ok(Self { filter })
     }
@@ -98,9 +98,9 @@ impl PyAuditLogger {
     /// Create a new audit logger
     #[new]
     fn new(pool: &crate::db::pool::DatabasePool) -> PyResult<Self> {
-        let deadpool = pool
-            .get_pool()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Pool not available"))?;
+        let deadpool = pool.get_pool().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Pool not available")
+        })?;
 
         Ok(Self {
             logger: AuditLogger::new(std::sync::Arc::new(deadpool)),
@@ -126,11 +126,15 @@ impl PyAuditLogger {
         let logger = self.logger.clone();
 
         // Parse level
-        let audit_level = AuditLevel::from_str(&level);
+        let audit_level = AuditLevel::parse(&level);
 
         // Parse variables JSON
-        let variables_value: serde_json::Value = serde_json::from_str(&variables)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid JSON in variables: {}", e)))?;
+        let variables_value: serde_json::Value = serde_json::from_str(&variables).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid JSON in variables: {}",
+                e
+            ))
+        })?;
 
         future_into_py(py, async move {
             let entry = AuditEntry {
@@ -148,8 +152,12 @@ impl PyAuditLogger {
                 duration_ms,
             };
 
-            let id = logger.log(entry).await
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to log audit entry: {}", e)))?;
+            let id = logger.log(entry).await.map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to log audit entry: {}",
+                    e
+                ))
+            })?;
 
             Ok(id)
         })
@@ -164,11 +172,18 @@ impl PyAuditLogger {
         limit: i64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let logger = self.logger.clone();
-        let audit_level = level.map(|l| AuditLevel::from_str(&l));
+        let audit_level = level.map(|l| AuditLevel::parse(&l));
 
         future_into_py(py, async move {
-            let entries = logger.get_recent_logs(tenant_id, audit_level, limit).await
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to get audit logs: {}", e)))?;
+            let entries = logger
+                .get_recent_logs(tenant_id, audit_level, limit)
+                .await
+                .map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "Failed to get audit logs: {}",
+                        e
+                    ))
+                })?;
 
             // Convert entries to Python dicts
             let result: Vec<PyObject> = entries

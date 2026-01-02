@@ -4,6 +4,7 @@
 
 use crate::subscriptions::config::WebSocketConfig;
 use crate::subscriptions::connection_manager::{ConnectionManager, ConnectionMetadata};
+use crate::subscriptions::metrics::SubscriptionMetrics;
 use crate::subscriptions::protocol::GraphQLMessage;
 use crate::subscriptions::SubscriptionError;
 use serde_json::Value;
@@ -189,6 +190,9 @@ pub struct WebSocketServer {
 
     /// WebSocket configuration
     config: Arc<WebSocketConfig>,
+
+    /// Optional metrics collector
+    metrics: Option<Arc<SubscriptionMetrics>>,
 }
 
 impl WebSocketServer {
@@ -201,6 +205,21 @@ impl WebSocketServer {
             connections: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             connection_manager,
             config,
+            metrics: None,
+        }
+    }
+
+    /// Create WebSocket server with metrics
+    pub fn with_metrics(
+        connection_manager: Arc<ConnectionManager>,
+        config: Arc<WebSocketConfig>,
+        metrics: Arc<SubscriptionMetrics>,
+    ) -> Self {
+        Self {
+            connections: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            connection_manager,
+            config,
+            metrics: Some(metrics),
         }
     }
 
@@ -227,17 +246,31 @@ impl WebSocketServer {
             .unwrap()
             .insert(connection.connection_id, connection.clone());
 
+        // Record metrics
+        if let Some(metrics) = &self.metrics {
+            metrics.record_connection_created();
+        }
+
         Ok(connection)
     }
 
     /// Unregister connection
     pub fn unregister_connection(&self, connection_id: Uuid) -> Result<(), SubscriptionError> {
-        // Remove from local tracking
-        self.connections.lock().unwrap().remove(&connection_id);
+        // Get connection before removing to record metrics
+        let connection = self.connections.lock().unwrap().remove(&connection_id);
 
         // Unregister from connection manager
         self.connection_manager
             .unregister_connection(connection_id)?;
+
+        // Record metrics
+        if let Some(metrics) = &self.metrics {
+            metrics.record_connection_closed();
+            if let Some(conn) = connection {
+                let uptime_secs = conn.uptime().as_secs_f64();
+                metrics.record_connection_uptime(uptime_secs);
+            }
+        }
 
         Ok(())
     }
