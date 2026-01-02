@@ -56,6 +56,12 @@ from .sdl_generator import (
     generate_entity_sdl,
     generate_schema_sdl,
 )
+from .service_query import (
+    ServiceQueryResolver,
+    create_service_resolver,
+    get_default_resolver,
+    reset_default_resolver,
+)
 
 __all__ = [
     "ComputedField",
@@ -67,7 +73,9 @@ __all__ = [
     "FederationConfig",
     "Presets",
     "SDLGenerator",
+    "ServiceQueryResolver",
     "clear_entity_registry",
+    "create_service_resolver",
     "entity",
     "extend_entity",
     "external",
@@ -76,11 +84,13 @@ __all__ = [
     "generate_entity_sdl",
     "generate_schema_sdl",
     "get_all_field_dependencies",
+    "get_default_resolver",
     "get_directives",
     "get_entity_metadata",
     "get_entity_registry",
     "get_method_directives",
     "provides",
     "requires",
+    "reset_default_resolver",
     "validate_all_computed_fields",
 ]
