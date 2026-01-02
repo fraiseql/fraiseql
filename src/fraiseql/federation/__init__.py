@@ -39,16 +39,24 @@ from .directives import (
     requires,
 )
 from .entities import EntitiesResolver
+from .external_fields import (
+    ExternalFieldInfo,
+    ExternalFieldManager,
+    extract_external_fields,
+)
 
 __all__ = [
     "DirectiveMetadata",
     "EntitiesResolver",
+    "ExternalFieldInfo",
+    "ExternalFieldManager",
     "FederationConfig",
     "Presets",
     "clear_entity_registry",
     "entity",
     "extend_entity",
     "external",
+    "extract_external_fields",
     "get_directives",
     "get_entity_metadata",
     "get_entity_registry",
