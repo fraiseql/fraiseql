@@ -1,12 +1,13 @@
 """Tests for Federation _entities resolver."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from fraiseql.federation import (
-    entity,
     EntitiesResolver,
     clear_entity_registry,
+    entity,
 )
 
 
@@ -200,7 +201,7 @@ class TestEntitiesResolver:
                     "data": {"id": "user-1", "name": "John"},
                 }.get(key)
                 return [mock_row]
-            elif "tv_post" in sql:
+            if "tv_post" in sql:
                 mock_row = MagicMock()
                 mock_row.__getitem__ = lambda self, key: {
                     "id": "post-1",

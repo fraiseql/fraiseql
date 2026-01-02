@@ -3,12 +3,12 @@
 import pytest
 
 from fraiseql.federation import (
+    clear_entity_registry,
     entity,
     extend_entity,
     external,
-    get_entity_registry,
     get_entity_metadata,
-    clear_entity_registry,
+    get_entity_registry,
 )
 
 

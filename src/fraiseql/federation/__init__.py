@@ -51,6 +51,11 @@ from .external_fields import (
     ExternalFieldManager,
     extract_external_fields,
 )
+from .sdl_generator import (
+    SDLGenerator,
+    generate_entity_sdl,
+    generate_schema_sdl,
+)
 
 __all__ = [
     "ComputedField",
@@ -61,12 +66,15 @@ __all__ = [
     "ExternalFieldManager",
     "FederationConfig",
     "Presets",
+    "SDLGenerator",
     "clear_entity_registry",
     "entity",
     "extend_entity",
     "external",
     "extract_computed_fields",
     "extract_external_fields",
+    "generate_entity_sdl",
+    "generate_schema_sdl",
     "get_all_field_dependencies",
     "get_directives",
     "get_entity_metadata",

@@ -9,7 +9,7 @@ from fraiseql.federation.computed_fields import (
     validate_all_computed_fields,
 )
 from fraiseql.federation.decorators import extend_entity, external
-from fraiseql.federation.directives import requires, provides
+from fraiseql.federation.directives import provides, requires
 
 
 class TestComputedField:
