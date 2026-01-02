@@ -225,6 +225,15 @@ class EntityDataLoader:
         Groups requests by (typename, key_field) and executes one
         database query per group.
         """
+        # Cancel any pending flush task since we're flushing now
+        if self._flush_task and not self._flush_task.done():
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+            self._flush_task = None
+
         if not self._pending_requests:
             return
 

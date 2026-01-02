@@ -22,6 +22,11 @@ Example:
     >>> schema = Schema(federation=True)
 """
 
+from .batch_executor import (
+    BatchExecutor,
+    ConcurrentBatchExecutor,
+    PerRequestBatchExecutor,
+)
 from .computed_fields import (
     ComputedField,
     ComputedFieldValidator,
@@ -65,8 +70,10 @@ from .service_query import (
 )
 
 __all__ = [
+    "BatchExecutor",
     "ComputedField",
     "ComputedFieldValidator",
+    "ConcurrentBatchExecutor",
     "DataLoaderStats",
     "DirectiveMetadata",
     "EntitiesResolver",
@@ -74,6 +81,7 @@ __all__ = [
     "ExternalFieldInfo",
     "ExternalFieldManager",
     "FederationConfig",
+    "PerRequestBatchExecutor",
     "Presets",
     "SDLGenerator",
     "ServiceQueryResolver",
