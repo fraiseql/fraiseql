@@ -21,9 +21,7 @@ from fraiseql.where_clause import VECTOR_OPERATORS, FieldCondition, WhereClause
 logger = logging.getLogger(__name__)
 
 # Phase 7.2: Feature flag for Rust WHERE normalization
-USE_RUST_WHERE_NORMALIZATION = os.environ.get(
-    "FRAISEQL_USE_RUST_WHERE", "true"
-).lower() == "true"
+USE_RUST_WHERE_NORMALIZATION = os.environ.get("FRAISEQL_USE_RUST_WHERE", "true").lower() == "true"
 
 
 def normalize_dict_where(

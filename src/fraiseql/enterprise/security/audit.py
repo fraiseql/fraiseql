@@ -179,4 +179,4 @@ class AuditLogger:
         return logs
 
 
-__all__ = ["AuditLogger", "AuditLevel"]
+__all__ = ["AuditLevel", "AuditLogger"]

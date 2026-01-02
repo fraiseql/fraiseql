@@ -10,10 +10,13 @@ Performance:
 """
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from fraiseql.enterprise.rbac.models import Permission
+
+if TYPE_CHECKING:
+    from fraiseql.db import DatabasePool
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,7 @@ class RustPermissionResolver:
         ```
     """
 
-    def __init__(self, pool, cache_capacity: int = 10000):
+    def __init__(self, pool: "DatabasePool", cache_capacity: int = 10000) -> None:
         """Initialize Rust-based permission resolver.
 
         Args:
@@ -58,8 +61,7 @@ class RustPermissionResolver:
         """
         if not HAS_RUST_RBAC:
             raise RuntimeError(
-                "Rust RBAC extension not available. "
-                "Rebuild with: maturin develop --release"
+                "Rust RBAC extension not available. Rebuild with: maturin develop --release"
             )
 
         self._rust_resolver = PyPermissionResolver(pool, cache_capacity)
@@ -190,7 +192,9 @@ class RustPermissionResolver:
 
 
 # Convenience function for backward compatibility
-def create_rust_resolver(pool, cache_capacity: int = 10000) -> RustPermissionResolver:
+def create_rust_resolver(
+    pool: "DatabasePool", cache_capacity: int = 10000
+) -> RustPermissionResolver:
     """Create Rust-based permission resolver.
 
     This is a convenience function that wraps RustPermissionResolver
