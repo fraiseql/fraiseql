@@ -30,6 +30,7 @@ from .computed_fields import (
     validate_all_computed_fields,
 )
 from .config import FederationConfig, Presets
+from .dataloader import DataLoaderStats, EntityDataLoader
 from .decorators import (
     clear_entity_registry,
     entity,
@@ -66,8 +67,10 @@ from .service_query import (
 __all__ = [
     "ComputedField",
     "ComputedFieldValidator",
+    "DataLoaderStats",
     "DirectiveMetadata",
     "EntitiesResolver",
+    "EntityDataLoader",
     "ExternalFieldInfo",
     "ExternalFieldManager",
     "FederationConfig",
