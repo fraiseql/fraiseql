@@ -84,10 +84,21 @@ class EntityMetadata:
 
         Raises:
             ValueError: If key cannot be determined and no explicit key provided
+            ValueError: If explicit key field does not exist on the class
         """
         # Explicit key provided
         if self.key is not None:
-            return validate_key_field(self.cls, self.key) if isinstance(self.key, str) else self.key
+            if isinstance(self.key, str):
+                # Validate single key field exists
+                return validate_key_field(self.cls, self.key)
+            # Validate composite key fields all exist
+            for field in self.key:
+                if field not in self.fields:
+                    raise ValueError(
+                        f"Key field '{field}' not found in {self.type_name}. "
+                        f"Available fields: {list(self.fields.keys())}"
+                    )
+            return self.key
 
         # Auto-detect key
         detected = auto_detect_key_python(self.cls)
@@ -235,29 +246,45 @@ def extend_entity(
 
     Used for entities defined in other subgraphs that this subgraph
     wants to add fields to. Fields marked with external() are
-    defined in the other subgraph.
+    defined in the other subgraph. New fields (without external())
+    can be added to compute data or reference related entities.
 
     Args:
-        cls: The class to decorate (set automatically)
-        key: Reference key to parent entity (required)
+        cls: The class to decorate (set automatically when used as decorator)
+        key: Reference key to parent entity (required). Single field name
+             or list of field names for composite keys. Must match the key
+             from the entity's originating subgraph.
 
     Returns:
         Decorated class with federation extension metadata
 
     Raises:
-        TypeError: If key is not provided
+        ValueError: If key is not provided
+        ValueError: If any key field doesn't exist on the class
 
-    Example:
+    Examples:
+        Extend product with reviews (single key):
         >>> from fraiseql.federation import extend_entity, external
         >>>
         >>> @extend_entity(key="id")
         ... class Product:
-        ...     id: str = external()  # From other subgraph
-        ...     name: str = external()  # From other subgraph
-        ...     reviews: list["Review"]  # New field in this subgraph
+        ...     id: str = external()  # From products subgraph
+        ...     name: str = external()  # From products subgraph
+        ...     reviews: list["Review"]  # New field added by reviews subgraph
+
+        Extend with computed field using @requires:
+        >>> from fraiseql.federation import extend_entity, external, requires
+        >>>
+        >>> @extend_entity(key="id")
+        ... class Product:
+        ...     id: str = external()
+        ...     price: float = external()
+        ...     currency: str = external()
         ...
-        ...     async def review_count(self) -> int:
-        ...         return len(self.reviews)
+        ...     @requires("price currency")
+        ...     async def price_in_cents(self) -> int:
+        ...         '''Computed field using required external fields'''
+        ...         return int(self.price * 100)
     """
 
     def decorator(cls_to_decorate: Type[T]) -> Type[T]:

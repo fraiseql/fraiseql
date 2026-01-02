@@ -11,7 +11,36 @@ Progressive modes:
 - Standard: With extensions (15% of users)
 - Advanced: All 18 directives (5% of users, Phase 17b)
 
-Example:
+## API Tiers
+
+The federation module provides APIs at different levels of complexity:
+
+### Core API (Most Users - Start Here!)
+
+Use these for typical federation setup:
+- **@entity**: Mark types as federated entities
+- **@extend_entity**: Extend entities from other subgraphs
+- **external()**: Mark fields from other subgraphs
+- **@requires, @provides**: Define field dependencies
+- **FederationConfig, Presets**: Configuration (LITE, STANDARD, ADVANCED)
+
+### Advanced API (Framework Integration)
+
+Used by framework integrators and advanced scenarios:
+- **EntitiesResolver**: Low-level entity resolution
+- **EntityDataLoader, BatchExecutor**: Batch execution control
+- **extract_computed_fields(), extract_external_fields()**: Introspection
+- **ServiceQueryResolver**: Schema introspection handling
+
+### Internal API (Do Not Use)
+
+These are internal and subject to change:
+- Registry functions: get_entity_registry(), clear_entity_registry()
+- Direct metadata access: get_entity_metadata()
+
+## Quick Start
+
+Simple federation with auto-keys:
     >>> from fraiseql import Schema, entity
     >>>
     >>> @entity  # Auto-detects 'id' as key
@@ -20,6 +49,18 @@ Example:
     ...     name: str
     ...
     >>> schema = Schema(federation=True)
+
+Extend entities with computed fields:
+    >>> from fraiseql.federation import extend_entity, external, requires
+    >>>
+    >>> @extend_entity(key="id")
+    ... class Product:
+    ...     id: str = external()
+    ...     price: float = external()
+    ...
+    ...     @requires("price")
+    ...     async def price_in_cents(self) -> int:
+    ...         return int(self.price * 100)
 """
 
 from .batch_executor import (

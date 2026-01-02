@@ -68,14 +68,55 @@ class FederationConfig:
 class Presets:
     """Federation configuration presets for common use cases.
 
+    Three preset modes balance simplicity vs power, accommodating 95% of federation use cases.
+
     Attributes:
-        LITE: Auto-keys only (80% of users) - simplest configuration
-        STANDARD: With extensions (15% of users) - type extensions support
-        ADVANCED: All 18 directives (5% of users, Phase 17b) - full power
+        LITE: Auto-keys only (80% of users) - simplest configuration, recommended for starting
+        STANDARD: With extensions (15% of users) - type extensions with @requires/@provides support
+        ADVANCED: All 18 directives (5% of users) - full Apollo Federation 2.0 support
+
+    Usage Examples:
+        Simple federation with auto-detected keys:
+        >>> from fraiseql import Schema
+        >>> from fraiseql.federation import Presets
+        >>>
+        >>> schema = Schema(
+        ...     federation=True,
+        ...     federation_config=Presets.LITE
+        ... )
+
+        Type extensions with computed fields:
+        >>> schema = Schema(
+        ...     federation=True,
+        ...     federation_config=Presets.STANDARD
+        ... )
+
+        Full federation support:
+        >>> schema = Schema(
+        ...     federation=True,
+        ...     federation_config=Presets.ADVANCED
+        ... )
+
+    Decision Guide:
+        Use LITE if:
+        - Starting with federation
+        - Simple entity keys (e.g., id field)
+        - No cross-subgraph dependencies
+
+        Use STANDARD if:
+        - Extending types from other subgraphs
+        - Need @requires/@provides directives
+        - Computing fields from external data
+
+        Use ADVANCED if:
+        - Complex multi-subgraph federation
+        - Need all GraphQL directives
+        - Advanced shareable/override patterns
     """
 
     # Lite: Auto-keys only (80% of users)
     # Simplest configuration - just @entity with auto-detected keys
+    # Use when starting federation or for simple cases
     LITE = FederationConfig(
         version="2.5",
         auto_keys=True,
@@ -89,7 +130,8 @@ class Presets:
     )
 
     # Standard: With extensions (15% of users)
-    # Includes type extensions, @requires, @provides
+    # Includes type extensions, @requires, @provides for computed fields
+    # Use when extending types or computing derived fields
     STANDARD = FederationConfig(
         version="2.5",
         auto_keys=True,
@@ -103,7 +145,8 @@ class Presets:
     )
 
     # Advanced: All 18 directives (5% of users, Phase 17b)
-    # Full Apollo Federation 2.0 support
+    # Full Apollo Federation 2.0 support with all directives
+    # Use for complex multi-subgraph scenarios with advanced patterns
     ADVANCED = FederationConfig(
         version="2.5",
         auto_keys=False,

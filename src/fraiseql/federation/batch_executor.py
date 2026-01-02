@@ -42,9 +42,20 @@ class BatchExecutor:
         """Initialize the batch executor.
 
         Args:
-            batch_window_ms: Batch window in milliseconds (default 1.0ms)
-            max_batch_size: Maximum requests per batch (optional)
+            batch_window_ms: Batch window in milliseconds (default 1.0ms).
+                            Must be positive. Typical values: 1.0-100.0ms
+            max_batch_size: Maximum requests per batch (optional).
+                           If specified, must be positive. No limit if None.
+
+        Raises:
+            ValueError: If batch_window_ms <= 0
+            ValueError: If max_batch_size is not None and <= 0
         """
+        if batch_window_ms <= 0:
+            raise ValueError(f"batch_window_ms must be positive, got {batch_window_ms}ms")
+        if max_batch_size is not None and max_batch_size <= 0:
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}")
+
         self.batch_window_ms = batch_window_ms
         self.max_batch_size = max_batch_size
 

@@ -86,9 +86,21 @@ class EntityDataLoader:
         Args:
             resolver: EntitiesResolver instance
             db_pool: Database connection pool (asyncpg PoolConnection)
-            cache_size: Maximum cached entries (default 1000)
-            batch_window_ms: Batch window in milliseconds (default 1.0ms)
+            cache_size: Maximum cached entries (default 1000).
+                       Must be positive. Larger cache improves hit rate but uses more memory.
+                       Recommended: 1000 (small), 10000 (medium), 100000 (large APIs)
+            batch_window_ms: Batch window in milliseconds (default 1.0ms).
+                            Must be positive. Typical values: 1.0ms (real-time), 5-100ms (bulk)
+
+        Raises:
+            ValueError: If cache_size <= 0
+            ValueError: If batch_window_ms <= 0
         """
+        if cache_size <= 0:
+            raise ValueError(f"cache_size must be positive, got {cache_size}")
+        if batch_window_ms <= 0:
+            raise ValueError(f"batch_window_ms must be positive, got {batch_window_ms}ms")
+
         self.resolver = resolver
         self.db_pool = db_pool
         self.cache_size = cache_size
