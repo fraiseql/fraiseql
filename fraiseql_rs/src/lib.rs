@@ -44,6 +44,7 @@ use pyo3::types::PyDict;
 use std::sync::{Arc, Mutex};
 
 // Sub-modules
+pub mod apq; // Phase 15a: Automatic Persisted Queries (APQ)
 pub mod auth;
 pub mod cache;
 mod camel_case;
@@ -60,6 +61,7 @@ pub mod rbac;
 pub mod response;
 pub mod schema_registry;
 pub mod security;
+// pub mod subscriptions;  // Phase 15b: Real-time subscriptions (coming)
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -801,6 +803,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PrototypePool", // Phase 0: Async bridge prototype
             "PyAuthProvider",
             "PyUserContext",
+            "PyApqHandler", // Phase 15a: APQ
+            "hash_query",   // Phase 15a: APQ
+            "verify_hash",  // Phase 15a: APQ
         ],
     )?;
 
@@ -867,6 +872,11 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add prototype pool (Phase 0)
     m.add_class::<db::prototype::PrototypePool>()?;
+
+    // Add APQ (Phase 15a)
+    m.add_class::<apq::py_bindings::PyApqHandler>()?;
+    m.add_function(wrap_pyfunction!(apq::hasher::hash_query, m)?)?;
+    m.add_function(wrap_pyfunction!(apq::hasher::verify_hash, m)?)?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;

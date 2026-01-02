@@ -10,7 +10,7 @@ pub struct SampleSchema;
 impl SampleSchema {
     /// Create users table for testing
     pub fn users_table_sql() -> &'static str {
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -20,12 +20,12 @@ impl SampleSchema {
             metadata JSONB DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-        "#
+        "
     }
 
     /// Create posts table for testing
     pub fn posts_table_sql() -> &'static str {
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS posts (
             id SERIAL PRIMARY KEY,
             user_id INT REFERENCES users(id),
@@ -35,7 +35,7 @@ impl SampleSchema {
             published BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-        "#
+        "
     }
 
     /// Create products table for testing (with complex JSONB)
