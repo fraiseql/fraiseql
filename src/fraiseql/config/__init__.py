@@ -3,6 +3,7 @@
 import os
 
 from .schema_config import SchemaConfig
+from .websocket_config import WebSocketConfig, WebSocketPresets, resolve_websocket_config
 
 __all__ = [
     "LOG_QUERY_BUILDER_MODE",
@@ -10,6 +11,9 @@ __all__ = [
     "RUST_QUERY_BUILDER_PERCENTAGE",
     "USE_RUST_QUERY_BUILDER",
     "SchemaConfig",
+    "WebSocketConfig",
+    "WebSocketPresets",
+    "resolve_websocket_config",
 ]
 
 # Phase 7: Rust Query Builder Configuration

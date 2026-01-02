@@ -51,6 +51,7 @@ mod camel_case;
 pub mod cascade;
 pub mod core;
 pub mod db;
+pub mod federation; // Phase 17: Apollo Federation support
 pub mod graphql;
 pub mod json_transform;
 pub mod mutation;

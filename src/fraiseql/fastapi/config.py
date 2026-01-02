@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, PostgresDsn, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from fraiseql.config.websocket_config import WebSocketConfig, resolve_websocket_config
 from fraiseql.mutations.error_config import MutationErrorConfig
 
 logger = logging.getLogger(__name__)
@@ -328,6 +329,49 @@ class FraiseQLConfig(BaseSettings):
         if isinstance(v, EntityRoutingConfig):
             return v
         raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
+
+    # WebSocket Subscriptions settings
+    websocket_config: WebSocketConfig | bool | dict | None = None
+    """Configuration for WebSocket GraphQL subscriptions.
+
+    Supports multiple formats:
+    - True: Enable subscriptions with environment-appropriate defaults
+    - False/None: Disable subscriptions
+    - WebSocketConfig: Custom configuration instance
+    - dict: Configuration dictionary to create WebSocketConfig
+
+    Examples:
+        # Simple enable (development defaults)
+        websocket_config=True
+
+        # Production preset
+        from fraiseql.config import WebSocketPresets
+        websocket_config=WebSocketPresets.PRODUCTION
+
+        # Custom configuration
+        websocket_config=WebSocketConfig(
+            max_subscriptions_per_connection=10,
+            require_authentication=True,
+        )
+
+        # Dictionary
+        websocket_config={
+            "max_subscriptions_per_connection": 5,
+            "event_backend": "redis",
+        }
+    """
+
+    @field_validator("websocket_config", mode="before")
+    @classmethod
+    def resolve_websocket_config_field(cls, v: Any, info: ValidationInfo) -> WebSocketConfig | None:
+        """Resolve websocket config based on input type and environment."""
+        if v is None or v is False:
+            return None
+
+        environment = info.data.get("environment", "development")
+        database_url = info.data.get("database_url")
+
+        return resolve_websocket_config(v, environment=environment, database_url=database_url)
 
     @property
     def enable_introspection(self) -> bool:
