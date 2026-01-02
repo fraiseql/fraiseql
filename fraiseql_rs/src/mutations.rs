@@ -297,8 +297,8 @@ mod tests {
             QueryParam::BigInt(42)
         ));
         assert!(matches!(
-            value_to_query_param(&json!(3.14)),
-            QueryParam::Double(3.14)
+            value_to_query_param(&json!(2.5)),
+            QueryParam::Double(x) if (x - 2.5).abs() < 0.001
         ));
         assert!(
             matches!(value_to_query_param(&json!("hello")), QueryParam::Text(s) if s == "hello")

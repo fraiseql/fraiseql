@@ -706,7 +706,7 @@ mod tests {
             &result,
             "CreatePostError",
             true,
-            Some(&vec!["code".to_string(), "message".to_string()]),
+            Some(&["code".to_string(), "message".to_string()]),
             None,
         )
         .unwrap();
@@ -742,7 +742,7 @@ mod tests {
             &result,
             "CreatePostError",
             true,
-            Some(&vec!["code".to_string(), "message".to_string()]),
+            Some(&["code".to_string(), "message".to_string()]),
             None,
         )
         .unwrap();

@@ -24,6 +24,7 @@ impl SampleSchema {
     }
 
     /// Create posts table for testing
+    #[allow(dead_code)]
     pub fn posts_table_sql() -> &'static str {
         r"
         CREATE TABLE IF NOT EXISTS posts (
@@ -39,6 +40,7 @@ impl SampleSchema {
     }
 
     /// Create products table for testing (with complex JSONB)
+    #[allow(dead_code)]
     pub fn products_table_sql() -> &'static str {
         r#"
         CREATE TABLE IF NOT EXISTS products (
@@ -54,10 +56,12 @@ impl SampleSchema {
 }
 
 /// Sample data for testing
+#[allow(dead_code)]
 pub struct SampleData;
 
 impl SampleData {
     /// Insert sample users
+    #[allow(dead_code)]
     pub fn insert_users_sql() -> &'static str {
         r#"
         INSERT INTO users (name, email, age, metadata)
@@ -70,6 +74,7 @@ impl SampleData {
     }
 
     /// Insert sample posts
+    #[allow(dead_code)]
     pub fn insert_posts_sql() -> &'static str {
         r#"
         INSERT INTO posts (user_id, title, content, tags, published)
@@ -82,6 +87,7 @@ impl SampleData {
     }
 
     /// Insert sample products
+    #[allow(dead_code)]
     pub fn insert_products_sql() -> &'static str {
         r#"
         INSERT INTO products (name, price, attributes, inventory)
@@ -102,6 +108,7 @@ impl JsonTestValues {
         json!({"key": "value", "number": 42})
     }
 
+    #[allow(dead_code)]
     pub fn nested_object() -> Value {
         json!({
             "user": {
@@ -114,10 +121,12 @@ impl JsonTestValues {
         })
     }
 
+    #[allow(dead_code)]
     pub fn array_value() -> Value {
         json!(["item1", "item2", "item3"])
     }
 
+    #[allow(dead_code)]
     pub fn mixed_types() -> Value {
         json!({
             "string": "text",

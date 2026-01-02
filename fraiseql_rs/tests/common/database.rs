@@ -25,6 +25,7 @@ impl TestDatabase {
     }
 
     /// Create a test database with custom configuration
+    #[allow(dead_code)]
     pub async fn with_config(
         _config: TestDatabaseConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -40,6 +41,7 @@ impl TestDatabase {
     }
 
     /// Get a PostgreSQL client for queries (placeholder)
+    #[allow(dead_code)]
     pub async fn client(&self) -> Result<tokio_postgres::Client, Box<dyn std::error::Error>> {
         // Phase 0.2: This will panic - real implementation in Phase 1
         // For now, tests can use the connection_string() method
@@ -56,6 +58,7 @@ impl TestDatabase {
     }
 
     /// Execute a statement without returning rows (placeholder)
+    #[allow(dead_code)]
     pub async fn execute(
         &self,
         _sql: &str,
@@ -65,6 +68,7 @@ impl TestDatabase {
     }
 
     /// Run migrations on test database (placeholder)
+    #[allow(dead_code)]
     pub async fn migrate(&self, _migrations: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
         Err("TestDatabase migrate() not implemented in Phase 0.2".into())
     }
@@ -72,6 +76,7 @@ impl TestDatabase {
 
 /// Configuration for test database
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct TestDatabaseConfig {
     pub db_name: String,
     pub user: String,

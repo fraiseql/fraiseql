@@ -28,6 +28,9 @@ pub mod rate_limiter;
 pub mod resource_limits;
 pub mod websocket;
 
+#[cfg(test)]
+mod integration_tests;
+
 pub use config::{SubscriptionConfig, SubscriptionLimits};
 pub use connection_manager::ConnectionManager;
 pub use connection_pool::{ConnectionPoolManager, PoolConfig, PoolStats};

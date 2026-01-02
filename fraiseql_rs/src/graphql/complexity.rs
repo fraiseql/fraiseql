@@ -371,41 +371,43 @@ mod tests {
         let analyzer = ComplexityAnalyzer::new();
 
         // Create a query with nested fields
-        let mut query = ParsedQuery::default();
-        query.selections = vec![FieldSelection {
-            name: "users".to_string(),
-            alias: None,
-            arguments: vec![],
-            nested_fields: vec![
-                FieldSelection {
-                    name: "posts".to_string(),
-                    alias: None,
-                    arguments: vec![],
-                    nested_fields: vec![FieldSelection {
-                        name: "comments".to_string(),
+        let query = ParsedQuery {
+            selections: vec![FieldSelection {
+                name: "users".to_string(),
+                alias: None,
+                arguments: vec![],
+                nested_fields: vec![
+                    FieldSelection {
+                        name: "posts".to_string(),
                         alias: None,
                         arguments: vec![],
                         nested_fields: vec![FieldSelection {
-                            name: "author".to_string(),
+                            name: "comments".to_string(),
                             alias: None,
                             arguments: vec![],
-                            nested_fields: vec![],
+                            nested_fields: vec![FieldSelection {
+                                name: "author".to_string(),
+                                alias: None,
+                                arguments: vec![],
+                                nested_fields: vec![],
+                                directives: vec![],
+                            }],
                             directives: vec![],
                         }],
                         directives: vec![],
-                    }],
-                    directives: vec![],
-                },
-                FieldSelection {
-                    name: "profile".to_string(),
-                    alias: None,
-                    arguments: vec![],
-                    nested_fields: vec![],
-                    directives: vec![],
-                },
-            ],
-            directives: vec![],
-        }];
+                    },
+                    FieldSelection {
+                        name: "profile".to_string(),
+                        alias: None,
+                        arguments: vec![],
+                        nested_fields: vec![],
+                        directives: vec![],
+                    },
+                ],
+                directives: vec![],
+            }],
+            ..Default::default()
+        };
 
         let result = analyzer.analyze(&query);
         assert!(!result.exceeded);
@@ -435,26 +437,28 @@ mod tests {
         let analyzer = ComplexityAnalyzer::with_config(config);
 
         // Create a query that exceeds the limit
-        let mut query = ParsedQuery::default();
-        query.selections = vec![FieldSelection {
-            name: "users".to_string(),
-            alias: None,
-            arguments: vec![],
-            nested_fields: vec![FieldSelection {
-                name: "posts".to_string(),
+        let query = ParsedQuery {
+            selections: vec![FieldSelection {
+                name: "users".to_string(),
                 alias: None,
                 arguments: vec![],
                 nested_fields: vec![FieldSelection {
-                    name: "comments".to_string(),
+                    name: "posts".to_string(),
                     alias: None,
                     arguments: vec![],
-                    nested_fields: vec![],
+                    nested_fields: vec![FieldSelection {
+                        name: "comments".to_string(),
+                        alias: None,
+                        arguments: vec![],
+                        nested_fields: vec![],
+                        directives: vec![],
+                    }],
                     directives: vec![],
                 }],
                 directives: vec![],
             }],
-            directives: vec![],
-        }];
+            ..Default::default()
+        };
 
         let result = analyzer.validate_complexity(&query);
         assert!(result.is_err());

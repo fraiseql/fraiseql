@@ -397,13 +397,11 @@ mod tests {
 
         // Test SQL building - we can't test the full executor without a database
         // but we can verify the API is available
-        assert!(true);
     }
 
     #[test]
     fn test_sql_building() {
         // Test SQL generation logic without database
         // This would be tested more thoroughly with integration tests
-        assert!(true);
     }
 }
