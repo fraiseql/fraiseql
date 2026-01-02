@@ -1,13 +1,12 @@
 """Tests for Federation _entities resolver."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from fraiseql.federation import (
     entity,
     EntitiesResolver,
     clear_entity_registry,
-    get_entity_metadata,
 )
 
 

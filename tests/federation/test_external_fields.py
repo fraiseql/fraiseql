@@ -1,6 +1,5 @@
 """Tests for external field management in type extensions."""
 
-import pytest
 
 from fraiseql.federation.decorators import extend_entity, external
 from fraiseql.federation.external_fields import (
@@ -17,7 +16,7 @@ class TestExternalFieldInfo:
         """Test creating external field info."""
         info = ExternalFieldInfo("id", str, is_required=True)
         assert info.field_name == "id"
-        assert info.type_annotation == str
+        assert info.type_annotation is str
         assert info.is_required is True
 
     def test_external_field_info_optional(self):

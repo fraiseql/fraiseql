@@ -101,7 +101,6 @@ class TestEntityDecorator:
             uuid: str
             name: str
 
-        registry = get_entity_registry()
         # Should not find 'id', so should look at other patterns
         # But uuid is not in the auto-detect list, so should fail
         # Let me adjust the test
@@ -147,9 +146,6 @@ class TestExtendEntityDecorator:
             id: str = external()
             name: str = external()
             reviews: list
-
-        registry = get_entity_registry()
-        metadata = registry["Product"]
 
         # Fields marked with external() should be in external_fields
         # Note: This needs class instantiation to work properly

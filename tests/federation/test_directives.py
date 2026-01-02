@@ -1,6 +1,5 @@
 """Tests for Federation Standard directives (@requires, @provides)."""
 
-import pytest
 
 from fraiseql.federation.directives import (
     DirectiveMetadata,

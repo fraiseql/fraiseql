@@ -1,6 +1,5 @@
 """Tests for computed fields with @requires and @provides directives."""
 
-import pytest
 
 from fraiseql.federation.computed_fields import (
     ComputedField,
@@ -445,7 +444,15 @@ class TestComputedFieldsIntegration:
             async def headline(self) -> str:
                 return f"{self.id}: {self.title}"
 
-        all_fields = {"id", "title", "content", "comments", "word_count", "comment_count", "headline"}
+        all_fields = {
+            "id",
+            "title",
+            "content",
+            "comments",
+            "word_count",
+            "comment_count",
+            "headline",
+        }
         valid, errors = validate_all_computed_fields(Article, all_fields)
         assert valid is True
         assert errors == []
