@@ -15,7 +15,9 @@
 
 pub mod config;
 pub mod connection_manager;
+pub mod connection_pool;
 pub mod consumer_group;
+pub mod error_recovery;
 pub mod event_bus;
 pub mod event_filter;
 pub mod executor;
@@ -23,11 +25,14 @@ pub mod heartbeat;
 pub mod metrics;
 pub mod protocol;
 pub mod rate_limiter;
+pub mod resource_limits;
 pub mod websocket;
 
 pub use config::{SubscriptionConfig, SubscriptionLimits};
 pub use connection_manager::ConnectionManager;
+pub use connection_pool::{ConnectionPoolManager, PoolConfig, PoolStats};
 pub use consumer_group::{ConsumerGroupId, ConsumerId, ConsumerGroupManager};
+pub use error_recovery::{RecoveryStrategy, CircuitBreaker, FallbackRegistry, RetryConfig};
 pub use event_bus::{EventBus, Event, EventStream, InMemoryEventBus};
 pub use event_filter::{EventFilter, FilterCondition};
 pub use executor::SubscriptionExecutor;
@@ -35,6 +40,7 @@ pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
 pub use metrics::SubscriptionMetrics;
 pub use protocol::{GraphQLMessage, SubscriptionMessage};
 pub use rate_limiter::SubscriptionRateLimiter;
+pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
 pub use websocket::{WebSocketConnection, WebSocketServer};
 
 /// Subscription error type
