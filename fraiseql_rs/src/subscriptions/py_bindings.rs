@@ -2,17 +2,18 @@
 //!
 //! Exposes Rust subscription engine to Python for seamless integration.
 
+use dashmap::DashMap;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyAny, PyList};
+use pyo3::types::{PyAny, PyDict, PyList};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use dashmap::DashMap;
 
 // Import from existing modules
 use crate::db::runtime::init_runtime;
 use crate::subscriptions::config::EventBusConfig;
-use crate::subscriptions::executor::SubscriptionExecutor;
+use crate::subscriptions::executor::{SubscriptionExecutor, ResolverCallback};
+use crate::subscriptions::SubscriptionError;
 use crate::subscriptions::protocol::SubscriptionPayload;
 use crate::subscriptions::SubscriptionSecurityContext;
 
@@ -75,9 +76,9 @@ impl PyGraphQLMessage {
         // Extract required 'type' field
         let type_ = data
             .get_item("type")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Missing required field: 'type'",
-            ))?
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing required field: 'type'")
+            })?
             .extract::<String>()?;
 
         // Extract optional 'id' field
@@ -87,16 +88,13 @@ impl PyGraphQLMessage {
             .and_then(|i| i.and_then(|item| item.extract::<String>().ok()));
 
         // Extract optional 'payload' field
-        let payload = data
-            .get_item("payload")
-            .ok()
-            .and_then(|p| {
-                if let Some(p_some) = p {
-                    p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind())
-                } else {
-                    None
-                }
-            });
+        let payload = data.get_item("payload").ok().and_then(|p| {
+            if let Some(p_some) = p {
+                p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind())
+            } else {
+                None
+            }
+        });
 
         Ok(Self { type_, id, payload })
     }
@@ -215,6 +213,7 @@ impl PyEventBusConfig {
 /// - Retrieve subscription responses
 /// - Manage subscription lifecycle
 #[pyclass]
+#[derive(Clone)]
 pub struct PySubscriptionExecutor {
     /// The underlying Rust executor
     executor: Arc<SubscriptionExecutor>,
@@ -239,10 +238,17 @@ impl PySubscriptionExecutor {
         // Create executor
         let executor = Arc::new(SubscriptionExecutor::new());
 
-        Ok(Self {
-            executor,
+        let py_executor = Self {
+            executor: executor.clone(),
             resolvers: Arc::new(DashMap::new()),
-        })
+        };
+
+        // Install resolver callback (Phase 3)
+        // This allows the executor to invoke Python resolvers during event dispatch
+        let callback: Arc<dyn ResolverCallback> = Arc::new(py_executor.clone());
+        executor.set_resolver_callback(callback);
+
+        Ok(py_executor)
     }
 
     /// Register a new subscription
@@ -418,12 +424,10 @@ impl PySubscriptionExecutor {
                 );
                 Ok(())
             }
-            Err(e) => {
-                Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Event dispatch failed: {}",
-                    e
-                )))
-            }
+            Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Event dispatch failed: {}",
+                e
+            ))),
         }
     }
 
@@ -438,19 +442,14 @@ impl PySubscriptionExecutor {
     /// Raises:
     ///     ValueError: If subscription doesn't exist
     pub fn next_event(&self, subscription_id: String) -> PyResult<Option<Vec<u8>>> {
-        // Phase 1: Verify subscription exists (early error detection)
-        if !self.resolvers.contains_key(&subscription_id) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Subscription not found: {}", subscription_id),
-            ));
+        // Get next response from the subscription's response queue
+        match self.executor.next_event(&subscription_id) {
+            Ok(response) => Ok(response),
+            Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Failed to get next event: {}",
+                e
+            ))),
         }
-
-        // Phase 1: No response queuing yet, return None
-        // Phase 2 will implement:
-        // 1. Check response queue for subscription_id
-        // 2. Pop pre-serialized bytes from queue
-        // 3. Return bytes or None if empty
-        Ok(None)
     }
 
     /// Complete a subscription and clean up resources
@@ -522,9 +521,7 @@ impl PySubscriptionExecutor {
 
                     // Import json module and parse event_data_json
                     let json_mod = py.import("json")?;
-                    let event_dict = json_mod
-                        .getattr("loads")?
-                        .call1((event_data_json,))?;
+                    let event_dict = json_mod.getattr("loads")?.call1((event_data_json,))?;
 
                     // Call the resolver with the event data
                     let resolver_result = resolver_py.call1(py, (event_dict,)).map_err(|e| {
@@ -542,10 +539,7 @@ impl PySubscriptionExecutor {
                 }
                 None => {
                     // No resolver registered - use default echo resolver
-                    Ok(format!(
-                        r#"{{"data": {}}}"#,
-                        event_data_json
-                    ))
+                    Ok(format!(r#"{{"data": {}}}"#, event_data_json))
                 }
             }
         })
@@ -642,6 +636,27 @@ impl PySubscriptionExecutor {
     }
 }
 
+/// ResolverCallback implementation for PySubscriptionExecutor (Phase 3)
+///
+/// Allows SubscriptionExecutor to invoke Python resolvers through the callback interface.
+impl ResolverCallback for PySubscriptionExecutor {
+    fn invoke(&self, subscription_id: &str, event_data_json: &str) -> Result<String, SubscriptionError> {
+        // Call the internal resolver invocation method
+        pyo3::Python::with_gil(|_py| {
+            match self.invoke_resolver_internal(subscription_id, event_data_json) {
+                Ok(result_json) => Ok(result_json),
+                Err(e) => {
+                    // Convert PyErr to SubscriptionError
+                    Err(SubscriptionError::SubscriptionRejected(format!(
+                        "Python resolver error: {}",
+                        e
+                    )))
+                }
+            }
+        })
+    }
+}
+
 /// Convert Python dict to Rust HashMap<String, Value>
 fn python_dict_to_json_map(dict: &Bound<PyDict>) -> PyResult<HashMap<String, Value>> {
     let mut map = HashMap::new();
@@ -663,8 +678,7 @@ fn python_to_json_value(obj: &Bound<PyAny>) -> PyResult<Value> {
         Ok(Value::Number(i.into()))
     } else if let Ok(f) = obj.extract::<f64>() {
         Ok(Value::Number(
-            serde_json::Number::from_f64(f)
-                .unwrap_or_else(|| serde_json::Number::from(0)),
+            serde_json::Number::from_f64(f).unwrap_or_else(|| serde_json::Number::from(0)),
         ))
     } else if let Ok(b) = obj.extract::<bool>() {
         Ok(Value::Bool(b))
@@ -678,9 +692,7 @@ fn python_to_json_value(obj: &Bound<PyAny>) -> PyResult<Value> {
     } else if let Ok(dict) = obj.downcast::<PyDict>() {
         // Recursively convert dict values
         let map = python_dict_to_json_map(&dict)?;
-        Ok(Value::Object(
-            serde_json::Map::from_iter(map.into_iter()),
-        ))
+        Ok(Value::Object(serde_json::Map::from_iter(map.into_iter())))
     } else {
         // Unsupported types return null (this is safer than panic)
         Ok(Value::Null)

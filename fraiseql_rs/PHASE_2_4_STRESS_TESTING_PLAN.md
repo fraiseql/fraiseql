@@ -328,7 +328,7 @@ impl ResourceMonitor {
     pub fn sample(&mut self) {
         // Record current memory usage
     }
-    
+
     pub fn report(&self) -> MonitorReport {
         // Return memory deltas, duration, etc.
     }
@@ -343,9 +343,9 @@ impl ResourceMonitor {
 #[allow(clippy::excessive_nesting)] // Stress tests require nesting
 async fn test_stress_NAME() {
     let monitor = ResourceMonitor::new();
-    
+
     // Test execution
-    
+
     monitor.report();
 }
 ```

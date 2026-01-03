@@ -4072,18 +4072,18 @@ mod tests {
         ));
 
         // Create filters for both subscriptions
-        let filter_a = SecurityAwareEventFilter::new(
-            EventFilter::new(),
-            sub_a.security_context.clone(),
-        );
-        let filter_b = SecurityAwareEventFilter::new(
-            EventFilter::new(),
-            sub_b.security_context.clone(),
-        );
+        let filter_a =
+            SecurityAwareEventFilter::new(EventFilter::new(), sub_a.security_context.clone());
+        let filter_b =
+            SecurityAwareEventFilter::new(EventFilter::new(), sub_b.security_context.clone());
 
         // Tenant A event should be delivered to Tenant A subscriber
         let (deliver_a, reason_a) = filter_a.should_deliver_event(&event_a);
-        assert!(deliver_a, "Tenant A event should deliver to Tenant A: {:?}", reason_a);
+        assert!(
+            deliver_a,
+            "Tenant A event should deliver to Tenant A: {:?}",
+            reason_a
+        );
         metrics.record_validation_passed();
 
         // Tenant A event should NOT be delivered to Tenant B subscriber
@@ -4224,7 +4224,10 @@ mod tests {
         let base_filter = EventFilter::new()
             .with_event_type("userUpdated")
             .with_channel("users")
-            .with_field("status", crate::subscriptions::FilterCondition::Equals(json!("active")));
+            .with_field(
+                "status",
+                crate::subscriptions::FilterCondition::Equals(json!("active")),
+            );
 
         let sec_filter = SecurityAwareEventFilter::new(base_filter, sub_secure.security_context);
 
@@ -4256,11 +4259,7 @@ mod tests {
         ));
 
         let (deliver, reason) = sec_filter.should_deliver_event(&event_wrong_type);
-        assert!(
-            !deliver,
-            "Event should not match wrong type: {:?}",
-            reason
-        );
+        assert!(!deliver, "Event should not match wrong type: {:?}", reason);
         metrics.record_validation_passed(); // Count it (base filter rejection)
 
         // Test Case 3: Event with wrong status
@@ -4671,7 +4670,10 @@ mod tests {
         let total_records = 850;
         let nanos_per_record = elapsed.as_nanos() as f64 / total_records as f64;
 
-        println!("Recorded {} events with categorization in {:?}", total_records, elapsed);
+        println!(
+            "Recorded {} events with categorization in {:?}",
+            total_records, elapsed
+        );
         println!(
             "Average per categorization: {:.0} nanoseconds",
             nanos_per_record

@@ -4,13 +4,13 @@
 
 use crate::subscriptions::protocol::SubscriptionPayload;
 use crate::subscriptions::{SubscriptionError, SubscriptionSecurityContext};
+use futures::future;
 use graphql_parser::parse_query;
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use futures::future;
 
 /// Subscription state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,7 +176,7 @@ impl ExecutedSubscription {
 }
 
 /// Subscription executor
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SubscriptionExecutor {
     /// Store executed subscriptions by connection ID
     subscriptions: std::sync::Arc<dashmap::DashMap<String, ExecutedSubscription>>,
@@ -188,6 +188,18 @@ pub struct SubscriptionExecutor {
     /// Response queues per subscription (Phase 2)
     /// Stores pre-serialized response bytes ready for WebSocket transmission
     response_queues: Arc<dashmap::DashMap<String, Arc<Mutex<VecDeque<Vec<u8>>>>>>,
+    /// Optional resolver invocation callback (Phase 3)
+    /// Set by PySubscriptionExecutor to enable Python resolver invocation
+    resolver_callback: Arc<Mutex<Option<Arc<dyn ResolverCallback>>>>,
+}
+
+/// Callback trait for resolver invocation (Phase 3)
+///
+/// Allows SubscriptionExecutor to invoke Python resolvers without creating
+/// a direct dependency on PySubscriptionExecutor.
+pub trait ResolverCallback: Send + Sync {
+    /// Invoke a resolver and return the result as JSON string
+    fn invoke(&self, subscription_id: &str, event_data_json: &str) -> Result<String, SubscriptionError>;
 }
 
 impl SubscriptionExecutor {
@@ -198,6 +210,19 @@ impl SubscriptionExecutor {
             subscriptions_secure: Arc::new(dashmap::DashMap::new()),
             channel_index: Arc::new(dashmap::DashMap::new()),
             response_queues: Arc::new(dashmap::DashMap::new()),
+            resolver_callback: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Set resolver callback for Python resolver invocation (Phase 3)
+    ///
+    /// Called by PySubscriptionExecutor to enable Python resolver invocation
+    /// during event dispatch.
+    pub fn set_resolver_callback(&self, callback: Arc<dyn ResolverCallback>) {
+        // Store the callback for use during event dispatch
+        let callback_ref = self.resolver_callback.try_lock();
+        if let Ok(mut callback_guard) = callback_ref {
+            *callback_guard = Some(callback);
         }
     }
 
@@ -795,14 +820,20 @@ impl SubscriptionExecutor {
         event_data: Arc<Value>,
     ) -> Result<usize, SubscriptionError> {
         // 1. Find all subscriptions for this channel
-        let subscription_ids = self.subscriptions_by_channel(&channel);
+        let mut subscription_ids = self.subscriptions_by_channel(&channel);
+
+        // 2. Also include wildcard subscriptions (Phase 2: all subs registered to "*")
+        let wildcard_ids = self.subscriptions_by_channel("*");
+        subscription_ids.extend(wildcard_ids);
+        subscription_ids.sort();
+        subscription_ids.dedup(); // Remove duplicates
 
         if subscription_ids.is_empty() {
             // No matching subscriptions
             return Ok(0);
         }
 
-        // 2. Create dispatch futures for parallel processing
+        // 3. Create dispatch futures for parallel processing
         let dispatch_futures: Vec<_> = subscription_ids
             .iter()
             .map(|sub_id| {
@@ -819,10 +850,10 @@ impl SubscriptionExecutor {
             })
             .collect();
 
-        // 3. Execute all dispatches in parallel
+        // 4. Execute all dispatches in parallel
         let results = future::join_all(dispatch_futures).await;
 
-        // 4. Count successes
+        // 5. Count successes
         let success_count = results.iter().filter(|r| r.is_ok()).count();
 
         Ok(success_count)
@@ -972,16 +1003,62 @@ impl SubscriptionExecutor {
     /// 4. Return resolver result or error
     async fn invoke_python_resolver(
         &self,
-        _subscription_id: &str,
+        subscription_id: &str,
         event_data: &Value,
     ) -> Result<Value, SubscriptionError> {
-        // Phase 2: Placeholder - just echo the event data as resolver result
-        // In Phase 2.2, this will call the actual Python resolver
+        // Phase 3: Try to invoke registered Python resolver
 
-        Ok(json!({
-            "data": event_data,
-            "type": "next"
-        }))
+        // Serialize event data to JSON string
+        let event_data_json = serde_json::to_string(event_data)
+            .map_err(|e| SubscriptionError::SubscriptionRejected(format!("Failed to serialize event: {}", e)))?;
+
+        // Get resolver callback clone before spawning task
+        let callback = {
+            let callback_lock = self.resolver_callback.try_lock();
+            match callback_lock {
+                Ok(callback_guard) => callback_guard.as_ref().map(Arc::clone),
+                Err(_) => None,
+            }
+        };
+
+        // If we have a callback, invoke it in a blocking task (Phase 3)
+        if let Some(callback) = callback {
+            let subscription_id_clone = subscription_id.to_string();
+            let result = tokio::task::spawn_blocking(move || {
+                callback.invoke(&subscription_id_clone, &event_data_json)
+            })
+            .await
+            .map_err(|e| SubscriptionError::SubscriptionRejected(format!("Resolver task error: {}", e)))?;
+
+            match result {
+                Ok(result_json) => {
+                    // Parse result back to JSON Value
+                    match serde_json::from_str::<Value>(&result_json) {
+                        Ok(result_value) => Ok(result_value),
+                        Err(e) => {
+                            // If parsing fails, wrap in error response
+                            Ok(json!({
+                                "error": format!("Failed to parse resolver result: {}", e),
+                                "data": event_data
+                            }))
+                        }
+                    }
+                }
+                Err(e) => {
+                    // If resolver fails, echo event data with error
+                    Ok(json!({
+                        "error": e.to_string(),
+                        "data": event_data
+                    }))
+                }
+            }
+        } else {
+            // No resolver registered - use default echo resolver
+            Ok(json!({
+                "data": event_data,
+                "type": "next"
+            }))
+        }
     }
 
     /// Serialize response to pre-serialized bytes (Phase 2/2.2)

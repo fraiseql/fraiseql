@@ -334,7 +334,8 @@ impl SecurityMetrics {
     pub fn record_violation_tenant_isolation(&self) {
         self.validations_total.fetch_add(1, Ordering::Relaxed);
         self.validations_rejected.fetch_add(1, Ordering::Relaxed);
-        self.violations_tenant_isolation.fetch_add(1, Ordering::Relaxed);
+        self.violations_tenant_isolation
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record failed validation due to RBAC field access

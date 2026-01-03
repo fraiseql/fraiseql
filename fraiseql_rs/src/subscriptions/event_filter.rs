@@ -201,10 +201,7 @@ pub struct SecurityAwareEventFilter {
 
 impl SecurityAwareEventFilter {
     /// Create new security-aware filter
-    pub fn new(
-        base_filter: EventFilter,
-        security_context: SubscriptionSecurityContext,
-    ) -> Self {
+    pub fn new(base_filter: EventFilter, security_context: SubscriptionSecurityContext) -> Self {
         Self {
             base_filter,
             security_context,
@@ -225,7 +222,10 @@ impl SecurityAwareEventFilter {
         }
 
         // Step 2: Check row-level filtering (user_id, tenant_id)
-        if !self.security_context.validate_event_for_delivery(&event.data) {
+        if !self
+            .security_context
+            .validate_event_for_delivery(&event.data)
+        {
             return (
                 false,
                 Some("Row-level filtering rejected event".to_string()),
@@ -475,8 +475,15 @@ mod tests {
         let sec_filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
 
         let (should_deliver, reason) = sec_filter.should_deliver_event(&event);
-        assert!(should_deliver, "Event should be delivered with valid security context");
-        assert!(reason.is_none(), "No rejection reason expected: {:?}", reason);
+        assert!(
+            should_deliver,
+            "Event should be delivered with valid security context"
+        );
+        assert!(
+            reason.is_none(),
+            "No rejection reason expected: {:?}",
+            reason
+        );
 
         println!("✅ test_security_aware_filter_with_valid_security_context passed");
     }
@@ -490,7 +497,10 @@ mod tests {
         let sec_filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
 
         let (should_deliver, reason) = sec_filter.should_deliver_event(&event);
-        assert!(!should_deliver, "Event should be rejected due to base filter mismatch");
+        assert!(
+            !should_deliver,
+            "Event should be rejected due to base filter mismatch"
+        );
         assert!(reason.is_some(), "Rejection reason expected");
         assert!(reason.unwrap().contains("Base filter"));
 
