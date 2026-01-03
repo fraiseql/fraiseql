@@ -119,6 +119,24 @@ impl ExecutedSubscription {
         )
     }
 
+    /// Check if subscription has exceeded max lifetime
+    ///
+    /// Lifetime limits prevent subscriptions from running indefinitely and accumulating memory.
+    /// Example: 24-hour limit prevents long-running subscriptions from leaking resources.
+    pub fn has_exceeded_lifetime(&self, max_lifetime: std::time::Duration) -> bool {
+        self.uptime() > max_lifetime
+    }
+
+    /// Get time until subscription reaches max lifetime
+    pub fn time_until_expiry(&self, max_lifetime: std::time::Duration) -> Option<std::time::Duration> {
+        let elapsed = self.uptime();
+        if elapsed < max_lifetime {
+            Some(max_lifetime - elapsed)
+        } else {
+            None
+        }
+    }
+
     /// As JSON representation
     pub fn as_json(&self) -> Value {
         json!({
@@ -355,6 +373,46 @@ impl SubscriptionExecutor {
             "completed": completed,
             "errored": errored,
         })
+    }
+
+    /// Cleanup expired subscriptions
+    ///
+    /// Removes subscriptions that have exceeded their max lifetime.
+    /// Returns count of subscriptions removed.
+    ///
+    /// This prevents subscriptions from accumulating indefinitely and consuming memory.
+    /// Should be called periodically (e.g., every minute) by a cleanup task.
+    pub fn cleanup_expired(&self, max_lifetime: std::time::Duration) -> usize {
+        let mut removed = 0;
+        self.subscriptions.retain(|_, sub| {
+            if sub.has_exceeded_lifetime(max_lifetime) {
+                removed += 1;
+                false // Remove this subscription
+            } else {
+                true // Keep this subscription
+            }
+        });
+        removed
+    }
+
+    /// Get subscriptions approaching expiry
+    ///
+    /// Returns subscriptions that will expire within the given time window.
+    /// Useful for warning clients about upcoming disconnection.
+    pub fn get_expiring_subscriptions(
+        &self,
+        max_lifetime: std::time::Duration,
+        warning_window: std::time::Duration,
+    ) -> Vec<ExecutedSubscription> {
+        let expiry_threshold = max_lifetime - warning_window;
+        self.subscriptions
+            .iter()
+            .filter(|entry| {
+                let sub = entry.value();
+                sub.is_alive() && sub.uptime() > expiry_threshold
+            })
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 }
 
@@ -678,5 +736,125 @@ mod tests {
 
         let result = executor.execute(conn_id, &payload);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_subscription_lifetime_check() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "subscription { messageAdded { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub = executor.execute(conn_id, &payload).unwrap();
+        let max_lifetime = std::time::Duration::from_secs(60);
+
+        // New subscription should not exceed lifetime
+        assert!(!sub.has_exceeded_lifetime(max_lifetime));
+
+        // Should have time until expiry
+        let time_until = sub.time_until_expiry(max_lifetime);
+        assert!(time_until.is_some());
+        let duration = time_until.unwrap();
+        assert!(duration.as_secs() >= 59 && duration.as_secs() <= 60);
+    }
+
+    #[test]
+    fn test_cleanup_expired_subscriptions() {
+        let executor = SubscriptionExecutor::new();
+
+        // Create multiple subscriptions
+        for i in 0..5 {
+            let conn_id = Uuid::new_v4();
+            let payload = SubscriptionPayload {
+                query: format!("subscription {{ messageAdded{{ id }} }}", ),
+                operation_name: Some(format!("Sub{}", i)),
+                variables: None,
+                extensions: None,
+            };
+            executor.execute(conn_id, &payload).unwrap();
+        }
+
+        assert_eq!(executor.total_subscriptions_count(), 5);
+
+        // Cleanup with very short max lifetime should remove all active subscriptions
+        let very_short_lifetime = std::time::Duration::from_secs(0);
+
+        // Mark some as completed first (so they're not counted as expired)
+        let subs: Vec<_> = executor
+            .subscriptions
+            .iter()
+            .take(2)
+            .map(|entry| entry.value().id.clone())
+            .collect();
+
+        for id in subs {
+            executor.complete_subscription(&id).unwrap();
+        }
+
+        // Cleanup should remove the 3 active subscriptions that exceeded short lifetime
+        let removed = executor.cleanup_expired(very_short_lifetime);
+        assert_eq!(removed, 3); // Only active ones removed
+        assert_eq!(executor.total_subscriptions_count(), 2); // Completed ones remain
+    }
+
+    #[test]
+    fn test_get_expiring_subscriptions() {
+        let executor = SubscriptionExecutor::new();
+
+        // Create a subscription
+        let conn_id = Uuid::new_v4();
+        let payload = SubscriptionPayload {
+            query: "subscription { messageAdded { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub = executor.execute(conn_id, &payload).unwrap();
+
+        let max_lifetime = std::time::Duration::from_secs(60);
+        let warning_window = std::time::Duration::from_secs(10);
+
+        // New subscription should not be in expiring list (too fresh)
+        let expiring = executor.get_expiring_subscriptions(max_lifetime, warning_window);
+        assert!(expiring.is_empty());
+
+        // Verify subscription exists but not expiring yet
+        assert_eq!(executor.active_subscriptions_count(), 1);
+    }
+
+    #[test]
+    fn test_subscription_uptime_and_expiry() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "subscription { messageAdded { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub = executor.execute(conn_id, &payload).unwrap();
+
+        // Uptime should be very small (just created)
+        assert!(sub.uptime().as_millis() < 100);
+
+        // Max lifetime should be in future
+        let max_lifetime = std::time::Duration::from_secs(3600);
+        assert!(!sub.has_exceeded_lifetime(max_lifetime));
+
+        // Get ID for later lookup
+        let sub_id = sub.id.clone();
+
+        // Verify we can get it back
+        let retrieved = executor.get_subscription(&sub_id).unwrap();
+        assert_eq!(retrieved.id, sub_id);
+        assert_eq!(retrieved.state, SubscriptionState::Active);
     }
 }
