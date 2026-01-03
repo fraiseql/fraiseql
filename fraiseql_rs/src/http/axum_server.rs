@@ -76,9 +76,13 @@ pub struct AppState {
 
 /// Creates the Axum router for the GraphQL HTTP server
 ///
-/// This router configures two main routes:
-/// - `POST /graphql` - GraphQL queries and mutations
-/// - `GET /graphql/subscriptions` - WebSocket upgrade for subscriptions
+/// This router configures:
+/// - Routes:
+///   - `POST /graphql` - GraphQL queries and mutations
+///   - `GET /graphql/subscriptions` - WebSocket upgrade for subscriptions
+/// - Middleware:
+///   - Response compression (Brotli by default, Zstd with feature flag)
+///   - CORS headers
 ///
 /// # Arguments
 ///
@@ -86,9 +90,11 @@ pub struct AppState {
 ///
 /// # Returns
 ///
-/// A configured Axum Router ready to handle requests
+/// A configured Axum Router with middleware stack, ready to handle requests
 pub fn create_router(state: Arc<AppState>) -> Router {
-    use crate::http::websocket;
+    use crate::http::{middleware, websocket};
+
+    let compression_config = middleware::CompressionConfig::default();
 
     Router::new()
         .route("/graphql", post(graphql_handler))
@@ -97,6 +103,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             get(websocket::websocket_handler),
         )
         .with_state(state)
+        // Add middleware stack
+        .layer(middleware::create_compression_layer(compression_config))
+        .layer(middleware::create_cors_layer())
         .into()
 }
 

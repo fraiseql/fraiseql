@@ -55,9 +55,11 @@
 //! ```
 
 pub mod axum_server;
+pub mod middleware;
 pub mod websocket;
 
 pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
+pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
 pub use websocket::websocket_handler;
 
 #[cfg(test)]
