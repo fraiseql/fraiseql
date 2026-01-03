@@ -33,6 +33,9 @@ pub mod websocket;
 #[cfg(test)]
 mod integration_tests;
 
+#[cfg(test)]
+pub mod stress_utils;
+
 pub use config::{
     EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
 };

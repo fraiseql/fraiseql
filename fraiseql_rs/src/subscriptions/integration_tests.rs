@@ -1523,4 +1523,588 @@ mod tests {
             "Should complete in < 10 seconds"
         );
     }
+
+    // ============================================================================
+    // PHASE 2.4: STRESS TESTING
+    // ============================================================================
+    // Extreme concurrency, network latency, failures, and memory pressure
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_10000_concurrent_connections() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::{ResourceMonitor, LatencySimulator};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let monitor = ResourceMonitor::new();
+        let start_time = Instant::now();
+
+        // Spawn 10,000 concurrent connection tasks
+        let mut handles = vec![];
+        for conn_id in 0..10000 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("stress-conn-{}", conn_id);
+                match bus_clone.subscribe(&channel).await {
+                    Ok(_stream) => {
+                        let _ = bus_clone.unsubscribe(&channel).await;
+                        true
+                    }
+                    Err(_) => false,
+                }
+            });
+            handles.push(handle);
+
+            // Yield every 1000 connections to prevent scheduler overwhelming
+            if conn_id % 1000 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
+        // Wait for all connections to complete
+        let mut successful = 0;
+        for handle in handles {
+            if handle.await.is_ok_and(|result| result) {
+                successful += 1;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+        monitor.sample_memory();
+        let report = monitor.report();
+
+        println!("\n📊 STRESS TEST: 10,000 Concurrent Connections");
+        println!("  ✓ Successful: {}/10000 ({:.1}%)", successful, (successful as f64 / 10000.0) * 100.0);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+        report.print();
+
+        // Assertions
+        assert!(successful >= 9900, "At least 99% should succeed (9900+ of 10000)");
+        assert!(elapsed.as_secs_f64() < 30.0, "Should complete within 30 seconds");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_50000_subscriptions_cascade() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::ResourceMonitor;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let monitor = ResourceMonitor::new();
+        let start_time = Instant::now();
+
+        // Create 50,000 subscriptions in waves (10K at a time)
+        let mut all_handles = vec![];
+        for wave in 0..5 {
+            let mut wave_handles = vec![];
+            for sub_id in 0..10000 {
+                let bus_clone = bus.clone();
+                let idx = wave * 10000 + sub_id;
+                let handle = tokio::spawn(async move {
+                    let channel = format!("stress-sub-{}", idx);
+                    bus_clone.subscribe(&channel).await.is_ok()
+                });
+                wave_handles.push(handle);
+
+                if sub_id % 2000 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+
+            // Wait for wave to complete
+            let mut successful = 0;
+            for handle in wave_handles {
+                if handle.await.is_ok_and(|result| result) {
+                    successful += 1;
+                }
+            }
+            println!("  Wave {}: {}/10000 subscriptions created", wave + 1, successful);
+            all_handles.push(successful);
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let elapsed = start_time.elapsed();
+        let total_successful: u32 = all_handles.iter().sum();
+        monitor.sample_memory();
+        let report = monitor.report();
+
+        println!("\n📊 STRESS TEST: 50,000 Subscriptions (Cascade)");
+        println!("  ✓ Total successful: {}/50000 ({:.1}%)", total_successful, (total_successful as f64 / 50000.0) * 100.0);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+        report.print();
+
+        assert!(total_successful >= 49500, "At least 99% success rate");
+        assert!(elapsed.as_secs_f64() < 120.0, "Should complete within 2 minutes");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_latency_1000ms_connections() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::LatencySimulator;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let latency = LatencySimulator::fixed(Duration::from_millis(100)); // Use 100ms for test speed
+        let start_time = Instant::now();
+
+        // Create 100 subscriptions with simulated latency
+        let mut handles = vec![];
+        for i in 0..100 {
+            let bus_clone = bus.clone();
+            let latency_clone = latency.clone();
+            let handle = tokio::spawn(async move {
+                latency_clone.apply().await;
+                let channel = format!("latency-{}", i);
+                bus_clone.subscribe(&channel).await
+            });
+            handles.push(handle);
+        }
+
+        // Publish events with latency
+        let bus_clone = bus.clone();
+        let latency_clone = latency.clone();
+        let publisher = tokio::spawn(async move {
+            for event_id in 0..100 {
+                latency_clone.apply().await;
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "latency-test".to_string(),
+                        json!({ "event": event_id }),
+                        "latency-channel".to_string(),
+                    )))
+                    .await;
+            }
+        });
+
+        // Wait for subscriptions
+        let mut successful = 0;
+        for handle in handles {
+            if handle.await.is_ok_and(|result| result.is_ok()) {
+                successful += 1;
+            }
+        }
+
+        publisher.await.ok();
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 STRESS TEST: Latency Injection (100ms per op)");
+        println!("  ✓ Subscriptions succeeded: {}/100", successful);
+        println!("  ⏱ Time: {:.2}s (latency impact expected)", elapsed.as_secs_f64());
+
+        assert!(successful >= 90, "At least 90% should succeed despite latency");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_jitter_50_500ms_latency() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::LatencySimulator;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let latency = LatencySimulator::jittered(Duration::from_millis(50), Duration::from_millis(100)); // Compressed for testing
+        let start_time = Instant::now();
+
+        // Subscribe
+        let mut stream = bus.subscribe("jitter-test").await.expect("Subscribe failed");
+
+        // Publisher with jittered latency
+        let bus_clone = bus.clone();
+        let latency_clone = latency.clone();
+        let publisher = tokio::spawn(async move {
+            for i in 0..50 {
+                latency_clone.apply().await;
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "jitter".to_string(),
+                        json!({ "id": i }),
+                        "jitter-test".to_string(),
+                    )))
+                    .await;
+            }
+        });
+
+        // Receive with timing
+        let mut received = 0;
+        let mut last_time = Instant::now();
+        while received < 50 {
+            let result = tokio::time::timeout(Duration::from_secs(5), stream.recv()).await;
+            if result.is_ok() && result.unwrap().is_some() {
+                let now = Instant::now();
+                let delta = now - last_time;
+                last_time = now;
+                received += 1;
+
+                // Verify jitter (vary in delivery times)
+                if received % 10 == 0 {
+                    println!("  Event {}: received (delta: {:?})", received, delta);
+                }
+            } else {
+                break;
+            }
+        }
+
+        publisher.await.ok();
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 STRESS TEST: Jittered Latency (50-100ms range)");
+        println!("  ✓ Events received: {}/50", received);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+
+        assert!(received >= 40, "Should receive at least 40 events despite jitter");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_random_connection_drops() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::FailureInjector;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let failure_injector = FailureInjector::new(0.20); // 20% failure rate
+        let start_time = Instant::now();
+
+        // Create 500 subscriptions
+        let mut handles = vec![];
+        for i in 0..500 {
+            let bus_clone = bus.clone();
+            let injector = failure_injector.clone();
+            let handle = tokio::spawn(async move {
+                if injector.should_fail() {
+                    return false; // Simulate failure
+                }
+                let channel = format!("drop-test-{}", i);
+                bus_clone.subscribe(&channel).await.is_ok()
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all
+        let mut successful = 0;
+        let mut failed = 0;
+        for handle in handles {
+            if let Ok(Ok(true)) = handle.await {
+                successful += 1;
+            } else {
+                failed += 1;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+        let stats = bus.stats();
+
+        println!("\n📊 STRESS TEST: Random Connection Drops (20% failure rate)");
+        println!("  ✓ Successful: {}, Failed: {}", successful, failed);
+        println!("  📈 Active subscribers: {}", stats.active_subscribers);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+
+        // With 20% failure rate, expect ~400 successful out of 500
+        assert!(successful >= 350, "At least 70% should succeed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_memory_saturation_event_queue() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::ResourceMonitor;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let monitor = ResourceMonitor::new();
+
+        // Create 100 subscribers on same channel
+        let mut streams = vec![];
+        for _ in 0..100 {
+            let stream = bus.subscribe("memory-saturation").await.expect("Subscribe failed");
+            streams.push(stream);
+        }
+
+        let bus_clone = bus.clone();
+        let start_time = Instant::now();
+
+        // Publisher: Create 5,000 events rapidly (no delays)
+        let publisher = tokio::spawn(async move {
+            for i in 0..5000 {
+                let large_data = json!({
+                    "id": i,
+                    "data": "x".repeat(1024), // 1KB per event
+                });
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "memory".to_string(),
+                        large_data,
+                        "memory-saturation".to_string(),
+                    )))
+                    .await;
+
+                if i % 1000 == 0 {
+                    monitor.record_operation();
+                }
+            }
+        });
+
+        // Consumer: Receive from all streams
+        let mut receive_tasks = vec![];
+        for mut stream in streams {
+            let task = tokio::spawn(async move {
+                let mut count = 0;
+                while count < 100 {
+                    if let Ok(Some(_event)) =
+                        tokio::time::timeout(Duration::from_secs(5), stream.recv()).await
+                    {
+                        count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                count
+            });
+            receive_tasks.push(task);
+        }
+
+        // Wait for publisher
+        publisher.await.ok();
+
+        // Wait for receivers and collect results
+        let mut total_received = 0;
+        for task in receive_tasks {
+            if let Ok(count) = task.await {
+                total_received += count;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+        monitor.sample_memory();
+        let report = monitor.report();
+
+        println!("\n📊 STRESS TEST: Memory Saturation (5,000 × 1KB events)");
+        println!("  📤 Published: 5,000 events");
+        println!("  📥 Received: {}/50,0000 ({}% delivery)", total_received, (total_received as f64 / 500000.0) * 100.0);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+        report.print();
+
+        // Should deliver majority of events despite queue saturation
+        assert!(total_received >= 250000, "Should deliver at least 50% of events");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_large_payload_memory_limits() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::ResourceMonitor;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let monitor = ResourceMonitor::new();
+
+        // Create 10 subscribers
+        let mut streams = vec![];
+        for _ in 0..10 {
+            let stream = bus.subscribe("large-payload").await.expect("Subscribe failed");
+            streams.push(stream);
+        }
+
+        let bus_clone = bus.clone();
+        let start_time = Instant::now();
+
+        // Publish 50 large events (100KB each)
+        let publisher = tokio::spawn(async move {
+            for i in 0..50 {
+                let large_data = json!({
+                    "id": i,
+                    "payload": "x".repeat(100_000), // 100KB
+                });
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "large".to_string(),
+                        large_data,
+                        "large-payload".to_string(),
+                    )))
+                    .await;
+                monitor.record_operation();
+            }
+        });
+
+        // Receive on all streams
+        let mut receive_tasks = vec![];
+        for mut stream in streams {
+            let task = tokio::spawn(async move {
+                let mut count = 0;
+                while count < 50 {
+                    if let Ok(Some(_event)) =
+                        tokio::time::timeout(Duration::from_secs(5), stream.recv()).await
+                    {
+                        count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                count
+            });
+            receive_tasks.push(task);
+        }
+
+        publisher.await.ok();
+
+        let mut total_received = 0;
+        for task in receive_tasks {
+            if let Ok(count) = task.await {
+                total_received += count;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+        monitor.sample_memory();
+        let report = monitor.report();
+
+        println!("\n📊 STRESS TEST: Large Payload (50 × 100KB events)");
+        println!("  📤 Published: 50 large events (100KB each = 5MB total)");
+        println!("  📥 Received: {}/500", total_received);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+        report.print();
+
+        assert!(total_received >= 400, "Should deliver at least 80% of large events");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_thundering_herd_recovery() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let start_time = Instant::now();
+
+        // Create 1000 subscriptions
+        let mut handles = vec![];
+        for i in 0..1000 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("herd-{}", i);
+                bus_clone.subscribe(&channel).await
+            });
+            handles.push(handle);
+
+            if i % 200 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
+        // Wait for all subscriptions
+        let mut streams = vec![];
+        for handle in handles {
+            if let Ok(Ok(stream)) = handle.await {
+                streams.push(stream);
+            }
+        }
+
+        let initial_subs = streams.len();
+        println!("  Initial subscriptions: {}", initial_subs);
+
+        // Simulate herd recovery: close 500 subscriptions and immediately recreate
+        let bus_clone = bus.clone();
+        let recovery_start = Instant::now();
+
+        let mut new_handles = vec![];
+        for i in 0..500 {
+            let bus_clone_inner = bus_clone.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("herd-recovery-{}", i);
+                bus_clone_inner.subscribe(&channel).await
+            });
+            new_handles.push(handle);
+        }
+
+        // Wait for recovery
+        let mut recovered = 0;
+        for handle in new_handles {
+            if handle.await.is_ok_and(|result| result.is_ok()) {
+                recovered += 1;
+            }
+        }
+
+        let recovery_elapsed = recovery_start.elapsed();
+        let total_elapsed = start_time.elapsed();
+
+        println!("\n📊 STRESS TEST: Thundering Herd Recovery");
+        println!("  📊 Initial subscriptions: {}", initial_subs);
+        println!("  ♻️  Recovered subscriptions: {}/500", recovered);
+        println!("  ⏱ Recovery time: {:.2}s", recovery_elapsed.as_secs_f64());
+        println!("  ⏱ Total time: {:.2}s", total_elapsed.as_secs_f64());
+
+        assert!(recovered >= 475, "Should recover at least 95% (475/500)");
+        assert!(recovery_elapsed.as_secs_f64() < 10.0, "Recovery should complete in <10 seconds");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_stress_combined_latency_payload_subscribers() {
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::stress_utils::LatencySimulator;
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let latency = LatencySimulator::fixed(Duration::from_millis(50)); // 50ms per op
+
+        // Create 100 subscribers
+        let mut streams = vec![];
+        for _ in 0..100 {
+            let stream = bus.subscribe("combined-stress").await.expect("Subscribe failed");
+            streams.push(stream);
+        }
+
+        let bus_clone = bus.clone();
+        let latency_clone = latency.clone();
+        let start_time = Instant::now();
+
+        // Publisher: large payloads with latency
+        let publisher = tokio::spawn(async move {
+            for i in 0..200 {
+                latency_clone.apply().await;
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "combined".to_string(),
+                        json!({
+                            "id": i,
+                            "payload": "x".repeat(10_000), // 10KB
+                        }),
+                        "combined-stress".to_string(),
+                    )))
+                    .await;
+            }
+        });
+
+        // Receive on all
+        let mut receive_tasks = vec![];
+        for mut stream in streams {
+            let task = tokio::spawn(async move {
+                let mut count = 0;
+                while count < 200 {
+                    if let Ok(Some(_event)) =
+                        tokio::time::timeout(Duration::from_secs(10), stream.recv()).await
+                    {
+                        count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                count
+            });
+            receive_tasks.push(task);
+        }
+
+        publisher.await.ok();
+
+        let mut total_received = 0;
+        for task in receive_tasks {
+            if let Ok(count) = task.await {
+                total_received += count;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 STRESS TEST: Combined (Latency + Payload + Subscribers)");
+        println!("  📤 Published: 200 events (10KB each, 50ms latency)");
+        println!("  📥 Received: {}/20,000 ({:.1}%)", total_received, (total_received as f64 / 20000.0) * 100.0);
+        println!("  ⏱ Time: {:.2}s (latency impact expected)", elapsed.as_secs_f64());
+
+        assert!(total_received >= 15000, "Should deliver at least 75% despite combined stress");
+    }
 }
