@@ -18,7 +18,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::http::auth_middleware;
+use crate::http::metrics::HttpMetrics;
+use crate::http::observability_middleware::{ObservabilityContext, ResponseStatus};
 use crate::pipeline::unified::{GraphQLPipeline, UserContext};
+use crate::security::audit::AuditLogger;
+use std::time::Instant;
 
 /// GraphQL request structure
 ///
@@ -69,10 +73,19 @@ pub struct GraphQLError {
 ///
 /// This is shared across all request handlers via Axum's State mechanism.
 /// The pipeline is wrapped in Arc for zero-copy sharing across async tasks.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppState {
     /// The unified GraphQL execution pipeline
     pub pipeline: Arc<GraphQLPipeline>,
+
+    /// HTTP observability metrics (request counts, durations, status codes)
+    pub http_metrics: Arc<HttpMetrics>,
+
+    /// Admin token for protected /metrics endpoint
+    pub metrics_admin_token: String,
+
+    /// Optional audit logger for request tracking (requires PostgreSQL)
+    pub audit_logger: Option<Arc<AuditLogger>>,
 }
 
 /// Creates the Axum router for the GraphQL HTTP server
@@ -100,6 +113,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/graphql", post(graphql_handler))
         .route("/graphql/subscriptions", get(websocket::websocket_handler))
+        .route("/metrics", get(metrics_handler))
         .with_state(state)
         // Add middleware stack
         .layer(middleware::create_compression_layer(compression_config))
@@ -138,6 +152,12 @@ async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(request): Json<GraphQLRequest>,
 ) -> impl IntoResponse {
+    // Step 1: Create observability context at request start
+    let client_ip = addr.ip().to_string();
+    let operation = detect_operation(&request.query);
+    let obs_context = ObservabilityContext::new(client_ip.clone(), operation);
+    let start_time = Instant::now();
+
     // Extract Authorization header for JWT validation
     let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
 
@@ -147,11 +167,13 @@ async fn graphql_handler(
     // See Phase 16 Commit 6 plan for full JWT validator initialization details.
     let user_context = match auth_header {
         Some(_auth) => {
+            state.http_metrics.record_auth_success();
             // JWT validation would be performed here with:
             // let jwt_validator = &state.jwt_validator;
             // match auth_middleware::extract_and_validate_jwt(Some(auth), jwt_validator).await {
             //     Ok(ctx) => ctx,
             //     Err(auth_err) => {
+            //         state.http_metrics.record_auth_failure();
             //         return (
             //             auth_err.status_code(),
             //             Json(GraphQLResponse {
@@ -178,6 +200,7 @@ async fn graphql_handler(
             })
         }
         None => {
+            state.http_metrics.record_anonymous_request();
             // No Authorization header - create anonymous context
             UserContext {
                 user_id: None,
@@ -202,10 +225,11 @@ async fn graphql_handler(
     // Execute the GraphQL query through the pipeline
     let result = state
         .pipeline
-        .execute(&request.query, variables, user_context)
+        .execute(&request.query, variables.clone(), user_context)
         .await;
 
-    match result {
+    // Step 2: Determine response status and record metrics
+    let (status_code, response, error_msg) = match result {
         Ok(response_bytes) => {
             // Parse the response bytes back to JSON
             match serde_json::from_slice::<JsonValue>(&response_bytes) {
@@ -215,36 +239,128 @@ async fn graphql_handler(
                         data: Some(data),
                         errors: None,
                     }),
+                    None,
                 ),
-                Err(e) => (
-                    StatusCode::OK,
-                    Json(GraphQLResponse {
-                        data: None,
-                        errors: Some(vec![GraphQLError {
-                            message: format!("Failed to parse response: {e}"),
-                            extensions: Some(serde_json::json!({
-                                "code": "RESPONSE_PARSE_ERROR",
-                                "client_ip": addr.to_string(),
-                            })),
-                        }]),
-                    }),
-                ),
+                Err(e) => {
+                    let err_msg = format!("Failed to parse response: {e}");
+                    (
+                        StatusCode::OK,
+                        Json(GraphQLResponse {
+                            data: None,
+                            errors: Some(vec![GraphQLError {
+                                message: err_msg.clone(),
+                                extensions: Some(serde_json::json!({
+                                    "code": "RESPONSE_PARSE_ERROR",
+                                    "client_ip": addr.to_string(),
+                                })),
+                            }]),
+                        }),
+                        Some(err_msg),
+                    )
+                }
             }
         }
-        Err(e) => (
-            StatusCode::OK,
-            Json(GraphQLResponse {
-                data: None,
-                errors: Some(vec![GraphQLError {
-                    message: e.to_string(),
-                    extensions: Some(serde_json::json!({
-                        "code": "GRAPHQL_EXECUTION_ERROR",
-                        "client_ip": addr.to_string(),
-                    })),
-                }]),
-            }),
-        ),
+        Err(e) => {
+            let err_msg = e.to_string();
+            (
+                StatusCode::OK,
+                Json(GraphQLResponse {
+                    data: None,
+                    errors: Some(vec![GraphQLError {
+                        message: err_msg.clone(),
+                        extensions: Some(serde_json::json!({
+                            "code": "GRAPHQL_EXECUTION_ERROR",
+                            "client_ip": addr.to_string(),
+                        })),
+                    }]),
+                }),
+                Some(err_msg),
+            )
+        }
+    };
+
+    // Step 3: Record metrics
+    let duration = start_time.elapsed();
+    let http_status = status_code.as_u16();
+    state.http_metrics.record_request_end(duration, http_status);
+
+    // Step 4: Log to audit logger (async, non-blocking)
+    if let Some(audit_logger) = &state.audit_logger {
+        let status = match http_status {
+            200 => ResponseStatus::Success,
+            400 => ResponseStatus::ValidationError,
+            401 => ResponseStatus::AuthError,
+            403 => ResponseStatus::ForbiddenError,
+            429 => ResponseStatus::RateLimitError,
+            _ => ResponseStatus::InternalError,
+        };
+
+        let entry = crate::http::observability_middleware::create_audit_entry(
+            &obs_context,
+            &request.query,
+            &serde_json::to_value(&variables).unwrap_or(serde_json::json!({})),
+            &headers,
+            status,
+            error_msg.as_deref(),
+        );
+
+        let logger = audit_logger.clone();
+        tokio::spawn(async move {
+            if let Err(e) = logger.log(entry).await {
+                eprintln!("Failed to write audit log: {e}");
+            }
+        });
     }
+
+    (status_code, response).into_response()
+}
+
+/// Detect GraphQL operation type from query string
+fn detect_operation(query: &str) -> String {
+    let trimmed = query.trim();
+    if trimmed.starts_with("mutation") {
+        "mutation".to_string()
+    } else if trimmed.starts_with("subscription") {
+        "subscription".to_string()
+    } else {
+        "query".to_string()
+    }
+}
+
+/// Handles GET /metrics endpoint - exports metrics in Prometheus format
+///
+/// Requires Authorization header with bearer token matching METRICS_ADMIN_TOKEN.
+/// Returns 401 Unauthorized if token is missing or invalid.
+async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<String, (StatusCode, String)> {
+    // Extract and validate metrics admin token
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| {
+            state.http_metrics.record_metrics_auth_failure();
+            (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string())
+        })?;
+
+    if !validate_metrics_token(auth_header, &state.metrics_admin_token) {
+        state.http_metrics.record_metrics_auth_failure();
+        return Err((StatusCode::UNAUTHORIZED, "Invalid metrics token".to_string()));
+    }
+
+    // Export metrics in Prometheus format
+    Ok(state.http_metrics.export_prometheus())
+}
+
+/// Validate metrics admin token
+///
+/// Expects "Bearer <token>" format
+fn validate_metrics_token(auth_header: &str, expected_token: &str) -> bool {
+    if let Some(token) = auth_header.strip_prefix("Bearer ") {
+        return token == expected_token;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -526,5 +642,63 @@ mod tests {
         assert_eq!(variables.len(), 2);
         assert_eq!(variables.get("userId").unwrap().as_str(), Some("123"));
         assert!(variables.get("active").unwrap().as_bool().unwrap());
+    }
+
+    // =========================================================================
+    // OBSERVABILITY HELPER TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_detect_operation_query() {
+        assert_eq!(detect_operation("query { user { id } }"), "query");
+        assert_eq!(detect_operation("  query { user { id } }"), "query");
+    }
+
+    #[test]
+    fn test_detect_operation_mutation() {
+        assert_eq!(detect_operation("mutation { createUser { id } }"), "mutation");
+        assert_eq!(
+            detect_operation("  mutation CreateUser { createUser { id } }"),
+            "mutation"
+        );
+    }
+
+    #[test]
+    fn test_detect_operation_subscription() {
+        assert_eq!(
+            detect_operation("subscription { userCreated { id } }"),
+            "subscription"
+        );
+        assert_eq!(
+            detect_operation("  subscription OnUserCreated { userCreated { id } }"),
+            "subscription"
+        );
+    }
+
+    #[test]
+    fn test_detect_operation_default_to_query() {
+        assert_eq!(detect_operation("{ user { id } }"), "query");
+        assert_eq!(detect_operation("  { user { id } }"), "query");
+    }
+
+    #[test]
+    fn test_validate_metrics_token_valid() {
+        let token = "secret-token-123";
+        assert!(validate_metrics_token(&format!("Bearer {token}"), token));
+    }
+
+    #[test]
+    fn test_validate_metrics_token_invalid() {
+        assert!(!validate_metrics_token("Bearer wrong-token", "secret-token-123"));
+    }
+
+    #[test]
+    fn test_validate_metrics_token_missing_bearer() {
+        assert!(!validate_metrics_token("secret-token-123", "secret-token-123"));
+    }
+
+    #[test]
+    fn test_validate_metrics_token_empty() {
+        assert!(!validate_metrics_token("Bearer ", "secret-token-123"));
     }
 }

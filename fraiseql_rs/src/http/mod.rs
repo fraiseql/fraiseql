@@ -59,13 +59,17 @@
 
 pub mod auth_middleware;
 pub mod axum_server;
+pub mod metrics;
 pub mod middleware;
+pub mod observability_middleware;
 pub mod security_middleware;
 pub mod websocket;
 
 pub use auth_middleware::{claims_to_user_context, extract_and_validate_jwt, HttpAuthError};
 pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
+pub use metrics::HttpMetrics;
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
+pub use observability_middleware::{ObservabilityContext, ResponseStatus};
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 
