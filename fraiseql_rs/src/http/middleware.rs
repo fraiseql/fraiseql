@@ -159,7 +159,7 @@ impl CompressionConfig {
 /// ```
 #[must_use] 
 pub fn create_compression_layer(
-    config: CompressionConfig,
+    config: &CompressionConfig,
 ) -> tower_http::compression::CompressionLayer {
     use tower_http::compression::CompressionLayer as TowerCompressionLayer;
 

@@ -124,7 +124,7 @@ impl AuthMiddleware {
         };
 
         // Validate and decode token
-        self.decode_token(token)
+        Self::decode_token(token)
     }
 
     /// Validate token (signature validation requires external JWT library)
@@ -136,7 +136,7 @@ impl AuthMiddleware {
     ///
     /// In production, use the `jsonwebtoken` crate for full HMAC/RSA signature validation.
     /// This implementation is suitable for testing and can be upgraded to full validation.
-    fn decode_token(&self, token: &str) -> Result<AuthContext, AuthError> {
+    fn decode_token(token: &str) -> Result<AuthContext, AuthError> {
         // Token structure: header.payload.signature
         let parts: Vec<&str> = token.split('.').collect();
         if parts.len() != 3 {

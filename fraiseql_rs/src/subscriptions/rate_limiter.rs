@@ -168,7 +168,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Get user bucket info for testing/monitoring
-    pub async fn get_user_info(&self, user_id: i64) -> Option<(f64, f64)> {
+    pub fn get_user_info(&self, user_id: i64) -> Option<(f64, f64)> {
         self.user_buckets.get(&user_id).map(|bucket_arc| {
             // Note: This is a blocking operation in async context.
             // In production, use try_lock() to avoid blocking.
@@ -178,7 +178,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Get subscription bucket info for testing/monitoring
-    pub async fn get_subscription_info(&self, subscription_id: &str) -> Option<(f64, f64)> {
+    pub fn get_subscription_info(&self, subscription_id: &str) -> Option<(f64, f64)> {
         self.subscription_buckets
             .get(subscription_id)
             .map(|bucket_arc| {
@@ -270,12 +270,12 @@ mod tests {
         let user_id = 123i64;
         limiter.check_subscription_creation(user_id).await.unwrap();
 
-        let (tokens_before, _) = limiter.get_user_info(user_id).await.unwrap();
+        let (tokens_before, _) = limiter.get_user_info(user_id).unwrap();
         assert!(tokens_before < 1000.0);
 
         limiter.reset_user_limit(user_id);
 
-        let (tokens_after, capacity) = limiter.get_user_info(user_id).await.unwrap_or((0.0, 0.0));
+        let (tokens_after, capacity) = limiter.get_user_info(user_id).unwrap_or((0.0, 0.0));
         assert!((tokens_after - capacity).abs() < 0.001);
     }
 
@@ -297,10 +297,10 @@ mod tests {
         let user_id = 123i64;
         limiter.check_subscription_creation(user_id).await.unwrap();
 
-        assert!(limiter.get_user_info(user_id).await.is_some());
+        assert!(limiter.get_user_info(user_id).is_some());
 
         limiter.clear_all();
 
-        assert!(limiter.get_user_info(user_id).await.is_none());
+        assert!(limiter.get_user_info(user_id).is_none());
     }
 }

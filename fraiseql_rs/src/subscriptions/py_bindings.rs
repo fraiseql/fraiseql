@@ -273,8 +273,8 @@ impl PySubscriptionExecutor {
     ///     `ValueError`: If parameters are invalid
     pub fn register_subscription(
         &self,
-        connection_id: String,
-        subscription_id: String,
+        connection_id: &str,
+        subscription_id: &str,
         query: String,
         operation_name: Option<String>,
         variables: &Bound<PyDict>,
@@ -368,8 +368,8 @@ impl PySubscriptionExecutor {
     ///     `ValueError`: If parameters are invalid
     pub fn publish_event(
         &self,
-        event_type: String,
-        channel: String,
+        event_type: &str,
+        channel: &str,
         data: &Bound<PyDict>,
     ) -> PyResult<()> {
         // Validate inputs
@@ -411,7 +411,7 @@ impl PySubscriptionExecutor {
         // Execute dispatch asynchronously, blocking Python thread until complete
         let dispatch_result = rt.block_on(async {
             self.executor
-                .dispatch_event(event_type.clone(), channel.clone(), event_data)
+                .dispatch_event(event_type.to_string(), channel.to_string(), event_data)
                 .await
         });
 
@@ -433,7 +433,7 @@ impl PySubscriptionExecutor {
     ///
     /// Raises:
     ///     `ValueError`: If subscription doesn't exist
-    pub fn next_event(&self, subscription_id: String) -> PyResult<Option<Vec<u8>>> {
+    pub fn next_event(&self, subscription_id: &str) -> PyResult<Option<Vec<u8>>> {
         // Get next response from the subscription's response queue
         match self.executor.next_event(&subscription_id) {
             Ok(response) => Ok(response),
@@ -454,9 +454,9 @@ impl PySubscriptionExecutor {
     /// Raises:
     ///     `RuntimeError`: If completion fails
     ///     `ValueError`: If subscription doesn't exist
-    pub fn complete_subscription(&self, subscription_id: String) -> PyResult<()> {
+    pub fn complete_subscription(&self, subscription_id: &str) -> PyResult<()> {
         // Remove from resolvers map
-        self.resolvers.remove(&subscription_id);
+        self.resolvers.remove(subscription_id);
 
         // Notify executor
         self.executor
@@ -479,7 +479,7 @@ impl PySubscriptionExecutor {
     /// Returns:
     ///     List of subscription IDs subscribed to this channel
     #[must_use] 
-    pub fn subscriptions_by_channel(&self, channel: String) -> Vec<String> {
+    pub fn subscriptions_by_channel(&self, channel: &str) -> Vec<String> {
         self.executor.subscriptions_by_channel(&channel)
     }
 
@@ -578,7 +578,7 @@ impl PySubscriptionExecutor {
     /// ```
     pub fn register_resolver(
         &self,
-        subscription_id: String,
+        subscription_id: &str,
         resolver: &Bound<PyAny>,
     ) -> PyResult<()> {
         // Validate inputs
@@ -606,7 +606,7 @@ impl PySubscriptionExecutor {
         // Convert the Bound reference to a Py<PyAny> owned object
         let resolver_py: Py<PyAny> = resolver.clone().unbind();
 
-        self.resolvers.insert(subscription_id.clone(), resolver_py);
+        self.resolvers.insert(subscription_id.to_string(), resolver_py);
 
         println!(
             "[Phase 3] Resolver registered for subscription: {subscription_id}"

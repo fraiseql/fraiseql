@@ -136,7 +136,7 @@ pub fn create_audit_entry(
 /// Log an audit entry asynchronously (non-blocking)
 ///
 /// Spawns a background task to write to audit logger without blocking request
-pub async fn log_audit_entry_async(audit_logger: &AuditLogger, entry: AuditEntry) {
+pub fn log_audit_entry_async(audit_logger: &AuditLogger, entry: AuditEntry) {
     let logger = audit_logger.clone();
     tokio::spawn(async move {
         if let Err(e) = logger.log(entry).await {

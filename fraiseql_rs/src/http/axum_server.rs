@@ -116,7 +116,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/metrics", get(metrics_handler))
         .with_state(state)
         // Add middleware stack
-        .layer(middleware::create_compression_layer(compression_config))
+        .layer(middleware::create_compression_layer(&compression_config))
         .layer(middleware::create_cors_layer())
 }
 

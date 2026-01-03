@@ -103,7 +103,7 @@ impl EventFilter {
 
         // Check field filters
         for (field, condition) in &self.field_filters {
-            if !self.matches_condition(&event.data, field, condition) {
+            if !Self::matches_condition(&event.data, field, condition) {
                 return false;
             }
         }
@@ -112,8 +112,8 @@ impl EventFilter {
     }
 
     /// Check if a value matches a condition
-    fn matches_condition(&self, data: &Value, field: &str, condition: &FilterCondition) -> bool {
-        let value = self.get_field_value(data, field);
+    fn matches_condition(data: &Value, field: &str, condition: &FilterCondition) -> bool {
+        let value = Self::get_field_value(data, field);
 
         match condition {
             FilterCondition::Equals(expected) => value == Some(expected.clone()),
@@ -167,7 +167,7 @@ impl EventFilter {
     }
 
     /// Get field value from nested data structure (supports dot notation)
-    fn get_field_value(&self, data: &Value, field: &str) -> Option<Value> {
+    fn get_field_value(data: &Value, field: &str) -> Option<Value> {
         let parts: Vec<&str> = field.split('.').collect();
 
         let mut current = data;

@@ -357,7 +357,7 @@ impl SubscriptionExecutor {
         );
 
         // Perform basic validation
-        if let Err(e) = self.validate_subscription(&subscription) {
+        if let Err(e) = Self::validate_subscription(&subscription) {
             subscription.set_validation_error(e.to_string());
             return Err(e);
         }
@@ -380,7 +380,6 @@ impl SubscriptionExecutor {
     /// - Operation name validation (if specified, must exist)
     /// - Variables validation (must match query parameters)
     fn validate_subscription(
-        &self,
         subscription: &ExecutedSubscription,
     ) -> Result<(), SubscriptionError> {
         // 1. Parse and validate GraphQL syntax
@@ -617,7 +616,7 @@ impl SubscriptionExecutor {
         );
 
         // 2. Perform basic GraphQL validation
-        if let Err(e) = self.validate_subscription(&subscription) {
+        if let Err(e) = Self::validate_subscription(&subscription) {
             subscription.set_validation_error(e.to_string());
             return Err(e);
         }
@@ -878,8 +877,7 @@ impl SubscriptionExecutor {
 
                 async move {
                     executor
-                        .dispatch_to_subscription(&sub_id, event_type, event_data)
-                        .await
+                        .dispatch_to_subscription(&sub_id, &event_type, &event_data)
                 }
             })
             .collect();
@@ -910,11 +908,11 @@ impl SubscriptionExecutor {
     /// # Returns
     /// Ok(()) if dispatch succeeded (even if event was filtered)
     /// `Err()` if internal error occurred
-    async fn dispatch_to_subscription(
+    fn dispatch_to_subscription(
         &self,
         subscription_id: &str,
-        _event_type: String,
-        event_data: Arc<Value>,
+        _event_type: &str,
+        event_data: &Arc<Value>,
     ) -> Result<(), SubscriptionError> {
         // 1. Get subscription with security context
         let sub_entry = self
@@ -925,18 +923,17 @@ impl SubscriptionExecutor {
         let sub_with_security = sub_entry.value().clone();
 
         // 2. Apply security filters - skip if access denied
-        if !self.check_security_filters(&sub_with_security, &event_data)? {
+        if !Self::check_security_filters(&sub_with_security, &event_data)? {
             // Access denied, silently skip this subscription
             return Ok(());
         }
 
         // 3. Invoke Python resolver (placeholder for Phase 2)
         let resolver_result = self
-            .invoke_python_resolver(subscription_id, &event_data)
-            .await?;
+            .invoke_python_resolver(subscription_id, &event_data)?;
 
         // 4. Serialize response to bytes
-        let response_bytes = self.serialize_response(&resolver_result)?;
+        let response_bytes = Self::serialize_response(&resolver_result)?;
 
         // 5. Queue response for later retrieval
         self.queue_response(subscription_id.to_string(), response_bytes)?;
@@ -957,7 +954,6 @@ impl SubscriptionExecutor {
     /// # Returns
     /// true if access allowed, false if access denied
     fn check_security_filters(
-        &self,
         sub_with_security: &ExecutedSubscriptionWithSecurity,
         event_data: &Value,
     ) -> Result<bool, SubscriptionError> {
@@ -1035,7 +1031,7 @@ impl SubscriptionExecutor {
     /// 2. Use `Python::with_gil` to call resolver
     /// 3. Pass `event_data` and subscription variables
     /// 4. Return resolver result or error
-    async fn invoke_python_resolver(
+    fn invoke_python_resolver(
         &self,
         subscription_id: &str,
         event_data: &Value,
@@ -1111,7 +1107,7 @@ impl SubscriptionExecutor {
     ///
     /// # Returns
     /// Pre-serialized response bytes ready for WebSocket transmission
-    fn serialize_response(&self, response: &Value) -> Result<Vec<u8>, SubscriptionError> {
+    fn serialize_response(response: &Value) -> Result<Vec<u8>, SubscriptionError> {
         // Format as GraphQL subscription response
         let gql_response = json!({
             "type": "next",

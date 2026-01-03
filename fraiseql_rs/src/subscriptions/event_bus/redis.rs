@@ -166,7 +166,7 @@ impl RedisEventBus {
         let mut messages = Vec::new();
         for (_key, entries) in result {
             for (msg_id, data) in entries {
-                if let Ok(event) = self.parse_stream_message(&data) {
+                if let Ok(event) = Self::parse_stream_message(&data) {
                     messages.push((msg_id, event));
                 }
             }
@@ -177,7 +177,7 @@ impl RedisEventBus {
 
     /// Parse event from stream data
     #[allow(dead_code)]
-    fn parse_stream_message(&self, data: &str) -> Result<Event, SubscriptionError> {
+    fn parse_stream_message(data: &str) -> Result<Event, SubscriptionError> {
         serde_json::from_str::<Event>(data)
             .map_err(|e| SubscriptionError::EventBusError(format!("Failed to parse event: {e}")))
     }

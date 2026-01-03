@@ -43,16 +43,16 @@ pub struct PostgreSQLEventBus {
 
 impl PostgreSQLEventBus {
     /// Create new `PostgreSQL` event bus
-    pub async fn new(connection_string: &str) -> Result<Self, SubscriptionError> {
+    pub fn new(connection_string: &str) -> Result<Self, SubscriptionError> {
         let config = PostgreSQLConfig {
             connection_string: connection_string.to_string(),
             ..Default::default()
         };
-        Self::with_config(config).await
+        Self::with_config(config)
     }
 
     /// Create `PostgreSQL` event bus with configuration
-    pub async fn with_config(config: PostgreSQLConfig) -> Result<Self, SubscriptionError> {
+    pub fn with_config(config: PostgreSQLConfig) -> Result<Self, SubscriptionError> {
         // Verify connection can be established
         // Note: Full PostgreSQL async connection pool would be implemented here
         // For now, we validate the connection string format
@@ -79,7 +79,7 @@ impl PostgreSQLEventBus {
     }
 
     /// Publish event to `PostgreSQL` NOTIFY channel
-    async fn notify_channel(&self, event: &Arc<Event>) -> Result<(), SubscriptionError> {
+    fn notify_channel(&self, event: &Arc<Event>) -> Result<(), SubscriptionError> {
         let _channel_name = self.build_channel_name(&event.channel);
         let _payload = serde_json::to_string(event.as_ref())
             .map_err(|e| SubscriptionError::EventBusError(format!("Failed to serialize: {e}")))?;
@@ -117,7 +117,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
 
     async fn publish(&self, event: Arc<Event>) -> Result<(), SubscriptionError> {
         // Notify via PostgreSQL
-        self.notify_channel(&event).await?;
+        self.notify_channel(&event)?;
 
         // Update stats
         let mut stats = self.stats.lock().await;
@@ -234,7 +234,6 @@ mod tests {
     #[tokio::test]
     async fn test_postgresql_event_bus_creation() {
         let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .await
             .unwrap();
 
         let stats = bus.stats();
@@ -272,7 +271,6 @@ mod tests {
     #[tokio::test]
     async fn test_postgresql_event_bus_init() {
         let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .await
             .unwrap();
 
         assert!(bus.init().await.is_ok());
@@ -281,7 +279,6 @@ mod tests {
     #[tokio::test]
     async fn test_postgresql_event_bus_health_check() {
         let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .await
             .unwrap();
 
         assert!(bus.health_check().await.is_ok());
@@ -294,7 +291,7 @@ mod tests {
             channel_prefix: "test".to_string(),
         };
 
-        let result = PostgreSQLEventBus::with_config(config).await;
+        let result = PostgreSQLEventBus::with_config(config);
         assert!(result.is_err());
     }
 
@@ -511,7 +508,7 @@ mod tests {
                 channel_prefix: "test".to_string(),
             };
             // Should not panic on creation
-            let _bus = PostgreSQLEventBus::with_config(config).await;
+            let _bus = PostgreSQLEventBus::with_config(config);
         }
     }
 }
