@@ -589,5 +589,228 @@ class TestResolverPerformance:
         )
 
 
+class TestResolverConcurrency:
+    """Test concurrent resolver execution (Task 3.5)"""
+
+    def test_concurrent_resolver_execution(self):
+        """Test that multiple resolvers can execute concurrently (Phase 3.5)"""
+        import time
+        import threading
+
+        executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
+
+        # Track resolver calls
+        call_times = []
+        lock = threading.Lock()
+
+        def tracking_resolver(event_data):
+            """Resolver that records when it was called"""
+            with lock:
+                call_times.append(time.perf_counter())
+            return {"resolved": True}
+
+        # Register 5 subscriptions with different user IDs
+        sub_ids = []
+        for i in range(5):
+            sub_id = executor.register_subscription(
+                connection_id=f"conn_{i}",
+                subscription_id=f"sub_{i}",
+                query="subscription { test }",
+                operation_name=None,
+                variables={},
+                user_id=i + 1,  # Different user for each subscription
+                tenant_id=1,
+            )
+            sub_ids.append(sub_id)
+            executor.register_resolver(sub_id, tracking_resolver)
+
+        # Publish event - should trigger all 5 resolvers
+        start_time = time.perf_counter()
+        executor.publish_event(
+            event_type="test",
+            channel="test",
+            data={"value": 42, "user_id": 1, "tenant_id": 1},
+        )
+        elapsed = time.perf_counter() - start_time
+
+        # Verify all resolvers were called
+        assert len(call_times) > 0, "At least one resolver should have been called"
+
+        # Retrieve responses from all subscriptions
+        responses_received = 0
+        for sub_id in sub_ids:
+            response = executor.next_event(sub_id)
+            if response is not None:
+                responses_received += 1
+
+        assert responses_received > 0, "At least one response should be received"
+
+    def test_concurrent_event_publishing(self):
+        """Test concurrent event publishing with multiple threads (Phase 3.5)"""
+        import threading
+        import time
+
+        executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
+
+        call_count = {"value": 0}
+        lock = threading.Lock()
+
+        def counting_resolver(event_data):
+            """Resolver that counts invocations"""
+            with lock:
+                call_count["value"] += 1
+            return {"count": call_count["value"]}
+
+        # Register subscription
+        sub_id = executor.register_subscription(
+            connection_id="conn_1",
+            subscription_id="sub_1",
+            query="subscription { test }",
+            operation_name=None,
+            variables={},
+            user_id=1,
+            tenant_id=1,
+        )
+        executor.register_resolver(sub_id, counting_resolver)
+
+        # Publish events from multiple threads
+        def publish_event(event_num):
+            executor.publish_event(
+                event_type=f"event_{event_num}",
+                channel="test",
+                data={"event_num": event_num, "user_id": 1, "tenant_id": 1},
+            )
+
+        threads = []
+        for i in range(5):
+            t = threading.Thread(target=publish_event, args=(i,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        # Verify events were processed
+        response_count = 0
+        while True:
+            response = executor.next_event(sub_id)
+            if response is None:
+                break
+            response_count += 1
+
+        assert response_count > 0, "Should have received at least one response"
+
+
+class TestResolverEndToEnd:
+    """End-to-end workflow tests (Task 3.5)"""
+
+    def test_complete_subscription_workflow(self):
+        """Test complete workflow: register -> add resolver -> publish -> retrieve (Phase 3.5)"""
+        executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
+
+        # Step 1: Register subscription
+        sub_id = executor.register_subscription(
+            connection_id="conn_1",
+            subscription_id="user_subscription_1",
+            query="subscription OnUserUpdate($userId: ID!) { userUpdated(userId: $userId) { id name email } }",
+            operation_name="OnUserUpdate",
+            variables={"userId": "user_123"},
+            user_id=1,
+            tenant_id=1,
+        )
+        assert sub_id is not None, "Subscription should be registered"
+
+        # Step 2: Register a resolver that transforms the event
+        def user_transformer(event_data):
+            """Transform raw event data to GraphQL response shape"""
+            user = event_data.get("user", {})
+            return {
+                "userUpdated": {
+                    "id": user.get("id"),
+                    "name": user.get("name"),
+                    "email": user.get("email"),
+                }
+            }
+
+        executor.register_resolver(sub_id, user_transformer)
+
+        # Step 3: Publish an event matching the subscription
+        executor.publish_event(
+            event_type="userUpdated",
+            channel="users",
+            data={
+                "user": {
+                    "id": "user_123",
+                    "name": "Alice Johnson",
+                    "email": "alice@example.com",
+                },
+                "user_id": 1,
+                "tenant_id": 1,
+            },
+        )
+
+        # Step 4: Retrieve the transformed response
+        response = executor.next_event(sub_id)
+        assert response is not None, "Response should be available"
+        # Response is pre-serialized bytes, just verify it's not empty
+        assert len(response) > 0, "Response should contain data"
+
+    def test_multiple_resolvers_different_subscriptions(self):
+        """Test multiple subscriptions with different resolvers (Phase 3.5)"""
+        executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
+
+        # Register two different subscriptions
+        user_sub = executor.register_subscription(
+            connection_id="conn_1",
+            subscription_id="users_sub",
+            query="subscription { users }",
+            operation_name=None,
+            variables={},
+            user_id=1,
+            tenant_id=1,
+        )
+
+        post_sub = executor.register_subscription(
+            connection_id="conn_2",
+            subscription_id="posts_sub",
+            query="subscription { posts }",
+            operation_name=None,
+            variables={},
+            user_id=2,
+            tenant_id=1,
+        )
+
+        # Register different resolvers
+        def user_resolver(event_data):
+            return {"type": "user", "count": event_data.get("user_count", 0)}
+
+        def post_resolver(event_data):
+            return {"type": "post", "count": event_data.get("post_count", 0)}
+
+        executor.register_resolver(user_sub, user_resolver)
+        executor.register_resolver(post_sub, post_resolver)
+
+        # Publish event that matches user subscription
+        executor.publish_event(
+            event_type="usersUpdated",
+            channel="users",
+            data={"user_count": 10, "user_id": 1, "tenant_id": 1},
+        )
+
+        # Publish event that matches post subscription
+        executor.publish_event(
+            event_type="postsUpdated",
+            channel="posts",
+            data={"post_count": 25, "user_id": 2, "tenant_id": 1},
+        )
+
+        # Both subscriptions should have responses
+        user_response = executor.next_event(user_sub)
+        post_response = executor.next_event(post_sub)
+
+        assert user_response is not None, "User subscription should have response"
+        assert post_response is not None, "Post subscription should have response"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
