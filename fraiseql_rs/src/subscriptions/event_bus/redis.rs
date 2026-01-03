@@ -46,8 +46,8 @@ pub struct RedisEventBus {
     /// Configuration
     config: Arc<RedisConfig>,
 
-    /// Active subscriptions (channel -> receivers)
-    subscriptions: Arc<DashMap<String, Vec<mpsc::UnboundedSender<Event>>>>,
+    /// Active subscriptions (channel -> receivers, using Arc<Event> for zero-copy)
+    subscriptions: Arc<DashMap<String, Vec<mpsc::UnboundedSender<Arc<Event>>>>>,
 
     /// Statistics
     stats: Arc<tokio::sync::Mutex<EventBusStats>>,
@@ -192,7 +192,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         Ok(())
     }
 
-    async fn publish(&self, event: Event) -> Result<(), SubscriptionError> {
+    async fn publish(&self, event: Arc<Event>) -> Result<(), SubscriptionError> {
         let channel = event.channel.clone();
 
         // Publish to both pub/sub (immediate) and stream (persistent)
@@ -203,7 +203,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         let mut stats = self.stats.lock().await;
         stats.total_events += 1;
 
-        // Deliver to local subscribers
+        // Deliver to local subscribers (Arc<Event> - zero-copy, no cloning!)
         if let Some(subs) = self.subscriptions.get(&channel) {
             for sender in subs.iter() {
                 let _ = sender.send(event.clone());

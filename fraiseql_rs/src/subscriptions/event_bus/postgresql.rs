@@ -33,8 +33,8 @@ pub struct PostgreSQLEventBus {
     /// Configuration
     config: Arc<PostgreSQLConfig>,
 
-    /// Active subscriptions (channel -> receivers)
-    subscriptions: Arc<DashMap<String, Vec<mpsc::UnboundedSender<Event>>>>,
+    /// Active subscriptions (channel -> receivers, using Arc<Event> for zero-copy)
+    subscriptions: Arc<DashMap<String, Vec<mpsc::UnboundedSender<Arc<Event>>>>>,
 
     /// Statistics
     stats: Arc<tokio::sync::Mutex<EventBusStats>>,
@@ -78,9 +78,9 @@ impl PostgreSQLEventBus {
     }
 
     /// Publish event to `PostgreSQL` NOTIFY channel
-    async fn notify_channel(&self, event: &Event) -> Result<(), SubscriptionError> {
+    async fn notify_channel(&self, event: &Arc<Event>) -> Result<(), SubscriptionError> {
         let _channel_name = self.build_channel_name(&event.channel);
-        let _payload = serde_json::to_string(&event)
+        let _payload = serde_json::to_string(event.as_ref())
             .map_err(|e| SubscriptionError::EventBusError(format!("Failed to serialize: {}", e)))?;
 
         // In production, this would use a PostgreSQL connection pool:
@@ -89,7 +89,7 @@ impl PostgreSQLEventBus {
         //     &[&channel_name, &payload],
         // ).await?;
 
-        // For now, we simulate the notification to local subscribers
+        // For now, we simulate the notification to local subscribers (zero-copy with Arc)
         if let Some(subs) = self.subscriptions.get(&event.channel) {
             for sender in subs.iter() {
                 let _ = sender.send(event.clone());
@@ -114,7 +114,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
         Ok(())
     }
 
-    async fn publish(&self, event: Event) -> Result<(), SubscriptionError> {
+    async fn publish(&self, event: Arc<Event>) -> Result<(), SubscriptionError> {
         // Notify via PostgreSQL
         self.notify_channel(&event).await?;
 
@@ -122,7 +122,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
         let mut stats = self.stats.lock().await;
         stats.total_events += 1;
 
-        // Deliver to local subscribers
+        // Deliver to local subscribers (Arc<Event> - zero-copy, no cloning!)
         if let Some(subs) = self.subscriptions.get(&event.channel) {
             for sender in subs.iter() {
                 let _ = sender.send(event.clone());

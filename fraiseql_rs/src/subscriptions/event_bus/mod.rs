@@ -13,10 +13,14 @@ use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::mpsc;
 
 /// Event for subscriptions
+///
+/// Wrapped in Arc for efficient zero-copy distribution to multiple subscribers.
+/// Instead of cloning the entire event for each subscriber, we share a single Arc.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     /// Event ID (UUID)
@@ -67,24 +71,27 @@ impl Event {
 }
 
 /// Event stream received from event bus
+///
+/// Yields Arc<Event> for zero-copy event distribution.
+/// Multiple subscribers receive the same Arc, avoiding expensive clones.
 pub struct EventStream {
-    receiver: mpsc::UnboundedReceiver<Event>,
+    receiver: mpsc::UnboundedReceiver<Arc<Event>>,
 }
 
 impl EventStream {
     /// Create new event stream from receiver
-    pub fn new(receiver: mpsc::UnboundedReceiver<Event>) -> Self {
+    pub fn new(receiver: mpsc::UnboundedReceiver<Arc<Event>>) -> Self {
         Self { receiver }
     }
 
-    /// Receive next event
-    pub async fn recv(&mut self) -> Option<Event> {
+    /// Receive next event (as Arc for zero-copy access)
+    pub async fn recv(&mut self) -> Option<Arc<Event>> {
         self.receiver.recv().await
     }
 }
 
 impl futures_util::Stream for EventStream {
-    type Item = Event;
+    type Item = Arc<Event>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.receiver.poll_recv(cx) {
@@ -100,8 +107,8 @@ pub trait EventBus: Send + Sync {
     /// Initialize the event bus
     async fn init(&self) -> Result<(), SubscriptionError>;
 
-    /// Publish event to channel
-    async fn publish(&self, event: Event) -> Result<(), SubscriptionError>;
+    /// Publish event to channel (accepts Arc<Event> for zero-copy distribution)
+    async fn publish(&self, event: Arc<Event>) -> Result<(), SubscriptionError>;
 
     /// Subscribe to events on channel
     async fn subscribe(&self, channel: &str) -> Result<EventStream, SubscriptionError>;
@@ -164,11 +171,11 @@ impl EventBusStats {
 
 /// In-memory event bus for testing
 pub struct InMemoryEventBus {
-    /// Event channels: map of channel -> subscribers
-    subscribers: std::sync::Arc<dashmap::DashMap<String, Vec<mpsc::UnboundedSender<Event>>>>,
+    /// Event channels: map of channel -> subscribers (using Arc<Event> for zero-copy)
+    subscribers: Arc<dashmap::DashMap<String, Vec<mpsc::UnboundedSender<Arc<Event>>>>>,
 
     /// Statistics
-    stats: std::sync::Arc<tokio::sync::Mutex<EventBusStats>>,
+    stats: Arc<tokio::sync::Mutex<EventBusStats>>,
 }
 
 impl InMemoryEventBus {
@@ -196,12 +203,13 @@ impl EventBus for InMemoryEventBus {
         Ok(())
     }
 
-    async fn publish(&self, event: Event) -> Result<(), SubscriptionError> {
+    async fn publish(&self, event: Arc<Event>) -> Result<(), SubscriptionError> {
         let channel = event.channel.clone();
 
         if let Some(subs) = self.subscribers.get(&channel) {
             let mut delivered = 0;
             for sender in subs.iter() {
+                // Send Arc<Event> - zero-copy, no cloning!
                 if sender.send(event.clone()).is_ok() {
                     delivered += 1;
                 }
@@ -289,11 +297,11 @@ mod tests {
     #[tokio::test]
     async fn test_in_memory_event_bus_publish() {
         let bus = InMemoryEventBus::new();
-        let event = Event::new(
+        let event = Arc::new(Event::new(
             "messageAdded".to_string(),
             serde_json::json!({"message": "hello"}),
             "chat".to_string(),
-        );
+        ));
 
         let result = bus.publish(event).await;
         assert!(result.is_ok());
@@ -318,11 +326,11 @@ mod tests {
         let mut stream = bus.subscribe("chat").await.unwrap();
 
         // Publish event
-        let event = Event::new(
+        let event = Arc::new(Event::new(
             "messageAdded".to_string(),
             serde_json::json!({"message": "hello"}),
             "chat".to_string(),
-        );
+        ));
 
         tokio::spawn(async move {
             bus_clone.publish(event).await.unwrap();
