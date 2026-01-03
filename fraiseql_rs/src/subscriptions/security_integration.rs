@@ -56,7 +56,7 @@ pub struct SubscriptionSecurityContext {
 impl SubscriptionSecurityContext {
     /// Create new security context from authenticated user
     #[must_use] 
-    pub fn new(user_id: i64, tenant_id: i64) -> Self {
+    pub const fn new(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -72,7 +72,7 @@ impl SubscriptionSecurityContext {
 
     /// Create security context with federation context
     #[must_use] 
-    pub fn with_federation(user_id: i64, tenant_id: i64, federation: FederationContext) -> Self {
+    pub const fn with_federation(user_id: i64, tenant_id: i64, federation: FederationContext) -> Self {
         Self {
             user_id,
             tenant_id,

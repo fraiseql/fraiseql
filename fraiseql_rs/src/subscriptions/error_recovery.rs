@@ -211,7 +211,7 @@ impl FallbackRegistry {
     pub fn is_available(&self, service: &str) -> bool {
         self.availability
             .get(service)
-            .map_or(true, |entry| *entry) // Default to available if not registered
+            .is_none_or(|entry| *entry) // Default to available if not registered
     }
 
     /// Get available fallback

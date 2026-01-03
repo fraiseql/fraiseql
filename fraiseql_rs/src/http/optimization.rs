@@ -90,7 +90,7 @@ pub struct OptimizationConfig {
 impl OptimizationConfig {
     /// Create default optimization configuration (balanced)
     #[must_use]
-    pub fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             rate_limit: RateLimitConfig::default(),
             enable_compression: true,
@@ -106,7 +106,7 @@ impl OptimizationConfig {
 
     /// Create performance-optimized configuration
     #[must_use]
-    pub fn high_performance() -> Self {
+    pub const fn high_performance() -> Self {
         Self {
             rate_limit: RateLimitConfig::permissive(),
             enable_compression: true,
@@ -122,7 +122,7 @@ impl OptimizationConfig {
 
     /// Create security-focused configuration
     #[must_use]
-    pub fn high_security() -> Self {
+    pub const fn high_security() -> Self {
         Self {
             rate_limit: RateLimitConfig::strict(),
             enable_compression: false, // Disable to prevent timing attacks
