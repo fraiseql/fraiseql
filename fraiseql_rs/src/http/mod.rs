@@ -74,7 +74,10 @@ pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSe
 pub use websocket::websocket_handler;
 
 #[cfg(test)]
-mod tests {
+mod tests;
+
+#[cfg(test)]
+mod basic_tests {
     #[test]
     fn test_module_exports() {
         // Verify that core types are properly exported
