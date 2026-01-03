@@ -92,7 +92,7 @@ redis = { version = "0.24", features = ["tokio-comp", "streams"] } # Redis event
 prometheus = "0.13"         # Metrics collection
 
 # Phase 16: Axum HTTP Server
-axum = "0.7"                # High-performance async web framework
+axum = { version = "0.7", features = ["ws"] } # High-performance async web framework with WebSocket support
 tower = "0.4"               # Modular and reusable components for building services
 tower-http = { version = "0.5", features = ["cors", "compression-br", "trace"] } # HTTP middleware
 hyper = "1.1"               # HTTP client and server library

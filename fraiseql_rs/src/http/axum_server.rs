@@ -8,7 +8,7 @@ use axum::{
     extract::{ConnectInfo, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -76,6 +76,10 @@ pub struct AppState {
 
 /// Creates the Axum router for the GraphQL HTTP server
 ///
+/// This router configures two main routes:
+/// - `POST /graphql` - GraphQL queries and mutations
+/// - `GET /graphql/subscriptions` - WebSocket upgrade for subscriptions
+///
 /// # Arguments
 ///
 /// * `state` - The application state containing the GraphQL pipeline
@@ -84,8 +88,14 @@ pub struct AppState {
 ///
 /// A configured Axum Router ready to handle requests
 pub fn create_router(state: Arc<AppState>) -> Router {
+    use crate::http::websocket;
+
     Router::new()
         .route("/graphql", post(graphql_handler))
+        .route(
+            "/graphql/subscriptions",
+            get(websocket::websocket_handler),
+        )
         .with_state(state)
         .into()
 }

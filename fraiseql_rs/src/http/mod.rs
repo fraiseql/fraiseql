@@ -20,9 +20,24 @@
 //! HTTP Response
 //! ```
 //!
+//! WebSocket connections for subscriptions:
+//!
+//! ```text
+//! WebSocket Upgrade Request
+//!     ↓
+//! WebSocket Handler
+//!     ↓
+//! Connection Init (graphql-ws protocol)
+//!     ↓
+//! Subscription Management (Phase 15b)
+//!     ↓
+//! Event Stream
+//! ```
+//!
 //! # Modules
 //!
-//! - `axum_server`: Core Axum server implementation with routing and handlers
+//! - `axum_server`: Core Axum server implementation with HTTP routing and handlers
+//! - `websocket`: WebSocket handler for GraphQL subscriptions (graphql-ws protocol)
 //!
 //! # Examples
 //!
@@ -40,8 +55,10 @@
 //! ```
 
 pub mod axum_server;
+pub mod websocket;
 
 pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
+pub use websocket::websocket_handler;
 
 #[cfg(test)]
 mod tests {
