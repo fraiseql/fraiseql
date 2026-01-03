@@ -1534,7 +1534,7 @@ mod tests {
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_10000_concurrent_connections() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
-        use crate::subscriptions::stress_utils::{LatencySimulator, ResourceMonitor};
+        use crate::subscriptions::stress_utils::ResourceMonitor;
 
         let bus = Arc::new(InMemoryEventBus::new());
         let monitor = ResourceMonitor::new();
@@ -1792,7 +1792,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_random_connection_drops() {
-        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
         use crate::subscriptions::stress_utils::FailureInjector;
 
         let bus = Arc::new(InMemoryEventBus::new());
@@ -1818,7 +1818,7 @@ mod tests {
         let mut successful = 0;
         let mut failed = 0;
         for handle in handles {
-            if let Ok(Ok(true)) = handle.await {
+            if let Ok(true) = handle.await {
                 successful += 1;
             } else {
                 failed += 1;
@@ -1858,6 +1858,7 @@ mod tests {
 
         let bus_clone = bus.clone();
         let start_time = Instant::now();
+        let monitor_clone = monitor.clone();
 
         // Publisher: Create 5,000 events rapidly (no delays)
         let publisher = tokio::spawn(async move {
@@ -1875,7 +1876,7 @@ mod tests {
                     .await;
 
                 if i % 1000 == 0 {
-                    monitor.record_operation();
+                    monitor_clone.record_operation();
                 }
             }
         });
@@ -1952,6 +1953,7 @@ mod tests {
 
         let bus_clone = bus.clone();
         let start_time = Instant::now();
+        let monitor_clone = monitor.clone();
 
         // Publish 50 large events (100KB each)
         let publisher = tokio::spawn(async move {
@@ -1967,7 +1969,7 @@ mod tests {
                         "large-payload".to_string(),
                     )))
                     .await;
-                monitor.record_operation();
+                monitor_clone.record_operation();
             }
         });
 
@@ -2041,8 +2043,10 @@ mod tests {
         // Wait for all subscriptions
         let mut streams = vec![];
         for handle in handles {
-            if let Ok(Ok(stream)) = handle.await {
-                streams.push(stream);
+            if let Ok(stream) = handle.await {
+                if let Ok(s) = stream {
+                    streams.push(s);
+                }
             }
         }
 
@@ -2251,7 +2255,7 @@ mod tests {
     #[allow(clippy::excessive_nesting)]
     async fn test_chaos_partial_failure_injection() {
         use crate::subscriptions::chaos_utils::ChaosController;
-        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
         let chaos = ChaosController::new();
@@ -2281,7 +2285,7 @@ mod tests {
         let mut successful = 0;
         let mut failed = 0;
         for handle in handles {
-            if let Ok(Ok(true)) = handle.await {
+            if let Ok(true) = handle.await {
                 successful += 1;
             } else {
                 failed += 1;
@@ -2595,7 +2599,7 @@ mod tests {
         let mut successful = 0;
         let mut failed = 0;
         for handle in handles {
-            if let Ok(Ok(true)) = handle.await {
+            if let Ok(true) = handle.await {
                 successful += 1;
             } else {
                 failed += 1;
@@ -4393,36 +4397,42 @@ mod tests {
         println!("Target: >10,000 events/sec (>100μs per event)");
 
         let security_ctx = SubscriptionSecurityContext {
-            user_id: "user_123".to_string(),
-            tenant_id: "tenant_5".to_string(),
-            federation_context: None,
-            scope_validators: vec![],
-            rbac_enabled: true,
-            rbac_fields: vec!["username".to_string(), "email".to_string()],
+            user_id: 123,
+            tenant_id: 5,
+            federation: None,
+            row_filter: RowFilterContext::new(Some(123), Some(5)),
+            tenant: TenantContext::new(5),
+            scope_validator: ScopeValidator::new(123, 5),
+            rbac: None,
+            all_checks_passed: true,
+            violations: Vec::new(),
         };
 
         let base_filter = EventFilter {
-            event_type: Some("userUpdated".to_string()),
-            channel: Some("users".to_string()),
-            field_conditions: vec![],
+            field_filters: std::collections::HashMap::new(),
+            event_type_filter: Some("userUpdated".to_string()),
+            channel_filter: Some("users".to_string()),
         };
 
         let filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
 
         // Create test event
-        let mut event_data = std::collections::HashMap::new();
-        event_data.insert("user_id".to_string(), "user_123".to_string());
-        event_data.insert("tenant_id".to_string(), "tenant_5".to_string());
-        event_data.insert("status".to_string(), "active".to_string());
-        event_data.insert("username".to_string(), "john".to_string());
-        event_data.insert("email".to_string(), "john@example.com".to_string());
-
         let event = Event {
-            id: uuid::Uuid::new_v4(),
+            id: uuid::Uuid::new_v4().to_string(),
             event_type: "userUpdated".to_string(),
             channel: "users".to_string(),
-            data: event_data,
-            created_at: std::time::SystemTime::now(),
+            data: serde_json::json!({
+                "user_id": "user_123",
+                "tenant_id": "tenant_5",
+                "status": "active",
+                "username": "john",
+                "email": "john@example.com"
+            }),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
+            correlation_id: None,
         };
 
         let iterations = 10_000;
@@ -4463,12 +4473,15 @@ mod tests {
         let metrics = SecurityMetrics::new();
 
         let security_ctx = SubscriptionSecurityContext {
-            user_id: "user_456".to_string(),
-            tenant_id: "tenant_10".to_string(),
-            federation_context: None,
-            scope_validators: vec![],
-            rbac_enabled: true,
-            rbac_fields: vec!["data".to_string()],
+            user_id: 456,
+            tenant_id: 10,
+            federation: None,
+            row_filter: RowFilterContext::new(Some(456), Some(10)),
+            tenant: TenantContext::new(10),
+            scope_validator: ScopeValidator::new(456, 10),
+            rbac: None,
+            all_checks_passed: true,
+            violations: Vec::new(),
         };
 
         // Execute subscription
@@ -4485,25 +4498,28 @@ mod tests {
             .expect("Failed to execute subscription");
 
         let base_filter = EventFilter {
-            event_type: Some("dataChanged".to_string()),
-            channel: Some("data".to_string()),
-            field_conditions: vec![],
+            field_filters: std::collections::HashMap::new(),
+            event_type_filter: Some("dataChanged".to_string()),
+            channel_filter: Some("data".to_string()),
         };
 
         let filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
 
         // Create test event
-        let mut event_data = std::collections::HashMap::new();
-        event_data.insert("user_id".to_string(), "user_456".to_string());
-        event_data.insert("tenant_id".to_string(), "tenant_10".to_string());
-        event_data.insert("data".to_string(), "sensitive_value".to_string());
-
         let event = Event {
-            id: uuid::Uuid::new_v4(),
+            id: uuid::Uuid::new_v4().to_string(),
             event_type: "dataChanged".to_string(),
             channel: "data".to_string(),
-            data: event_data,
-            created_at: std::time::SystemTime::now(),
+            data: serde_json::json!({
+                "user_id": "user_456",
+                "tenant_id": "tenant_10",
+                "data": "sensitive_value"
+            }),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
+            correlation_id: None,
         };
 
         let iterations = 1_000;
@@ -4552,35 +4568,41 @@ mod tests {
         let mut filters = vec![];
         for i in 0..num_filters {
             let security_ctx = SubscriptionSecurityContext {
-                user_id: format!("user_{}", i),
-                tenant_id: format!("tenant_{}", i % 10),
-                federation_context: None,
-                scope_validators: vec![],
-                rbac_enabled: true,
-                rbac_fields: vec!["field1".to_string()],
+                user_id: i as i64,
+                tenant_id: (i % 10) as i64,
+                federation: None,
+                row_filter: RowFilterContext::new(Some(i as i64), Some((i % 10) as i64)),
+                tenant: TenantContext::new((i % 10) as i64),
+                scope_validator: ScopeValidator::new(i as i64, (i % 10) as i64),
+                rbac: None,
+                all_checks_passed: true,
+                violations: Vec::new(),
             };
 
             let base_filter = EventFilter {
-                event_type: Some("update".to_string()),
-                channel: Some("updates".to_string()),
-                field_conditions: vec![],
+                field_filters: std::collections::HashMap::new(),
+                event_type_filter: Some("update".to_string()),
+                channel_filter: Some("updates".to_string()),
             };
 
             filters.push(SecurityAwareEventFilter::new(base_filter, security_ctx));
         }
 
         // Create event
-        let mut event_data = std::collections::HashMap::new();
-        event_data.insert("user_id".to_string(), "user_0".to_string());
-        event_data.insert("tenant_id".to_string(), "tenant_0".to_string());
-        event_data.insert("field1".to_string(), "value".to_string());
-
         let event = Event {
-            id: uuid::Uuid::new_v4(),
+            id: uuid::Uuid::new_v4().to_string(),
             event_type: "update".to_string(),
             channel: "updates".to_string(),
-            data: event_data,
-            created_at: std::time::SystemTime::now(),
+            data: serde_json::json!({
+                "user_id": "user_0",
+                "tenant_id": "tenant_0",
+                "field1": "value"
+            }),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
+            correlation_id: None,
         };
 
         let start = std::time::Instant::now();
@@ -4589,11 +4611,12 @@ mod tests {
         let mut handles = vec![];
         for filter in filters {
             let event_clone = Event {
-                id: uuid::Uuid::new_v4(),
+                id: uuid::Uuid::new_v4().to_string(),
                 event_type: event.event_type.clone(),
                 channel: event.channel.clone(),
                 data: event.data.clone(),
-                created_at: event.created_at,
+                timestamp: event.timestamp,
+                correlation_id: None,
             };
 
             let handle = tokio::spawn(async move {

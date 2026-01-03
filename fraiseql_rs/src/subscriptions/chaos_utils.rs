@@ -96,7 +96,8 @@ impl ChaosController {
     pub fn elapsed(&self) -> Option<Duration> {
         self.start_time
             .lock()
-            .and_then(|start| Some(start.elapsed()))
+            .ok()
+            .and_then(|start_opt| start_opt.as_ref().map(|instant| instant.elapsed()))
     }
 
     /// Reset all chaos state
@@ -105,7 +106,7 @@ impl ChaosController {
         self.postgres_down.store(false, Ordering::SeqCst);
         self.failure_percentage.store(0, Ordering::SeqCst);
         self.trigger_count.store(0, Ordering::Relaxed);
-        *self.start_time.lock() = None;
+        *self.start_time.lock().unwrap() = None;
     }
 
     /// Get description of current chaos state
@@ -130,7 +131,7 @@ impl ChaosController {
 
     /// Mark when chaos started (internal)
     fn mark_start(&self) {
-        let mut start = self.start_time.lock();
+        let mut start = self.start_time.lock().unwrap();
         if start.is_none() {
             *start = Some(Instant::now());
         }
@@ -182,15 +183,15 @@ impl CircuitBreaker {
 
     /// Check if request should be allowed
     pub fn can_execute(&self) -> bool {
-        let state = *self.state.lock();
+        let state = *self.state.lock().unwrap();
         match state {
             CircuitState::Closed => true,
             CircuitState::Open => {
                 // Check if timeout has elapsed
-                if let Some(last_failure) = *self.last_failure_time.lock() {
+                if let Some(last_failure) = *self.last_failure_time.lock().unwrap() {
                     if last_failure.elapsed() >= self.timeout {
                         // Try half-open
-                        *self.state.lock() = CircuitState::HalfOpen;
+                        *self.state.lock().unwrap() = CircuitState::HalfOpen;
                         self.success_count.store(0, Ordering::Relaxed);
                         return true;
                     }
@@ -203,7 +204,7 @@ impl CircuitBreaker {
 
     /// Record a successful operation
     pub fn record_success(&self) {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         match *state {
             CircuitState::Closed => {
                 self.failure_count.store(0, Ordering::Relaxed);
@@ -222,8 +223,8 @@ impl CircuitBreaker {
 
     /// Record a failed operation
     pub fn record_failure(&self) {
-        *self.last_failure_time.lock() = Some(Instant::now());
-        let mut state = self.state.lock();
+        *self.last_failure_time.lock().unwrap() = Some(Instant::now());
+        let mut state = self.state.lock().unwrap();
         match *state {
             CircuitState::Closed => {
                 self.failure_count.fetch_add(1, Ordering::Relaxed);
@@ -242,20 +243,34 @@ impl CircuitBreaker {
     }
 
     /// Get current state
+    ///
+    /// # Panics
+    ///
+    /// Panics if the state lock is poisoned.
+    #[must_use]
     pub fn state(&self) -> CircuitState {
-        *self.state.lock()
+        *self.state.lock().unwrap()
     }
 
-    /// Reset circuit breaker
+    /// Reset circuit breaker to closed state
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the state locks are poisoned.
     pub fn reset(&self) {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         *state = CircuitState::Closed;
         self.failure_count.store(0, Ordering::Relaxed);
         self.success_count.store(0, Ordering::Relaxed);
-        *self.last_failure_time.lock() = None;
+        *self.last_failure_time.lock().unwrap() = None;
     }
 
     /// Get statistics
+    ///
+    /// # Panics
+    ///
+    /// Panics if the state lock is poisoned.
+    #[must_use]
     pub fn stats(&self) -> CircuitBreakerStats {
         CircuitBreakerStats {
             state: self.state(),
@@ -284,10 +299,15 @@ impl Clone for CircuitBreaker {
 /// Statistics from circuit breaker
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerStats {
+    /// Current circuit state (Open, Closed, HalfOpen)
     pub state: CircuitState,
+    /// Number of failures recorded
     pub failures: u32,
+    /// Number of successes recorded
     pub successes: u32,
+    /// Failure count threshold to open circuit
     pub failure_threshold: u32,
+    /// Success count threshold to close circuit from HalfOpen
     pub success_threshold: u32,
 }
 

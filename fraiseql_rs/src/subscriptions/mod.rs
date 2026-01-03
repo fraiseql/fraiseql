@@ -58,11 +58,11 @@ pub use error_recovery::{
     CircuitBreaker, CircuitState, FallbackRegistry, RecoveryStrategy, RetryConfig,
 };
 pub use event_bus::{Event, EventBus, EventStream, InMemoryEventBus};
-pub use event_filter::{EventFilter, FilterCondition};
-pub use executor::SubscriptionExecutor;
+pub use event_filter::{EventFilter, FilterCondition, SecurityAwareEventFilter};
+pub use executor::{SubscriptionExecutor, SubscriptionState};
 pub use federation_context::FederationContext;
 pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
-pub use metrics::SubscriptionMetrics;
+pub use metrics::{SecurityMetrics, SubscriptionMetrics};
 pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
 pub use py_bindings::{
     init_subscriptions, PyEventBusConfig, PyGraphQLMessage, PySubscriptionExecutor,

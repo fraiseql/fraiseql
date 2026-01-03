@@ -95,9 +95,9 @@ impl FailureInjector {
 }
 
 /// Resource monitor for tracking system behavior under stress
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceMonitor {
-    start_time: Instant,
+    start_time: Arc<Instant>,
     start_memory: u64,
     peak_memory: Arc<AtomicU64>,
     current_memory: Arc<AtomicU64>,
@@ -109,7 +109,7 @@ impl ResourceMonitor {
     pub fn new() -> Self {
         let start_memory = Self::current_memory_bytes();
         Self {
-            start_time: Instant::now(),
+            start_time: Arc::new(Instant::now()),
             start_memory,
             peak_memory: Arc::new(AtomicU64::new(start_memory)),
             current_memory: Arc::new(AtomicU64::new(start_memory)),
@@ -192,13 +192,21 @@ impl Default for ResourceMonitor {
 /// Report from resource monitor
 #[derive(Debug, Clone)]
 pub struct MonitorReport {
+    /// Total elapsed time since monitor creation
     pub elapsed: Duration,
+    /// Initial memory in MB at monitor creation
     pub initial_memory_mb: u64,
+    /// Current memory usage in MB
     pub current_memory_mb: u64,
+    /// Peak memory usage in MB
     pub peak_memory_mb: u64,
+    /// Memory delta from initial to current in MB
     pub memory_delta_mb: u64,
+    /// Peak delta from initial in MB
     pub peak_delta_mb: u64,
+    /// Total operations recorded
     pub operations: u64,
+    /// Operations per second
     pub ops_per_sec: f64,
 }
 
@@ -286,6 +294,6 @@ mod tests {
 
         let report = monitor.report();
         assert_eq!(report.operations, 2);
-        assert!(report.elapsed.as_millis() >= 0);
+        assert!(!report.elapsed.is_zero());
     }
 }
