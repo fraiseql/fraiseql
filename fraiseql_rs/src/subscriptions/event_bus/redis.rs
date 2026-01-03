@@ -6,7 +6,7 @@
 use crate::subscriptions::event_bus::{Event, EventBusStats, EventStream};
 use crate::subscriptions::SubscriptionError;
 use dashmap::DashMap;
-use redis::aio::MultiplexedConnection;
+use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -40,8 +40,8 @@ impl Default for RedisConfig {
 
 /// Redis event bus
 pub struct RedisEventBus {
-    /// Redis connection (shared via Arc - MultiplexedConnection is thread-safe)
-    connection: Arc<MultiplexedConnection>,
+    /// Redis connection (shared via Arc - ConnectionManager is thread-safe)
+    connection: Arc<ConnectionManager>,
 
     /// Configuration
     config: Arc<RedisConfig>,
@@ -69,9 +69,12 @@ impl RedisEventBus {
             SubscriptionError::EventBusError(format!("Failed to create client: {}", e))
         })?;
 
-        let connection = client.get_multiplexed_async_connection().await.map_err(|e| {
-            SubscriptionError::EventBusError(format!("Failed to get connection: {}", e))
-        })?;
+        let connection = client
+            .get_connection_manager()
+            .await
+            .map_err(|e| {
+                SubscriptionError::EventBusError(format!("Failed to get connection: {}", e))
+            })?;
 
         Ok(Self {
             connection: Arc::new(connection),
@@ -95,7 +98,7 @@ impl RedisEventBus {
         redis::cmd("PUBLISH")
             .arg(&event.channel)
             .arg(&json_str)
-            .query_async::<_, i64>(&mut conn)
+            .query_async::<i64>(&mut conn)
             .await
             .map_err(|e| SubscriptionError::EventBusError(format!("Failed to publish: {}", e)))?;
 
@@ -185,7 +188,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         // Test connection
         let mut conn = self.connection.as_ref().clone();
         redis::cmd("PING")
-            .query_async::<_, String>(&mut conn)
+            .query_async::<String>(&mut conn)
             .await
             .map_err(|e| SubscriptionError::EventBusError(format!("Redis not available: {}", e)))?;
 
@@ -271,7 +274,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
     async fn health_check(&self) -> Result<(), SubscriptionError> {
         let mut conn = self.connection.as_ref().clone();
         redis::cmd("PING")
-            .query_async::<_, String>(&mut conn)
+            .query_async::<String>(&mut conn)
             .await
             .map_err(|e| {
                 SubscriptionError::EventBusError(format!("Redis health check failed: {}", e))
