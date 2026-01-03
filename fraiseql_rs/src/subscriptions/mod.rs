@@ -23,6 +23,7 @@ pub mod error_recovery;
 pub mod event_bus;
 pub mod event_filter;
 pub mod executor;
+pub mod federation_context;
 pub mod heartbeat;
 pub mod metrics;
 pub mod presets;
@@ -54,6 +55,7 @@ pub use error_recovery::{
 pub use event_bus::{Event, EventBus, EventStream, InMemoryEventBus};
 pub use event_filter::{EventFilter, FilterCondition};
 pub use executor::SubscriptionExecutor;
+pub use federation_context::FederationContext;
 pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
 pub use metrics::SubscriptionMetrics;
 pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};

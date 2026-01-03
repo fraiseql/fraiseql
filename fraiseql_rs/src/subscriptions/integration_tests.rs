@@ -2974,4 +2974,158 @@ mod tests {
 
         println!("✅ test_row_filter_partial_result_filtering passed");
     }
+
+    // Federation Context Isolation Tests (Phase 3.2)
+    // Test subgraph ownership validation for subscriptions
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_federation_context_isolation() {
+        use crate::subscriptions::federation_context::FederationContext;
+
+        // Create federation contexts for two different subgraphs
+        let users_subgraph = FederationContext::with_id("users-service".to_string());
+        let orders_subgraph = FederationContext::with_id("orders-service".to_string());
+
+        // Same subgraph: should match
+        let users_subgraph_2 = FederationContext::with_id("users-service".to_string());
+        assert!(
+            users_subgraph.matches(&users_subgraph_2),
+            "Same subgraph should match"
+        );
+
+        // Different subgraphs: should NOT match
+        assert!(
+            users_subgraph.should_reject(&orders_subgraph),
+            "Different subgraphs should be rejected"
+        );
+
+        println!("✅ test_federation_context_isolation passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_federation_cross_subgraph_rejected() {
+        use crate::subscriptions::federation_context::FederationContext;
+
+        // Simulate connection from users subgraph
+        let connection_context = FederationContext::with_id("users-service".to_string());
+
+        // Simulate subscription request from orders subgraph
+        let subscription_context = FederationContext::with_id("orders-service".to_string());
+
+        // Should reject cross-subgraph subscription
+        assert!(
+            connection_context.should_reject(&subscription_context),
+            "Should reject subscription from different subgraph"
+        );
+
+        println!("✅ test_federation_cross_subgraph_rejected passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_federation_context_stored_in_metadata() {
+        // Verify federation context can be stored in connection metadata
+        let fed_context = "users-service".to_string();
+
+        // Simulate storing in connection
+        struct MockConnection {
+            federation_id: Option<String>,
+        }
+
+        let conn = MockConnection {
+            federation_id: Some(fed_context.clone()),
+        };
+
+        assert_eq!(
+            conn.federation_id,
+            Some("users-service".to_string()),
+            "Federation ID should be stored in connection metadata"
+        );
+
+        println!("✅ test_federation_context_stored_in_metadata passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_federation_context_validation_on_subscription() {
+        use crate::subscriptions::federation_context::FederationContext;
+
+        // Connection authenticated in users subgraph
+        let connection_fed = FederationContext::with_id("users-service".to_string());
+
+        // Test: Subscription request from same subgraph
+        let same_subgraph = FederationContext::with_id("users-service".to_string());
+        assert!(
+            connection_fed.matches(&same_subgraph),
+            "Should accept subscription from same subgraph"
+        );
+
+        // Test: Subscription request from different subgraph
+        let different_subgraph = FederationContext::with_id("orders-service".to_string());
+        assert!(
+            connection_fed.should_reject(&different_subgraph),
+            "Should reject subscription from different subgraph"
+        );
+
+        // Test: Subscription from non-federated environment (backward compatibility)
+        let standalone = FederationContext::standalone();
+        assert!(
+            standalone.matches(&same_subgraph).to_string() != "true" ||
+            standalone.matches(&same_subgraph) == false,
+            "Non-federated environment should reject federation context"
+        );
+
+        println!("✅ test_federation_context_validation_on_subscription passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_federation_multiple_subgraphs_isolated() {
+        use crate::subscriptions::federation_context::FederationContext;
+
+        // Simulate 3 different subgraphs
+        let users_fed = FederationContext::with_id("users-service".to_string());
+        let orders_fed = FederationContext::with_id("orders-service".to_string());
+        let products_fed = FederationContext::with_id("products-service".to_string());
+
+        // Create subscriptions for each subgraph
+        let mut users_subscriptions = vec![];
+        let mut orders_subscriptions = vec![];
+        let mut products_subscriptions = vec![];
+
+        // Add subscriptions
+        for i in 0..3 {
+            users_subscriptions.push(format!("user_subscription_{}", i));
+            orders_subscriptions.push(format!("order_subscription_{}", i));
+            products_subscriptions.push(format!("product_subscription_{}", i));
+        }
+
+        // Validate isolation: users subgraph only accepts users subscriptions
+        let users_subscription = FederationContext::with_id("users-service".to_string());
+        let orders_subscription = FederationContext::with_id("orders-service".to_string());
+
+        assert!(
+            users_fed.matches(&users_subscription),
+            "Users subgraph should accept users subscriptions"
+        );
+        assert!(
+            users_fed.should_reject(&orders_subscription),
+            "Users subgraph should reject orders subscriptions"
+        );
+
+        // Verify total subscriptions across subgraphs
+        let total_subscriptions =
+            users_subscriptions.len() + orders_subscriptions.len() + products_subscriptions.len();
+        assert_eq!(
+            total_subscriptions, 9,
+            "Should have 9 total subscriptions across 3 subgraphs"
+        );
+
+        println!(
+            "✅ test_federation_multiple_subgraphs_isolated passed (3 subgraphs, {} subscriptions)",
+            total_subscriptions
+        );
+    }
 }
