@@ -70,14 +70,14 @@ let json = r"not valid json";
 
 **Files Modified**: 3
 - src/cascade/tests.rs
-- src/graphql/parser.rs  
+- src/graphql/parser.rs
 - src/mutation/tests/parsing.rs
 
 **Total Locations Fixed**: 9
 - 3 in main lib code
 - 6 in test-only code
 
-**Warning Reduction**: 
+**Warning Reduction**:
 - Main lib: 64 → 61 (-3)
 - Test code warnings also eliminated but counted separately
 

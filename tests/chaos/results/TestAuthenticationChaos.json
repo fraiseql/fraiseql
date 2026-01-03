@@ -1,11 +1,11 @@
 {
   "test_class": "TestAuthenticationChaos",
-  "timestamp": 1767283522.4875453,
+  "timestamp": 1767422352.5475705,
   "metrics": {
-    "duration_ms": 711.9965553283691,
+    "duration_ms": 714.141845703125,
     "query_count": 55,
-    "avg_query_time_ms": 12.910309704867275,
-    "p95_query_time_ms": 16.124439239501953,
+    "avg_query_time_ms": 12.954859300093217,
+    "p95_query_time_ms": 16.010522842407227,
     "error_count": 17,
     "retry_count": 0,
     "chaos_active_duration_ms": null

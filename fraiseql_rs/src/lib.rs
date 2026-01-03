@@ -62,7 +62,7 @@ pub mod rbac;
 pub mod response;
 pub mod schema_registry;
 pub mod security;
-// pub mod subscriptions;  // Phase 15b: Real-time subscriptions (coming)
+// pub mod subscriptions; // Phase 15b: Real-time subscriptions (has compilation issues - needs fixes)
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -807,6 +807,12 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PyApqHandler", // Phase 15a: APQ
             "hash_query",   // Phase 15a: APQ
             "verify_hash",  // Phase 15a: APQ
+                            // Phase 15b: Subscriptions exports (disabled until compilation issues are fixed)
+                            // "SubscriptionExecutor",
+                            // "SubscriptionMessage",
+                            // "GraphQLMessage",
+                            // "ConnectionManager",
+                            // "SubscriptionMetrics",
         ],
     )?;
 
@@ -878,6 +884,14 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<apq::py_bindings::PyApqHandler>()?;
     m.add_function(wrap_pyfunction!(apq::hasher::hash_query, m)?)?;
     m.add_function(wrap_pyfunction!(apq::hasher::verify_hash, m)?)?;
+
+    // Add subscriptions (Phase 15b)
+    // TODO: Fix compilation errors in subscriptions module before enabling PyO3 exports
+    // m.add_class::<subscriptions::executor::SubscriptionExecutor>()?;
+    // m.add_class::<subscriptions::protocol::SubscriptionMessage>()?;
+    // m.add_class::<subscriptions::protocol::GraphQLMessage>()?;
+    // m.add_class::<subscriptions::connection_manager::ConnectionManager>()?;
+    // m.add_class::<subscriptions::metrics::SubscriptionMetrics>()?;
 
     // Add internal testing exports (not in __all__)
     m.add_class::<Arena>()?;
