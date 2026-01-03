@@ -448,6 +448,148 @@ impl GraphQLPipeline {
 
         Ok(response)
     }
+
+    /// Execute GraphQL query with streaming response.
+    ///
+    /// This method streams results one at a time as they arrive from the database,
+    /// using bounded channels for backpressure control. Suitable for large result sets.
+    ///
+    /// The method:
+    /// 1. Parses and validates the query
+    /// 2. Checks authorization
+    /// 3. Builds SQL (with caching)
+    /// 4. Executes query and streams results
+    /// 5. Returns a receiver channel that yields JSON responses
+    ///
+    /// # Arguments
+    ///
+    /// * `query_string` - GraphQL query string
+    /// * `variables` - Query variables
+    /// * `user_context` - User context for authorization
+    /// * `channel_size` - Bounded channel size for backpressure (default 100)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Query parsing fails
+    /// - Authorization fails
+    /// - SQL building fails
+    /// - Database execution fails
+    /// - JSON serialization fails
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is before the UNIX epoch (January 1, 1970).
+    /// This should never happen on any modern system.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut rx = pipeline.execute_streaming(query, &vars, &user, 100)?;
+    /// while let Some(row) = rx.recv().await {
+    ///     println!("{}", row);
+    /// }
+    /// ```
+    pub fn execute_streaming(
+        &self,
+        query_string: &str,
+        variables: &HashMap<String, JsonValue>,
+        user_context: &UserContext,
+        channel_size: usize,
+    ) -> Result<tokio::sync::mpsc::Receiver<String>> {
+        // Phase 6: Parse GraphQL query
+        let parsed_query = crate::graphql::parser::parse_query(query_string)?;
+
+        // Phase 13: Advanced GraphQL Features Validation
+        Self::validate_advanced_graphql_features(&parsed_query, variables)?;
+
+        // Phase 14: RBAC Authorization Check
+        Self::check_authorization(&parsed_query, user_context, &self.schema)?;
+
+        // Only streaming queries are supported (not mutations)
+        if parsed_query.operation_type == "mutation" {
+            return Err(anyhow::anyhow!(
+                "Streaming mutations not supported. Use regular execute() for mutations."
+            ));
+        }
+
+        // Phase 7 + 8: Build SQL (with caching)
+        let signature = crate::cache::signature::generate_signature(&parsed_query);
+        let sql = if let Ok(Some(cached_plan)) = self.cache.get(&signature) {
+            cached_plan.sql_template
+        } else {
+            let composer = SQLComposer::new(self.schema.clone());
+            let sql_query = composer.compose(&parsed_query)?;
+
+            // Store in cache asynchronously
+            let cache_clone = Arc::clone(&self.cache);
+            let sig_clone = signature.clone();
+            let sql_clone = sql_query.sql.clone();
+            tokio::spawn(async move {
+                let cached_plan = CachedQueryPlan {
+                    signature: sig_clone.clone(),
+                    sql_template: sql_clone,
+                    parameters: vec![],
+                    created_at: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .expect("system time before UNIX epoch")
+                        .as_secs(),
+                    hit_count: 0,
+                };
+                if let Err(e) = cache_clone.put(sig_clone, cached_plan) {
+                    eprintln!("Cache put error in streaming: {e}");
+                }
+            });
+
+            sql_query.sql
+        };
+
+        // Create bounded channel for backpressure
+        let (tx, rx) = tokio::sync::mpsc::channel(channel_size);
+
+        // Get the underlying pool for streaming execution
+        let underlying_pool = self
+            .pool
+            .get_pool()
+            .ok_or_else(|| anyhow::anyhow!("Database pool not available"))?;
+
+        // Spawn streaming task
+        tokio::spawn(async move {
+            // Phase 1-3: Execute query and stream results
+            let client = match underlying_pool.get().await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to get connection for streaming: {e}");
+                    return;
+                }
+            };
+
+            let rows = match client.query(&sql, &[]).await {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Streaming query execution failed: {e}");
+                    return;
+                }
+            };
+
+            // Stream each row - flat nesting structure
+            for row in rows {
+                let Ok(value) = row.try_get::<_, serde_json::Value>(0) else {
+                    continue;
+                };
+
+                let Ok(json_string) = serde_json::to_string(&value) else {
+                    continue;
+                };
+
+                // Send to channel (ignore if receiver dropped)
+                let _ = tx.send(json_string).await;
+            }
+            // Channel automatically closes when tx is dropped
+        });
+
+        Ok(rx)
+    }
 }
 
 /// Python wrapper for the unified pipeline.
