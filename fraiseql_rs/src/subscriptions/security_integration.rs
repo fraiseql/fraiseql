@@ -135,6 +135,10 @@ impl SubscriptionSecurityContext {
     /// Validate subscription variables against all security rules
     ///
     /// Returns Ok(()) if all checks pass, Err with violations if any fail.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any security check fails (scope, federation, tenant validation).
     pub fn validate_subscription_variables(
         &mut self,
         variables: &HashMap<String, Value>,
@@ -189,6 +193,10 @@ impl SubscriptionSecurityContext {
     /// Validate RBAC field access
     ///
     /// Check if user has permission to access requested fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not authorized to access a requested field.
     pub fn validate_field_access(
         &self,
         allowed_fields: &HashMap<String, bool>,

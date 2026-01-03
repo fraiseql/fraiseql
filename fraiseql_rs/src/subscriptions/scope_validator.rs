@@ -77,6 +77,10 @@ impl ScopeValidator {
     /// - { tenant_id: 10 } (tenant mismatch)
     /// - { user_id: 123, tenant_id: 10 } (tenant mismatch)
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if scope validation fails (user or tenant mismatch).
     pub fn validate(&self, variables: &HashMap<String, Value>) -> Result<(), String> {
         // If enforcement disabled, allow all subscriptions
         if !self.enforce_validation {

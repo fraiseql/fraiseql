@@ -55,12 +55,20 @@ pub struct SubscriptionMetrics {
 
 impl SubscriptionMetrics {
     /// Create new metrics with default registry
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if metric registration fails.
     pub fn new() -> Result<Arc<Self>, prometheus::Error> {
         let registry = Registry::new();
         Self::with_registry(&registry)
     }
 
     /// Create metrics with custom registry
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if metric registration fails.
     pub fn with_registry(registry: &Registry) -> Result<Arc<Self>, prometheus::Error> {
         let total_connections = Counter::new(
             "fraiseql_subscriptions_total_connections",
@@ -246,6 +254,10 @@ impl SubscriptionMetrics {
     }
 
     /// Get all metrics in Prometheus text format
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if metric gathering or encoding fails.
     pub fn gather_metrics(&self) -> Result<String, prometheus::Error> {
         // Collect metrics from individual collectors
         let registry = Registry::new();

@@ -99,6 +99,10 @@ impl RBACContext {
     ///
     /// The validator checks that all fields can be accessed by the user.
     /// In a real implementation, this would query the `PermissionResolver`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not authorized to access a requested field.
     pub fn validate_fields(&self, allowed_fields: &HashMap<String, bool>) -> Result<(), String> {
         // If enforcement disabled, allow all fields
         if !self.enforce_rbac {

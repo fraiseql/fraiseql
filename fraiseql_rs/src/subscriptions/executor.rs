@@ -205,6 +205,10 @@ pub struct SubscriptionExecutor {
 /// a direct dependency on `PySubscriptionExecutor`.
 pub trait ResolverCallback: Send + Sync {
     /// Invoke a resolver and return the result as JSON string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the resolver invocation fails.
     fn invoke(
         &self,
         subscription_id: &str,
@@ -270,6 +274,10 @@ impl SubscriptionExecutor {
 
     /// Queue a response for a subscription (Phase 2)
     /// Response bytes are pre-serialized and ready for WebSocket transmission
+    ///
+    /// # Errors
+    ///
+    /// This function currently does not return errors but returns `Result` for API consistency.
     pub fn queue_response(
         &self,
         subscription_id: String,
@@ -300,6 +308,10 @@ impl SubscriptionExecutor {
 
     /// Get next response for a subscription (Phase 2)
     /// Returns pre-serialized bytes or None if queue is empty
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn next_event(&self, subscription_id: &str) -> Result<Option<Vec<u8>>, SubscriptionError> {
         // Verify subscription exists
         let _sub = self
@@ -332,6 +344,10 @@ impl SubscriptionExecutor {
     }
 
     /// Execute subscription (parse and validate)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query is empty, invalid, or not a subscription operation.
     pub fn execute(
         &self,
         connection_id: Uuid,
@@ -441,6 +457,10 @@ impl SubscriptionExecutor {
     }
 
     /// Update subscription state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn update_subscription<F>(
         &self,
         subscription_id: &str,
@@ -459,6 +479,10 @@ impl SubscriptionExecutor {
     }
 
     /// Complete subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn complete_subscription(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         self.update_subscription(subscription_id, |sub| {
             sub.complete();
@@ -466,6 +490,10 @@ impl SubscriptionExecutor {
     }
 
     /// Cancel subscription with error
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn cancel_subscription(
         &self,
         subscription_id: &str,
@@ -488,6 +516,10 @@ impl SubscriptionExecutor {
     }
 
     /// Remove subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn remove_subscription(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         self.subscriptions
             .remove(subscription_id)
@@ -602,6 +634,10 @@ impl SubscriptionExecutor {
     /// # Returns
     /// * `Ok(ExecutedSubscriptionWithSecurity)` if validation passes
     /// * `Err(SubscriptionError)` if validation fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation fails or security checks fail.
     pub fn execute_with_security(
         &self,
         connection_id: Uuid,
@@ -662,6 +698,10 @@ impl SubscriptionExecutor {
     /// # Returns
     /// * `Ok(())` if violation recorded
     /// * `Err(SubscriptionError::SubscriptionNotFound)` if subscription doesn't exist
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn record_security_violation(
         &self,
         subscription_id: &str,
@@ -727,6 +767,10 @@ impl SubscriptionExecutor {
     /// # Returns
     /// * `Ok(())` if all security checks pass
     /// * `Err(SubscriptionError)` if any security check fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any security check fails.
     pub fn validate_subscription_security(
         &self,
         subscription: &ExecutedSubscription,
@@ -848,6 +892,10 @@ impl SubscriptionExecutor {
     /// ).await?;
     /// println!("Event dispatched to {} subscriptions", count);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if event dispatch or serialization fails.
     pub async fn dispatch_event(
         &self,
         event_type: String,

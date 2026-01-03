@@ -37,8 +37,9 @@ pub struct PySubscriptionPayload {
 
 #[pymethods]
 impl PySubscriptionPayload {
+    /// Create a new subscription payload
     #[new]
-    #[must_use] 
+    #[must_use]
     pub fn new(query: String) -> Self {
         Self {
             query,
@@ -63,12 +64,18 @@ pub struct PyGraphQLMessage {
 
 #[pymethods]
 impl PyGraphQLMessage {
+    /// Create a new GraphQL message
     #[new]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create a GraphQL message from a Python dictionary
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the dictionary is missing the required 'type' field or if field extraction fails.
     #[staticmethod]
     pub fn from_dict(data: &Bound<PyDict>) -> PyResult<Self> {
         // Extract required 'type' field
@@ -93,6 +100,11 @@ impl PyGraphQLMessage {
         Ok(Self { type_, id, payload })
     }
 
+    /// Convert the GraphQL message to a Python dictionary
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if dictionary creation or item setting fails.
     pub fn to_dict(&self) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
             let dict = PyDict::new(py);
@@ -160,8 +172,9 @@ pub struct PyEventBusConfig {
 
 #[pymethods]
 impl PyEventBusConfig {
+    /// Create an in-memory event bus configuration
     #[staticmethod]
-    #[must_use] 
+    #[must_use]
     pub fn memory() -> Self {
         Self {
             bus_type: "memory".to_string(),
@@ -169,6 +182,11 @@ impl PyEventBusConfig {
         }
     }
 
+    /// Create a Redis event bus configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the URL is invalid (must start with "redis://").
     #[staticmethod]
     pub fn redis(url: String, consumer_group: String) -> PyResult<Self> {
         if !url.starts_with("redis://") {
@@ -186,6 +204,11 @@ impl PyEventBusConfig {
         })
     }
 
+    /// Create a `PostgreSQL` event bus configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection string is invalid (must contain "postgresql://").
     #[staticmethod]
     pub fn postgresql(connection_string: String) -> PyResult<Self> {
         if !connection_string.contains("postgresql://") {
@@ -223,6 +246,11 @@ pub struct PySubscriptionExecutor {
 
 #[pymethods]
 impl PySubscriptionExecutor {
+    /// Create a new subscription executor
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if runtime initialization fails.
     #[new]
     pub fn new() -> PyResult<Self> {
         // Initialize runtime if not already done
@@ -267,6 +295,10 @@ impl PySubscriptionExecutor {
     /// Raises:
     ///     `RuntimeError`: If registration fails
     ///     `ValueError`: If parameters are invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if subscription registration fails or parameters are invalid.
     pub fn register_subscription(
         &self,
         connection_id: &str,
@@ -362,6 +394,10 @@ impl PySubscriptionExecutor {
     /// Raises:
     ///     `RuntimeError`: If event publishing fails
     ///     `ValueError`: If parameters are invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if event publishing fails or parameters are invalid.
     pub fn publish_event(
         &self,
         event_type: &str,
@@ -429,6 +465,10 @@ impl PySubscriptionExecutor {
     ///
     /// Raises:
     ///     `ValueError`: If subscription doesn't exist
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn next_event(&self, subscription_id: &str) -> PyResult<Option<Vec<u8>>> {
         // Get next response from the subscription's response queue
         match self.executor.next_event(subscription_id) {
@@ -450,6 +490,10 @@ impl PySubscriptionExecutor {
     /// Raises:
     ///     `RuntimeError`: If completion fails
     ///     `ValueError`: If subscription doesn't exist
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found or completion fails.
     pub fn complete_subscription(&self, subscription_id: &str) -> PyResult<()> {
         // Remove from resolvers map
         self.resolvers.remove(subscription_id);
@@ -572,6 +616,10 @@ impl PySubscriptionExecutor {
     /// sub_id = executor.register_subscription(...)
     /// executor.register_resolver(sub_id, order_resolver)
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription ID is empty or resolver is not callable.
     pub fn register_resolver(
         &self,
         subscription_id: &str,
@@ -615,6 +663,10 @@ impl PySubscriptionExecutor {
     ///
     /// Returns:
     ///     Dict with subscription counts and metrics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if dictionary creation fails.
     pub fn get_metrics(&self) -> PyResult<Py<PyDict>> {
         let metrics = self.executor.metrics();
         python_metrics_dict(metrics)
@@ -720,6 +772,10 @@ fn convert_value_to_dict(dict: &Bound<PyDict>, key: String, value: Value) -> PyR
 }
 
 /// Initialize the subscriptions module for Python
+///
+/// # Errors
+///
+/// Returns an error if class registration fails.
 pub fn init_subscriptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySubscriptionPayload>()?;
     m.add_class::<PyGraphQLMessage>()?;

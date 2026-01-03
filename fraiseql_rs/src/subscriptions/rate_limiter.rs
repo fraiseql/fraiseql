@@ -94,6 +94,10 @@ impl SubscriptionRateLimiter {
     }
 
     /// Check if user can create new subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the rate limit is exceeded.
     pub async fn check_subscription_creation(&self, user_id: i64) -> Result<(), SubscriptionError> {
         // Get or create user bucket
         let bucket_arc = self
@@ -117,6 +121,10 @@ impl SubscriptionRateLimiter {
     }
 
     /// Check if subscription can send event
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the rate limit is exceeded.
     pub async fn check_event_emission(
         &self,
         subscription_id: &str,
@@ -143,6 +151,10 @@ impl SubscriptionRateLimiter {
     }
 
     /// Check if user has too many connections
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the maximum number of connections per user is exceeded.
     pub fn check_connections_per_user(
         &self,
         _user_id: i64,

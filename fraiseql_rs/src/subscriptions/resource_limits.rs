@@ -113,6 +113,10 @@ impl ResourceLimiter {
     }
 
     /// Check subscription creation limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if subscription creation would exceed resource limits.
     pub fn check_subscription_creation(
         &self,
         user_id: i64,
@@ -151,6 +155,10 @@ impl ResourceLimiter {
     }
 
     /// Check connection creation limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection creation would exceed resource limits.
     pub fn check_connection_creation(&self, user_id: i64) -> Result<(), SubscriptionError> {
         let connection_count = self
             .subscription_resources
@@ -172,6 +180,10 @@ impl ResourceLimiter {
     }
 
     /// Check event payload size
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload size exceeds the maximum allowed.
     pub fn check_event_payload_size(&self, payload_size: usize) -> Result<(), SubscriptionError> {
         if payload_size > self.limits.max_event_payload_size {
             self.violations.fetch_add(1, Ordering::Relaxed);
@@ -184,6 +196,10 @@ impl ResourceLimiter {
     }
 
     /// Check query size
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query size exceeds the maximum allowed.
     pub fn check_query_size(&self, query_size: usize) -> Result<(), SubscriptionError> {
         if query_size > self.limits.max_query_size {
             self.violations.fetch_add(1, Ordering::Relaxed);
@@ -196,6 +212,10 @@ impl ResourceLimiter {
     }
 
     /// Register subscription resource usage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if registration would exceed memory limits.
     pub fn register_subscription(
         &self,
         subscription_id: String,
@@ -241,6 +261,10 @@ impl ResourceLimiter {
     }
 
     /// Unregister subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn unregister_subscription(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         if let Some((_, resources)) = self.subscription_resources.remove(subscription_id) {
             // Update user resources
@@ -261,6 +285,10 @@ impl ResourceLimiter {
     }
 
     /// Record pending message
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found or pending message limit is exceeded.
     pub fn record_pending_message(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         if let Some(mut resources) = self.subscription_resources.get_mut(subscription_id) {
             if resources.pending_messages >= self.limits.max_pending_messages {
@@ -279,6 +307,10 @@ impl ResourceLimiter {
     }
 
     /// Clear pending messages
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscription is not found.
     pub fn clear_pending_messages(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         if let Some(mut resources) = self.subscription_resources.get_mut(subscription_id) {
             resources.pending_messages = 0;

@@ -56,6 +56,10 @@ pub struct RedisEventBus {
 
 impl RedisEventBus {
     /// Create new Redis event bus
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Redis connection cannot be established.
     pub async fn new(url: &str) -> Result<Self, SubscriptionError> {
         let config = RedisConfig {
             url: url.to_string(),
@@ -65,6 +69,10 @@ impl RedisEventBus {
     }
 
     /// Create Redis event bus with configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Redis connection cannot be established.
     pub async fn with_config(config: RedisConfig) -> Result<Self, SubscriptionError> {
         let client = redis::Client::open(config.url.as_str()).map_err(|e| {
             SubscriptionError::EventBusError(format!("Failed to create client: {e}"))

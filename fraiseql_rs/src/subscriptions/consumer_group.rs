@@ -125,6 +125,10 @@ impl ConsumerGroupManager {
     }
 
     /// Register a new consumer group for a channel
+    ///
+    /// # Errors
+    ///
+    /// This function currently does not return errors but returns `Result` for API consistency.
     pub fn register_consumer_group(
         &self,
         channel: &str,
@@ -150,6 +154,10 @@ impl ConsumerGroupManager {
     }
 
     /// Register a consumer in a group
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the consumer group is not found.
     pub fn register_consumer(
         &self,
         group_id: &ConsumerGroupId,
@@ -177,6 +185,10 @@ impl ConsumerGroupManager {
     }
 
     /// Unregister a consumer from a group
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the consumer group is not found.
     pub fn unregister_consumer(
         &self,
         group_id: &ConsumerGroupId,
@@ -212,6 +224,10 @@ impl ConsumerGroupManager {
     }
 
     /// Update pending message count
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the consumer group is not found.
     pub fn update_pending_count(
         &self,
         group_id: &ConsumerGroupId,
@@ -242,6 +258,10 @@ impl ConsumerGroupManager {
     }
 
     /// Get total pending messages across all consumers in group
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the consumer group is not found.
     pub fn get_total_pending(
         &self,
         group_id: &ConsumerGroupId,
@@ -257,6 +277,10 @@ impl ConsumerGroupManager {
     }
 
     /// Get all active consumers count
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the consumer group is not found.
     pub fn active_consumers_count(
         &self,
         group_id: &ConsumerGroupId,
@@ -276,6 +300,10 @@ impl ConsumerGroupManager {
     }
 
     /// Remove consumer group
+    ///
+    /// # Errors
+    ///
+    /// This function currently does not return errors but returns `Result` for API consistency.
     pub fn remove_group(&self, group_id: &ConsumerGroupId) -> Result<(), SubscriptionError> {
         self.groups.remove(group_id.as_str());
         Ok(())

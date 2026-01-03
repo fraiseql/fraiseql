@@ -103,6 +103,10 @@ impl WebSocketConnection {
     }
 
     /// Transition to Connected state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection is already initialized.
     pub fn on_connection_init(&mut self) -> Result<(), SubscriptionError> {
         if self.state != ConnectionState::Waiting {
             return Err(SubscriptionError::InvalidMessage(
@@ -116,6 +120,10 @@ impl WebSocketConnection {
     }
 
     /// Handle incoming message
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the message type is invalid or connection is not in the correct state.
     pub fn handle_message(&mut self, message: GraphQLMessage) -> Result<(), SubscriptionError> {
         self.update_activity();
 
@@ -163,6 +171,10 @@ impl WebSocketConnection {
     }
 
     /// Complete shutdown
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection unregistration fails.
     pub fn finish_shutdown(&mut self) -> Result<(), SubscriptionError> {
         self.state = ConnectionState::Closed;
         self.manager.unregister_connection(self.connection_id)?;
@@ -227,6 +239,14 @@ impl WebSocketServer {
     }
 
     /// Register new WebSocket connection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection registration with the connection manager fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     pub fn register_connection(
         &self,
         user_id: Option<i64>,
@@ -258,6 +278,14 @@ impl WebSocketServer {
     }
 
     /// Unregister connection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection unregistration fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     pub fn unregister_connection(&self, connection_id: Uuid) -> Result<(), SubscriptionError> {
         // Get connection before removing to record metrics
         let connection = self.connections.lock().expect("Failed to lock connections mutex").remove(&connection_id);
@@ -279,6 +307,10 @@ impl WebSocketServer {
     }
 
     /// Get connection by ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn get_connection(&self, connection_id: Uuid) -> Option<WebSocketConnection> {
         self.connections
@@ -289,12 +321,20 @@ impl WebSocketServer {
     }
 
     /// Get all active connections count
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn active_connections_count(&self) -> usize {
         self.connections.lock().expect("Failed to lock connections mutex").len()
     }
 
     /// Get connections info as JSON
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn connections_info(&self) -> Value {
         let connections = self.connections.lock().expect("Failed to lock connections mutex");
@@ -307,6 +347,10 @@ impl WebSocketServer {
     }
 
     /// Check for timed-out connections
+    ///
+    /// # Panics
+    ///
+    /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn check_timeouts(&self) -> Vec<Uuid> {
         let connections = self.connections.lock().expect("Failed to lock connections mutex");

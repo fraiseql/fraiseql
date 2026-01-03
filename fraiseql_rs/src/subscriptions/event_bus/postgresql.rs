@@ -43,6 +43,10 @@ pub struct PostgreSQLEventBus {
 
 impl PostgreSQLEventBus {
     /// Create new `PostgreSQL` event bus
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection string is empty or invalid.
     pub fn new(connection_string: &str) -> Result<Self, SubscriptionError> {
         let config = PostgreSQLConfig {
             connection_string: connection_string.to_string(),
@@ -52,6 +56,10 @@ impl PostgreSQLEventBus {
     }
 
     /// Create `PostgreSQL` event bus with configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection string is empty or invalid.
     pub fn with_config(config: PostgreSQLConfig) -> Result<Self, SubscriptionError> {
         // Verify connection can be established
         // Note: Full PostgreSQL async connection pool would be implemented here
