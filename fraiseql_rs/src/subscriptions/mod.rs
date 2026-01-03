@@ -31,6 +31,7 @@ pub mod protocol;
 pub mod rate_limiter;
 pub mod resource_limits;
 pub mod row_filter;
+pub mod scope_validator;
 pub mod tenant_context;
 pub mod websocket;
 
@@ -63,6 +64,7 @@ pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
 pub use rate_limiter::SubscriptionRateLimiter;
 pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
 pub use row_filter::RowFilterContext;
+pub use scope_validator::{ScopeLevel, ScopeValidator};
 pub use tenant_context::TenantContext;
 pub use websocket::{WebSocketConnection, WebSocketServer};
 

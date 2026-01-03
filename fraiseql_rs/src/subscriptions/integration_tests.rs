@@ -3291,4 +3291,179 @@ mod tests {
 
         println!("✅ test_multitenant_tenant_id_extraction passed");
     }
+
+    // Phase 3.4: Subscription Scope Verification Tests
+    // Test subscription variable validation against authenticated context
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_scope_user_id_mismatch_rejected() {
+        use crate::subscriptions::scope_validator::ScopeValidator;
+        use std::collections::HashMap;
+
+        let validator = ScopeValidator::new(123, 5);
+
+        // Subscription requesting different user
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(456));
+
+        assert!(
+            validator.validate(&variables).is_err(),
+            "Should reject subscription with user_id mismatch"
+        );
+
+        // Subscription requesting matching user
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        assert!(
+            validator.validate(&variables).is_ok(),
+            "Should accept subscription with matching user_id"
+        );
+
+        println!("✅ test_scope_user_id_mismatch_rejected passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_scope_tenant_id_mismatch_rejected() {
+        use crate::subscriptions::scope_validator::ScopeValidator;
+        use std::collections::HashMap;
+
+        let validator = ScopeValidator::new(123, 5);
+
+        // Subscription requesting different tenant
+        let mut variables = HashMap::new();
+        variables.insert("tenant_id".to_string(), json!(10));
+
+        assert!(
+            validator.validate(&variables).is_err(),
+            "Should reject subscription with tenant_id mismatch"
+        );
+
+        // Subscription requesting matching tenant
+        let mut variables = HashMap::new();
+        variables.insert("tenant_id".to_string(), json!(5));
+        assert!(
+            validator.validate(&variables).is_ok(),
+            "Should accept subscription with matching tenant_id"
+        );
+
+        println!("✅ test_scope_tenant_id_mismatch_rejected passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_scope_variable_extraction() {
+        use crate::subscriptions::scope_validator::{ScopeValidator, ScopeLevel};
+        use std::collections::HashMap;
+
+        let validator = ScopeValidator::new(123, 5);
+
+        // Wildcard (no scope variables)
+        let variables = HashMap::new();
+        assert_eq!(
+            validator.scope_level(&variables),
+            ScopeLevel::None,
+            "Empty variables should be ScopeLevel::None"
+        );
+
+        // User-scoped
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        assert_eq!(
+            validator.scope_level(&variables),
+            ScopeLevel::User,
+            "Only user_id should be ScopeLevel::User"
+        );
+
+        // Tenant-scoped
+        let mut variables = HashMap::new();
+        variables.insert("tenant_id".to_string(), json!(5));
+        assert_eq!(
+            validator.scope_level(&variables),
+            ScopeLevel::Tenant,
+            "Only tenant_id should be ScopeLevel::Tenant"
+        );
+
+        // Dual-scoped
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        variables.insert("tenant_id".to_string(), json!(5));
+        assert_eq!(
+            validator.scope_level(&variables),
+            ScopeLevel::Both,
+            "Both user_id and tenant_id should be ScopeLevel::Both"
+        );
+
+        println!("✅ test_scope_variable_extraction passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_scope_wildcard_allowed() {
+        use crate::subscriptions::scope_validator::ScopeValidator;
+        use std::collections::HashMap;
+
+        let validator = ScopeValidator::new(123, 5);
+
+        // Wildcard subscription (no restricting variables)
+        let variables = HashMap::new();
+        assert!(
+            validator.validate(&variables).is_ok(),
+            "Should allow wildcard subscriptions (no scope variables)"
+        );
+
+        // Subscription with non-scope variables
+        let mut variables = HashMap::new();
+        variables.insert("filter".to_string(), json!("active"));
+        variables.insert("limit".to_string(), json!(10));
+        assert!(
+            validator.validate(&variables).is_ok(),
+            "Should allow subscriptions with only non-scope variables"
+        );
+
+        println!("✅ test_scope_wildcard_allowed passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_scope_explicit_scope_validated() {
+        use crate::subscriptions::scope_validator::ScopeValidator;
+        use std::collections::HashMap;
+
+        let validator = ScopeValidator::new(123, 5);
+
+        // Explicit matching scope
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        variables.insert("tenant_id".to_string(), json!(5));
+        variables.insert("filter".to_string(), json!("active"));
+
+        assert!(
+            validator.validate(&variables).is_ok(),
+            "Should allow subscription with explicit matching scope and additional variables"
+        );
+
+        // Explicit mismatching scope
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(999));
+        variables.insert("filter".to_string(), json!("active"));
+
+        assert!(
+            validator.validate(&variables).is_err(),
+            "Should reject subscription with explicit mismatching user_id"
+        );
+
+        // Edge case: user matches but tenant doesn't
+        let mut variables = HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        variables.insert("tenant_id".to_string(), json!(999));
+
+        assert!(
+            validator.validate(&variables).is_err(),
+            "Should reject subscription if any scope variable mismatches"
+        );
+
+        println!("✅ test_scope_explicit_scope_validated passed");
+    }
 }
