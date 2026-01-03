@@ -91,7 +91,7 @@ impl TenantContext {
         }
 
         // Multi-tenant mode: check tenant_id field
-        event_data.get("tenant_id").map_or(false, |event_tenant| {
+        event_data.get("tenant_id").is_some_and(|event_tenant| {
             // Event tenant_id must match context tenant_id
             event_tenant.as_i64() == Some(self.tenant_id)
         })
@@ -127,11 +127,8 @@ impl TenantContext {
         }
 
         // Check if subscription includes explicit tenant_id variable
-        variables.get("tenant_id").map_or(true, |sub_tenant_id| {
-            sub_tenant_id.as_i64().map_or(false, |tenant_id| {
-                // Must match context tenant_id
-                tenant_id == self.tenant_id
-            })
+        variables.get("tenant_id").is_none_or(|sub_tenant_id| {
+            sub_tenant_id.as_i64() == Some(self.tenant_id)
         })
     }
 

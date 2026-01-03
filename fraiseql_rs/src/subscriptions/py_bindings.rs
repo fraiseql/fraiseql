@@ -309,7 +309,7 @@ impl PySubscriptionExecutor {
         };
 
         // Parse connection_id as UUID, or create a consistent one from the string
-        let conn_uuid = uuid::Uuid::parse_str(&connection_id).unwrap_or_else(|_| {
+        let conn_uuid = uuid::Uuid::parse_str(connection_id).unwrap_or_else(|_| {
             // If not a valid UUID, hash the connection_id string to create a stable UUID
             // Use MD5 hash of the connection_id string to generate a v3 UUID-like identifier
             use std::collections::hash_map::DefaultHasher;
@@ -431,7 +431,7 @@ impl PySubscriptionExecutor {
     ///     `ValueError`: If subscription doesn't exist
     pub fn next_event(&self, subscription_id: &str) -> PyResult<Option<Vec<u8>>> {
         // Get next response from the subscription's response queue
-        match self.executor.next_event(&subscription_id) {
+        match self.executor.next_event(subscription_id) {
             Ok(response) => Ok(response),
             Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                 "Failed to get next event: {e}"
@@ -456,7 +456,7 @@ impl PySubscriptionExecutor {
 
         // Notify executor
         self.executor
-            .complete_subscription(&subscription_id)
+            .complete_subscription(subscription_id)
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                     "Failed to complete subscription '{subscription_id}': {e}"
@@ -476,7 +476,7 @@ impl PySubscriptionExecutor {
     ///     List of subscription IDs subscribed to this channel
     #[must_use] 
     pub fn subscriptions_by_channel(&self, channel: &str) -> Vec<String> {
-        self.executor.subscriptions_by_channel(&channel)
+        self.executor.subscriptions_by_channel(channel)
     }
 
     /// Invoke a registered resolver for an event (internal, Phase 3)

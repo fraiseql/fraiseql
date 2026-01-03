@@ -65,7 +65,7 @@ impl ConnectionHeartbeat {
     /// Check if it's time to send a ping
     #[must_use]
     pub fn should_ping(&self) -> bool {
-        self.last_ping_sent.map_or(true, |last_ping| last_ping.elapsed() >= self.config.ping_interval)
+        self.last_ping_sent.is_none_or(|last_ping| last_ping.elapsed() >= self.config.ping_interval)
     }
 
     /// Record a ping sent
@@ -87,7 +87,7 @@ impl ConnectionHeartbeat {
             return false;
         }
 
-        self.last_ping_sent.map_or(false, |last_ping| last_ping.elapsed() > self.config.pong_timeout)
+        self.last_ping_sent.is_some_and(|last_ping| last_ping.elapsed() > self.config.pong_timeout)
     }
 
     /// Detect and record dead connection

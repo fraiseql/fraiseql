@@ -924,14 +924,14 @@ impl SubscriptionExecutor {
         let sub_with_security = sub_entry.value().clone();
 
         // 2. Apply security filters - skip if access denied
-        if !Self::check_security_filters(&sub_with_security, &event_data)? {
+        if !Self::check_security_filters(&sub_with_security, event_data)? {
             // Access denied, silently skip this subscription
             return Ok(());
         }
 
         // 3. Invoke Python resolver (placeholder for Phase 2)
         let resolver_result = self
-            .invoke_python_resolver(subscription_id, &event_data)?;
+            .invoke_python_resolver(subscription_id, event_data)?;
 
         // 4. Serialize response to bytes
         let response_bytes = Self::serialize_response(&resolver_result)?;

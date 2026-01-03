@@ -168,6 +168,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Get user bucket info for testing/monitoring
+    #[must_use] 
     pub fn get_user_info(&self, user_id: i64) -> Option<(f64, f64)> {
         self.user_buckets.get(&user_id).map(|bucket_arc| {
             // Note: This is a blocking operation in async context.
@@ -178,6 +179,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Get subscription bucket info for testing/monitoring
+    #[must_use] 
     pub fn get_subscription_info(&self, subscription_id: &str) -> Option<(f64, f64)> {
         self.subscription_buckets
             .get(subscription_id)

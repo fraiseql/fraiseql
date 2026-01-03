@@ -149,11 +149,11 @@ impl EventFilter {
             }
 
             FilterCondition::In(values) => {
-                value.map_or(false, |val| values.contains(&val))
+                value.is_some_and(|val| values.contains(&val))
             }
 
             FilterCondition::NotIn(values) => {
-                value.map_or(true, |val| !values.contains(&val))
+                value.is_none_or(|val| !values.contains(&val))
             }
         }
     }
