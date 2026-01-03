@@ -171,6 +171,11 @@ impl ConnectionPoolManager {
     }
 
     /// Register a new connection
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(SubscriptionError)` if:
+    /// - Connection pool is at maximum capacity
     pub fn register_connection(&self, connection_id: String) -> Result<(), SubscriptionError> {
         // Check if we've reached max connections
         let active = self.active_count.load(Ordering::Relaxed);
@@ -193,6 +198,11 @@ impl ConnectionPoolManager {
     }
 
     /// Release a connection back to pool
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(SubscriptionError)` if:
+    /// - Connection ID not found in pool
     pub fn release_connection(&self, connection_id: &str) -> Result<(), SubscriptionError> {
         if let Some(mut metadata) = self.metadata.get_mut(connection_id) {
             metadata.update_used_time();
@@ -208,6 +218,11 @@ impl ConnectionPoolManager {
     }
 
     /// Mark connection as unhealthy
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(SubscriptionError)` if:
+    /// - Connection ID not found in pool
     pub fn mark_unhealthy(&self, connection_id: &str) -> Result<(), SubscriptionError> {
         if let Some(mut metadata) = self.metadata.get_mut(connection_id) {
             metadata.mark_unhealthy();
@@ -230,6 +245,10 @@ impl ConnectionPoolManager {
     }
 
     /// Recycle stale connections
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(SubscriptionError)` if connection removal fails
     pub fn recycle_stale_connections(&self) -> Result<u32, SubscriptionError> {
         let mut recycled = 0u32;
 
