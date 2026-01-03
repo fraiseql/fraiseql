@@ -91,16 +91,10 @@ impl TenantContext {
         }
 
         // Multi-tenant mode: check tenant_id field
-        match event_data.get("tenant_id") {
-            Some(event_tenant) => {
-                // Event tenant_id must match context tenant_id
-                event_tenant.as_i64() == Some(self.tenant_id)
-            }
-            None => {
-                // Event missing tenant_id - reject in multi-tenant mode
-                false
-            }
-        }
+        event_data.get("tenant_id").map_or(false, |event_tenant| {
+            // Event tenant_id must match context tenant_id
+            event_tenant.as_i64() == Some(self.tenant_id)
+        })
     }
 
     /// Check if event should be filtered (opposite of matches)
@@ -133,22 +127,12 @@ impl TenantContext {
         }
 
         // Check if subscription includes explicit tenant_id variable
-        if let Some(sub_tenant_id) = variables.get("tenant_id") {
-            match sub_tenant_id.as_i64() {
-                Some(tenant_id) => {
-                    // Must match context tenant_id
-                    tenant_id == self.tenant_id
-                }
-                None => {
-                    // tenant_id is present but not an integer
-                    false
-                }
-            }
-        } else {
-            // No explicit tenant_id in variables: wildcard subscription
-            // Use scoped channel to ensure tenant isolation
-            true
-        }
+        variables.get("tenant_id").map_or(true, |sub_tenant_id| {
+            sub_tenant_id.as_i64().map_or(false, |tenant_id| {
+                // Must match context tenant_id
+                tenant_id == self.tenant_id
+            })
+        })
     }
 
     /// Get all possible tenant IDs that could access a resource

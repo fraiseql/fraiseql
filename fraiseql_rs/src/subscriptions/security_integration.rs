@@ -192,12 +192,7 @@ impl SubscriptionSecurityContext {
         &self,
         allowed_fields: &HashMap<String, bool>,
     ) -> Result<(), String> {
-        if let Some(ref rbac) = self.rbac {
-            rbac.validate_fields(allowed_fields)
-        } else {
-            // No RBAC context, allow all fields
-            Ok(())
-        }
+        self.rbac.as_ref().map_or(Ok(()), |rbac| rbac.validate_fields(allowed_fields))
     }
 
     /// Get accessible fields from requested set

@@ -209,16 +209,16 @@ impl ConnectionPoolManager {
     /// Returns `Err(SubscriptionError)` if:
     /// - Connection ID not found in pool
     pub fn release_connection(&self, connection_id: &str) -> Result<(), SubscriptionError> {
-        if let Some(mut metadata) = self.metadata.get_mut(connection_id) {
-            metadata.update_used_time();
-            self.idle_count.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        } else {
+        self.metadata.get_mut(connection_id).map_or_else(|| {
             self.total_errors.fetch_add(1, Ordering::Relaxed);
             Err(SubscriptionError::EventBusError(format!(
                 "Connection not found: {connection_id}"
             )))
-        }
+        }, |mut metadata| {
+            metadata.update_used_time();
+            self.idle_count.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        })
     }
 
     /// Mark connection as unhealthy
@@ -228,15 +228,15 @@ impl ConnectionPoolManager {
     /// Returns `Err(SubscriptionError)` if:
     /// - Connection ID not found in pool
     pub fn mark_unhealthy(&self, connection_id: &str) -> Result<(), SubscriptionError> {
-        if let Some(mut metadata) = self.metadata.get_mut(connection_id) {
-            metadata.mark_unhealthy();
-            self.total_errors.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        } else {
+        self.metadata.get_mut(connection_id).map_or_else(|| {
             Err(SubscriptionError::EventBusError(format!(
                 "Connection not found: {connection_id}"
             )))
-        }
+        }, |mut metadata| {
+            metadata.mark_unhealthy();
+            self.total_errors.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        })
     }
 
     /// Check connection health

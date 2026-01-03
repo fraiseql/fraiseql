@@ -87,11 +87,7 @@ impl PyGraphQLMessage {
 
         // Extract optional 'payload' field
         let payload = data.get_item("payload").ok().and_then(|p| {
-            if let Some(p_some) = p {
-                p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind())
-            } else {
-                None
-            }
+            p.map_or_else(|| None, |p_some| p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind()))
         });
 
         Ok(Self { type_, id, payload })

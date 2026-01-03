@@ -165,7 +165,16 @@ async fn graphql_handler(
     // NOTE: This demonstrates the integration point for JWT validation.
     // In production, JWTValidator would be stored in AppState and initialized at startup.
     // See Phase 16 Commit 6 plan for full JWT validator initialization details.
-    let user_context = if let Some(_auth) = auth_header {
+    let user_context = auth_header.map_or_else(|| {
+        state.http_metrics.record_anonymous_request();
+        // No Authorization header - create anonymous context
+        UserContext {
+            user_id: None,
+            permissions: vec!["public".to_string()],
+            roles: vec![],
+            exp: u64::MAX,
+        }
+    }, |_auth| {
         state.http_metrics.record_auth_success();
         // JWT validation would be performed here with:
         // let jwt_validator = &state.jwt_validator;
@@ -197,27 +206,14 @@ async fn graphql_handler(
             iat: 0,
             custom: std::collections::HashMap::new(),
         })
-    } else {
-        state.http_metrics.record_anonymous_request();
-        // No Authorization header - create anonymous context
-        UserContext {
-            user_id: None,
-            permissions: vec!["public".to_string()],
-            roles: vec![],
-            exp: u64::MAX,
-        }
-    };
+    });
 
     // Convert variables from JSON to HashMap<String, JsonValue>
-    let variables = if let Some(vars) = request.variables {
-        if let Some(obj) = vars.as_object() {
+    let variables = request.variables.map_or_else(HashMap::new, |vars| {
+        vars.as_object().map_or_else(HashMap::new, |obj| {
             obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        } else {
-            HashMap::new()
-        }
-    } else {
-        HashMap::new()
-    };
+        })
+    });
 
     // Execute the GraphQL query through the pipeline
     let result = state

@@ -448,12 +448,13 @@ impl SubscriptionExecutor {
     where
         F: FnOnce(&mut ExecutedSubscription),
     {
-        if let Some(mut sub) = self.subscriptions.get_mut(subscription_id) {
-            f(&mut sub);
-            Ok(())
-        } else {
-            Err(SubscriptionError::SubscriptionNotFound)
-        }
+        self.subscriptions.get_mut(subscription_id).map_or(
+            Err(SubscriptionError::SubscriptionNotFound),
+            |mut sub| {
+                f(&mut sub);
+                Ok(())
+            }
+        )
     }
 
     /// Complete subscription
@@ -1046,14 +1047,17 @@ impl SubscriptionExecutor {
         // Get resolver callback clone before invoking
         let callback = {
             let callback_lock = self.resolver_callback.try_lock();
-            match callback_lock {
-                Ok(callback_guard) => callback_guard.as_ref().map(Arc::clone),
-                Err(_) => None,
-            }
+            callback_lock.map_or_else(|_| None, |callback_guard| callback_guard.as_ref().map(Arc::clone))
         };
 
         // If we have a callback, invoke it with error handling (Phase 3.4)
-        if let Some(callback) = callback {
+        callback.map_or_else(|| {
+            // No resolver registered - use default echo resolver
+            Ok(json!({
+                "data": event_data,
+                "type": "next"
+            }))
+        }, |callback| {
             // Invoke resolver synchronously (Phase 3.4: Error handling & recovery)
             // Note: Timeout cannot be applied to synchronous Python resolver calls
             // due to GIL constraints. See Phase 3.5 for async resolver architecture.
@@ -1087,13 +1091,7 @@ impl SubscriptionExecutor {
                     }))
                 }
             }
-        } else {
-            // No resolver registered - use default echo resolver
-            Ok(json!({
-                "data": event_data,
-                "type": "next"
-            }))
-        }
+        })
     }
 
     /// Serialize response to pre-serialized bytes (Phase 2/2.2)

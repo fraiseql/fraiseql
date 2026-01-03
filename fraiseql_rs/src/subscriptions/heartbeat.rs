@@ -63,12 +63,9 @@ impl ConnectionHeartbeat {
     }
 
     /// Check if it's time to send a ping
-    #[must_use] 
+    #[must_use]
     pub fn should_ping(&self) -> bool {
-        match self.last_ping_sent {
-            None => true, // Never pinged, send first ping
-            Some(last_ping) => last_ping.elapsed() >= self.config.ping_interval,
-        }
+        self.last_ping_sent.map_or(true, |last_ping| last_ping.elapsed() >= self.config.ping_interval)
     }
 
     /// Record a ping sent
@@ -90,10 +87,7 @@ impl ConnectionHeartbeat {
             return false;
         }
 
-        match self.last_ping_sent {
-            Some(last_ping) => last_ping.elapsed() > self.config.pong_timeout,
-            None => false,
-        }
+        self.last_ping_sent.map_or(false, |last_ping| last_ping.elapsed() > self.config.pong_timeout)
     }
 
     /// Detect and record dead connection
@@ -109,19 +103,16 @@ impl ConnectionHeartbeat {
     }
 
     /// Get time until next ping should be sent
-    #[must_use] 
+    #[must_use]
     pub fn time_until_next_ping(&self) -> Duration {
-        match self.last_ping_sent {
-            None => Duration::ZERO, // Send immediately
-            Some(last_ping) => {
-                let elapsed = last_ping.elapsed();
-                if elapsed >= self.config.ping_interval {
-                    Duration::ZERO
-                } else {
-                    self.config.ping_interval - elapsed
-                }
+        self.last_ping_sent.map_or(Duration::ZERO, |last_ping| {
+            let elapsed = last_ping.elapsed();
+            if elapsed >= self.config.ping_interval {
+                Duration::ZERO
+            } else {
+                self.config.ping_interval - elapsed
             }
-        }
+        })
     }
 
     /// Get time remaining before pong timeout
@@ -131,17 +122,14 @@ impl ConnectionHeartbeat {
             return None;
         }
 
-        match self.last_ping_sent {
-            Some(last_ping) => {
-                let elapsed = last_ping.elapsed();
-                if elapsed >= self.config.pong_timeout {
-                    Some(Duration::ZERO)
-                } else {
-                    Some(self.config.pong_timeout - elapsed)
-                }
+        self.last_ping_sent.map_or_else(|| Some(self.config.pong_timeout), |last_ping| {
+            let elapsed = last_ping.elapsed();
+            if elapsed >= self.config.pong_timeout {
+                Some(Duration::ZERO)
+            } else {
+                Some(self.config.pong_timeout - elapsed)
             }
-            None => Some(self.config.pong_timeout),
-        }
+        })
     }
 }
 
