@@ -53,6 +53,7 @@ impl std::error::Error for AuthError {}
 /// Authentication middleware for WebSocket connections
 pub struct AuthMiddleware {
     /// JWT secret key for validation (typically from environment)
+    #[allow(dead_code)]
     secret: Arc<String>,
     /// Enable/disable auth (for testing)
     enabled: bool,
@@ -107,8 +108,8 @@ impl AuthMiddleware {
             .ok_or(AuthError::MissingToken)?;
 
         // Parse "Bearer <token>" format
-        let token = if auth_header.starts_with("Bearer ") {
-            &auth_header[7..]
+        let token = if let Some(token) = auth_header.strip_prefix("Bearer ") {
+            token
         } else {
             return Err(AuthError::InvalidFormat);
         };
@@ -135,11 +136,10 @@ impl AuthMiddleware {
 
         // Validate token format without signature verification
         // (In production, signature verification should be added)
-        validate_token_format(parts[0], parts[1]).map_err(|e| AuthError::ValidationFailed(e))?;
+        validate_token_format(parts[0], parts[1]).map_err(AuthError::ValidationFailed)?;
 
         // Decode payload (base64url)
-        let payload_bytes =
-            decode_base64url(parts[1]).map_err(|e| AuthError::ValidationFailed(e))?;
+        let payload_bytes = decode_base64url(parts[1]).map_err(AuthError::ValidationFailed)?;
 
         let payload_str = String::from_utf8(payload_bytes)
             .map_err(|_| AuthError::ValidationFailed("Invalid UTF-8".to_string()))?;
@@ -201,7 +201,7 @@ fn validate_token_format(header: &str, payload: &str) -> Result<(), String> {
 fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
     // Add padding if needed
     let mut padded = input.to_string();
-    while padded.len() % 4 != 0 {
+    while !padded.len().is_multiple_of(4) {
         padded.push('=');
     }
 

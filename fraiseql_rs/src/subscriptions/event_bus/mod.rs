@@ -234,7 +234,7 @@ impl EventBus for InMemoryEventBus {
         // Get or create channel entry
         self.subscribers
             .entry(channel.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(tx);
 
         // Update stats

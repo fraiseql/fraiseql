@@ -50,7 +50,7 @@ impl PySubscriptionPayload {
 
 /// Python wrapper for GraphQL WebSocket protocol messages
 #[pyclass]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PyGraphQLMessage {
     /// Message type (e.g., "connection_init", "subscribe", etc.)
     pub type_: String,
@@ -64,11 +64,7 @@ pub struct PyGraphQLMessage {
 impl PyGraphQLMessage {
     #[new]
     pub fn new() -> Self {
-        Self {
-            type_: String::new(),
-            id: None,
-            payload: None,
-        }
+        Self::default()
     }
 
     #[staticmethod]
@@ -391,7 +387,6 @@ impl PySubscriptionExecutor {
         let data_json = serde_json::Value::Object(
             data_map
                 .into_iter()
-                .map(|(k, v)| (k, v))
                 .collect::<serde_json::Map<String, serde_json::Value>>(),
         );
 
@@ -689,8 +684,8 @@ fn python_to_json_value(obj: &Bound<PyAny>) -> PyResult<Value> {
         Ok(Value::Array(items?))
     } else if let Ok(dict) = obj.downcast::<PyDict>() {
         // Recursively convert dict values
-        let map = python_dict_to_json_map(&dict)?;
-        Ok(Value::Object(serde_json::Map::from_iter(map.into_iter())))
+        let map = python_dict_to_json_map(dict)?;
+        Ok(Value::Object(serde_json::Map::from_iter(map)))
     } else {
         // Unsupported types return null (this is safer than panic)
         Ok(Value::Null)
@@ -704,23 +699,29 @@ fn python_metrics_dict(metrics: Value) -> PyResult<Py<PyDict>> {
 
         if let Value::Object(map) = metrics {
             for (key, value) in map {
-                match value {
-                    Value::Number(n) => {
-                        if let Some(i) = n.as_i64() {
-                            dict.set_item(key, i)?;
-                        } else if let Some(f) = n.as_f64() {
-                            dict.set_item(key, f)?;
-                        }
-                    }
-                    Value::String(s) => dict.set_item(key, s)?,
-                    Value::Bool(b) => dict.set_item(key, b)?,
-                    _ => {} // Skip complex types for now
-                }
+                convert_value_to_dict(&dict, key, value)?;
             }
         }
 
         Ok(dict.unbind())
     })
+}
+
+/// Helper to convert a JSON value to dictionary item (reduces nesting)
+fn convert_value_to_dict(dict: &Bound<PyDict>, key: String, value: Value) -> PyResult<()> {
+    match value {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                dict.set_item(key, i)?;
+            } else if let Some(f) = n.as_f64() {
+                dict.set_item(key, f)?;
+            }
+        }
+        Value::String(s) => dict.set_item(key, s)?,
+        Value::Bool(b) => dict.set_item(key, b)?,
+        _ => {} // Skip complex types for now
+    }
+    Ok(())
 }
 
 /// Initialize the subscriptions module for Python

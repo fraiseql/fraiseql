@@ -265,7 +265,7 @@ impl SubscriptionMetrics {
         registry.register(Box::new(self.errors_by_type.clone()))?;
 
         let encoder = prometheus::TextEncoder::new();
-        Ok(encoder.encode_to_string(&registry.gather())?)
+        encoder.encode_to_string(&registry.gather())
     }
 }
 

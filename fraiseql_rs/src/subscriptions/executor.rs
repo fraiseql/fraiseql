@@ -244,7 +244,7 @@ impl SubscriptionExecutor {
     fn add_to_channel_index(&self, channel: String, subscription_id: String) {
         self.channel_index
             .entry(channel)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(subscription_id);
     }
 
@@ -383,10 +383,7 @@ impl SubscriptionExecutor {
         // 2. Validate that query contains subscription operation
         let has_subscription = document.definitions.iter().any(|def| {
             matches!(def, graphql_parser::query::Definition::Operation(op) if {
-                match op {
-                    graphql_parser::query::OperationDefinition::Subscription(_) => true,
-                    _ => false,
-                }
+                matches!(op, graphql_parser::query::OperationDefinition::Subscription(_))
             })
         });
 
@@ -726,7 +723,7 @@ impl SubscriptionExecutor {
         let mut mutable_context = security_context.clone();
         mutable_context
             .validate_subscription_variables(&subscription.variables)
-            .map_err(|e| SubscriptionError::AuthorizationFailed(e))?;
+            .map_err(SubscriptionError::AuthorizationFailed)?;
 
         // All security checks passed
         Ok(())

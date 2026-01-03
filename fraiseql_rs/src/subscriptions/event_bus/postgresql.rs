@@ -138,7 +138,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
         // Register local subscriber
         self.subscriptions
             .entry(channel.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(tx);
 
         // In production, would execute: LISTEN channel_name
@@ -162,7 +162,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
         for channel in channels.iter() {
             self.subscriptions
                 .entry(channel.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tx.clone());
 
             // In production, would execute: LISTEN channel_name

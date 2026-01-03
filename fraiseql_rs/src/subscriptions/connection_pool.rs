@@ -108,7 +108,7 @@ impl ConnectionMetadata {
 }
 
 /// Connection pool statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PoolStats {
     /// Total connections created
     pub total_created: u64,
@@ -130,20 +130,6 @@ pub struct PoolStats {
 
     /// Total connection errors
     pub total_errors: u64,
-}
-
-impl Default for PoolStats {
-    fn default() -> Self {
-        Self {
-            total_created: 0,
-            active_connections: 0,
-            idle_connections: 0,
-            total_acquires: 0,
-            failed_acquires: 0,
-            total_recycled: 0,
-            total_errors: 0,
-        }
-    }
 }
 
 /// Connection pool manager

@@ -219,7 +219,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         // Register local subscriber
         self.subscriptions
             .entry(channel.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(tx);
 
         // Ensure consumer group exists for stream persistence
@@ -243,7 +243,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         for channel in channels.iter() {
             self.subscriptions
                 .entry(channel.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tx.clone());
 
             // Ensure consumer group exists

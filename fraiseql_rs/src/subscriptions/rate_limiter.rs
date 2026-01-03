@@ -167,11 +167,11 @@ impl SubscriptionRateLimiter {
 
     /// Get user bucket info for testing/monitoring
     pub async fn get_user_info(&self, user_id: i64) -> Option<(f64, f64)> {
-        self.user_buckets.get(&user_id).and_then(|bucket_arc| {
+        self.user_buckets.get(&user_id).map(|bucket_arc| {
             // Note: This is a blocking operation in async context.
             // In production, use try_lock() to avoid blocking.
             let bucket = bucket_arc.blocking_lock();
-            Some((bucket.tokens, bucket.capacity))
+            (bucket.tokens, bucket.capacity)
         })
     }
 
@@ -179,11 +179,11 @@ impl SubscriptionRateLimiter {
     pub async fn get_subscription_info(&self, subscription_id: &str) -> Option<(f64, f64)> {
         self.subscription_buckets
             .get(subscription_id)
-            .and_then(|bucket_arc| {
+            .map(|bucket_arc| {
                 // Note: This is a blocking operation in async context.
                 // In production, use try_lock() to avoid blocking.
                 let bucket = bucket_arc.blocking_lock();
-                Some((bucket.tokens, bucket.capacity))
+                (bucket.tokens, bucket.capacity)
             })
     }
 
