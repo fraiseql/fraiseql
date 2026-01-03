@@ -4,7 +4,7 @@
 
 use crate::subscriptions::protocol::SubscriptionPayload;
 use crate::subscriptions::{SubscriptionError, SubscriptionSecurityContext};
-use futures::future;
+use futures_util::future;
 use graphql_parser::parse_query;
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
@@ -199,7 +199,11 @@ pub struct SubscriptionExecutor {
 /// a direct dependency on PySubscriptionExecutor.
 pub trait ResolverCallback: Send + Sync {
     /// Invoke a resolver and return the result as JSON string
-    fn invoke(&self, subscription_id: &str, event_data_json: &str) -> Result<String, SubscriptionError>;
+    fn invoke(
+        &self,
+        subscription_id: &str,
+        event_data_json: &str,
+    ) -> Result<String, SubscriptionError>;
 }
 
 impl SubscriptionExecutor {
@@ -264,16 +268,24 @@ impl SubscriptionExecutor {
         response_bytes: Vec<u8>,
     ) -> Result<(), SubscriptionError> {
         // Get or create queue for subscription
-        let queue_entry = self
-            .response_queues
-            .entry(subscription_id)
-            .or_insert_with(|| Arc::new(Mutex::new(VecDeque::new())));
+        let queue_arc = {
+            let queue_entry = self
+                .response_queues
+                .entry(subscription_id.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(VecDeque::new())));
+            queue_entry.value().clone()
+        }; // queue_entry guard is dropped here
 
-        let queue = queue_entry.value().clone();
-        drop(queue_entry); // Release DashMap reference
+        // Queue response - use try_lock first to avoid blocking in async context
+        {
+            if let Ok(mut q) = queue_arc.try_lock() {
+                q.push_back(response_bytes);
+                return Ok(());
+            }
+        } // Guard is dropped here
 
-        // Queue response synchronously using blocking_lock (non-blocking for this operation)
-        let mut q = queue.blocking_lock();
+        // If we couldn't acquire lock immediately, use blocking
+        let mut q = queue_arc.blocking_lock();
         q.push_back(response_bytes);
         Ok(())
     }
@@ -1009,10 +1021,11 @@ impl SubscriptionExecutor {
         // Phase 3: Try to invoke registered Python resolver
 
         // Serialize event data to JSON string
-        let event_data_json = serde_json::to_string(event_data)
-            .map_err(|e| SubscriptionError::SubscriptionRejected(format!("Failed to serialize event: {}", e)))?;
+        let event_data_json = serde_json::to_string(event_data).map_err(|e| {
+            SubscriptionError::SubscriptionRejected(format!("Failed to serialize event: {}", e))
+        })?;
 
-        // Get resolver callback clone before spawning task
+        // Get resolver callback clone before invoking
         let callback = {
             let callback_lock = self.resolver_callback.try_lock();
             match callback_lock {
@@ -1021,14 +1034,9 @@ impl SubscriptionExecutor {
             }
         };
 
-        // If we have a callback, invoke it in a blocking task (Phase 3)
+        // If we have a callback, invoke it synchronously (Phase 3)
         if let Some(callback) = callback {
-            let subscription_id_clone = subscription_id.to_string();
-            let result = tokio::task::spawn_blocking(move || {
-                callback.invoke(&subscription_id_clone, &event_data_json)
-            })
-            .await
-            .map_err(|e| SubscriptionError::SubscriptionRejected(format!("Resolver task error: {}", e)))?;
+            let result = callback.invoke(subscription_id, &event_data_json);
 
             match result {
                 Ok(result_json) => {

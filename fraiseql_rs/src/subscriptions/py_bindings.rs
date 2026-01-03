@@ -12,9 +12,9 @@ use std::sync::Arc;
 // Import from existing modules
 use crate::db::runtime::init_runtime;
 use crate::subscriptions::config::EventBusConfig;
-use crate::subscriptions::executor::{SubscriptionExecutor, ResolverCallback};
-use crate::subscriptions::SubscriptionError;
+use crate::subscriptions::executor::{ResolverCallback, SubscriptionExecutor};
 use crate::subscriptions::protocol::SubscriptionPayload;
+use crate::subscriptions::SubscriptionError;
 use crate::subscriptions::SubscriptionSecurityContext;
 
 /// Python wrapper for `SubscriptionPayload` (GraphQL subscription data)
@@ -417,13 +417,7 @@ impl PySubscriptionExecutor {
         });
 
         match dispatch_result {
-            Ok(count) => {
-                println!(
-                    "[Phase 2] Event dispatched to {} subscriptions (type={}, channel={})",
-                    count, event_type, channel
-                );
-                Ok(())
-            }
+            Ok(_count) => Ok(()),
             Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Event dispatch failed: {}",
                 e
@@ -640,7 +634,11 @@ impl PySubscriptionExecutor {
 ///
 /// Allows SubscriptionExecutor to invoke Python resolvers through the callback interface.
 impl ResolverCallback for PySubscriptionExecutor {
-    fn invoke(&self, subscription_id: &str, event_data_json: &str) -> Result<String, SubscriptionError> {
+    fn invoke(
+        &self,
+        subscription_id: &str,
+        event_data_json: &str,
+    ) -> Result<String, SubscriptionError> {
         // Call the internal resolver invocation method
         pyo3::Python::with_gil(|_py| {
             match self.invoke_resolver_internal(subscription_id, event_data_json) {

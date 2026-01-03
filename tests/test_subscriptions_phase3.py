@@ -165,11 +165,12 @@ class TestResolverInvocation:
         executor.register_resolver(sub_id, user_resolver)
 
         # Publish an event
+        # NOTE: user_id must match the subscription's user_id (1) for security filter to allow it
         executor.publish_event(
             event_type="userCreated",
             channel="users",
             data={
-                "user_id": 42,
+                "user_id": 1,  # Match subscription's user_id
                 "username": "Alice",
                 "email": "alice@example.com",
                 "tenant_id": 1,
