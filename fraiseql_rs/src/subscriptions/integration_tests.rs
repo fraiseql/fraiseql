@@ -310,21 +310,21 @@ mod tests {
     // SCENARIO 8: Rate Limiting
     // ============================================================================
 
-    #[test]
-    fn test_rate_limiting_prevents_abuse() {
+    #[tokio::test]
+    async fn test_rate_limiting_prevents_abuse() {
         let rate_limiter = SubscriptionRateLimiter::new(RateLimiterConfig::default());
 
         // First subscription should succeed
-        let result1 = rate_limiter.check_subscription_creation(1);
+        let result1 = rate_limiter.check_subscription_creation(1).await;
         assert!(result1.is_ok());
 
         // Simulate creating many subscriptions quickly
         for _ in 0..99 {
-            let _ = rate_limiter.check_subscription_creation(1);
+            let _ = rate_limiter.check_subscription_creation(1).await;
         }
 
         // Try to create beyond limit
-        let result_limit = rate_limiter.check_subscription_creation(1);
+        let result_limit = rate_limiter.check_subscription_creation(1).await;
         assert!(result_limit.is_err());
     }
 
