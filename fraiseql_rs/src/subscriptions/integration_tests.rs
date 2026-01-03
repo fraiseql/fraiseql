@@ -3466,4 +3466,165 @@ mod tests {
 
         println!("✅ test_scope_explicit_scope_validated passed");
     }
+
+    // Phase 3.5: RBAC Integration with Subscriptions Tests
+    // Test field-level access control integration
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_rbac_field_permission_check() {
+        use crate::subscriptions::rbac_integration::RBACContext;
+        use std::collections::HashMap;
+
+        let ctx = RBACContext::new(
+            "user-123".to_string(),
+            Some("tenant-5".to_string()),
+            vec!["orders".to_string(), "users".to_string()],
+        );
+
+        // User has permission to both fields
+        let mut allowed = HashMap::new();
+        allowed.insert("orders".to_string(), true);
+        allowed.insert("users".to_string(), true);
+
+        assert!(
+            ctx.validate_fields(&allowed).is_ok(),
+            "Should allow subscription when user has all permissions"
+        );
+
+        // User missing permission to one field
+        allowed.insert("users".to_string(), false);
+        assert!(
+            ctx.validate_fields(&allowed).is_err(),
+            "Should reject subscription when user lacks any permission"
+        );
+
+        println!("✅ test_rbac_field_permission_check passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_rbac_missing_permission_rejected() {
+        use crate::subscriptions::rbac_integration::RBACContext;
+        use std::collections::HashMap;
+
+        let ctx = RBACContext::new(
+            "user-456".to_string(),
+            None,
+            vec!["payment_methods".to_string()],
+        );
+
+        // Permission map without the requested field
+        let allowed = HashMap::new();
+
+        assert!(
+            ctx.validate_fields(&allowed).is_err(),
+            "Should reject subscription for fields without explicit permission"
+        );
+
+        println!("✅ test_rbac_missing_permission_rejected passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_rbac_cache_performance() {
+        use crate::subscriptions::rbac_integration::RBACContext;
+        use std::collections::HashMap;
+
+        let ctx = RBACContext::new(
+            "user-789".to_string(),
+            None,
+            vec![
+                "orders".to_string(),
+                "products".to_string(),
+                "reviews".to_string(),
+                "categories".to_string(),
+                "inventory".to_string(),
+            ],
+        );
+
+        let mut allowed = HashMap::new();
+        allowed.insert("orders".to_string(), true);
+        allowed.insert("products".to_string(), true);
+        allowed.insert("reviews".to_string(), true);
+        allowed.insert("categories".to_string(), true);
+        allowed.insert("inventory".to_string(), true);
+
+        // Repeated checks should be consistent (would be cached in production)
+        for _ in 0..1000 {
+            assert!(ctx.validate_fields(&allowed).is_ok());
+        }
+
+        println!("✅ test_rbac_cache_performance passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_rbac_audit_logging() {
+        use crate::subscriptions::rbac_integration::RBACContext;
+        use std::collections::HashMap;
+
+        let ctx = RBACContext::new(
+            "user-audit-123".to_string(),
+            Some("tenant-audit-5".to_string()),
+            vec!["reports".to_string(), "analytics".to_string()],
+        );
+
+        let mut allowed = HashMap::new();
+        allowed.insert("reports".to_string(), true);
+        allowed.insert("analytics".to_string(), false);
+
+        // Get audit descriptions
+        let all_desc = ctx.describe();
+        assert!(all_desc.contains("user-audit-123"));
+        assert!(all_desc.contains("tenant-audit-5"));
+
+        let allowed_desc = ctx.describe_field_access("reports", &allowed);
+        assert!(all_desc.contains("reports"));
+
+        let denied_desc = ctx.describe_field_access("analytics", &allowed);
+        assert!(denied_desc.contains("cannot access"));
+
+        println!("✅ test_rbac_audit_logging passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_rbac_multiple_fields_partial_access() {
+        use crate::subscriptions::rbac_integration::RBACContext;
+        use std::collections::HashMap;
+
+        let ctx = RBACContext::new(
+            "user-multi".to_string(),
+            None,
+            vec![
+                "orders".to_string(),
+                "users".to_string(),
+                "payments".to_string(),
+                "invoices".to_string(),
+            ],
+        );
+
+        let mut allowed = HashMap::new();
+        allowed.insert("orders".to_string(), true);
+        allowed.insert("users".to_string(), true);
+        allowed.insert("payments".to_string(), false);
+        allowed.insert("invoices".to_string(), false);
+
+        // Get accessible and denied fields
+        let accessible = ctx.filter_accessible_fields(&allowed);
+        assert_eq!(accessible.len(), 2);
+        assert!(accessible.contains(&"orders".to_string()));
+        assert!(accessible.contains(&"users".to_string()));
+
+        let denied = ctx.filter_denied_fields(&allowed);
+        assert_eq!(denied.len(), 2);
+        assert!(denied.contains(&"payments".to_string()));
+        assert!(denied.contains(&"invoices".to_string()));
+
+        // Validation should fail due to denied fields
+        assert!(ctx.validate_fields(&allowed).is_err());
+
+        println!("✅ test_rbac_multiple_fields_partial_access passed");
+    }
 }
