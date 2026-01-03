@@ -2942,8 +2942,8 @@ mod tests {
         let mut collected_events = Vec::new();
 
         for _ in 0..4 {
-            if let Ok(Some(event)) = tokio::time::timeout(Duration::from_millis(100), stream.recv())
-                .await
+            if let Ok(Some(event)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
             {
                 // Apply filter to event data before using it
                 if filter.matches(&event.data) {
@@ -3072,8 +3072,8 @@ mod tests {
         // Test: Subscription from non-federated environment (backward compatibility)
         let standalone = FederationContext::standalone();
         assert!(
-            standalone.matches(&same_subgraph).to_string() != "true" ||
-            standalone.matches(&same_subgraph) == false,
+            standalone.matches(&same_subgraph).to_string() != "true"
+                || standalone.matches(&same_subgraph) == false,
             "Non-federated environment should reject federation context"
         );
 
@@ -3127,5 +3127,168 @@ mod tests {
             "✅ test_federation_multiple_subgraphs_isolated passed (3 subgraphs, {} subscriptions)",
             total_subscriptions
         );
+    }
+
+    // Phase 3.3: Multi-Tenant Enforcement Tests
+    // Test tenant-based event routing and filtering
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_multitenant_channel_routing() {
+        use crate::subscriptions::tenant_context::TenantContext;
+
+        // Simulate 3 different tenants
+        let tenant1 = TenantContext::new(1);
+        let tenant2 = TenantContext::new(2);
+        let tenant3 = TenantContext::new(3);
+
+        // Each tenant should route to its own channel
+        let ch1 = tenant1.scoped_channel("orders");
+        let ch2 = tenant2.scoped_channel("orders");
+        let ch3 = tenant3.scoped_channel("orders");
+
+        assert_eq!(ch1, "orders:tenant-1");
+        assert_eq!(ch2, "orders:tenant-2");
+        assert_eq!(ch3, "orders:tenant-3");
+
+        // Channels should be unique per tenant
+        assert_ne!(ch1, ch2);
+        assert_ne!(ch2, ch3);
+        assert_ne!(ch1, ch3);
+
+        println!("✅ test_multitenant_channel_routing passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_multitenant_event_filtering() {
+        use crate::subscriptions::tenant_context::TenantContext;
+
+        let tenant1 = TenantContext::new(1);
+        let tenant2 = TenantContext::new(2);
+
+        // Tenant 1 event
+        let event1 = json!({ "id": "order-100", "tenant_id": 1, "amount": 100.0 });
+
+        // Tenant 2 event
+        let event2 = json!({ "id": "order-200", "tenant_id": 2, "amount": 200.0 });
+
+        // Tenant 1 context should accept only tenant 1 events
+        assert!(
+            tenant1.matches(&event1),
+            "Tenant 1 should accept own events"
+        );
+        assert!(
+            !tenant1.matches(&event2),
+            "Tenant 1 should reject tenant 2 events"
+        );
+
+        // Tenant 2 context should accept only tenant 2 events
+        assert!(
+            !tenant2.matches(&event1),
+            "Tenant 2 should reject tenant 1 events"
+        );
+        assert!(
+            tenant2.matches(&event2),
+            "Tenant 2 should accept own events"
+        );
+
+        println!("✅ test_multitenant_event_filtering passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_multitenant_cross_tenant_rejection() {
+        use crate::subscriptions::tenant_context::TenantContext;
+
+        // Scenario: Tenant 1 user tries to subscribe to Tenant 2 event
+        let tenant1_context = TenantContext::new(1);
+        let tenant2_variables = json!({ "tenant_id": 2 });
+
+        // Subscription validation should reject
+        assert!(
+            !tenant1_context.validate_subscription_variables(&tenant2_variables),
+            "Should reject subscription attempt with mismatched tenant_id"
+        );
+
+        // Correct subscription should pass
+        let tenant1_variables = json!({ "tenant_id": 1 });
+        assert!(
+            tenant1_context.validate_subscription_variables(&tenant1_variables),
+            "Should accept subscription with matching tenant_id"
+        );
+
+        println!("✅ test_multitenant_cross_tenant_rejection passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_multitenant_wildcard_subscriptions() {
+        use crate::subscriptions::tenant_context::TenantContext;
+
+        let tenant1 = TenantContext::new(1);
+
+        // Wildcard subscription (no explicit tenant_id variable)
+        let wildcard_vars = json!({ "user_id": 100 });
+        assert!(
+            tenant1.validate_subscription_variables(&wildcard_vars),
+            "Should allow wildcard subscriptions (no explicit tenant_id)"
+        );
+
+        // Empty variables (also wildcard)
+        let empty_vars = json!({});
+        assert!(
+            tenant1.validate_subscription_variables(&empty_vars),
+            "Should allow subscriptions with no variables"
+        );
+
+        // These wildcard subscriptions should be scoped to tenant's channel
+        let scoped = tenant1.scoped_channel("orders");
+        assert_eq!(scoped, "orders:tenant-1");
+
+        println!("✅ test_multitenant_wildcard_subscriptions passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_multitenant_tenant_id_extraction() {
+        use crate::subscriptions::tenant_context::TenantContext;
+
+        // Scenario: Extract tenant_id from complex event data
+        let tenant_context = TenantContext::new(5);
+
+        let complex_event = json!({
+            "id": "order-789",
+            "tenant_id": 5,
+            "user_id": 42,
+            "items": [
+                { "sku": "ABC", "qty": 1 },
+                { "sku": "XYZ", "qty": 2 }
+            ],
+            "metadata": {
+                "source": "mobile",
+                "timestamp": 1609459200
+            }
+        });
+
+        assert!(
+            tenant_context.matches(&complex_event),
+            "Should extract and match tenant_id from complex nested data"
+        );
+
+        // Wrong tenant in same structure
+        let complex_event_wrong = json!({
+            "id": "order-789",
+            "tenant_id": 999,
+            "user_id": 42,
+            "items": []
+        });
+
+        assert!(
+            !tenant_context.matches(&complex_event_wrong),
+            "Should reject event with different tenant_id despite same structure"
+        );
+
+        println!("✅ test_multitenant_tenant_id_extraction passed");
     }
 }
