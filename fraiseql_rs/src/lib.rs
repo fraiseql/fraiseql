@@ -64,7 +64,6 @@ pub mod response;
 pub mod schema_registry;
 pub mod security;
 pub mod subscriptions; // Phase 15b: Real-time subscriptions
-pub mod http; // Phase 16: Axum HTTP server
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -37,7 +37,9 @@
 //! # Modules
 //!
 //! - `axum_server`: Core Axum server implementation with HTTP routing and handlers
+//! - `middleware`: Compression, CORS, and error handling middleware (Phase 16)
 //! - `websocket`: WebSocket handler for GraphQL subscriptions (graphql-ws protocol)
+//! - `security_middleware`: HTTP security integration with existing security modules (Phase 16: Commit 5)
 //!
 //! # Examples
 //!
@@ -56,10 +58,14 @@
 
 pub mod axum_server;
 pub mod middleware;
+pub mod security_middleware;
 pub mod websocket;
 
 pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
+pub use security_middleware::{
+    validate_graphql_request, check_rate_limit, HttpSecurityError,
+};
 pub use websocket::websocket_handler;
 
 #[cfg(test)]
