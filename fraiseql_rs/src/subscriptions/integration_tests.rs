@@ -508,13 +508,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_in_memory_event_bus_end_to_end_workflow() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
         let bus_clone = bus.clone();
 
         // Subscribe to channel
-        let mut stream = bus.subscribe("user-updates").await.expect("Failed to subscribe");
+        let mut stream = bus
+            .subscribe("user-updates")
+            .await
+            .expect("Failed to subscribe");
 
         // Spawn publisher task
         let publisher_task = tokio::spawn(async move {
@@ -563,7 +566,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_in_memory_multi_subscriber_broadcast() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -615,13 +618,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_in_memory_event_bus_multiple_channels() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
         // Subscribe to different channels
         let mut stream_users = bus.subscribe("user-events").await.expect("User sub failed");
-        let mut stream_orders = bus.subscribe("order-events").await.expect("Order sub failed");
+        let mut stream_orders = bus
+            .subscribe("order-events")
+            .await
+            .expect("Order sub failed");
         let mut stream_payments = bus
             .subscribe("payment-events")
             .await
@@ -691,7 +697,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_filtering_with_subscriptions() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -751,7 +757,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_bus_resilience_with_disconnects() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -807,7 +813,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_bus_with_rapid_subscribe_unsubscribe() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -863,7 +869,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_bus_throughput_with_rapid_events() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -913,10 +919,7 @@ mod tests {
         // Verify throughput
         assert_eq!(received_count, 100);
         let events_per_second = (received_count as f64) / elapsed.as_secs_f64();
-        println!(
-            "Event bus throughput: {:.0} events/sec",
-            events_per_second
-        );
+        println!("Event bus throughput: {:.0} events/sec", events_per_second);
         assert!(
             events_per_second > 100.0,
             "Throughput too low: {} events/sec",
@@ -930,7 +933,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_metadata_preservation() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -969,6 +972,7 @@ mod tests {
     // Tests for 1,000+ concurrent connections, memory stability, and throughput
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
     async fn test_load_1000_concurrent_connections() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
 
@@ -1016,12 +1020,15 @@ mod tests {
 
         // Assertions
         assert_eq!(successful, 1000, "All 1000 connections should succeed");
-        assert!(elapsed.as_secs_f64() < 10.0, "Should complete within 10 seconds");
+        assert!(
+            elapsed.as_secs_f64() < 10.0,
+            "Should complete within 10 seconds"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_load_10000_subscriptions() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
         let mut subscription_handles = vec![];
@@ -1069,12 +1076,16 @@ mod tests {
         );
 
         assert_eq!(successful, 10000, "All 10000 subscriptions should succeed");
-        assert!(elapsed.as_secs_f64() < 20.0, "Should complete within 20 seconds");
+        assert!(
+            elapsed.as_secs_f64() < 20.0,
+            "Should complete within 20 seconds"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting, clippy::uninlined_format_args)]
     async fn test_load_sustained_throughput_100_events_per_second() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
@@ -1122,7 +1133,6 @@ mod tests {
         // Receive from all streams concurrently
         let collector_task = tokio::spawn(async move {
             let mut total = 0;
-            let mut futures = vec![];
 
             // This is a simplified collector - in production would use select!
             tokio::time::sleep(Duration::from_secs(12)).await;
@@ -1147,13 +1157,17 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
     async fn test_load_memory_stability_with_event_creation() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
         // Subscribe to one channel
-        let mut stream = bus.subscribe("memory-test").await.expect("Subscribe failed");
+        let mut stream = bus
+            .subscribe("memory-test")
+            .await
+            .expect("Subscribe failed");
 
         let bus_clone = bus.clone();
 
@@ -1277,8 +1291,13 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(
+        clippy::excessive_nesting,
+        clippy::uninlined_format_args,
+        clippy::unused_enumerate_index
+    )]
     async fn test_load_multi_channel_broadcasting() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
         let num_channels = 100;
@@ -1289,12 +1308,9 @@ mod tests {
 
         for ch_idx in 0..num_channels {
             let mut channel_streams = vec![];
-            for sub_idx in 0..subscribers_per_channel {
+            for _sub_idx in 0..subscribers_per_channel {
                 let channel = format!("broadcast-{}", ch_idx);
-                let stream = bus
-                    .subscribe(&channel)
-                    .await
-                    .expect("Subscribe failed");
+                let stream = bus.subscribe(&channel).await.expect("Subscribe failed");
                 channel_streams.push(stream);
             }
             all_streams.push(channel_streams);
@@ -1325,12 +1341,13 @@ mod tests {
         // Receive from all streams
         let mut receive_tasks = vec![];
 
-        for (ch_idx, channel_streams) in all_streams.into_iter().enumerate() {
-            for (sub_idx, mut stream) in channel_streams.into_iter().enumerate() {
+        for (_ch_idx, channel_streams) in all_streams.into_iter().enumerate() {
+            for (_sub_idx, mut stream) in channel_streams.into_iter().enumerate() {
                 let task = tokio::spawn(async move {
                     let mut count = 0;
                     while count < 10 {
-                        let result = tokio::time::timeout(Duration::from_secs(2), stream.recv()).await;
+                        let result =
+                            tokio::time::timeout(Duration::from_secs(2), stream.recv()).await;
                         if result.is_ok() && result.unwrap().is_some() {
                             count += 1;
                         }
@@ -1368,11 +1385,14 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_load_large_event_payload() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
-        let mut stream = bus.subscribe("large-payload").await.expect("Subscribe failed");
+        let mut stream = bus
+            .subscribe("large-payload")
+            .await
+            .expect("Subscribe failed");
 
         let bus_clone = bus.clone();
 
@@ -1432,13 +1452,13 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting, clippy::single_match)]
     async fn test_load_subscription_churn() {
-        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
         let bus = Arc::new(InMemoryEventBus::new());
 
         let start_time = std::time::Instant::now();
-        let mut event_count = 0;
 
         // Rapid subscription creation/deletion with continuous publishing
         let bus_clone1 = bus.clone();
@@ -1468,7 +1488,8 @@ mod tests {
                         // Try to get 1-5 events
                         for _ in 0..5 {
                             let result =
-                                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await;
+                                tokio::time::timeout(Duration::from_millis(100), stream.recv())
+                                    .await;
                             if result.is_ok() && result.unwrap().is_some() {
                                 local_count += 1;
                             }
@@ -1486,7 +1507,7 @@ mod tests {
             local_count
         });
 
-        let publisher_result = publisher_task.await.expect("Publisher failed");
+        publisher_task.await.expect("Publisher failed");
         let subscriber_result = subscriber_task.await.expect("Subscriber failed");
         let elapsed = start_time.elapsed();
 
@@ -1497,6 +1518,9 @@ mod tests {
         );
 
         assert!(subscriber_result > 0, "Should receive some events");
-        assert!(elapsed.as_secs_f64() < 10.0, "Should complete in < 10 seconds");
+        assert!(
+            elapsed.as_secs_f64() < 10.0,
+            "Should complete in < 10 seconds"
+        );
     }
 }
