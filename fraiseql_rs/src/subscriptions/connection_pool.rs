@@ -40,8 +40,8 @@ impl Default for PoolConfig {
             min_connections: 5,
             max_connections: 100,
             acquire_timeout: Duration::from_secs(5),
-            idle_timeout: Duration::from_secs(300),      // 5 minutes
-            max_lifetime: Duration::from_secs(3600),     // 1 hour
+            idle_timeout: Duration::from_secs(300), // 5 minutes
+            max_lifetime: Duration::from_secs(3600), // 1 hour
             health_check_interval: Duration::from_secs(30),
             max_retries: 3,
         }

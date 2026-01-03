@@ -5,7 +5,6 @@
 
 use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -162,9 +161,10 @@ impl ConsumerGroupManager {
             group.consumers_count = group.consumers.len();
             Ok(())
         } else {
-            Err(SubscriptionError::SubscriptionRejected(
-                format!("Consumer group not found: {}", group_id.as_str()),
-            ))
+            Err(SubscriptionError::SubscriptionRejected(format!(
+                "Consumer group not found: {}",
+                group_id.as_str()
+            )))
         }
     }
 
@@ -179,9 +179,10 @@ impl ConsumerGroupManager {
             group.consumers_count = group.consumers.len();
             Ok(())
         } else {
-            Err(SubscriptionError::SubscriptionRejected(
-                format!("Consumer group not found: {}", group_id.as_str()),
-            ))
+            Err(SubscriptionError::SubscriptionRejected(format!(
+                "Consumer group not found: {}",
+                group_id.as_str()
+            )))
         }
     }
 
@@ -210,18 +211,15 @@ impl ConsumerGroupManager {
             group.pending_count = pending_count;
             Ok(())
         } else {
-            Err(SubscriptionError::SubscriptionRejected(
-                format!("Consumer group not found: {}", group_id.as_str()),
-            ))
+            Err(SubscriptionError::SubscriptionRejected(format!(
+                "Consumer group not found: {}",
+                group_id.as_str()
+            )))
         }
     }
 
     /// Check if consumer is active (has pending messages)
-    pub fn is_consumer_active(
-        &self,
-        group_id: &ConsumerGroupId,
-        consumer_id: &ConsumerId,
-    ) -> bool {
+    pub fn is_consumer_active(&self, group_id: &ConsumerGroupId, consumer_id: &ConsumerId) -> bool {
         if let Some(group) = self.groups.get(group_id.as_str()) {
             group
                 .consumers
@@ -240,9 +238,10 @@ impl ConsumerGroupManager {
         if let Some(group) = self.groups.get(group_id.as_str()) {
             Ok(group.pending_count)
         } else {
-            Err(SubscriptionError::SubscriptionRejected(
-                format!("Consumer group not found: {}", group_id.as_str()),
-            ))
+            Err(SubscriptionError::SubscriptionRejected(format!(
+                "Consumer group not found: {}",
+                group_id.as_str()
+            )))
         }
     }
 
@@ -258,9 +257,10 @@ impl ConsumerGroupManager {
                 .filter(|c| c.pending_count > 0)
                 .count())
         } else {
-            Err(SubscriptionError::SubscriptionRejected(
-                format!("Consumer group not found: {}", group_id.as_str()),
-            ))
+            Err(SubscriptionError::SubscriptionRejected(format!(
+                "Consumer group not found: {}",
+                group_id.as_str()
+            )))
         }
     }
 
@@ -358,7 +358,9 @@ mod tests {
         let group_id = ConsumerGroupId::new("group-1");
         let consumer_id = ConsumerId::new("consumer-1");
 
-        manager.register_consumer_group("chat", group_id.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group_id.clone())
+            .unwrap();
         let result = manager.register_consumer(&group_id, consumer_id.clone());
         assert!(result.is_ok());
 
@@ -373,8 +375,12 @@ mod tests {
         let group_id = ConsumerGroupId::new("group-1");
         let consumer_id = ConsumerId::new("consumer-1");
 
-        manager.register_consumer_group("chat", group_id.clone()).unwrap();
-        manager.register_consumer(&group_id, consumer_id.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group_id.clone())
+            .unwrap();
+        manager
+            .register_consumer(&group_id, consumer_id.clone())
+            .unwrap();
 
         let result = manager.unregister_consumer(&group_id, &consumer_id);
         assert!(result.is_ok());
@@ -389,13 +395,17 @@ mod tests {
         let group1 = ConsumerGroupId::new("group-1");
         let group2 = ConsumerGroupId::new("group-2");
 
-        manager.register_consumer_group("chat", group1.clone()).unwrap();
-        manager.register_consumer_group("chat", group2.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group1.clone())
+            .unwrap();
+        manager
+            .register_consumer_group("chat", group2.clone())
+            .unwrap();
 
-        let groups = manager.get_channel_groups("chat");
-        assert_eq!(groups.len(), 2);
-        assert!(groups.contains(&group1));
-        assert!(groups.contains(&group2));
+        let channel_groups = manager.get_channel_groups("chat");
+        assert_eq!(channel_groups.len(), 2);
+        assert!(channel_groups.contains(&group1));
+        assert!(channel_groups.contains(&group2));
     }
 
     #[test]
@@ -406,8 +416,12 @@ mod tests {
         let consumer1 = ConsumerId::new("consumer-1");
         let consumer2 = ConsumerId::new("consumer-2");
 
-        manager.register_consumer_group("chat", group1.clone()).unwrap();
-        manager.register_consumer_group("notifications", group2.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group1.clone())
+            .unwrap();
+        manager
+            .register_consumer_group("notifications", group2.clone())
+            .unwrap();
         manager.register_consumer(&group1, consumer1).unwrap();
         manager.register_consumer(&group2, consumer2).unwrap();
 
@@ -421,7 +435,9 @@ mod tests {
         let manager = ConsumerGroupManager::new();
         let group_id = ConsumerGroupId::new("group-1");
 
-        manager.register_consumer_group("chat", group_id.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group_id.clone())
+            .unwrap();
         let result = manager.update_pending_count(&group_id, 42);
         assert!(result.is_ok());
 
@@ -434,7 +450,9 @@ mod tests {
         let manager = ConsumerGroupManager::new();
         let group_id = ConsumerGroupId::new("group-1");
 
-        manager.register_consumer_group("chat", group_id.clone()).unwrap();
+        manager
+            .register_consumer_group("chat", group_id.clone())
+            .unwrap();
         manager.update_pending_count(&group_id, 100).unwrap();
 
         let pending = manager.get_total_pending(&group_id).unwrap();

@@ -2,7 +2,7 @@
 //!
 //! Executes subscriptions and manages the subscription lifecycle.
 
-use crate::subscriptions::protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
+use crate::subscriptions::protocol::SubscriptionPayload;
 use crate::subscriptions::SubscriptionError;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -191,7 +191,10 @@ impl SubscriptionExecutor {
     }
 
     /// Validate subscription
-    fn validate_subscription(&self, _subscription: &ExecutedSubscription) -> Result<(), SubscriptionError> {
+    fn validate_subscription(
+        &self,
+        _subscription: &ExecutedSubscription,
+    ) -> Result<(), SubscriptionError> {
         // TODO: In full implementation, validate GraphQL syntax, operation name, etc.
         // For Phase 15b Week 1, we do basic validation only
 
@@ -200,13 +203,15 @@ impl SubscriptionExecutor {
 
     /// Get subscription by ID
     pub fn get_subscription(&self, subscription_id: &str) -> Option<ExecutedSubscription> {
-        self.subscriptions
-            .get(subscription_id)
-            .map(|s| s.clone())
+        self.subscriptions.get(subscription_id).map(|s| s.clone())
     }
 
     /// Update subscription state
-    pub fn update_subscription<F>(&self, subscription_id: &str, f: F) -> Result<(), SubscriptionError>
+    pub fn update_subscription<F>(
+        &self,
+        subscription_id: &str,
+        f: F,
+    ) -> Result<(), SubscriptionError>
     where
         F: FnOnce(&mut ExecutedSubscription),
     {
@@ -238,10 +243,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get all subscriptions for connection
-    pub fn get_connection_subscriptions(
-        &self,
-        connection_id: Uuid,
-    ) -> Vec<ExecutedSubscription> {
+    pub fn get_connection_subscriptions(&self, connection_id: Uuid) -> Vec<ExecutedSubscription> {
         self.subscriptions
             .iter()
             .filter(|entry| entry.value().connection_id == connection_id)

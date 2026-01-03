@@ -62,7 +62,7 @@ pub mod rbac;
 pub mod response;
 pub mod schema_registry;
 pub mod security;
-// pub mod subscriptions; // Phase 15b: Real-time subscriptions (has compilation issues - needs fixes)
+pub mod subscriptions; // Phase 15b: Real-time subscriptions
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");

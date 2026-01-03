@@ -33,17 +33,21 @@ pub mod websocket;
 #[cfg(test)]
 mod integration_tests;
 
-pub use config::{SubscriptionConfig, SubscriptionLimits};
+pub use config::{
+    EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
+};
 pub use connection_manager::ConnectionManager;
 pub use connection_pool::{ConnectionPoolManager, PoolConfig, PoolStats};
-pub use consumer_group::{ConsumerGroupId, ConsumerId, ConsumerGroupManager};
-pub use error_recovery::{RecoveryStrategy, CircuitBreaker, FallbackRegistry, RetryConfig};
-pub use event_bus::{EventBus, Event, EventStream, InMemoryEventBus};
+pub use consumer_group::{ConsumerGroupId, ConsumerGroupManager, ConsumerId};
+pub use error_recovery::{
+    CircuitBreaker, CircuitState, FallbackRegistry, RecoveryStrategy, RetryConfig,
+};
+pub use event_bus::{Event, EventBus, EventStream, InMemoryEventBus};
 pub use event_filter::{EventFilter, FilterCondition};
 pub use executor::SubscriptionExecutor;
 pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
 pub use metrics::SubscriptionMetrics;
-pub use protocol::{GraphQLMessage, SubscriptionMessage};
+pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
 pub use rate_limiter::SubscriptionRateLimiter;
 pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
 pub use websocket::{WebSocketConnection, WebSocketServer};

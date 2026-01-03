@@ -7,7 +7,9 @@
 
 use std::time::Duration;
 
-use super::config::{EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig};
+use super::config::{
+    EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
+};
 
 impl SubscriptionConfig {
     /// Development preset: Permissive limits, in-memory events, no rate limiting
@@ -38,7 +40,7 @@ impl SubscriptionConfig {
                 max_concurrent_connections: 100,
                 max_filter_complexity: 50,
                 max_event_payload_size: 1_024 * 1_024, // 1MB
-                max_query_size: 64 * 1_024,             // 64KB
+                max_query_size: 64 * 1_024,            // 64KB
             },
             rate_limiter: RateLimiterConfig {
                 max_subscriptions_per_user: 100,
@@ -92,7 +94,7 @@ impl SubscriptionConfig {
                 max_concurrent_connections: 500,
                 max_filter_complexity: 50,
                 max_event_payload_size: 1_024 * 1_024, // 1MB
-                max_query_size: 64 * 1_024,             // 64KB
+                max_query_size: 64 * 1_024,            // 64KB
             },
             rate_limiter: RateLimiterConfig {
                 max_subscriptions_per_user: 50,
@@ -152,7 +154,7 @@ impl SubscriptionConfig {
                 max_concurrent_connections: 2_000,
                 max_filter_complexity: 50,
                 max_event_payload_size: 1_024 * 1_024, // 1MB
-                max_query_size: 64 * 1_024,             // 64KB
+                max_query_size: 64 * 1_024,            // 64KB
             },
             rate_limiter: RateLimiterConfig {
                 max_subscriptions_per_user: 100,

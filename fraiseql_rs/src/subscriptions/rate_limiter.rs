@@ -87,10 +87,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Check if user can create new subscription
-    pub fn check_subscription_creation(
-        &self,
-        user_id: i64,
-    ) -> Result<(), SubscriptionError> {
+    pub fn check_subscription_creation(&self, user_id: i64) -> Result<(), SubscriptionError> {
         // Get or create user bucket
         let mut bucket = self
             .user_buckets
@@ -114,10 +111,7 @@ impl SubscriptionRateLimiter {
     }
 
     /// Check if subscription can send event
-    pub fn check_event_emission(
-        &self,
-        subscription_id: &str,
-    ) -> Result<(), SubscriptionError> {
+    pub fn check_event_emission(&self, subscription_id: &str) -> Result<(), SubscriptionError> {
         // Get or create subscription bucket (1 token per second)
         let mut bucket = self
             .subscription_buckets
@@ -144,7 +138,7 @@ impl SubscriptionRateLimiter {
     /// Check if user has too many connections
     pub fn check_connections_per_user(
         &self,
-        user_id: i64,
+        _user_id: i64,
         current_count: usize,
     ) -> Result<(), SubscriptionError> {
         if current_count >= self.config.max_connections_per_user {
@@ -176,10 +170,12 @@ impl SubscriptionRateLimiter {
 
     /// Get subscription bucket info for testing/monitoring
     pub fn get_subscription_info(&self, subscription_id: &str) -> Option<(f64, f64)> {
-        self.subscription_buckets.get(subscription_id).map(|bucket| {
-            let mut b = bucket.clone();
-            (b.current_tokens(), b.capacity)
-        })
+        self.subscription_buckets
+            .get(subscription_id)
+            .map(|bucket| {
+                let mut b = bucket.clone();
+                (b.current_tokens(), b.capacity)
+            })
     }
 
     /// Clear all limits

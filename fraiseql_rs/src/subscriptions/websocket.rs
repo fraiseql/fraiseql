@@ -119,7 +119,7 @@ impl WebSocketConnection {
                 self.on_connection_init()?;
             }
 
-            GraphQLMessage::Subscribe { id, payload } => {
+            GraphQLMessage::Subscribe { id, payload: _ } => {
                 if self.state != ConnectionState::Connected {
                     return Err(SubscriptionError::InvalidMessage(
                         "Must initialize connection first".to_string(),
@@ -127,8 +127,7 @@ impl WebSocketConnection {
                 }
 
                 // Register subscription with connection manager
-                self.manager
-                    .register_subscription(self.connection_id, id.clone())?;
+                self.manager.register_subscription(self.connection_id, id)?;
             }
 
             GraphQLMessage::Ping { .. } => {
@@ -140,9 +139,10 @@ impl WebSocketConnection {
             }
 
             _ => {
-                return Err(SubscriptionError::InvalidMessage(
-                    format!("Unexpected message type: {}", message.type_name()),
-                ))
+                return Err(SubscriptionError::InvalidMessage(format!(
+                    "Unexpected message type: {}",
+                    message.type_name()
+                )))
             }
         }
 
@@ -197,10 +197,7 @@ pub struct WebSocketServer {
 
 impl WebSocketServer {
     /// Create new WebSocket server
-    pub fn new(
-        connection_manager: Arc<ConnectionManager>,
-        config: Arc<WebSocketConfig>,
-    ) -> Self {
+    pub fn new(connection_manager: Arc<ConnectionManager>, config: Arc<WebSocketConfig>) -> Self {
         Self {
             connections: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             connection_manager,
@@ -277,7 +274,11 @@ impl WebSocketServer {
 
     /// Get connection by ID
     pub fn get_connection(&self, connection_id: Uuid) -> Option<WebSocketConnection> {
-        self.connections.lock().unwrap().get(&connection_id).cloned()
+        self.connections
+            .lock()
+            .unwrap()
+            .get(&connection_id)
+            .cloned()
     }
 
     /// Get all active connections count
@@ -288,10 +289,7 @@ impl WebSocketServer {
     /// Get connections info as JSON
     pub fn connections_info(&self) -> Value {
         let connections = self.connections.lock().unwrap();
-        let info: Vec<Value> = connections
-            .values()
-            .map(|conn| conn.as_json())
-            .collect();
+        let info: Vec<Value> = connections.values().map(|conn| conn.as_json()).collect();
 
         serde_json::json!({
             "total": connections.len(),
@@ -333,9 +331,7 @@ mod tests {
     #[test]
     fn test_websocket_connection_creation() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn_meta = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn_meta = manager.register_connection(Some(123), Some(456)).unwrap();
 
         let config = Arc::new(WebSocketConfig::default());
         let ws_conn = WebSocketConnection::new(conn_meta, config, Arc::new(manager));
@@ -347,9 +343,7 @@ mod tests {
     #[test]
     fn test_connection_init_transition() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn_meta = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn_meta = manager.register_connection(Some(123), Some(456)).unwrap();
 
         let config = Arc::new(WebSocketConfig::default());
         let mut ws_conn = WebSocketConnection::new(conn_meta, config, Arc::new(manager));
@@ -363,14 +357,12 @@ mod tests {
     #[test]
     fn test_init_timeout_check() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn_meta = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn_meta = manager.register_connection(Some(123), Some(456)).unwrap();
 
-        let mut config = WebSocketConfig::default();
-        config.init_timeout = Duration::from_millis(1);
-
-        let config = Arc::new(config);
+        let config = Arc::new(WebSocketConfig {
+            init_timeout: Duration::from_millis(1),
+            ..Default::default()
+        });
         let ws_conn = WebSocketConnection::new(conn_meta, config, Arc::new(manager));
 
         std::thread::sleep(Duration::from_millis(10));

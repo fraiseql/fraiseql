@@ -2,7 +2,6 @@
 //!
 //! Tracks active connections and their subscriptions.
 
-use crate::subscriptions::protocol::GraphQLMessage;
 use crate::subscriptions::{SubscriptionError, SubscriptionLimits};
 use dashmap::DashMap;
 use serde_json::Value;
@@ -81,6 +80,10 @@ impl ConnectionManager {
     }
 
     /// Register new connection
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError::SubscriptionRejected` if the maximum concurrent connections limit is exceeded.
     pub fn register_connection(
         &self,
         user_id: Option<i64>,
@@ -109,6 +112,10 @@ impl ConnectionManager {
     }
 
     /// Unregister connection
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError::ConnectionNotFound` if the connection ID is not registered.
     pub fn unregister_connection(&self, connection_id: Uuid) -> Result<(), SubscriptionError> {
         self.connections
             .remove(&connection_id)
@@ -124,6 +131,11 @@ impl ConnectionManager {
     }
 
     /// Register subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError::ConnectionNotFound` if the connection ID is not registered.
+    /// Returns `SubscriptionError::TooManySubscriptions` if the subscription limit for the connection is exceeded.
     pub fn register_subscription(
         &self,
         connection_id: Uuid,
@@ -147,6 +159,10 @@ impl ConnectionManager {
     }
 
     /// Unregister subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubscriptionError::SubscriptionNotFound` if the subscription is not found for the given connection.
     pub fn unregister_subscription(
         &self,
         connection_id: Uuid,
@@ -164,21 +180,23 @@ impl ConnectionManager {
     }
 
     /// Get connection metadata
+    #[must_use]
     pub fn get_connection(&self, connection_id: Uuid) -> Option<ConnectionMetadata> {
         self.connections.get(&connection_id).map(|r| r.clone())
     }
 
     /// Get subscriptions for connection
+    #[must_use]
     pub fn get_subscriptions(&self, connection_id: Uuid) -> Option<Vec<String>> {
         self.subscriptions.get(&connection_id).map(|r| r.clone())
     }
 
     /// Check if subscription exists
+    #[must_use]
     pub fn has_subscription(&self, connection_id: Uuid, subscription_id: &str) -> bool {
         self.subscriptions
             .get(&connection_id)
-            .map(|subs| subs.contains(&subscription_id.to_string()))
-            .unwrap_or(false)
+            .is_some_and(|subs| subs.contains(&subscription_id.to_string()))
     }
 
     /// Get total active connections
@@ -224,9 +242,7 @@ mod tests {
     #[test]
     fn test_register_subscription() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn = manager.register_connection(Some(123), Some(456)).unwrap();
 
         let result = manager.register_subscription(conn.id, "sub-1".to_string());
         assert!(result.is_ok());
@@ -239,9 +255,7 @@ mod tests {
         limits.max_subscriptions_per_connection = 2;
 
         let manager = ConnectionManager::new(limits);
-        let conn = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn = manager.register_connection(Some(123), Some(456)).unwrap();
 
         // Add 2 subscriptions (should succeed)
         manager
@@ -253,33 +267,30 @@ mod tests {
 
         // Add 3rd (should fail)
         let result = manager.register_subscription(conn.id, "sub-3".to_string());
-        assert!(matches!(result, Err(SubscriptionError::TooManySubscriptions)));
+        assert!(matches!(
+            result,
+            Err(SubscriptionError::TooManySubscriptions)
+        ));
     }
 
     #[test]
     fn test_unregister_subscription() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn = manager.register_connection(Some(123), Some(456)).unwrap();
 
         manager
             .register_subscription(conn.id, "sub-1".to_string())
             .unwrap();
         assert_eq!(manager.active_subscriptions(), 1);
 
-        manager
-            .unregister_subscription(conn.id, "sub-1")
-            .unwrap();
+        manager.unregister_subscription(conn.id, "sub-1").unwrap();
         assert_eq!(manager.active_subscriptions(), 0);
     }
 
     #[test]
     fn test_unregister_connection() {
         let manager = ConnectionManager::new(SubscriptionLimits::default());
-        let conn = manager
-            .register_connection(Some(123), Some(456))
-            .unwrap();
+        let conn = manager.register_connection(Some(123), Some(456)).unwrap();
 
         manager
             .register_subscription(conn.id, "sub-1".to_string())

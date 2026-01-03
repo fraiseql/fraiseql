@@ -64,9 +64,7 @@ impl ConnectionHeartbeat {
     pub fn should_ping(&self) -> bool {
         match self.last_ping_sent {
             None => true, // Never pinged, send first ping
-            Some(last_ping) => {
-                Instant::now() - last_ping >= self.config.ping_interval
-            }
+            Some(last_ping) => Instant::now() - last_ping >= self.config.ping_interval,
         }
     }
 
@@ -89,9 +87,7 @@ impl ConnectionHeartbeat {
         }
 
         match self.last_ping_sent {
-            Some(last_ping) => {
-                Instant::now() - last_ping > self.config.pong_timeout
-            }
+            Some(last_ping) => Instant::now() - last_ping > self.config.pong_timeout,
             None => false,
         }
     }
@@ -154,20 +150,13 @@ pub struct HeartbeatMonitor {
 
 impl HeartbeatMonitor {
     /// Create new heartbeat monitor
-    pub fn new(
-        config: Arc<WebSocketConfig>,
-        metrics: Option<Arc<SubscriptionMetrics>>,
-    ) -> Self {
+    pub fn new(config: Arc<WebSocketConfig>, metrics: Option<Arc<SubscriptionMetrics>>) -> Self {
         Self { config, metrics }
     }
 
     /// Create heartbeat for a connection
     pub fn create_heartbeat(&self, connection_id: Uuid) -> ConnectionHeartbeat {
-        ConnectionHeartbeat::new(
-            connection_id,
-            self.config.clone(),
-            self.metrics.clone(),
-        )
+        ConnectionHeartbeat::new(connection_id, self.config.clone(), self.metrics.clone())
     }
 
     /// Get ping interval from configuration

@@ -22,8 +22,8 @@ mod tests {
     async fn test_subscription_creation_and_completion() {
         // Setup
         let config = SubscriptionConfig::default();
-        let metrics = SubscriptionMetrics::new().expect("Failed to create metrics");
-        let manager = ConnectionManager::new(config.limits.clone());
+        let _metrics = SubscriptionMetrics::new().expect("Failed to create metrics");
+        let manager = ConnectionManager::new(config.limits);
 
         // Register connection
         let metadata = manager
@@ -38,25 +38,25 @@ mod tests {
         let subscription_id = "sub-1".to_string();
         let query = "subscription { messageAdded { id message } }".to_string();
         let payload = SubscriptionPayload {
-            query: query.clone(),
+            query,
             operation_name: None,
-            variables: std::collections::HashMap::new(),
+            variables: None,
             extensions: None,
         };
 
-        let result = executor.execute(&subscription_id, connection_id, payload);
+        let result = executor.execute(connection_id, &payload);
         assert!(result.is_ok());
 
         // Verify subscription created
-        let subscription = executor.get_subscription(&subscription_id);
+        let subscription = executor.get_subscription(subscription_id.as_ref());
         assert!(subscription.is_some());
 
         // Complete subscription
-        let completed = executor.complete_subscription(&subscription_id);
+        let completed = executor.complete_subscription(subscription_id.as_ref());
         assert!(completed.is_ok());
 
         // Verify subscription removed
-        let subscription_after = executor.get_subscription(&subscription_id);
+        let subscription_after = executor.get_subscription(subscription_id.as_ref());
         assert!(subscription_after.is_none());
     }
 
@@ -74,21 +74,13 @@ mod tests {
         let limiter = ResourceLimiter::new(limits);
 
         // Register first subscription
-        let result1 = limiter.register_subscription(
-            "sub-1".to_string(),
-            1,
-            "conn-1".to_string(),
-            1000,
-        );
+        let result1 =
+            limiter.register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000);
         assert!(result1.is_ok());
 
         // Register second subscription (at limit)
-        let result2 = limiter.register_subscription(
-            "sub-2".to_string(),
-            1,
-            "conn-1".to_string(),
-            1000,
-        );
+        let result2 =
+            limiter.register_subscription("sub-2".to_string(), 1, "conn-1".to_string(), 1000);
         assert!(result2.is_ok());
 
         // Try to register third subscription (exceeds limit)
@@ -184,8 +176,8 @@ mod tests {
         assert!(filter.matches(&event));
 
         // Create non-matching filter
-        let non_matching_filter = EventFilter::new()
-            .with_field("status", FilterCondition::Equals(json!("inactive")));
+        let non_matching_filter =
+            EventFilter::new().with_field("status", FilterCondition::Equals(json!("inactive")));
 
         assert!(!non_matching_filter.matches(&event));
     }
@@ -197,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_subscriptions_per_connection() {
         let config = SubscriptionConfig::default();
-        let manager = ConnectionManager::new(config.limits.clone());
+        let manager = ConnectionManager::new(config.limits);
 
         // Register connection
         let metadata = manager
@@ -211,21 +203,21 @@ mod tests {
         // Create multiple subscriptions
         let sub_ids = vec!["sub-1", "sub-2", "sub-3"];
 
-        for sub_id in &sub_ids {
+        for _sub_id in &sub_ids {
             let payload = SubscriptionPayload {
                 query: "subscription { test }".to_string(),
                 operation_name: None,
-                variables: std::collections::HashMap::new(),
+                variables: None,
                 extensions: None,
             };
 
-            let result = executor.execute(&sub_id.to_string(), connection_id, payload);
+            let result = executor.execute(connection_id, &payload);
             assert!(result.is_ok());
         }
 
         // Verify all subscriptions created
         for sub_id in &sub_ids {
-            let subscription = executor.get_subscription(&sub_id.to_string());
+            let subscription = executor.get_subscription(sub_id);
             assert!(subscription.is_some());
         }
 
@@ -250,7 +242,7 @@ mod tests {
 
         // Register connections
         for i in 0..5 {
-            let result = pool.register_connection(format!("conn-{}", i));
+            let result = pool.register_connection(format!("conn-{i}"));
             assert!(result.is_ok());
         }
 
@@ -259,7 +251,7 @@ mod tests {
 
         // Release connections
         for i in 0..5 {
-            let result = pool.release_connection(&format!("conn-{}", i));
+            let result = pool.release_connection(&format!("conn-{i}"));
             assert!(result.is_ok());
         }
 
@@ -290,7 +282,7 @@ mod tests {
             .register_consumer(&group_id, consumer1.clone())
             .expect("Failed to register consumer 1");
         manager
-            .register_consumer(&group_id, consumer2.clone())
+            .register_consumer(&group_id, consumer2)
             .expect("Failed to register consumer 2");
 
         // Verify group info
@@ -320,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiting_prevents_abuse() {
-        let rate_limiter = SubscriptionRateLimiter::new();
+        let rate_limiter = SubscriptionRateLimiter::new(RateLimiterConfig::default());
 
         // First subscription should succeed
         let result1 = rate_limiter.check_subscription_creation(1);
@@ -412,7 +404,7 @@ mod tests {
         // Setup all components
         let config = SubscriptionConfig::default();
         let metrics = SubscriptionMetrics::new().expect("Failed to create metrics");
-        let manager = ConnectionManager::new(config.limits.clone());
+        let manager = ConnectionManager::new(config.limits);
         let executor = SubscriptionExecutor::new();
         let limiter = ResourceLimiter::new(ResourceLimits::default());
         let pool = ConnectionPoolManager::new(PoolConfig::default());
@@ -442,15 +434,15 @@ mod tests {
         let payload = SubscriptionPayload {
             query: "subscription { test }".to_string(),
             operation_name: None,
-            variables: std::collections::HashMap::new(),
+            variables: None,
             extensions: None,
         };
 
-        let exec_result = executor.execute(&"sub-1".to_string(), connection_id, payload);
+        let exec_result = executor.execute(connection_id, &payload);
         assert!(exec_result.is_ok());
 
         // 6. Verify subscription exists
-        let subscription = executor.get_subscription(&"sub-1".to_string());
+        let subscription = executor.get_subscription("sub-1");
         assert!(subscription.is_some());
 
         // 7. Record event
@@ -459,13 +451,13 @@ mod tests {
 
         // 8. Complete subscription
         executor
-            .complete_subscription(&"sub-1".to_string())
+            .complete_subscription("sub-1")
             .expect("Failed to complete subscription");
         metrics.record_subscription_completed();
 
         // 9. Unregister from limiter
         limiter
-            .unregister_subscription(&"sub-1".to_string())
+            .unregister_subscription("sub-1")
             .expect("Failed to unregister subscription");
 
         // 10. Release connection from pool
@@ -474,7 +466,7 @@ mod tests {
         metrics.record_connection_closed();
 
         // Verify final state
-        assert!(executor.get_subscription(&"sub-1".to_string()).is_none());
+        assert!(executor.get_subscription("sub-1").is_none());
         assert_eq!(pool.connections_count(), 1); // Still in pool
     }
 

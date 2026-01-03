@@ -3,7 +3,7 @@
 //! Implements filtering logic to determine which events match a subscription's filter criteria.
 
 use crate::subscriptions::event_bus::Event;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// Event filter for subscriptions
@@ -109,9 +109,9 @@ impl EventFilter {
         let value = self.get_field_value(data, field);
 
         match condition {
-            FilterCondition::Equals(expected) => value == Some(*expected),
+            FilterCondition::Equals(expected) => value == Some(expected.clone()),
 
-            FilterCondition::NotEquals(expected) => value != Some(*expected),
+            FilterCondition::NotEquals(expected) => value != Some(expected.clone()),
 
             FilterCondition::GreaterThan(threshold) => {
                 if let Some(Value::Number(num)) = value {
@@ -188,6 +188,7 @@ impl Default for EventFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     fn create_test_event() -> Event {
         Event::new(
@@ -239,97 +240,89 @@ mod tests {
     #[test]
     fn test_filter_field_equals() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("status", FilterCondition::Equals(json!("active")));
+        let filter =
+            EventFilter::new().with_field("status", FilterCondition::Equals(json!("active")));
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("status", FilterCondition::Equals(json!("inactive")));
+        let filter_wrong =
+            EventFilter::new().with_field("status", FilterCondition::Equals(json!("inactive")));
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_not_equals() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("status", FilterCondition::NotEquals(json!("inactive")));
+        let filter =
+            EventFilter::new().with_field("status", FilterCondition::NotEquals(json!("inactive")));
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("status", FilterCondition::NotEquals(json!("active")));
+        let filter_wrong =
+            EventFilter::new().with_field("status", FilterCondition::NotEquals(json!("active")));
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_greater_than() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("age", FilterCondition::GreaterThan(25.0));
+        let filter = EventFilter::new().with_field("age", FilterCondition::GreaterThan(25.0));
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("age", FilterCondition::GreaterThan(40.0));
+        let filter_wrong = EventFilter::new().with_field("age", FilterCondition::GreaterThan(40.0));
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_less_than() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("age", FilterCondition::LessThan(35.0));
+        let filter = EventFilter::new().with_field("age", FilterCondition::LessThan(35.0));
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("age", FilterCondition::LessThan(25.0));
+        let filter_wrong = EventFilter::new().with_field("age", FilterCondition::LessThan(25.0));
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_contains() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("username", FilterCondition::Contains("ali".to_string()));
+        let filter =
+            EventFilter::new().with_field("username", FilterCondition::Contains("ali".to_string()));
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("username", FilterCondition::Contains("bob".to_string()));
+        let filter_wrong =
+            EventFilter::new().with_field("username", FilterCondition::Contains("bob".to_string()));
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_in() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("status", FilterCondition::In(vec![
-                json!("active"),
-                json!("pending"),
-            ]));
+        let filter = EventFilter::new().with_field(
+            "status",
+            FilterCondition::In(vec![json!("active"), json!("pending")]),
+        );
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("status", FilterCondition::In(vec![
-                json!("inactive"),
-                json!("deleted"),
-            ]));
+        let filter_wrong = EventFilter::new().with_field(
+            "status",
+            FilterCondition::In(vec![json!("inactive"), json!("deleted")]),
+        );
         assert!(!filter_wrong.matches(&event));
     }
 
     #[test]
     fn test_filter_field_exists() {
         let event = create_test_event();
-        let filter = EventFilter::new()
-            .with_field("username", FilterCondition::Exists);
+        let filter = EventFilter::new().with_field("username", FilterCondition::Exists);
 
         assert!(filter.matches(&event));
 
-        let filter_missing = EventFilter::new()
-            .with_field("nonexistent", FilterCondition::Exists);
+        let filter_missing = EventFilter::new().with_field("nonexistent", FilterCondition::Exists);
         assert!(!filter_missing.matches(&event));
     }
 
@@ -341,8 +334,8 @@ mod tests {
 
         assert!(filter.matches(&event));
 
-        let filter_wrong = EventFilter::new()
-            .with_field("profile.city", FilterCondition::Equals(json!("Boston")));
+        let filter_wrong =
+            EventFilter::new().with_field("profile.city", FilterCondition::Equals(json!("Boston")));
         assert!(!filter_wrong.matches(&event));
     }
 

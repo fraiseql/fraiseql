@@ -4,7 +4,7 @@
 //! See: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// GraphQL WebSocket message
@@ -30,10 +30,7 @@ pub enum GraphQLMessage {
     },
 
     /// Server sends data
-    Next {
-        id: String,
-        payload: Value,
-    },
+    Next { id: String, payload: Value },
 
     /// Server sends error
     Error {
@@ -42,9 +39,7 @@ pub enum GraphQLMessage {
     },
 
     /// Server completes subscription
-    Complete {
-        id: String,
-    },
+    Complete { id: String },
 
     /// Client/Server ping
     Ping {
@@ -218,6 +213,7 @@ impl GraphQLMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_connection_init_serialization() {

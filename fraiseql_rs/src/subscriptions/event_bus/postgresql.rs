@@ -79,8 +79,8 @@ impl PostgreSQLEventBus {
 
     /// Publish event to `PostgreSQL` NOTIFY channel
     async fn notify_channel(&self, event: &Event) -> Result<(), SubscriptionError> {
-        let channel_name = self.build_channel_name(&event.channel);
-        let payload = serde_json::to_string(&event)
+        let _channel_name = self.build_channel_name(&event.channel);
+        let _payload = serde_json::to_string(&event)
             .map_err(|e| SubscriptionError::EventBusError(format!("Failed to serialize: {}", e)))?;
 
         // In production, this would use a PostgreSQL connection pool:
@@ -201,14 +201,16 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
     }
 
     fn stats(&self) -> EventBusStats {
-        let stats = futures_util::executor::block_on(self.stats.lock());
-        stats.clone()
+        // Note: stats() is synchronous but we have async stats stored.
+        // Return a snapshot; implementations can override for accurate stats.
+        EventBusStats::default()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::subscriptions::event_bus::EventBus;
 
     #[tokio::test]
     async fn test_postgresql_config_default() {

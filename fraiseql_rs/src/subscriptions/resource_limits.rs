@@ -6,8 +6,8 @@
 use crate::subscriptions::SubscriptionError;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Resource limits configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,8 +43,8 @@ impl Default for ResourceLimits {
             max_subscriptions_per_user: 100,
             max_subscriptions_per_connection: 50,
             max_connections_per_user: 10,
-            max_event_payload_size: 1024 * 1024,         // 1MB
-            max_query_size: 100 * 1024,                  // 100KB
+            max_event_payload_size: 1024 * 1024, // 1MB
+            max_query_size: 100 * 1024,          // 100KB
             max_filter_complexity: 10,
             max_pending_messages: 1000,
             max_memory_per_subscription: 10 * 1024 * 1024, // 10MB
@@ -119,7 +119,8 @@ impl ResourceLimiter {
         }
 
         // Check connection subscription limit
-        let connection_subs = self.subscription_resources
+        let connection_subs = self
+            .subscription_resources
             .iter()
             .filter(|entry| {
                 let resources = entry.value();
@@ -140,7 +141,8 @@ impl ResourceLimiter {
 
     /// Check connection creation limits
     pub fn check_connection_creation(&self, user_id: i64) -> Result<(), SubscriptionError> {
-        let connection_count = self.subscription_resources
+        let connection_count = self
+            .subscription_resources
             .iter()
             .filter(|entry| entry.value().user_id == user_id)
             .map(|entry| entry.value().connection_id.clone())
@@ -236,7 +238,8 @@ impl ResourceLimiter {
             }
 
             // Update total memory
-            self.total_memory.fetch_sub(resources.memory_bytes, Ordering::Relaxed);
+            self.total_memory
+                .fetch_sub(resources.memory_bytes, Ordering::Relaxed);
 
             Ok(())
         } else {
@@ -340,12 +343,8 @@ mod tests {
     #[test]
     fn test_register_subscription() {
         let limiter = ResourceLimiter::new(ResourceLimits::default());
-        let result = limiter.register_subscription(
-            "sub-1".to_string(),
-            1,
-            "conn-1".to_string(),
-            1000,
-        );
+        let result =
+            limiter.register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000);
         assert!(result.is_ok());
 
         let stats = limiter.get_stats();
@@ -355,12 +354,9 @@ mod tests {
     #[test]
     fn test_unregister_subscription() {
         let limiter = ResourceLimiter::new(ResourceLimits::default());
-        limiter.register_subscription(
-            "sub-1".to_string(),
-            1,
-            "conn-1".to_string(),
-            1000,
-        ).unwrap();
+        limiter
+            .register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000)
+            .unwrap();
 
         let result = limiter.unregister_subscription("sub-1");
         assert!(result.is_ok());
@@ -377,8 +373,12 @@ mod tests {
         };
         let limiter = ResourceLimiter::new(limits);
 
-        limiter.register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000).unwrap();
-        limiter.register_subscription("sub-2".to_string(), 1, "conn-1".to_string(), 1000).unwrap();
+        limiter
+            .register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000)
+            .unwrap();
+        limiter
+            .register_subscription("sub-2".to_string(), 1, "conn-1".to_string(), 1000)
+            .unwrap();
 
         let result = limiter.check_subscription_creation(1, "conn-1");
         assert!(result.is_err());
@@ -387,7 +387,9 @@ mod tests {
     #[test]
     fn test_pending_messages() {
         let limiter = ResourceLimiter::new(ResourceLimits::default());
-        limiter.register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000).unwrap();
+        limiter
+            .register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 1000)
+            .unwrap();
 
         assert!(limiter.record_pending_message("sub-1").is_ok());
         assert!(limiter.clear_pending_messages("sub-1").is_ok());
@@ -396,7 +398,9 @@ mod tests {
     #[test]
     fn test_memory_tracking() {
         let limiter = ResourceLimiter::new(ResourceLimits::default());
-        limiter.register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 5000).unwrap();
+        limiter
+            .register_subscription("sub-1".to_string(), 1, "conn-1".to_string(), 5000)
+            .unwrap();
 
         let stats = limiter.get_stats();
         assert_eq!(stats.total_memory_bytes, 5000);

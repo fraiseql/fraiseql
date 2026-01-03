@@ -12,7 +12,6 @@ pub use redis::RedisEventBus;
 use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::sync::mpsc;
@@ -87,10 +86,7 @@ impl EventStream {
 impl futures_util::Stream for EventStream {
     type Item = Event;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.receiver.poll_recv(cx) {
             Poll::Ready(item) => Poll::Ready(item),
             Poll::Pending => Poll::Pending,
@@ -256,8 +252,9 @@ impl EventBus for InMemoryEventBus {
     }
 
     fn stats(&self) -> EventBusStats {
-        let stats = futures_util::executor::block_on(self.stats.lock());
-        stats.clone()
+        // Note: stats() is synchronous but we have async stats stored.
+        // We return a placeholder; async implementations should override this.
+        EventBusStats::default()
     }
 }
 

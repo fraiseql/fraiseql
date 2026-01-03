@@ -3,7 +3,6 @@
 //! Implements resilience patterns including exponential backoff retry,
 //! circuit breaker, and graceful degradation to fallback services.
 
-use crate::subscriptions::SubscriptionError;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -41,7 +40,7 @@ impl Default for RetryConfig {
 }
 
 /// Circuit breaker states
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CircuitState {
     /// Circuit is closed (operating normally)
     Closed,
@@ -184,7 +183,8 @@ impl FallbackRegistry {
 
     /// Register a fallback service
     pub fn register_fallback(&self, service: &str, fallback: &str) {
-        self.fallbacks.insert(service.to_string(), fallback.to_string());
+        self.fallbacks
+            .insert(service.to_string(), fallback.to_string());
         self.availability.insert(fallback.to_string(), true);
     }
 

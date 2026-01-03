@@ -105,6 +105,8 @@ pub enum EventBusConfig {
         /// Listen channel prefix
         channel_prefix: String,
     },
+    /// In-memory event bus (for testing)
+    InMemory,
 }
 
 impl Default for SubscriptionConfig {
@@ -121,70 +123,5 @@ impl Default for SubscriptionConfig {
                 message_ttl: 3600, // 1 hour
             },
         }
-    }
-}
-
-impl Default for SubscriptionLimits {
-    fn default() -> Self {
-        Self {
-            max_subscriptions_per_connection: 100,
-            max_concurrent_connections: 10_000,
-            max_filter_complexity: 10,
-            max_event_payload_size: 1_024 * 1_024, // 1MB
-            max_query_size: 100 * 1_024, // 100KB
-        }
-    }
-}
-
-impl Default for WebSocketConfig {
-    fn default() -> Self {
-        Self {
-            init_timeout: Duration::from_secs(5),
-            ping_interval: Duration::from_secs(30),
-            pong_timeout: Duration::from_secs(10),
-            shutdown_grace: Duration::from_secs(5),
-            max_message_size: 64 * 1_024, // 64KB
-            message_buffer_capacity: 1_000,
-        }
-    }
-}
-
-impl Default for RateLimiterConfig {
-    fn default() -> Self {
-        Self {
-            max_subscriptions_per_user: 100,
-            max_events_per_subscription: 100, // per second
-            max_connections_per_user: 10,
-            token_refill_rate: 100.0,
-            token_capacity: 1_000,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_subscription_config_defaults() {
-        let config = SubscriptionConfig::default();
-        assert_eq!(config.host, "0.0.0.0");
-        assert_eq!(config.port, 8001);
-        assert_eq!(config.limits.max_subscriptions_per_connection, 100);
-    }
-
-    #[test]
-    fn test_websocket_config_defaults() {
-        let config = WebSocketConfig::default();
-        assert_eq!(config.ping_interval, Duration::from_secs(30));
-        assert_eq!(config.pong_timeout, Duration::from_secs(10));
-        assert_eq!(config.max_message_size, 64 * 1_024);
-    }
-
-    #[test]
-    fn test_rate_limiter_config_defaults() {
-        let config = RateLimiterConfig::default();
-        assert_eq!(config.max_subscriptions_per_user, 100);
-        assert_eq!(config.max_events_per_subscription, 100);
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Tracks and exposes metrics for WebSocket connections, subscriptions, and events.
 
-use prometheus::{Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, Registry};
+use prometheus::{Counter, CounterVec, Gauge, Histogram, HistogramVec, Registry};
 use std::sync::Arc;
 
 /// Subscription metrics collector
@@ -61,103 +61,94 @@ impl SubscriptionMetrics {
     pub fn with_registry(registry: &Registry) -> Result<Arc<Self>, prometheus::Error> {
         let total_connections = Counter::new(
             "fraiseql_subscriptions_total_connections",
-            "Total WebSocket connections created"
+            "Total WebSocket connections created",
         )?;
         registry.register(Box::new(total_connections.clone()))?;
 
         let active_connections = Gauge::new(
             "fraiseql_subscriptions_active_connections",
-            "Currently active WebSocket connections"
+            "Currently active WebSocket connections",
         )?;
         registry.register(Box::new(active_connections.clone()))?;
 
         let total_subscriptions = Counter::new(
             "fraiseql_subscriptions_total_subscriptions",
-            "Total subscriptions created"
+            "Total subscriptions created",
         )?;
         registry.register(Box::new(total_subscriptions.clone()))?;
 
         let active_subscriptions = Gauge::new(
             "fraiseql_subscriptions_active_subscriptions",
-            "Currently active subscriptions"
+            "Currently active subscriptions",
         )?;
         registry.register(Box::new(active_subscriptions.clone()))?;
 
         let total_events_published = Counter::new(
             "fraiseql_subscriptions_total_events_published",
-            "Total events published"
+            "Total events published",
         )?;
         registry.register(Box::new(total_events_published.clone()))?;
 
         let total_events_delivered = Counter::new(
             "fraiseql_subscriptions_total_events_delivered",
-            "Total events delivered to subscribers"
+            "Total events delivered to subscribers",
         )?;
         registry.register(Box::new(total_events_delivered.clone()))?;
 
         let events_by_type = CounterVec::new(
             prometheus::Opts::new(
                 "fraiseql_subscriptions_events_by_type",
-                "Events published by type"
+                "Events published by type",
             ),
-            &["event_type"]
+            &["event_type"],
         )?;
         registry.register(Box::new(events_by_type.clone()))?;
 
-        let subscription_latency_seconds = Histogram::with_opts(
-            prometheus::HistogramOpts::new(
-                "fraiseql_subscriptions_latency_seconds",
-                "Subscription latency from creation to first event"
-            )
-        )?;
+        let subscription_latency_seconds = Histogram::with_opts(prometheus::HistogramOpts::new(
+            "fraiseql_subscriptions_latency_seconds",
+            "Subscription latency from creation to first event",
+        ))?;
         registry.register(Box::new(subscription_latency_seconds.clone()))?;
 
-        let event_delivery_latency_seconds = Histogram::with_opts(
-            prometheus::HistogramOpts::new(
-                "fraiseql_subscriptions_event_delivery_latency_seconds",
-                "Event delivery latency from publish to delivery"
-            )
-        )?;
+        let event_delivery_latency_seconds = Histogram::with_opts(prometheus::HistogramOpts::new(
+            "fraiseql_subscriptions_event_delivery_latency_seconds",
+            "Event delivery latency from publish to delivery",
+        ))?;
         registry.register(Box::new(event_delivery_latency_seconds.clone()))?;
 
         let message_size_bytes = HistogramVec::new(
             prometheus::HistogramOpts::new(
                 "fraiseql_subscriptions_message_size_bytes",
-                "WebSocket message size in bytes"
+                "WebSocket message size in bytes",
             ),
-            &["message_type"]
+            &["message_type"],
         )?;
         registry.register(Box::new(message_size_bytes.clone()))?;
 
-        let connection_uptime_seconds = Histogram::with_opts(
-            prometheus::HistogramOpts::new(
-                "fraiseql_subscriptions_connection_uptime_seconds",
-                "WebSocket connection uptime in seconds"
-            )
-        )?;
+        let connection_uptime_seconds = Histogram::with_opts(prometheus::HistogramOpts::new(
+            "fraiseql_subscriptions_connection_uptime_seconds",
+            "WebSocket connection uptime in seconds",
+        ))?;
         registry.register(Box::new(connection_uptime_seconds.clone()))?;
 
         let subscriptions_per_connection = Gauge::new(
             "fraiseql_subscriptions_per_connection_max",
-            "Peak subscriptions per connection"
+            "Peak subscriptions per connection",
         )?;
         registry.register(Box::new(subscriptions_per_connection.clone()))?;
 
         let rate_limit_rejections = CounterVec::new(
             prometheus::Opts::new(
                 "fraiseql_subscriptions_rate_limit_rejections",
-                "Rate limit rejections by reason"
+                "Rate limit rejections by reason",
             ),
-            &["reason"]
+            &["reason"],
         )?;
         registry.register(Box::new(rate_limit_rejections.clone()))?;
 
         let errors_by_type = CounterVec::new(
-            prometheus::Opts::new(
-                "fraiseql_subscriptions_errors",
-                "Errors by type"
-            ),
-            &["error_type"]
+            prometheus::Opts::new("fraiseql_subscriptions_errors", "Errors by type"),
+            &["error_type"],
         )?;
         registry.register(Box::new(errors_by_type.clone()))?;
 
@@ -241,7 +232,9 @@ impl SubscriptionMetrics {
 
     /// Record rate limit rejection
     pub fn record_rate_limit_rejection(&self, reason: &str) {
-        self.rate_limit_rejections.with_label_values(&[reason]).inc();
+        self.rate_limit_rejections
+            .with_label_values(&[reason])
+            .inc();
     }
 
     /// Record error
