@@ -69,12 +69,9 @@ impl RedisEventBus {
             SubscriptionError::EventBusError(format!("Failed to create client: {}", e))
         })?;
 
-        let connection = client
-            .get_connection_manager()
-            .await
-            .map_err(|e| {
-                SubscriptionError::EventBusError(format!("Failed to get connection: {}", e))
-            })?;
+        let connection = client.get_connection_manager().await.map_err(|e| {
+            SubscriptionError::EventBusError(format!("Failed to get connection: {}", e))
+        })?;
 
         Ok(Self {
             connection: Arc::new(connection),

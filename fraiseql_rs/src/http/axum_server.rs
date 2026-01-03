@@ -341,12 +341,18 @@ async fn metrics_handler(
         .and_then(|h| h.to_str().ok())
         .ok_or_else(|| {
             state.http_metrics.record_metrics_auth_failure();
-            (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string())
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing Authorization header".to_string(),
+            )
         })?;
 
     if !validate_metrics_token(auth_header, &state.metrics_admin_token) {
         state.http_metrics.record_metrics_auth_failure();
-        return Err((StatusCode::UNAUTHORIZED, "Invalid metrics token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid metrics token".to_string(),
+        ));
     }
 
     // Export metrics in Prometheus format
@@ -656,7 +662,10 @@ mod tests {
 
     #[test]
     fn test_detect_operation_mutation() {
-        assert_eq!(detect_operation("mutation { createUser { id } }"), "mutation");
+        assert_eq!(
+            detect_operation("mutation { createUser { id } }"),
+            "mutation"
+        );
         assert_eq!(
             detect_operation("  mutation CreateUser { createUser { id } }"),
             "mutation"
@@ -689,12 +698,18 @@ mod tests {
 
     #[test]
     fn test_validate_metrics_token_invalid() {
-        assert!(!validate_metrics_token("Bearer wrong-token", "secret-token-123"));
+        assert!(!validate_metrics_token(
+            "Bearer wrong-token",
+            "secret-token-123"
+        ));
     }
 
     #[test]
     fn test_validate_metrics_token_missing_bearer() {
-        assert!(!validate_metrics_token("secret-token-123", "secret-token-123"));
+        assert!(!validate_metrics_token(
+            "secret-token-123",
+            "secret-token-123"
+        ));
     }
 
     #[test]

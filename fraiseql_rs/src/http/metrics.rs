@@ -3,6 +3,7 @@
 //! Tracks HTTP-specific metrics including request counts, response codes,
 //! authentication success/failure, security violations, and request duration histograms.
 
+use std::fmt::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -169,11 +170,14 @@ impl HttpMetrics {
         }
 
         // Record duration
-        self.total_duration_ms.fetch_add(duration_ms, Ordering::Relaxed);
+        self.total_duration_ms
+            .fetch_add(duration_ms, Ordering::Relaxed);
 
         // Record duration histogram bucket
         // Buckets (in milliseconds): 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000
-        let bucket_thresholds = [5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000];
+        let bucket_thresholds = [
+            5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
+        ];
 
         for (i, &threshold) in bucket_thresholds.iter().enumerate() {
             if duration_ms <= threshold {
@@ -211,7 +215,8 @@ impl HttpMetrics {
 
     /// Record failed attempt to access /metrics endpoint
     pub fn record_metrics_auth_failure(&self) {
-        self.metrics_endpoint_auth_failures.fetch_add(1, Ordering::Relaxed);
+        self.metrics_endpoint_auth_failures
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record rate limit violation
@@ -221,7 +226,8 @@ impl HttpMetrics {
 
     /// Record query validation failure
     pub fn record_query_validation_failure(&self) {
-        self.query_validation_failures.fetch_add(1, Ordering::Relaxed);
+        self.query_validation_failures
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record CSRF token validation failure
@@ -237,133 +243,164 @@ impl HttpMetrics {
         // Request counts
         output.push_str("# HELP fraiseql_http_requests_total Total HTTP requests\n");
         output.push_str("# TYPE fraiseql_http_requests_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"200\"}} {}\n",
             self.status_200.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"400\"}} {}\n",
             self.status_400.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"401\"}} {}\n",
             self.status_401.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"403\"}} {}\n",
             self.status_403.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"429\"}} {}\n",
             self.status_429.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_requests_total{{status=\"500\"}} {}\n",
             self.status_500.load(Ordering::Relaxed)
-        ));
+        );
 
         // Success/failure counts
-        output.push_str("# HELP fraiseql_http_successful_requests_total Successful HTTP requests\n");
+        output
+            .push_str("# HELP fraiseql_http_successful_requests_total Successful HTTP requests\n");
         output.push_str("# TYPE fraiseql_http_successful_requests_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_successful_requests_total {}\n",
             self.successful_requests.load(Ordering::Relaxed)
-        ));
+        );
 
         output.push_str("# HELP fraiseql_http_failed_requests_total Failed HTTP requests\n");
         output.push_str("# TYPE fraiseql_http_failed_requests_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_failed_requests_total {}\n",
             self.failed_requests.load(Ordering::Relaxed)
-        ));
+        );
 
         // Authentication metrics
-        output.push_str("# HELP fraiseql_http_auth_success_total Successful authentication attempts\n");
+        output.push_str(
+            "# HELP fraiseql_http_auth_success_total Successful authentication attempts\n",
+        );
         output.push_str("# TYPE fraiseql_http_auth_success_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_auth_success_total {}\n",
             self.auth_success.load(Ordering::Relaxed)
-        ));
+        );
 
-        output.push_str("# HELP fraiseql_http_auth_failures_total Failed authentication attempts\n");
+        output
+            .push_str("# HELP fraiseql_http_auth_failures_total Failed authentication attempts\n");
         output.push_str("# TYPE fraiseql_http_auth_failures_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_auth_failures_total {}\n",
             self.auth_failures.load(Ordering::Relaxed)
-        ));
+        );
 
         output.push_str("# HELP fraiseql_http_anonymous_requests_total Anonymous requests\n");
         output.push_str("# TYPE fraiseql_http_anonymous_requests_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_anonymous_requests_total {}\n",
             self.anonymous_requests.load(Ordering::Relaxed)
-        ));
+        );
 
         // Invalid token metric
         output.push_str("# HELP fraiseql_http_invalid_tokens_total Invalid JWT token attempts\n");
         output.push_str("# TYPE fraiseql_http_invalid_tokens_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_invalid_tokens_total {}\n",
             self.invalid_tokens.load(Ordering::Relaxed)
-        ));
+        );
 
         // Security metrics
         output.push_str("# HELP fraiseql_http_rate_limit_violations_total Rate limit violations\n");
         output.push_str("# TYPE fraiseql_http_rate_limit_violations_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_rate_limit_violations_total {}\n",
             self.rate_limit_violations.load(Ordering::Relaxed)
-        ));
+        );
 
-        output.push_str("# HELP fraiseql_http_query_validation_failures_total Query validation failures\n");
+        output.push_str(
+            "# HELP fraiseql_http_query_validation_failures_total Query validation failures\n",
+        );
         output.push_str("# TYPE fraiseql_http_query_validation_failures_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_query_validation_failures_total {}\n",
             self.query_validation_failures.load(Ordering::Relaxed)
-        ));
+        );
 
         output.push_str("# HELP fraiseql_http_csrf_violations_total CSRF token violations\n");
         output.push_str("# TYPE fraiseql_http_csrf_violations_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_csrf_violations_total {}\n",
             self.csrf_violations.load(Ordering::Relaxed)
-        ));
+        );
 
         output.push_str("# HELP fraiseql_http_metrics_endpoint_auth_failures_total Failed /metrics endpoint auth attempts\n");
         output.push_str("# TYPE fraiseql_http_metrics_endpoint_auth_failures_total counter\n");
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_metrics_endpoint_auth_failures_total {}\n",
             self.metrics_endpoint_auth_failures.load(Ordering::Relaxed)
-        ));
+        );
 
         // Request duration histogram
-        output.push_str("# HELP fraiseql_http_request_duration_ms Request duration in milliseconds\n");
+        output.push_str(
+            "# HELP fraiseql_http_request_duration_ms Request duration in milliseconds\n",
+        );
         output.push_str("# TYPE fraiseql_http_request_duration_ms histogram\n");
 
-        let bucket_labels = ["5", "10", "25", "50", "75", "100", "250", "500", "750", "1000", "2500", "5000", "7500", "10000"];
+        let bucket_labels = [
+            "5", "10", "25", "50", "75", "100", "250", "500", "750", "1000", "2500", "5000",
+            "7500", "10000",
+        ];
         for (i, label) in bucket_labels.iter().enumerate() {
-            output.push_str(&format!(
+            let _ = writeln!(
+                output,
                 "fraiseql_http_request_duration_ms_bucket{{le=\"{}\"}} {}\n",
                 label,
                 self.request_duration_buckets[i].load(Ordering::Relaxed)
-            ));
+            );
         }
 
         // +Inf bucket
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_request_duration_ms_bucket{{le=\"+Inf\"}} {}\n",
             self.total_requests.load(Ordering::Relaxed)
-        ));
+        );
 
         // Histogram count and sum
-        output.push_str(&format!(
+        let _ = writeln!(
+            output,
             "fraiseql_http_request_duration_ms_count {}\n",
             self.total_requests.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
+        );
+        let _ = writeln!(
+            output,
             "fraiseql_http_request_duration_ms_sum {}\n",
             self.total_duration_ms.load(Ordering::Relaxed)
-        ));
+        );
 
         output
     }
@@ -451,7 +488,12 @@ mod tests {
         let metrics = HttpMetrics::new();
         metrics.record_metrics_auth_failure();
 
-        assert_eq!(metrics.metrics_endpoint_auth_failures.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            metrics
+                .metrics_endpoint_auth_failures
+                .load(Ordering::Relaxed),
+            1
+        );
     }
 
     #[test]
@@ -485,8 +527,14 @@ mod tests {
         metrics.record_request_end(Duration::from_millis(3), 200);
 
         // 3ms falls in all buckets >= 5ms
-        assert_eq!(metrics.request_duration_buckets[0].load(Ordering::Relaxed), 1); // 5ms
-        assert_eq!(metrics.request_duration_buckets[13].load(Ordering::Relaxed), 1); // 10000ms
+        assert_eq!(
+            metrics.request_duration_buckets[0].load(Ordering::Relaxed),
+            1
+        ); // 5ms
+        assert_eq!(
+            metrics.request_duration_buckets[13].load(Ordering::Relaxed),
+            1
+        ); // 10000ms
     }
 
     #[test]
@@ -494,8 +542,14 @@ mod tests {
         let metrics = HttpMetrics::new();
         metrics.record_request_end(Duration::from_millis(5), 200);
 
-        assert_eq!(metrics.request_duration_buckets[0].load(Ordering::Relaxed), 1); // 5ms
-        assert_eq!(metrics.request_duration_buckets[13].load(Ordering::Relaxed), 1); // 10000ms
+        assert_eq!(
+            metrics.request_duration_buckets[0].load(Ordering::Relaxed),
+            1
+        ); // 5ms
+        assert_eq!(
+            metrics.request_duration_buckets[13].load(Ordering::Relaxed),
+            1
+        ); // 10000ms
     }
 
     #[test]
@@ -504,9 +558,18 @@ mod tests {
         metrics.record_request_end(Duration::from_millis(50), 200);
 
         // 50ms should be in bucket 3 (50ms) and all larger buckets
-        assert_eq!(metrics.request_duration_buckets[0].load(Ordering::Relaxed), 1); // 5ms
-        assert_eq!(metrics.request_duration_buckets[3].load(Ordering::Relaxed), 1); // 50ms
-        assert_eq!(metrics.request_duration_buckets[13].load(Ordering::Relaxed), 1); // 10000ms
+        assert_eq!(
+            metrics.request_duration_buckets[0].load(Ordering::Relaxed),
+            1
+        ); // 5ms
+        assert_eq!(
+            metrics.request_duration_buckets[3].load(Ordering::Relaxed),
+            1
+        ); // 50ms
+        assert_eq!(
+            metrics.request_duration_buckets[13].load(Ordering::Relaxed),
+            1
+        ); // 10000ms
     }
 
     #[test]
@@ -525,7 +588,8 @@ mod tests {
         assert!(metrics.request_duration_buckets[2].load(Ordering::Relaxed) > 0); // 25ms
         assert!(metrics.request_duration_buckets[5].load(Ordering::Relaxed) > 0); // 100ms
         assert!(metrics.request_duration_buckets[9].load(Ordering::Relaxed) > 0); // 1000ms
-        assert!(metrics.request_duration_buckets[13].load(Ordering::Relaxed) > 0); // 10000ms
+        assert!(metrics.request_duration_buckets[13].load(Ordering::Relaxed) > 0);
+        // 10000ms
     }
 
     #[test]

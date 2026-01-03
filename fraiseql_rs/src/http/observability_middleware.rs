@@ -228,7 +228,14 @@ mod tests {
         let variables = serde_json::json!({});
         let headers = HeaderMap::new();
 
-        let entry = create_audit_entry(&ctx, query, &variables, &headers, ResponseStatus::Success, None);
+        let entry = create_audit_entry(
+            &ctx,
+            query,
+            &variables,
+            &headers,
+            ResponseStatus::Success,
+            None,
+        );
 
         assert_eq!(entry.query, query);
         assert_eq!(entry.user_id, 0); // anonymous
@@ -266,7 +273,14 @@ mod tests {
         let variables = serde_json::json!({ "name": "Alice" });
         let headers = HeaderMap::new();
 
-        let entry = create_audit_entry(&ctx, query, &variables, &headers, ResponseStatus::Success, None);
+        let entry = create_audit_entry(
+            &ctx,
+            query,
+            &variables,
+            &headers,
+            ResponseStatus::Success,
+            None,
+        );
 
         assert_eq!(entry.user_id, 123);
         assert_eq!(entry.operation, "mutation");

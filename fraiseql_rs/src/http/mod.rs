@@ -1,7 +1,7 @@
 //! HTTP server implementation using Axum framework
 //!
 //! This module provides a type-safe, high-performance HTTP server for handling GraphQL requests
-//! and subscriptions. It integrates with the FraiseQL GraphQL pipeline to process queries,
+//! and subscriptions. It integrates with the `FraiseQL` GraphQL pipeline to process queries,
 //! mutations, and subscriptions.
 //!
 //! # Architecture
@@ -41,6 +41,8 @@
 //! - `websocket`: WebSocket handler for GraphQL subscriptions (graphql-ws protocol)
 //! - `security_middleware`: HTTP security integration with existing security modules (Phase 16: Commit 5)
 //! - `auth_middleware`: HTTP authentication integration with JWT validation (Phase 16: Commit 6)
+//! - `optimization`: Performance tuning, rate limiting, health checks (Phase 16: Polish & Optimization)
+//! - `benchmarks`: Performance benchmarking tests (Phase 16: Polish & Optimization)
 //!
 //! # Examples
 //!
@@ -59,9 +61,11 @@
 
 pub mod auth_middleware;
 pub mod axum_server;
+pub mod benchmarks;
 pub mod metrics;
 pub mod middleware;
 pub mod observability_middleware;
+pub mod optimization;
 pub mod security_middleware;
 pub mod websocket;
 
@@ -70,6 +74,10 @@ pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
 pub use metrics::HttpMetrics;
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
 pub use observability_middleware::{ObservabilityContext, ResponseStatus};
+pub use optimization::{
+    CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
+    RateLimitConfig, RateLimitInfo,
+};
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 

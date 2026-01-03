@@ -2,7 +2,7 @@
 //!
 //! This module provides a wrapper layer for extracting and validating JWT tokens
 //! from HTTP Authorization headers. It integrates with the existing auth module
-//! to validate tokens and convert them to GraphQL UserContext.
+//! to validate tokens and convert them to GraphQL `UserContext`.
 //!
 //! # Architecture
 //!
@@ -18,11 +18,11 @@
 //! │ - Handle auth errors                │
 //! └─────────────────────────────────────┘
 //!     ↓
-//! ├─ Calls auth::jwt::JWTValidator
-//! ├─ Uses auth::jwt::Claims
-//! └─ Uses auth::errors::AuthError
+//! ├─ Calls auth::jwt::`JWTValidator`
+//! ├─ Uses auth::jwt::`Claims`
+//! └─ Uses auth::errors::`AuthError`
 //!     ↓
-//! GraphQL UserContext (with authenticated user)
+//! GraphQL `UserContext` (with authenticated user)
 //! ```
 //!
 //! # Example
@@ -96,11 +96,13 @@ impl HttpAuthError {
     }
 
     /// Get HTTP status code
+    #[must_use]
     pub fn status_code(&self) -> StatusCode {
         self.status_code
     }
 
     /// Convert to JSON response body
+    #[must_use]
     pub fn json_response(&self) -> serde_json::Value {
         json!({
             "errors": [
@@ -120,8 +122,8 @@ impl HttpAuthError {
 /// This function orchestrates JWT extraction and validation by:
 /// 1. Checking for Authorization header presence
 /// 2. Parsing "Bearer <token>" format
-/// 3. Calling JWTValidator to validate the token
-/// 4. Converting validated Claims to GraphQL UserContext
+/// 3. Calling `JWTValidator` to validate the token
+/// 4. Converting validated `Claims` to GraphQL `UserContext`
 /// 5. Mapping errors to appropriate HTTP status codes
 ///
 /// # Arguments
@@ -137,10 +139,18 @@ impl HttpAuthError {
 /// - Token validation fails for any reason
 /// - JWKS fetch fails
 ///
+/// # Errors
+///
+/// Returns `Err(HttpAuthError)` if:
+/// - Authorization header format is invalid
+/// - JWT token validation fails
+/// - JWKS fetch fails
+/// - Bearer token is empty
+///
 /// # Behavior
 ///
 /// If Authorization header is missing, this function returns an anonymous
-/// UserContext to support public APIs. The GraphQL schema and permission
+/// `UserContext` to support public APIs. The GraphQL schema and permission
 /// layer enforce actual access control.
 pub async fn extract_and_validate_jwt(
     auth_header: Option<&str>,
@@ -201,9 +211,9 @@ fn parse_bearer_token(header_value: &str) -> Result<&str, HttpAuthError> {
     Ok(token)
 }
 
-/// Convert validated JWT Claims to GraphQL UserContext
+/// Convert validated JWT Claims to GraphQL `UserContext`
 ///
-/// Maps JWT claims to UserContext fields:
+/// Maps JWT claims to `UserContext` fields:
 /// - `sub` (subject) → `user_id`
 /// - `exp` (expiration) → `exp`
 /// - `permissions` custom claim → `permissions` (if present)
@@ -215,11 +225,24 @@ fn parse_bearer_token(header_value: &str) -> Result<&str, HttpAuthError> {
 ///
 /// # Returns
 ///
-/// A UserContext with:
-/// - `user_id`: From claims.sub
-/// - `permissions`: From claims.custom["permissions"] or empty
-/// - `roles`: From claims.custom["roles"] or empty
-/// - `exp`: From claims.exp
+/// A `UserContext` with:
+/// - `user_id`: From `claims.sub`
+/// - `permissions`: From `claims.custom["permissions"]` or empty
+/// - `roles`: From `claims.custom["roles"]` or empty
+/// - `exp`: From `claims.exp`
+///
+/// # Example
+///
+/// ```ignore
+/// let claims = Claims {
+///     sub: "user-123".to_string(),
+///     exp: 1234567890,
+///     ..Default::default()
+/// };
+/// let ctx = claims_to_user_context(claims);
+/// assert_eq!(ctx.user_id, Some("user-123".to_string()));
+/// ```
+#[must_use]
 pub fn claims_to_user_context(claims: Claims) -> UserContext {
     // Extract permissions from custom claims
     let permissions = claims
@@ -229,7 +252,7 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect()
         })
         .unwrap_or_default();
@@ -242,7 +265,7 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect()
         })
         .unwrap_or_default();
@@ -255,16 +278,24 @@ pub fn claims_to_user_context(claims: Claims) -> UserContext {
     }
 }
 
-/// Convert AuthError to HttpAuthError
+/// Convert `AuthError` to `HttpAuthError`
 ///
 /// Maps auth module errors to appropriate HTTP status codes:
-/// - InvalidToken, TokenExpired, InvalidAudience, InvalidIssuer → 401 Unauthorized
-/// - KeyNotFound, JwksFetchFailed, HttpError → 500 Internal Server Error
+/// - `InvalidToken`, `TokenExpired`, `InvalidAudience`, `InvalidIssuer` → 401 Unauthorized
+/// - `KeyNotFound`, `JwksFetchFailed`, `HttpError` → 500 Internal Server Error
+///
+/// # Arguments
+///
+/// * `auth_err` - The authentication error to convert
+///
+/// # Returns
+///
+/// An `HttpAuthError` with appropriate status code and message
 fn convert_auth_error_to_http(auth_err: &AuthError) -> HttpAuthError {
     match auth_err {
         // Authentication failures → 401 Unauthorized
         AuthError::InvalidToken(reason) => {
-            HttpAuthError::unauthorized(format!("Invalid token: {}", reason))
+            HttpAuthError::unauthorized(format!("Invalid token: {reason}"))
         }
         AuthError::TokenExpired => HttpAuthError::unauthorized("Token has expired"),
         AuthError::InvalidAudience => HttpAuthError::unauthorized("Token audience is invalid"),
@@ -272,21 +303,21 @@ fn convert_auth_error_to_http(auth_err: &AuthError) -> HttpAuthError {
 
         // Server-side errors → 500 Internal Server Error
         AuthError::KeyNotFound(kid) => {
-            HttpAuthError::internal_error(format!("Key not found in JWKS: {}", kid))
+            HttpAuthError::internal_error(format!("Key not found in JWKS: {kid}"))
         }
         AuthError::JwksFetchFailed(reason) => {
-            HttpAuthError::internal_error(format!("Failed to fetch JWKS: {}", reason))
+            HttpAuthError::internal_error(format!("Failed to fetch JWKS: {reason}"))
         }
         AuthError::HttpError(reason) => {
-            HttpAuthError::internal_error(format!("HTTP error: {}", reason))
+            HttpAuthError::internal_error(format!("HTTP error: {reason}"))
         }
 
         // Cache and JSON errors → 500 Internal Server Error
         AuthError::CacheError(reason) => {
-            HttpAuthError::internal_error(format!("Cache error: {}", reason))
+            HttpAuthError::internal_error(format!("Cache error: {reason}"))
         }
         AuthError::JsonError(reason) => {
-            HttpAuthError::internal_error(format!("JSON error: {}", reason))
+            HttpAuthError::internal_error(format!("JSON error: {reason}"))
         }
     }
 }
@@ -384,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_claims_to_user_context_with_permissions() {
-        let mut custom = Default::default();
+        let mut custom: std::collections::HashMap<String, serde_json::Value> = Default::default();
         let permissions_json = serde_json::json!(["read", "write"]);
         // We need to manually construct this since Claims has HashMap<String, Value>
         let claims = Claims {
