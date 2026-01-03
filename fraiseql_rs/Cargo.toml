@@ -139,6 +139,12 @@ redis = { version = "0.24", features = ["tokio-comp", "streams"] } # Redis event
 prometheus = "0.13"          # Metrics collection
 # pyo3-asyncio for Phase 15b when implementing subscriptions
 
+# Phase 16: Axum HTTP Server
+axum = "0.7"                # High-performance async web framework
+tower = "0.4"               # Modular and reusable components for building services
+tower-http = { version = "0.5", features = ["cors", "compression-br", "trace"] } # HTTP middleware
+hyper = "1.1"               # HTTP client and server library
+
 [dev-dependencies]
 # Testing framework
 tokio-test = "0.4"                    # Async runtime for tests

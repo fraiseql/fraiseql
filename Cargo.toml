@@ -91,6 +91,12 @@ dashmap = "5.5"             # Concurrent HashMap for connections
 redis = { version = "0.24", features = ["tokio-comp", "streams"] } # Redis event bus
 prometheus = "0.13"         # Metrics collection
 
+# Phase 16: Axum HTTP Server
+axum = "0.7"                # High-performance async web framework
+tower = "0.4"               # Modular and reusable components for building services
+tower-http = { version = "0.5", features = ["cors", "compression-br", "trace"] } # HTTP middleware
+hyper = "1.1"               # HTTP client and server library
+
 [profile.release]
 opt-level = 3
 lto = "fat"

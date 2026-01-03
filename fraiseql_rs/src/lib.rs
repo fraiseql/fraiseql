@@ -53,6 +53,7 @@ pub mod core;
 pub mod db;
 pub mod federation; // Phase 17: Apollo Federation support
 pub mod graphql;
+pub mod http;
 pub mod json_transform;
 pub mod mutation;
 pub mod mutations;
@@ -63,6 +64,7 @@ pub mod response;
 pub mod schema_registry;
 pub mod security;
 pub mod subscriptions; // Phase 15b: Real-time subscriptions
+pub mod http; // Phase 16: Axum HTTP server
 
 /// Version of the `fraiseql_rs` module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
