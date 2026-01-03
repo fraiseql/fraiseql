@@ -83,6 +83,7 @@ pub struct SubscriptionRateLimiter {
 
 impl SubscriptionRateLimiter {
     /// Create new rate limiter
+    #[must_use] 
     pub fn new(config: RateLimiterConfig) -> Self {
         Self {
             user_buckets: Arc::new(DashMap::new()),
@@ -99,7 +100,7 @@ impl SubscriptionRateLimiter {
             .entry(user_id)
             .or_insert_with(|| {
                 Arc::new(Mutex::new(TokenBucket::new(
-                    self.config.token_capacity as f64,
+                    f64::from(self.config.token_capacity),
                     self.config.token_refill_rate,
                 )))
             })
@@ -194,7 +195,7 @@ impl SubscriptionRateLimiter {
     }
 }
 
-/// SubscriptionRateLimiter can be cloned since Arc<DashMap<>> handles sharing
+/// `SubscriptionRateLimiter` can be cloned since Arc<`DashMap`<>> handles sharing
 impl Clone for SubscriptionRateLimiter {
     fn clone(&self) -> Self {
         Self {

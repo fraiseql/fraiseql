@@ -1,6 +1,6 @@
 //! Row-level filtering for subscriptions
 //!
-//! Implements user_id and tenant_id based filtering on subscription events.
+//! Implements `user_id` and `tenant_id` based filtering on subscription events.
 
 use serde_json::Value;
 
@@ -14,15 +14,16 @@ pub struct RowFilterContext {
     pub user_id: Option<i64>,
     /// Tenant ID from authenticated connection
     pub tenant_id: Option<i64>,
-    /// Whether to apply user_id filtering
+    /// Whether to apply `user_id` filtering
     pub filter_by_user: bool,
-    /// Whether to apply tenant_id filtering
+    /// Whether to apply `tenant_id` filtering
     pub filter_by_tenant: bool,
 }
 
 impl RowFilterContext {
     /// Create new filter context from user credentials
-    pub fn new(user_id: Option<i64>, tenant_id: Option<i64>) -> Self {
+    #[must_use] 
+    pub const fn new(user_id: Option<i64>, tenant_id: Option<i64>) -> Self {
         let filter_by_user = user_id.is_some();
         let filter_by_tenant = tenant_id.is_some();
 
@@ -35,7 +36,8 @@ impl RowFilterContext {
     }
 
     /// Create filter context with no filtering (for testing)
-    pub fn no_filter() -> Self {
+    #[must_use] 
+    pub const fn no_filter() -> Self {
         Self {
             user_id: None,
             tenant_id: None,
@@ -44,8 +46,9 @@ impl RowFilterContext {
         }
     }
 
-    /// Create filter context that only filters by user_id
-    pub fn user_only(user_id: i64) -> Self {
+    /// Create filter context that only filters by `user_id`
+    #[must_use] 
+    pub const fn user_only(user_id: i64) -> Self {
         Self {
             user_id: Some(user_id),
             tenant_id: None,
@@ -54,8 +57,9 @@ impl RowFilterContext {
         }
     }
 
-    /// Create filter context that only filters by tenant_id
-    pub fn tenant_only(tenant_id: i64) -> Self {
+    /// Create filter context that only filters by `tenant_id`
+    #[must_use] 
+    pub const fn tenant_only(tenant_id: i64) -> Self {
         Self {
             user_id: None,
             tenant_id: Some(tenant_id),
@@ -66,16 +70,16 @@ impl RowFilterContext {
 
     /// Check if event passes the row-level filter
     ///
-    /// Returns true if the event data contains matching user_id and/or tenant_id values.
+    /// Returns true if the event data contains matching `user_id` and/or `tenant_id` values.
     /// If no filtering is enabled, always returns true.
     ///
     /// # Filtering Logic
-    /// - If `filter_by_user` is true: event.data.user_id must equal context.user_id
-    /// - If `filter_by_tenant` is true: event.data.tenant_id must equal context.tenant_id
+    /// - If `filter_by_user` is true: `event.data.user_id` must equal `context.user_id`
+    /// - If `filter_by_tenant` is true: `event.data.tenant_id` must equal `context.tenant_id`
     /// - Both filters must pass if both are enabled (AND logic)
     ///
     /// # Event Data Format
-    /// Expects event.data to be a JSON object with optional user_id and tenant_id fields:
+    /// Expects event.data to be a JSON object with optional `user_id` and `tenant_id` fields:
     /// ```json
     /// {
     ///   "id": "order-123",
@@ -84,6 +88,7 @@ impl RowFilterContext {
     ///   "amount": 100.50
     /// }
     /// ```
+    #[must_use] 
     pub fn matches(&self, event_data: &Value) -> bool {
         // If no filtering enabled, accept all events
         if !self.filter_by_user && !self.filter_by_tenant {
@@ -134,11 +139,13 @@ impl RowFilterContext {
     }
 
     /// Check if event should be filtered (opposite of matches)
+    #[must_use] 
     pub fn should_drop(&self, event_data: &Value) -> bool {
         !self.matches(event_data)
     }
 
     /// Get description of filter for logging
+    #[must_use] 
     pub fn describe(&self) -> String {
         match (self.filter_by_user, self.filter_by_tenant) {
             (false, false) => "No filtering".to_string(),

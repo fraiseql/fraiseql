@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 /// Subscription scope context for authenticated user
 ///
-/// Validates that subscription variables (user_id, tenant_id) match the
+/// Validates that subscription variables (`user_id`, `tenant_id`) match the
 /// authenticated context, preventing privilege escalation or data access violations.
 #[derive(Debug, Clone)]
 pub struct ScopeValidator {
@@ -22,7 +22,8 @@ pub struct ScopeValidator {
 
 impl ScopeValidator {
     /// Create new scope validator with enforcement enabled
-    pub fn new(user_id: i64, tenant_id: i64) -> Self {
+    #[must_use] 
+    pub const fn new(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -31,7 +32,8 @@ impl ScopeValidator {
     }
 
     /// Create scope validator with explicit enforcement control
-    pub fn with_enforcement(user_id: i64, tenant_id: i64, enforce_validation: bool) -> Self {
+    #[must_use] 
+    pub const fn with_enforcement(user_id: i64, tenant_id: i64, enforce_validation: bool) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -40,7 +42,8 @@ impl ScopeValidator {
     }
 
     /// Create scope validator for testing (no enforcement)
-    pub fn test_mode(user_id: i64, tenant_id: i64) -> Self {
+    #[must_use] 
+    pub const fn test_mode(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -54,8 +57,8 @@ impl ScopeValidator {
     ///
     /// Validation rules:
     /// - If enforcement disabled: always allow (testing mode)
-    /// - If user_id in variables: must match context user_id
-    /// - If tenant_id in variables: must match context tenant_id
+    /// - If `user_id` in variables: must match context `user_id`
+    /// - If `tenant_id` in variables: must match context `tenant_id`
     /// - If no restricting variables: allow (wildcard subscription)
     /// - Both checks must pass if both variables present
     ///
@@ -119,17 +122,19 @@ impl ScopeValidator {
     }
 
     /// Check if subscription is allowed (convenience method)
+    #[must_use] 
     pub fn is_allowed(&self, variables: &HashMap<String, Value>) -> bool {
         self.validate(variables).is_ok()
     }
 
     /// Get scope restriction level from variables
     ///
-    /// Returns ScopeLevel indicating how restricted this subscription is:
+    /// Returns `ScopeLevel` indicating how restricted this subscription is:
     /// - None: No scope restrictions (wildcard subscription)
     /// - User: Restricted to authenticated user
     /// - Tenant: Restricted to authenticated tenant
     /// - Both: Restricted to specific user AND tenant
+    #[must_use] 
     pub fn scope_level(&self, variables: &HashMap<String, Value>) -> ScopeLevel {
         let has_user = variables.contains_key("user_id");
         let has_tenant = variables.contains_key("tenant_id");
@@ -145,6 +150,7 @@ impl ScopeValidator {
     /// Extract scope context from variables
     ///
     /// Returns a description of what scope restrictions are applied.
+    #[must_use] 
     pub fn describe(&self) -> String {
         if self.enforce_validation {
             format!(
@@ -157,6 +163,7 @@ impl ScopeValidator {
     }
 
     /// Describe the scope of a specific subscription
+    #[must_use] 
     pub fn describe_subscription(&self, variables: &HashMap<String, Value>) -> String {
         match self.scope_level(variables) {
             ScopeLevel::None => "Wildcard subscription (no scope restriction)".to_string(),
@@ -164,25 +171,25 @@ impl ScopeValidator {
                 "User-scoped subscription (user_id: {})",
                 variables
                     .get("user_id")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0)
             ),
             ScopeLevel::Tenant => format!(
                 "Tenant-scoped subscription (tenant_id: {})",
                 variables
                     .get("tenant_id")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0)
             ),
             ScopeLevel::Both => format!(
                 "Dual-scoped subscription (user_id: {}, tenant_id: {})",
                 variables
                     .get("user_id")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0),
                 variables
                     .get("tenant_id")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0)
             ),
         }
@@ -207,13 +214,14 @@ pub enum ScopeLevel {
 
 impl ScopeLevel {
     /// Check if this scope level is more restrictive than another
-    pub fn is_more_restrictive(&self, other: &ScopeLevel) -> bool {
+    #[must_use] 
+    pub const fn is_more_restrictive(&self, other: &Self) -> bool {
         match (self, other) {
-            (ScopeLevel::Both, _) => true,
-            (ScopeLevel::User, ScopeLevel::None) => true,
-            (ScopeLevel::User, ScopeLevel::Tenant) => false,
-            (ScopeLevel::Tenant, ScopeLevel::None) => true,
-            (ScopeLevel::Tenant, ScopeLevel::User) => false,
+            (Self::Both, _) => true,
+            (Self::User, Self::None) => true,
+            (Self::User, Self::Tenant) => false,
+            (Self::Tenant, Self::None) => true,
+            (Self::Tenant, Self::User) => false,
             _ => false,
         }
     }

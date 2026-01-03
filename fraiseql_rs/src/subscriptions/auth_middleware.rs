@@ -38,12 +38,12 @@ pub enum AuthError {
 impl std::fmt::Display for AuthError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            AuthError::MissingToken => write!(f, "Missing authentication token"),
-            AuthError::InvalidFormat => write!(f, "Invalid token format"),
-            AuthError::ValidationFailed(msg) => write!(f, "Token validation failed: {}", msg),
-            AuthError::Expired => write!(f, "Token has expired"),
-            AuthError::MissingUserId => write!(f, "Token missing user_id claim"),
-            AuthError::MissingTenantId => write!(f, "Token missing tenant_id claim"),
+            Self::MissingToken => write!(f, "Missing authentication token"),
+            Self::InvalidFormat => write!(f, "Invalid token format"),
+            Self::ValidationFailed(msg) => write!(f, "Token validation failed: {msg}"),
+            Self::Expired => write!(f, "Token has expired"),
+            Self::MissingUserId => write!(f, "Token missing user_id claim"),
+            Self::MissingTenantId => write!(f, "Token missing tenant_id claim"),
         }
     }
 }
@@ -61,6 +61,7 @@ pub struct AuthMiddleware {
 
 impl AuthMiddleware {
     /// Create new auth middleware
+    #[must_use] 
     pub fn new(secret: String) -> Self {
         Self {
             secret: Arc::new(secret),
@@ -77,7 +78,7 @@ impl AuthMiddleware {
         }
     }
 
-    /// Extract and validate token from ConnectionInit payload
+    /// Extract and validate token from `ConnectionInit` payload
     ///
     /// Expected payload format:
     /// ```json
@@ -130,7 +131,7 @@ impl AuthMiddleware {
     /// This simplified implementation validates:
     /// - Token format (header.payload.signature)
     /// - Token expiration time
-    /// - Required claims (user_id, exp)
+    /// - Required claims (`user_id`, exp)
     ///
     /// In production, use the `jsonwebtoken` crate for full HMAC/RSA signature validation.
     /// This implementation is suitable for testing and can be upgraded to full validation.
@@ -158,22 +159,22 @@ impl AuthMiddleware {
         let user_id = payload_json
             .get("sub")
             .or_else(|| payload_json.get("user_id"))
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .ok_or(AuthError::MissingUserId)?;
 
         let tenant_id = payload_json
             .get("tenant_id")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(1); // Default to 1 if not present
 
         let exp = payload_json
             .get("exp")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .ok_or(AuthError::ValidationFailed("Missing exp claim".to_string()))?;
 
         let iat = payload_json
             .get("iat")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(0);
 
         // Check token expiration

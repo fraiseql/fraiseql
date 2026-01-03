@@ -90,7 +90,7 @@ pub struct HttpMetrics {
 impl HttpMetrics {
     /// Create new HTTP metrics collection
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             total_requests: AtomicU64::new(0),
             successful_requests: AtomicU64::new(0),

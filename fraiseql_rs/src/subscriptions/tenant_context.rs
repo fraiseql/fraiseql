@@ -9,7 +9,7 @@ use serde_json::Value;
 ///
 /// Enforces tenant boundaries by:
 /// - Routing events through tenant-scoped channels
-/// - Filtering events by tenant_id before delivery
+/// - Filtering events by `tenant_id` before delivery
 /// - Preventing cross-tenant subscription attempts
 #[derive(Debug, Clone)]
 pub struct TenantContext {
@@ -21,7 +21,8 @@ pub struct TenantContext {
 
 impl TenantContext {
     /// Create new tenant context with filtering enabled
-    pub fn new(tenant_id: i64) -> Self {
+    #[must_use] 
+    pub const fn new(tenant_id: i64) -> Self {
         Self {
             tenant_id,
             enforce_filtering: true,
@@ -29,7 +30,8 @@ impl TenantContext {
     }
 
     /// Create tenant context with explicit filtering control
-    pub fn with_filtering(tenant_id: i64, enforce_filtering: bool) -> Self {
+    #[must_use] 
+    pub const fn with_filtering(tenant_id: i64, enforce_filtering: bool) -> Self {
         Self {
             tenant_id,
             enforce_filtering,
@@ -37,7 +39,8 @@ impl TenantContext {
     }
 
     /// Create tenant context for single-tenant mode (no filtering)
-    pub fn single_tenant() -> Self {
+    #[must_use] 
+    pub const fn single_tenant() -> Self {
         Self {
             tenant_id: 1,
             enforce_filtering: false,
@@ -55,6 +58,7 @@ impl TenantContext {
     /// tenant_id: 5
     /// result: "orders:tenant-5"
     /// ```
+    #[must_use] 
     pub fn scoped_channel(&self, base_channel: &str) -> String {
         if self.enforce_filtering {
             format!("{}:tenant-{}", base_channel, self.tenant_id)
@@ -66,11 +70,11 @@ impl TenantContext {
     /// Check if event data belongs to this tenant
     ///
     /// Returns true if:
-    /// - Event contains tenant_id field matching context tenant_id
+    /// - Event contains `tenant_id` field matching context `tenant_id`
     /// - Or filtering is disabled (single-tenant mode)
     ///
     /// # Event Data Format
-    /// Expects event.data to be a JSON object with optional tenant_id field:
+    /// Expects event.data to be a JSON object with optional `tenant_id` field:
     /// ```json
     /// {
     ///   "id": "order-123",
@@ -79,6 +83,7 @@ impl TenantContext {
     ///   "amount": 100.50
     /// }
     /// ```
+    #[must_use] 
     pub fn matches(&self, event_data: &Value) -> bool {
         // Single-tenant mode: accept all events
         if !self.enforce_filtering {
@@ -99,17 +104,18 @@ impl TenantContext {
     }
 
     /// Check if event should be filtered (opposite of matches)
+    #[must_use] 
     pub fn should_drop(&self, event_data: &Value) -> bool {
         !self.matches(event_data)
     }
 
-    /// Validate that subscription tenant_id variable matches context
+    /// Validate that subscription `tenant_id` variable matches context
     ///
-    /// When a subscription includes a tenant_id variable (explicit tenant scoping),
-    /// it must match the authenticated context's tenant_id.
+    /// When a subscription includes a `tenant_id` variable (explicit tenant scoping),
+    /// it must match the authenticated context's `tenant_id`.
     ///
     /// # Returns
-    /// - `true` if subscription is allowed (tenant_id matches or not specified)
+    /// - `true` if subscription is allowed (`tenant_id` matches or not specified)
     /// - `false` if subscription violates tenant boundaries
     ///
     /// # Example
@@ -119,6 +125,7 @@ impl TenantContext {
     /// subscription_variables = { "tenant_id": 10 } // REJECTED
     /// subscription_variables = {}                   // ALLOWED (wildcard)
     /// ```
+    #[must_use] 
     pub fn validate_subscription_variables(&self, variables: &Value) -> bool {
         // If no filtering enabled, all subscriptions allowed
         if !self.enforce_filtering {
@@ -151,6 +158,7 @@ impl TenantContext {
     ///
     /// In a multi-tenant system, subscriptions should only receive events
     /// from authorized tenants.
+    #[must_use] 
     pub fn authorized_tenants(&self) -> Vec<i64> {
         if self.enforce_filtering {
             vec![self.tenant_id]
@@ -162,17 +170,16 @@ impl TenantContext {
     }
 
     /// Get description of tenant context for logging
+    #[must_use] 
     pub fn describe(&self) -> String {
-        match self.enforce_filtering {
-            true => format!("Tenant: {} (enforced)", self.tenant_id),
-            false => "Single-tenant mode (no enforcement)".to_string(),
-        }
+        if self.enforce_filtering { format!("Tenant: {} (enforced)", self.tenant_id) } else { "Single-tenant mode (no enforcement)".to_string() }
     }
 
     /// Check if two tenant contexts can access shared resources
     ///
     /// Returns true if contexts are from the same tenant or filtering is disabled.
-    pub fn is_compatible(&self, other: &TenantContext) -> bool {
+    #[must_use] 
+    pub const fn is_compatible(&self, other: &Self) -> bool {
         if !self.enforce_filtering || !other.enforce_filtering {
             return true;
         }

@@ -21,7 +21,7 @@ pub struct ObservabilityContext {
     /// Request start time (for duration calculation)
     pub start_time: Instant,
 
-    /// Client IP address (extracted from ConnectInfo)
+    /// Client IP address (extracted from `ConnectInfo`)
     pub client_ip: String,
 
     /// Authenticated user ID (optional - None for anonymous requests)
@@ -38,6 +38,7 @@ impl ObservabilityContext {
     ///
     /// * `client_ip` - Client IP address from request
     /// * `operation` - GraphQL operation type
+    #[must_use] 
     pub fn new(client_ip: String, operation: String) -> Self {
         Self {
             request_id: Uuid::new_v4(),
@@ -54,8 +55,8 @@ impl ObservabilityContext {
         self.start_time.elapsed().as_millis() as u64
     }
 
-    /// Update user_id after authentication
-    pub fn set_user_id(&mut self, user_id: i64) {
+    /// Update `user_id` after authentication
+    pub const fn set_user_id(&mut self, user_id: i64) {
         self.user_id = Some(user_id);
     }
 }
@@ -99,7 +100,8 @@ impl ResponseStatus {
 
 /// Create an audit entry from request context
 ///
-/// Helper function to construct AuditEntry for logging to audit logger
+/// Helper function to construct `AuditEntry` for logging to audit logger
+#[must_use] 
 pub fn create_audit_entry(
     context: &ObservabilityContext,
     query: &str,
@@ -126,7 +128,7 @@ pub fn create_audit_entry(
         variables: variables.clone(),
         ip_address: context.client_ip.clone(),
         user_agent: extract_user_agent(headers).unwrap_or_default(),
-        error: error.map(|e| e.to_string()),
+        error: error.map(std::string::ToString::to_string),
         duration_ms: Some(duration_ms),
     }
 }
@@ -158,7 +160,7 @@ fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
     headers
         .get("User-Agent")
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 #[cfg(test)]

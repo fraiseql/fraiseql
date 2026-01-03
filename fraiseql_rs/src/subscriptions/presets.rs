@@ -67,7 +67,7 @@ impl SubscriptionConfig {
     ///
     /// Features:
     /// - Redis event bus (distributed, persistent)
-    /// - Strict rate limiting (DDoS protection)
+    /// - Strict rate limiting (`DDoS` protection)
     /// - Lower connection limits (resource protection)
     /// - Authentication enforced
     ///
@@ -78,7 +78,7 @@ impl SubscriptionConfig {
     ///
     /// Requirements:
     /// - Redis server available
-    /// - PostgreSQL for auth/metadata
+    /// - `PostgreSQL` for auth/metadata
     ///
     /// Example:
     /// ```ignore

@@ -1,6 +1,6 @@
 //! RBAC (Role-Based Access Control) integration for subscriptions
 //!
-//! Integrates FraiseQL's RBAC system with subscription field access control.
+//! Integrates `FraiseQL`'s RBAC system with subscription field access control.
 //! Validates that users have permission to access all requested subscription fields.
 
 use std::collections::HashMap;
@@ -24,7 +24,8 @@ pub struct RBACContext {
 
 impl RBACContext {
     /// Create new RBAC context with enforcement enabled
-    pub fn new(user_id: String, tenant_id: Option<String>, requested_fields: Vec<String>) -> Self {
+    #[must_use] 
+    pub const fn new(user_id: String, tenant_id: Option<String>, requested_fields: Vec<String>) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -34,7 +35,8 @@ impl RBACContext {
     }
 
     /// Create RBAC context with explicit enforcement control
-    pub fn with_enforcement(
+    #[must_use] 
+    pub const fn with_enforcement(
         user_id: String,
         tenant_id: Option<String>,
         requested_fields: Vec<String>,
@@ -49,7 +51,8 @@ impl RBACContext {
     }
 
     /// Create RBAC context for testing (no enforcement)
-    pub fn test_mode(
+    #[must_use] 
+    pub const fn test_mode(
         user_id: String,
         tenant_id: Option<String>,
         requested_fields: Vec<String>,
@@ -71,6 +74,7 @@ impl RBACContext {
     ///
     /// This is a default naming convention. Applications can override
     /// via a custom mapping if needed.
+    #[must_use] 
     pub fn field_to_resource(field: &str) -> String {
         // Convert plural to singular (basic heuristic)
         let singular = if field.ends_with('s') && !field.ends_with("ss") {
@@ -80,7 +84,7 @@ impl RBACContext {
         };
 
         // Format as resource:action
-        format!("{}:read", singular)
+        format!("{singular}:read")
     }
 
     /// Validate field access permissions
@@ -94,7 +98,7 @@ impl RBACContext {
     /// - Field: `users` → Permission: `user:read`
     ///
     /// The validator checks that all fields can be accessed by the user.
-    /// In a real implementation, this would query the PermissionResolver.
+    /// In a real implementation, this would query the `PermissionResolver`.
     pub fn validate_fields(&self, allowed_fields: &HashMap<String, bool>) -> Result<(), String> {
         // If enforcement disabled, allow all fields
         if !self.enforce_rbac {
@@ -119,6 +123,7 @@ impl RBACContext {
     }
 
     /// Check if user has access to a single field
+    #[must_use] 
     pub fn can_access_field(&self, field: &str, allowed_fields: &HashMap<String, bool>) -> bool {
         if !self.enforce_rbac {
             return true;
@@ -127,6 +132,7 @@ impl RBACContext {
     }
 
     /// Get list of accessible fields from requested set
+    #[must_use] 
     pub fn filter_accessible_fields(&self, allowed_fields: &HashMap<String, bool>) -> Vec<String> {
         self.requested_fields
             .iter()
@@ -136,6 +142,7 @@ impl RBACContext {
     }
 
     /// Get list of denied fields from requested set
+    #[must_use] 
     pub fn filter_denied_fields(&self, allowed_fields: &HashMap<String, bool>) -> Vec<String> {
         self.requested_fields
             .iter()
@@ -145,6 +152,7 @@ impl RBACContext {
     }
 
     /// Get description of RBAC context for logging
+    #[must_use] 
     pub fn describe(&self) -> String {
         if self.enforce_rbac {
             format!(
@@ -163,6 +171,7 @@ impl RBACContext {
     }
 
     /// Get description of field access decision
+    #[must_use] 
     pub fn describe_field_access(
         &self,
         field: &str,
@@ -201,6 +210,7 @@ pub struct RBACCheckResult {
 
 impl RBACCheckResult {
     /// Create successful check result
+    #[must_use] 
     pub fn allowed(allowed_fields: Vec<String>) -> Self {
         Self {
             allowed: true,
@@ -211,7 +221,8 @@ impl RBACCheckResult {
     }
 
     /// Create failed check result
-    pub fn denied(denied_fields: Vec<String>, reason: String) -> Self {
+    #[must_use] 
+    pub const fn denied(denied_fields: Vec<String>, reason: String) -> Self {
         Self {
             allowed: false,
             denied_fields,
@@ -221,6 +232,7 @@ impl RBACCheckResult {
     }
 
     /// Create partial result (some fields allowed, some denied)
+    #[must_use] 
     pub fn partial(allowed_fields: Vec<String>, denied_fields: Vec<String>) -> Self {
         let allowed_count = allowed_fields.len();
         let denied_count = denied_fields.len();
@@ -229,8 +241,7 @@ impl RBACCheckResult {
             denied_fields,
             allowed_fields,
             reason: format!(
-                "Partial access: {} allowed, {} denied",
-                allowed_count, denied_count
+                "Partial access: {allowed_count} allowed, {denied_count} denied"
             ),
         }
     }

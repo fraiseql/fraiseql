@@ -1,11 +1,11 @@
 //! Subscription Security Integration Layer
 //!
 //! Unified security context that integrates all 5 security modules:
-//! 1. Row-Level Filtering (RowFilterContext)
-//! 2. Federation Context Isolation (FederationContext)
-//! 3. Multi-Tenant Enforcement (TenantContext)
-//! 4. Subscription Scope Verification (ScopeValidator)
-//! 5. RBAC Integration (RBACContext)
+//! 1. Row-Level Filtering (`RowFilterContext`)
+//! 2. Federation Context Isolation (`FederationContext`)
+//! 3. Multi-Tenant Enforcement (`TenantContext`)
+//! 4. Subscription Scope Verification (`ScopeValidator`)
+//! 5. RBAC Integration (`RBACContext`)
 
 use crate::subscriptions::{
     FederationContext, RBACContext, RowFilterContext, ScopeValidator, TenantContext,
@@ -55,6 +55,7 @@ pub struct SubscriptionSecurityContext {
 
 impl SubscriptionSecurityContext {
     /// Create new security context from authenticated user
+    #[must_use] 
     pub fn new(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
@@ -70,6 +71,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with federation context
+    #[must_use] 
     pub fn with_federation(user_id: i64, tenant_id: i64, federation: FederationContext) -> Self {
         Self {
             user_id,
@@ -85,6 +87,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with RBAC context
+    #[must_use] 
     pub fn with_rbac(user_id: i64, tenant_id: i64, requested_fields: Vec<String>) -> Self {
         Self {
             user_id,
@@ -94,8 +97,8 @@ impl SubscriptionSecurityContext {
             tenant: TenantContext::new(tenant_id),
             scope_validator: ScopeValidator::new(user_id, tenant_id),
             rbac: Some(RBACContext::new(
-                format!("user-{}", user_id),
-                Some(format!("tenant-{}", tenant_id)),
+                format!("user-{user_id}"),
+                Some(format!("tenant-{tenant_id}")),
                 requested_fields,
             )),
             all_checks_passed: true,
@@ -104,6 +107,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with all security modules
+    #[must_use] 
     pub fn complete(
         user_id: i64,
         tenant_id: i64,
@@ -118,8 +122,8 @@ impl SubscriptionSecurityContext {
             tenant: TenantContext::new(tenant_id),
             scope_validator: ScopeValidator::new(user_id, tenant_id),
             rbac: Some(RBACContext::new(
-                format!("user-{}", user_id),
-                Some(format!("tenant-{}", tenant_id)),
+                format!("user-{user_id}"),
+                Some(format!("tenant-{tenant_id}")),
                 requested_fields,
             )),
             all_checks_passed: true,
@@ -139,7 +143,7 @@ impl SubscriptionSecurityContext {
         // Check 1: Scope Validation
         // Ensure user_id/tenant_id variables match authenticated context
         if let Err(e) = self.scope_validator.validate(variables) {
-            violations.push(format!("Scope validation failed: {}", e));
+            violations.push(format!("Scope validation failed: {e}"));
         }
 
         // Check 2: Federation Context (if applicable)
@@ -165,6 +169,7 @@ impl SubscriptionSecurityContext {
     /// Validate event data before delivery to subscriber
     ///
     /// Applies row-level filtering and tenant isolation.
+    #[must_use] 
     pub fn validate_event_for_delivery(&self, event_data: &Value) -> bool {
         // Check 1: Row-level filtering (user_id and tenant_id)
         if !self.row_filter.matches(event_data) {
@@ -196,6 +201,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Get accessible fields from requested set
+    #[must_use] 
     pub fn get_accessible_fields(&self) -> Option<Vec<String>> {
         self.rbac.as_ref().map(|rbac| {
             let allowed = (0..rbac.requested_fields.len())
@@ -206,6 +212,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Get comprehensive security audit log
+    #[must_use] 
     pub fn audit_log(&self) -> String {
         let mut log = format!(
             "=== Subscription Security Audit ===\n\
@@ -229,24 +236,26 @@ impl SubscriptionSecurityContext {
             log.push_str(&format!("RBAC: {}\n", rbac.describe()));
         }
 
-        if !self.violations.is_empty() {
+        if self.violations.is_empty() {
+            log.push_str("✅ All security checks passed\n");
+        } else {
             log.push_str(&format!(
                 "Security Violations:\n  - {}\n",
                 self.violations.join("\n  - ")
             ));
-        } else {
-            log.push_str("✅ All security checks passed\n");
         }
 
         log
     }
 
     /// Check if all security checks have passed
-    pub fn passed_all_checks(&self) -> bool {
+    #[must_use] 
+    pub const fn passed_all_checks(&self) -> bool {
         self.all_checks_passed && self.violations.is_empty()
     }
 
     /// Get list of violations (if any)
+    #[must_use] 
     pub fn get_violations(&self) -> Vec<String> {
         self.violations.clone()
     }

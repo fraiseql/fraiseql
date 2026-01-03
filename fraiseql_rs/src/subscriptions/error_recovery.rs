@@ -75,6 +75,7 @@ pub struct CircuitBreaker {
 
 impl CircuitBreaker {
     /// Create new circuit breaker
+    #[must_use] 
     pub fn new(failure_threshold: u32, timeout: Duration) -> Self {
         Self {
             state: Arc::new(tokio::sync::Mutex::new(CircuitState::Closed)),
@@ -122,7 +123,7 @@ impl CircuitBreaker {
             CircuitState::Open => {
                 // Check if timeout has elapsed to try half-open
                 if let Some(last_failure) = *self.last_failure_time.lock().await {
-                    if Instant::now() - last_failure >= self.timeout {
+                    if last_failure.elapsed() >= self.timeout {
                         // Allow transition to half-open
                         return true;
                     }
@@ -174,6 +175,7 @@ pub struct FallbackRegistry {
 
 impl FallbackRegistry {
     /// Create new fallback registry
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             fallbacks: Arc::new(dashmap::DashMap::new()),
@@ -189,6 +191,7 @@ impl FallbackRegistry {
     }
 
     /// Get fallback for service
+    #[must_use] 
     pub fn get_fallback(&self, service: &str) -> Option<String> {
         self.fallbacks.get(service).map(|entry| entry.clone())
     }
@@ -204,14 +207,15 @@ impl FallbackRegistry {
     }
 
     /// Check if service is available
+    #[must_use] 
     pub fn is_available(&self, service: &str) -> bool {
         self.availability
             .get(service)
-            .map(|entry| *entry)
-            .unwrap_or(true) // Default to available if not registered
+            .map_or(true, |entry| *entry) // Default to available if not registered
     }
 
     /// Get available fallback
+    #[must_use] 
     pub fn get_available_fallback(&self, service: &str) -> Option<String> {
         if let Some(fallback) = self.get_fallback(service) {
             if self.is_available(&fallback) {
@@ -248,6 +252,7 @@ pub struct RecoveryStrategy {
 
 impl RecoveryStrategy {
     /// Create new recovery strategy
+    #[must_use] 
     pub fn new(retry_config: RetryConfig) -> Self {
         Self {
             retry_config: Arc::new(retry_config),
@@ -259,6 +264,7 @@ impl RecoveryStrategy {
     }
 
     /// Calculate backoff duration for retry
+    #[must_use] 
     pub fn calculate_backoff(&self, attempt: u32) -> Duration {
         let base_backoff = self.retry_config.initial_backoff.as_millis() as f64
             * self.retry_config.backoff_multiplier.powi(attempt as i32);
@@ -267,12 +273,13 @@ impl RecoveryStrategy {
 
         // Add jitter
         let jitter = capped_backoff * self.retry_config.jitter_factor;
-        let jittered = capped_backoff + (jitter * 0.5); // Random between +/- jitter/2
+        let jittered = jitter.mul_add(0.5, capped_backoff); // Random between +/- jitter/2
 
         Duration::from_millis(jittered as u64)
     }
 
     /// Check if should retry
+    #[must_use] 
     pub fn should_retry(&self, attempt: u32) -> bool {
         attempt < self.retry_config.max_retries
     }
@@ -288,16 +295,19 @@ impl RecoveryStrategy {
     }
 
     /// Get circuit breaker
+    #[must_use] 
     pub fn circuit_breaker(&self) -> &CircuitBreaker {
         &self.circuit_breaker
     }
 
     /// Get fallback registry
+    #[must_use] 
     pub fn fallbacks(&self) -> &FallbackRegistry {
         &self.fallbacks
     }
 
     /// Get recovery statistics
+    #[must_use] 
     pub fn stats(&self) -> RecoveryStats {
         RecoveryStats {
             total_attempts: self.recovery_attempts.load(Ordering::Relaxed),

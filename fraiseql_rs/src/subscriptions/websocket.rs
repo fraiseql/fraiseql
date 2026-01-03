@@ -15,7 +15,7 @@ use uuid::Uuid;
 /// WebSocket connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {
-    /// Initial state, waiting for ConnectionInit
+    /// Initial state, waiting for `ConnectionInit`
     Waiting,
 
     /// Connection initialized and ready for subscriptions
@@ -57,6 +57,7 @@ pub struct WebSocketConnection {
 
 impl WebSocketConnection {
     /// Create new WebSocket connection
+    #[must_use] 
     pub fn new(
         metadata: ConnectionMetadata,
         config: Arc<WebSocketConfig>,
@@ -78,6 +79,7 @@ impl WebSocketConnection {
     }
 
     /// Check if initialization timed out
+    #[must_use] 
     pub fn init_timed_out(&self) -> bool {
         self.state == ConnectionState::Waiting && Instant::now() > self.init_timeout
     }
@@ -88,13 +90,15 @@ impl WebSocketConnection {
     }
 
     /// Get connection uptime
+    #[must_use] 
     pub fn uptime(&self) -> Duration {
-        Instant::now() - self.created_at
+        self.created_at.elapsed()
     }
 
     /// Get time since last activity
+    #[must_use] 
     pub fn idle_time(&self) -> Duration {
-        Instant::now() - self.last_activity
+        self.last_activity.elapsed()
     }
 
     /// Transition to Connected state
@@ -150,6 +154,7 @@ impl WebSocketConnection {
     }
 
     /// Check if connection is alive
+    #[must_use] 
     pub fn is_alive(&self) -> bool {
         self.state != ConnectionState::Closed
     }
@@ -168,6 +173,7 @@ impl WebSocketConnection {
     }
 
     /// Get connection info as JSON
+    #[must_use] 
     pub fn as_json(&self) -> Value {
         serde_json::json!({
             "connection_id": self.connection_id.to_string(),
@@ -197,6 +203,7 @@ pub struct WebSocketServer {
 
 impl WebSocketServer {
     /// Create new WebSocket server
+    #[must_use] 
     pub fn new(connection_manager: Arc<ConnectionManager>, config: Arc<WebSocketConfig>) -> Self {
         Self {
             connections: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
@@ -207,6 +214,7 @@ impl WebSocketServer {
     }
 
     /// Create WebSocket server with metrics
+    #[must_use] 
     pub fn with_metrics(
         connection_manager: Arc<ConnectionManager>,
         config: Arc<WebSocketConfig>,
@@ -273,6 +281,7 @@ impl WebSocketServer {
     }
 
     /// Get connection by ID
+    #[must_use] 
     pub fn get_connection(&self, connection_id: Uuid) -> Option<WebSocketConnection> {
         self.connections
             .lock()
@@ -282,14 +291,16 @@ impl WebSocketServer {
     }
 
     /// Get all active connections count
+    #[must_use] 
     pub fn active_connections_count(&self) -> usize {
         self.connections.lock().unwrap().len()
     }
 
     /// Get connections info as JSON
+    #[must_use] 
     pub fn connections_info(&self) -> Value {
         let connections = self.connections.lock().unwrap();
-        let info: Vec<Value> = connections.values().map(|conn| conn.as_json()).collect();
+        let info: Vec<Value> = connections.values().map(WebSocketConnection::as_json).collect();
 
         serde_json::json!({
             "total": connections.len(),
@@ -298,6 +309,7 @@ impl WebSocketServer {
     }
 
     /// Check for timed-out connections
+    #[must_use] 
     pub fn check_timeouts(&self) -> Vec<Uuid> {
         let connections = self.connections.lock().unwrap();
         connections

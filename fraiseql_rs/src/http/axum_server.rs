@@ -1,6 +1,6 @@
 //! Core Axum HTTP server implementation
 //!
-//! This module provides the HTTP request handlers and router setup for the FraiseQL
+//! This module provides the HTTP request handlers and router setup for the `FraiseQL`
 //! GraphQL server. It defines type-safe request/response structures and integrates
 //! with the GraphQL pipeline.
 
@@ -84,7 +84,7 @@ pub struct AppState {
     /// Admin token for protected /metrics endpoint
     pub metrics_admin_token: String,
 
-    /// Optional audit logger for request tracking (requires PostgreSQL)
+    /// Optional audit logger for request tracking (requires `PostgreSQL`)
     pub audit_logger: Option<Arc<AuditLogger>>,
 }
 
@@ -125,14 +125,14 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 /// This handler processes GraphQL queries by:
 /// 1. Extracting and validating the Authorization header (if present)
 /// 2. Validating JWT tokens and extracting user context
-/// 3. Converting variables from JSON to a HashMap
+/// 3. Converting variables from JSON to a `HashMap`
 /// 4. Executing the query through the GraphQL pipeline
 /// 5. Returning the response as JSON
 ///
 /// JWT validation:
 /// - Extracts "Authorization: Bearer <token>" header
-/// - Validates token using JWTValidator
-/// - Converts Claims to GraphQL UserContext
+/// - Validates token using `JWTValidator`
+/// - Converts Claims to GraphQL `UserContext`
 /// - Returns 401 Unauthorized for invalid tokens
 /// - Allows anonymous access for public queries
 ///
@@ -165,49 +165,46 @@ async fn graphql_handler(
     // NOTE: This demonstrates the integration point for JWT validation.
     // In production, JWTValidator would be stored in AppState and initialized at startup.
     // See Phase 16 Commit 6 plan for full JWT validator initialization details.
-    let user_context = match auth_header {
-        Some(_auth) => {
-            state.http_metrics.record_auth_success();
-            // JWT validation would be performed here with:
-            // let jwt_validator = &state.jwt_validator;
-            // match auth_middleware::extract_and_validate_jwt(Some(auth), jwt_validator).await {
-            //     Ok(ctx) => ctx,
-            //     Err(auth_err) => {
-            //         state.http_metrics.record_auth_failure();
-            //         return (
-            //             auth_err.status_code(),
-            //             Json(GraphQLResponse {
-            //                 data: None,
-            //                 errors: Some(vec![GraphQLError {
-            //                     message: auth_err.message,
-            //                     extensions: Some(json!({
-            //                         "code": auth_err.code,
-            //                         "client_ip": addr.to_string(),
-            //                     })),
-            //                 }]),
-            //             }),
-            //         ).into_response();
-            //     }
-            // }
-            // For now, create authenticated context from header presence (placeholder)
-            auth_middleware::claims_to_user_context(crate::auth::Claims {
-                sub: "authenticated-user".to_string(),
-                iss: "system".to_string(),
-                aud: vec!["graphql".to_string()],
-                exp: u64::MAX,
-                iat: 0,
-                custom: std::collections::HashMap::new(),
-            })
-        }
-        None => {
-            state.http_metrics.record_anonymous_request();
-            // No Authorization header - create anonymous context
-            UserContext {
-                user_id: None,
-                permissions: vec!["public".to_string()],
-                roles: vec![],
-                exp: u64::MAX,
-            }
+    let user_context = if let Some(_auth) = auth_header {
+        state.http_metrics.record_auth_success();
+        // JWT validation would be performed here with:
+        // let jwt_validator = &state.jwt_validator;
+        // match auth_middleware::extract_and_validate_jwt(Some(auth), jwt_validator).await {
+        //     Ok(ctx) => ctx,
+        //     Err(auth_err) => {
+        //         state.http_metrics.record_auth_failure();
+        //         return (
+        //             auth_err.status_code(),
+        //             Json(GraphQLResponse {
+        //                 data: None,
+        //                 errors: Some(vec![GraphQLError {
+        //                     message: auth_err.message,
+        //                     extensions: Some(json!({
+        //                         "code": auth_err.code,
+        //                         "client_ip": addr.to_string(),
+        //                     })),
+        //                 }]),
+        //             }),
+        //         ).into_response();
+        //     }
+        // }
+        // For now, create authenticated context from header presence (placeholder)
+        auth_middleware::claims_to_user_context(crate::auth::Claims {
+            sub: "authenticated-user".to_string(),
+            iss: "system".to_string(),
+            aud: vec!["graphql".to_string()],
+            exp: u64::MAX,
+            iat: 0,
+            custom: std::collections::HashMap::new(),
+        })
+    } else {
+        state.http_metrics.record_anonymous_request();
+        // No Authorization header - create anonymous context
+        UserContext {
+            user_id: None,
+            permissions: vec!["public".to_string()],
+            roles: vec![],
+            exp: u64::MAX,
         }
     };
 
@@ -329,7 +326,7 @@ fn detect_operation(query: &str) -> String {
 
 /// Handles GET /metrics endpoint - exports metrics in Prometheus format
 ///
-/// Requires Authorization header with bearer token matching METRICS_ADMIN_TOKEN.
+/// Requires Authorization header with bearer token matching `METRICS_ADMIN_TOKEN`.
 /// Returns 401 Unauthorized if token is missing or invalid.
 async fn metrics_handler(
     State(state): State<Arc<AppState>>,

@@ -44,6 +44,7 @@ pub struct Event {
 
 impl Event {
     /// Create new event
+    #[must_use] 
     pub fn new(event_type: String, data: Value, channel: String) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -59,12 +60,14 @@ impl Event {
     }
 
     /// Set correlation ID
+    #[must_use] 
     pub fn with_correlation_id(mut self, correlation_id: String) -> Self {
         self.correlation_id = Some(correlation_id);
         self
     }
 
     /// As JSON
+    #[must_use] 
     pub fn as_json(&self) -> Value {
         serde_json::to_value(self).unwrap_or_default()
     }
@@ -80,7 +83,8 @@ pub struct EventStream {
 
 impl EventStream {
     /// Create new event stream from receiver
-    pub fn new(receiver: mpsc::UnboundedReceiver<Arc<Event>>) -> Self {
+    #[must_use] 
+    pub const fn new(receiver: mpsc::UnboundedReceiver<Arc<Event>>) -> Self {
         Self { receiver }
     }
 
@@ -158,6 +162,7 @@ pub struct EventBusStats {
 
 impl EventBusStats {
     /// As JSON representation
+    #[must_use] 
     pub fn as_json(&self) -> Value {
         serde_json::json!({
             "total_events": self.total_events,
@@ -180,6 +185,7 @@ pub struct InMemoryEventBus {
 
 impl InMemoryEventBus {
     /// Create new in-memory event bus
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             subscribers: std::sync::Arc::new(dashmap::DashMap::new()),

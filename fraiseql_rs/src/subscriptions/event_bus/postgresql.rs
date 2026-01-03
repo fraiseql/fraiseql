@@ -81,7 +81,7 @@ impl PostgreSQLEventBus {
     async fn notify_channel(&self, event: &Arc<Event>) -> Result<(), SubscriptionError> {
         let _channel_name = self.build_channel_name(&event.channel);
         let _payload = serde_json::to_string(event.as_ref())
-            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to serialize: {}", e)))?;
+            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to serialize: {e}")))?;
 
         // In production, this would use a PostgreSQL connection pool:
         // client.execute(
@@ -159,7 +159,7 @@ impl crate::subscriptions::event_bus::EventBus for PostgreSQLEventBus {
         let (tx, rx) = mpsc::unbounded_channel();
 
         // Register subscriber for all channels
-        for channel in channels.iter() {
+        for channel in &channels {
             self.subscriptions
                 .entry(channel.clone())
                 .or_default()

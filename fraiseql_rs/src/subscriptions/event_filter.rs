@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// Event filter for subscriptions
 #[derive(Debug, Clone)]
 pub struct EventFilter {
-    /// Field-based filters (field_name -> value_condition)
+    /// Field-based filters (`field_name` -> `value_condition`)
     pub field_filters: HashMap<String, FilterCondition>,
 
     /// Type filter - match specific event types
@@ -54,6 +54,7 @@ pub enum FilterCondition {
 
 impl EventFilter {
     /// Create new empty filter (matches all events)
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             field_filters: HashMap::new(),
@@ -63,24 +64,28 @@ impl EventFilter {
     }
 
     /// Add field filter
+    #[must_use] 
     pub fn with_field(mut self, field: &str, condition: FilterCondition) -> Self {
         self.field_filters.insert(field.to_string(), condition);
         self
     }
 
     /// Add event type filter
+    #[must_use] 
     pub fn with_event_type(mut self, event_type: &str) -> Self {
         self.event_type_filter = Some(event_type.to_string());
         self
     }
 
     /// Add channel filter
+    #[must_use] 
     pub fn with_channel(mut self, channel: &str) -> Self {
         self.channel_filter = Some(channel.to_string());
         self
     }
 
     /// Check if event matches filter
+    #[must_use] 
     pub fn matches(&self, event: &Event) -> bool {
         // Check event type filter
         if let Some(ref event_type) = self.event_type_filter {
@@ -201,7 +206,8 @@ pub struct SecurityAwareEventFilter {
 
 impl SecurityAwareEventFilter {
     /// Create new security-aware filter
-    pub fn new(base_filter: EventFilter, security_context: SubscriptionSecurityContext) -> Self {
+    #[must_use] 
+    pub const fn new(base_filter: EventFilter, security_context: SubscriptionSecurityContext) -> Self {
         Self {
             base_filter,
             security_context,
@@ -215,6 +221,7 @@ impl SecurityAwareEventFilter {
     /// # Returns
     /// * `(true, None)` - Event should be delivered
     /// * `(false, Some(reason))` - Event should be rejected with reason
+    #[must_use] 
     pub fn should_deliver_event(&self, event: &Event) -> (bool, Option<String>) {
         // Step 1: Check base filter conditions
         if !self.base_filter.matches(event) {
@@ -241,7 +248,7 @@ impl SecurityAwareEventFilter {
             }
 
             if let Err(e) = rbac.validate_fields(&allowed_fields) {
-                return (false, Some(format!("RBAC field access denied: {}", e)));
+                return (false, Some(format!("RBAC field access denied: {e}")));
             }
         }
 
@@ -250,6 +257,7 @@ impl SecurityAwareEventFilter {
     }
 
     /// Get rejection reason if event was rejected
+    #[must_use] 
     pub fn get_rejection_reason(&self, event: &Event) -> Option<String> {
         let (_, reason) = self.should_deliver_event(event);
         reason

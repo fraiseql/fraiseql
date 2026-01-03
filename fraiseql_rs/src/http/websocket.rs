@@ -42,7 +42,7 @@ use futures_util::stream::StreamExt;
 /// - Proper connection cleanup
 ///
 /// In Commit 4, this will be extended to:
-/// - Validate connection_init messages
+/// - Validate `connection_init` messages
 /// - Parse GraphQL subscription requests
 /// - Execute subscriptions through the pipeline
 /// - Send subscription data to the client
@@ -78,12 +78,12 @@ async fn handle_socket(socket: WebSocket) {
     while let Some(msg) = receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
-                eprintln!("Received text message: {}", text);
+                eprintln!("Received text message: {text}");
 
                 // For Commit 3: Simple echo
                 // In Commit 4: Parse as GraphQL message and route accordingly
                 if let Err(e) = sender.send(Message::Text(text)).await {
-                    eprintln!("Error sending response: {}", e);
+                    eprintln!("Error sending response: {e}");
                     break;
                 }
             }
@@ -99,7 +99,7 @@ async fn handle_socket(socket: WebSocket) {
             Ok(Message::Ping(data)) => {
                 // Respond to ping with pong
                 if let Err(e) = sender.send(Message::Pong(data)).await {
-                    eprintln!("Error sending pong: {}", e);
+                    eprintln!("Error sending pong: {e}");
                     break;
                 }
             }
@@ -110,7 +110,7 @@ async fn handle_socket(socket: WebSocket) {
             }
 
             Err(e) => {
-                eprintln!("WebSocket error: {}", e);
+                eprintln!("WebSocket error: {e}");
                 break;
             }
 

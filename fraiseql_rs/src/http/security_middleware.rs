@@ -71,6 +71,7 @@ pub struct HttpSecurityError {
 
 impl HttpSecurityError {
     /// Convert to GraphQL error response
+    #[must_use] 
     pub fn to_graphql_error(&self) -> GraphQLError {
         let mut extensions = json!({
             "code": self.code,
@@ -88,7 +89,8 @@ impl HttpSecurityError {
     }
 
     /// Get HTTP status code
-    pub fn status_code(&self) -> StatusCode {
+    #[must_use] 
+    pub const fn status_code(&self) -> StatusCode {
         self.status_code
     }
 }
@@ -189,8 +191,7 @@ fn convert_security_error_to_http(
         } => HttpSecurityError {
             status_code: StatusCode::TOO_MANY_REQUESTS,
             message: format!(
-                "Rate limit exceeded: {} requests per {} seconds",
-                limit, window_secs
+                "Rate limit exceeded: {limit} requests per {window_secs} seconds"
             ),
             code: "RATE_LIMIT_EXCEEDED".to_string(),
             client_ip: client_ip.to_string(),
@@ -200,7 +201,7 @@ fn convert_security_error_to_http(
         // Query validation errors → 400 Bad Request
         SecurityError::QueryTooLarge { size, max_size } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!("Query size ({} bytes) exceeds maximum ({})", size, max_size),
+            message: format!("Query size ({size} bytes) exceeds maximum ({max_size})"),
             code: "QUERY_TOO_LARGE".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,
@@ -209,8 +210,7 @@ fn convert_security_error_to_http(
         SecurityError::QueryTooDeep { depth, max_depth } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
             message: format!(
-                "Query nesting ({} levels) exceeds maximum ({})",
-                depth, max_depth
+                "Query nesting ({depth} levels) exceeds maximum ({max_depth})"
             ),
             code: "QUERY_TOO_DEEP".to_string(),
             client_ip: client_ip.to_string(),
@@ -223,8 +223,7 @@ fn convert_security_error_to_http(
         } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
             message: format!(
-                "Query complexity ({}) exceeds maximum ({})",
-                complexity, max_complexity
+                "Query complexity ({complexity}) exceeds maximum ({max_complexity})"
             ),
             code: "QUERY_TOO_COMPLEX".to_string(),
             client_ip: client_ip.to_string(),
@@ -234,7 +233,7 @@ fn convert_security_error_to_http(
         // Other security errors → 400 Bad Request
         SecurityError::OriginNotAllowed(origin) => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!("CORS origin not allowed: {}", origin),
+            message: format!("CORS origin not allowed: {origin}"),
             code: "CORS_ORIGIN_NOT_ALLOWED".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,
@@ -242,7 +241,7 @@ fn convert_security_error_to_http(
 
         SecurityError::InvalidCSRFToken(reason) => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!("CSRF validation failed: {}", reason),
+            message: format!("CSRF validation failed: {reason}"),
             code: "INVALID_CSRF_TOKEN".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,
@@ -251,7 +250,7 @@ fn convert_security_error_to_http(
         // Config and internal errors → 500 Internal Server Error
         SecurityError::SecurityConfigError(reason) => HttpSecurityError {
             status_code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("Security configuration error: {}", reason),
+            message: format!("Security configuration error: {reason}"),
             code: "SECURITY_CONFIG_ERROR".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,

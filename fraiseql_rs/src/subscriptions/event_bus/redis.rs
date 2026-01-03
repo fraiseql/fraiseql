@@ -40,7 +40,7 @@ impl Default for RedisConfig {
 
 /// Redis event bus
 pub struct RedisEventBus {
-    /// Redis connection (shared via Arc - MultiplexedConnection is thread-safe)
+    /// Redis connection (shared via Arc - `MultiplexedConnection` is thread-safe)
     connection: Arc<tokio::sync::Mutex<MultiplexedConnection>>,
 
     /// Configuration
@@ -66,14 +66,14 @@ impl RedisEventBus {
     /// Create Redis event bus with configuration
     pub async fn with_config(config: RedisConfig) -> Result<Self, SubscriptionError> {
         let client = redis::Client::open(config.url.as_str()).map_err(|e| {
-            SubscriptionError::EventBusError(format!("Failed to create client: {}", e))
+            SubscriptionError::EventBusError(format!("Failed to create client: {e}"))
         })?;
 
         let connection = client
             .get_multiplexed_tokio_connection()
             .await
             .map_err(|e| {
-                SubscriptionError::EventBusError(format!("Failed to get connection: {}", e))
+                SubscriptionError::EventBusError(format!("Failed to get connection: {e}"))
             })?;
 
         Ok(Self {
@@ -92,7 +92,7 @@ impl RedisEventBus {
         let mut conn = self.connection.lock().await;
 
         let json_str = serde_json::to_string(&event).map_err(|e| {
-            SubscriptionError::EventBusError(format!("Failed to serialize event: {}", e))
+            SubscriptionError::EventBusError(format!("Failed to serialize event: {e}"))
         })?;
 
         let _: () = redis::cmd("PUBLISH")
@@ -100,7 +100,7 @@ impl RedisEventBus {
             .arg(&json_str)
             .query_async(&mut *conn)
             .await
-            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to publish: {}", e)))?;
+            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to publish: {e}")))?;
 
         Ok(())
     }
@@ -111,7 +111,7 @@ impl RedisEventBus {
 
         let stream_key = format!("fraiseql:events:{}", event.channel);
         let json_str = serde_json::to_string(&event).map_err(|e| {
-            SubscriptionError::EventBusError(format!("Failed to serialize event: {}", e))
+            SubscriptionError::EventBusError(format!("Failed to serialize event: {e}"))
         })?;
 
         // Add to stream with automatic trimming
@@ -119,7 +119,7 @@ impl RedisEventBus {
             .xadd(&stream_key, "*", &[("data", json_str.as_str())])
             .await
             .map_err(|e| {
-                SubscriptionError::EventBusError(format!("Failed to add to stream: {}", e))
+                SubscriptionError::EventBusError(format!("Failed to add to stream: {e}"))
             })?;
 
         Ok(message_id)
@@ -128,7 +128,7 @@ impl RedisEventBus {
     /// Ensure consumer group exists
     async fn ensure_consumer_group(&self, channel: &str) -> Result<(), SubscriptionError> {
         let mut conn = self.connection.lock().await;
-        let stream_key = format!("fraiseql:events:{}", channel);
+        let stream_key = format!("fraiseql:events:{channel}");
 
         // Try to create consumer group (ignore if already exists)
         let _: Result<String, _> = conn
@@ -146,7 +146,7 @@ impl RedisEventBus {
         consumer: &str,
     ) -> Result<Vec<(String, Event)>, SubscriptionError> {
         let mut conn = self.connection.lock().await;
-        let stream_key = format!("fraiseql:events:{}", channel);
+        let stream_key = format!("fraiseql:events:{channel}");
 
         // Read pending messages assigned to this consumer
         let result: Vec<(String, Vec<(String, String)>)> = redis::cmd("XREADGROUP")
@@ -159,7 +159,7 @@ impl RedisEventBus {
             .query_async(&mut *conn)
             .await
             .map_err(|e| {
-                SubscriptionError::EventBusError(format!("Failed to read pending: {}", e))
+                SubscriptionError::EventBusError(format!("Failed to read pending: {e}"))
             })?;
 
         let mut messages = Vec::new();
@@ -178,7 +178,7 @@ impl RedisEventBus {
     #[allow(dead_code)]
     fn parse_stream_message(&self, data: &str) -> Result<Event, SubscriptionError> {
         serde_json::from_str::<Event>(data)
-            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to parse event: {}", e)))
+            .map_err(|e| SubscriptionError::EventBusError(format!("Failed to parse event: {e}")))
     }
 }
 
@@ -190,7 +190,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         let _: String = redis::cmd("PING")
             .query_async(&mut *conn)
             .await
-            .map_err(|e| SubscriptionError::EventBusError(format!("Redis not available: {}", e)))?;
+            .map_err(|e| SubscriptionError::EventBusError(format!("Redis not available: {e}")))?;
 
         Ok(())
     }
@@ -243,7 +243,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
         let (tx, rx) = mpsc::unbounded_channel();
 
         // Register subscriber for all channels
-        for channel in channels.iter() {
+        for channel in &channels {
             self.subscriptions
                 .entry(channel.clone())
                 .or_default()
@@ -277,7 +277,7 @@ impl crate::subscriptions::event_bus::EventBus for RedisEventBus {
             .query_async(&mut *conn)
             .await
             .map_err(|e| {
-                SubscriptionError::EventBusError(format!("Redis health check failed: {}", e))
+                SubscriptionError::EventBusError(format!("Redis health check failed: {e}"))
             })?;
 
         Ok(())

@@ -305,6 +305,7 @@ pub struct SecurityMetrics {
 
 impl SecurityMetrics {
     /// Create new security metrics
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             validations_total: Arc::new(AtomicU64::new(0)),
@@ -353,21 +354,25 @@ impl SecurityMetrics {
     }
 
     /// Get total validations performed
+    #[must_use] 
     pub fn total_validations(&self) -> u64 {
         self.validations_total.load(Ordering::Relaxed)
     }
 
     /// Get total passed validations
+    #[must_use] 
     pub fn total_passed(&self) -> u64 {
         self.validations_passed.load(Ordering::Relaxed)
     }
 
     /// Get total rejected validations
+    #[must_use] 
     pub fn total_rejected(&self) -> u64 {
         self.validations_rejected.load(Ordering::Relaxed)
     }
 
     /// Get rejection rate as percentage (0-100)
+    #[must_use] 
     pub fn rejection_rate(&self) -> f64 {
         let total = self.validations_total.load(Ordering::Relaxed);
         if total == 0 {
@@ -378,6 +383,7 @@ impl SecurityMetrics {
     }
 
     /// Get total violations by type
+    #[must_use] 
     pub fn violation_summary(&self) -> ViolationSummary {
         ViolationSummary {
             row_filter: self.violations_row_filter.load(Ordering::Relaxed),
@@ -434,11 +440,13 @@ pub struct ViolationSummary {
 
 impl ViolationSummary {
     /// Get total violations across all types
-    pub fn total(&self) -> u64 {
+    #[must_use] 
+    pub const fn total(&self) -> u64 {
         self.row_filter + self.tenant_isolation + self.rbac + self.federation
     }
 
     /// Get breakdown as percentage of total (if total > 0)
+    #[must_use] 
     pub fn percentages(&self) -> Option<ViolationPercentages> {
         let total = self.total();
         if total == 0 {

@@ -38,6 +38,7 @@ pub struct PySubscriptionPayload {
 #[pymethods]
 impl PySubscriptionPayload {
     #[new]
+    #[must_use] 
     pub fn new(query: String) -> Self {
         Self {
             query,
@@ -52,7 +53,7 @@ impl PySubscriptionPayload {
 #[pyclass]
 #[derive(Debug, Default)]
 pub struct PyGraphQLMessage {
-    /// Message type (e.g., "connection_init", "subscribe", etc.)
+    /// Message type (e.g., "`connection_init`", "subscribe", etc.)
     pub type_: String,
     /// Optional message ID
     pub id: Option<String>,
@@ -63,6 +64,7 @@ pub struct PyGraphQLMessage {
 #[pymethods]
 impl PyGraphQLMessage {
     #[new]
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -111,6 +113,7 @@ impl PyGraphQLMessage {
 
     /// Get message type property
     #[getter(type_)]
+    #[must_use] 
     pub fn get_type(&self) -> String {
         self.type_.clone()
     }
@@ -123,6 +126,7 @@ impl PyGraphQLMessage {
 
     /// Get message ID property
     #[getter(id)]
+    #[must_use] 
     pub fn get_id(&self) -> Option<String> {
         self.id.clone()
     }
@@ -135,7 +139,8 @@ impl PyGraphQLMessage {
 
     /// Get message payload property
     #[getter(payload)]
-    pub fn get_payload(&self) -> Option<&Py<PyDict>> {
+    #[must_use] 
+    pub const fn get_payload(&self) -> Option<&Py<PyDict>> {
         self.payload.as_ref()
     }
 
@@ -160,6 +165,7 @@ pub struct PyEventBusConfig {
 #[pymethods]
 impl PyEventBusConfig {
     #[staticmethod]
+    #[must_use] 
     pub fn memory() -> Self {
         Self {
             bus_type: "memory".to_string(),
@@ -214,7 +220,7 @@ pub struct PySubscriptionExecutor {
     /// The underlying Rust executor
     executor: Arc<SubscriptionExecutor>,
 
-    /// Map of subscription_id -> Python resolver function
+    /// Map of `subscription_id` -> Python resolver function
     /// Used to invoke user-defined resolvers when events are published
     resolvers: Arc<DashMap<String, Py<PyAny>>>,
 }
@@ -226,8 +232,7 @@ impl PySubscriptionExecutor {
         // Initialize runtime if not already done
         init_runtime(&crate::db::runtime::RuntimeConfig::default()).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to initialize runtime: {}",
-                e
+                "Failed to initialize runtime: {e}"
             ))
         })?;
 
@@ -250,22 +255,22 @@ impl PySubscriptionExecutor {
     /// Register a new subscription
     ///
     /// Args:
-    ///     connection_id: Unique connection identifier for WebSocket connection
-    ///     subscription_id: Unique subscription identifier (from client)
+    ///     `connection_id`: Unique connection identifier for WebSocket connection
+    ///     `subscription_id`: Unique subscription identifier (from client)
     ///     query: GraphQL subscription query string
-    ///     operation_name: Optional operation name (e.g., "OnUserUpdated")
+    ///     `operation_name`: Optional operation name (e.g., "`OnUserUpdated`")
     ///     variables: Query variables as Python dict
-    ///     user_id: Authenticated user ID for security validation (i64).
-    ///         Events will be filtered to match this user_id to prevent privilege escalation.
-    ///     tenant_id: Authenticated tenant ID for multi-tenant isolation (i64).
-    ///         Events will be filtered to match this tenant_id to prevent cross-tenant data leaks.
+    ///     `user_id`: Authenticated user ID for security validation (i64).
+    ///         Events will be filtered to match this `user_id` to prevent privilege escalation.
+    ///     `tenant_id`: Authenticated tenant ID for multi-tenant isolation (i64).
+    ///         Events will be filtered to match this `tenant_id` to prevent cross-tenant data leaks.
     ///
     /// Returns:
-    ///     Subscription ID (string) that can be used with next_event() and complete_subscription()
+    ///     Subscription ID (string) that can be used with `next_event()` and `complete_subscription()`
     ///
     /// Raises:
-    ///     RuntimeError: If registration fails
-    ///     ValueError: If parameters are invalid
+    ///     `RuntimeError`: If registration fails
+    ///     `ValueError`: If parameters are invalid
     pub fn register_subscription(
         &self,
         connection_id: String,
@@ -334,13 +339,12 @@ impl PySubscriptionExecutor {
             .execute_with_security(conn_uuid, &payload, security_context)
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to register subscription '{}': {}",
-                    subscription_id, e
+                    "Failed to register subscription '{subscription_id}': {e}"
                 ))
             })?;
 
         // Store the subscription ID for later retrieval
-        let actual_subscription_id = result.subscription.id.clone();
+        let actual_subscription_id = result.subscription.id;
 
         // Return the subscription ID to Python
         Ok(actual_subscription_id)
@@ -352,7 +356,7 @@ impl PySubscriptionExecutor {
     /// Uses the Rust dispatch engine for parallel processing.
     ///
     /// Args:
-    ///     event_type: Type of event (e.g., "userCreated", "userUpdated")
+    ///     `event_type`: Type of event (e.g., "userCreated", "userUpdated")
     ///     channel: Event channel/topic (e.g., "users", "posts")
     ///     data: Event data as Python dict
     ///
@@ -360,8 +364,8 @@ impl PySubscriptionExecutor {
     ///     None on success
     ///
     /// Raises:
-    ///     RuntimeError: If event publishing fails
-    ///     ValueError: If parameters are invalid
+    ///     `RuntimeError`: If event publishing fails
+    ///     `ValueError`: If parameters are invalid
     pub fn publish_event(
         &self,
         event_type: String,
@@ -414,8 +418,7 @@ impl PySubscriptionExecutor {
         match dispatch_result {
             Ok(_count) => Ok(()),
             Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Event dispatch failed: {}",
-                e
+                "Event dispatch failed: {e}"
             ))),
         }
     }
@@ -423,20 +426,19 @@ impl PySubscriptionExecutor {
     /// Get the next response for a subscription (pre-serialized bytes)
     ///
     /// Args:
-    ///     subscription_id: Subscription identifier (from register_subscription)
+    ///     `subscription_id`: Subscription identifier (from `register_subscription`)
     ///
     /// Returns:
     ///     Response bytes if available, None if no response ready
     ///
     /// Raises:
-    ///     ValueError: If subscription doesn't exist
+    ///     `ValueError`: If subscription doesn't exist
     pub fn next_event(&self, subscription_id: String) -> PyResult<Option<Vec<u8>>> {
         // Get next response from the subscription's response queue
         match self.executor.next_event(&subscription_id) {
             Ok(response) => Ok(response),
             Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Failed to get next event: {}",
-                e
+                "Failed to get next event: {e}"
             ))),
         }
     }
@@ -444,14 +446,14 @@ impl PySubscriptionExecutor {
     /// Complete a subscription and clean up resources
     ///
     /// Args:
-    ///     subscription_id: Subscription identifier (from register_subscription)
+    ///     `subscription_id`: Subscription identifier (from `register_subscription`)
     ///
     /// Returns:
     ///     None on success
     ///
     /// Raises:
-    ///     RuntimeError: If completion fails
-    ///     ValueError: If subscription doesn't exist
+    ///     `RuntimeError`: If completion fails
+    ///     `ValueError`: If subscription doesn't exist
     pub fn complete_subscription(&self, subscription_id: String) -> PyResult<()> {
         // Remove from resolvers map
         self.resolvers.remove(&subscription_id);
@@ -461,8 +463,7 @@ impl PySubscriptionExecutor {
             .complete_subscription(&subscription_id)
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to complete subscription '{}': {}",
-                    subscription_id, e
+                    "Failed to complete subscription '{subscription_id}': {e}"
                 ))
             })
     }
@@ -477,6 +478,7 @@ impl PySubscriptionExecutor {
     ///
     /// Returns:
     ///     List of subscription IDs subscribed to this channel
+    #[must_use] 
     pub fn subscriptions_by_channel(&self, channel: String) -> Vec<String> {
         self.executor.subscriptions_by_channel(&channel)
     }
@@ -487,14 +489,14 @@ impl PySubscriptionExecutor {
     /// with the event data through Python's JSON module for safe serialization.
     ///
     /// Args:
-    ///     subscription_id: The subscription ID
-    ///     event_data_json: The raw event data as JSON string
+    ///     `subscription_id`: The subscription ID
+    ///     `event_data_json`: The raw event data as JSON string
     ///
     /// Returns:
     ///     The resolver result as a JSON string
     ///
     /// Raises:
-    ///     RuntimeError: If resolver execution fails or resolver not found
+    ///     `RuntimeError`: If resolver execution fails or resolver not found
     fn invoke_resolver_internal(
         &self,
         subscription_id: &str,
@@ -515,8 +517,7 @@ impl PySubscriptionExecutor {
                     // Call the resolver with the event data
                     let resolver_result = resolver_py.call1(py, (event_dict,)).map_err(|e| {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                            "Resolver error: {}",
-                            e
+                            "Resolver error: {e}"
                         ))
                     })?;
 
@@ -528,7 +529,7 @@ impl PySubscriptionExecutor {
                 }
                 None => {
                     // No resolver registered - use default echo resolver
-                    Ok(format!(r#"{{"data": {}}}"#, event_data_json))
+                    Ok(format!(r#"{{"data": {event_data_json}}}"#))
                 }
             }
         })
@@ -553,15 +554,15 @@ impl PySubscriptionExecutor {
     /// ```
     ///
     /// Args:
-    ///     subscription_id: The subscription ID returned by register_subscription()
-    ///     resolver: A Python callable that takes event_data dict and returns response dict
+    ///     `subscription_id`: The subscription ID returned by `register_subscription()`
+    ///     resolver: A Python callable that takes `event_data` dict and returns response dict
     ///
     /// Returns:
     ///     None on success
     ///
     /// Raises:
-    ///     ValueError: If subscription_id doesn't exist or resolver is not callable
-    ///     RuntimeError: If resolver registration fails
+    ///     `ValueError`: If `subscription_id` doesn't exist or resolver is not callable
+    ///     `RuntimeError`: If resolver registration fails
     ///
     /// Example:
     /// ```python
@@ -608,8 +609,7 @@ impl PySubscriptionExecutor {
         self.resolvers.insert(subscription_id.clone(), resolver_py);
 
         println!(
-            "[Phase 3] Resolver registered for subscription: {}",
-            subscription_id
+            "[Phase 3] Resolver registered for subscription: {subscription_id}"
         );
 
         Ok(())
@@ -625,9 +625,9 @@ impl PySubscriptionExecutor {
     }
 }
 
-/// ResolverCallback implementation for PySubscriptionExecutor (Phase 3)
+/// `ResolverCallback` implementation for `PySubscriptionExecutor` (Phase 3)
 ///
-/// Allows SubscriptionExecutor to invoke Python resolvers through the callback interface.
+/// Allows `SubscriptionExecutor` to invoke Python resolvers through the callback interface.
 impl ResolverCallback for PySubscriptionExecutor {
     fn invoke(
         &self,
@@ -641,8 +641,7 @@ impl ResolverCallback for PySubscriptionExecutor {
                 Err(e) => {
                     // Convert PyErr to SubscriptionError
                     Err(SubscriptionError::SubscriptionRejected(format!(
-                        "Python resolver error: {}",
-                        e
+                        "Python resolver error: {e}"
                     )))
                 }
             }
@@ -650,7 +649,7 @@ impl ResolverCallback for PySubscriptionExecutor {
     }
 }
 
-/// Convert Python dict to Rust HashMap<String, Value>
+/// Convert Python dict to Rust `HashMap`<String, Value>
 fn python_dict_to_json_map(dict: &Bound<PyDict>) -> PyResult<HashMap<String, Value>> {
     let mut map = HashMap::new();
     for (key, value) in dict.iter() {
@@ -661,7 +660,7 @@ fn python_dict_to_json_map(dict: &Bound<PyDict>) -> PyResult<HashMap<String, Val
     Ok(map)
 }
 
-/// Convert Python object to serde_json Value
+/// Convert Python object to `serde_json` Value
 /// Recursively converts Python types (str, int, float, bool, list, dict) to JSON values
 fn python_to_json_value(obj: &Bound<PyAny>) -> PyResult<Value> {
     // Try scalar types first (faster path)

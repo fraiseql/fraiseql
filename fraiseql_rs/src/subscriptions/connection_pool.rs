@@ -69,6 +69,7 @@ pub struct ConnectionMetadata {
 
 impl ConnectionMetadata {
     /// Create new connection metadata
+    #[must_use] 
     pub fn new(id: String) -> Self {
         let now = Instant::now();
         Self {
@@ -81,13 +82,15 @@ impl ConnectionMetadata {
     }
 
     /// Check if connection is idle
+    #[must_use] 
     pub fn is_idle(&self, idle_timeout: Duration) -> bool {
-        Instant::now() - self.last_used_at > idle_timeout
+        self.last_used_at.elapsed() > idle_timeout
     }
 
     /// Check if connection exceeds max lifetime
+    #[must_use] 
     pub fn exceeds_max_lifetime(&self, max_lifetime: Duration) -> bool {
-        Instant::now() - self.created_at > max_lifetime
+        self.created_at.elapsed() > max_lifetime
     }
 
     /// Update last used time
@@ -97,12 +100,12 @@ impl ConnectionMetadata {
     }
 
     /// Mark as unhealthy
-    pub fn mark_unhealthy(&mut self) {
+    pub const fn mark_unhealthy(&mut self) {
         self.is_healthy = false;
     }
 
     /// Mark as healthy
-    pub fn mark_healthy(&mut self) {
+    pub const fn mark_healthy(&mut self) {
         self.is_healthy = true;
     }
 }
@@ -158,6 +161,7 @@ pub struct ConnectionPoolManager {
 
 impl ConnectionPoolManager {
     /// Create new pool manager
+    #[must_use] 
     pub fn new(config: PoolConfig) -> Self {
         Self {
             config: Arc::new(config),
@@ -211,8 +215,7 @@ impl ConnectionPoolManager {
         } else {
             self.total_errors.fetch_add(1, Ordering::Relaxed);
             Err(SubscriptionError::EventBusError(format!(
-                "Connection not found: {}",
-                connection_id
+                "Connection not found: {connection_id}"
             )))
         }
     }
@@ -230,18 +233,17 @@ impl ConnectionPoolManager {
             Ok(())
         } else {
             Err(SubscriptionError::EventBusError(format!(
-                "Connection not found: {}",
-                connection_id
+                "Connection not found: {connection_id}"
             )))
         }
     }
 
     /// Check connection health
+    #[must_use] 
     pub fn is_connection_healthy(&self, connection_id: &str) -> bool {
         self.metadata
             .get(connection_id)
-            .map(|metadata| metadata.is_healthy)
-            .unwrap_or(false)
+            .is_some_and(|metadata| metadata.is_healthy)
     }
 
     /// Recycle stale connections
@@ -292,11 +294,13 @@ impl ConnectionPoolManager {
     }
 
     /// Get connection metadata
+    #[must_use] 
     pub fn get_connection_metadata(&self, connection_id: &str) -> Option<ConnectionMetadata> {
         self.metadata.get(connection_id).map(|entry| entry.clone())
     }
 
     /// Get all connections count
+    #[must_use] 
     pub fn connections_count(&self) -> u32 {
         self.metadata.len() as u32
     }

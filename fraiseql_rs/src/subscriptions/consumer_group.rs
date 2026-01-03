@@ -14,16 +14,19 @@ pub struct ConsumerGroupId(String);
 
 impl ConsumerGroupId {
     /// Create new consumer group ID
+    #[must_use] 
     pub fn new(name: &str) -> Self {
         Self(name.to_string())
     }
 
     /// Generate unique consumer group ID
+    #[must_use] 
     pub fn generate() -> Self {
         Self(format!("group-{}", Uuid::new_v4()))
     }
 
     /// Get group name
+    #[must_use] 
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -35,16 +38,19 @@ pub struct ConsumerId(String);
 
 impl ConsumerId {
     /// Create new consumer ID
+    #[must_use] 
     pub fn new(name: &str) -> Self {
         Self(name.to_string())
     }
 
     /// Generate unique consumer ID
+    #[must_use] 
     pub fn generate() -> Self {
         Self(format!("consumer-{}", Uuid::new_v4()))
     }
 
     /// Get consumer name
+    #[must_use] 
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -109,6 +115,7 @@ pub struct ConsumerGroupManager {
 
 impl ConsumerGroupManager {
     /// Create new consumer group manager
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             groups: Arc::new(dashmap::DashMap::new()),
@@ -187,6 +194,7 @@ impl ConsumerGroupManager {
     }
 
     /// Get consumer group info
+    #[must_use] 
     pub fn get_group(&self, group_id: &ConsumerGroupId) -> Option<ConsumerGroupInfo> {
         self.groups
             .get(group_id.as_str())
@@ -194,6 +202,7 @@ impl ConsumerGroupManager {
     }
 
     /// Get all groups for a channel
+    #[must_use] 
     pub fn get_channel_groups(&self, channel: &str) -> Vec<ConsumerGroupId> {
         self.channel_groups
             .get(channel)
@@ -219,6 +228,7 @@ impl ConsumerGroupManager {
     }
 
     /// Check if consumer is active (has pending messages)
+    #[must_use] 
     pub fn is_consumer_active(&self, group_id: &ConsumerGroupId, consumer_id: &ConsumerId) -> bool {
         if let Some(group) = self.groups.get(group_id.as_str()) {
             group
@@ -271,6 +281,7 @@ impl ConsumerGroupManager {
     }
 
     /// Get statistics about consumer groups
+    #[must_use] 
     pub fn stats(&self) -> ConsumerGroupStats {
         let total_groups = self.groups.len();
         let mut total_consumers = 0;

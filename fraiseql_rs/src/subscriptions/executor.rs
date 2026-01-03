@@ -33,7 +33,7 @@ pub enum SubscriptionState {
 
 /// Subscription with security context
 ///
-/// Wraps an ExecutedSubscription with its corresponding security context,
+/// Wraps an `ExecutedSubscription` with its corresponding security context,
 /// used for enforcing authorization during event delivery.
 #[derive(Debug, Clone)]
 pub struct ExecutedSubscriptionWithSecurity {
@@ -78,6 +78,7 @@ pub struct ExecutedSubscription {
 
 impl ExecutedSubscription {
     /// Create new executed subscription
+    #[must_use] 
     pub fn new(
         id: String,
         connection_id: Uuid,
@@ -125,12 +126,14 @@ impl ExecutedSubscription {
     }
 
     /// Get subscription uptime
+    #[must_use] 
     pub fn uptime(&self) -> std::time::Duration {
-        std::time::Instant::now() - self.created_at
+        self.created_at.elapsed()
     }
 
     /// Check if subscription is alive
-    pub fn is_alive(&self) -> bool {
+    #[must_use] 
+    pub const fn is_alive(&self) -> bool {
         matches!(
             self.state,
             SubscriptionState::Active | SubscriptionState::Pending
@@ -141,11 +144,13 @@ impl ExecutedSubscription {
     ///
     /// Lifetime limits prevent subscriptions from running indefinitely and accumulating memory.
     /// Example: 24-hour limit prevents long-running subscriptions from leaking resources.
+    #[must_use] 
     pub fn has_exceeded_lifetime(&self, max_lifetime: std::time::Duration) -> bool {
         self.uptime() > max_lifetime
     }
 
     /// Get time until subscription reaches max lifetime
+    #[must_use] 
     pub fn time_until_expiry(
         &self,
         max_lifetime: std::time::Duration,
@@ -159,6 +164,7 @@ impl ExecutedSubscription {
     }
 
     /// As JSON representation
+    #[must_use] 
     pub fn as_json(&self) -> Value {
         json!({
             "id": self.id,
@@ -189,14 +195,14 @@ pub struct SubscriptionExecutor {
     /// Stores pre-serialized response bytes ready for WebSocket transmission
     response_queues: Arc<dashmap::DashMap<String, Arc<Mutex<VecDeque<Vec<u8>>>>>>,
     /// Optional resolver invocation callback (Phase 3)
-    /// Set by PySubscriptionExecutor to enable Python resolver invocation
+    /// Set by `PySubscriptionExecutor` to enable Python resolver invocation
     resolver_callback: Arc<Mutex<Option<Arc<dyn ResolverCallback>>>>,
 }
 
 /// Callback trait for resolver invocation (Phase 3)
 ///
-/// Allows SubscriptionExecutor to invoke Python resolvers without creating
-/// a direct dependency on PySubscriptionExecutor.
+/// Allows `SubscriptionExecutor` to invoke Python resolvers without creating
+/// a direct dependency on `PySubscriptionExecutor`.
 pub trait ResolverCallback: Send + Sync {
     /// Invoke a resolver and return the result as JSON string
     fn invoke(
@@ -208,6 +214,7 @@ pub trait ResolverCallback: Send + Sync {
 
 impl SubscriptionExecutor {
     /// Create new executor
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             subscriptions: std::sync::Arc::new(dashmap::DashMap::new()),
@@ -220,7 +227,7 @@ impl SubscriptionExecutor {
 
     /// Set resolver callback for Python resolver invocation (Phase 3)
     ///
-    /// Called by PySubscriptionExecutor to enable Python resolver invocation
+    /// Called by `PySubscriptionExecutor` to enable Python resolver invocation
     /// during event dispatch.
     pub fn set_resolver_callback(&self, callback: Arc<dyn ResolverCallback>) {
         // Store the callback for use during event dispatch
@@ -232,6 +239,7 @@ impl SubscriptionExecutor {
 
     /// Get all subscription IDs subscribed to a channel
     /// Returns empty vector if no subscriptions for channel
+    #[must_use] 
     pub fn subscriptions_by_channel(&self, channel: &str) -> Vec<String> {
         self.channel_index
             .get(channel)
@@ -271,7 +279,7 @@ impl SubscriptionExecutor {
         let queue_arc = {
             let queue_entry = self
                 .response_queues
-                .entry(subscription_id.clone())
+                .entry(subscription_id)
                 .or_insert_with(|| Arc::new(Mutex::new(VecDeque::new())));
             queue_entry.value().clone()
         }; // queue_entry guard is dropped here
@@ -367,7 +375,7 @@ impl SubscriptionExecutor {
     /// Validate subscription
     ///
     /// Performs comprehensive GraphQL subscription validation:
-    /// - Syntax validation (parse_query succeeds)
+    /// - Syntax validation (`parse_query` succeeds)
     /// - Operation type validation (must be subscription)
     /// - Operation name validation (if specified, must exist)
     /// - Variables validation (must match query parameters)
@@ -377,7 +385,7 @@ impl SubscriptionExecutor {
     ) -> Result<(), SubscriptionError> {
         // 1. Parse and validate GraphQL syntax
         let document = parse_query::<String>(&subscription.query).map_err(|e| {
-            SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {}", e))
+            SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {e}"))
         })?;
 
         // 2. Validate that query contains subscription operation
@@ -408,8 +416,7 @@ impl SubscriptionExecutor {
 
             if !operation_exists {
                 return Err(SubscriptionError::InvalidMessage(format!(
-                    "Operation '{}' not found in query",
-                    operation_name
+                    "Operation '{operation_name}' not found in query"
                 )));
             }
         }
@@ -420,8 +427,7 @@ impl SubscriptionExecutor {
 
         if field_count > MAX_FIELD_COUNT {
             return Err(SubscriptionError::SubscriptionRejected(format!(
-                "Query too complex: {} fields (max: {})",
-                field_count, MAX_FIELD_COUNT
+                "Query too complex: {field_count} fields (max: {MAX_FIELD_COUNT})"
             )));
         }
 
@@ -429,6 +435,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get subscription by ID
+    #[must_use] 
     pub fn get_subscription(&self, subscription_id: &str) -> Option<ExecutedSubscription> {
         self.subscriptions.get(subscription_id).map(|s| s.clone())
     }
@@ -470,6 +477,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get all subscriptions for connection
+    #[must_use] 
     pub fn get_connection_subscriptions(&self, connection_id: Uuid) -> Vec<ExecutedSubscription> {
         self.subscriptions
             .iter()
@@ -495,6 +503,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get active subscriptions count
+    #[must_use] 
     pub fn active_subscriptions_count(&self) -> usize {
         self.subscriptions
             .iter()
@@ -503,11 +512,13 @@ impl SubscriptionExecutor {
     }
 
     /// Get all subscriptions count
+    #[must_use] 
     pub fn total_subscriptions_count(&self) -> usize {
         self.subscriptions.len()
     }
 
     /// Get executor metrics as JSON
+    #[must_use] 
     pub fn metrics(&self) -> Value {
         let active = self
             .subscriptions
@@ -542,6 +553,7 @@ impl SubscriptionExecutor {
     ///
     /// This prevents subscriptions from accumulating indefinitely and consuming memory.
     /// Should be called periodically (e.g., every minute) by a cleanup task.
+    #[must_use] 
     pub fn cleanup_expired(&self, max_lifetime: std::time::Duration) -> usize {
         let mut removed = 0;
         self.subscriptions.retain(|_, sub| {
@@ -559,6 +571,7 @@ impl SubscriptionExecutor {
     ///
     /// Returns subscriptions that will expire within the given time window.
     /// Useful for warning clients about upcoming disconnection.
+    #[must_use] 
     pub fn get_expiring_subscriptions(
         &self,
         max_lifetime: std::time::Duration,
@@ -656,8 +669,7 @@ impl SubscriptionExecutor {
         if let Some(mut entry) = self.subscriptions_secure.get_mut(subscription_id) {
             entry.violations_count += 1;
             println!(
-                "[SECURITY] Subscription {} violation: {}",
-                subscription_id, reason
+                "[SECURITY] Subscription {subscription_id} violation: {reason}"
             );
             Ok(())
         } else {
@@ -672,11 +684,11 @@ impl SubscriptionExecutor {
     ///
     /// # Returns
     /// * Violation count (0 if no violations or subscription not found)
+    #[must_use] 
     pub fn get_violation_count(&self, subscription_id: &str) -> u32 {
         self.subscriptions_secure
             .get(subscription_id)
-            .map(|entry| entry.violations_count)
-            .unwrap_or(0)
+            .map_or(0, |entry| entry.violations_count)
     }
 
     /// Retrieve a subscription with its security context
@@ -687,6 +699,7 @@ impl SubscriptionExecutor {
     /// # Returns
     /// * `Some(ExecutedSubscriptionWithSecurity)` if found
     /// * `None` if not found
+    #[must_use] 
     pub fn get_subscription_with_security(
         &self,
         subscription_id: &str,
@@ -699,7 +712,7 @@ impl SubscriptionExecutor {
     /// Validate subscription against security context
     ///
     /// Performs comprehensive security validation using the unified
-    /// SubscriptionSecurityContext that integrates all 5 security modules:
+    /// `SubscriptionSecurityContext` that integrates all 5 security modules:
     /// 1. Row-level filtering
     /// 2. Federation context isolation
     /// 3. Multi-tenant enforcement
@@ -802,7 +815,7 @@ impl SubscriptionExecutor {
     ///
     /// # Overview
     /// Finds all subscriptions for the given channel and dispatches the event
-    /// to each subscription in parallel using futures::join_all.
+    /// to each subscription in parallel using `futures::join_all`.
     ///
     /// # Arguments
     /// * `event_type` - Type of event (e.g., "userCreated")
@@ -884,7 +897,7 @@ impl SubscriptionExecutor {
     ///
     /// # Returns
     /// Ok(()) if dispatch succeeded (even if event was filtered)
-    /// Err() if internal error occurred
+    /// `Err()` if internal error occurred
     async fn dispatch_to_subscription(
         &self,
         subscription_id: &str,
@@ -1007,8 +1020,8 @@ impl SubscriptionExecutor {
     /// # Notes
     /// Phase 2.2 implementation will:
     /// 1. Get stored Python resolver function from resolvers map
-    /// 2. Use Python::with_gil to call resolver
-    /// 3. Pass event_data and subscription variables
+    /// 2. Use `Python::with_gil` to call resolver
+    /// 3. Pass `event_data` and subscription variables
     /// 4. Return resolver result or error
     async fn invoke_python_resolver(
         &self,
@@ -1019,7 +1032,7 @@ impl SubscriptionExecutor {
 
         // Serialize event data to JSON string
         let event_data_json = serde_json::to_string(event_data).map_err(|e| {
-            SubscriptionError::SubscriptionRejected(format!("Failed to serialize event: {}", e))
+            SubscriptionError::SubscriptionRejected(format!("Failed to serialize event: {e}"))
         })?;
 
         // Get resolver callback clone before invoking
@@ -1098,7 +1111,7 @@ impl SubscriptionExecutor {
 
         // Serialize to bytes (could use MessagePack for better performance)
         serde_json::to_vec(&gql_response).map_err(|e| {
-            SubscriptionError::InternalError(format!("Response serialization failed: {}", e))
+            SubscriptionError::InternalError(format!("Response serialization failed: {e}"))
         })
     }
 }

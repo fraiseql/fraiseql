@@ -18,15 +18,17 @@ pub struct FederationContext {
 
 impl FederationContext {
     /// Create new federation context with both IDs
-    pub fn new(federation_id: Option<String>, service_name: Option<String>) -> Self {
+    #[must_use] 
+    pub const fn new(federation_id: Option<String>, service_name: Option<String>) -> Self {
         Self {
             federation_id,
             service_name,
         }
     }
 
-    /// Create federation context with federation_id only
-    pub fn with_id(federation_id: String) -> Self {
+    /// Create federation context with `federation_id` only
+    #[must_use] 
+    pub const fn with_id(federation_id: String) -> Self {
         Self {
             federation_id: Some(federation_id),
             service_name: None,
@@ -34,7 +36,8 @@ impl FederationContext {
     }
 
     /// Create federation context with service name only
-    pub fn with_service(service_name: String) -> Self {
+    #[must_use] 
+    pub const fn with_service(service_name: String) -> Self {
         Self {
             federation_id: None,
             service_name: Some(service_name),
@@ -42,7 +45,8 @@ impl FederationContext {
     }
 
     /// Create federation context with both
-    pub fn with_both(federation_id: String, service_name: String) -> Self {
+    #[must_use] 
+    pub const fn with_both(federation_id: String, service_name: String) -> Self {
         Self {
             federation_id: Some(federation_id),
             service_name: Some(service_name),
@@ -50,7 +54,8 @@ impl FederationContext {
     }
 
     /// Create federation context for non-federated environment
-    pub fn standalone() -> Self {
+    #[must_use] 
+    pub const fn standalone() -> Self {
         Self {
             federation_id: None,
             service_name: None,
@@ -58,7 +63,8 @@ impl FederationContext {
     }
 
     /// Check if federation context is enabled
-    pub fn is_federated(&self) -> bool {
+    #[must_use] 
+    pub const fn is_federated(&self) -> bool {
         self.federation_id.is_some() || self.service_name.is_some()
     }
 
@@ -69,7 +75,8 @@ impl FederationContext {
     /// - Both have same federation ID
     /// - Both have same service name
     /// - At least one field matches if both are set
-    pub fn matches(&self, other: &FederationContext) -> bool {
+    #[must_use] 
+    pub fn matches(&self, other: &Self) -> bool {
         // Non-federated environment: any subscription allowed
         if !self.is_federated() && !other.is_federated() {
             return true;
@@ -99,21 +106,24 @@ impl FederationContext {
     }
 
     /// Check if subscription should be rejected (opposite of matches)
-    pub fn should_reject(&self, other: &FederationContext) -> bool {
+    #[must_use] 
+    pub fn should_reject(&self, other: &Self) -> bool {
         !self.matches(other)
     }
 
     /// Get description of federation context for logging
+    #[must_use] 
     pub fn describe(&self) -> String {
         match (&self.federation_id, &self.service_name) {
             (None, None) => "Standalone (no federation)".to_string(),
-            (Some(id), None) => format!("Federation ID: {}", id),
-            (None, Some(svc)) => format!("Service: {}", svc),
-            (Some(id), Some(svc)) => format!("Federation ID: {}, Service: {}", id, svc),
+            (Some(id), None) => format!("Federation ID: {id}"),
+            (None, Some(svc)) => format!("Service: {svc}"),
+            (Some(id), Some(svc)) => format!("Federation ID: {id}, Service: {svc}"),
         }
     }
 
-    /// Get identifier for federation (federation_id if available, else service_name)
+    /// Get identifier for federation (`federation_id` if available, else `service_name`)
+    #[must_use] 
     pub fn identifier(&self) -> Option<String> {
         self.federation_id
             .clone()

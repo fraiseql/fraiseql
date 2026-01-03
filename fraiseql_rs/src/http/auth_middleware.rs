@@ -97,7 +97,7 @@ impl HttpAuthError {
 
     /// Get HTTP status code
     #[must_use]
-    pub fn status_code(&self) -> StatusCode {
+    pub const fn status_code(&self) -> StatusCode {
         self.status_code
     }
 

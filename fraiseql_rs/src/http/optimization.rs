@@ -24,7 +24,7 @@ impl RateLimitConfig {
     ///
     /// Defaults: 1000 req/s, burst of 100, 1 second window
     #[must_use]
-    pub fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             requests_per_second: 1000,
             burst_size: 100,
@@ -35,7 +35,7 @@ impl RateLimitConfig {
 
     /// Create permissive rate limiting (for testing)
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             requests_per_second: 10000,
             burst_size: 1000,
@@ -46,7 +46,7 @@ impl RateLimitConfig {
 
     /// Create strict rate limiting (for protection)
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             requests_per_second: 100,
             burst_size: 20,
@@ -164,6 +164,7 @@ pub struct HealthStatus {
 
 impl HealthStatus {
     /// Determine health status from metrics
+    #[must_use] 
     pub fn from_metrics(
         uptime_secs: u64,
         active_connections: u64,
@@ -254,7 +255,8 @@ pub struct RateLimitInfo {
 
 impl RateLimitInfo {
     /// Create new rate limit info
-    pub fn new(limit: u32, remaining: u32, reset_at: u64) -> Self {
+    #[must_use] 
+    pub const fn new(limit: u32, remaining: u32, reset_at: u64) -> Self {
         Self {
             limit,
             remaining,
@@ -263,6 +265,7 @@ impl RateLimitInfo {
     }
 
     /// Get HTTP headers for rate limit info
+    #[must_use] 
     pub fn to_headers(&self) -> [(String, String); 3] {
         [
             ("X-RateLimit-Limit".to_string(), self.limit.to_string()),
@@ -309,6 +312,7 @@ pub struct CacheStats {
 
 impl CacheStats {
     /// Calculate hit ratio
+    #[must_use] 
     pub fn calculate_hit_ratio(&self) -> f64 {
         let total = self.hits + self.misses;
         if total > 0 {
