@@ -27,8 +27,8 @@
 //! implemented in Commit 4 with integration to the subscription executor.
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use futures_util::stream::StreamExt;
 use futures_util::sink::SinkExt;
+use futures_util::stream::StreamExt;
 
 /// Handles WebSocket upgrade for GraphQL subscriptions
 ///

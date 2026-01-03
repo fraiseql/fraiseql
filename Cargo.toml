@@ -89,7 +89,7 @@ futures-util = "0.3"        # Async utilities for WebSocket
 tokio-stream = "0.1"        # Async streams
 async-stream = "0.3"        # Async stream utilities
 dashmap = "5.5"             # Concurrent HashMap for connections
-redis = { version = "0.24", features = ["tokio-comp", "streams"] } # Redis event bus
+redis = { version = "0.25", features = ["tokio-comp", "streams"] } # Redis event bus
 prometheus = "0.13"         # Metrics collection
 
 # Phase 16: Axum HTTP Server

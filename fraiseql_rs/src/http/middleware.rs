@@ -50,8 +50,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
-use tower_http::cors::CorsLayer;
 use std::fmt;
+use tower_http::cors::CorsLayer;
 
 /// Supported compression algorithms
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -334,20 +334,11 @@ mod tests {
 
     #[test]
     fn test_compression_algorithm_equality() {
-        assert_eq!(
-            CompressionAlgorithm::Brotli,
-            CompressionAlgorithm::Brotli
-        );
+        assert_eq!(CompressionAlgorithm::Brotli, CompressionAlgorithm::Brotli);
         #[cfg(feature = "advanced-compression")]
         {
-            assert_eq!(
-                CompressionAlgorithm::Zstd,
-                CompressionAlgorithm::Zstd
-            );
-            assert_ne!(
-                CompressionAlgorithm::Brotli,
-                CompressionAlgorithm::Zstd
-            );
+            assert_eq!(CompressionAlgorithm::Zstd, CompressionAlgorithm::Zstd);
+            assert_ne!(CompressionAlgorithm::Brotli, CompressionAlgorithm::Zstd);
         }
     }
 }

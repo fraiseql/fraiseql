@@ -23,5 +23,5 @@ pub mod validators;
 pub use audit::{AuditEntry, AuditLevel, AuditLogger};
 pub use constraints::{ComplexityAnalyzer, IpFilter, RateLimiter};
 pub use errors::{Result as SecurityResult, SecurityError};
-pub use rate_limit::{RateLimiter as RateLimitChecker, RateLimit, RateLimitStrategy};
+pub use rate_limit::{RateLimit, RateLimitStrategy, RateLimiter as RateLimitChecker};
 pub use validators::{QueryLimits, QueryValidator};

@@ -43,12 +43,12 @@
 //! }
 //! ```
 
-use std::net::IpAddr;
 use axum::http::StatusCode;
 use serde_json::json;
+use std::net::IpAddr;
 
 use crate::graphql::types::ParsedQuery;
-use crate::security::{SecurityError, QueryValidator, QueryLimits, RateLimitChecker};
+use crate::security::{QueryLimits, QueryValidator, RateLimitChecker, SecurityError};
 
 use super::axum_server::GraphQLError;
 
@@ -195,7 +195,10 @@ fn convert_security_error_to_http(
 
         SecurityError::QueryTooDeep { depth, max_depth } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!("Query nesting ({} levels) exceeds maximum ({})", depth, max_depth),
+            message: format!(
+                "Query nesting ({} levels) exceeds maximum ({})",
+                depth, max_depth
+            ),
             code: "QUERY_TOO_DEEP".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,
