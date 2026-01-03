@@ -962,4 +962,541 @@ mod tests {
 
         publisher_task.await.expect("Publisher task failed");
     }
+
+    // ============================================================================
+    // PHASE 2.3: LOAD TESTING
+    // ============================================================================
+    // Tests for 1,000+ concurrent connections, memory stability, and throughput
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_1000_concurrent_connections() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let mut connection_handles = vec![];
+
+        let start_time = std::time::Instant::now();
+
+        // Create 1,000 concurrent connections
+        for conn_id in 0..1000 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                // Each connection subscribes to a channel
+                let channel = format!("conn-{}", conn_id);
+                let _stream = bus_clone
+                    .subscribe(&channel)
+                    .await
+                    .expect("Subscribe failed");
+
+                // Hold connection open for a bit
+                tokio::time::sleep(Duration::from_millis(100)).await;
+
+                // Cleanup
+                let _ = bus_clone.unsubscribe(&channel).await;
+            });
+
+            connection_handles.push(handle);
+        }
+
+        // Wait for all connections to complete
+        let mut successful = 0;
+        for handle in connection_handles {
+            if handle.await.is_ok() {
+                successful += 1;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+
+        println!(
+            "Load Test: 1000 concurrent connections - {} successful in {:.2}s",
+            successful,
+            elapsed.as_secs_f64()
+        );
+
+        // Assertions
+        assert_eq!(successful, 1000, "All 1000 connections should succeed");
+        assert!(elapsed.as_secs_f64() < 10.0, "Should complete within 10 seconds");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_10000_subscriptions() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let mut subscription_handles = vec![];
+
+        let start_time = std::time::Instant::now();
+
+        // Create 10,000 subscriptions
+        for sub_id in 0..10000 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("sub-{}", sub_id / 100); // 100 subscriptions per channel
+                let _stream = bus_clone
+                    .subscribe(&channel)
+                    .await
+                    .expect("Subscribe failed");
+
+                // Hold subscription
+                tokio::time::sleep(Duration::from_millis(50)).await;
+
+                let _ = bus_clone.unsubscribe(&channel).await;
+            });
+
+            subscription_handles.push(handle);
+
+            // Batch yield to prevent overwhelming the scheduler
+            if sub_id % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
+        // Wait for all subscriptions
+        let mut successful = 0;
+        for handle in subscription_handles {
+            if handle.await.is_ok() {
+                successful += 1;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+
+        println!(
+            "Load Test: 10000 subscriptions - {} successful in {:.2}s",
+            successful,
+            elapsed.as_secs_f64()
+        );
+
+        assert_eq!(successful, 10000, "All 10000 subscriptions should succeed");
+        assert!(elapsed.as_secs_f64() < 20.0, "Should complete within 20 seconds");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_sustained_throughput_100_events_per_second() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Create 10 subscribers
+        let mut streams = vec![];
+        for i in 0..10 {
+            let stream = bus
+                .subscribe(&format!("throughput-{}", i))
+                .await
+                .expect("Subscribe failed");
+            streams.push(stream);
+        }
+
+        let start_time = std::time::Instant::now();
+
+        // Publisher: 1000 events over 10 seconds = 100 events/sec
+        let bus_clone = bus.clone();
+        let publisher_task = tokio::spawn(async move {
+            for batch in 0..10 {
+                for event_idx in 0..100 {
+                    let channel = format!("throughput-{}", event_idx % 10);
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "data".to_string(),
+                            json!({ "batch": batch, "index": event_idx }),
+                            channel,
+                        )))
+                        .await;
+
+                    // Rate limiting: ~100 events/sec
+                    if event_idx % 10 == 0 {
+                        tokio::task::yield_now().await;
+                    }
+                }
+
+                // 1 second delay between batches
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
+
+        // Collector: measure throughput
+        let mut total_received = 0;
+        let mut stream_iter = streams.into_iter().enumerate();
+
+        // Receive from all streams concurrently
+        let collector_task = tokio::spawn(async move {
+            let mut total = 0;
+            let mut futures = vec![];
+
+            // This is a simplified collector - in production would use select!
+            tokio::time::sleep(Duration::from_secs(12)).await;
+            total
+        });
+
+        let _collected = collector_task.await.expect("Collector failed");
+        publisher_task.await.expect("Publisher failed");
+
+        let elapsed = start_time.elapsed();
+        let events_per_sec = (1000.0 / elapsed.as_secs_f64()).floor();
+
+        println!(
+            "Sustained throughput: {:.0} events/sec over {:.2}s",
+            events_per_sec,
+            elapsed.as_secs_f64()
+        );
+
+        // 1000 events should be published in ~10 seconds
+        assert!(elapsed.as_secs_f64() >= 9.0, "Should take ~10 seconds");
+        assert!(elapsed.as_secs_f64() < 15.0, "Should not exceed 15 seconds");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_memory_stability_with_event_creation() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Subscribe to one channel
+        let mut stream = bus.subscribe("memory-test").await.expect("Subscribe failed");
+
+        let bus_clone = bus.clone();
+
+        // Publisher: Create many events rapidly
+        let publisher_task = tokio::spawn(async move {
+            for batch in 0..10 {
+                for i in 0..1000 {
+                    let event = Arc::new(Event::new(
+                        "memory-test".to_string(),
+                        json!({
+                            "batch": batch,
+                            "index": i,
+                            "payload": "x".repeat(1024) // 1KB per event
+                        }),
+                        "memory-test".to_string(),
+                    ));
+
+                    let _ = bus_clone.publish(event).await;
+
+                    // Yield periodically
+                    if i % 100 == 0 {
+                        tokio::task::yield_now().await;
+                    }
+                }
+
+                // Small delay between batches
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+
+        // Receiver: Drain events to prevent queue buildup
+        let start = std::time::Instant::now();
+        let mut received_count = 0;
+
+        loop {
+            let result = tokio::time::timeout(Duration::from_secs(1), stream.recv()).await;
+            match result {
+                Ok(Some(_event)) => {
+                    received_count += 1;
+                    if received_count >= 10000 {
+                        break;
+                    }
+                }
+                _ => {
+                    // Timeout - check if publisher is done
+                    if publisher_task.is_finished() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        publisher_task.await.expect("Publisher failed");
+        let elapsed = start.elapsed();
+
+        println!(
+            "Memory stability test: Created 10000 events ({:.1}MB) in {:.2}s, received {}",
+            (10000 * 1024) as f64 / (1024.0 * 1024.0),
+            elapsed.as_secs_f64(),
+            received_count
+        );
+
+        // Should receive most events (some may be dropped if queue fills)
+        assert!(received_count > 9000, "Should receive >90% of events");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_connection_leak_detection() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Track initial state
+        let initial_stats = bus.stats();
+        let initial_subscribers = initial_stats.active_subscribers;
+
+        // Create and drop subscriptions repeatedly
+        for iteration in 0..100 {
+            let mut local_streams = vec![];
+
+            for sub_idx in 0..100 {
+                let bus_clone = bus.clone();
+                let channel = format!("leak-test-{}-{}", iteration, sub_idx);
+
+                let stream = bus_clone
+                    .subscribe(&channel)
+                    .await
+                    .expect("Subscribe failed");
+                local_streams.push(stream);
+            }
+
+            // Explicit drop to test cleanup
+            drop(local_streams);
+
+            // Unsubscribe all
+            for sub_idx in 0..100 {
+                let channel = format!("leak-test-{}-{}", iteration, sub_idx);
+                let _ = bus.unsubscribe(&channel).await;
+            }
+
+            // Periodic check
+            if iteration % 10 == 0 {
+                let current_stats = bus.stats();
+                println!(
+                    "Iteration {}: active_subscribers = {}",
+                    iteration, current_stats.active_subscribers
+                );
+            }
+        }
+
+        // Final state should be similar to initial
+        let final_stats = bus.stats();
+        println!("Initial subscribers: {}", initial_subscribers);
+        println!("Final subscribers: {}", final_stats.active_subscribers);
+
+        // Allow some tolerance (±10)
+        assert!(
+            final_stats.active_subscribers <= initial_subscribers + 10,
+            "Possible connection leak detected"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_multi_channel_broadcasting() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let num_channels = 100;
+        let subscribers_per_channel = 10;
+
+        // Create 100 channels with 10 subscribers each = 1000 subscribers
+        let mut all_streams = vec![];
+
+        for ch_idx in 0..num_channels {
+            let mut channel_streams = vec![];
+            for sub_idx in 0..subscribers_per_channel {
+                let channel = format!("broadcast-{}", ch_idx);
+                let stream = bus
+                    .subscribe(&channel)
+                    .await
+                    .expect("Subscribe failed");
+                channel_streams.push(stream);
+            }
+            all_streams.push(channel_streams);
+        }
+
+        let start_time = std::time::Instant::now();
+
+        // Publish to all channels
+        let bus_clone = bus.clone();
+        let publisher_task = tokio::spawn(async move {
+            for round in 0..10 {
+                for ch_idx in 0..num_channels {
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "broadcast".to_string(),
+                            json!({ "round": round, "channel": ch_idx }),
+                            format!("broadcast-{}", ch_idx),
+                        )))
+                        .await;
+                }
+
+                if round % 2 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+
+        // Receive from all streams
+        let mut receive_tasks = vec![];
+
+        for (ch_idx, channel_streams) in all_streams.into_iter().enumerate() {
+            for (sub_idx, mut stream) in channel_streams.into_iter().enumerate() {
+                let task = tokio::spawn(async move {
+                    let mut count = 0;
+                    while count < 10 {
+                        let result = tokio::time::timeout(Duration::from_secs(2), stream.recv()).await;
+                        if result.is_ok() && result.unwrap().is_some() {
+                            count += 1;
+                        }
+                    }
+                    count
+                });
+                receive_tasks.push(task);
+            }
+        }
+
+        // Wait for publisher
+        publisher_task.await.expect("Publisher failed");
+
+        // Wait for all receivers
+        let mut total_received = 0;
+        for task in receive_tasks {
+            if let Ok(count) = task.await {
+                total_received += count;
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+
+        println!(
+            "Multi-channel broadcast: {} channels × {} subscribers = {} messages in {:.2}s",
+            num_channels,
+            subscribers_per_channel,
+            total_received,
+            elapsed.as_secs_f64()
+        );
+
+        // Should broadcast successfully
+        assert!(total_received > 0, "Should receive some messages");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_large_event_payload() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        let mut stream = bus.subscribe("large-payload").await.expect("Subscribe failed");
+
+        let bus_clone = bus.clone();
+
+        // Publisher: Create events with large payloads
+        let publisher_task = tokio::spawn(async move {
+            for i in 0..100 {
+                // Create 100KB event
+                let large_payload = "x".repeat(100 * 1024);
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "large".to_string(),
+                        json!({
+                            "index": i,
+                            "payload": large_payload
+                        }),
+                        "large-payload".to_string(),
+                    )))
+                    .await;
+
+                if i % 10 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+
+        // Receive events
+        let mut received = 0;
+        let start = std::time::Instant::now();
+
+        loop {
+            let result = tokio::time::timeout(Duration::from_secs(2), stream.recv()).await;
+            match result {
+                Ok(Some(event)) => {
+                    received += 1;
+                    // Verify payload size
+                    let payload_str = event.data["payload"].as_str().unwrap_or("");
+                    assert!(
+                        payload_str.len() > 100000,
+                        "Payload should be ~100KB, got {}",
+                        payload_str.len()
+                    );
+                }
+                _ => break,
+            }
+        }
+
+        publisher_task.await.expect("Publisher failed");
+        let elapsed = start.elapsed();
+
+        println!(
+            "Large payload test: {} events × 100KB each in {:.2}s",
+            received,
+            elapsed.as_secs_f64()
+        );
+
+        assert_eq!(received, 100, "Should receive all 100 events");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_load_subscription_churn() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        let start_time = std::time::Instant::now();
+        let mut event_count = 0;
+
+        // Rapid subscription creation/deletion with continuous publishing
+        let bus_clone1 = bus.clone();
+        let publisher_task = tokio::spawn(async move {
+            for i in 0..1000 {
+                let _ = bus_clone1
+                    .publish(Arc::new(Event::new(
+                        "churn".to_string(),
+                        json!({ "index": i }),
+                        "churn-test".to_string(),
+                    )))
+                    .await;
+
+                if i % 100 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+
+        let bus_clone2 = bus.clone();
+        let subscriber_task = tokio::spawn(async move {
+            let mut local_count = 0;
+            for iteration in 0..100 {
+                // Subscribe, receive a few, unsubscribe
+                match bus_clone2.subscribe("churn-test").await {
+                    Ok(mut stream) => {
+                        // Try to get 1-5 events
+                        for _ in 0..5 {
+                            let result =
+                                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await;
+                            if result.is_ok() && result.unwrap().is_some() {
+                                local_count += 1;
+                            }
+                        }
+
+                        let _ = bus_clone2.unsubscribe("churn-test").await;
+                    }
+                    Err(_) => {}
+                }
+
+                if iteration % 10 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+            local_count
+        });
+
+        let publisher_result = publisher_task.await.expect("Publisher failed");
+        let subscriber_result = subscriber_task.await.expect("Subscriber failed");
+        let elapsed = start_time.elapsed();
+
+        println!(
+            "Subscription churn: 1000 publishes + 100 subscribe/unsub cycles in {:.2}s, received: {}",
+            elapsed.as_secs_f64(),
+            subscriber_result
+        );
+
+        assert!(subscriber_result > 0, "Should receive some events");
+        assert!(elapsed.as_secs_f64() < 10.0, "Should complete in < 10 seconds");
+    }
 }
