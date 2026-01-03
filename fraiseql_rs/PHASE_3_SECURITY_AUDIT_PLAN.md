@@ -1,169 +1,245 @@
-# Phase 3: Security Audit - Implementation Plan
+# Phase 3: Security Audit - Revised Implementation Plan
 
-**Status**: PLANNING
-**Objective**: Fix 5 critical security gaps in the subscriptions module
+**Status**: PLANNING + ANALYSIS COMPLETE
+**Objective**: Address actual security gaps for federation + JSONB architecture
 **Target Production Grade**: A+ (95%+)
 
 ---
 
-## CRITICAL SECURITY GAPS IDENTIFIED
+## ARCHITECTURE ANALYSIS FINDINGS
 
-### 1. MISSING AUTHENTICATION MIDDLEWARE (CRITICAL)
-**Issue**: No JWT/token validation before WebSocket subscription
-**Current State**: Clients can connect with arbitrary user_id
-**Files to Modify**: `websocket.rs`, `protocol.rs`, `connection_manager.rs`
-**Implementation Steps**:
-1. Extract and validate Bearer token from WebSocket Upgrade headers
-2. Decode JWT and extract user_id + tenant_id
-3. Reject ConnectionInit if auth fails
-4. Store validated user context in ConnectionMetadata
+### What IS Already Secure ✅
+- **Network isolation** - Each federation subgraph runs as separate service
+- **SQL parameterization** - psycopg handles all queries with $1, $2 placeholders
+- **Schema-level access control** - GraphQL types define what's visible
+- **JSONB view structure** - tv_* views hide internal fields
+- **Rust type safety** - No string parsing, zero-copy transformations
 
-### 2. MISSING FIELD-LEVEL AUTHORIZATION (CRITICAL)
-**Issue**: No permission checks on subscription fields
-**Current State**: Users can subscribe to any field without validation
-**Files to Modify**: `executor.rs`, integrate RBAC `field_auth.rs`
-**Implementation Steps**:
-1. Add FieldAuthChecker integration to SubscriptionExecutor
-2. Validate subscription fields against user permissions
-3. Reject subscriptions if user lacks field access
-4. Log authorization violations for audit trail
+### What IS MISSING ⚠️ (Critical Gaps)
+1. **User-level row filtering** - No automatic user_id/tenant_id checks on subscription events
+2. **Federation context isolation** - Subscriptions don't verify subgraph ownership
+3. **Multi-tenant enforcement** - Tenant_id exists but isn't automatically enforced
+4. **Subscription scope verification** - No checks that users can access subscribed events
+5. **RBAC integration** - PermissionResolver exists in Rust but not hooked to subscriptions
 
-### 3. MISSING SUBSCRIPTION SCOPE VALIDATION (CRITICAL)
-**Issue**: No validation that query parameters match authenticated user
-**Current State**: User A can subscribe to other users' data
-**Files to Modify**: `executor.rs`, `protocol.rs`
-**Implementation Steps**:
-1. Extract variables from subscription request
-2. Validate userId/tenantId parameters match authenticated context
-3. Reject subscriptions with mismatched scope
-4. Support scoped events (e.g., `userUpdated(id: $userId)`)
-
-### 4. INCOMPLETE QUERY VALIDATION (MEDIUM)
-**Issue**: Doesn't detect fragment cycles or excessive depth
-**Current State**: Only field count checked, not depth or cycles
-**Files to Modify**: `executor.rs`
-**Implementation Steps**:
-1. Implement query depth analysis (limit: 15 levels)
-2. Detect and reject fragment cycles
-3. Validate variable types against schema
-4. Check payload sizes before deserialization
-
-### 5. IN-MEMORY RATE LIMITING (MEDIUM)
-**Issue**: Rate limits can be bypassed in distributed deployments
-**Current State**: Token buckets only in-memory per instance
-**Files to Modify**: `rate_limiter.rs`
-**Implementation Steps**:
-1. Implement Redis-backed distributed rate limiting
-2. Add global server-side subscription creation limit
-3. Implement event queue backpressure
-4. Add connection recycling detection
+### What Is REDUNDANT (Skip)
+- JWT token validation (already handled by FastAPI auth_handler)
+- SQL injection prevention (already handled by psycopg)
+- Field existence checks (already handled by GraphQL schema)
+- Network isolation (already handled by separate services)
 
 ---
 
-## IMPLEMENTATION APPROACH
+## CRITICAL SECURITY GAPS TO ADDRESS
 
-### Phase 3.1: Authentication (4 hours)
-Implement WebSocket token validation
+### 1. ROW-LEVEL FILTERING ON SUBSCRIPTION EVENTS (CRITICAL)
+**Issue**: Subscriptions yield all matching events, no user filtering
+**Current State**: User A subscribes to events, receives all users' data
+**Root Cause**: JSONB views contain complete data, no automatic row filtering
+**Files to Modify**: `executor.rs`, `event_bus.rs`, event bus implementations
+**Implementation Steps**:
+1. Add user_id + tenant_id to subscription context
+2. Implement pre-yield filtering in subscription resolver
+3. Check user_id/tenant_id before publishing events
+4. Support `@filter()` decorator for row-level filtering
+
+**Example**:
+```rust
+// Before: Yields all orders
+async fn subscribe_orders(context: &SubscriptionContext) -> EventStream {
+    // Should filter by context.user_id
+}
+
+// After: Filters by user
+if order.user_id == context.user_id {
+    yield order
+}
+```
+
+### 2. FEDERATION CONTEXT ISOLATION (CRITICAL)
+**Issue**: Subscriptions don't verify subgraph ownership
+**Current State**: No federation_id or service_name in subscription context
+**Root Cause**: Subscriptions are not federation-aware
+**Files to Modify**: `connection_manager.rs`, `executor.rs`, `protocol.rs`
+**Implementation Steps**:
+1. Pass federation context (subgraph_id) from Python layer
+2. Store federation_id in ConnectionMetadata
+3. Validate subscription belongs to current subgraph
+4. Reject cross-subgraph subscription attempts
+
+**Example**:
+```rust
+// Add to ConnectionMetadata
+pub federation_id: Option<String>,  // Which subgraph owns this connection
+
+// In executor
+if let Some(sub_fed) = subscription.federation_id {
+    if sub_fed != context.federation_id {
+        reject_subscription("Cross-subgraph access denied")
+    }
+}
+```
+
+### 3. MULTI-TENANT ENFORCEMENT (CRITICAL)
+**Issue**: tenant_id exists but isn't enforced on events
+**Current State**: Events published without tenant filtering
+**Root Cause**: No automatic tenant scoping in event bus
+**Files to Modify**: `event_bus.rs`, Redis/PostgreSQL implementations, `executor.rs`
+**Implementation Steps**:
+1. Add tenant_id routing to event channels
+2. Filter events by connection's tenant_id before delivery
+3. Validate all queries include tenant_id parameter
+4. Block cross-tenant event access
+
+**Example**:
+```rust
+// Channel naming includes tenant context
+let channel = format!("orders:{}:{}", federation_id, tenant_id);
+bus.subscribe(channel)?;
+
+// Event filtering by tenant
+if event.tenant_id != context.tenant_id {
+    skip_event  // Don't deliver
+}
+```
+
+### 4. SUBSCRIPTION SCOPE VERIFICATION (MEDIUM)
+**Issue**: No checks that subscription query parameters match user context
+**Current State**: User can request data for any user_id
+**Root Cause**: Variables not validated against authenticated context
+**Files to Modify**: `executor.rs`, `protocol.rs`
+**Implementation Steps**:
+1. Extract subscription variables
+2. Check user_id/tenant_id variables against context
+3. Reject subscriptions with mismatched scope
+4. Support wildcard subscriptions (all_my_orders) vs specific (order_by_id)
+
+**Example**:
+```rust
+// User context
+context.user_id = 123
+context.tenant_id = "acme"
+
+// Subscription request
+subscription { my_orders(user_id: 456) }  // REJECT - mismatch!
+subscription { my_orders(user_id: 123) }  // ACCEPT - matches
+```
+
+### 5. RBAC INTEGRATION WITH SUBSCRIPTIONS (MEDIUM)
+**Issue**: PermissionResolver exists in Rust but not hooked to subscriptions
+**Current State**: Field auth not checked during subscription
+**Root Cause**: RBAC layer separate from subscription execution
+**Files to Modify**: `executor.rs`, integrate with RBAC module
+**Implementation Steps**:
+1. Call PermissionResolver before subscription activation
+2. Validate all requested fields have user permission
+3. Cache permission checks (PermissionResolver already does this)
+4. Log permission failures for audit
+
+**Example**:
+```rust
+// Before yielding events
+if !permission_resolver.can_access_field(
+    context.user_id,
+    "orders",
+    "payment_method"
+) {
+    skip_field  // or reject entire subscription
+}
+```
+
+---
+
+## REVISED IMPLEMENTATION APPROACH
+
+**Skip Phase 3.1: Auth Middleware** (Already done - can be enhanced later)
+- JWT validation implemented ✅
+- Can be integrated into WebSocket upgrade in Python layer
+- Rust side is ready to receive auth context
+
+### Phase 3.1: Row-Level Filtering (6 hours)
+Add user_id + tenant_id context to subscriptions
 
 **Tests to Add**:
-- test_auth_missing_token_rejected
-- test_auth_invalid_token_rejected
-- test_auth_expired_token_rejected
-- test_auth_valid_token_accepted
-- test_auth_user_id_extracted_correctly
-- test_auth_tenant_id_extracted_correctly
+- test_row_filter_user_id_isolation
+- test_row_filter_tenant_id_isolation
+- test_row_filter_combined_user_and_tenant
+- test_row_filter_all_events_without_filtering
+- test_row_filter_partial_result_filtering
 
-### Phase 3.2: Field-Level Authorization (4 hours)
-Integrate permission checking into executor
-
-**Tests to Add**:
-- test_authz_missing_field_permission_rejected
-- test_authz_field_accessible_granted
-- test_authz_multiple_fields_partial_denial
-- test_authz_cross_tenant_denied
-- test_authz_violations_logged
-
-### Phase 3.3: Scope Validation (3 hours)
-Validate subscription parameters match user context
+### Phase 3.2: Federation Context Isolation (4 hours)
+Add federation_id to connection context
 
 **Tests to Add**:
-- test_scope_mismatched_user_id_rejected
-- test_scope_mismatched_tenant_id_rejected
-- test_scope_matched_user_id_accepted
-- test_scope_null_parameters_require_auth
-- test_scope_variables_validated
+- test_federation_context_isolation
+- test_federation_cross_subgraph_rejected
+- test_federation_context_stored_in_metadata
+- test_federation_context_validation_on_subscription
+- test_federation_multiple_subgraphs_isolated
 
-### Phase 3.4: Query Validation Hardening (3 hours)
-Detect cycles, depth, and variable type mismatches
-
-**Tests to Add**:
-- test_validation_fragment_cycle_rejected
-- test_validation_excessive_depth_rejected
-- test_validation_variable_type_mismatch_rejected
-- test_validation_payload_size_check_early
-- test_validation_depth_limit_15_levels
-
-### Phase 3.5: Distributed Rate Limiting (4 hours)
-Redis-backed rate limit enforcement
+### Phase 3.3: Multi-Tenant Enforcement (5 hours)
+Implement tenant_id filtering in event channels
 
 **Tests to Add**:
-- test_ratelimit_distributed_redis_consistent
-- test_ratelimit_global_server_limit_enforced
-- test_ratelimit_backpressure_on_queue
-- test_ratelimit_connection_recycling_detected
-- test_ratelimit_per_instance_bypass_prevented
+- test_multitenant_channel_routing
+- test_multitenant_event_filtering
+- test_multitenant_cross_tenant_rejection
+- test_multitenant_wildcard_subscriptions
+- test_multitenant_tenant_id_extraction
 
-### Phase 3.6: Security Test Suite (2 hours)
-End-to-end security validation
+### Phase 3.4: Subscription Scope Verification (4 hours)
+Validate query parameters match user context
 
 **Tests to Add**:
-- test_security_e2e_authenticated_unauthorized_denied
-- test_security_e2e_cross_user_data_access_denied
-- test_security_e2e_cross_tenant_isolation_enforced
-- test_security_e2e_distributed_dos_mitigated
-- test_security_e2e_token_expiry_enforced
+- test_scope_user_id_mismatch_rejected
+- test_scope_tenant_id_mismatch_rejected
+- test_scope_variable_extraction
+- test_scope_wildcard_allowed
+- test_scope_explicit_scope_validated
+
+### Phase 3.5: RBAC Integration with Subscriptions (4 hours)
+Hook PermissionResolver into subscription execution
+
+**Tests to Add**:
+- test_rbac_field_permission_check
+- test_rbac_missing_permission_rejected
+- test_rbac_cache_performance
+- test_rbac_audit_logging
+- test_rbac_multiple_fields_partial_access
 
 ---
 
 ## ACCEPTANCE CRITERIA
 
-### Authentication ✅
-- [ ] JWT token required for WebSocket upgrade
-- [ ] Invalid tokens rejected
-- [ ] User context available to all handlers
-- [ ] Tests pass: 6/6
-
-### Field Authorization ✅
-- [ ] FieldAuthChecker integrated into executor
-- [ ] Unauthorized fields rejected
-- [ ] Field access logged
+### Row-Level Filtering ✅
+- [ ] user_id + tenant_id added to subscription context
+- [ ] Events filtered before yielding to client
+- [ ] Multi-tenant events isolated correctly
 - [ ] Tests pass: 5/5
 
-### Scope Validation ✅
-- [ ] User/tenant IDs validated against context
-- [ ] Mismatched scopes rejected
-- [ ] Variable parameters validated
+### Federation Context Isolation ✅
+- [ ] federation_id stored in ConnectionMetadata
+- [ ] Cross-subgraph subscriptions rejected
+- [ ] Federation context validated on each subscription
 - [ ] Tests pass: 5/5
 
-### Query Validation ✅
-- [ ] Fragment cycles detected and rejected
-- [ ] Query depth limited to 15 levels
-- [ ] Variable types validated
-- [ ] Payload size checked early
+### Multi-Tenant Enforcement ✅
+- [ ] Tenant_id routed in event channels
+- [ ] Events filtered by tenant_id
+- [ ] Cross-tenant access blocked
 - [ ] Tests pass: 5/5
 
-### Distributed Rate Limiting ✅
-- [ ] Redis-backed rate limiting working
-- [ ] Global server limit enforced
-- [ ] Backpressure mechanism active
-- [ ] Connection recycling blocked
+### Subscription Scope Verification ✅
+- [ ] Query variables extracted and validated
+- [ ] Mismatched user_id/tenant_id rejected
+- [ ] Wildcard subscriptions supported correctly
 - [ ] Tests pass: 5/5
 
-### Security Suite ✅
-- [ ] End-to-end security tests passing
-- [ ] No data access violations
-- [ ] DoS attacks mitigated
-- [ ] Audit trails present
+### RBAC Integration ✅
+- [ ] PermissionResolver called before subscription
+- [ ] Missing field permissions rejected
+- [ ] Permission cache working
+- [ ] Audit logging for permission denials
 - [ ] Tests pass: 5/5
 
 ---
@@ -171,26 +247,26 @@ End-to-end security validation
 ## FILES TO CREATE/MODIFY
 
 ### New Files
-- `fraiseql_rs/src/subscriptions/auth_middleware.rs` - JWT token validation
-- `fraiseql_rs/src/subscriptions/query_validator.rs` - Enhanced validation (cycles, depth)
-- `fraiseql_rs/src/subscriptions/distributed_rate_limiter.rs` - Redis-backed rate limiting
+- `fraiseql_rs/src/subscriptions/row_filter.rs` - Row-level filtering context
+- `fraiseql_rs/src/subscriptions/federation_context.rs` - Federation identity tracking
 
 ### Modified Files
 - `fraiseql_rs/src/subscriptions/mod.rs` - Add new modules
-- `fraiseql_rs/src/subscriptions/websocket.rs` - Add auth middleware to upgrade handler
-- `fraiseql_rs/src/subscriptions/executor.rs` - Integrate FieldAuthChecker + scope validation
-- `fraiseql_rs/src/subscriptions/protocol.rs` - Add validation error types
-- `fraiseql_rs/src/subscriptions/integration_tests.rs` - Add 26 security tests
+- `fraiseql_rs/src/subscriptions/connection_manager.rs` - Add federation_id to ConnectionMetadata
+- `fraiseql_rs/src/subscriptions/executor.rs` - Add row filtering + scope validation + RBAC integration
+- `fraiseql_rs/src/subscriptions/event_bus.rs` - Add tenant_id routing
+- `fraiseql_rs/src/subscriptions/protocol.rs` - Add scope validation types
+- `fraiseql_rs/src/subscriptions/integration_tests.rs` - Add 25 security tests
 
 ---
 
 ## COMMIT STRUCTURE
 
-1. **Commit 1**: feat(subscriptions): add auth middleware with JWT validation
-2. **Commit 2**: feat(subscriptions): integrate field-level authorization checks
-3. **Commit 3**: feat(subscriptions): add subscription scope validation
-4. **Commit 4**: feat(subscriptions): enhance query validation (cycles, depth, types)
-5. **Commit 5**: feat(subscriptions): implement distributed rate limiting with Redis
+1. **Commit 1**: feat(subscriptions): add row-level filtering context [CRITICAL]
+2. **Commit 2**: feat(subscriptions): add federation context isolation [CRITICAL]
+3. **Commit 3**: feat(subscriptions): implement multi-tenant enforcement [CRITICAL]
+4. **Commit 4**: feat(subscriptions): add subscription scope verification [MEDIUM]
+5. **Commit 5**: feat(subscriptions): integrate RBAC with subscriptions [MEDIUM]
 6. **Commit 6**: test(subscriptions): add Phase 3 security test suite [MAJOR]
 
 ---
@@ -199,13 +275,12 @@ End-to-end security validation
 
 | Phase | Duration | Tasks |
 |-------|----------|-------|
-| 3.1 | 4h | Auth middleware + token validation |
-| 3.2 | 4h | Field authorization integration |
-| 3.3 | 3h | Scope validation |
-| 3.4 | 3h | Query validation hardening |
-| 3.5 | 4h | Distributed rate limiting |
-| 3.6 | 2h | Security test suite |
-| **Total** | **20h** | **All 5 critical issues fixed** |
+| 3.1 | 6h | Row-level filtering (user_id + tenant_id) |
+| 3.2 | 4h | Federation context isolation |
+| 3.3 | 5h | Multi-tenant enforcement |
+| 3.4 | 4h | Subscription scope verification |
+| 3.5 | 4h | RBAC integration with subscriptions |
+| **Total** | **23h** | **All 5 critical gaps addressed** |
 
 ---
 
@@ -214,12 +289,12 @@ End-to-end security validation
 **Before Phase 3**: A (90%+)
 **After Phase 3**: A+ (95%+)
 
-**Risk Reduction**:
-- Authorization: CRITICAL → ✅ FIXED
-- Authentication: CRITICAL → ✅ FIXED
-- Field-Level Auth: CRITICAL → ✅ FIXED
-- Scope Validation: CRITICAL → ✅ FIXED
-- Rate Limiting: MEDIUM → ✅ FIXED
+**Security Gaps Fixed**:
+- Row-level filtering: CRITICAL → ✅ FIXED
+- Federation isolation: CRITICAL → ✅ FIXED
+- Multi-tenant enforcement: CRITICAL → ✅ FIXED
+- Scope validation: MEDIUM → ✅ FIXED
+- RBAC integration: MEDIUM → ✅ FIXED
 
 ---
 
