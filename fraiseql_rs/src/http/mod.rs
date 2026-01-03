@@ -40,6 +40,7 @@
 //! - `middleware`: Compression, CORS, and error handling middleware (Phase 16)
 //! - `websocket`: WebSocket handler for GraphQL subscriptions (graphql-ws protocol)
 //! - `security_middleware`: HTTP security integration with existing security modules (Phase 16: Commit 5)
+//! - `auth_middleware`: HTTP authentication integration with JWT validation (Phase 16: Commit 6)
 //!
 //! # Examples
 //!
@@ -56,22 +57,20 @@
 //! axum::serve(listener, router).await?;
 //! ```
 
+pub mod auth_middleware;
 pub mod axum_server;
 pub mod middleware;
 pub mod security_middleware;
 pub mod websocket;
 
+pub use auth_middleware::{claims_to_user_context, extract_and_validate_jwt, HttpAuthError};
 pub use axum_server::{create_router, GraphQLRequest, GraphQLResponse};
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
-pub use security_middleware::{
-    validate_graphql_request, check_rate_limit, HttpSecurityError,
-};
+pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_module_exports() {
         // Verify that core types are properly exported
