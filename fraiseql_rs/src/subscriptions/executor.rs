@@ -765,6 +765,18 @@ impl Default for SubscriptionExecutor {
     }
 }
 
+impl std::fmt::Debug for SubscriptionExecutor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubscriptionExecutor")
+            .field("subscriptions", &self.subscriptions)
+            .field("subscriptions_secure", &self.subscriptions_secure)
+            .field("channel_index", &self.channel_index)
+            .field("response_queues", &self.response_queues)
+            .field("resolver_callback", &"<callback>")
+            .finish()
+    }
+}
+
 /// Helper function to count fields in a GraphQL document
 /// Used for complexity validation to prevent query bombs
 fn count_fields(document: &graphql_parser::query::Document<String>) -> usize {

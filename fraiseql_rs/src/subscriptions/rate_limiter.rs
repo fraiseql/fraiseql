@@ -70,6 +70,7 @@ impl TokenBucket {
 }
 
 /// Subscription rate limiter
+#[derive(Debug)]
 pub struct SubscriptionRateLimiter {
     /// Per-user token buckets (Arc<Mutex<>> ensures state persists across checks)
     user_buckets: Arc<DashMap<i64, Arc<Mutex<TokenBucket>>>>,

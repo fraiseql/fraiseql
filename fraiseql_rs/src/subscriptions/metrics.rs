@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Subscription metrics collector
+#[derive(Debug)]
 pub struct SubscriptionMetrics {
     /// Total WebSocket connections ever created
     pub total_connections: Counter,

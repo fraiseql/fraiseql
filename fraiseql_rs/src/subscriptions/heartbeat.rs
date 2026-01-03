@@ -22,6 +22,7 @@ pub enum HeartbeatState {
 }
 
 /// Heartbeat manager for a single connection
+#[derive(Debug)]
 pub struct ConnectionHeartbeat {
     /// Connection ID
     pub connection_id: Uuid,
@@ -145,6 +146,7 @@ impl ConnectionHeartbeat {
 }
 
 /// Heartbeat monitor for all connections
+#[derive(Debug)]
 pub struct HeartbeatMonitor {
     /// WebSocket configuration
     config: Arc<WebSocketConfig>,

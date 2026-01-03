@@ -77,6 +77,7 @@ impl Event {
 ///
 /// Yields Arc<Event> for zero-copy event distribution.
 /// Multiple subscribers receive the same Arc, avoiding expensive clones.
+#[derive(Debug)]
 pub struct EventStream {
     receiver: mpsc::UnboundedReceiver<Arc<Event>>,
 }
@@ -175,6 +176,7 @@ impl EventBusStats {
 }
 
 /// In-memory event bus for testing
+#[derive(Debug)]
 pub struct InMemoryEventBus {
     /// Event channels: map of channel -> subscribers (using Arc<Event> for zero-copy)
     subscribers: Arc<dashmap::DashMap<String, Vec<mpsc::UnboundedSender<Arc<Event>>>>>,

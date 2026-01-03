@@ -55,23 +55,33 @@ impl Default for ResourceLimits {
 /// Per-user resource tracking
 #[derive(Debug, Clone)]
 pub struct UserResources {
+    /// User identifier
     pub user_id: i64,
+    /// Number of active subscriptions
     pub subscription_count: u32,
+    /// Number of active connections
     pub connection_count: u32,
+    /// Total memory used in bytes
     pub total_memory_bytes: u64,
 }
 
 /// Per-subscription resource tracking
 #[derive(Debug, Clone)]
 pub struct SubscriptionResources {
+    /// Unique subscription identifier
     pub subscription_id: String,
+    /// User identifier
     pub user_id: i64,
+    /// Connection identifier
     pub connection_id: String,
+    /// Number of pending messages
     pub pending_messages: u32,
+    /// Memory used in bytes
     pub memory_bytes: u64,
 }
 
 /// Resource limit enforcer
+#[derive(Debug)]
 pub struct ResourceLimiter {
     /// Configuration
     limits: Arc<ResourceLimits>,
@@ -301,9 +311,13 @@ impl Default for ResourceLimiter {
 /// Resource usage statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceStats {
+    /// Total number of active subscriptions
     pub total_subscriptions: u32,
+    /// Total number of active users
     pub total_users: u32,
+    /// Total memory used in bytes
     pub total_memory_bytes: u64,
+    /// Total number of limit violations
     pub violations_count: u64,
 }
 

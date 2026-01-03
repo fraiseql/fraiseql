@@ -51,6 +51,7 @@ pub struct ActiveSubscription {
 }
 
 /// Connection manager
+#[derive(Debug)]
 pub struct ConnectionManager {
     /// Active connections
     connections: Arc<DashMap<Uuid, ConnectionMetadata>>,

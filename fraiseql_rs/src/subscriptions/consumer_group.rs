@@ -105,6 +105,7 @@ pub struct ConsumerInfo {
 }
 
 /// Consumer group manager
+#[derive(Debug)]
 pub struct ConsumerGroupManager {
     /// Active consumer groups
     groups: Arc<dashmap::DashMap<String, ConsumerGroupInfo>>,

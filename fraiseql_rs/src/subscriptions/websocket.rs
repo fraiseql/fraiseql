@@ -29,6 +29,7 @@ pub enum ConnectionState {
 }
 
 /// WebSocket connection handler
+#[derive(Debug)]
 pub struct WebSocketConnection {
     /// Connection ID
     pub connection_id: Uuid,
@@ -187,6 +188,7 @@ impl WebSocketConnection {
 }
 
 /// WebSocket server manager
+#[derive(Debug)]
 pub struct WebSocketServer {
     /// Active connections
     connections: Arc<std::sync::Mutex<std::collections::HashMap<Uuid, WebSocketConnection>>>,

@@ -39,6 +39,7 @@ impl Default for RedisConfig {
 }
 
 /// Redis event bus
+#[derive(Debug)]
 pub struct RedisEventBus {
     /// Redis connection (shared via Arc - `MultiplexedConnection` is thread-safe)
     connection: Arc<tokio::sync::Mutex<MultiplexedConnection>>,

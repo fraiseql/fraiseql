@@ -13,42 +13,58 @@ use std::collections::HashMap;
 pub enum GraphQLMessage {
     /// Client initiates connection
     ConnectionInit {
+        /// Optional connection initialization payload
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<Value>,
     },
 
     /// Server acknowledges connection
     ConnectionAck {
+        /// Optional acknowledgment payload
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<Value>,
     },
 
     /// Client sends subscription
     Subscribe {
+        /// Subscription identifier
         id: String,
+        /// Subscription request payload
         payload: SubscriptionPayload,
     },
 
     /// Server sends data
-    Next { id: String, payload: Value },
+    Next {
+        /// Subscription identifier
+        id: String,
+        /// Data payload
+        payload: Value,
+    },
 
     /// Server sends error
     Error {
+        /// Subscription identifier
         id: String,
+        /// Error messages
         payload: Vec<GraphQLError>,
     },
 
     /// Server completes subscription
-    Complete { id: String },
+    Complete {
+        /// Subscription identifier
+        id: String,
+    },
 
     /// Client/Server ping
     Ping {
+        /// Optional ping payload
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<Value>,
     },
 
     /// Client/Server pong
     Pong {
+        /// Optional pong payload
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<Value>,
     },

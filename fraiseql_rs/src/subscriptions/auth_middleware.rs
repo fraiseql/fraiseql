@@ -51,6 +51,7 @@ impl std::fmt::Display for AuthError {
 impl std::error::Error for AuthError {}
 
 /// Authentication middleware for WebSocket connections
+#[derive(Debug)]
 pub struct AuthMiddleware {
     /// JWT secret key for validation (typically from environment)
     #[allow(dead_code)]

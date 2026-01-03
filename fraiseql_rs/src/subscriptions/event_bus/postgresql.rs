@@ -29,6 +29,7 @@ impl Default for PostgreSQLConfig {
 }
 
 /// `PostgreSQL` event bus using LISTEN/NOTIFY
+#[derive(Debug)]
 pub struct PostgreSQLEventBus {
     /// Configuration
     config: Arc<PostgreSQLConfig>,

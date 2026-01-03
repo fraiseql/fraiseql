@@ -53,6 +53,7 @@ pub enum CircuitState {
 }
 
 /// Circuit breaker for fault tolerance
+#[derive(Debug)]
 pub struct CircuitBreaker {
     /// Current circuit state
     state: Arc<tokio::sync::Mutex<CircuitState>>,
@@ -159,12 +160,16 @@ impl CircuitBreaker {
 /// Circuit breaker statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CircuitBreakerStats {
+    /// Current state of the circuit (Open, Closed, Half-Open)
     pub state: CircuitState,
+    /// Number of consecutive failures in current cycle
     pub current_failures: u32,
+    /// Total number of failures recorded
     pub total_failures: u64,
 }
 
 /// Fallback service registry
+#[derive(Debug)]
 pub struct FallbackRegistry {
     /// Map of service -> fallback service
     fallbacks: Arc<dashmap::DashMap<String, String>>,
@@ -233,6 +238,7 @@ impl Default for FallbackRegistry {
 }
 
 /// Recovery strategy for handling errors
+#[derive(Debug)]
 pub struct RecoveryStrategy {
     /// Retry configuration
     retry_config: Arc<RetryConfig>,
@@ -335,8 +341,11 @@ impl Default for RecoveryStrategy {
 /// Recovery statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryStats {
+    /// Total number of recovery attempts
     pub total_attempts: u64,
+    /// Number of successful recoveries
     pub successful_recoveries: u64,
+    /// Success rate as a percentage (0.0-1.0)
     pub success_rate: f64,
 }
 

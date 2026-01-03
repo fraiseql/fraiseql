@@ -73,7 +73,7 @@ pub struct GraphQLError {
 ///
 /// This is shared across all request handlers via Axum's State mechanism.
 /// The pipeline is wrapped in Arc for zero-copy sharing across async tasks.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     /// The unified GraphQL execution pipeline
     pub pipeline: Arc<GraphQLPipeline>,

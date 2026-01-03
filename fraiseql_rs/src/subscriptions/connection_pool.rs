@@ -136,6 +136,7 @@ pub struct PoolStats {
 }
 
 /// Connection pool manager
+#[derive(Debug)]
 pub struct ConnectionPoolManager {
     /// Configuration
     config: Arc<PoolConfig>,

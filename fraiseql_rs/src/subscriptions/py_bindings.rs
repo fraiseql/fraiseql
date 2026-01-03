@@ -215,7 +215,7 @@ impl PyEventBusConfig {
 /// - Retrieve subscription responses
 /// - Manage subscription lifecycle
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PySubscriptionExecutor {
     /// The underlying Rust executor
     executor: Arc<SubscriptionExecutor>,
