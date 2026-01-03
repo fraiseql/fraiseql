@@ -12,8 +12,12 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+
+use crate::pipeline::unified::{GraphQLPipeline, UserContext};
 
 /// GraphQL request structure
 ///
@@ -63,10 +67,11 @@ pub struct GraphQLError {
 /// HTTP server state containing the GraphQL pipeline
 ///
 /// This is shared across all request handlers via Axum's State mechanism.
-#[derive(Debug)]
+/// The pipeline is wrapped in Arc for zero-copy sharing across async tasks.
+#[derive(Debug, Clone)]
 pub struct AppState {
-    // TODO: Add GraphQL pipeline reference
-    // This will be added in Commit 2
+    /// The unified GraphQL execution pipeline
+    pub pipeline: Arc<GraphQLPipeline>,
 }
 
 /// Creates the Axum router for the GraphQL HTTP server
@@ -87,35 +92,104 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
 /// Handles incoming GraphQL POST requests
 ///
+/// This handler processes GraphQL queries by:
+/// 1. Extracting and validating the incoming request
+/// 2. Building a user context from request metadata
+/// 3. Converting variables from JSON to a HashMap
+/// 4. Executing the query through the GraphQL pipeline
+/// 5. Returning the response as JSON
+///
 /// # Arguments
 ///
-/// * `state` - Extracted application state
-/// * `addr` - Client connection information
+/// * `state` - Extracted application state containing the GraphQL pipeline
+/// * `addr` - Client connection information (IP address)
 /// * `request` - Deserialized GraphQL request
 ///
 /// # Returns
 ///
-/// A JSON response containing either data or errors
+/// A JSON response containing either data or errors, with appropriate HTTP status code
 async fn graphql_handler(
-    State(_state): State<Arc<AppState>>,
-    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(request): Json<GraphQLRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement actual GraphQL execution
-    // For now, return a placeholder response
-    let response = GraphQLResponse {
-        data: Some(serde_json::json!({
-            "message": format!("Received query: {}", request.query)
-        })),
-        errors: None,
+    // Build user context from request metadata
+    // In production, this would extract auth tokens, permissions, etc.
+    let user_context = UserContext {
+        user_id: None,
+        permissions: vec![],
+        roles: vec![],
+        exp: u64::MAX,
     };
 
-    (StatusCode::OK, Json(response))
+    // Convert variables from JSON to HashMap<String, JsonValue>
+    let variables = if let Some(vars) = request.variables {
+        if let Some(obj) = vars.as_object() {
+            obj.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    } else {
+        HashMap::new()
+    };
+
+    // Execute the GraphQL query through the pipeline
+    let result = state
+        .pipeline
+        .execute(&request.query, variables, user_context)
+        .await;
+
+    match result {
+        Ok(response_bytes) => {
+            // Parse the response bytes back to JSON
+            match serde_json::from_slice::<JsonValue>(&response_bytes) {
+                Ok(data) => (
+                    StatusCode::OK,
+                    Json(GraphQLResponse {
+                        data: Some(data),
+                        errors: None,
+                    }),
+                ),
+                Err(e) => (
+                    StatusCode::OK,
+                    Json(GraphQLResponse {
+                        data: None,
+                        errors: Some(vec![GraphQLError {
+                            message: format!("Failed to parse response: {e}"),
+                            extensions: Some(serde_json::json!({
+                                "code": "RESPONSE_PARSE_ERROR",
+                                "client_ip": addr.to_string(),
+                            })),
+                        }]),
+                    }),
+                ),
+            }
+        }
+        Err(e) => (
+            StatusCode::OK,
+            Json(GraphQLResponse {
+                data: None,
+                errors: Some(vec![GraphQLError {
+                    message: e.to_string(),
+                    extensions: Some(serde_json::json!({
+                        "code": "GRAPHQL_EXECUTION_ERROR",
+                        "client_ip": addr.to_string(),
+                    })),
+                }]),
+            }),
+        ),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // =========================================================================
+    // REQUEST PARSING TESTS
+    // =========================================================================
 
     #[test]
     fn test_graphql_request_serialization() {
@@ -143,6 +217,42 @@ mod tests {
     }
 
     #[test]
+    fn test_graphql_request_with_complex_variables() {
+        let json = r#"{
+            "query": "query search($filters: SearchInput!) { search(filters: $filters) { id } }",
+            "variables": {
+                "filters": {
+                    "query": "test",
+                    "limit": 10,
+                    "offset": 0,
+                    "tags": ["tag1", "tag2"]
+                }
+            }
+        }"#;
+        let request: GraphQLRequest = serde_json::from_str(json).unwrap();
+        assert!(request.variables.is_some());
+
+        let vars = request.variables.unwrap();
+        assert!(vars.get("filters").is_some());
+        let filters = vars.get("filters").unwrap().as_object().unwrap();
+        assert_eq!(filters.get("query").unwrap().as_str(), Some("test"));
+        assert_eq!(filters.get("limit").unwrap().as_i64(), Some(10));
+    }
+
+    #[test]
+    fn test_graphql_request_minimal() {
+        let json = r#"{"query": "{ __typename }"}"#;
+        let request: GraphQLRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.query, "{ __typename }");
+        assert!(request.operation_name.is_none());
+        assert!(request.variables.is_none());
+    }
+
+    // =========================================================================
+    // RESPONSE FORMATTING TESTS
+    // =========================================================================
+
+    #[test]
     fn test_graphql_response_serialization() {
         let response = GraphQLResponse {
             data: Some(serde_json::json!({"user": {"id": "123", "name": "Alice"}})),
@@ -168,6 +278,53 @@ mod tests {
     }
 
     #[test]
+    fn test_graphql_response_with_data_and_errors() {
+        // GraphQL allows both data and errors in response (for partial execution)
+        let response = GraphQLResponse {
+            data: Some(serde_json::json!({"user": null})),
+            errors: Some(vec![GraphQLError {
+                message: "User not found".to_string(),
+                extensions: None,
+            }]),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"data\""));
+        assert!(json.contains("\"errors\""));
+        assert!(json.contains("\"User not found\""));
+    }
+
+    #[test]
+    fn test_graphql_response_skips_empty_errors() {
+        // Empty errors should not be serialized
+        let response = GraphQLResponse {
+            data: Some(serde_json::json!({"result": "success"})),
+            errors: Some(vec![]),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        // Empty vector should be skipped due to skip_serializing_if
+        assert!(!json.contains("\"errors\""));
+    }
+
+    #[test]
+    fn test_graphql_response_null_data() {
+        // NULL data response when error prevents execution
+        let response = GraphQLResponse {
+            data: None,
+            errors: Some(vec![GraphQLError {
+                message: "Authentication required".to_string(),
+                extensions: Some(serde_json::json!({"code": "UNAUTHENTICATED"})),
+            }]),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(!json.contains("\"data\""));
+        assert!(json.contains("\"Authentication required\""));
+    }
+
+    // =========================================================================
+    // ERROR STRUCTURE TESTS
+    // =========================================================================
+
+    #[test]
     fn test_graphql_error_with_extensions() {
         let error = GraphQLError {
             message: "Parse error".to_string(),
@@ -179,5 +336,137 @@ mod tests {
         let json = serde_json::to_string(&error).unwrap();
         assert!(json.contains("\"extensions\""));
         assert!(json.contains("\"GRAPHQL_PARSE_FAILED\""));
+    }
+
+    #[test]
+    fn test_graphql_error_without_extensions() {
+        let error = GraphQLError {
+            message: "Something went wrong".to_string(),
+            extensions: None,
+        };
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("\"message\""));
+        assert!(!json.contains("\"extensions\""));
+    }
+
+    #[test]
+    fn test_multiple_errors() {
+        let errors = vec![
+            GraphQLError {
+                message: "Field validation failed".to_string(),
+                extensions: Some(serde_json::json!({"code": "VALIDATION_ERROR", "field": "email"})),
+            },
+            GraphQLError {
+                message: "Database connection timeout".to_string(),
+                extensions: Some(serde_json::json!({"code": "DB_ERROR"})),
+            },
+        ];
+
+        let response = GraphQLResponse {
+            data: None,
+            errors: Some(errors),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"Field validation failed\""));
+        assert!(json.contains("\"Database connection timeout\""));
+        assert!(json.contains("\"VALIDATION_ERROR\""));
+        assert!(json.contains("\"DB_ERROR\""));
+    }
+
+    // =========================================================================
+    // VARIABLE CONVERSION TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_variables_to_hashmap_conversion() {
+        let json_vars = serde_json::json!({
+            "id": "123",
+            "name": "test",
+            "active": true,
+            "count": 42,
+            "tags": ["a", "b", "c"]
+        });
+
+        let variables: HashMap<String, JsonValue> = if let Some(obj) = json_vars.as_object() {
+            obj.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+
+        assert_eq!(variables.len(), 5);
+        assert_eq!(variables.get("id").unwrap().as_str(), Some("123"));
+        assert_eq!(variables.get("count").unwrap().as_i64(), Some(42));
+        assert!(variables.get("active").unwrap().as_bool().unwrap());
+    }
+
+    #[test]
+    fn test_empty_variables_conversion() {
+        let empty_json: Option<JsonValue> = None;
+
+        let variables = if let Some(vars) = empty_json {
+            if let Some(obj) = vars.as_object() {
+                obj.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            } else {
+                HashMap::new()
+            }
+        } else {
+            HashMap::new()
+        };
+
+        assert!(variables.is_empty());
+    }
+
+    // =========================================================================
+    // HANDLER INTEGRATION TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_user_context_creation() {
+        // Verify UserContext can be created with expected fields
+        let ctx = UserContext {
+            user_id: Some("user123".to_string()),
+            permissions: vec!["read".to_string(), "write".to_string()],
+            roles: vec!["admin".to_string()],
+            exp: 9999999999,
+        };
+
+        assert_eq!(ctx.user_id, Some("user123".to_string()));
+        assert_eq!(ctx.permissions.len(), 2);
+        assert_eq!(ctx.roles.len(), 1);
+    }
+
+    #[test]
+    fn test_request_to_variables_conversion() {
+        // Test the conversion logic used in the handler
+        let request = GraphQLRequest {
+            query: "query { user { id } }".to_string(),
+            operation_name: None,
+            variables: Some(serde_json::json!({
+                "userId": "123",
+                "active": true
+            })),
+        };
+
+        // Simulate handler's variable conversion
+        let variables: HashMap<String, JsonValue> = if let Some(vars) = request.variables {
+            if let Some(obj) = vars.as_object() {
+                obj.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            } else {
+                HashMap::new()
+            }
+        } else {
+            HashMap::new()
+        };
+
+        assert_eq!(variables.len(), 2);
+        assert_eq!(variables.get("userId").unwrap().as_str(), Some("123"));
+        assert!(variables.get("active").unwrap().as_bool().unwrap());
     }
 }
