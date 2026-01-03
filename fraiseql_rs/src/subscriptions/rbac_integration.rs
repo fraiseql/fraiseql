@@ -24,11 +24,7 @@ pub struct RBACContext {
 
 impl RBACContext {
     /// Create new RBAC context with enforcement enabled
-    pub fn new(
-        user_id: String,
-        tenant_id: Option<String>,
-        requested_fields: Vec<String>,
-    ) -> Self {
+    pub fn new(user_id: String, tenant_id: Option<String>, requested_fields: Vec<String>) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -53,7 +49,11 @@ impl RBACContext {
     }
 
     /// Create RBAC context for testing (no enforcement)
-    pub fn test_mode(user_id: String, tenant_id: Option<String>, requested_fields: Vec<String>) -> Self {
+    pub fn test_mode(
+        user_id: String,
+        tenant_id: Option<String>,
+        requested_fields: Vec<String>,
+    ) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -127,10 +127,7 @@ impl RBACContext {
     }
 
     /// Get list of accessible fields from requested set
-    pub fn filter_accessible_fields(
-        &self,
-        allowed_fields: &HashMap<String, bool>,
-    ) -> Vec<String> {
+    pub fn filter_accessible_fields(&self, allowed_fields: &HashMap<String, bool>) -> Vec<String> {
         self.requested_fields
             .iter()
             .filter(|field| self.can_access_field(field, allowed_fields))
@@ -139,10 +136,7 @@ impl RBACContext {
     }
 
     /// Get list of denied fields from requested set
-    pub fn filter_denied_fields(
-        &self,
-        allowed_fields: &HashMap<String, bool>,
-    ) -> Vec<String> {
+    pub fn filter_denied_fields(&self, allowed_fields: &HashMap<String, bool>) -> Vec<String> {
         self.requested_fields
             .iter()
             .filter(|field| !self.can_access_field(field, allowed_fields))
@@ -321,11 +315,7 @@ mod tests {
 
     #[test]
     fn test_validate_fields_disabled() {
-        let ctx = RBACContext::test_mode(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::test_mode("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let mut allowed = HashMap::new();
         allowed.insert("orders".to_string(), false);
@@ -335,11 +325,7 @@ mod tests {
 
     #[test]
     fn test_can_access_field() {
-        let ctx = RBACContext::new(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::new("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let mut allowed = HashMap::new();
         allowed.insert("orders".to_string(), true);
@@ -354,7 +340,11 @@ mod tests {
         let ctx = RBACContext::new(
             "user-123".to_string(),
             None,
-            vec!["orders".to_string(), "users".to_string(), "products".to_string()],
+            vec![
+                "orders".to_string(),
+                "users".to_string(),
+                "products".to_string(),
+            ],
         );
 
         let mut allowed = HashMap::new();
@@ -373,7 +363,11 @@ mod tests {
         let ctx = RBACContext::new(
             "user-123".to_string(),
             None,
-            vec!["orders".to_string(), "users".to_string(), "products".to_string()],
+            vec![
+                "orders".to_string(),
+                "users".to_string(),
+                "products".to_string(),
+            ],
         );
 
         let mut allowed = HashMap::new();
@@ -402,22 +396,14 @@ mod tests {
 
     #[test]
     fn test_describe_test_mode() {
-        let ctx = RBACContext::test_mode(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::test_mode("user-123".to_string(), None, vec!["orders".to_string()]);
         let desc = ctx.describe();
         assert!(desc.contains("test mode"));
     }
 
     #[test]
     fn test_describe_field_access_allowed() {
-        let ctx = RBACContext::new(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::new("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let mut allowed = HashMap::new();
         allowed.insert("orders".to_string(), true);
@@ -429,11 +415,7 @@ mod tests {
 
     #[test]
     fn test_describe_field_access_denied() {
-        let ctx = RBACContext::new(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::new("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let mut allowed = HashMap::new();
         allowed.insert("orders".to_string(), false);
@@ -452,10 +434,8 @@ mod tests {
 
     #[test]
     fn test_rbac_check_result_denied() {
-        let result = RBACCheckResult::denied(
-            vec!["orders".to_string()],
-            "Access denied".to_string(),
-        );
+        let result =
+            RBACCheckResult::denied(vec!["orders".to_string()], "Access denied".to_string());
         assert!(!result.allowed);
         assert_eq!(result.denied_fields.len(), 1);
         assert_eq!(result.allowed_fields.len(), 0);
@@ -463,10 +443,8 @@ mod tests {
 
     #[test]
     fn test_rbac_check_result_partial() {
-        let result = RBACCheckResult::partial(
-            vec!["orders".to_string()],
-            vec!["users".to_string()],
-        );
+        let result =
+            RBACCheckResult::partial(vec!["orders".to_string()], vec!["users".to_string()]);
         assert!(!result.allowed);
         assert_eq!(result.allowed_fields.len(), 1);
         assert_eq!(result.denied_fields.len(), 1);
@@ -485,11 +463,7 @@ mod tests {
 
     #[test]
     fn test_validate_fields_missing_field_in_map() {
-        let ctx = RBACContext::new(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::new("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let allowed = HashMap::new();
 
@@ -498,11 +472,7 @@ mod tests {
 
     #[test]
     fn test_can_access_field_missing_field() {
-        let ctx = RBACContext::new(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::new("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let allowed = HashMap::new();
 
@@ -511,11 +481,7 @@ mod tests {
 
     #[test]
     fn test_can_access_field_test_mode() {
-        let ctx = RBACContext::test_mode(
-            "user-123".to_string(),
-            None,
-            vec!["orders".to_string()],
-        );
+        let ctx = RBACContext::test_mode("user-123".to_string(), None, vec!["orders".to_string()]);
 
         let allowed = HashMap::new();
 

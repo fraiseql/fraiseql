@@ -92,9 +92,7 @@ impl ScopeValidator {
                     }
                 }
                 None => {
-                    return Err(
-                        "user_id variable must be an integer".to_string(),
-                    );
+                    return Err("user_id variable must be an integer".to_string());
                 }
             }
         }
@@ -111,9 +109,7 @@ impl ScopeValidator {
                     }
                 }
                 None => {
-                    return Err(
-                        "tenant_id variable must be an integer".to_string(),
-                    );
+                    return Err("tenant_id variable must be an integer".to_string());
                 }
             }
         }
@@ -166,16 +162,28 @@ impl ScopeValidator {
             ScopeLevel::None => "Wildcard subscription (no scope restriction)".to_string(),
             ScopeLevel::User => format!(
                 "User-scoped subscription (user_id: {})",
-                variables.get("user_id").and_then(|v| v.as_i64()).unwrap_or(0)
+                variables
+                    .get("user_id")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0)
             ),
             ScopeLevel::Tenant => format!(
                 "Tenant-scoped subscription (tenant_id: {})",
-                variables.get("tenant_id").and_then(|v| v.as_i64()).unwrap_or(0)
+                variables
+                    .get("tenant_id")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0)
             ),
             ScopeLevel::Both => format!(
                 "Dual-scoped subscription (user_id: {}, tenant_id: {})",
-                variables.get("user_id").and_then(|v| v.as_i64()).unwrap_or(0),
-                variables.get("tenant_id").and_then(|v| v.as_i64()).unwrap_or(0)
+                variables
+                    .get("user_id")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0),
+                variables
+                    .get("tenant_id")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0)
             ),
         }
     }

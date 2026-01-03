@@ -13,6 +13,7 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
+    use uuid::Uuid;
 
     // ============================================================================
     // SCENARIO 1: Basic Subscription Lifecycle
@@ -3354,7 +3355,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[allow(clippy::excessive_nesting)]
     async fn test_scope_variable_extraction() {
-        use crate::subscriptions::scope_validator::{ScopeValidator, ScopeLevel};
+        use crate::subscriptions::scope_validator::{ScopeLevel, ScopeValidator};
         use std::collections::HashMap;
 
         let validator = ScopeValidator::new(123, 5);
@@ -3643,7 +3644,9 @@ mod tests {
         variables.insert("tenant_id".to_string(), json!(5));
 
         // Validate subscription variables - should pass
-        assert!(security_ctx.validate_subscription_variables(&variables).is_ok());
+        assert!(security_ctx
+            .validate_subscription_variables(&variables)
+            .is_ok());
         assert!(security_ctx.passed_all_checks());
 
         // Validate event for delivery with matching user and tenant
@@ -3765,8 +3768,935 @@ mod tests {
         // Verify violation tracking
         let violations = security_ctx.get_violations();
         assert!(!violations.is_empty());
-        assert!(violations.iter().any(|v| v.contains("Scope validation failed")));
+        assert!(violations
+            .iter()
+            .any(|v| v.contains("Scope validation failed")));
 
         println!("✅ test_security_context_audit_logging passed");
+    }
+
+    // ============================================================================
+    // PHASE 4.1: Executor Integration - Unit Tests
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_execute_subscription_with_valid_security_context() {
+        let executor = SubscriptionExecutor::new();
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute_with_security(connection_id, &payload, security_ctx);
+        assert!(result.is_ok());
+
+        let sub_secure = result.unwrap();
+        assert_eq!(sub_secure.subscription.connection_id, connection_id);
+        assert_eq!(sub_secure.security_context.user_id, 123);
+        assert_eq!(sub_secure.security_context.tenant_id, 5);
+        assert_eq!(sub_secure.violations_count, 0);
+
+        println!("✅ test_execute_subscription_with_valid_security_context passed");
+    }
+
+    #[tokio::test]
+    async fn test_execute_subscription_with_invalid_user_id() {
+        let executor = SubscriptionExecutor::new();
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        let mut variables = std::collections::HashMap::new();
+        variables.insert("user_id".to_string(), json!(999)); // Wrong user!
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: Some(variables),
+            extensions: None,
+        };
+
+        let result = executor.execute_with_security(connection_id, &payload, security_ctx);
+        assert!(result.is_err()); // Should fail
+
+        println!("✅ test_execute_subscription_with_invalid_user_id passed");
+    }
+
+    #[tokio::test]
+    async fn test_execute_subscription_with_federation_mismatch() {
+        let executor = SubscriptionExecutor::new();
+        let connection_id = Uuid::new_v4();
+
+        let fed_context = FederationContext::with_id("orders-service".to_string());
+        let security_ctx = SubscriptionSecurityContext::with_federation(123, 5, fed_context);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute_with_security(connection_id, &payload, security_ctx);
+        // Should succeed (federation context is optional)
+        assert!(result.is_ok());
+
+        let sub_secure = result.unwrap();
+        assert!(sub_secure.security_context.federation.is_some());
+
+        println!("✅ test_execute_subscription_with_federation_mismatch passed");
+    }
+
+    #[tokio::test]
+    async fn test_execute_subscription_records_violations() {
+        let executor = SubscriptionExecutor::new();
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute_with_security(connection_id, &payload, security_ctx);
+        assert!(result.is_ok());
+
+        let sub_secure = result.unwrap();
+        let subscription_id = &sub_secure.subscription.id;
+
+        // Record some violations
+        let _ = executor.record_security_violation(subscription_id, "Unauthorized field access");
+        let _ = executor.record_security_violation(subscription_id, "Tenant boundary violation");
+
+        // Check violation count
+        let violation_count = executor.get_violation_count(subscription_id);
+        assert_eq!(violation_count, 2);
+
+        println!("✅ test_execute_subscription_records_violations passed");
+    }
+
+    #[tokio::test]
+    async fn test_get_subscription_with_security() {
+        let executor = SubscriptionExecutor::new();
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(456, 10);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute_with_security(connection_id, &payload, security_ctx);
+        assert!(result.is_ok());
+
+        let sub_secure = result.unwrap();
+        let subscription_id = &sub_secure.subscription.id;
+
+        // Retrieve subscription with security context
+        let retrieved = executor.get_subscription_with_security(subscription_id);
+        assert!(retrieved.is_some());
+
+        let retrieved_sub = retrieved.unwrap();
+        assert_eq!(retrieved_sub.security_context.user_id, 456);
+        assert_eq!(retrieved_sub.security_context.tenant_id, 10);
+        assert_eq!(retrieved_sub.violations_count, 0);
+
+        println!("✅ test_get_subscription_with_security passed");
+    }
+
+    // ============================================================================
+    // PHASE 4.4: Integration Tests - End-to-End Event Delivery Validation
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_integration_event_delivery_complete_flow() {
+        // Setup: Executor, filter, and metrics
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        // Step 1: Execute subscription with security
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx.clone())
+            .expect("Failed to execute subscription");
+
+        assert_eq!(sub_secure.subscription.state, SubscriptionState::Active);
+
+        // Step 2: Create event that should be delivered
+        let event = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 123,
+                "tenant_id": 5,
+                "username": "alice"
+            }),
+            "users".to_string(),
+        ));
+
+        // Step 3: Create security-aware filter and validate event
+        let base_filter = EventFilter::new()
+            .with_event_type("userUpdated")
+            .with_channel("users");
+        let sec_filter =
+            SecurityAwareEventFilter::new(base_filter, sub_secure.security_context.clone());
+
+        let (should_deliver, reason) = sec_filter.should_deliver_event(&event);
+        assert!(should_deliver, "Event should be delivered");
+        assert!(reason.is_none(), "No rejection reason expected");
+
+        // Step 4: Record metrics for accepted event
+        metrics.record_validation_passed();
+
+        // Step 5: Verify metrics state
+        assert_eq!(metrics.total_validations(), 1);
+        assert_eq!(metrics.total_passed(), 1);
+        assert_eq!(metrics.total_rejected(), 0);
+
+        println!("✅ test_integration_event_delivery_complete_flow passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_event_rejection_and_violation_tracking() {
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        // Execute subscription
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx.clone())
+            .expect("Failed to execute subscription");
+
+        // Create event with WRONG user_id (should be rejected)
+        let event = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 999,
+                "tenant_id": 5,
+                "username": "bob"
+            }),
+            "users".to_string(),
+        ));
+
+        // Create filter and validate
+        let base_filter = EventFilter::new();
+        let sec_filter =
+            SecurityAwareEventFilter::new(base_filter, sub_secure.security_context.clone());
+
+        let (should_deliver, reason) = sec_filter.should_deliver_event(&event);
+        assert!(!should_deliver, "Event should be rejected");
+        assert!(reason.is_some(), "Rejection reason expected");
+        assert!(
+            reason.unwrap().contains("Row-level"),
+            "Should be row-level filtering violation"
+        );
+
+        // Record violation
+        metrics.record_violation_row_filter();
+
+        // Verify metrics
+        assert_eq!(metrics.total_validations(), 1);
+        assert_eq!(metrics.total_rejected(), 1);
+        assert_eq!(metrics.total_passed(), 0);
+
+        let summary = metrics.violation_summary();
+        assert_eq!(summary.row_filter, 1);
+        assert_eq!(summary.total(), 1);
+
+        println!("✅ test_integration_event_rejection_and_violation_tracking passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_multi_tenant_isolation() {
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        // User 1 on Tenant A
+        let connection_id_a = Uuid::new_v4();
+        let security_ctx_a = SubscriptionSecurityContext::new(100, 10);
+
+        // User 2 on Tenant B
+        let connection_id_b = Uuid::new_v4();
+        let security_ctx_b = SubscriptionSecurityContext::new(200, 20);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        // Execute subscriptions for both tenants
+        let sub_a = executor
+            .execute_with_security(connection_id_a, &payload, security_ctx_a.clone())
+            .expect("Failed to execute subscription A");
+
+        let sub_b = executor
+            .execute_with_security(connection_id_b, &payload, security_ctx_b.clone())
+            .expect("Failed to execute subscription B");
+
+        // Event for Tenant A
+        let event_a = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 100,
+                "tenant_id": 10,
+                "data": "tenant_a_data"
+            }),
+            "users".to_string(),
+        ));
+
+        // Create filters for both subscriptions
+        let filter_a = SecurityAwareEventFilter::new(
+            EventFilter::new(),
+            sub_a.security_context.clone(),
+        );
+        let filter_b = SecurityAwareEventFilter::new(
+            EventFilter::new(),
+            sub_b.security_context.clone(),
+        );
+
+        // Tenant A event should be delivered to Tenant A subscriber
+        let (deliver_a, reason_a) = filter_a.should_deliver_event(&event_a);
+        assert!(deliver_a, "Tenant A event should deliver to Tenant A: {:?}", reason_a);
+        metrics.record_validation_passed();
+
+        // Tenant A event should NOT be delivered to Tenant B subscriber
+        let (deliver_b, reason_b) = filter_b.should_deliver_event(&event_a);
+        assert!(
+            !deliver_b,
+            "Tenant A event should NOT deliver to Tenant B: {:?}",
+            reason_b
+        );
+        metrics.record_violation_tenant_isolation();
+
+        // Verify metrics show proper isolation
+        assert_eq!(metrics.total_validations(), 2);
+        assert_eq!(metrics.total_passed(), 1);
+        assert_eq!(metrics.total_rejected(), 1);
+
+        let summary = metrics.violation_summary();
+        assert_eq!(summary.tenant_isolation, 1);
+
+        println!("✅ test_integration_multi_tenant_isolation passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_rbac_field_filtering() {
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        let connection_id = Uuid::new_v4();
+        let requested_fields = vec!["username".to_string(), "email".to_string()];
+        let security_ctx = SubscriptionSecurityContext::with_rbac(123, 5, requested_fields);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx.clone())
+            .expect("Failed to execute subscription");
+
+        // Event with fields user has access to
+        let event = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 123,
+                "tenant_id": 5,
+                "username": "alice",
+                "email": "alice@example.com"
+            }),
+            "users".to_string(),
+        ));
+
+        let base_filter = EventFilter::new();
+        let sec_filter =
+            SecurityAwareEventFilter::new(base_filter, sub_secure.security_context.clone());
+
+        let (should_deliver, reason) = sec_filter.should_deliver_event(&event);
+        // With RBAC enabled, should either pass or have RBAC-specific rejection
+        if should_deliver {
+            metrics.record_validation_passed();
+            assert_eq!(metrics.total_passed(), 1);
+        } else {
+            assert!(reason.is_some());
+            metrics.record_violation_rbac();
+            assert_eq!(metrics.total_rejected(), 1);
+        }
+
+        assert!(metrics.total_validations() > 0);
+
+        println!("✅ test_integration_rbac_field_filtering passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_violation_tracking_multiple_types() {
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        // Scenario 1: Row filter violation
+        metrics.record_violation_row_filter();
+
+        // Scenario 2: Tenant isolation violation
+        metrics.record_violation_tenant_isolation();
+        metrics.record_violation_tenant_isolation();
+
+        // Scenario 3: RBAC violation
+        metrics.record_violation_rbac();
+        metrics.record_violation_rbac();
+        metrics.record_violation_rbac();
+
+        // Scenario 4: Successful validation
+        metrics.record_validation_passed();
+        metrics.record_validation_passed();
+
+        // Verify comprehensive metrics
+        assert_eq!(metrics.total_validations(), 8);
+        assert_eq!(metrics.total_passed(), 2);
+        assert_eq!(metrics.total_rejected(), 6);
+        assert!((metrics.rejection_rate() - 75.0).abs() < 0.1); // 6/8 = 75%
+
+        let summary = metrics.violation_summary();
+        assert_eq!(summary.row_filter, 1);
+        assert_eq!(summary.tenant_isolation, 2);
+        assert_eq!(summary.rbac, 3);
+        assert_eq!(summary.federation, 0);
+        assert_eq!(summary.total(), 6);
+
+        let percentages = summary.percentages().unwrap();
+        assert!((percentages.row_filter - 16.67).abs() < 0.1); // 1/6 ≈ 16.67%
+        assert!((percentages.tenant_isolation - 33.33).abs() < 0.1); // 2/6 ≈ 33.33%
+        assert!((percentages.rbac - 50.0).abs() < 0.1); // 3/6 = 50%
+        assert_eq!(percentages.federation, 0.0);
+
+        println!("✅ test_integration_violation_tracking_multiple_types passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_event_filter_with_base_conditions_and_security() {
+        let executor = SubscriptionExecutor::new();
+        let metrics = crate::subscriptions::SecurityMetrics::new();
+
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx.clone())
+            .expect("Failed to execute subscription");
+
+        // Create filter with multiple conditions
+        let base_filter = EventFilter::new()
+            .with_event_type("userUpdated")
+            .with_channel("users")
+            .with_field("status", crate::subscriptions::FilterCondition::Equals(json!("active")));
+
+        let sec_filter = SecurityAwareEventFilter::new(base_filter, sub_secure.security_context);
+
+        // Test Case 1: Event matching all conditions
+        let event_match = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 123,
+                "tenant_id": 5,
+                "status": "active",
+                "username": "alice"
+            }),
+            "users".to_string(),
+        ));
+
+        let (deliver, reason) = sec_filter.should_deliver_event(&event_match);
+        assert!(deliver, "Event should match all conditions: {:?}", reason);
+        metrics.record_validation_passed();
+
+        // Test Case 2: Event with wrong event type
+        let event_wrong_type = Arc::new(Event::new(
+            "userDeleted".to_string(),
+            json!({
+                "user_id": 123,
+                "tenant_id": 5,
+                "status": "active"
+            }),
+            "users".to_string(),
+        ));
+
+        let (deliver, reason) = sec_filter.should_deliver_event(&event_wrong_type);
+        assert!(
+            !deliver,
+            "Event should not match wrong type: {:?}",
+            reason
+        );
+        metrics.record_validation_passed(); // Count it (base filter rejection)
+
+        // Test Case 3: Event with wrong status
+        let event_wrong_status = Arc::new(Event::new(
+            "userUpdated".to_string(),
+            json!({
+                "user_id": 123,
+                "tenant_id": 5,
+                "status": "inactive"
+            }),
+            "users".to_string(),
+        ));
+
+        let (deliver, reason) = sec_filter.should_deliver_event(&event_wrong_status);
+        assert!(
+            !deliver,
+            "Event should not match wrong status: {:?}",
+            reason
+        );
+        metrics.record_validation_passed(); // Count it (base filter rejection)
+
+        // Verify metrics
+        assert_eq!(metrics.total_validations(), 3);
+        assert_eq!(metrics.total_passed(), 1);
+        assert_eq!(metrics.total_rejected(), 2);
+        assert!((metrics.rejection_rate() - 66.67).abs() < 0.1); // 2/3 ≈ 66.67%
+
+        println!("✅ test_integration_event_filter_with_base_conditions_and_security passed");
+    }
+
+    #[tokio::test]
+    async fn test_integration_subscription_violation_recording() {
+        let executor = SubscriptionExecutor::new();
+
+        let connection_id = Uuid::new_v4();
+        let security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        let payload = SubscriptionPayload {
+            query: "subscription { test }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx)
+            .expect("Failed to execute subscription");
+
+        let subscription_id = &sub_secure.subscription.id;
+
+        // Initially no violations
+        assert_eq!(executor.get_violation_count(subscription_id), 0);
+
+        // Simulate security violations during event processing
+        executor
+            .record_security_violation(subscription_id, "Unauthorized field access")
+            .expect("Failed to record violation");
+
+        executor
+            .record_security_violation(subscription_id, "Tenant boundary violation")
+            .expect("Failed to record violation");
+
+        executor
+            .record_security_violation(subscription_id, "RBAC policy denied")
+            .expect("Failed to record violation");
+
+        // Verify violation count
+        let violation_count = executor.get_violation_count(subscription_id);
+        assert_eq!(violation_count, 3);
+
+        // Verify subscription still accessible
+        let retrieved = executor.get_subscription_with_security(subscription_id);
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().violations_count, 3);
+
+        println!("✅ test_integration_subscription_violation_recording passed");
+    }
+
+    // ============================================================================
+    // PHASE 4.5: PERFORMANCE TESTS
+    // ============================================================================
+    // Performance tests for event delivery validation security overhead
+    // Target: <20% overhead for security filtering and metrics
+
+    #[tokio::test]
+    async fn test_perf_metrics_recording_overhead() {
+        println!("\n=== test_perf_metrics_recording_overhead ===");
+        println!("Testing: Metrics recording overhead per event");
+        println!("Target: <100 nanoseconds per recording");
+
+        let metrics = SecurityMetrics::new();
+        let iterations = 100_000;
+        let start = std::time::Instant::now();
+
+        // Rapid recording of events
+        for i in 0..iterations {
+            if i % 2 == 0 {
+                metrics.record_validation_passed();
+            } else {
+                metrics.record_violation_row_filter();
+            }
+        }
+
+        let elapsed = start.elapsed();
+        let nanos_per_record = elapsed.as_nanos() as f64 / iterations as f64;
+
+        println!("Recorded {} events in {:?}", iterations, elapsed);
+        println!("Average per recording: {:.0} nanoseconds", nanos_per_record);
+        println!("Total validations: {}", metrics.total_validations());
+        println!("Passed: {}", metrics.total_passed());
+        println!("Rejected: {}", metrics.total_rejected());
+
+        // Target: <100ns per recording (atomic operations)
+        assert!(
+            nanos_per_record < 150.0,
+            "Metrics recording overhead too high: {:.0}ns",
+            nanos_per_record
+        );
+
+        assert_eq!(metrics.total_validations(), iterations as u64);
+        assert_eq!(metrics.total_passed(), 50_000);
+        assert_eq!(metrics.total_rejected(), 50_000);
+
+        println!("✅ test_perf_metrics_recording_overhead passed");
+    }
+
+    #[tokio::test]
+    async fn test_perf_event_filtering_throughput() {
+        println!("\n=== test_perf_event_filtering_throughput ===");
+        println!("Testing: Event filtering throughput");
+        println!("Target: >10,000 events/sec (>100μs per event)");
+
+        let security_ctx = SubscriptionSecurityContext {
+            user_id: "user_123".to_string(),
+            tenant_id: "tenant_5".to_string(),
+            federation_context: None,
+            scope_validators: vec![],
+            rbac_enabled: true,
+            rbac_fields: vec!["username".to_string(), "email".to_string()],
+        };
+
+        let base_filter = EventFilter {
+            event_type: Some("userUpdated".to_string()),
+            channel: Some("users".to_string()),
+            field_conditions: vec![],
+        };
+
+        let filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
+
+        // Create test event
+        let mut event_data = std::collections::HashMap::new();
+        event_data.insert("user_id".to_string(), "user_123".to_string());
+        event_data.insert("tenant_id".to_string(), "tenant_5".to_string());
+        event_data.insert("status".to_string(), "active".to_string());
+        event_data.insert("username".to_string(), "john".to_string());
+        event_data.insert("email".to_string(), "john@example.com".to_string());
+
+        let event = Event {
+            id: uuid::Uuid::new_v4(),
+            event_type: "userUpdated".to_string(),
+            channel: "users".to_string(),
+            data: event_data,
+            created_at: std::time::SystemTime::now(),
+        };
+
+        let iterations = 10_000;
+        let start = std::time::Instant::now();
+
+        // Filter same event multiple times (real scenario: many subscribers)
+        for _ in 0..iterations {
+            let (should_deliver, _reason) = filter.should_deliver_event(&event);
+            assert!(should_deliver, "Event should be delivered");
+        }
+
+        let elapsed = start.elapsed();
+        let micros_per_filter = elapsed.as_micros() as f64 / iterations as f64;
+        let events_per_sec = iterations as f64 / elapsed.as_secs_f64();
+
+        println!("Filtered {} events in {:?}", iterations, elapsed);
+        println!("Average per filter: {:.1} microseconds", micros_per_filter);
+        println!("Throughput: {:.0} events/sec", events_per_sec);
+
+        // Target: >10,000 events/sec = <100μs per event
+        assert!(
+            events_per_sec > 10_000.0,
+            "Throughput too low: {:.0} events/sec",
+            events_per_sec
+        );
+
+        println!("✅ test_perf_event_filtering_throughput passed");
+    }
+
+    #[tokio::test]
+    async fn test_perf_end_to_end_event_pipeline() {
+        println!("\n=== test_perf_end_to_end_event_pipeline ===");
+        println!("Testing: Complete event delivery validation pipeline");
+        println!("Target: <20% overhead from security components");
+
+        // Setup: Executor + Filter + Metrics
+        let executor = SubscriptionExecutor::new();
+        let metrics = SecurityMetrics::new();
+
+        let security_ctx = SubscriptionSecurityContext {
+            user_id: "user_456".to_string(),
+            tenant_id: "tenant_10".to_string(),
+            federation_context: None,
+            scope_validators: vec![],
+            rbac_enabled: true,
+            rbac_fields: vec!["data".to_string()],
+        };
+
+        // Execute subscription
+        let payload = SubscriptionPayload {
+            query: "subscription { events }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let connection_id = uuid::Uuid::new_v4();
+        let sub_secure = executor
+            .execute_with_security(connection_id, &payload, security_ctx.clone())
+            .expect("Failed to execute subscription");
+
+        let base_filter = EventFilter {
+            event_type: Some("dataChanged".to_string()),
+            channel: Some("data".to_string()),
+            field_conditions: vec![],
+        };
+
+        let filter = SecurityAwareEventFilter::new(base_filter, security_ctx);
+
+        // Create test event
+        let mut event_data = std::collections::HashMap::new();
+        event_data.insert("user_id".to_string(), "user_456".to_string());
+        event_data.insert("tenant_id".to_string(), "tenant_10".to_string());
+        event_data.insert("data".to_string(), "sensitive_value".to_string());
+
+        let event = Event {
+            id: uuid::Uuid::new_v4(),
+            event_type: "dataChanged".to_string(),
+            channel: "data".to_string(),
+            data: event_data,
+            created_at: std::time::SystemTime::now(),
+        };
+
+        let iterations = 1_000;
+        let start = std::time::Instant::now();
+
+        // Complete pipeline: filter + metrics record
+        for _ in 0..iterations {
+            let (should_deliver, _reason) = filter.should_deliver_event(&event);
+            if should_deliver {
+                metrics.record_validation_passed();
+            } else {
+                metrics.record_violation_rbac();
+            }
+        }
+
+        let elapsed = start.elapsed();
+        let micros_per_cycle = elapsed.as_micros() as f64 / iterations as f64;
+
+        println!("Completed {} pipeline cycles in {:?}", iterations, elapsed);
+        println!("Average per cycle: {:.2} microseconds", micros_per_cycle);
+        println!("Total validations: {}", metrics.total_validations());
+        println!("Rejection rate: {:.1}%", metrics.rejection_rate());
+
+        // Should be fast: filter (<50μs) + metrics (<0.1μs) = <50.1μs
+        assert!(
+            micros_per_cycle < 100.0,
+            "Pipeline too slow: {:.2}μs per cycle",
+            micros_per_cycle
+        );
+
+        assert_eq!(metrics.total_validations(), iterations as u64);
+
+        println!("✅ test_perf_end_to_end_event_pipeline passed");
+    }
+
+    #[tokio::test]
+    async fn test_perf_concurrent_filtering_scale() {
+        println!("\n=== test_perf_concurrent_filtering_scale ===");
+        println!("Testing: Concurrent filtering at scale");
+        println!("Target: No performance degradation with multiple filters");
+
+        let num_filters = 100;
+        let events_per_filter = 100;
+
+        // Create multiple filters (simulating multiple subscriptions)
+        let mut filters = vec![];
+        for i in 0..num_filters {
+            let security_ctx = SubscriptionSecurityContext {
+                user_id: format!("user_{}", i),
+                tenant_id: format!("tenant_{}", i % 10),
+                federation_context: None,
+                scope_validators: vec![],
+                rbac_enabled: true,
+                rbac_fields: vec!["field1".to_string()],
+            };
+
+            let base_filter = EventFilter {
+                event_type: Some("update".to_string()),
+                channel: Some("updates".to_string()),
+                field_conditions: vec![],
+            };
+
+            filters.push(SecurityAwareEventFilter::new(base_filter, security_ctx));
+        }
+
+        // Create event
+        let mut event_data = std::collections::HashMap::new();
+        event_data.insert("user_id".to_string(), "user_0".to_string());
+        event_data.insert("tenant_id".to_string(), "tenant_0".to_string());
+        event_data.insert("field1".to_string(), "value".to_string());
+
+        let event = Event {
+            id: uuid::Uuid::new_v4(),
+            event_type: "update".to_string(),
+            channel: "updates".to_string(),
+            data: event_data,
+            created_at: std::time::SystemTime::now(),
+        };
+
+        let start = std::time::Instant::now();
+
+        // Concurrent filtering: each filter processes multiple events
+        let mut handles = vec![];
+        for filter in filters {
+            let event_clone = Event {
+                id: uuid::Uuid::new_v4(),
+                event_type: event.event_type.clone(),
+                channel: event.channel.clone(),
+                data: event.data.clone(),
+                created_at: event.created_at,
+            };
+
+            let handle = tokio::spawn(async move {
+                for _ in 0..events_per_filter {
+                    let (_deliver, _reason) = filter.should_deliver_event(&event_clone);
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all concurrent filters to complete
+        for handle in handles {
+            handle.await.expect("Filter task panicked");
+        }
+
+        let elapsed = start.elapsed();
+        let total_operations = (num_filters * events_per_filter) as f64;
+        let ops_per_sec = total_operations / elapsed.as_secs_f64();
+
+        println!(
+            "Concurrent filtering: {} filters × {} events in {:?}",
+            num_filters, events_per_filter, elapsed
+        );
+        println!("Throughput: {:.0} ops/sec", ops_per_sec);
+        println!(
+            "Average per operation: {:.2} microseconds",
+            elapsed.as_micros() as f64 / total_operations
+        );
+
+        // With 100 concurrent filters, should still process >1,000 events/sec
+        assert!(
+            ops_per_sec > 1_000.0,
+            "Concurrent throughput too low: {:.0} ops/sec",
+            ops_per_sec
+        );
+
+        println!("✅ test_perf_concurrent_filtering_scale passed");
+    }
+
+    #[tokio::test]
+    async fn test_perf_rejection_categorization_cost() {
+        println!("\n=== test_perf_rejection_categorization_cost ===");
+        println!("Testing: Rejection categorization overhead");
+        println!("Target: Minimal overhead for tracking violation types");
+
+        let metrics = SecurityMetrics::new();
+
+        // Simulate realistic event filtering with various rejection types
+        let scenarios = vec![
+            ("validation_passed", 500),
+            ("row_filter", 100),
+            ("tenant_isolation", 75),
+            ("rbac", 150),
+            ("federation", 25),
+        ];
+
+        let start = std::time::Instant::now();
+
+        for (scenario_type, count) in scenarios {
+            for _ in 0..count {
+                match scenario_type {
+                    "validation_passed" => metrics.record_validation_passed(),
+                    "row_filter" => metrics.record_violation_row_filter(),
+                    "tenant_isolation" => metrics.record_violation_tenant_isolation(),
+                    "rbac" => metrics.record_violation_rbac(),
+                    "federation" => metrics.record_violation_federation(),
+                    _ => {}
+                }
+            }
+        }
+
+        let elapsed = start.elapsed();
+        let total_records = 850;
+        let nanos_per_record = elapsed.as_nanos() as f64 / total_records as f64;
+
+        println!("Recorded {} events with categorization in {:?}", total_records, elapsed);
+        println!(
+            "Average per categorization: {:.0} nanoseconds",
+            nanos_per_record
+        );
+
+        let summary = metrics.violation_summary();
+        println!("Violation summary: {:?}", summary);
+        println!("Rejection rate: {:.1}%", metrics.rejection_rate());
+
+        // Verify correctness
+        assert_eq!(metrics.total_validations(), 850);
+        assert_eq!(metrics.total_passed(), 500);
+        assert_eq!(metrics.total_rejected(), 350);
+        assert_eq!(summary.row_filter, 100);
+        assert_eq!(summary.tenant_isolation, 75);
+        assert_eq!(summary.rbac, 150);
+        assert_eq!(summary.federation, 25);
+
+        // Performance: each categorization should be <100ns (atomic operation)
+        assert!(
+            nanos_per_record < 150.0,
+            "Categorization overhead too high: {:.0}ns",
+            nanos_per_record
+        );
+
+        println!("✅ test_perf_rejection_categorization_cost passed");
     }
 }

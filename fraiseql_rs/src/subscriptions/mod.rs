@@ -28,6 +28,7 @@ pub mod heartbeat;
 pub mod metrics;
 pub mod presets;
 pub mod protocol;
+pub mod py_bindings;
 pub mod rate_limiter;
 pub mod rbac_integration;
 pub mod resource_limits;
@@ -63,6 +64,10 @@ pub use federation_context::FederationContext;
 pub use heartbeat::{ConnectionHeartbeat, HeartbeatMonitor, HeartbeatState};
 pub use metrics::SubscriptionMetrics;
 pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
+pub use py_bindings::{
+    init_subscriptions, PyEventBusConfig, PyGraphQLMessage, PySubscriptionExecutor,
+    PySubscriptionPayload,
+};
 pub use rate_limiter::SubscriptionRateLimiter;
 pub use rbac_integration::{RBACCheckResult, RBACContext};
 pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
