@@ -214,16 +214,9 @@ pub enum ScopeLevel {
 
 impl ScopeLevel {
     /// Check if this scope level is more restrictive than another
-    #[must_use] 
+    #[must_use]
     pub const fn is_more_restrictive(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Both, _) => true,
-            (Self::User, Self::None) => true,
-            (Self::User, Self::Tenant) => false,
-            (Self::Tenant, Self::None) => true,
-            (Self::Tenant, Self::User) => false,
-            _ => false,
-        }
+        matches!((self, other), (Self::Both, _) | (Self::User | Self::Tenant, Self::None))
     }
 }
 

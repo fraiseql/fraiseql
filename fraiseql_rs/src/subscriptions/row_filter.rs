@@ -104,12 +104,8 @@ impl RowFilterContext {
                         return false;
                     }
                 }
-                (Some(_), None) => {
-                    // Filter requires user_id but event doesn't have it
-                    return false;
-                }
-                (None, _) => {
-                    // Context has no user_id, can't filter
+                (Some(_), None) | (None, _) => {
+                    // Filter requires user_id but event doesn't have it, or context has no user_id
                     return false;
                 }
             }
@@ -124,12 +120,8 @@ impl RowFilterContext {
                         return false;
                     }
                 }
-                (Some(_), None) => {
-                    // Filter requires tenant_id but event doesn't have it
-                    return false;
-                }
-                (None, _) => {
-                    // Context has no tenant_id, can't filter
+                (Some(_), None) | (None, _) => {
+                    // Filter requires tenant_id but event doesn't have it, or context has no tenant_id
                     return false;
                 }
             }

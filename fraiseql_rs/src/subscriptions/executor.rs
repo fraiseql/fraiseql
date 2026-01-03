@@ -382,6 +382,8 @@ impl SubscriptionExecutor {
     fn validate_subscription(
         subscription: &ExecutedSubscription,
     ) -> Result<(), SubscriptionError> {
+        const MAX_FIELD_COUNT: usize = 500; // Reasonable limit for subscriptions
+
         // 1. Parse and validate GraphQL syntax
         let document = parse_query::<String>(&subscription.query).map_err(|e| {
             SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {e}"))
@@ -422,7 +424,6 @@ impl SubscriptionExecutor {
 
         // 4. Validate complexity (count fields to prevent complexity bombs)
         let field_count = count_fields(&document);
-        const MAX_FIELD_COUNT: usize = 500; // Reasonable limit for subscriptions
 
         if field_count > MAX_FIELD_COUNT {
             return Err(SubscriptionError::SubscriptionRejected(format!(
@@ -924,7 +925,7 @@ impl SubscriptionExecutor {
         let sub_with_security = sub_entry.value().clone();
 
         // 2. Apply security filters - skip if access denied
-        if !Self::check_security_filters(&sub_with_security, event_data)? {
+        if !Self::check_security_filters(&sub_with_security, event_data) {
             // Access denied, silently skip this subscription
             return Ok(());
         }
@@ -957,13 +958,13 @@ impl SubscriptionExecutor {
     fn check_security_filters(
         sub_with_security: &ExecutedSubscriptionWithSecurity,
         event_data: &Value,
-    ) -> Result<bool, SubscriptionError> {
+    ) -> bool {
         let security_ctx = &sub_with_security.security_context;
 
         // SECURITY FILTER 1: Violation circuit breaker
         // If subscription has too many violations, deny all further events
         if sub_with_security.violations_count > 100 {
-            return Ok(false); // Too many violations, security circuit breaker activated
+            return false; // Too many violations, security circuit breaker activated
         }
 
         // SECURITY FILTER 2: Row-level filtering (user_id and tenant_id)
@@ -972,7 +973,7 @@ impl SubscriptionExecutor {
         if !security_ctx.row_filter.matches(event_data) {
             // Event doesn't match subscription's row filter criteria
             // This is expected behavior for events outside user's scope
-            return Ok(false);
+            return false;
         }
 
         // SECURITY FILTER 3: Multi-tenant enforcement
@@ -980,7 +981,7 @@ impl SubscriptionExecutor {
         // Validates event.tenant_id matches subscription context tenant
         if !security_ctx.tenant.matches(event_data) {
             // Event is from a different tenant, reject
-            return Ok(false);
+            return false;
         }
 
         // SECURITY FILTER 4: Federation context isolation
@@ -1010,7 +1011,7 @@ impl SubscriptionExecutor {
         }
 
         // All security filters passed - allow event delivery
-        Ok(true)
+        true
     }
 
     /// Invoke Python resolver for event (Phase 2/2.2)

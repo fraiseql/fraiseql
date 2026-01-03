@@ -135,12 +135,8 @@ impl WebSocketConnection {
                 self.manager.register_subscription(self.connection_id, id)?;
             }
 
-            GraphQLMessage::Ping { .. } => {
-                // Ping handled at protocol level
-            }
-
-            GraphQLMessage::Pong { .. } => {
-                // Pong handled at protocol level
+            GraphQLMessage::Ping { .. } | GraphQLMessage::Pong { .. } => {
+                // Ping/Pong handled at protocol level
             }
 
             _ => {
@@ -250,7 +246,7 @@ impl WebSocketServer {
         // Store in local tracking
         self.connections
             .lock()
-            .unwrap()
+            .expect("Failed to lock connections mutex")
             .insert(connection.connection_id, connection.clone());
 
         // Record metrics
@@ -264,7 +260,7 @@ impl WebSocketServer {
     /// Unregister connection
     pub fn unregister_connection(&self, connection_id: Uuid) -> Result<(), SubscriptionError> {
         // Get connection before removing to record metrics
-        let connection = self.connections.lock().unwrap().remove(&connection_id);
+        let connection = self.connections.lock().expect("Failed to lock connections mutex").remove(&connection_id);
 
         // Unregister from connection manager
         self.connection_manager
@@ -283,25 +279,25 @@ impl WebSocketServer {
     }
 
     /// Get connection by ID
-    #[must_use] 
+    #[must_use]
     pub fn get_connection(&self, connection_id: Uuid) -> Option<WebSocketConnection> {
         self.connections
             .lock()
-            .unwrap()
+            .expect("Failed to lock connections mutex")
             .get(&connection_id)
             .cloned()
     }
 
     /// Get all active connections count
-    #[must_use] 
+    #[must_use]
     pub fn active_connections_count(&self) -> usize {
-        self.connections.lock().unwrap().len()
+        self.connections.lock().expect("Failed to lock connections mutex").len()
     }
 
     /// Get connections info as JSON
-    #[must_use] 
+    #[must_use]
     pub fn connections_info(&self) -> Value {
-        let connections = self.connections.lock().unwrap();
+        let connections = self.connections.lock().expect("Failed to lock connections mutex");
         let info: Vec<Value> = connections.values().map(WebSocketConnection::as_json).collect();
 
         serde_json::json!({
@@ -311,9 +307,9 @@ impl WebSocketServer {
     }
 
     /// Check for timed-out connections
-    #[must_use] 
+    #[must_use]
     pub fn check_timeouts(&self) -> Vec<Uuid> {
-        let connections = self.connections.lock().unwrap();
+        let connections = self.connections.lock().expect("Failed to lock connections mutex");
         connections
             .iter()
             .filter(|(_, conn)| conn.init_timed_out())

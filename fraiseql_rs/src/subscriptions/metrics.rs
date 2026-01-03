@@ -271,9 +271,11 @@ impl SubscriptionMetrics {
 }
 
 impl Default for SubscriptionMetrics {
+    #[allow(clippy::unimplemented)]
     fn default() -> Self {
         // This won't be called in practice, but needed for trait completeness
-        panic!("Use SubscriptionMetrics::new() or SubscriptionMetrics::with_registry() instead")
+        // We use unimplemented!() instead of panic!() for better semantics
+        unimplemented!("Use SubscriptionMetrics::new() or SubscriptionMetrics::with_registry() instead")
     }
 }
 

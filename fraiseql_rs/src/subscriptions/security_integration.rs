@@ -12,6 +12,7 @@ use crate::subscriptions::{
 };
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 /// Unified security context for subscription validation
 ///
@@ -159,7 +160,7 @@ impl SubscriptionSecurityContext {
         // If any violations occurred, return error
         if !violations.is_empty() {
             self.all_checks_passed = false;
-            self.violations = violations.clone();
+            self.violations.clone_from(&violations);
             return Err(violations.join("; "));
         }
 
@@ -216,28 +217,26 @@ impl SubscriptionSecurityContext {
             self.user_id, self.tenant_id
         );
 
-        log.push_str(&format!("Row Filter: {}\n", self.row_filter.describe()));
-        log.push_str(&format!("Tenant Context: {}\n", self.tenant.describe()));
-        log.push_str(&format!(
-            "Scope Validator: {}\n",
-            self.scope_validator.describe()
-        ));
+        let _ = writeln!(log, "Row Filter: {}", self.row_filter.describe());
+        let _ = writeln!(log, "Tenant Context: {}", self.tenant.describe());
+        let _ = writeln!(log, "Scope Validator: {}", self.scope_validator.describe());
 
         if let Some(ref fed) = self.federation {
-            log.push_str(&format!("Federation: {}\n", fed.describe()));
+            let _ = writeln!(log, "Federation: {}", fed.describe());
         }
 
         if let Some(ref rbac) = self.rbac {
-            log.push_str(&format!("RBAC: {}\n", rbac.describe()));
+            let _ = writeln!(log, "RBAC: {}", rbac.describe());
         }
 
         if self.violations.is_empty() {
             log.push_str("✅ All security checks passed\n");
         } else {
-            log.push_str(&format!(
-                "Security Violations:\n  - {}\n",
+            let _ = writeln!(
+                log,
+                "Security Violations:\n  - {}",
                 self.violations.join("\n  - ")
-            ));
+            );
         }
 
         log

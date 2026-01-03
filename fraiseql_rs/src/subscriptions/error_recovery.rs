@@ -120,10 +120,10 @@ impl CircuitBreaker {
         let current_state = *self.state.lock().await;
 
         match current_state {
-            CircuitState::Closed => true,
             CircuitState::Open => {
                 // Check if timeout has elapsed to try half-open
-                if let Some(last_failure) = *self.last_failure_time.lock().await {
+                let value = *self.last_failure_time.lock().await;
+                if let Some(last_failure) = value {
                     if last_failure.elapsed() >= self.timeout {
                         // Allow transition to half-open
                         return true;
@@ -131,7 +131,7 @@ impl CircuitBreaker {
                 }
                 false
             }
-            CircuitState::HalfOpen => true,
+            CircuitState::Closed | CircuitState::HalfOpen => true,
         }
     }
 

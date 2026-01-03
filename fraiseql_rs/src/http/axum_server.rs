@@ -291,7 +291,7 @@ async fn graphql_handler(
         let entry = crate::http::observability_middleware::create_audit_entry(
             &obs_context,
             &request.query,
-            &serde_json::to_value(&variables).unwrap_or(serde_json::json!({})),
+            &serde_json::to_value(&variables).unwrap_or_else(|_| serde_json::json!({})),
             &headers,
             status,
             error_msg.as_deref(),

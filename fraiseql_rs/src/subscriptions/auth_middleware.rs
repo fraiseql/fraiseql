@@ -117,9 +117,7 @@ impl AuthMiddleware {
             .ok_or(AuthError::MissingToken)?;
 
         // Parse "Bearer <token>" format
-        let token = if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            token
-        } else {
+        let Some(token) = auth_header.strip_prefix("Bearer ") else {
             return Err(AuthError::InvalidFormat);
         };
 
@@ -171,7 +169,7 @@ impl AuthMiddleware {
         let exp = payload_json
             .get("exp")
             .and_then(serde_json::Value::as_u64)
-            .ok_or(AuthError::ValidationFailed("Missing exp claim".to_string()))?;
+            .ok_or_else(|| AuthError::ValidationFailed("Missing exp claim".to_string()))?;
 
         let iat = payload_json
             .get("iat")
