@@ -13,6 +13,7 @@
 //!
 //! Phase 15b: Real-time & Caching (Subscriptions)
 
+pub mod auth_middleware;
 pub mod config;
 pub mod connection_manager;
 pub mod connection_pool;
@@ -39,6 +40,7 @@ pub mod stress_utils;
 #[cfg(test)]
 pub mod chaos_utils;
 
+pub use auth_middleware::{AuthContext, AuthMiddleware};
 pub use config::{
     EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
 };
