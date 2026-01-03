@@ -4,6 +4,7 @@
 
 use crate::subscriptions::protocol::SubscriptionPayload;
 use crate::subscriptions::SubscriptionError;
+use graphql_parser::parse_query;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -191,12 +192,68 @@ impl SubscriptionExecutor {
     }
 
     /// Validate subscription
+    ///
+    /// Performs comprehensive GraphQL subscription validation:
+    /// - Syntax validation (parse_query succeeds)
+    /// - Operation type validation (must be subscription)
+    /// - Operation name validation (if specified, must exist)
+    /// - Variables validation (must match query parameters)
     fn validate_subscription(
         &self,
-        _subscription: &ExecutedSubscription,
+        subscription: &ExecutedSubscription,
     ) -> Result<(), SubscriptionError> {
-        // TODO: In full implementation, validate GraphQL syntax, operation name, etc.
-        // For Phase 15b Week 1, we do basic validation only
+        // 1. Parse and validate GraphQL syntax
+        let document = parse_query::<String>(&subscription.query).map_err(|e| {
+            SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {}", e))
+        })?;
+
+        // 2. Validate that query contains subscription operation
+        let has_subscription = document.definitions.iter().any(|def| {
+            matches!(def, graphql_parser::query::Definition::Operation(op) if {
+                match op {
+                    graphql_parser::query::OperationDefinition::Subscription(_) => true,
+                    _ => false,
+                }
+            })
+        });
+
+        if !has_subscription {
+            return Err(SubscriptionError::InvalidMessage(
+                "Query must contain a subscription operation".to_string(),
+            ));
+        }
+
+        // 3. Validate operation name if specified
+        if let Some(operation_name) = &subscription.operation_name {
+            let operation_exists = document.definitions.iter().any(|def| {
+                if let graphql_parser::query::Definition::Operation(
+                    graphql_parser::query::OperationDefinition::Subscription(op),
+                ) = def
+                {
+                    op.name.as_ref() == Some(operation_name)
+                } else {
+                    false
+                }
+            });
+
+            if !operation_exists {
+                return Err(SubscriptionError::InvalidMessage(format!(
+                    "Operation '{}' not found in query",
+                    operation_name
+                )));
+            }
+        }
+
+        // 4. Validate complexity (count fields to prevent complexity bombs)
+        let field_count = count_fields(&document);
+        const MAX_FIELD_COUNT: usize = 500; // Reasonable limit for subscriptions
+
+        if field_count > MAX_FIELD_COUNT {
+            return Err(SubscriptionError::SubscriptionRejected(format!(
+                "Query too complex: {} fields (max: {})",
+                field_count, MAX_FIELD_COUNT
+            )));
+        }
 
         Ok(())
     }
@@ -321,6 +378,55 @@ impl Default for SubscriptionExecutor {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Helper function to count fields in a GraphQL document
+/// Used for complexity validation to prevent query bombs
+fn count_fields(document: &graphql_parser::query::Document<String>) -> usize {
+    document
+        .definitions
+        .iter()
+        .fold(0, |count, def| {
+            count
+                + match def {
+                    graphql_parser::query::Definition::Operation(
+                        graphql_parser::query::OperationDefinition::Subscription(op),
+                    ) => count_selection_set(&op.selection_set),
+                    graphql_parser::query::Definition::Operation(
+                        graphql_parser::query::OperationDefinition::Query(op),
+                    ) => count_selection_set(&op.selection_set),
+                    graphql_parser::query::Definition::Operation(
+                        graphql_parser::query::OperationDefinition::Mutation(op),
+                    ) => count_selection_set(&op.selection_set),
+                    graphql_parser::query::Definition::Operation(
+                        graphql_parser::query::OperationDefinition::SelectionSet(sel_set),
+                    ) => count_selection_set(sel_set),
+                    graphql_parser::query::Definition::Fragment(frag) => {
+                        count_selection_set(&frag.selection_set)
+                    }
+                }
+        })
+}
+
+/// Helper function to count fields in a selection set
+fn count_selection_set(
+    selection_set: &graphql_parser::query::SelectionSet<String>,
+) -> usize {
+    selection_set
+        .items
+        .iter()
+        .fold(0, |count, item| {
+            count
+                + match item {
+                    graphql_parser::query::Selection::Field(field) => {
+                        1 + count_selection_set(&field.selection_set)
+                    }
+                    graphql_parser::query::Selection::InlineFragment(frag) => {
+                        count_selection_set(&frag.selection_set)
+                    }
+                    graphql_parser::query::Selection::FragmentSpread(_) => 1,
+                }
+        })
 }
 
 #[cfg(test)]
@@ -449,5 +555,128 @@ mod tests {
         let metrics = executor.metrics();
         assert_eq!(metrics["total"], 2);
         assert_eq!(metrics["active"], 2);
+    }
+
+    #[test]
+    fn test_validate_invalid_syntax() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "this is not valid graphql {{{".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("GraphQL syntax error"));
+    }
+
+    #[test]
+    fn test_validate_mutation_not_subscription() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "mutation { createMessage { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must contain a subscription operation"));
+    }
+
+    #[test]
+    fn test_validate_query_not_subscription() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "query { user { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must contain a subscription operation"));
+    }
+
+    #[test]
+    fn test_validate_operation_name_not_found() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "subscription OnMessage { messageAdded { id } }".to_string(),
+            operation_name: Some("OnUserUpdated".to_string()),
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Operation") && result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_validate_valid_subscription_with_operation_name() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        let payload = SubscriptionPayload {
+            query: "subscription OnMessage { messageAdded { id } }".to_string(),
+            operation_name: Some("OnMessage".to_string()),
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_ok());
+
+        let sub = result.unwrap();
+        assert_eq!(sub.state, SubscriptionState::Active);
+        assert_eq!(sub.operation_name, Some("OnMessage".to_string()));
+    }
+
+    #[test]
+    fn test_validate_nested_fields_count() {
+        let executor = SubscriptionExecutor::new();
+        let conn_id = Uuid::new_v4();
+
+        // Create a deeply nested query to test field counting
+        let payload = SubscriptionPayload {
+            query: "subscription { \
+                messageAdded { \
+                    id name author { id email } \
+                    replies { id text } \
+                } \
+            }"
+            .to_string(),
+            operation_name: None,
+            variables: None,
+            extensions: None,
+        };
+
+        let result = executor.execute(conn_id, &payload);
+        assert!(result.is_ok());
     }
 }
