@@ -178,8 +178,6 @@ pub fn create_compression_layer(
 ///
 /// A tower layer that handles CORS headers
 pub fn create_cors_layer() -> CorsLayer {
-    use tower_http::cors::AllowOrigin;
-
     CorsLayer::permissive()
     // In production, configure this:
     // .allow_origin(AllowOrigin::list(vec![

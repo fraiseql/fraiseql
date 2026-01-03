@@ -106,7 +106,6 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Add middleware stack
         .layer(middleware::create_compression_layer(compression_config))
         .layer(middleware::create_cors_layer())
-        .into()
 }
 
 /// Handles incoming GraphQL POST requests

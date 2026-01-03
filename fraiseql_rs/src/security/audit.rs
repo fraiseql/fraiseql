@@ -70,6 +70,15 @@ pub struct AuditEntry {
     pub duration_ms: Option<i32>,
 }
 
+/// Statistics about audit events
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuditStats {
+    /// Total number of audit events recorded
+    pub total_events: u64,
+    /// Number of recent events (last 24 hours or recent window)
+    pub recent_events: u64,
+}
+
 /// Audit logger with `PostgreSQL` backend
 #[derive(Clone, Debug)]
 pub struct AuditLogger {

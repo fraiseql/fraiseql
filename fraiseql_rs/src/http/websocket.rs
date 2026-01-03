@@ -55,7 +55,7 @@ use futures_util::sink::SinkExt;
 ///
 /// A response that upgrades the HTTP connection to WebSocket
 pub async fn websocket_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket))
+    ws.on_upgrade(handle_socket)
 }
 
 /// Handles the WebSocket socket connection

@@ -9,7 +9,7 @@
 //! - Constraint enforcement
 
 pub mod audit;
-// pub mod config;  // Has compilation errors with AuditStats - not needed for HTTP middleware
+pub mod config;
 pub mod constraints;
 pub mod cors;
 pub mod csrf;

@@ -9,6 +9,7 @@ use super::{
     validators::{QueryLimits, QueryValidator},
 };
 use std::env;
+use std::sync::Arc;
 
 /// Master security configuration
 #[derive(Debug)]
@@ -285,7 +286,7 @@ impl SecurityComponents {
 
         // Audit logger
         let audit_logger = if config.audit.enabled {
-            pool.map(AuditLogger::new)
+            pool.map(|p| AuditLogger::new(Arc::new(p)))
         } else {
             None
         };
