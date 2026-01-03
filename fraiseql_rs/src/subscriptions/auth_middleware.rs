@@ -135,12 +135,11 @@ impl AuthMiddleware {
 
         // Validate token format without signature verification
         // (In production, signature verification should be added)
-        validate_token_format(parts[0], parts[1])
-            .map_err(|e| AuthError::ValidationFailed(e))?;
+        validate_token_format(parts[0], parts[1]).map_err(|e| AuthError::ValidationFailed(e))?;
 
         // Decode payload (base64url)
-        let payload_bytes = decode_base64url(parts[1])
-            .map_err(|e| AuthError::ValidationFailed(e))?;
+        let payload_bytes =
+            decode_base64url(parts[1]).map_err(|e| AuthError::ValidationFailed(e))?;
 
         let payload_str = String::from_utf8(payload_bytes)
             .map_err(|_| AuthError::ValidationFailed("Invalid UTF-8".to_string()))?;
@@ -163,9 +162,7 @@ impl AuthMiddleware {
         let exp = payload_json
             .get("exp")
             .and_then(|v| v.as_u64())
-            .ok_or(AuthError::ValidationFailed(
-                "Missing exp claim".to_string(),
-            ))?;
+            .ok_or(AuthError::ValidationFailed("Missing exp claim".to_string()))?;
 
         let iat = payload_json
             .get("iat")
@@ -209,9 +206,7 @@ fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
     }
 
     // Replace url-safe characters
-    let standard = padded
-        .replace('-', "+")
-        .replace('_', "/");
+    let standard = padded.replace('-', "+").replace('_', "/");
 
     // Simple base64 decode using built-in
     // Note: In production, consider using base64 crate for efficiency
@@ -344,10 +339,7 @@ mod tests {
             AuthError::MissingToken.to_string(),
             "Missing authentication token"
         );
-        assert_eq!(
-            AuthError::InvalidFormat.to_string(),
-            "Invalid token format"
-        );
+        assert_eq!(AuthError::InvalidFormat.to_string(), "Invalid token format");
         assert_eq!(AuthError::Expired.to_string(), "Token has expired");
         assert_eq!(
             AuthError::MissingUserId.to_string(),

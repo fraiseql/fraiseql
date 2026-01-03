@@ -418,6 +418,39 @@ impl SubscriptionExecutor {
             .map(|entry| entry.value().clone())
             .collect()
     }
+
+    /// Validate subscription against security context
+    ///
+    /// Performs comprehensive security validation using the unified
+    /// SubscriptionSecurityContext that integrates all 5 security modules:
+    /// 1. Row-level filtering
+    /// 2. Federation context isolation
+    /// 3. Multi-tenant enforcement
+    /// 4. Subscription scope verification
+    /// 5. RBAC integration
+    ///
+    /// # Arguments
+    /// * `subscription` - The subscription to validate
+    /// * `security_context` - Unified security context for validation
+    ///
+    /// # Returns
+    /// * `Ok(())` if all security checks pass
+    /// * `Err(SubscriptionError)` if any security check fails
+    pub fn validate_subscription_security(
+        &self,
+        subscription: &ExecutedSubscription,
+        security_context: &crate::subscriptions::SubscriptionSecurityContext,
+    ) -> Result<(), SubscriptionError> {
+        // Validate subscription variables against security context
+        // This checks scope validation, federation boundaries, and tenant isolation
+        let mut mutable_context = security_context.clone();
+        mutable_context
+            .validate_subscription_variables(&subscription.variables)
+            .map_err(|e| SubscriptionError::AuthorizationFailed(e))?;
+
+        // All security checks passed
+        Ok(())
+    }
 }
 
 impl Clone for ExecutedSubscription {

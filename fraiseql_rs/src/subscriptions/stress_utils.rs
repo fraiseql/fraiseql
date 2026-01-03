@@ -80,9 +80,7 @@ impl FailureInjector {
     /// Create a failure injector with given failure rate
     pub fn new(failure_rate: f64) -> Self {
         let rate = failure_rate.max(0.0).min(1.0);
-        Self {
-            failure_rate: rate,
-        }
+        Self { failure_rate: rate }
     }
 
     /// Determine if this invocation should fail
@@ -238,10 +236,8 @@ mod tests {
 
     #[test]
     fn test_latency_simulator_jittered() {
-        let latency = LatencySimulator::jittered(
-            Duration::from_millis(50),
-            Duration::from_millis(500),
-        );
+        let latency =
+            LatencySimulator::jittered(Duration::from_millis(50), Duration::from_millis(500));
         assert!(latency.jitter);
         assert_eq!(latency.min, Duration::from_millis(50));
         assert_eq!(latency.max, Duration::from_millis(500));

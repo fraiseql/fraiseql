@@ -233,18 +233,9 @@ mod tests {
 
     #[test]
     fn test_filter_describe() {
-        assert_eq!(
-            RowFilterContext::no_filter().describe(),
-            "No filtering"
-        );
-        assert_eq!(
-            RowFilterContext::user_only(123).describe(),
-            "user_id=123"
-        );
-        assert_eq!(
-            RowFilterContext::tenant_only(5).describe(),
-            "tenant_id=5"
-        );
+        assert_eq!(RowFilterContext::no_filter().describe(), "No filtering");
+        assert_eq!(RowFilterContext::user_only(123).describe(), "user_id=123");
+        assert_eq!(RowFilterContext::tenant_only(5).describe(), "tenant_id=5");
         assert_eq!(
             RowFilterContext::new(Some(123), Some(5)).describe(),
             "user_id=123 AND tenant_id=5"

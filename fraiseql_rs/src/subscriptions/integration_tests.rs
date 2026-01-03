@@ -3627,4 +3627,146 @@ mod tests {
 
         println!("✅ test_rbac_multiple_fields_partial_access passed");
     }
+
+    // ============================================================================
+    // PHASE 3.6: Security Integration - Unified Security Context
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_security_context_complete_validation() {
+        // Setup: Complete security context with all modules
+        let mut security_ctx = SubscriptionSecurityContext::new(123, 5);
+
+        // Prepare valid subscription variables
+        let mut variables = std::collections::HashMap::new();
+        variables.insert("user_id".to_string(), json!(123));
+        variables.insert("tenant_id".to_string(), json!(5));
+
+        // Validate subscription variables - should pass
+        assert!(security_ctx.validate_subscription_variables(&variables).is_ok());
+        assert!(security_ctx.passed_all_checks());
+
+        // Validate event for delivery with matching user and tenant
+        let event_data = json!({ "user_id": 123, "tenant_id": 5, "id": "order-1" });
+        assert!(security_ctx.validate_event_for_delivery(&event_data));
+
+        // Validate event with wrong user - should be filtered
+        let wrong_user_event = json!({ "user_id": 999, "tenant_id": 5, "id": "order-2" });
+        assert!(!security_ctx.validate_event_for_delivery(&wrong_user_event));
+
+        println!("✅ test_security_context_complete_validation passed");
+    }
+
+    #[tokio::test]
+    async fn test_security_context_federation_isolation() {
+        // Setup: Security context with federation
+        let federation = FederationContext::with_id("orders-service".to_string());
+        let security_ctx = SubscriptionSecurityContext::with_federation(123, 5, federation);
+
+        // Verify federation context exists
+        assert!(security_ctx.federation.is_some());
+
+        // Verify federation is federated
+        if let Some(ref fed) = security_ctx.federation {
+            assert!(fed.is_federated());
+        }
+
+        // Verify all checks still pass
+        assert!(security_ctx.passed_all_checks());
+
+        println!("✅ test_security_context_federation_isolation passed");
+    }
+
+    #[tokio::test]
+    async fn test_security_context_event_delivery_filtering() {
+        // Setup: Multi-tenant context with row filtering
+        let security_ctx = SubscriptionSecurityContext::new(42, 3);
+
+        // Test matching tenant event - should pass
+        let matching_event = json!({
+            "id": "evt-1",
+            "user_id": 42,
+            "tenant_id": 3,
+            "amount": 100.50
+        });
+        assert!(security_ctx.validate_event_for_delivery(&matching_event));
+
+        // Test mismatched tenant - should be filtered
+        let wrong_tenant_event = json!({
+            "id": "evt-2",
+            "user_id": 42,
+            "tenant_id": 7
+        });
+        assert!(!security_ctx.validate_event_for_delivery(&wrong_tenant_event));
+
+        // Test missing user_id - should be filtered
+        let missing_user_event = json!({
+            "id": "evt-3",
+            "tenant_id": 3
+        });
+        assert!(!security_ctx.validate_event_for_delivery(&missing_user_event));
+
+        println!("✅ test_security_context_event_delivery_filtering passed");
+    }
+
+    #[tokio::test]
+    async fn test_security_context_rbac_field_access() {
+        // Setup: Security context with RBAC
+        let requested_fields = vec![
+            "orders".to_string(),
+            "users".to_string(),
+            "payments".to_string(),
+        ];
+        let security_ctx = SubscriptionSecurityContext::with_rbac(456, 8, requested_fields);
+
+        // Verify RBAC context exists
+        assert!(security_ctx.rbac.is_some());
+
+        // Setup allowed fields (partial access)
+        let mut allowed_fields = std::collections::HashMap::new();
+        allowed_fields.insert("orders".to_string(), true);
+        allowed_fields.insert("users".to_string(), true);
+        allowed_fields.insert("payments".to_string(), false);
+
+        // Validation should fail due to denied 'payments' field
+        assert!(security_ctx.validate_field_access(&allowed_fields).is_err());
+
+        // But accessible fields can be retrieved
+        if let Some(accessible) = security_ctx.get_accessible_fields() {
+            // The RBAC context should identify accessible fields
+            assert!(!accessible.is_empty());
+        }
+
+        println!("✅ test_security_context_rbac_field_access passed");
+    }
+
+    #[tokio::test]
+    async fn test_security_context_audit_logging() {
+        // Setup: Create security context and trigger violations
+        let mut security_ctx = SubscriptionSecurityContext::new(789, 12);
+
+        // Prepare invalid subscription variables (wrong user)
+        let mut variables = std::collections::HashMap::new();
+        variables.insert("user_id".to_string(), json!(999)); // Different from context
+        variables.insert("tenant_id".to_string(), json!(12));
+
+        // Trigger validation failure
+        let _result = security_ctx.validate_subscription_variables(&variables);
+
+        // Generate audit log
+        let audit_log = security_ctx.audit_log();
+
+        // Verify log contains expected content
+        assert!(audit_log.contains("789")); // user_id
+        assert!(audit_log.contains("12")); // tenant_id
+        assert!(audit_log.contains("Tenant")); // Tenant context info
+        assert!(audit_log.contains("Row Filter")); // Row filter info
+
+        // Verify violation tracking
+        let violations = security_ctx.get_violations();
+        assert!(!violations.is_empty());
+        assert!(violations.iter().any(|v| v.contains("Scope validation failed")));
+
+        println!("✅ test_security_context_audit_logging passed");
+    }
 }

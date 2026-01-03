@@ -33,6 +33,7 @@ pub mod rbac_integration;
 pub mod resource_limits;
 pub mod row_filter;
 pub mod scope_validator;
+pub mod security_integration;
 pub mod tenant_context;
 pub mod websocket;
 
@@ -67,6 +68,7 @@ pub use rbac_integration::{RBACCheckResult, RBACContext};
 pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
 pub use row_filter::RowFilterContext;
 pub use scope_validator::{ScopeLevel, ScopeValidator};
+pub use security_integration::SubscriptionSecurityContext;
 pub use tenant_context::TenantContext;
 pub use websocket::{WebSocketConnection, WebSocketServer};
 
