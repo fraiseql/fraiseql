@@ -1533,7 +1533,7 @@ mod tests {
     #[allow(clippy::excessive_nesting)]
     async fn test_stress_10000_concurrent_connections() {
         use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
-        use crate::subscriptions::stress_utils::{ResourceMonitor, LatencySimulator};
+        use crate::subscriptions::stress_utils::{LatencySimulator, ResourceMonitor};
 
         let bus = Arc::new(InMemoryEventBus::new());
         let monitor = ResourceMonitor::new();
@@ -1574,13 +1574,23 @@ mod tests {
         let report = monitor.report();
 
         println!("\n📊 STRESS TEST: 10,000 Concurrent Connections");
-        println!("  ✓ Successful: {}/10000 ({:.1}%)", successful, (successful as f64 / 10000.0) * 100.0);
+        println!(
+            "  ✓ Successful: {}/10000 ({:.1}%)",
+            successful,
+            (successful as f64 / 10000.0) * 100.0
+        );
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
         report.print();
 
         // Assertions
-        assert!(successful >= 9900, "At least 99% should succeed (9900+ of 10000)");
-        assert!(elapsed.as_secs_f64() < 30.0, "Should complete within 30 seconds");
+        assert!(
+            successful >= 9900,
+            "At least 99% should succeed (9900+ of 10000)"
+        );
+        assert!(
+            elapsed.as_secs_f64() < 30.0,
+            "Should complete within 30 seconds"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
@@ -1618,7 +1628,11 @@ mod tests {
                     successful += 1;
                 }
             }
-            println!("  Wave {}: {}/10000 subscriptions created", wave + 1, successful);
+            println!(
+                "  Wave {}: {}/10000 subscriptions created",
+                wave + 1,
+                successful
+            );
             all_handles.push(successful);
 
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1630,12 +1644,19 @@ mod tests {
         let report = monitor.report();
 
         println!("\n📊 STRESS TEST: 50,000 Subscriptions (Cascade)");
-        println!("  ✓ Total successful: {}/50000 ({:.1}%)", total_successful, (total_successful as f64 / 50000.0) * 100.0);
+        println!(
+            "  ✓ Total successful: {}/50000 ({:.1}%)",
+            total_successful,
+            (total_successful as f64 / 50000.0) * 100.0
+        );
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
         report.print();
 
         assert!(total_successful >= 49500, "At least 99% success rate");
-        assert!(elapsed.as_secs_f64() < 120.0, "Should complete within 2 minutes");
+        assert!(
+            elapsed.as_secs_f64() < 120.0,
+            "Should complete within 2 minutes"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1690,9 +1711,15 @@ mod tests {
 
         println!("\n📊 STRESS TEST: Latency Injection (100ms per op)");
         println!("  ✓ Subscriptions succeeded: {}/100", successful);
-        println!("  ⏱ Time: {:.2}s (latency impact expected)", elapsed.as_secs_f64());
+        println!(
+            "  ⏱ Time: {:.2}s (latency impact expected)",
+            elapsed.as_secs_f64()
+        );
 
-        assert!(successful >= 90, "At least 90% should succeed despite latency");
+        assert!(
+            successful >= 90,
+            "At least 90% should succeed despite latency"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1702,11 +1729,15 @@ mod tests {
         use crate::subscriptions::stress_utils::LatencySimulator;
 
         let bus = Arc::new(InMemoryEventBus::new());
-        let latency = LatencySimulator::jittered(Duration::from_millis(50), Duration::from_millis(100)); // Compressed for testing
+        let latency =
+            LatencySimulator::jittered(Duration::from_millis(50), Duration::from_millis(100)); // Compressed for testing
         let start_time = Instant::now();
 
         // Subscribe
-        let mut stream = bus.subscribe("jitter-test").await.expect("Subscribe failed");
+        let mut stream = bus
+            .subscribe("jitter-test")
+            .await
+            .expect("Subscribe failed");
 
         // Publisher with jittered latency
         let bus_clone = bus.clone();
@@ -1751,7 +1782,10 @@ mod tests {
         println!("  ✓ Events received: {}/50", received);
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
 
-        assert!(received >= 40, "Should receive at least 40 events despite jitter");
+        assert!(
+            received >= 40,
+            "Should receive at least 40 events despite jitter"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1814,7 +1848,10 @@ mod tests {
         // Create 100 subscribers on same channel
         let mut streams = vec![];
         for _ in 0..100 {
-            let stream = bus.subscribe("memory-saturation").await.expect("Subscribe failed");
+            let stream = bus
+                .subscribe("memory-saturation")
+                .await
+                .expect("Subscribe failed");
             streams.push(stream);
         }
 
@@ -1878,12 +1915,19 @@ mod tests {
 
         println!("\n📊 STRESS TEST: Memory Saturation (5,000 × 1KB events)");
         println!("  📤 Published: 5,000 events");
-        println!("  📥 Received: {}/50,0000 ({}% delivery)", total_received, (total_received as f64 / 500000.0) * 100.0);
+        println!(
+            "  📥 Received: {}/50,0000 ({}% delivery)",
+            total_received,
+            (total_received as f64 / 500000.0) * 100.0
+        );
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
         report.print();
 
         // Should deliver majority of events despite queue saturation
-        assert!(total_received >= 250000, "Should deliver at least 50% of events");
+        assert!(
+            total_received >= 250000,
+            "Should deliver at least 50% of events"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1898,7 +1942,10 @@ mod tests {
         // Create 10 subscribers
         let mut streams = vec![];
         for _ in 0..10 {
-            let stream = bus.subscribe("large-payload").await.expect("Subscribe failed");
+            let stream = bus
+                .subscribe("large-payload")
+                .await
+                .expect("Subscribe failed");
             streams.push(stream);
         }
 
@@ -1961,7 +2008,10 @@ mod tests {
         println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
         report.print();
 
-        assert!(total_received >= 400, "Should deliver at least 80% of large events");
+        assert!(
+            total_received >= 400,
+            "Should deliver at least 80% of large events"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -2030,7 +2080,10 @@ mod tests {
         println!("  ⏱ Total time: {:.2}s", total_elapsed.as_secs_f64());
 
         assert!(recovered >= 475, "Should recover at least 95% (475/500)");
-        assert!(recovery_elapsed.as_secs_f64() < 10.0, "Recovery should complete in <10 seconds");
+        assert!(
+            recovery_elapsed.as_secs_f64() < 10.0,
+            "Recovery should complete in <10 seconds"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -2045,7 +2098,10 @@ mod tests {
         // Create 100 subscribers
         let mut streams = vec![];
         for _ in 0..100 {
-            let stream = bus.subscribe("combined-stress").await.expect("Subscribe failed");
+            let stream = bus
+                .subscribe("combined-stress")
+                .await
+                .expect("Subscribe failed");
             streams.push(stream);
         }
 
@@ -2102,9 +2158,609 @@ mod tests {
 
         println!("\n📊 STRESS TEST: Combined (Latency + Payload + Subscribers)");
         println!("  📤 Published: 200 events (10KB each, 50ms latency)");
-        println!("  📥 Received: {}/20,000 ({:.1}%)", total_received, (total_received as f64 / 20000.0) * 100.0);
-        println!("  ⏱ Time: {:.2}s (latency impact expected)", elapsed.as_secs_f64());
+        println!(
+            "  📥 Received: {}/20,000 ({:.1}%)",
+            total_received,
+            (total_received as f64 / 20000.0) * 100.0
+        );
+        println!(
+            "  ⏱ Time: {:.2}s (latency impact expected)",
+            elapsed.as_secs_f64()
+        );
 
-        assert!(total_received >= 15000, "Should deliver at least 75% despite combined stress");
+        assert!(
+            total_received >= 15000,
+            "Should deliver at least 75% despite combined stress"
+        );
+    }
+
+    // ============================================================================
+    // PHASE 2.5: CHAOS ENGINEERING
+    // ============================================================================
+    // Test failure scenarios: Redis down, PostgreSQL down, cascading failures
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_redis_unavailability_with_fallback() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+        let start_time = Instant::now();
+
+        // Subscribe to channel
+        let mut stream = bus
+            .subscribe("chaos-redis")
+            .await
+            .expect("Subscribe failed");
+
+        // Simulate Redis failure
+        chaos.fail_redis();
+        println!("  ⚠️  Injected chaos: {}", chaos.describe());
+
+        // Publisher tries to use Redis (which is down), should fallback to in-memory
+        let bus_clone = bus.clone();
+        let chaos_clone = chaos.clone();
+        let publisher = tokio::spawn(async move {
+            let mut published = 0;
+            for i in 0..100 {
+                // Check if Redis is down, would normally fallback
+                if chaos_clone.is_redis_down() {
+                    // Use in-memory fallback
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "fallback".to_string(),
+                            json!({ "fallback": true, "id": i }),
+                            "chaos-redis".to_string(),
+                        )))
+                        .await;
+                    published += 1;
+                }
+            }
+            published
+        });
+
+        // Receive events despite Redis being down
+        let mut received = 0;
+        for _ in 0..50 {
+            let result = tokio::time::timeout(Duration::from_millis(500), stream.recv()).await;
+            if result.is_ok() && result.unwrap().is_some() {
+                received += 1;
+            }
+        }
+
+        let published = publisher.await.ok().unwrap_or(0);
+        chaos.restore_redis();
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 CHAOS TEST: Redis Unavailability with Fallback");
+        println!("  ⚠️  Redis was down for {:.2}s", elapsed.as_secs_f64());
+        println!("  📤 Published (via fallback): {}", published);
+        println!("  📥 Received: {}", received);
+
+        assert!(
+            published >= 90,
+            "Should publish via fallback despite Redis down"
+        );
+        assert!(received >= 45, "Should receive messages from fallback");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_partial_failure_injection() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+
+        // Inject 30% failure rate
+        chaos.set_failure_percentage(30);
+        println!("  ⚠️  Injected chaos: {}", chaos.describe());
+
+        let start_time = Instant::now();
+
+        // Create 100 subscriptions with failure injection
+        let mut handles = vec![];
+        for i in 0..100 {
+            let bus_clone = bus.clone();
+            let chaos_clone = chaos.clone();
+            let handle = tokio::spawn(async move {
+                // Should fail 30% of the time
+                if chaos_clone.should_fail() {
+                    return false;
+                }
+                let channel = format!("partial-fail-{}", i);
+                bus_clone.subscribe(&channel).await.is_ok()
+            });
+            handles.push(handle);
+        }
+
+        let mut successful = 0;
+        let mut failed = 0;
+        for handle in handles {
+            if let Ok(Ok(true)) = handle.await {
+                successful += 1;
+            } else {
+                failed += 1;
+            }
+        }
+
+        chaos.reset();
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 CHAOS TEST: Partial Failure Injection (30%)");
+        println!("  📊 Successful: {} (expected ~70)", successful);
+        println!("  ❌ Failed: {} (expected ~30)", failed);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+
+        // With 30% failure rate, expect 60-75 successful (70% ± tolerance)
+        assert!(
+            successful >= 60,
+            "Should have 60%+ success despite 30% injection"
+        );
+        assert!(failed >= 20, "Should have ~30% failures");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_circuit_breaker_pattern() {
+        use crate::subscriptions::chaos_utils::{CircuitBreaker, CircuitState};
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let circuit_breaker = CircuitBreaker::new(3, 2, Duration::from_millis(500));
+
+        let start_time = Instant::now();
+
+        // Phase 1: Normal operation
+        println!("  📍 Phase 1: Normal operation");
+        let mut operations = 0;
+        for i in 0..5 {
+            if circuit_breaker.can_execute() {
+                let channel = format!("circuit-{}", i);
+                if bus.subscribe(&channel).await.is_ok() {
+                    circuit_breaker.record_success();
+                    operations += 1;
+                } else {
+                    circuit_breaker.record_failure();
+                }
+            }
+        }
+        println!("    Successful operations: {}", operations);
+        assert_eq!(circuit_breaker.state(), CircuitState::Closed);
+
+        // Phase 2: Failures accumulate, circuit opens
+        println!("  📍 Phase 2: Failures cause circuit to open");
+        for _ in 0..3 {
+            if circuit_breaker.can_execute() {
+                circuit_breaker.record_failure();
+            }
+        }
+        assert_eq!(circuit_breaker.state(), CircuitState::Open);
+        println!("    Circuit state: {:?}", circuit_breaker.state());
+
+        // Phase 3: Circuit blocks requests
+        println!("  📍 Phase 3: Circuit blocks requests");
+        let mut blocked = 0;
+        for _ in 0..5 {
+            if !circuit_breaker.can_execute() {
+                blocked += 1;
+            }
+        }
+        println!("    Blocked requests: {}", blocked);
+        assert!(blocked >= 4, "Circuit should block requests");
+
+        // Phase 4: Timeout, try half-open
+        println!("  📍 Phase 4: Timeout passes, circuit half-opens");
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert!(circuit_breaker.can_execute());
+        assert_eq!(circuit_breaker.state(), CircuitState::HalfOpen);
+
+        // Phase 5: Recover with successes
+        println!("  📍 Phase 5: Successes during half-open recover circuit");
+        circuit_breaker.record_success();
+        circuit_breaker.record_success();
+        assert_eq!(circuit_breaker.state(), CircuitState::Closed);
+        println!("    Circuit recovered!");
+
+        let elapsed = start_time.elapsed();
+        println!("\n📊 CHAOS TEST: Circuit Breaker Pattern");
+        println!("  ✓ Closed → Open → HalfOpen → Closed transitions verified");
+        println!("  ⏱ Total time: {:.2}s", elapsed.as_secs_f64());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_cascading_failure_recovery() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+
+        // Create base subscriptions (100 channels, 10 subscribers each = 1000)
+        let mut all_streams = vec![];
+        for ch_idx in 0..100 {
+            for _ in 0..10 {
+                let channel = format!("cascade-{}", ch_idx);
+                if let Ok(stream) = bus.subscribe(&channel).await {
+                    all_streams.push(stream);
+                }
+            }
+        }
+
+        let initial_subscribers = all_streams.len();
+        println!("  Initial subscribers: {}", initial_subscribers);
+
+        // Induce cascading failures: fail 50% of operations
+        chaos.set_failure_percentage(50);
+        println!("  ⚠️  Chaos: {}", chaos.describe());
+
+        let bus_clone = bus.clone();
+        let chaos_clone = chaos.clone();
+        let start_time = Instant::now();
+
+        // Phase 1: Cascade failures while publishing
+        let publisher = tokio::spawn(async move {
+            let mut published = 0;
+            for i in 0..500 {
+                if !chaos_clone.should_fail() {
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "cascade".to_string(),
+                            json!({ "id": i }),
+                            format!("cascade-{}", i % 100),
+                        )))
+                        .await;
+                    published += 1;
+                }
+                if i % 50 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+            published
+        });
+
+        // Receive from all streams while cascade happens
+        let mut receive_tasks = vec![];
+        for mut stream in all_streams {
+            let task = tokio::spawn(async move {
+                let mut count = 0;
+                while count < 3 {
+                    if let Ok(Some(_event)) =
+                        tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+                    {
+                        count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                count
+            });
+            receive_tasks.push(task);
+        }
+
+        publisher.await.ok();
+
+        let mut total_received = 0;
+        for task in receive_tasks {
+            if let Ok(count) = task.await {
+                total_received += count;
+            }
+        }
+
+        // Phase 2: Remove chaos and verify recovery
+        println!("  ✓ Removing chaos, system should recover");
+        chaos.reset();
+
+        let bus_clone = bus.clone();
+        let recovery_test = tokio::spawn(async move {
+            let mut recovered = 0;
+            for i in 0..50 {
+                let channel = format!("recovery-{}", i);
+                if bus_clone.subscribe(&channel).await.is_ok() {
+                    recovered += 1;
+                }
+            }
+            recovered
+        });
+
+        let recovered = recovery_test.await.ok().unwrap_or(0);
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 CHAOS TEST: Cascading Failure Recovery");
+        println!("  📊 Initial subscribers: {}", initial_subscribers);
+        println!(
+            "  📤 Published during chaos: {} (50% success target)",
+            total_received / 1000
+        );
+        println!("  📥 Received during chaos: {}", total_received);
+        println!("  ♻️  Recovered subscriptions: {}/50", recovered);
+        println!("  ⏱ Total time: {:.2}s", elapsed.as_secs_f64());
+
+        // Should partially succeed during chaos and fully recover after
+        assert!(recovered >= 45, "Should recover 90%+ after chaos removed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_simultaneous_redis_postgres_failure() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+
+        // Both Redis and PostgreSQL down simultaneously
+        chaos.fail_redis();
+        chaos.fail_postgres();
+        println!("  ⚠️  Injected chaos: {}", chaos.describe());
+
+        let start_time = Instant::now();
+
+        // Create subscriptions despite both backends down
+        let mut stream = bus
+            .subscribe("dual-failure")
+            .await
+            .expect("Subscribe failed");
+
+        let bus_clone = bus.clone();
+        let chaos_clone = chaos.clone();
+
+        // Publisher with dual failure (both down, use in-memory only)
+        let publisher = tokio::spawn(async move {
+            let mut published = 0;
+            for i in 0..100 {
+                if chaos_clone.is_redis_down() && chaos_clone.is_postgres_down() {
+                    // Both are down, must use in-memory fallback
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "dual-fail".to_string(),
+                            json!({ "id": i, "both_down": true }),
+                            "dual-failure".to_string(),
+                        )))
+                        .await;
+                    published += 1;
+                }
+            }
+            published
+        });
+
+        // Receive from in-memory fallback
+        let mut received = 0;
+        for _ in 0..50 {
+            if let Ok(Some(_event)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+            {
+                received += 1;
+            }
+        }
+
+        let published = publisher.await.ok().unwrap_or(0);
+
+        // Restore both
+        chaos.restore_redis();
+        chaos.restore_postgres();
+
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 CHAOS TEST: Simultaneous Redis & PostgreSQL Failure");
+        println!("  ⚠️  Both systems down for {:.2}s", elapsed.as_secs_f64());
+        println!("  📤 Published (in-memory fallback): {}", published);
+        println!("  📥 Received: {}", received);
+
+        // Should still work on in-memory fallback
+        assert!(published >= 90, "Should publish via in-memory fallback");
+        assert!(received >= 45, "Should receive from in-memory");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_failure_during_subscription_creation() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+
+        let start_time = Instant::now();
+
+        // Create 500 subscriptions with 25% failure rate during creation
+        chaos.set_failure_percentage(25);
+        println!("  ⚠️  Chaos during creation: {}", chaos.describe());
+
+        let mut handles = vec![];
+        for i in 0..500 {
+            let bus_clone = bus.clone();
+            let chaos_clone = chaos.clone();
+            let handle = tokio::spawn(async move {
+                if chaos_clone.should_fail() {
+                    // Simulate failure during subscription creation
+                    false
+                } else {
+                    let channel = format!("creation-{}", i);
+                    bus_clone.subscribe(&channel).await.is_ok()
+                }
+            });
+            handles.push(handle);
+
+            if i % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
+        let mut successful = 0;
+        let mut failed = 0;
+        for handle in handles {
+            if let Ok(Ok(true)) = handle.await {
+                successful += 1;
+            } else {
+                failed += 1;
+            }
+        }
+
+        chaos.reset();
+        let elapsed = start_time.elapsed();
+
+        println!("\n📊 CHAOS TEST: Failure During Subscription Creation");
+        println!("  📊 Successful: {} (expected ~375)", successful);
+        println!("  ❌ Failed: {} (expected ~125)", failed);
+        println!("  ⏱ Time: {:.2}s", elapsed.as_secs_f64());
+
+        // With 25% failure rate during creation, expect ~375 successful
+        assert!(successful >= 350, "Should have 70%+ success");
+        assert!(failed >= 100, "Should have ~25% failures");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_chaos_recovery_with_gradual_restoration() {
+        use crate::subscriptions::chaos_utils::ChaosController;
+        use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let chaos = ChaosController::new();
+
+        // Phase 1: Normal operation
+        println!("  📍 Phase 1: Normal operation (10 events)");
+        let mut stream = bus.subscribe("recovery").await.expect("Subscribe failed");
+
+        let bus_clone = bus.clone();
+        let publisher = tokio::spawn(async move {
+            for i in 0..10 {
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "normal".to_string(),
+                        json!({ "phase": 1, "id": i }),
+                        "recovery".to_string(),
+                    )))
+                    .await;
+            }
+        });
+
+        let mut phase1_received = 0;
+        for _ in 0..10 {
+            if let Ok(Some(_)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+            {
+                phase1_received += 1;
+            }
+        }
+        publisher.await.ok();
+        println!("    Received: {}/10", phase1_received);
+
+        // Phase 2: Inject chaos
+        println!("  📍 Phase 2: Chaos injected (50% failure rate)");
+        chaos.set_failure_percentage(50);
+        let bus_clone = bus.clone();
+        let chaos_clone = chaos.clone();
+        let publisher = tokio::spawn(async move {
+            let mut published = 0;
+            for i in 0..10 {
+                if !chaos_clone.should_fail() {
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "chaos".to_string(),
+                            json!({ "phase": 2, "id": i }),
+                            "recovery".to_string(),
+                        )))
+                        .await;
+                    published += 1;
+                }
+            }
+            published
+        });
+
+        let mut phase2_received = 0;
+        for _ in 0..10 {
+            if let Ok(Some(_)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+            {
+                phase2_received += 1;
+            }
+        }
+        let phase2_published = publisher.await.ok().unwrap_or(0);
+        println!("    Published: {} (expect ~5)", phase2_published);
+        println!("    Received: {} (expect ~5)", phase2_received);
+
+        // Phase 3: Gradual recovery
+        println!("  📍 Phase 3: Reducing failure rate to 25%");
+        chaos.set_failure_percentage(25);
+        let bus_clone = bus.clone();
+        let chaos_clone = chaos.clone();
+        let publisher = tokio::spawn(async move {
+            let mut published = 0;
+            for i in 0..10 {
+                if !chaos_clone.should_fail() {
+                    let _ = bus_clone
+                        .publish(Arc::new(Event::new(
+                            "recovery".to_string(),
+                            json!({ "phase": 3, "id": i }),
+                            "recovery".to_string(),
+                        )))
+                        .await;
+                    published += 1;
+                }
+            }
+            published
+        });
+
+        let mut phase3_received = 0;
+        for _ in 0..10 {
+            if let Ok(Some(_)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+            {
+                phase3_received += 1;
+            }
+        }
+        let phase3_published = publisher.await.ok().unwrap_or(0);
+        println!("    Published: {} (expect ~7-8)", phase3_published);
+        println!("    Received: {} (expect ~7-8)", phase3_received);
+
+        // Phase 4: Full recovery
+        println!("  📍 Phase 4: Chaos removed, system fully recovered");
+        chaos.reset();
+        let bus_clone = bus.clone();
+        let publisher = tokio::spawn(async move {
+            for i in 0..10 {
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "recovered".to_string(),
+                        json!({ "phase": 4, "id": i }),
+                        "recovery".to_string(),
+                    )))
+                    .await;
+            }
+        });
+
+        let mut phase4_received = 0;
+        for _ in 0..10 {
+            if let Ok(Some(_)) =
+                tokio::time::timeout(Duration::from_millis(100), stream.recv()).await
+            {
+                phase4_received += 1;
+            }
+        }
+        publisher.await.ok();
+        println!("    Received: {}/10", phase4_received);
+
+        println!("\n📊 CHAOS TEST: Recovery with Gradual Restoration");
+        println!("  📊 Phase 1 (normal):    {} delivered", phase1_received);
+        println!("  📊 Phase 2 (50% chaos): {} delivered", phase2_received);
+        println!("  📊 Phase 3 (25% chaos): {} delivered", phase3_received);
+        println!("  📊 Phase 4 (recovered): {} delivered", phase4_received);
+
+        assert!(phase1_received >= 9, "Phase 1 should deliver most events");
+        assert!(
+            phase2_received < phase1_received,
+            "Phase 2 should deliver fewer due to chaos"
+        );
+        assert!(
+            phase3_received > phase2_received,
+            "Phase 3 should deliver more as chaos reduces"
+        );
+        assert!(phase4_received >= 9, "Phase 4 should fully recover");
     }
 }

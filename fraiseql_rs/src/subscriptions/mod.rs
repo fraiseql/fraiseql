@@ -36,6 +36,9 @@ mod integration_tests;
 #[cfg(test)]
 pub mod stress_utils;
 
+#[cfg(test)]
+pub mod chaos_utils;
+
 pub use config::{
     EventBusConfig, RateLimiterConfig, SubscriptionConfig, SubscriptionLimits, WebSocketConfig,
 };
