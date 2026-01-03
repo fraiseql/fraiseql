@@ -79,7 +79,7 @@ impl RedisEventBus {
         })?;
 
         let connection = client
-            .get_multiplexed_tokio_connection()
+            .get_multiplexed_async_connection()
             .await
             .map_err(|e| {
                 SubscriptionError::EventBusError(format!("Failed to get connection: {e}"))
