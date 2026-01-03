@@ -356,4 +356,274 @@ mod tests {
         bus.unsubscribe("chat").await.unwrap();
         assert_eq!(bus.stats().active_subscribers, 0);
     }
+
+    // Additional comprehensive unit tests for InMemoryEventBus
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_multiple_channels() {
+        let bus = InMemoryEventBus::new();
+
+        // Subscribe to multiple channels
+        let _stream1 = bus.subscribe("chat").await.unwrap();
+        let _stream2 = bus.subscribe("notifications").await.unwrap();
+        let _stream3 = bus.subscribe("alerts").await.unwrap();
+
+        let stats = bus.stats();
+        assert_eq!(stats.total_subscriptions, 3);
+        assert_eq!(stats.active_subscribers, 3);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_multiple_subscribers_same_channel() {
+        let bus = std::sync::Arc::new(InMemoryEventBus::new());
+        let bus_clone1 = bus.clone();
+        let _bus_clone2 = bus.clone();
+
+        // Multiple subscribers to same channel
+        let mut stream1 = bus.subscribe("chat").await.unwrap();
+        let mut stream2 = bus.subscribe("chat").await.unwrap();
+
+        let event = Arc::new(Event::new(
+            "messageAdded".to_string(),
+            serde_json::json!({"message": "hello"}),
+            "chat".to_string(),
+        ));
+
+        let event_clone = event.clone();
+        tokio::spawn(async move {
+            bus_clone1.publish(event_clone).await.unwrap();
+        });
+
+        // Both subscribers should receive the event
+        let received1 = tokio::time::timeout(std::time::Duration::from_millis(500), stream1.recv())
+            .await
+            .unwrap();
+        let received2 = tokio::time::timeout(std::time::Duration::from_millis(500), stream2.recv())
+            .await
+            .unwrap();
+
+        assert!(received1.is_some());
+        assert!(received2.is_some());
+        assert_eq!(received1.unwrap().id, received2.unwrap().id);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_publish_without_subscribers() {
+        let bus = InMemoryEventBus::new();
+
+        let event = Arc::new(Event::new(
+            "orphan".to_string(),
+            serde_json::json!({}),
+            "unknown-channel".to_string(),
+        ));
+
+        // Should not error even if no subscribers
+        let result = bus.publish(event).await;
+        assert!(result.is_ok());
+
+        let stats = bus.stats();
+        assert_eq!(stats.total_events, 1);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_stats_tracking() {
+        let bus = InMemoryEventBus::new();
+
+        let initial_stats = bus.stats();
+        assert_eq!(initial_stats.total_events, 0);
+        assert_eq!(initial_stats.total_subscriptions, 0);
+
+        let _stream = bus.subscribe("test").await.unwrap();
+        let stats = bus.stats();
+        assert_eq!(stats.total_subscriptions, 1);
+        assert_eq!(stats.active_subscribers, 1);
+
+        let event = Arc::new(Event::new(
+            "test".to_string(),
+            serde_json::json!({}),
+            "test".to_string(),
+        ));
+        let _ = bus.publish(event).await;
+
+        let stats = bus.stats();
+        assert_eq!(stats.total_events, 1);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_multiple_rapid_publishes() {
+        let bus = std::sync::Arc::new(InMemoryEventBus::new());
+        let bus_clone = bus.clone();
+
+        let mut stream = bus.subscribe("rapid").await.unwrap();
+
+        tokio::spawn(async move {
+            for i in 0..10 {
+                let event = Arc::new(Event::new(
+                    "rapid".to_string(),
+                    serde_json::json!({"count": i}),
+                    "rapid".to_string(),
+                ));
+                let _ = bus_clone.publish(event).await;
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            }
+        });
+
+        // Receive all events
+        for _ in 0..10 {
+            let result =
+                tokio::time::timeout(std::time::Duration::from_secs(2), stream.recv()).await;
+            assert!(result.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_subscribe_many() {
+        let bus = InMemoryEventBus::new();
+
+        let channels = vec![
+            "chat".to_string(),
+            "notifications".to_string(),
+            "alerts".to_string(),
+        ];
+
+        let _stream = bus.subscribe_many(channels.clone()).await.unwrap();
+
+        let stats = bus.stats();
+        assert_eq!(stats.total_subscriptions, channels.len() as u64);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_init() {
+        let bus = InMemoryEventBus::new();
+        let result = bus.init().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_health_check() {
+        let bus = InMemoryEventBus::new();
+        let result = bus.health_check().await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_event_bus_stats_mode() {
+        let bus = InMemoryEventBus::new();
+        let stats = bus.stats();
+        assert_eq!(stats.mode, "in-memory");
+    }
+
+    #[test]
+    fn test_in_memory_event_bus_clone() {
+        let bus = InMemoryEventBus::new();
+        let bus2 = std::sync::Arc::new(bus);
+        let bus3 = bus2.clone();
+
+        // Both should share the same internal state
+        let stats1 = bus2.stats();
+        let stats2 = bus3.stats();
+        assert_eq!(stats1.mode, stats2.mode);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_arc_sharing() {
+        let event1 = Arc::new(Event::new(
+            "test".to_string(),
+            serde_json::json!({"id": 1}),
+            "channel".to_string(),
+        ));
+
+        let event2 = event1.clone();
+
+        // Both should point to same event
+        assert_eq!(event1.id, event2.id);
+        assert!(Arc::ptr_eq(&event1, &event2));
+    }
+
+    #[tokio::test]
+    async fn test_event_stream_recv() {
+        let bus = std::sync::Arc::new(InMemoryEventBus::new());
+        let bus_clone = bus.clone();
+
+        let mut stream = bus.subscribe("stream-test").await.unwrap();
+
+        let event = Arc::new(Event::new(
+            "test".to_string(),
+            serde_json::json!({"value": 42}),
+            "stream-test".to_string(),
+        ));
+
+        tokio::spawn(async move {
+            let _ = bus_clone.publish(event).await;
+        });
+
+        let received = tokio::time::timeout(std::time::Duration::from_secs(1), stream.recv())
+            .await
+            .unwrap();
+
+        assert!(received.is_some());
+        assert_eq!(received.unwrap().data["value"], 42);
+    }
+
+    #[tokio::test]
+    async fn test_event_stream_timeout() {
+        let bus = InMemoryEventBus::new();
+        let mut stream = bus.subscribe("empty").await.unwrap();
+
+        // No events published, should timeout
+        let result =
+            tokio::time::timeout(std::time::Duration::from_millis(100), stream.recv()).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_event_bus_stats_default() {
+        let stats = EventBusStats::default();
+        assert_eq!(stats.total_events, 0);
+        assert_eq!(stats.total_delivered, 0);
+        assert_eq!(stats.total_subscriptions, 0);
+        assert_eq!(stats.active_subscribers, 0);
+        assert_eq!(stats.mode, "");
+    }
+
+    #[test]
+    fn test_event_bus_stats_as_json() {
+        let stats = EventBusStats {
+            total_events: 100,
+            total_delivered: 95,
+            total_subscriptions: 10,
+            active_subscribers: 5,
+            mode: "test-mode".to_string(),
+        };
+
+        let json = stats.as_json();
+        assert_eq!(json["total_events"], 100);
+        assert_eq!(json["total_delivered"], 95);
+        assert_eq!(json["total_subscriptions"], 10);
+        assert_eq!(json["active_subscribers"], 5);
+        assert_eq!(json["mode"], "test-mode");
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_concurrent_subscribe_unsubscribe() {
+        let bus = std::sync::Arc::new(InMemoryEventBus::new());
+
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("channel-{i}");
+                let _stream = bus_clone.subscribe(&channel).await.unwrap();
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                let _ = bus_clone.unsubscribe(&channel).await;
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            assert!(handle.await.is_ok());
+        }
+    }
 }

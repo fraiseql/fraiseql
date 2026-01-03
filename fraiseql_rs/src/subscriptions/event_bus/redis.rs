@@ -350,4 +350,189 @@ mod tests {
             assert!(key.contains(channel));
         }
     }
+
+    // Additional comprehensive unit tests
+
+    #[test]
+    fn test_redis_config_immutability() {
+        let config = RedisConfig::default();
+        let config2 = config.clone();
+        assert_eq!(config.url, config2.url);
+        assert_eq!(config.consumer_group, config2.consumer_group);
+    }
+
+    #[test]
+    fn test_batch_size_configuration() {
+        let config = RedisConfig {
+            url: "redis://localhost:6379".to_string(),
+            consumer_group: "test".to_string(),
+            message_ttl: 3600,
+            batch_size: 200,
+        };
+        assert_eq!(config.batch_size, 200);
+    }
+
+    #[test]
+    fn test_message_ttl_configuration() {
+        let config = RedisConfig {
+            url: "redis://localhost:6379".to_string(),
+            consumer_group: "test".to_string(),
+            message_ttl: 7200,
+            batch_size: 100,
+        };
+        assert_eq!(config.message_ttl, 7200);
+    }
+
+    #[test]
+    fn test_event_with_correlation_id() {
+        let event = Event::new(
+            "messageAdded".to_string(),
+            serde_json::json!({"message": "hello"}),
+            "chat".to_string(),
+        )
+        .with_correlation_id("corr-123".to_string());
+
+        assert_eq!(event.correlation_id, Some("corr-123".to_string()));
+
+        // Verify serialization preserves correlation ID
+        let json_str = serde_json::to_string(&event).unwrap();
+        let parsed: Event = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed.correlation_id, Some("corr-123".to_string()));
+    }
+
+    #[test]
+    fn test_event_timestamp_set() {
+        let before = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let event = Event::new(
+            "test".to_string(),
+            serde_json::json!({}),
+            "channel".to_string(),
+        );
+
+        let after = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        assert!(event.timestamp >= before);
+        assert!(event.timestamp <= after);
+    }
+
+    #[test]
+    fn test_event_id_unique() {
+        let event1 = Event::new(
+            "test".to_string(),
+            serde_json::json!({}),
+            "channel".to_string(),
+        );
+        let event2 = Event::new(
+            "test".to_string(),
+            serde_json::json!({}),
+            "channel".to_string(),
+        );
+
+        assert_ne!(event1.id, event2.id);
+    }
+
+    #[test]
+    fn test_event_serialization_with_complex_data() {
+        let complex_data = serde_json::json!({
+            "nested": {
+                "deep": {
+                    "value": 42,
+                    "array": [1, 2, 3],
+                    "string": "test"
+                }
+            },
+            "list": [
+                {"id": 1, "name": "item1"},
+                {"id": 2, "name": "item2"}
+            ]
+        });
+
+        let event = Event::new(
+            "complexEvent".to_string(),
+            complex_data.clone(),
+            "complex-channel".to_string(),
+        );
+
+        let json_str = serde_json::to_string(&event).unwrap();
+        let parsed: Event = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(parsed.data, complex_data);
+        assert_eq!(parsed.event_type, "complexEvent");
+        assert_eq!(parsed.channel, "complex-channel");
+    }
+
+    #[test]
+    fn test_event_as_json() {
+        let event = Event::new(
+            "test".to_string(),
+            serde_json::json!({"value": 123}),
+            "channel".to_string(),
+        );
+
+        let json = event.as_json();
+        assert!(json.is_object());
+        assert_eq!(json["event_type"], "test");
+        assert_eq!(json["channel"], "channel");
+        assert_eq!(json["data"]["value"], 123);
+    }
+
+    #[test]
+    fn test_multiple_stream_keys() {
+        let channels = ["chat", "notifications", "alerts", "user-updates", "system"];
+        let stream_keys: Vec<String> = channels
+            .iter()
+            .map(|c| format!("fraiseql:events:{c}"))
+            .collect();
+
+        // Verify all keys are unique
+        let mut seen = std::collections::HashSet::new();
+        for key in &stream_keys {
+            assert!(seen.insert(key), "Duplicate stream key found: {key}");
+        }
+
+        // Verify keys are properly formatted
+        for key in stream_keys {
+            assert!(key.starts_with("fraiseql:events:"));
+            assert!(key.len() > "fraiseql:events:".len());
+        }
+    }
+
+    #[test]
+    fn test_consumer_group_configuration() {
+        let config = RedisConfig {
+            url: "redis://localhost:6379".to_string(),
+            consumer_group: "custom-consumer-group".to_string(),
+            message_ttl: 3600,
+            batch_size: 100,
+        };
+
+        assert_eq!(config.consumer_group, "custom-consumer-group");
+    }
+
+    #[test]
+    fn test_config_url_parsing() {
+        let urls = vec![
+            "redis://localhost:6379",
+            "redis://user:password@localhost:6379",
+            "redis://localhost:6380",
+            "redis-sentinel://host1:26379,host2:26379",
+        ];
+
+        for url in urls {
+            let config = RedisConfig {
+                url: url.to_string(),
+                consumer_group: "test".to_string(),
+                message_ttl: 3600,
+                batch_size: 100,
+            };
+            assert_eq!(config.url, url);
+        }
+    }
 }

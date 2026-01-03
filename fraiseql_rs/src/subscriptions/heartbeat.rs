@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn test_heartbeat_monitor_creation() {
         let config = create_test_config();
-        let monitor = HeartbeatMonitor::new(config.clone(), None);
+        let monitor = HeartbeatMonitor::new(config, None);
 
         assert_eq!(monitor.ping_interval(), Duration::from_secs(30));
         assert_eq!(monitor.pong_timeout(), Duration::from_secs(10));

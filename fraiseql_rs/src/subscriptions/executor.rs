@@ -29,6 +29,7 @@ pub enum SubscriptionState {
 }
 
 /// Executed subscription with validation
+#[derive(Debug)]
 pub struct ExecutedSubscription {
     /// Subscription ID
     pub id: String,
@@ -128,7 +129,10 @@ impl ExecutedSubscription {
     }
 
     /// Get time until subscription reaches max lifetime
-    pub fn time_until_expiry(&self, max_lifetime: std::time::Duration) -> Option<std::time::Duration> {
+    pub fn time_until_expiry(
+        &self,
+        max_lifetime: std::time::Duration,
+    ) -> Option<std::time::Duration> {
         let elapsed = self.uptime();
         if elapsed < max_lifetime {
             Some(max_lifetime - elapsed)
@@ -441,50 +445,42 @@ impl Default for SubscriptionExecutor {
 /// Helper function to count fields in a GraphQL document
 /// Used for complexity validation to prevent query bombs
 fn count_fields(document: &graphql_parser::query::Document<String>) -> usize {
-    document
-        .definitions
-        .iter()
-        .fold(0, |count, def| {
-            count
-                + match def {
-                    graphql_parser::query::Definition::Operation(
-                        graphql_parser::query::OperationDefinition::Subscription(op),
-                    ) => count_selection_set(&op.selection_set),
-                    graphql_parser::query::Definition::Operation(
-                        graphql_parser::query::OperationDefinition::Query(op),
-                    ) => count_selection_set(&op.selection_set),
-                    graphql_parser::query::Definition::Operation(
-                        graphql_parser::query::OperationDefinition::Mutation(op),
-                    ) => count_selection_set(&op.selection_set),
-                    graphql_parser::query::Definition::Operation(
-                        graphql_parser::query::OperationDefinition::SelectionSet(sel_set),
-                    ) => count_selection_set(sel_set),
-                    graphql_parser::query::Definition::Fragment(frag) => {
-                        count_selection_set(&frag.selection_set)
-                    }
+    document.definitions.iter().fold(0, |count, def| {
+        count
+            + match def {
+                graphql_parser::query::Definition::Operation(
+                    graphql_parser::query::OperationDefinition::Subscription(op),
+                ) => count_selection_set(&op.selection_set),
+                graphql_parser::query::Definition::Operation(
+                    graphql_parser::query::OperationDefinition::Query(op),
+                ) => count_selection_set(&op.selection_set),
+                graphql_parser::query::Definition::Operation(
+                    graphql_parser::query::OperationDefinition::Mutation(op),
+                ) => count_selection_set(&op.selection_set),
+                graphql_parser::query::Definition::Operation(
+                    graphql_parser::query::OperationDefinition::SelectionSet(sel_set),
+                ) => count_selection_set(sel_set),
+                graphql_parser::query::Definition::Fragment(frag) => {
+                    count_selection_set(&frag.selection_set)
                 }
-        })
+            }
+    })
 }
 
 /// Helper function to count fields in a selection set
-fn count_selection_set(
-    selection_set: &graphql_parser::query::SelectionSet<String>,
-) -> usize {
-    selection_set
-        .items
-        .iter()
-        .fold(0, |count, item| {
-            count
-                + match item {
-                    graphql_parser::query::Selection::Field(field) => {
-                        1 + count_selection_set(&field.selection_set)
-                    }
-                    graphql_parser::query::Selection::InlineFragment(frag) => {
-                        count_selection_set(&frag.selection_set)
-                    }
-                    graphql_parser::query::Selection::FragmentSpread(_) => 1,
+fn count_selection_set(selection_set: &graphql_parser::query::SelectionSet<String>) -> usize {
+    selection_set.items.iter().fold(0, |count, item| {
+        count
+            + match item {
+                graphql_parser::query::Selection::Field(field) => {
+                    1 + count_selection_set(&field.selection_set)
                 }
-        })
+                graphql_parser::query::Selection::InlineFragment(frag) => {
+                    count_selection_set(&frag.selection_set)
+                }
+                graphql_parser::query::Selection::FragmentSpread(_) => 1,
+            }
+    })
 }
 
 #[cfg(test)]
@@ -689,10 +685,8 @@ mod tests {
 
         let result = executor.execute(conn_id, &payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Operation") && result.unwrap_err().to_string().contains("not found"));
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Operation") && error_msg.contains("not found"));
     }
 
     #[test]
@@ -771,8 +765,8 @@ mod tests {
         for i in 0..5 {
             let conn_id = Uuid::new_v4();
             let payload = SubscriptionPayload {
-                query: format!("subscription {{ messageAdded{{ id }} }}", ),
-                operation_name: Some(format!("Sub{}", i)),
+                query: "subscription { messageAdded{ id } }".to_string(),
+                operation_name: Some(format!("Sub{i}")),
                 variables: None,
                 extensions: None,
             };
@@ -815,7 +809,7 @@ mod tests {
             extensions: None,
         };
 
-        let sub = executor.execute(conn_id, &payload).unwrap();
+        let _sub = executor.execute(conn_id, &payload).unwrap();
 
         let max_lifetime = std::time::Duration::from_secs(60);
         let warning_window = std::time::Duration::from_secs(10);
@@ -850,7 +844,7 @@ mod tests {
         assert!(!sub.has_exceeded_lifetime(max_lifetime));
 
         // Get ID for later lookup
-        let sub_id = sub.id.clone();
+        let sub_id = sub.id;
 
         // Verify we can get it back
         let retrieved = executor.get_subscription(&sub_id).unwrap();

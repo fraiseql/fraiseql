@@ -296,4 +296,221 @@ mod tests {
         let result = PostgreSQLEventBus::with_config(config).await;
         assert!(result.is_err());
     }
+
+    // Additional comprehensive unit tests for PostgreSQL event bus
+
+    #[test]
+    fn test_postgresql_config_clone() {
+        let config = PostgreSQLConfig::default();
+        let config2 = config.clone();
+
+        assert_eq!(config.connection_string, config2.connection_string);
+        assert_eq!(config.channel_prefix, config2.channel_prefix);
+    }
+
+    #[test]
+    fn test_postgresql_config_with_different_prefix() {
+        let config = PostgreSQLConfig {
+            connection_string: "postgresql://localhost/fraiseql".to_string(),
+            channel_prefix: "custom_prefix".to_string(),
+        };
+
+        assert_eq!(config.channel_prefix, "custom_prefix");
+        assert!(config.connection_string.contains("fraiseql"));
+    }
+
+    #[test]
+    fn test_channel_name_with_special_characters() {
+        let config = PostgreSQLConfig::default();
+        let bus = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(PostgreSQLEventBus::with_config(config))
+            .unwrap();
+
+        let channel_name = bus.build_channel_name("user-updates");
+        assert_eq!(channel_name, "fraiseql_user-updates");
+    }
+
+    #[test]
+    fn test_multiple_channel_names() {
+        let config = PostgreSQLConfig::default();
+        let bus = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(PostgreSQLEventBus::with_config(config))
+            .unwrap();
+
+        let channels = ["chat", "notifications", "alerts", "system"];
+        let channel_names: Vec<String> =
+            channels.iter().map(|c| bus.build_channel_name(c)).collect();
+
+        // Verify all channel names are unique
+        let mut seen = std::collections::HashSet::new();
+        for name in &channel_names {
+            assert!(seen.insert(name), "Duplicate channel name found: {name}");
+        }
+
+        // Verify format
+        for name in channel_names {
+            assert!(name.starts_with("fraiseql_"));
+            assert!(name.len() > "fraiseql_".len());
+        }
+    }
+
+    #[test]
+    fn test_postgresql_config_with_user_password() {
+        let config = PostgreSQLConfig {
+            connection_string: "postgresql://user:password@localhost:5432/fraiseql".to_string(),
+            channel_prefix: "fraiseql".to_string(),
+        };
+
+        assert!(config.connection_string.contains("user:password"));
+        assert!(config.connection_string.contains("localhost:5432"));
+        assert!(config.connection_string.contains("fraiseql"));
+    }
+
+    #[test]
+    fn test_postgresql_config_validation() {
+        // Valid configurations
+        let valid_configs = vec![
+            "postgresql://localhost/fraiseql",
+            "postgresql://user@localhost/fraiseql",
+            "postgresql://user:pass@localhost:5432/fraiseql",
+            "postgresql://user:pass@host1,host2/fraiseql",
+        ];
+
+        for conn_str in valid_configs {
+            let config = PostgreSQLConfig {
+                connection_string: conn_str.to_string(),
+                channel_prefix: "test".to_string(),
+            };
+            assert!(!config.connection_string.is_empty());
+            assert!(!config.channel_prefix.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_event_serialization_postgresql() {
+        let event = Event::new(
+            "userCreated".to_string(),
+            serde_json::json!({"user_id": 123, "name": "John"}),
+            "users".to_string(),
+        );
+
+        // Verify serialization
+        let json_str = serde_json::to_string(&event).unwrap();
+        assert!(!json_str.is_empty());
+
+        // Verify deserialization
+        let parsed: Event = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed.event_type, "userCreated");
+        assert_eq!(parsed.channel, "users");
+        assert_eq!(parsed.data["user_id"], 123);
+        assert_eq!(parsed.data["name"], "John");
+    }
+
+    #[test]
+    fn test_event_with_large_payload() {
+        let mut large_data = serde_json::json!({});
+        for i in 0..100 {
+            large_data[format!("field_{}", i)] = serde_json::json!(format!("value_{}", i));
+        }
+
+        let event = Event::new(
+            "largeEvent".to_string(),
+            large_data.clone(),
+            "large-channel".to_string(),
+        );
+
+        // Verify serialization handles large payloads
+        let json_str = serde_json::to_string(&event).unwrap();
+        let parsed: Event = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(parsed.data, large_data);
+    }
+
+    #[test]
+    fn test_channel_prefix_in_name() {
+        let prefixes = vec!["fraiseql", "custom", "test", "prod"];
+
+        for prefix in prefixes {
+            let config = PostgreSQLConfig {
+                connection_string: "postgresql://localhost/fraiseql".to_string(),
+                channel_prefix: prefix.to_string(),
+            };
+
+            let bus = tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(PostgreSQLEventBus::with_config(config))
+                .unwrap();
+
+            let channel_name = bus.build_channel_name("notifications");
+            let expected = format!("{}_{}", prefix, "notifications");
+            assert_eq!(channel_name, expected);
+        }
+    }
+
+    #[test]
+    fn test_event_as_json_representation() {
+        let event = Event::new(
+            "test".to_string(),
+            serde_json::json!({"value": 42}),
+            "test-channel".to_string(),
+        );
+
+        let json = event.as_json();
+        assert!(json.is_object());
+        assert_eq!(json["event_type"], "test");
+        assert_eq!(json["channel"], "test-channel");
+        assert_eq!(json["data"]["value"], 42);
+    }
+
+    #[test]
+    fn test_event_timestamp_monotonic() {
+        let events: Vec<_> = (0..10)
+            .map(|_| {
+                Event::new(
+                    "test".to_string(),
+                    serde_json::json!({}),
+                    "channel".to_string(),
+                )
+            })
+            .collect();
+
+        // Timestamps should be non-decreasing
+        for i in 1..events.len() {
+            assert!(events[i].timestamp >= events[i - 1].timestamp);
+        }
+    }
+
+    #[test]
+    fn test_event_id_format() {
+        let event = Event::new(
+            "test".to_string(),
+            serde_json::json!({}),
+            "channel".to_string(),
+        );
+
+        // Event ID should be a valid UUID
+        assert!(!event.id.is_empty());
+        // UUID format: 8-4-4-4-12 hex digits
+        let parts: Vec<&str> = event.id.split('-').collect();
+        assert_eq!(parts.len(), 5, "Event ID should be a valid UUID");
+    }
+
+    #[tokio::test]
+    async fn test_postgresql_connection_string_variants() {
+        let connection_strings = vec![
+            "postgresql://localhost/fraiseql",
+            "postgres://localhost/fraiseql",
+        ];
+
+        for conn_str in connection_strings {
+            let config = PostgreSQLConfig {
+                connection_string: conn_str.to_string(),
+                channel_prefix: "test".to_string(),
+            };
+            // Should not panic on creation
+            let _bus = PostgreSQLEventBus::with_config(config).await;
+        }
+    }
 }
