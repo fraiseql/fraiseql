@@ -408,6 +408,39 @@ class TestResolverErrorHandling:
         response = executor.next_event(sub_id)
         assert response is not None
 
+    def test_resolver_with_invalid_return_type(self):
+        """Test resolver that returns non-JSON-serializable value (Phase 3.4)"""
+        executor = _fraiseql_rs.subscriptions.PySubscriptionExecutor()
+
+        sub_id = executor.register_subscription(
+            connection_id="conn_1",
+            subscription_id="sub_1",
+            query="subscription { test }",
+            operation_name=None,
+            variables={},
+            user_id=1,
+            tenant_id=1,
+        )
+
+        class CustomObject:
+            """Non-serializable object"""
+            pass
+
+        def bad_resolver(event_data):
+            # Return something that cannot be JSON serialized
+            return {"bad": CustomObject()}
+
+        executor.register_resolver(sub_id, bad_resolver)
+        executor.publish_event(
+            event_type="test",
+            channel="test",
+            data={"user_id": 1, "tenant_id": 1},
+        )
+
+        # Should not crash - error handling catches the exception
+        response = executor.next_event(sub_id)
+        assert response is not None  # Response should contain error info
+
 
 class TestResolverIntegration:
     """Test resolver integration with event dispatch (Task 3.5 - partial)"""

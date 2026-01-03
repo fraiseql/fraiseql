@@ -1034,17 +1034,25 @@ impl SubscriptionExecutor {
             }
         };
 
-        // If we have a callback, invoke it synchronously (Phase 3)
+        // If we have a callback, invoke it with error handling (Phase 3.4)
         if let Some(callback) = callback {
+            // Invoke resolver synchronously (Phase 3.4: Error handling & recovery)
+            // Note: Timeout cannot be applied to synchronous Python resolver calls
+            // due to GIL constraints. See Phase 3.5 for async resolver architecture.
+            // Instead, we provide comprehensive error handling:
+            // - Parse errors (malformed response)
+            // - Resolver exceptions (Python errors)
+            // - Graceful fallback to echo resolver with error
+
             let result = callback.invoke(subscription_id, &event_data_json);
 
             match result {
                 Ok(result_json) => {
-                    // Parse result back to JSON Value
+                    // Resolver succeeded - parse result (Phase 3.4: Error handling)
                     match serde_json::from_str::<Value>(&result_json) {
                         Ok(result_value) => Ok(result_value),
                         Err(e) => {
-                            // If parsing fails, wrap in error response
+                            // If parsing fails, wrap in error response (Phase 3.4)
                             Ok(json!({
                                 "error": format!("Failed to parse resolver result: {}", e),
                                 "data": event_data
@@ -1053,7 +1061,8 @@ impl SubscriptionExecutor {
                     }
                 }
                 Err(e) => {
-                    // If resolver fails, echo event data with error
+                    // Resolver returned error (Phase 3.4: Convert exception to response)
+                    // This handles both Python exceptions and Rust errors from the callback
                     Ok(json!({
                         "error": e.to_string(),
                         "data": event_data
