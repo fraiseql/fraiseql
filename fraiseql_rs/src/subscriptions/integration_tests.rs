@@ -12,7 +12,7 @@ mod tests {
     use crate::subscriptions::*;
     use serde_json::json;
     use std::sync::Arc;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     // ============================================================================
     // SCENARIO 1: Basic Subscription Lifecycle
