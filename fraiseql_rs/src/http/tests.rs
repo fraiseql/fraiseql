@@ -95,10 +95,8 @@ mod tests {
 
     #[test]
     fn test_observability_context_creation() {
-        let ctx = crate::http::ObservabilityContext::new(
-            "192.168.1.1".to_string(),
-            "query".to_string(),
-        );
+        let ctx =
+            crate::http::ObservabilityContext::new("192.168.1.1".to_string(), "query".to_string());
 
         assert_eq!(ctx.client_ip, "192.168.1.1");
         assert_eq!(ctx.operation, "query");
@@ -113,9 +111,18 @@ mod tests {
             400
         );
         assert_eq!(crate::http::ResponseStatus::AuthError.status_code(), 401);
-        assert_eq!(crate::http::ResponseStatus::ForbiddenError.status_code(), 403);
-        assert_eq!(crate::http::ResponseStatus::RateLimitError.status_code(), 429);
-        assert_eq!(crate::http::ResponseStatus::InternalError.status_code(), 500);
+        assert_eq!(
+            crate::http::ResponseStatus::ForbiddenError.status_code(),
+            403
+        );
+        assert_eq!(
+            crate::http::ResponseStatus::RateLimitError.status_code(),
+            429
+        );
+        assert_eq!(
+            crate::http::ResponseStatus::InternalError.status_code(),
+            500
+        );
     }
 
     // =========================================================================
@@ -126,13 +133,22 @@ mod tests {
     fn test_http_metrics_creation() {
         let metrics = crate::http::HttpMetrics::new();
 
-        assert_eq!(metrics.total_requests.load(std::sync::atomic::Ordering::Relaxed), 0);
         assert_eq!(
-            metrics.successful_requests.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .total_requests
+                .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
         assert_eq!(
-            metrics.failed_requests.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .successful_requests
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+        assert_eq!(
+            metrics
+                .failed_requests
+                .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
     }
@@ -147,15 +163,21 @@ mod tests {
         metrics.record_request_end(Duration::from_millis(10), 500);
 
         assert_eq!(
-            metrics.status_200.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .status_200
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.status_400.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .status_400
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.status_500.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .status_500
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
     }
@@ -170,15 +192,21 @@ mod tests {
         metrics.record_anonymous_request();
 
         assert_eq!(
-            metrics.auth_success.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .auth_success
+                .load(std::sync::atomic::Ordering::Relaxed),
             2
         );
         assert_eq!(
-            metrics.auth_failures.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .auth_failures
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.anonymous_requests.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .anonymous_requests
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
     }
@@ -193,19 +221,27 @@ mod tests {
         metrics.record_invalid_token();
 
         assert_eq!(
-            metrics.rate_limit_violations.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .rate_limit_violations
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.query_validation_failures.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .query_validation_failures
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.csrf_violations.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .csrf_violations
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
         assert_eq!(
-            metrics.invalid_tokens.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .invalid_tokens
+                .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
     }
@@ -265,7 +301,9 @@ mod tests {
             "mutation"
         );
         assert_eq!(
-            crate::http::axum_server::detect_operation("  mutation CreateUser { createUser { id } }"),
+            crate::http::axum_server::detect_operation(
+                "  mutation CreateUser { createUser { id } }"
+            ),
             "mutation"
         );
     }
@@ -310,8 +348,7 @@ mod tests {
     #[test]
     fn test_validate_metrics_token_empty() {
         assert!(!crate::http::axum_server::validate_metrics_token(
-            "Bearer ",
-            "token"
+            "Bearer ", "token"
         ));
     }
 
@@ -343,11 +380,15 @@ mod tests {
 
         // 10 threads × 100 requests = 1000 total
         assert_eq!(
-            metrics.total_requests.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .total_requests
+                .load(std::sync::atomic::Ordering::Relaxed),
             1000
         );
         assert_eq!(
-            metrics.auth_success.load(std::sync::atomic::Ordering::Relaxed),
+            metrics
+                .auth_success
+                .load(std::sync::atomic::Ordering::Relaxed),
             1000
         );
     }
@@ -396,9 +437,8 @@ mod tests {
 
     #[test]
     fn test_http_error_conversion() {
-        let error = crate::http::middleware::HttpError::CompressionFailed(
-            "compression failed".to_string(),
-        );
+        let error =
+            crate::http::middleware::HttpError::CompressionFailed("compression failed".to_string());
 
         // Verify error can be created and converted
         assert!(true);
@@ -414,7 +454,8 @@ mod tests {
 
     #[test]
     fn test_security_error_conversion() {
-        let error = crate::http::HttpSecurityError::ValidationFailed("validation failed".to_string());
+        let error =
+            crate::http::HttpSecurityError::ValidationFailed("validation failed".to_string());
 
         // Verify error can be created
         assert!(true);

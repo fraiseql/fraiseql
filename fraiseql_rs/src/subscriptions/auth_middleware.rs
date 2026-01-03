@@ -85,6 +85,13 @@ impl AuthMiddleware {
     ///   "authorization": "Bearer eyJ..."
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(AuthError)` if:
+    /// - JWT token validation fails
+    /// - Token is expired
+    /// - Required payload fields are missing
     pub fn validate_connection_init(
         &self,
         payload: Option<&Value>,

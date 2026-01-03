@@ -115,6 +115,13 @@ impl HttpSecurityError {
 /// 3. Query complexity and depth
 ///
 /// This order ensures we reject obviously bad requests early before expensive parsing.
+///
+/// # Errors
+///
+/// Returns `Err(HttpSecurityError)` if:
+/// - Query size exceeds the configured maximum
+/// - Query depth exceeds the configured maximum
+/// - Query complexity score exceeds limits
 pub async fn validate_graphql_request(
     query: &str,
     parsed_query: &ParsedQuery,
@@ -145,6 +152,12 @@ pub async fn validate_graphql_request(
 /// # Returns
 ///
 /// Returns `Ok(())` if the request is within rate limits, or `Err(HttpSecurityError)` if rate limit exceeded.
+///
+/// # Errors
+///
+/// Returns `Err(HttpSecurityError)` if:
+/// - Rate limit for the client IP has been exceeded
+/// - The limit checker is unavailable
 pub async fn check_rate_limit(
     limiter: &RateLimitChecker,
     client_ip: IpAddr,
