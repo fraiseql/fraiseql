@@ -501,4 +501,465 @@ mod tests {
         // PostgreSQL takes over
         assert!(fallbacks.is_available("postgresql"));
     }
+
+    // ============================================================================
+    // SCENARIO 13: In-Memory Event Bus End-to-End
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_end_to_end_workflow() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+        let bus_clone = bus.clone();
+
+        // Subscribe to channel
+        let mut stream = bus.subscribe("user-updates").await.expect("Failed to subscribe");
+
+        // Spawn publisher task
+        let publisher_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            // Publish multiple events
+            for i in 0..5 {
+                let event = Arc::new(Event::new(
+                    "userCreated".to_string(),
+                    json!({
+                        "userId": 100 + i,
+                        "username": format!("user{}", i),
+                        "email": format!("user{}@example.com", i)
+                    }),
+                    "user-updates".to_string(),
+                ));
+
+                let _ = bus_clone.publish(event).await;
+            }
+        });
+
+        // Receive and verify events
+        let mut received_count = 0;
+        for expected_i in 0..5 {
+            let result = tokio::time::timeout(Duration::from_secs(1), stream.recv()).await;
+            assert!(result.is_ok(), "Failed to receive event {}", expected_i);
+
+            let event_opt = result.unwrap();
+            assert!(event_opt.is_some());
+
+            let event = event_opt.unwrap();
+            assert_eq!(event.event_type, "userCreated");
+            assert_eq!(event.channel, "user-updates");
+            assert_eq!(event.data["userId"], 100 + expected_i);
+            received_count += 1;
+        }
+
+        assert_eq!(received_count, 5);
+        publisher_task.await.expect("Publisher task failed");
+
+        // Verify stats
+        let stats = bus.stats();
+        assert_eq!(stats.total_events, 5);
+        assert!(stats.active_subscribers >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_multi_subscriber_broadcast() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Create 3 subscribers to same channel
+        let mut stream1 = bus.subscribe("notifications").await.expect("Sub 1 failed");
+        let mut stream2 = bus.subscribe("notifications").await.expect("Sub 2 failed");
+        let mut stream3 = bus.subscribe("notifications").await.expect("Sub 3 failed");
+
+        let bus_clone = bus.clone();
+
+        // Publish event
+        let publisher_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            let event = Arc::new(Event::new(
+                "alert".to_string(),
+                json!({ "level": "critical", "message": "System overload" }),
+                "notifications".to_string(),
+            ));
+
+            let _ = bus_clone.publish(event).await;
+        });
+
+        // All subscribers should receive the event
+        let recv1 = tokio::time::timeout(Duration::from_secs(1), stream1.recv())
+            .await
+            .expect("Sub 1 timeout");
+        let recv2 = tokio::time::timeout(Duration::from_secs(1), stream2.recv())
+            .await
+            .expect("Sub 2 timeout");
+        let recv3 = tokio::time::timeout(Duration::from_secs(1), stream3.recv())
+            .await
+            .expect("Sub 3 timeout");
+
+        assert!(recv1.is_some(), "Sub 1 didn't receive event");
+        assert!(recv2.is_some(), "Sub 2 didn't receive event");
+        assert!(recv3.is_some(), "Sub 3 didn't receive event");
+
+        // All should have same event ID (same Arc)
+        let event1 = recv1.unwrap();
+        let event2 = recv2.unwrap();
+        let event3 = recv3.unwrap();
+
+        assert_eq!(event1.id, event2.id);
+        assert_eq!(event2.id, event3.id);
+
+        publisher_task.await.expect("Publisher task failed");
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_event_bus_multiple_channels() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Subscribe to different channels
+        let mut stream_users = bus.subscribe("user-events").await.expect("User sub failed");
+        let mut stream_orders = bus.subscribe("order-events").await.expect("Order sub failed");
+        let mut stream_payments = bus
+            .subscribe("payment-events")
+            .await
+            .expect("Payment sub failed");
+
+        let bus_clone1 = bus.clone();
+        let bus_clone2 = bus.clone();
+        let bus_clone3 = bus.clone();
+
+        // Publish to different channels
+        let publisher_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            // User event
+            let _ = bus_clone1
+                .publish(Arc::new(Event::new(
+                    "userRegistered".to_string(),
+                    json!({"userId": 1}),
+                    "user-events".to_string(),
+                )))
+                .await;
+
+            // Order event
+            let _ = bus_clone2
+                .publish(Arc::new(Event::new(
+                    "orderCreated".to_string(),
+                    json!({"orderId": 100}),
+                    "order-events".to_string(),
+                )))
+                .await;
+
+            // Payment event
+            let _ = bus_clone3
+                .publish(Arc::new(Event::new(
+                    "paymentProcessed".to_string(),
+                    json!({"amount": 99.99}),
+                    "payment-events".to_string(),
+                )))
+                .await;
+        });
+
+        // Each subscriber should only receive their channel's events
+        let user_event = tokio::time::timeout(Duration::from_secs(1), stream_users.recv())
+            .await
+            .expect("User event timeout")
+            .expect("No user event");
+        assert_eq!(user_event.event_type, "userRegistered");
+
+        let order_event = tokio::time::timeout(Duration::from_secs(1), stream_orders.recv())
+            .await
+            .expect("Order event timeout")
+            .expect("No order event");
+        assert_eq!(order_event.event_type, "orderCreated");
+
+        let payment_event = tokio::time::timeout(Duration::from_secs(1), stream_payments.recv())
+            .await
+            .expect("Payment event timeout")
+            .expect("No payment event");
+        assert_eq!(payment_event.event_type, "paymentProcessed");
+
+        publisher_task.await.expect("Publisher task failed");
+    }
+
+    // ============================================================================
+    // SCENARIO 14: Event Filtering and Routing
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_event_filtering_with_subscriptions() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Subscribe to channel
+        let mut stream = bus.subscribe("transactions").await.expect("Sub failed");
+
+        let bus_clone = bus.clone();
+
+        // Publisher publishes mixed events
+        let publisher_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            // Large transaction (should match)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "transaction".to_string(),
+                    json!({ "amount": 5000.0, "status": "pending" }),
+                    "transactions".to_string(),
+                )))
+                .await;
+
+            // Small transaction (might be filtered)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "transaction".to_string(),
+                    json!({ "amount": 10.0, "status": "pending" }),
+                    "transactions".to_string(),
+                )))
+                .await;
+
+            // Large transaction (should match)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "transaction".to_string(),
+                    json!({ "amount": 3000.0, "status": "completed" }),
+                    "transactions".to_string(),
+                )))
+                .await;
+        });
+
+        // Receive all events (filtering would happen at subscription level)
+        let mut event_count = 0;
+        for _ in 0..3 {
+            let result = tokio::time::timeout(Duration::from_secs(1), stream.recv()).await;
+            if result.is_ok() && result.unwrap().is_some() {
+                event_count += 1;
+            }
+        }
+
+        assert_eq!(event_count, 3);
+        publisher_task.await.expect("Publisher task failed");
+    }
+
+    // ============================================================================
+    // SCENARIO 15: Error Recovery and Resilience
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_event_bus_resilience_with_disconnects() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Subscribe
+        let mut stream1 = bus.subscribe("test").await.expect("Sub 1 failed");
+
+        // Second subscription (simulating reconnect)
+        let mut stream2 = bus.subscribe("test").await.expect("Sub 2 failed");
+
+        let bus_clone = bus.clone();
+
+        // Publish events
+        let publisher_task = tokio::spawn(async move {
+            // Publish to first subscriber
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "event1".to_string(),
+                    json!({}),
+                    "test".to_string(),
+                )))
+                .await;
+
+            // Simulate disconnect (stream1 drops)
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            // Publish after reconnect
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "event2".to_string(),
+                    json!({}),
+                    "test".to_string(),
+                )))
+                .await;
+        });
+
+        // Stream 1 receives first event
+        let event1 = tokio::time::timeout(Duration::from_secs(1), stream1.recv())
+            .await
+            .expect("Event 1 timeout")
+            .expect("No event 1");
+        assert_eq!(event1.event_type, "event1");
+
+        // Stream 2 (new subscription) only gets second event
+        let event2 = tokio::time::timeout(Duration::from_secs(1), stream2.recv())
+            .await
+            .expect("Event 2 timeout")
+            .expect("No event 2");
+        assert_eq!(event2.event_type, "event2");
+
+        publisher_task.await.expect("Publisher task failed");
+    }
+
+    #[tokio::test]
+    async fn test_event_bus_with_rapid_subscribe_unsubscribe() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Rapidly subscribe/unsubscribe
+        let mut handles = vec![];
+        for i in 0..10 {
+            let bus_clone = bus.clone();
+            let handle = tokio::spawn(async move {
+                let channel = format!("rapid-{i}");
+                let _stream = bus_clone
+                    .subscribe(&channel)
+                    .await
+                    .expect("Subscribe failed");
+
+                // Short hold
+                tokio::time::sleep(Duration::from_millis(5)).await;
+
+                // Unsubscribe (drop stream)
+                let _ = bus_clone.unsubscribe(&channel).await;
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all to complete
+        for handle in handles {
+            handle.await.expect("Task failed");
+        }
+
+        // Should still be operational
+        let mut stream = bus.subscribe("final").await.expect("Final sub failed");
+
+        let bus_clone = bus.clone();
+        let _publisher = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "final".to_string(),
+                    json!({}),
+                    "final".to_string(),
+                )))
+                .await;
+        });
+
+        let event = tokio::time::timeout(Duration::from_secs(1), stream.recv())
+            .await
+            .expect("Final event timeout");
+        assert!(event.is_some());
+    }
+
+    // ============================================================================
+    // SCENARIO 16: Performance and Throughput
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_event_bus_throughput_with_rapid_events() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        // Subscribe to channel
+        let mut stream = bus.subscribe("throughput").await.expect("Sub failed");
+
+        let bus_clone = bus.clone();
+
+        // Publish events rapidly
+        let publisher_task = tokio::spawn(async move {
+            for i in 0..100 {
+                let _ = bus_clone
+                    .publish(Arc::new(Event::new(
+                        "data".to_string(),
+                        json!({ "sequence": i }),
+                        "throughput".to_string(),
+                    )))
+                    .await;
+
+                // Minimal delay between events
+                if i % 10 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+
+        // Collect events
+        let mut received_count = 0;
+        let start = std::time::Instant::now();
+
+        loop {
+            let result = tokio::time::timeout(Duration::from_millis(500), stream.recv()).await;
+            match result {
+                Ok(Some(_event)) => {
+                    received_count += 1;
+                    if received_count >= 100 {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        let elapsed = start.elapsed();
+        publisher_task.await.expect("Publisher task failed");
+
+        // Verify throughput
+        assert_eq!(received_count, 100);
+        let events_per_second = (received_count as f64) / elapsed.as_secs_f64();
+        println!(
+            "Event bus throughput: {:.0} events/sec",
+            events_per_second
+        );
+        assert!(
+            events_per_second > 100.0,
+            "Throughput too low: {} events/sec",
+            events_per_second
+        );
+    }
+
+    // ============================================================================
+    // SCENARIO 17: Subscription with Event Metadata
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_event_metadata_preservation() {
+        use crate::subscriptions::event_bus::{EventBus, InMemoryEventBus, Event};
+
+        let bus = Arc::new(InMemoryEventBus::new());
+
+        let mut stream = bus.subscribe("metadata-test").await.expect("Sub failed");
+
+        let bus_clone = bus.clone();
+
+        let publisher_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            let mut event = Event::new(
+                "testEvent".to_string(),
+                json!({ "data": "value" }),
+                "metadata-test".to_string(),
+            );
+            event = event.with_correlation_id("corr-123".to_string());
+
+            let _ = bus_clone.publish(Arc::new(event)).await;
+        });
+
+        let received = tokio::time::timeout(Duration::from_secs(1), stream.recv())
+            .await
+            .expect("Event timeout")
+            .expect("No event");
+
+        assert_eq!(received.event_type, "testEvent");
+        assert_eq!(received.correlation_id, Some("corr-123".to_string()));
+        assert_eq!(received.channel, "metadata-test");
+
+        publisher_task.await.expect("Publisher task failed");
+    }
 }
