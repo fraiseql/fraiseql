@@ -2763,4 +2763,215 @@ mod tests {
         );
         assert!(phase4_received >= 9, "Phase 4 should fully recover");
     }
+
+    // Row-Level Filtering Tests (Phase 3.1)
+    // Test isolation of events by user_id and tenant_id
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_row_filter_user_id_isolation() {
+        use crate::subscriptions::row_filter::RowFilterContext;
+
+        // Create filter for user_id = 100
+        let filter = RowFilterContext::user_only(100);
+
+        // Events matching user_id
+        let matching_event = json!({ "user_id": 100, "data": "order-123" });
+        assert!(filter.matches(&matching_event), "Should match user_id 100");
+
+        // Events NOT matching user_id
+        let mismatching_event = json!({ "user_id": 200, "data": "order-456" });
+        assert!(
+            !filter.matches(&mismatching_event),
+            "Should reject user_id 200"
+        );
+
+        // Events missing user_id field
+        let missing_field = json!({ "data": "order-789" });
+        assert!(
+            !filter.matches(&missing_field),
+            "Should reject event without user_id"
+        );
+
+        println!("✅ test_row_filter_user_id_isolation passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_row_filter_tenant_id_isolation() {
+        use crate::subscriptions::row_filter::RowFilterContext;
+
+        // Create filter for tenant_id = 5
+        let filter = RowFilterContext::tenant_only(5);
+
+        // Events matching tenant_id
+        let matching_event = json!({ "tenant_id": 5, "order_id": "123" });
+        assert!(filter.matches(&matching_event), "Should match tenant_id 5");
+
+        // Events NOT matching tenant_id
+        let mismatching_event = json!({ "tenant_id": 10, "order_id": "456" });
+        assert!(
+            !filter.matches(&mismatching_event),
+            "Should reject tenant_id 10"
+        );
+
+        // Events missing tenant_id field
+        let missing_field = json!({ "order_id": "789" });
+        assert!(
+            !filter.matches(&missing_field),
+            "Should reject event without tenant_id"
+        );
+
+        println!("✅ test_row_filter_tenant_id_isolation passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_row_filter_combined_user_and_tenant() {
+        use crate::subscriptions::row_filter::RowFilterContext;
+
+        // Create filter for both user_id AND tenant_id
+        let filter = RowFilterContext::new(Some(100), Some(5));
+
+        // Both match
+        let matching_event = json!({ "user_id": 100, "tenant_id": 5, "order_id": "123" });
+        assert!(
+            filter.matches(&matching_event),
+            "Should match both user_id 100 AND tenant_id 5"
+        );
+
+        // Only user_id matches
+        let user_match = json!({ "user_id": 100, "tenant_id": 10, "order_id": "456" });
+        assert!(
+            !filter.matches(&user_match),
+            "Should reject when tenant_id mismatch"
+        );
+
+        // Only tenant_id matches
+        let tenant_match = json!({ "user_id": 200, "tenant_id": 5, "order_id": "789" });
+        assert!(
+            !filter.matches(&tenant_match),
+            "Should reject when user_id mismatch"
+        );
+
+        // Neither match
+        let no_match = json!({ "user_id": 200, "tenant_id": 10, "order_id": "999" });
+        assert!(
+            !filter.matches(&no_match),
+            "Should reject when both mismatch"
+        );
+
+        println!("✅ test_row_filter_combined_user_and_tenant passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_row_filter_all_events_without_filtering() {
+        use crate::subscriptions::row_filter::RowFilterContext;
+
+        // Create filter with no filtering (both None)
+        let filter = RowFilterContext::no_filter();
+
+        // Should match ANY event
+        let event1 = json!({ "user_id": 100, "tenant_id": 5 });
+        assert!(filter.matches(&event1), "No-filter should accept any event");
+
+        let event2 = json!({ "user_id": 999, "tenant_id": 999 });
+        assert!(filter.matches(&event2), "No-filter should accept any event");
+
+        let event3 = json!({ "data": "some-data" });
+        assert!(filter.matches(&event3), "No-filter should accept any event");
+
+        println!("✅ test_row_filter_all_events_without_filtering passed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
+    async fn test_row_filter_partial_result_filtering() {
+        use crate::subscriptions::row_filter::RowFilterContext;
+
+        // Simulate subscription stream with mixed events
+        let bus = Arc::new(InMemoryEventBus::new());
+        let filter = RowFilterContext::new(Some(100), Some(5));
+
+        // Subscribe to channel
+        let mut stream = bus.subscribe("orders").await.unwrap();
+
+        // Spawn publisher that sends mixed events
+        let bus_clone = bus.clone();
+        let publisher = tokio::spawn(async move {
+            // Event for user 100, tenant 5 (should be delivered)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "order_created".to_string(),
+                    json!({ "user_id": 100, "tenant_id": 5, "order_id": "A" }),
+                    "orders".to_string(),
+                )))
+                .await;
+
+            // Event for user 200, tenant 5 (should be filtered)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "order_created".to_string(),
+                    json!({ "user_id": 200, "tenant_id": 5, "order_id": "B" }),
+                    "orders".to_string(),
+                )))
+                .await;
+
+            // Event for user 100, tenant 10 (should be filtered)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "order_created".to_string(),
+                    json!({ "user_id": 100, "tenant_id": 10, "order_id": "C" }),
+                    "orders".to_string(),
+                )))
+                .await;
+
+            // Event for user 100, tenant 5 (should be delivered)
+            let _ = bus_clone
+                .publish(Arc::new(Event::new(
+                    "order_created".to_string(),
+                    json!({ "user_id": 100, "tenant_id": 5, "order_id": "D" }),
+                    "orders".to_string(),
+                )))
+                .await;
+        });
+
+        // Collect filtered events
+        let mut filtered_count = 0;
+        let mut collected_events = Vec::new();
+
+        for _ in 0..4 {
+            if let Ok(Some(event)) = tokio::time::timeout(Duration::from_millis(100), stream.recv())
+                .await
+            {
+                // Apply filter to event data before using it
+                if filter.matches(&event.data) {
+                    filtered_count += 1;
+                    collected_events.push(event.data.clone());
+                }
+            }
+        }
+
+        publisher.await.ok();
+
+        println!("  Filtered events: {}/4 (expect 2)", filtered_count);
+        assert_eq!(
+            filtered_count, 2,
+            "Should filter to only 2 matching events (A and D)"
+        );
+
+        // Verify the collected events are the ones that matched
+        assert_eq!(collected_events.len(), 2);
+        assert_eq!(
+            collected_events[0].get("order_id").and_then(|v| v.as_str()),
+            Some("A")
+        );
+        assert_eq!(
+            collected_events[1].get("order_id").and_then(|v| v.as_str()),
+            Some("D")
+        );
+
+        println!("✅ test_row_filter_partial_result_filtering passed");
+    }
 }

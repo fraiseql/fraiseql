@@ -29,6 +29,7 @@ pub mod presets;
 pub mod protocol;
 pub mod rate_limiter;
 pub mod resource_limits;
+pub mod row_filter;
 pub mod websocket;
 
 #[cfg(test)]
@@ -58,6 +59,7 @@ pub use metrics::SubscriptionMetrics;
 pub use protocol::{GraphQLMessage, SubscriptionMessage, SubscriptionPayload};
 pub use rate_limiter::SubscriptionRateLimiter;
 pub use resource_limits::{ResourceLimiter, ResourceLimits, ResourceStats};
+pub use row_filter::RowFilterContext;
 pub use websocket::{WebSocketConnection, WebSocketServer};
 
 /// Subscription error type
