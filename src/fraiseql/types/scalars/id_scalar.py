@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from graphql import GraphQLError, GraphQLScalarType
+from graphql import GraphQLError
 from graphql.language import StringValueNode, ValueNode
 
 from fraiseql.types.definitions import ScalarMarker

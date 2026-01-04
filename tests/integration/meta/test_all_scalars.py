@@ -37,7 +37,6 @@ from fraiseql.types.scalars import (
     HostnameScalar,
     HTMLScalar,
     IBANScalar,
-    IDScalar,
     ImageScalar,
     IpAddressScalar,
     ISINScalar,
@@ -451,7 +450,6 @@ def get_test_value_for_scalar(scalar_class):
         # Financial & Business
         CurrencyCodeScalar: "USD",
         IBANScalar: "GB82WEST12345698765432",
-        IDScalar: "550e8400-e29b-41d4-a716-446655440000",
         ISINScalar: "US0378331005",
         SEDOLScalar: "B0WNLY7",
         LEIScalar: "549300E9PC51EN656011",
@@ -512,7 +510,6 @@ def get_postgres_type_for_scalar(scalar_class):
         CIDRScalar: "CIDR",
         CUSIPScalar: "VARCHAR(9)",
         DateScalar: "DATE",
-        IDScalar: "UUID",
         IpAddressScalar: "INET",
         JSONScalar: "JSONB",
         UUIDScalar: "UUID",

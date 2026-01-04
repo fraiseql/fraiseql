@@ -20,6 +20,7 @@ from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
 from .types.common import MutationResultBase
+from .types.context import GraphQLContext, build_context
 from .types.definitions import UNSET
 from .types.enum import fraise_enum
 from .types.errors import Error
@@ -210,12 +211,14 @@ __all__ = [
     "EmailAddress",
     "Error",
     "FraiseQLConfig",
+    "GraphQLContext",
     "MutationErrorConfig",
     "MutationResultBase",
     "PageInfo",
     "PaginatedResponse",
     "SchemaAnalyzer",
     "UserContext",
+    "build_context",
     "build_fraiseql_schema",
     "connection",
     "create_connection",
