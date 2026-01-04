@@ -122,15 +122,6 @@ pub struct CacheMonitor {
 pub(crate) struct PerformanceSample {
     /// Timestamp (Unix seconds)
     pub(crate) timestamp: u64,
-
-    /// Hit rate at this time
-    pub(crate) hit_rate: f64,
-
-    /// Hits per second since last sample
-    pub(crate) hits_per_second: f64,
-
-    /// Current memory usage
-    pub(crate) memory_bytes: usize,
 }
 
 impl CacheMonitor {
@@ -191,17 +182,7 @@ impl CacheMonitor {
     }
 
     /// Collect performance sample for trending
-    pub fn collect_sample(&self, current_memory_bytes: usize) {
-        let hits = self.total_hits.load(Ordering::Relaxed);
-        let misses = self.total_misses.load(Ordering::Relaxed);
-        let total = hits + misses;
-
-        let hit_rate = if total > 0 {
-            hits as f64 / total as f64
-        } else {
-            0.0
-        };
-
+    pub fn collect_sample(&self, _current_memory_bytes: usize) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -209,9 +190,6 @@ impl CacheMonitor {
 
         let sample = PerformanceSample {
             timestamp: now,
-            hit_rate,
-            hits_per_second: 0.0, // Calculated from samples
-            memory_bytes: current_memory_bytes,
         };
 
         if let Ok(mut samples) = self.samples.lock() {

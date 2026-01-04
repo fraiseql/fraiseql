@@ -63,9 +63,6 @@ pub struct QueryResultCache {
     /// Format: "User:123" -> ["query:user:123:posts", "query:user:123:email"]
     dependencies: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
 
-    /// Configuration
-    config: QueryResultCacheConfig,
-
     /// Metrics
     metrics: Arc<Mutex<CacheMetrics>>,
 }
@@ -100,7 +97,6 @@ impl QueryResultCache {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(max))),
             dependencies: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            config,
             metrics: Arc::new(Mutex::new(CacheMetrics {
                 hits: 0,
                 misses: 0,

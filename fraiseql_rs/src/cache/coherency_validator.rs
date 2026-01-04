@@ -32,9 +32,6 @@ pub struct CoherencyValidator {
 /// Information about a cached query
 #[derive(Debug, Clone)]
 struct CachedQueryInfo {
-    /// Cache key
-    key: String,
-
     /// Entities this query accesses
     entities: Vec<(String, String)>,
 
@@ -66,7 +63,6 @@ impl CoherencyValidator {
             .unwrap_or(0);
 
         let info = CachedQueryInfo {
-            key: cache_key.clone(),
             entities: entities.clone(),
             version,
         };
@@ -79,7 +75,7 @@ impl CoherencyValidator {
             let entity_key = format!("{}:{}", entity_type, entity_id);
             self.entity_to_queries
                 .entry(entity_key)
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(cache_key.clone());
         }
 
