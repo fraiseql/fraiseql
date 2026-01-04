@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Callable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg_pool import AsyncConnectionPool
 
@@ -10,6 +10,7 @@ from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.optimization.registry import LoaderRegistry
+from fraiseql.tracing.w3c_context import TraceContext
 
 # Global instances (will be set by create_app)
 _db_pool = None
@@ -153,11 +154,30 @@ def require_role(role: str) -> Callable:
 
 
 # Context builders for GraphQL
+async def get_trace_context(request: Request) -> TraceContext | None:
+    """Get trace context from request state (set by tracing middleware).
+
+    Returns:
+        TraceContext if available in request state, None otherwise.
+    """
+    return getattr(request.state, "trace_context", None)
+
+
 async def build_graphql_context(
     db: Annotated[FraiseQLRepository, Depends(get_db)],
     user: Annotated[UserContext | None, Depends(get_current_user_optional)],
+    trace_context: Annotated[TraceContext | None, Depends(get_trace_context)],
 ) -> dict[str, Any]:
-    """Build GraphQL context with database and user info."""
+    """Build GraphQL context with database and user info.
+
+    Args:
+        db: FraiseQL repository instance.
+        user: Current user context (if authenticated).
+        trace_context: Distributed trace context (Phase 19).
+
+    Returns:
+        Dictionary with GraphQL execution context.
+    """
     # Create a new LoaderRegistry for this request
     loader_registry = LoaderRegistry(db=db)
 
@@ -178,5 +198,12 @@ async def build_graphql_context(
     # Add query timeout to context if configured
     if config and hasattr(config, "query_timeout"):
         context["query_timeout"] = config.query_timeout
+
+    # Add trace context for observability (Phase 19)
+    if trace_context:
+        context["trace_id"] = trace_context.trace_id
+        context["span_id"] = trace_context.span_id
+        context["request_id"] = trace_context.request_id
+        context["trace_context"] = trace_context
 
     return context
