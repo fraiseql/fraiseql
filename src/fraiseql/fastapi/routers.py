@@ -1105,10 +1105,7 @@ def create_graphql_router(
         # Handle APQ (Automatic Persisted Queries) if detected and mode allows
         if is_apq_request and request.extensions and should_process_apq:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
-            from fraiseql.middleware.apq_caching import (
-                get_apq_backend,
-                handle_apq_request_with_cache,
-            )
+            from fraiseql.middleware.apq_caching import get_apq_backend
             from fraiseql.storage.apq_store import store_persisted_query
 
             logger.debug("APQ request detected, processing...")
@@ -1142,17 +1139,23 @@ def create_graphql_router(
                 # The response will be cached after execution (see lines 361-370)
 
             else:
-                # This is a hash-only request - try to retrieve the query
+                # This is a hash-only request - retrieve and execute the query
 
-                # 1. Try cached response first (JSON passthrough)
-                cached_response = handle_apq_request_with_cache(
-                    request, apq_backend, config, context=context
-                )
-                if cached_response:
-                    logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
-                    return cached_response
+                # NOTE: APQ response caching is intentionally NOT implemented.
+                #
+                # APQ should only cache query strings (persisted queries), not responses.
+                # Caching responses breaks field selection because the same persisted query
+                # with different field selections would return identical cached data.
+                #
+                # Correct behavior:
+                # 1. Store query by hash (in ApqStorage)
+                # 2. On hash-only request, retrieve query by hash
+                # 3. Execute query normally with client's field selection
+                # 4. Return only the requested fields
+                #
+                # See: fraiseql_rs/src/apq/mod.rs for canonical Rust implementation.
 
-                # 2. Fallback to query resolution from backend
+                # Fallback to query resolution from backend
                 persisted_query_text = None
 
                 # Try backend first
@@ -1377,25 +1380,9 @@ def create_graphql_router(
                             media_type="application/json",
                         )
 
-            # Cache response for APQ if it was an APQ request and response is cacheable
-            if is_apq_request and apq_backend:
-                from fraiseql.middleware.apq_caching import (
-                    get_apq_hash_from_request,
-                    store_response_in_cache,
-                )
-
-                apq_hash = get_apq_hash_from_request(request)
-                if apq_hash:
-                    # Store the response in cache for future requests
-                    store_response_in_cache(
-                        apq_hash, response, apq_backend, config, context=context
-                    )
-
-                    # Also store the cached response in the backend
-                    import json
-
-                    response_json = json.dumps(response, separators=(",", ":"))
-                    apq_backend.store_cached_response(apq_hash, response_json, context=context)
+            # NOTE: Response caching for APQ is intentionally NOT implemented.
+            # See architectural comment in APQ request handling (hash-only request section)
+            # for detailed explanation of why field selection requires query execution.
 
             return response
 
