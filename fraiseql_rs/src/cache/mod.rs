@@ -5,6 +5,7 @@
 //! 2. QueryResultCache: Caches GraphQL query results with entity tracking (Phase 17A)
 
 pub mod cache_key;
+pub mod coherency_validator;
 pub mod executor;
 pub mod http_integration;
 pub mod monitoring;
@@ -13,10 +14,13 @@ pub mod query_result;
 pub mod signature;
 
 #[cfg(test)]
+mod tests_integration_e2e;
+#[cfg(test)]
 mod tests_monitoring;
 
 // Re-export key types and functions for convenience
 pub use cache_key::QueryCacheKey;
+pub use coherency_validator::{CoherencyValidationResult, CoherencyValidator};
 pub use executor::{execute_query_with_cache, invalidate_cache_from_cascade};
 pub use http_integration::{
     clear_cache, execute_cached_query, get_cache_metrics, invalidate_cached_queries, CacheConfig,
