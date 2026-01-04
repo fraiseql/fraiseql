@@ -159,10 +159,7 @@ class FastAPIWebSocketAdapter(WebSocketAdapter):
         """Check FastAPI WebSocket connection status."""
         # FastAPI WebSocket has client_state that can be checked
         # CONNECTED = 1, DISCONNECTED = 0
-        return (
-            hasattr(self._ws, "client_state")
-            and self._ws.client_state.value == 1
-        )
+        return hasattr(self._ws, "client_state") and self._ws.client_state.value == 1
 
 
 # ============================================================================
@@ -222,10 +219,7 @@ class StarletteWebSocketAdapter(WebSocketAdapter):
         """Check Starlette WebSocket connection status."""
         # Starlette WebSocket has client_state
         # CONNECTED = 1, DISCONNECTED = 0
-        return (
-            hasattr(self._ws, "client_state")
-            and self._ws.client_state.value == 1
-        )
+        return hasattr(self._ws, "client_state") and self._ws.client_state.value == 1
 
 
 # ============================================================================
@@ -265,40 +259,29 @@ class CustomServerWebSocketAdapter(WebSocketAdapter):
     async def accept(self, subprotocol: Optional[str] = None) -> None:
         """Accept connection in your server."""
         raise NotImplementedError(
-            "Implement accept() for your server: "
-            "await your_server.accept_websocket(subprotocol)"
+            "Implement accept() for your server: await your_server.accept_websocket(subprotocol)"
         )
 
     async def receive_json(self) -> Dict[str, Any]:
         """Receive JSON from your server."""
-        raise NotImplementedError(
-            "Implement receive_json() for your server"
-        )
+        raise NotImplementedError("Implement receive_json() for your server")
 
     async def send_json(self, data: Dict[str, Any]) -> None:
         """Send JSON via your server."""
-        raise NotImplementedError(
-            "Implement send_json() for your server"
-        )
+        raise NotImplementedError("Implement send_json() for your server")
 
     async def send_bytes(self, data: bytes) -> None:
         """Send bytes via your server."""
-        raise NotImplementedError(
-            "Implement send_bytes() for your server"
-        )
+        raise NotImplementedError("Implement send_bytes() for your server")
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         """Close connection in your server."""
-        raise NotImplementedError(
-            "Implement close() for your server"
-        )
+        raise NotImplementedError("Implement close() for your server")
 
     @property
     def is_connected(self) -> bool:
         """Check if connection is still active in your server."""
-        raise NotImplementedError(
-            "Implement is_connected property for your server"
-        )
+        raise NotImplementedError("Implement is_connected property for your server")
 
 
 # ============================================================================
@@ -329,9 +312,7 @@ class SubscriptionProtocolHandler(ABC):
         ...
 
     @abstractmethod
-    async def handle_subscribe(
-        self, adapter: WebSocketAdapter, message: Dict[str, Any]
-    ) -> None:
+    async def handle_subscribe(self, adapter: WebSocketAdapter, message: Dict[str, Any]) -> None:
         """Handle subscribe message from client.
 
         Args:
@@ -344,9 +325,7 @@ class SubscriptionProtocolHandler(ABC):
         ...
 
     @abstractmethod
-    async def handle_complete(
-        self, adapter: WebSocketAdapter, message: Dict[str, Any]
-    ) -> None:
+    async def handle_complete(self, adapter: WebSocketAdapter, message: Dict[str, Any]) -> None:
         """Handle complete message from client.
 
         Args:

@@ -404,9 +404,7 @@ class GraphQLTransportWSProtocol(SubscriptionProtocolHandler):
         await adapter.send_json(message)
 
         if subscription_id:
-            logger.warning(
-                f"Sent error for subscription {subscription_id}: {error_message}"
-            )
+            logger.warning(f"Sent error for subscription {subscription_id}: {error_message}")
         else:
             logger.error(f"Connection error: {error_message}")
 
@@ -484,34 +482,24 @@ class ProtocolStateMachine:
     def on_connection_init(self) -> None:
         """Process connection_init message."""
         if self.state != ConnectionState.CONNECTING:
-            raise ValueError(
-                "connection_init must be the first message"
-            )
+            raise ValueError("connection_init must be the first message")
         self.state = ConnectionState.READY
 
     def on_subscribe(self, subscription_id: str) -> None:
         """Process subscribe message."""
         if self.state != ConnectionState.READY:
-            raise ValueError(
-                "Must send connection_init before subscribe"
-            )
+            raise ValueError("Must send connection_init before subscribe")
         if subscription_id in self.active_subscriptions:
-            raise ValueError(
-                f"Subscription {subscription_id} already exists"
-            )
+            raise ValueError(f"Subscription {subscription_id} already exists")
         self.active_subscriptions.add(subscription_id)
 
     def on_complete(self, subscription_id: str) -> None:
         """Process complete message."""
         if subscription_id not in self.active_subscriptions:
-            raise ValueError(
-                f"Subscription {subscription_id} not found"
-            )
+            raise ValueError(f"Subscription {subscription_id} not found")
         self.active_subscriptions.discard(subscription_id)
 
-    def is_valid_transition(
-        self, current_state: str, message_type: str
-    ) -> bool:
+    def is_valid_transition(self, current_state: str, message_type: str) -> bool:
         """Check if message type is valid in current state.
 
         Args:
