@@ -129,10 +129,7 @@ impl BenchmarkResult {
             "   Hit Rate: {:.1}% (target ≥85%)",
             self.metrics.hit_rate() * 100.0
         );
-        println!(
-            "   Miss Rate: {:.1}%",
-            self.metrics.miss_rate() * 100.0
-        );
+        println!("   Miss Rate: {:.1}%", self.metrics.miss_rate() * 100.0);
         println!("   Queries: {} total", self.metrics.total_queries);
         println!("   DB Hits: {}", self.metrics.db_queries);
         println!(
@@ -143,14 +140,8 @@ impl BenchmarkResult {
             "   Throughput: {:.0} QPS",
             self.metrics.queries_per_second()
         );
-        println!(
-            "   Avg Latency: {:.2}ms",
-            self.metrics.avg_latency_ms
-        );
-        println!(
-            "   P99 Latency: {:.2}ms",
-            self.metrics.p99_latency_ms
-        );
+        println!("   Avg Latency: {:.2}ms", self.metrics.avg_latency_ms);
+        println!("   P99 Latency: {:.2}ms", self.metrics.p99_latency_ms);
         println!(
             "   Peak Memory: {:.1}MB",
             self.metrics.peak_memory_bytes as f64 / 1024.0 / 1024.0
@@ -180,15 +171,25 @@ impl CacheValidator {
     }
 
     /// Run benchmark for a specific profile
-    fn bench_profile(&mut self, profile: WorkloadProfile, duration_secs: u64, concurrent_users: usize) {
+    fn bench_profile(
+        &mut self,
+        profile: WorkloadProfile,
+        duration_secs: u64,
+        concurrent_users: usize,
+    ) {
         let profile_name = match profile {
             WorkloadProfile::TypicalSaaS => "TypicalSaaS",
             WorkloadProfile::HighFrequencyApi => "HighFrequencyApi",
             WorkloadProfile::Analytical => "Analytical",
-            WorkloadProfile::Custom { hit_rate } => &format!("Custom({}%)", (hit_rate * 100.0) as u32),
+            WorkloadProfile::Custom { hit_rate } => {
+                &format!("Custom({}%)", (hit_rate * 100.0) as u32)
+            }
         };
 
-        println!("\n🚀 Running benchmark: {} ({}s, {} users)", profile_name, duration_secs, concurrent_users);
+        println!(
+            "\n🚀 Running benchmark: {} ({}s, {} users)",
+            profile_name, duration_secs, concurrent_users
+        );
 
         let mut result = BenchmarkResult::new(profile_name);
         let mut gen = WorkloadGenerator::new(profile);
@@ -273,7 +274,8 @@ impl CacheValidator {
         }
 
         // Check DB load reduction
-        let db_reduction = (1.0 - (result.metrics.db_queries as f64 / result.metrics.total_queries as f64));
+        let db_reduction =
+            (1.0 - (result.metrics.db_queries as f64 / result.metrics.total_queries as f64));
         if db_reduction < 0.40 {
             result.add_failure(format!(
                 "DB load reduction {:.1}% below target 50%",
@@ -300,20 +302,41 @@ impl CacheValidator {
             println!("\n❌ Failed Benchmarks:");
             for result in &self.results {
                 if !result.passed {
-                    println!("   - {} ({} failures)", result.profile, result.failures.len());
+                    println!(
+                        "   - {} ({} failures)",
+                        result.profile,
+                        result.failures.len()
+                    );
                 }
             }
         }
 
         println!("\n📊 Aggregate Metrics:");
-        let avg_hit_rate: f64 = self.results.iter().map(|r| r.metrics.hit_rate()).sum::<f64>() / total as f64;
+        let avg_hit_rate: f64 = self
+            .results
+            .iter()
+            .map(|r| r.metrics.hit_rate())
+            .sum::<f64>()
+            / total as f64;
         println!("   Average Hit Rate: {:.1}%", avg_hit_rate * 100.0);
 
-        let avg_qps: f64 = self.results.iter().map(|r| r.metrics.queries_per_second()).sum::<f64>() / total as f64;
+        let avg_qps: f64 = self
+            .results
+            .iter()
+            .map(|r| r.metrics.queries_per_second())
+            .sum::<f64>()
+            / total as f64;
         println!("   Average Throughput: {:.0} QPS", avg_qps);
 
-        let total_memory: usize = self.results.iter().map(|r| r.metrics.peak_memory_bytes).sum();
-        println!("   Total Peak Memory: {:.1}MB", total_memory as f64 / 1024.0 / 1024.0);
+        let total_memory: usize = self
+            .results
+            .iter()
+            .map(|r| r.metrics.peak_memory_bytes)
+            .sum();
+        println!(
+            "   Total Peak Memory: {:.1}MB",
+            total_memory as f64 / 1024.0 / 1024.0
+        );
 
         println!("\n🎯 Validation Status:");
         if passed == total {

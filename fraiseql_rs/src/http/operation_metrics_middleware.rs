@@ -52,19 +52,17 @@ impl OperationMetricsContext {
     ///
     /// New context with operation metrics initialized
     #[must_use]
-    pub fn from_request(
-        query: &str,
-        variables: Option<&JsonValue>,
-        headers: &HeaderMap,
-    ) -> Self {
+    pub fn from_request(query: &str, variables: Option<&JsonValue>, headers: &HeaderMap) -> Self {
         // Generate unique operation ID
         let operation_id = Uuid::new_v4().to_string();
 
         // Detect operation type and name
-        let (operation_type, operation_name) = GraphQLOperationDetector::detect_operation_type(query);
+        let (operation_type, operation_name) =
+            GraphQLOperationDetector::detect_operation_type(query);
 
         // Create metrics instance
-        let mut metrics = OperationMetrics::new(operation_id.clone(), operation_name, operation_type);
+        let mut metrics =
+            OperationMetrics::new(operation_id.clone(), operation_name, operation_type);
 
         // Set query metadata
         metrics.set_query_length(query.len());
@@ -362,11 +360,11 @@ mod tests {
             &headers,
         );
 
+        assert_eq!(context.metrics.trace_id, "4bf92f3577b34da6a3ce929d0e0e4736");
         assert_eq!(
-            context.metrics.trace_id,
-            "4bf92f3577b34da6a3ce929d0e0e4736"
+            context.metrics.parent_span_id,
+            Some("00f067aa0ba902b7".to_string())
         );
-        assert_eq!(context.metrics.parent_span_id, Some("00f067aa0ba902b7".to_string()));
         assert_eq!(context.metrics.request_id, Some("req-12345".to_string()));
     }
 
@@ -376,7 +374,10 @@ mod tests {
 
         let query_context =
             OperationMetricsContext::from_request("query GetUser { user { id } }", None, &headers);
-        assert_eq!(query_context.metrics.operation_type, GraphQLOperationType::Query);
+        assert_eq!(
+            query_context.metrics.operation_type,
+            GraphQLOperationType::Query
+        );
 
         let mutation_context = OperationMetricsContext::from_request(
             "mutation UpdateUser { updateUser { id } }",
@@ -455,7 +456,8 @@ mod tests {
     #[test]
     fn test_elapsed_time() {
         let headers = HeaderMap::new();
-        let context = OperationMetricsContext::from_request("query { user { id } }", None, &headers);
+        let context =
+            OperationMetricsContext::from_request("query { user { id } }", None, &headers);
 
         std::thread::sleep(std::time::Duration::from_millis(10));
 
@@ -468,7 +470,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         let request_headers = HeaderMap::new();
 
-        let context = OperationMetricsContext::from_request("query { user { id } }", None, &request_headers);
+        let context =
+            OperationMetricsContext::from_request("query { user { id } }", None, &request_headers);
 
         let result = inject_trace_headers(&mut headers, &context);
         assert!(result.is_ok());
@@ -523,8 +526,13 @@ mod tests {
         let headers1 = HeaderMap::new();
         let headers2 = HeaderMap::new();
 
-        let context1 = OperationMetricsContext::from_request("query { user { id } }", None, &headers1);
-        let context2 = OperationMetricsContext::from_request("mutation { updateUser { id } }", None, &headers2);
+        let context1 =
+            OperationMetricsContext::from_request("query { user { id } }", None, &headers1);
+        let context2 = OperationMetricsContext::from_request(
+            "mutation { updateUser { id } }",
+            None,
+            &headers2,
+        );
 
         // Contexts should be independent
         assert_ne!(context1.operation_id, context2.operation_id);

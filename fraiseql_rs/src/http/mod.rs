@@ -97,6 +97,7 @@ pub use batch_requests::{
     DeduplicationKey, SingleGraphQLRequest, SingleGraphQLResponse,
 };
 pub use connection_pool::{ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig};
+pub use graphql_operation_detector::{GraphQLOperationDetector, OperationInfo};
 pub use http2_buffer_tuning::{
     Http2BufferConfig, Http2FlowControlConfig, Http2TuningProfile, TuningRecommendation,
 };
@@ -105,11 +106,6 @@ pub use http2_metrics::{Http2Metrics, Http2MetricsSnapshot};
 pub use metrics::HttpMetrics;
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
 pub use observability_middleware::{ObservabilityContext, ResponseStatus};
-pub use optimization::{
-    CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
-    RateLimitConfig, RateLimitInfo,
-};
-pub use graphql_operation_detector::{GraphQLOperationDetector, OperationInfo};
 pub use operation_metrics::{
     GraphQLOperationType, OperationMetrics, OperationStatistics, OperationStatus,
 };
@@ -117,6 +113,10 @@ pub use operation_metrics_middleware::{
     inject_trace_headers, OperationMetricsContext, OperationMetricsMiddleware,
 };
 pub use operation_monitor::{GraphQLOperationMonitor, OperationMonitorConfig};
+pub use optimization::{
+    CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
+    RateLimitConfig, RateLimitInfo,
+};
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 

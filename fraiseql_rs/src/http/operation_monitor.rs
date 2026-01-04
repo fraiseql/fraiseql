@@ -6,9 +6,7 @@
 //! - Statistics aggregation and percentile calculation
 //! - Thread-safe metrics storage
 
-use crate::http::operation_metrics::{
-    GraphQLOperationType, OperationMetrics, OperationStatistics,
-};
+use crate::http::operation_metrics::{GraphQLOperationType, OperationMetrics, OperationStatistics};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -419,21 +417,15 @@ mod tests {
         let monitor = GraphQLOperationMonitor::new(config);
 
         // Record slow query
-        let mut slow_query = OperationMetrics::new(
-            "op_1".to_string(),
-            None,
-            GraphQLOperationType::Query,
-        );
+        let mut slow_query =
+            OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
         slow_query.duration_ms = 150.0;
         slow_query.finish();
         monitor.record(slow_query).ok();
 
         // Record slow mutation
-        let mut slow_mutation = OperationMetrics::new(
-            "op_2".to_string(),
-            None,
-            GraphQLOperationType::Mutation,
-        );
+        let mut slow_mutation =
+            OperationMetrics::new("op_2".to_string(), None, GraphQLOperationType::Mutation);
         slow_mutation.duration_ms = 600.0;
         slow_mutation.finish();
         monitor.record(slow_mutation).ok();
@@ -560,7 +552,8 @@ mod tests {
         let config = OperationMonitorConfig::new();
         let monitor = GraphQLOperationMonitor::new(config);
 
-        let mut metrics = OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
+        let mut metrics =
+            OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
         metrics.duration_ms = 10.0;
         metrics.finish();
         monitor.record(metrics).ok();
@@ -595,7 +588,8 @@ mod tests {
         let config = OperationMonitorConfig::new();
         let monitor1 = GraphQLOperationMonitor::new(config);
 
-        let mut metrics = OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
+        let mut metrics =
+            OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
         metrics.duration_ms = 10.0;
         metrics.finish();
         monitor1.record(metrics).ok();
@@ -608,7 +602,8 @@ mod tests {
         assert_eq!(monitor2.total_operations_recorded(), 1);
 
         // Record through clone
-        let mut metrics2 = OperationMetrics::new("op_2".to_string(), None, GraphQLOperationType::Query);
+        let mut metrics2 =
+            OperationMetrics::new("op_2".to_string(), None, GraphQLOperationType::Query);
         metrics2.duration_ms = 20.0;
         metrics2.finish();
         monitor2.record(metrics2).ok();

@@ -85,10 +85,10 @@ impl WorkloadProfile {
     fn zipfian_skew(&self) -> f64 {
         // How skewed the distribution is toward popular queries
         match self {
-            Self::TypicalSaaS => 1.5,       // Moderate skew (Pareto-ish)
-            Self::HighFrequencyApi => 2.0,  // High skew (80/20 rule)
-            Self::Analytical => 0.5,        // Low skew (more uniform)
-            Self::Custom { .. } => 1.2,     // Default
+            Self::TypicalSaaS => 1.5,      // Moderate skew (Pareto-ish)
+            Self::HighFrequencyApi => 2.0, // High skew (80/20 rule)
+            Self::Analytical => 0.5,       // Low skew (more uniform)
+            Self::Custom { .. } => 1.2,    // Default
         }
     }
 }
@@ -154,7 +154,13 @@ impl WorkloadGenerator {
         let cold_count = 100 - hot_count;
         let cold_queries = (0..cold_count)
             .map(|i| {
-                Self::generate_query((hot_count as u32 + i as u32), false, &user_ids, &entity_ids, &date_ranges)
+                Self::generate_query(
+                    (hot_count as u32 + i as u32),
+                    false,
+                    &user_ids,
+                    &entity_ids,
+                    &date_ranges,
+                )
             })
             .collect();
 
@@ -334,7 +340,8 @@ mod tests {
         let actual_hit_rate = hits as f64 / queries.len() as f64;
 
         // Allow ±10% deviation from expected
-        assert!((actual_hit_rate - expected_hit_rate).abs() < 0.10,
+        assert!(
+            (actual_hit_rate - expected_hit_rate).abs() < 0.10,
             "Hit rate {:.2}% vs expected {:.2}%",
             actual_hit_rate * 100.0,
             expected_hit_rate * 100.0
@@ -364,6 +371,10 @@ mod tests {
         let top_20_count: usize = freq_vec[..top_20_percent].iter().map(|(_, f)| f).sum();
         let top_20_rate = top_20_count as f64 / total as f64;
 
-        assert!(top_20_rate > 0.70, "Top 20% should be >70% of traffic, got {:.0}%", top_20_rate * 100.0);
+        assert!(
+            top_20_rate > 0.70,
+            "Top 20% should be >70% of traffic, got {:.0}%",
+            top_20_rate * 100.0
+        );
     }
 }

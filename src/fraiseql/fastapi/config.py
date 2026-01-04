@@ -330,6 +330,51 @@ class FraiseQLConfig(BaseSettings):
             return v
         raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
 
+    # Observability settings (Phase 19)
+    observability_enabled: bool = True
+    """Enable observability features (metrics, tracing, health checks)."""
+
+    metrics_enabled: bool = True
+    """Enable Prometheus metrics collection."""
+
+    tracing_enabled: bool = True
+    """Enable distributed request tracing (OpenTelemetry)."""
+
+    trace_sample_rate: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate for distributed tracing (0.0-1.0, 1.0 = 100%)",
+    )
+    """Sampling rate for request tracing (0.0 = no tracing, 1.0 = trace all requests)."""
+
+    slow_query_threshold_ms: int = Field(
+        default=100,
+        gt=0,
+        description="Log database queries longer than this threshold (ms)",
+    )
+    """Database queries exceeding this duration (milliseconds) are logged as slow."""
+
+    include_query_bodies: bool = False
+    """Include full GraphQL query bodies in metrics/traces (privacy consideration)."""
+
+    include_variable_values: bool = False
+    """Include GraphQL variable values in metrics/traces (privacy consideration)."""
+
+    audit_log_retention_days: int = Field(
+        default=90,
+        gt=0,
+        description="Retain audit logs for this many days",
+    )
+    """Number of days to retain audit logs before cleanup."""
+
+    health_check_timeout_ms: int = Field(
+        default=5000,
+        gt=0,
+        description="Timeout for health check operations (ms)",
+    )
+    """Timeout for health check operations (milliseconds)."""
+
     # WebSocket Subscriptions settings
     websocket_config: WebSocketConfig | bool | dict | None = None
     """Configuration for WebSocket GraphQL subscriptions.

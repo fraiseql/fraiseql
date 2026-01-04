@@ -498,7 +498,10 @@ impl OperationStatistics {
         durations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let slow_ops = metrics.iter().filter(|m| m.is_slow).count() as u64;
-        let successful = metrics.iter().filter(|m| m.status == OperationStatus::Success).count() as u64;
+        let successful = metrics
+            .iter()
+            .filter(|m| m.status == OperationStatus::Success)
+            .count() as u64;
         let failed = total - successful;
 
         let avg_duration = durations.iter().sum::<f64>() / total as f64;
@@ -517,7 +520,11 @@ impl OperationStatistics {
             failed_operations: failed,
             error_rate: (failed as f64 / total as f64) * 100.0,
             total_response_bytes,
-            avg_response_bytes: if total > 0 { total_response_bytes / total } else { 0 },
+            avg_response_bytes: if total > 0 {
+                total_response_bytes / total
+            } else {
+                0
+            },
             total_fields,
             avg_fields: if total > 0 { total_fields / total } else { 0 },
         }
@@ -563,11 +570,8 @@ mod tests {
 
     #[test]
     fn test_operation_metrics_finish() {
-        let mut metrics = OperationMetrics::new(
-            "op_123".to_string(),
-            None,
-            GraphQLOperationType::Mutation,
-        );
+        let mut metrics =
+            OperationMetrics::new("op_123".to_string(), None, GraphQLOperationType::Mutation);
 
         // Simulate some work
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -581,11 +585,8 @@ mod tests {
 
     #[test]
     fn test_trace_context_integration() {
-        let mut metrics = OperationMetrics::new(
-            "op_123".to_string(),
-            None,
-            GraphQLOperationType::Query,
-        );
+        let mut metrics =
+            OperationMetrics::new("op_123".to_string(), None, GraphQLOperationType::Query);
 
         metrics.set_trace_context(
             "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
@@ -603,11 +604,8 @@ mod tests {
 
     #[test]
     fn test_slow_detection_by_type() {
-        let metrics = OperationMetrics::new(
-            "op_123".to_string(),
-            None,
-            GraphQLOperationType::Mutation,
-        );
+        let metrics =
+            OperationMetrics::new("op_123".to_string(), None, GraphQLOperationType::Mutation);
 
         // For mutations, 450ms is slow (threshold is 500ms)
         assert!(!metrics.is_slow_for_type(100.0, 500.0, 1000.0)); // 0ms < 500ms
@@ -624,7 +622,8 @@ mod tests {
     fn test_operation_statistics_calculation() {
         let metrics = vec![
             {
-                let mut m = OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
+                let mut m =
+                    OperationMetrics::new("op_1".to_string(), None, GraphQLOperationType::Query);
                 m.duration_ms = 50.0;
                 m.response_size_bytes = 1024;
                 m.field_count = 5;
@@ -632,7 +631,8 @@ mod tests {
                 m
             },
             {
-                let mut m = OperationMetrics::new("op_2".to_string(), None, GraphQLOperationType::Query);
+                let mut m =
+                    OperationMetrics::new("op_2".to_string(), None, GraphQLOperationType::Query);
                 m.duration_ms = 100.0;
                 m.response_size_bytes = 2048;
                 m.field_count = 10;
@@ -640,7 +640,8 @@ mod tests {
                 m
             },
             {
-                let mut m = OperationMetrics::new("op_3".to_string(), None, GraphQLOperationType::Query);
+                let mut m =
+                    OperationMetrics::new("op_3".to_string(), None, GraphQLOperationType::Query);
                 m.duration_ms = 150.0;
                 m.response_size_bytes = 1536;
                 m.field_count = 7;
@@ -663,7 +664,8 @@ mod tests {
     fn test_percentile_calculation() {
         let mut metrics = vec![];
         for i in 1..=100 {
-            let mut m = OperationMetrics::new(format!("op_{}", i), None, GraphQLOperationType::Query);
+            let mut m =
+                OperationMetrics::new(format!("op_{}", i), None, GraphQLOperationType::Query);
             m.duration_ms = i as f64;
             metrics.push(m);
         }
@@ -700,7 +702,10 @@ mod tests {
     fn test_operation_type_display() {
         assert_eq!(GraphQLOperationType::Query.to_string(), "query");
         assert_eq!(GraphQLOperationType::Mutation.to_string(), "mutation");
-        assert_eq!(GraphQLOperationType::Subscription.to_string(), "subscription");
+        assert_eq!(
+            GraphQLOperationType::Subscription.to_string(),
+            "subscription"
+        );
         assert_eq!(GraphQLOperationType::Unknown.to_string(), "unknown");
     }
 

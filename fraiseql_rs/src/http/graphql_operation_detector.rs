@@ -51,9 +51,9 @@ impl GraphQLOperationDetector {
 
         // Regex to match operation type and optional name
         // Matches: (query|mutation|subscription) [OperationName]
-        if let Ok(re) = Regex::new(
-            r"^\s*(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)?\s*[\(\{]",
-        ) {
+        if let Ok(re) =
+            Regex::new(r"^\s*(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)?\s*[\(\{]")
+        {
             if let Some(caps) = re.captures(&query_no_comments) {
                 let op_type_str = caps.get(1).map_or("query", |m| m.as_str());
                 let op_name = caps.get(2).map(|m| m.as_str().to_string());
@@ -133,15 +133,30 @@ impl GraphQLOperationDetector {
         if let Ok(re) = Regex::new(r"[A-Za-z_][A-Za-z0-9_]*[\s\{:,]|[A-Za-z_][A-Za-z0-9_]*$") {
             // Count matches, but exclude GraphQL keywords
             let keywords = [
-                "query", "mutation", "subscription", "fragment", "on", "as", "alias", "input",
-                "type", "enum", "union", "interface", "schema", "scalar", "extends",
+                "query",
+                "mutation",
+                "subscription",
+                "fragment",
+                "on",
+                "as",
+                "alias",
+                "input",
+                "type",
+                "enum",
+                "union",
+                "interface",
+                "schema",
+                "scalar",
+                "extends",
             ];
 
             field_count = re
                 .captures_iter(&query_clean)
                 .filter(|cap| {
                     let matched = cap.get(0).map_or("", |m| m.as_str());
-                    let ident = matched.trim_end_matches(|c: char| c.is_whitespace() || c == '{' || c == ':' || c == ',');
+                    let ident = matched.trim_end_matches(|c: char| {
+                        c.is_whitespace() || c == '{' || c == ':' || c == ','
+                    });
                     !keywords.contains(&ident)
                 })
                 .count();
@@ -180,10 +195,7 @@ impl GraphQLOperationDetector {
         // Find all "word: word" patterns outside of variable definitions
         Regex::new(r"[A-Za-z_][A-Za-z0-9_]*\s*:\s*[A-Za-z_][A-Za-z0-9_]*")
             .map(|re| {
-                let matches: Vec<&str> = re
-                    .find_iter(&query_clean)
-                    .map(|m| m.as_str())
-                    .collect();
+                let matches: Vec<&str> = re.find_iter(&query_clean).map(|m| m.as_str()).collect();
                 // Rough estimate: each match that's in a selection set is an alias
                 // More accurate: count colons that appear in field selection context
                 matches.len()
@@ -251,7 +263,7 @@ impl GraphQLOperationDetector {
                 chars.next(); // consume first "
                 if chars.peek() == Some(&'"') {
                     chars.next(); // consume second "
-                    // Skip until we find """
+                                  // Skip until we find """
                     let mut found_end = false;
                     while let Some(c) = chars.next() {
                         if c == '"' && chars.peek() == Some(&'"') {
@@ -332,9 +344,8 @@ mod tests {
 
     #[test]
     fn test_detect_named_query() {
-        let (op_type, op_name) = GraphQLOperationDetector::detect_operation_type(
-            "query GetUser { user { id name } }",
-        );
+        let (op_type, op_name) =
+            GraphQLOperationDetector::detect_operation_type("query GetUser { user { id name } }");
         assert_eq!(op_type, GraphQLOperationType::Query);
         assert_eq!(op_name, Some("GetUser".to_string()));
     }
@@ -367,8 +378,7 @@ mod tests {
 
     #[test]
     fn test_detect_shorthand_query() {
-        let (op_type, op_name) =
-            GraphQLOperationDetector::detect_operation_type("{ user { id } }");
+        let (op_type, op_name) = GraphQLOperationDetector::detect_operation_type("{ user { id } }");
         assert_eq!(op_type, GraphQLOperationType::Query);
         assert_eq!(op_name, None);
     }
@@ -382,9 +392,8 @@ mod tests {
 
     #[test]
     fn test_count_fields_nested() {
-        let count = GraphQLOperationDetector::count_fields(
-            "query { user { id name posts { id title } } }",
-        );
+        let count =
+            GraphQLOperationDetector::count_fields("query { user { id name posts { id title } } }");
         // Should count: user, id, name, posts, id, title
         assert!(count >= 6);
     }
