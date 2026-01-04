@@ -146,7 +146,10 @@ impl QueryCacheKey {
                 entities.insert((entity_type, "*".to_string()));
             } else {
                 // Singular query - extract ID from nested_fields if available
-                let has_id_field = selection.nested_fields.first().map_or(false, |n| n.name == "id");
+                let has_id_field = selection
+                    .nested_fields
+                    .first()
+                    .map_or(false, |n| n.name == "id");
                 if has_id_field {
                     // This is a single entity query, but we don't have the ID yet
                     // Mark as accessing all entities (conservative)
@@ -220,11 +223,12 @@ mod tests {
         let key = QueryCacheKey::generate_cache_key(
             &ParsedQuery {
                 operation_type: "query".to_string(),
+                operation_name: None,
                 root_field: "user".to_string(),
                 selections: vec![],
+                variables: vec![],
                 fragments: vec![],
-                variables: Default::default(),
-                directives: vec![],
+                source: String::new(),
             },
             &vars,
         );
@@ -240,11 +244,12 @@ mod tests {
         let key = QueryCacheKey::generate_cache_key(
             &ParsedQuery {
                 operation_type: "query".to_string(),
+                operation_name: None,
                 root_field: "users".to_string(),
                 selections: vec![],
+                variables: vec![],
                 fragments: vec![],
-                variables: Default::default(),
-                directives: vec![],
+                source: String::new(),
             },
             &vars,
         );

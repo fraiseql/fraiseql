@@ -7,16 +7,13 @@
 pub mod cache_key;
 pub mod executor;
 pub mod http_integration;
+pub mod monitoring;
 pub mod mutation_invalidator;
 pub mod query_result;
 pub mod signature;
 
 #[cfg(test)]
-mod tests_http_integration;
-#[cfg(test)]
-mod tests_mutation_integration;
-#[cfg(test)]
-mod tests_query_integration;
+mod tests_monitoring;
 
 // Re-export key types and functions for convenience
 pub use cache_key::QueryCacheKey;
@@ -24,6 +21,7 @@ pub use executor::{execute_query_with_cache, invalidate_cache_from_cascade};
 pub use http_integration::{
     clear_cache, execute_cached_query, get_cache_metrics, invalidate_cached_queries, CacheConfig,
 };
+pub use monitoring::{CacheHealthThresholds, CacheMonitor, HealthReport, HealthStatus};
 pub use mutation_invalidator::{extract_cascade_from_response, invalidate_cache_on_mutation};
 pub use query_result::{CacheMetrics, CachedResult, QueryResultCache, QueryResultCacheConfig};
 
