@@ -1,17 +1,20 @@
-"""GraphQL ID scalar backed by UUID."""
+"""GraphQL ID scalar type with UUID validation.
 
-from __future__ import annotations
+This module provides:
+- ID: NewType for Python type annotations (Strawberry-style syntax)
+- IDScalar: GraphQL scalar named "ID" that enforces UUID format
+
+FraiseQL is opinionated: IDs must be valid UUIDs.
+The scalar is named "ID" for Apollo/Relay cache compatibility.
+"""
 
 import uuid
-from typing import Any
+from typing import Any, NewType
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode, ValueNode
 
-from fraiseql.types.definitions import ScalarMarker
 
-
-# Serialization functions (reuse UUID logic since ID = UUID)
 def serialize_id(value: Any) -> str:
     """Serialize an ID (UUID) to string."""
     if isinstance(value, uuid.UUID):
@@ -22,7 +25,7 @@ def serialize_id(value: Any) -> str:
             return value
         except ValueError:
             pass
-    msg = f"ID cannot represent non-UUID value: {value!r}"
+    msg = f"ID must be a valid UUID, got: {value!r}"
     raise GraphQLError(msg)
 
 
@@ -32,7 +35,7 @@ def parse_id_value(value: Any) -> uuid.UUID:
         try:
             return uuid.UUID(value)
         except ValueError:
-            msg = f"Invalid ID string provided: {value!r}"
+            msg = f"ID must be a valid UUID string, got: {value!r}"
             raise GraphQLError(msg) from None
     msg = f"ID cannot represent non-string value: {value!r}"
     raise GraphQLError(msg)
@@ -47,25 +50,22 @@ def parse_id_literal(ast: ValueNode, variables: dict[str, object] | None = None)
     raise GraphQLError(msg)
 
 
-# GraphQL Scalar
+# GraphQL Scalar named "ID" for cache compatibility, but enforces UUID
 IDScalar = GraphQLScalarType(
     name="ID",
-    description="A globally unique identifier in UUID format.",
+    description="Unique identifier (UUID format). Compatible with Apollo/Relay caching.",
     serialize=serialize_id,
     parse_value=parse_id_value,
     parse_literal=parse_id_literal,
 )
 
+# Python type annotation (Strawberry-style)
+ID = NewType("ID", str)
+"""GraphQL ID type with UUID validation.
 
-# Python Type Marker
-class IDField(str, ScalarMarker):
-    """FraiseQL ID marker used for Python-side typing and introspection.
-
-    Represents opaque identifiers, backed by UUID in PostgreSQL.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:
-        """Return a user-friendly type name for introspection and debugging."""
-        return "ID"
+Usage:
+    @fraiseql.type
+    class User:
+        id: ID  # Must be a valid UUID
+        name: str
+"""

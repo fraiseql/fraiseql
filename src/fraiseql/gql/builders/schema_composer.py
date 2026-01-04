@@ -82,11 +82,8 @@ class SchemaComposer:
                 if isinstance(gql_type, GraphQLObjectType):
                     all_types.append(gql_type)
 
-        # Add registered scalar types (except built-in ID which GraphQL provides)
+        # Add registered scalar types
         for scalar in self.registry.scalars.values():
-            # Skip ID scalar - GraphQL has a built-in ID type
-            if scalar.name == "ID":
-                continue
             all_types.append(scalar)
 
         logger.debug(

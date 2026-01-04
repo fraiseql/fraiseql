@@ -32,13 +32,13 @@ from .daterange import DateRangeField, DateRangeScalar
 from .datetime import DateTimeScalar
 from .email_address import EmailAddressField, EmailAddressScalar
 from .hostname import HostnameField, HostnameScalar
-from .id_scalar import IDField, IDScalar
+from .id_scalar import ID, IDScalar
 from .ip_address import IpAddressField, IpAddressScalar, SubnetMaskScalar
 from .json import JSONField, JSONScalar
 from .ltree import LTreeField, LTreeScalar
 from .mac_address import MacAddressField, MacAddressScalar
 from .port import PortField, PortScalar
-from .uuid import UUIDField
+from .uuid import UUIDField, UUIDScalar
 
 
 def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
@@ -51,8 +51,8 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         JSONField: JSONScalar,
         dict: JSONScalar,
         uuid.UUID: GraphQLID,
-        UUIDField: GraphQLID,
-        IDField: IDScalar,
+        UUIDField: UUIDScalar,
+        ID: IDScalar,  # Custom ID scalar: named "ID" for cache, enforces UUID
         datetime.date: DateScalar,
         datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,
