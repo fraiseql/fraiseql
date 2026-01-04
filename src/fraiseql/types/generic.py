@@ -46,6 +46,9 @@ def create_concrete_type(generic_type: type, concrete_arg: type) -> type:
     Returns:
         A new concrete type class (e.g., ConnectionPost)
 
+    Raises:
+        TypeError: If generic_type is not decorated with @fraise_type or is not a valid generic.
+
     Example:
         ConnectionPost = create_concrete_type(Connection, Post)
     """

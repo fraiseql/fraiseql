@@ -75,6 +75,10 @@ class CQRSRepository:
 
         Returns:
             Result dictionary from SQL function
+
+        Raises:
+            psycopg.Error: Database error (connection, constraint violation, etc.).
+            psycopg.ProgrammingError: SQL function does not exist.
         """
         function_name = f"fn_create_{entity_type.lower()}"
         return await self.executor.execute_function(function_name, input_data)
@@ -88,6 +92,10 @@ class CQRSRepository:
 
         Returns:
             Result dictionary from SQL function
+
+        Raises:
+            psycopg.Error: Database error (connection, constraint violation, etc.).
+            psycopg.ProgrammingError: SQL function does not exist.
         """
         function_name = f"fn_update_{entity_type.lower()}"
         return await self.executor.execute_function(function_name, input_data)
@@ -101,6 +109,10 @@ class CQRSRepository:
 
         Returns:
             Result dictionary from SQL function
+
+        Raises:
+            psycopg.Error: Database error (connection, constraint violation, etc.).
+            psycopg.ProgrammingError: SQL function does not exist.
         """
         function_name = f"fn_delete_{entity_type.lower()}"
         return await self.executor.execute_function(function_name, {"id": str(entity_id)})
@@ -114,6 +126,10 @@ class CQRSRepository:
 
         Returns:
             Result dictionary from SQL function
+
+        Raises:
+            psycopg.Error: Database error (connection, constraint violation, etc.).
+            psycopg.ProgrammingError: SQL function does not exist.
         """
         return await self.executor.execute_function(function_name, input_data)
 
@@ -131,6 +147,9 @@ class CQRSRepository:
 
         Returns:
             Dictionary with camelCase fields or None if not found
+
+        Raises:
+            psycopg.Error: Database connection error or query execution failure.
         """
         async with self.connection.cursor() as cursor:
             await cursor.execute(
@@ -163,6 +182,9 @@ class CQRSRepository:
 
         Returns:
             List of dictionaries with camelCase fields
+
+        Raises:
+            psycopg.Error: Database connection error or query execution failure.
         """
         # Build query using SQL composition
         from psycopg.sql import Composed

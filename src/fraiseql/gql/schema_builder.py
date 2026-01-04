@@ -45,6 +45,11 @@ def build_fraiseql_schema(
 
     Returns:
         A GraphQLSchema combining the registered query, mutation, and subscription types.
+
+    Raises:
+        ValueError: If type validation fails or invalid schema configuration detected.
+        TypeError: If type argument is not a valid FraiseQL type or callable.
+        RuntimeError: If Rust transformer fails to register types (non-fatal, logs warning).
     """
     if mutation_resolvers is None:
         mutation_resolvers = []

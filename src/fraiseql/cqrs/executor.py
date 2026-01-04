@@ -27,6 +27,10 @@ class CQRSExecutor:
 
         Returns:
             Dictionary with the mutation result fields
+
+        Raises:
+            psycopg.Error: Database connection error or SQL execution failure.
+            psycopg.ProgrammingError: Function does not exist or has invalid signature.
         """
         async with self.connection.cursor(row_factory=dict_row) as cursor:
             # All mutation functions must return mutation_result composite type
@@ -72,6 +76,10 @@ class CQRSExecutor:
 
         Returns:
             List of result rows as dictionaries
+
+        Raises:
+            psycopg.Error: Database connection error or SQL syntax error.
+            psycopg.DataError: Parameter type mismatch or invalid data.
         """
         async with self.connection.cursor(row_factory=dict_row) as cursor:
             await cursor.execute(query, params or {})
