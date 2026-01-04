@@ -64,6 +64,7 @@ pub struct QueryResultCache {
     dependencies: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
 
     /// Configuration
+    #[allow(dead_code)]
     config: QueryResultCacheConfig,
 
     /// Metrics
