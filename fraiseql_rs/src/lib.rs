@@ -809,9 +809,9 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PyFieldAuthChecker",
             "PyRowConstraintResolver", // Issue #2: Row-Level Authorization
             "PyWhereMerger",           // Issue #2: Row-Level Authorization
-            "PyApqHandler", // Phase 15a: APQ
-            "hash_query",   // Phase 15a: APQ
-            "verify_hash",  // Phase 15a: APQ
+            "PyApqHandler",            // Phase 15a: APQ
+            "hash_query",              // Phase 15a: APQ
+            "verify_hash",             // Phase 15a: APQ
             // Phase 15b: Subscriptions exports
             "PySubscriptionExecutor",
             "PySubscriptionPayload",
