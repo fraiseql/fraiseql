@@ -33,6 +33,7 @@ from .types.generic import (
 from .types.interface import fraise_interface
 from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
+from .types.scalars.id_scalar import IDField as ID  # noqa: N814
 from .types.scalars.json import JSONField as JSON  # noqa: N814
 
 # Core aliases (internal - not exported to prevent shadowing builtins)
@@ -127,6 +128,7 @@ def __getattr__(name: str):
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
+    "ID",
     "JSON",
     "STRICT_STATUS_CONFIG",
     "UNSET",
