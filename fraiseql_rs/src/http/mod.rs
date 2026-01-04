@@ -47,6 +47,7 @@
 //! - `connection_pool`: Connection pooling and socket tuning for HTTP/2 (Phase 18.2)
 //! - `batch_requests`: Batch request processing and deduplication (Phase 18.3)
 //! - `http2_metrics`: HTTP/2 multiplexing and stream metrics for observability (Phase 18.5)
+//! - `http2_buffer_tuning`: Buffer and flow window tuning for HTTP/2 (Phase 18.4)
 //!
 //! # Examples
 //!
@@ -68,6 +69,7 @@ pub mod axum_server;
 pub mod batch_requests;
 pub mod benchmarks;
 pub mod connection_pool;
+pub mod http2_buffer_tuning;
 pub mod http2_config;
 pub mod http2_metrics;
 pub mod metrics;
@@ -87,6 +89,9 @@ pub use batch_requests::{
     DeduplicationKey,
 };
 pub use connection_pool::{ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig};
+pub use http2_buffer_tuning::{
+    Http2BufferConfig, Http2FlowControlConfig, Http2TuningProfile, TuningRecommendation,
+};
 pub use http2_config::{Http2Config, Http2Stats};
 pub use http2_metrics::{Http2Metrics, Http2MetricsSnapshot};
 pub use metrics::HttpMetrics;
