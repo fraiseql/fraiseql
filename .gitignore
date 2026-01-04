@@ -182,6 +182,15 @@ security_events.log
 tox_failure*.log
 *.log
 
+# Backup files
+*.backup
+*.bak
+.pre-commit-config.yaml.backup
+
+# Temporary validation files
+run_validation.rs
+run_validation
+
 # TODO directory (deployment analysis and guides)
 TODO/
 
