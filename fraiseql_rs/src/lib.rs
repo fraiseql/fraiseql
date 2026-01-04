@@ -805,6 +805,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
             "PrototypePool", // Phase 0: Async bridge prototype
             "PyAuthProvider",
             "PyUserContext",
+            "PyPermissionResolver",
+            "PyFieldAuthChecker",
+            "PyRowConstraintResolver", // Issue #2: Row-Level Authorization
+            "PyWhereMerger",           // Issue #2: Row-Level Authorization
             "PyApqHandler", // Phase 15a: APQ
             "hash_query",   // Phase 15a: APQ
             "verify_hash",  // Phase 15a: APQ
@@ -867,6 +871,10 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add RBAC (Phase 11)
     m.add_class::<rbac::PyPermissionResolver>()?;
     m.add_class::<rbac::PyFieldAuthChecker>()?;
+
+    // Add Row-Level Authorization (Phase 2 Issue #2)
+    m.add_class::<rbac::PyRowConstraintResolver>()?;
+    m.add_class::<rbac::PyWhereMerger>()?;
 
     // Add security (Phase 12: Constraints, Phase 14: Audit logging)
     m.add_class::<security::py_bindings::PyRateLimiter>()?;
