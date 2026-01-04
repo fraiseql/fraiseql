@@ -82,6 +82,7 @@ pub mod models;
 pub mod py_bindings;
 pub mod resolver;
 pub mod row_constraints;
+pub mod where_merger;
 
 pub use cache::{CacheInvalidation, CacheStats, PermissionCache};
 pub use directives::DirectiveExtractor;
@@ -92,3 +93,4 @@ pub use models::{Permission, Role, RolePermission, UserRole};
 pub use py_bindings::{PyFieldAuthChecker, PyPermissionResolver};
 pub use resolver::PermissionResolver;
 pub use row_constraints::{ConstraintType, RowConstraint, RowConstraintResolver, RowFilter};
+pub use where_merger::{ConflictStrategy, WhereMergeError, WhereMerger};
