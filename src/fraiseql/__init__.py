@@ -35,6 +35,7 @@ from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
 from .types.scalars.id_scalar import IDField as ID  # noqa: N814
 from .types.scalars.json import JSONField as JSON  # noqa: N814
+from .types.scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Core aliases (internal - not exported to prevent shadowing builtins)
 # Use fraiseql.type instead of importing 'type' directly
@@ -132,6 +133,7 @@ __all__ = [
     "JSON",
     "STRICT_STATUS_CONFIG",
     "UNSET",
+    "UUID",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
