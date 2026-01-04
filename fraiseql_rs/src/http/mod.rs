@@ -46,6 +46,7 @@
 //! - `http2_config`: HTTP/2 protocol configuration and multiplexing optimization (Phase 18)
 //! - `connection_pool`: Connection pooling and socket tuning for HTTP/2 (Phase 18.2)
 //! - `batch_requests`: Batch request processing and deduplication (Phase 18.3)
+//! - `http2_metrics`: HTTP/2 multiplexing and stream metrics for observability (Phase 18.5)
 //!
 //! # Examples
 //!
@@ -68,6 +69,7 @@ pub mod batch_requests;
 pub mod benchmarks;
 pub mod connection_pool;
 pub mod http2_config;
+pub mod http2_metrics;
 pub mod metrics;
 pub mod middleware;
 pub mod observability_middleware;
@@ -88,6 +90,7 @@ pub use connection_pool::{
     ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig,
 };
 pub use http2_config::{Http2Config, Http2Stats};
+pub use http2_metrics::{Http2Metrics, Http2MetricsSnapshot};
 pub use metrics::HttpMetrics;
 pub use middleware::{CompressionAlgorithm, CompressionConfig, HttpError};
 pub use observability_middleware::{ObservabilityContext, ResponseStatus};
