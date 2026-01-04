@@ -18,7 +18,7 @@ pub struct FederationContext {
 
 impl FederationContext {
     /// Create new federation context with both IDs
-    #[must_use] 
+    #[must_use]
     pub const fn new(federation_id: Option<String>, service_name: Option<String>) -> Self {
         Self {
             federation_id,
@@ -27,7 +27,7 @@ impl FederationContext {
     }
 
     /// Create federation context with `federation_id` only
-    #[must_use] 
+    #[must_use]
     pub const fn with_id(federation_id: String) -> Self {
         Self {
             federation_id: Some(federation_id),
@@ -36,7 +36,7 @@ impl FederationContext {
     }
 
     /// Create federation context with service name only
-    #[must_use] 
+    #[must_use]
     pub const fn with_service(service_name: String) -> Self {
         Self {
             federation_id: None,
@@ -45,7 +45,7 @@ impl FederationContext {
     }
 
     /// Create federation context with both
-    #[must_use] 
+    #[must_use]
     pub const fn with_both(federation_id: String, service_name: String) -> Self {
         Self {
             federation_id: Some(federation_id),
@@ -54,7 +54,7 @@ impl FederationContext {
     }
 
     /// Create federation context for non-federated environment
-    #[must_use] 
+    #[must_use]
     pub const fn standalone() -> Self {
         Self {
             federation_id: None,
@@ -63,7 +63,7 @@ impl FederationContext {
     }
 
     /// Check if federation context is enabled
-    #[must_use] 
+    #[must_use]
     pub const fn is_federated(&self) -> bool {
         self.federation_id.is_some() || self.service_name.is_some()
     }
@@ -75,7 +75,7 @@ impl FederationContext {
     /// - Both have same federation ID
     /// - Both have same service name
     /// - At least one field matches if both are set
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, other: &Self) -> bool {
         // Non-federated environment: any subscription allowed
         if !self.is_federated() && !other.is_federated() {
@@ -106,13 +106,13 @@ impl FederationContext {
     }
 
     /// Check if subscription should be rejected (opposite of matches)
-    #[must_use] 
+    #[must_use]
     pub fn should_reject(&self, other: &Self) -> bool {
         !self.matches(other)
     }
 
     /// Get description of federation context for logging
-    #[must_use] 
+    #[must_use]
     pub fn describe(&self) -> String {
         match (&self.federation_id, &self.service_name) {
             (None, None) => "Standalone (no federation)".to_string(),
@@ -123,7 +123,7 @@ impl FederationContext {
     }
 
     /// Get identifier for federation (`federation_id` if available, else `service_name`)
-    #[must_use] 
+    #[must_use]
     pub fn identifier(&self) -> Option<String> {
         self.federation_id
             .clone()

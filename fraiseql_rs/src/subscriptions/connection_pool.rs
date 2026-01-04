@@ -69,7 +69,7 @@ pub struct ConnectionMetadata {
 
 impl ConnectionMetadata {
     /// Create new connection metadata
-    #[must_use] 
+    #[must_use]
     pub fn new(id: String) -> Self {
         let now = Instant::now();
         Self {
@@ -82,13 +82,13 @@ impl ConnectionMetadata {
     }
 
     /// Check if connection is idle
-    #[must_use] 
+    #[must_use]
     pub fn is_idle(&self, idle_timeout: Duration) -> bool {
         self.last_used_at.elapsed() > idle_timeout
     }
 
     /// Check if connection exceeds max lifetime
-    #[must_use] 
+    #[must_use]
     pub fn exceeds_max_lifetime(&self, max_lifetime: Duration) -> bool {
         self.created_at.elapsed() > max_lifetime
     }
@@ -162,7 +162,7 @@ pub struct ConnectionPoolManager {
 
 impl ConnectionPoolManager {
     /// Create new pool manager
-    #[must_use] 
+    #[must_use]
     pub fn new(config: PoolConfig) -> Self {
         Self {
             config: Arc::new(config),
@@ -209,16 +209,19 @@ impl ConnectionPoolManager {
     /// Returns `Err(SubscriptionError)` if:
     /// - Connection ID not found in pool
     pub fn release_connection(&self, connection_id: &str) -> Result<(), SubscriptionError> {
-        self.metadata.get_mut(connection_id).map_or_else(|| {
-            self.total_errors.fetch_add(1, Ordering::Relaxed);
-            Err(SubscriptionError::EventBusError(format!(
-                "Connection not found: {connection_id}"
-            )))
-        }, |mut metadata| {
-            metadata.update_used_time();
-            self.idle_count.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        })
+        self.metadata.get_mut(connection_id).map_or_else(
+            || {
+                self.total_errors.fetch_add(1, Ordering::Relaxed);
+                Err(SubscriptionError::EventBusError(format!(
+                    "Connection not found: {connection_id}"
+                )))
+            },
+            |mut metadata| {
+                metadata.update_used_time();
+                self.idle_count.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            },
+        )
     }
 
     /// Mark connection as unhealthy
@@ -228,19 +231,22 @@ impl ConnectionPoolManager {
     /// Returns `Err(SubscriptionError)` if:
     /// - Connection ID not found in pool
     pub fn mark_unhealthy(&self, connection_id: &str) -> Result<(), SubscriptionError> {
-        self.metadata.get_mut(connection_id).map_or_else(|| {
-            Err(SubscriptionError::EventBusError(format!(
-                "Connection not found: {connection_id}"
-            )))
-        }, |mut metadata| {
-            metadata.mark_unhealthy();
-            self.total_errors.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        })
+        self.metadata.get_mut(connection_id).map_or_else(
+            || {
+                Err(SubscriptionError::EventBusError(format!(
+                    "Connection not found: {connection_id}"
+                )))
+            },
+            |mut metadata| {
+                metadata.mark_unhealthy();
+                self.total_errors.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            },
+        )
     }
 
     /// Check connection health
-    #[must_use] 
+    #[must_use]
     pub fn is_connection_healthy(&self, connection_id: &str) -> bool {
         self.metadata
             .get(connection_id)
@@ -295,13 +301,13 @@ impl ConnectionPoolManager {
     }
 
     /// Get connection metadata
-    #[must_use] 
+    #[must_use]
     pub fn get_connection_metadata(&self, connection_id: &str) -> Option<ConnectionMetadata> {
         self.metadata.get(connection_id).map(|entry| entry.clone())
     }
 
     /// Get all connections count
-    #[must_use] 
+    #[must_use]
     pub fn connections_count(&self) -> u32 {
         self.metadata.len() as u32
     }

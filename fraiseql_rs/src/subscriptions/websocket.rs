@@ -58,7 +58,7 @@ pub struct WebSocketConnection {
 
 impl WebSocketConnection {
     /// Create new WebSocket connection
-    #[must_use] 
+    #[must_use]
     pub fn new(
         metadata: ConnectionMetadata,
         config: Arc<WebSocketConfig>,
@@ -80,7 +80,7 @@ impl WebSocketConnection {
     }
 
     /// Check if initialization timed out
-    #[must_use] 
+    #[must_use]
     pub fn init_timed_out(&self) -> bool {
         self.state == ConnectionState::Waiting && Instant::now() > self.init_timeout
     }
@@ -91,13 +91,13 @@ impl WebSocketConnection {
     }
 
     /// Get connection uptime
-    #[must_use] 
+    #[must_use]
     pub fn uptime(&self) -> Duration {
         self.created_at.elapsed()
     }
 
     /// Get time since last activity
-    #[must_use] 
+    #[must_use]
     pub fn idle_time(&self) -> Duration {
         self.last_activity.elapsed()
     }
@@ -159,7 +159,7 @@ impl WebSocketConnection {
     }
 
     /// Check if connection is alive
-    #[must_use] 
+    #[must_use]
     pub fn is_alive(&self) -> bool {
         self.state != ConnectionState::Closed
     }
@@ -182,7 +182,7 @@ impl WebSocketConnection {
     }
 
     /// Get connection info as JSON
-    #[must_use] 
+    #[must_use]
     pub fn as_json(&self) -> Value {
         serde_json::json!({
             "connection_id": self.connection_id.to_string(),
@@ -213,7 +213,7 @@ pub struct WebSocketServer {
 
 impl WebSocketServer {
     /// Create new WebSocket server
-    #[must_use] 
+    #[must_use]
     pub fn new(connection_manager: Arc<ConnectionManager>, config: Arc<WebSocketConfig>) -> Self {
         Self {
             connections: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
@@ -224,7 +224,7 @@ impl WebSocketServer {
     }
 
     /// Create WebSocket server with metrics
-    #[must_use] 
+    #[must_use]
     pub fn with_metrics(
         connection_manager: Arc<ConnectionManager>,
         config: Arc<WebSocketConfig>,
@@ -288,7 +288,11 @@ impl WebSocketServer {
     /// Panics if the connections mutex cannot be locked.
     pub fn unregister_connection(&self, connection_id: Uuid) -> Result<(), SubscriptionError> {
         // Get connection before removing to record metrics
-        let connection = self.connections.lock().expect("Failed to lock connections mutex").remove(&connection_id);
+        let connection = self
+            .connections
+            .lock()
+            .expect("Failed to lock connections mutex")
+            .remove(&connection_id);
 
         // Unregister from connection manager
         self.connection_manager
@@ -327,7 +331,10 @@ impl WebSocketServer {
     /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn active_connections_count(&self) -> usize {
-        self.connections.lock().expect("Failed to lock connections mutex").len()
+        self.connections
+            .lock()
+            .expect("Failed to lock connections mutex")
+            .len()
     }
 
     /// Get connections info as JSON
@@ -337,8 +344,14 @@ impl WebSocketServer {
     /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn connections_info(&self) -> Value {
-        let connections = self.connections.lock().expect("Failed to lock connections mutex");
-        let info: Vec<Value> = connections.values().map(WebSocketConnection::as_json).collect();
+        let connections = self
+            .connections
+            .lock()
+            .expect("Failed to lock connections mutex");
+        let info: Vec<Value> = connections
+            .values()
+            .map(WebSocketConnection::as_json)
+            .collect();
 
         serde_json::json!({
             "total": connections.len(),
@@ -353,7 +366,10 @@ impl WebSocketServer {
     /// Panics if the connections mutex cannot be locked.
     #[must_use]
     pub fn check_timeouts(&self) -> Vec<Uuid> {
-        let connections = self.connections.lock().expect("Failed to lock connections mutex");
+        let connections = self
+            .connections
+            .lock()
+            .expect("Failed to lock connections mutex");
         connections
             .iter()
             .filter(|(_, conn)| conn.init_timed_out())

@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::cache::CacheConfig;
 use crate::http::auth_middleware;
 use crate::http::metrics::HttpMetrics;
 use crate::http::observability_middleware::{ObservabilityContext, ResponseStatus};
@@ -69,14 +70,17 @@ pub struct GraphQLError {
     pub extensions: Option<serde_json::Value>,
 }
 
-/// HTTP server state containing the GraphQL pipeline
+/// HTTP server state containing the GraphQL pipeline and cache
 ///
 /// This is shared across all request handlers via Axum's State mechanism.
-/// The pipeline is wrapped in Arc for zero-copy sharing across async tasks.
+/// The pipeline and cache are wrapped in Arc for zero-copy sharing across async tasks.
 #[derive(Debug, Clone)]
 pub struct AppState {
     /// The unified GraphQL execution pipeline
     pub pipeline: Arc<GraphQLPipeline>,
+
+    /// Query result cache (Phase 17A)
+    pub cache: Arc<CacheConfig>,
 
     /// HTTP observability metrics (request counts, durations, status codes)
     pub http_metrics: Arc<HttpMetrics>,
@@ -86,6 +90,69 @@ pub struct AppState {
 
     /// Optional audit logger for request tracking (requires `PostgreSQL`)
     pub audit_logger: Option<Arc<AuditLogger>>,
+}
+
+impl AppState {
+    /// Create a new AppState with cache enabled
+    ///
+    /// # Arguments
+    ///
+    /// * `pipeline` - The GraphQL execution pipeline
+    /// * `http_metrics` - HTTP metrics tracker
+    /// * `metrics_admin_token` - Admin token for metrics endpoint
+    /// * `audit_logger` - Optional audit logger
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let state = AppState::new(
+    ///     Arc::new(pipeline),
+    ///     Arc::new(HttpMetrics::new()),
+    ///     "admin-token".to_string(),
+    ///     None,
+    /// );
+    /// ```
+    #[must_use]
+    pub fn new(
+        pipeline: Arc<GraphQLPipeline>,
+        http_metrics: Arc<HttpMetrics>,
+        metrics_admin_token: String,
+        audit_logger: Option<Arc<AuditLogger>>,
+    ) -> Self {
+        Self {
+            pipeline,
+            cache: Arc::new(CacheConfig::default()),
+            http_metrics,
+            metrics_admin_token,
+            audit_logger,
+        }
+    }
+
+    /// Create a new AppState with custom cache configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `pipeline` - The GraphQL execution pipeline
+    /// * `cache_config` - Custom cache configuration
+    /// * `http_metrics` - HTTP metrics tracker
+    /// * `metrics_admin_token` - Admin token for metrics endpoint
+    /// * `audit_logger` - Optional audit logger
+    #[must_use]
+    pub fn with_cache_config(
+        pipeline: Arc<GraphQLPipeline>,
+        cache_config: CacheConfig,
+        http_metrics: Arc<HttpMetrics>,
+        metrics_admin_token: String,
+        audit_logger: Option<Arc<AuditLogger>>,
+    ) -> Self {
+        Self {
+            pipeline,
+            cache: Arc::new(cache_config),
+            http_metrics,
+            metrics_admin_token,
+            audit_logger,
+        }
+    }
 }
 
 /// Creates the Axum router for the GraphQL HTTP server
@@ -114,6 +181,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/graphql", post(graphql_handler))
         .route("/graphql/subscriptions", get(websocket::websocket_handler))
         .route("/metrics", get(metrics_handler))
+        .route("/cache/metrics", get(cache_metrics_handler))
         .with_state(state)
         // Add middleware stack
         .layer(middleware::create_compression_layer(&compression_config))
@@ -353,6 +421,43 @@ async fn metrics_handler(
 
     // Export metrics in Prometheus format
     Ok(state.http_metrics.export_prometheus())
+}
+
+/// Handles GET /cache/metrics endpoint - exports cache metrics in JSON format
+///
+/// Returns cache statistics including hit rate, size, and memory usage.
+/// No authentication required (cache metrics are non-sensitive).
+async fn cache_metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::cache::get_cache_metrics;
+
+    match get_cache_metrics(&state.cache.cache) {
+        Ok(metrics) => {
+            let hit_rate = if metrics.hits + metrics.misses > 0 {
+                (metrics.hits as f64) / ((metrics.hits + metrics.misses) as f64)
+            } else {
+                0.0
+            };
+
+            Ok(Json(serde_json::json!({
+                "cache": {
+                    "hits": metrics.hits,
+                    "misses": metrics.misses,
+                    "hit_rate": hit_rate,
+                    "hit_rate_percent": hit_rate * 100.0,
+                    "size": metrics.size,
+                    "memory_bytes": metrics.memory_bytes,
+                    "total_cached": metrics.total_cached,
+                    "invalidations": metrics.invalidations,
+                }
+            })))
+        }
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to get cache metrics: {e}"),
+        )),
+    }
 }
 
 /// Validate metrics admin token

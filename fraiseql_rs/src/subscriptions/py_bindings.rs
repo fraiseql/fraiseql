@@ -94,7 +94,10 @@ impl PyGraphQLMessage {
 
         // Extract optional 'payload' field
         let payload = data.get_item("payload").ok().and_then(|p| {
-            p.map_or_else(|| None, |p_some| p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind()))
+            p.map_or_else(
+                || None,
+                |p_some| p_some.downcast::<PyDict>().ok().map(|d| d.clone().unbind()),
+            )
         });
 
         Ok(Self { type_, id, payload })
@@ -121,7 +124,7 @@ impl PyGraphQLMessage {
 
     /// Get message type property
     #[getter(type_)]
-    #[must_use] 
+    #[must_use]
     pub fn get_type(&self) -> String {
         self.type_.clone()
     }
@@ -134,7 +137,7 @@ impl PyGraphQLMessage {
 
     /// Get message ID property
     #[getter(id)]
-    #[must_use] 
+    #[must_use]
     pub fn get_id(&self) -> Option<String> {
         self.id.clone()
     }
@@ -147,7 +150,7 @@ impl PyGraphQLMessage {
 
     /// Get message payload property
     #[getter(payload)]
-    #[must_use] 
+    #[must_use]
     pub const fn get_payload(&self) -> Option<&Py<PyDict>> {
         self.payload.as_ref()
     }
@@ -518,7 +521,7 @@ impl PySubscriptionExecutor {
     ///
     /// Returns:
     ///     List of subscription IDs subscribed to this channel
-    #[must_use] 
+    #[must_use]
     pub fn subscriptions_by_channel(&self, channel: &str) -> Vec<String> {
         self.executor.subscriptions_by_channel(channel)
     }
@@ -650,11 +653,10 @@ impl PySubscriptionExecutor {
         // Convert the Bound reference to a Py<PyAny> owned object
         let resolver_py: Py<PyAny> = resolver.clone().unbind();
 
-        self.resolvers.insert(subscription_id.to_string(), resolver_py);
+        self.resolvers
+            .insert(subscription_id.to_string(), resolver_py);
 
-        println!(
-            "[Phase 3] Resolver registered for subscription: {subscription_id}"
-        );
+        println!("[Phase 3] Resolver registered for subscription: {subscription_id}");
 
         Ok(())
     }

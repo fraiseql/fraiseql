@@ -159,7 +159,7 @@ pub struct ParsedSubscription {
 
 impl GraphQLMessage {
     /// Get message type name
-    #[must_use] 
+    #[must_use]
     pub const fn type_name(&self) -> &'static str {
         match self {
             Self::ConnectionInit { .. } => "connection_init",
@@ -174,37 +174,37 @@ impl GraphQLMessage {
     }
 
     /// Check if this is a connection initialization message
-    #[must_use] 
+    #[must_use]
     pub const fn is_connection_init(&self) -> bool {
         matches!(self, Self::ConnectionInit { .. })
     }
 
     /// Check if this is a subscription message
-    #[must_use] 
+    #[must_use]
     pub const fn is_subscribe(&self) -> bool {
         matches!(self, Self::Subscribe { .. })
     }
 
     /// Create a connection init message
-    #[must_use] 
+    #[must_use]
     pub const fn connection_init(payload: Option<Value>) -> Self {
         Self::ConnectionInit { payload }
     }
 
     /// Create a connection ack message
-    #[must_use] 
+    #[must_use]
     pub const fn connection_ack(payload: Option<Value>) -> Self {
         Self::ConnectionAck { payload }
     }
 
     /// Create a next (data) message
-    #[must_use] 
+    #[must_use]
     pub const fn next(id: String, payload: Value) -> Self {
         Self::Next { id, payload }
     }
 
     /// Create an error message
-    #[must_use] 
+    #[must_use]
     pub fn error(id: String, message: String) -> Self {
         Self::Error {
             id,
@@ -218,19 +218,19 @@ impl GraphQLMessage {
     }
 
     /// Create a complete message
-    #[must_use] 
+    #[must_use]
     pub const fn complete(id: String) -> Self {
         Self::Complete { id }
     }
 
     /// Create a ping message
-    #[must_use] 
+    #[must_use]
     pub const fn ping(payload: Option<Value>) -> Self {
         Self::Ping { payload }
     }
 
     /// Create a pong message
-    #[must_use] 
+    #[must_use]
     pub const fn pong(payload: Option<Value>) -> Self {
         Self::Pong { payload }
     }

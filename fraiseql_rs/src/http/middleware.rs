@@ -101,7 +101,7 @@ impl Default for CompressionConfig {
 
 impl CompressionConfig {
     /// Create compression config with Brotli (default)
-    #[must_use] 
+    #[must_use]
     pub const fn brotli() -> Self {
         Self {
             algorithm: CompressionAlgorithm::Brotli,
@@ -119,14 +119,14 @@ impl CompressionConfig {
     }
 
     /// Set minimum bytes threshold for compression
-    #[must_use] 
+    #[must_use]
     pub const fn with_min_bytes(mut self, min_bytes: usize) -> Self {
         self.min_bytes = min_bytes;
         self
     }
 
     /// Get human-readable compression info
-    #[must_use] 
+    #[must_use]
     pub fn description(&self) -> String {
         format!(
             "{} compression (min {} bytes)",
@@ -157,7 +157,7 @@ impl CompressionConfig {
 /// let config = CompressionConfig::default(); // Uses Brotli
 /// let layer = create_compression_layer(config);
 /// ```
-#[must_use] 
+#[must_use]
 pub fn create_compression_layer(
     config: &CompressionConfig,
 ) -> tower_http::compression::CompressionLayer {

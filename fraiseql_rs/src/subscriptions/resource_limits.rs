@@ -101,7 +101,7 @@ pub struct ResourceLimiter {
 
 impl ResourceLimiter {
     /// Create new resource limiter
-    #[must_use] 
+    #[must_use]
     pub fn new(limits: ResourceLimits) -> Self {
         Self {
             limits: Arc::new(limits),
@@ -323,7 +323,7 @@ impl ResourceLimiter {
     }
 
     /// Get resource usage statistics
-    #[must_use] 
+    #[must_use]
     pub fn get_stats(&self) -> ResourceStats {
         ResourceStats {
             total_subscriptions: self.subscription_resources.len() as u32,

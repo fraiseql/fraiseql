@@ -38,7 +38,7 @@ impl ObservabilityContext {
     ///
     /// * `client_ip` - Client IP address from request
     /// * `operation` - GraphQL operation type
-    #[must_use] 
+    #[must_use]
     pub fn new(client_ip: String, operation: String) -> Self {
         Self {
             request_id: Uuid::new_v4(),
@@ -101,7 +101,7 @@ impl ResponseStatus {
 /// Create an audit entry from request context
 ///
 /// Helper function to construct `AuditEntry` for logging to audit logger
-#[must_use] 
+#[must_use]
 pub fn create_audit_entry(
     context: &ObservabilityContext,
     query: &str,

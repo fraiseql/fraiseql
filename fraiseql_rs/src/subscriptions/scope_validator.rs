@@ -22,7 +22,7 @@ pub struct ScopeValidator {
 
 impl ScopeValidator {
     /// Create new scope validator with enforcement enabled
-    #[must_use] 
+    #[must_use]
     pub const fn new(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
@@ -32,7 +32,7 @@ impl ScopeValidator {
     }
 
     /// Create scope validator with explicit enforcement control
-    #[must_use] 
+    #[must_use]
     pub const fn with_enforcement(user_id: i64, tenant_id: i64, enforce_validation: bool) -> Self {
         Self {
             user_id,
@@ -42,7 +42,7 @@ impl ScopeValidator {
     }
 
     /// Create scope validator for testing (no enforcement)
-    #[must_use] 
+    #[must_use]
     pub const fn test_mode(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
@@ -126,7 +126,7 @@ impl ScopeValidator {
     }
 
     /// Check if subscription is allowed (convenience method)
-    #[must_use] 
+    #[must_use]
     pub fn is_allowed(&self, variables: &HashMap<String, Value>) -> bool {
         self.validate(variables).is_ok()
     }
@@ -138,7 +138,7 @@ impl ScopeValidator {
     /// - User: Restricted to authenticated user
     /// - Tenant: Restricted to authenticated tenant
     /// - Both: Restricted to specific user AND tenant
-    #[must_use] 
+    #[must_use]
     pub fn scope_level(&self, variables: &HashMap<String, Value>) -> ScopeLevel {
         let has_user = variables.contains_key("user_id");
         let has_tenant = variables.contains_key("tenant_id");
@@ -154,7 +154,7 @@ impl ScopeValidator {
     /// Extract scope context from variables
     ///
     /// Returns a description of what scope restrictions are applied.
-    #[must_use] 
+    #[must_use]
     pub fn describe(&self) -> String {
         if self.enforce_validation {
             format!(
@@ -167,7 +167,7 @@ impl ScopeValidator {
     }
 
     /// Describe the scope of a specific subscription
-    #[must_use] 
+    #[must_use]
     pub fn describe_subscription(&self, variables: &HashMap<String, Value>) -> String {
         match self.scope_level(variables) {
             ScopeLevel::None => "Wildcard subscription (no scope restriction)".to_string(),
@@ -220,7 +220,10 @@ impl ScopeLevel {
     /// Check if this scope level is more restrictive than another
     #[must_use]
     pub const fn is_more_restrictive(&self, other: &Self) -> bool {
-        matches!((self, other), (Self::Both, _) | (Self::User | Self::Tenant, Self::None))
+        matches!(
+            (self, other),
+            (Self::Both, _) | (Self::User | Self::Tenant, Self::None)
+        )
     }
 }
 

@@ -22,7 +22,7 @@ pub struct RowFilterContext {
 
 impl RowFilterContext {
     /// Create new filter context from user credentials
-    #[must_use] 
+    #[must_use]
     pub const fn new(user_id: Option<i64>, tenant_id: Option<i64>) -> Self {
         let filter_by_user = user_id.is_some();
         let filter_by_tenant = tenant_id.is_some();
@@ -36,7 +36,7 @@ impl RowFilterContext {
     }
 
     /// Create filter context with no filtering (for testing)
-    #[must_use] 
+    #[must_use]
     pub const fn no_filter() -> Self {
         Self {
             user_id: None,
@@ -47,7 +47,7 @@ impl RowFilterContext {
     }
 
     /// Create filter context that only filters by `user_id`
-    #[must_use] 
+    #[must_use]
     pub const fn user_only(user_id: i64) -> Self {
         Self {
             user_id: Some(user_id),
@@ -58,7 +58,7 @@ impl RowFilterContext {
     }
 
     /// Create filter context that only filters by `tenant_id`
-    #[must_use] 
+    #[must_use]
     pub const fn tenant_only(tenant_id: i64) -> Self {
         Self {
             user_id: None,
@@ -88,7 +88,7 @@ impl RowFilterContext {
     ///   "amount": 100.50
     /// }
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, event_data: &Value) -> bool {
         // If no filtering enabled, accept all events
         if !self.filter_by_user && !self.filter_by_tenant {
@@ -131,13 +131,13 @@ impl RowFilterContext {
     }
 
     /// Check if event should be filtered (opposite of matches)
-    #[must_use] 
+    #[must_use]
     pub fn should_drop(&self, event_data: &Value) -> bool {
         !self.matches(event_data)
     }
 
     /// Get description of filter for logging
-    #[must_use] 
+    #[must_use]
     pub fn describe(&self) -> String {
         match (self.filter_by_user, self.filter_by_tenant) {
             (false, false) => "No filtering".to_string(),

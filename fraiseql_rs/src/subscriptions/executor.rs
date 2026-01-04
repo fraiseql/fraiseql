@@ -78,7 +78,7 @@ pub struct ExecutedSubscription {
 
 impl ExecutedSubscription {
     /// Create new executed subscription
-    #[must_use] 
+    #[must_use]
     pub fn new(
         id: String,
         connection_id: Uuid,
@@ -126,13 +126,13 @@ impl ExecutedSubscription {
     }
 
     /// Get subscription uptime
-    #[must_use] 
+    #[must_use]
     pub fn uptime(&self) -> std::time::Duration {
         self.created_at.elapsed()
     }
 
     /// Check if subscription is alive
-    #[must_use] 
+    #[must_use]
     pub const fn is_alive(&self) -> bool {
         matches!(
             self.state,
@@ -144,13 +144,13 @@ impl ExecutedSubscription {
     ///
     /// Lifetime limits prevent subscriptions from running indefinitely and accumulating memory.
     /// Example: 24-hour limit prevents long-running subscriptions from leaking resources.
-    #[must_use] 
+    #[must_use]
     pub fn has_exceeded_lifetime(&self, max_lifetime: std::time::Duration) -> bool {
         self.uptime() > max_lifetime
     }
 
     /// Get time until subscription reaches max lifetime
-    #[must_use] 
+    #[must_use]
     pub fn time_until_expiry(
         &self,
         max_lifetime: std::time::Duration,
@@ -164,7 +164,7 @@ impl ExecutedSubscription {
     }
 
     /// As JSON representation
-    #[must_use] 
+    #[must_use]
     pub fn as_json(&self) -> Value {
         json!({
             "id": self.id,
@@ -218,7 +218,7 @@ pub trait ResolverCallback: Send + Sync {
 
 impl SubscriptionExecutor {
     /// Create new executor
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             subscriptions: std::sync::Arc::new(dashmap::DashMap::new()),
@@ -243,7 +243,7 @@ impl SubscriptionExecutor {
 
     /// Get all subscription IDs subscribed to a channel
     /// Returns empty vector if no subscriptions for channel
-    #[must_use] 
+    #[must_use]
     pub fn subscriptions_by_channel(&self, channel: &str) -> Vec<String> {
         self.channel_index
             .get(channel)
@@ -395,15 +395,12 @@ impl SubscriptionExecutor {
     /// - Operation type validation (must be subscription)
     /// - Operation name validation (if specified, must exist)
     /// - Variables validation (must match query parameters)
-    fn validate_subscription(
-        subscription: &ExecutedSubscription,
-    ) -> Result<(), SubscriptionError> {
+    fn validate_subscription(subscription: &ExecutedSubscription) -> Result<(), SubscriptionError> {
         const MAX_FIELD_COUNT: usize = 500; // Reasonable limit for subscriptions
 
         // 1. Parse and validate GraphQL syntax
-        let document = parse_query::<String>(&subscription.query).map_err(|e| {
-            SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {e}"))
-        })?;
+        let document = parse_query::<String>(&subscription.query)
+            .map_err(|e| SubscriptionError::InvalidMessage(format!("GraphQL syntax error: {e}")))?;
 
         // 2. Validate that query contains subscription operation
         let has_subscription = document.definitions.iter().any(|def| {
@@ -451,7 +448,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get subscription by ID
-    #[must_use] 
+    #[must_use]
     pub fn get_subscription(&self, subscription_id: &str) -> Option<ExecutedSubscription> {
         self.subscriptions.get(subscription_id).map(|s| s.clone())
     }
@@ -474,7 +471,7 @@ impl SubscriptionExecutor {
             |mut sub| {
                 f(&mut sub);
                 Ok(())
-            }
+            },
         )
     }
 
@@ -506,7 +503,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get all subscriptions for connection
-    #[must_use] 
+    #[must_use]
     pub fn get_connection_subscriptions(&self, connection_id: Uuid) -> Vec<ExecutedSubscription> {
         self.subscriptions
             .iter()
@@ -536,7 +533,7 @@ impl SubscriptionExecutor {
     }
 
     /// Get active subscriptions count
-    #[must_use] 
+    #[must_use]
     pub fn active_subscriptions_count(&self) -> usize {
         self.subscriptions
             .iter()
@@ -545,13 +542,13 @@ impl SubscriptionExecutor {
     }
 
     /// Get all subscriptions count
-    #[must_use] 
+    #[must_use]
     pub fn total_subscriptions_count(&self) -> usize {
         self.subscriptions.len()
     }
 
     /// Get executor metrics as JSON
-    #[must_use] 
+    #[must_use]
     pub fn metrics(&self) -> Value {
         let active = self
             .subscriptions
@@ -586,7 +583,7 @@ impl SubscriptionExecutor {
     ///
     /// This prevents subscriptions from accumulating indefinitely and consuming memory.
     /// Should be called periodically (e.g., every minute) by a cleanup task.
-    #[must_use] 
+    #[must_use]
     pub fn cleanup_expired(&self, max_lifetime: std::time::Duration) -> usize {
         let mut removed = 0;
         self.subscriptions.retain(|_, sub| {
@@ -604,7 +601,7 @@ impl SubscriptionExecutor {
     ///
     /// Returns subscriptions that will expire within the given time window.
     /// Useful for warning clients about upcoming disconnection.
-    #[must_use] 
+    #[must_use]
     pub fn get_expiring_subscriptions(
         &self,
         max_lifetime: std::time::Duration,
@@ -709,9 +706,7 @@ impl SubscriptionExecutor {
     ) -> Result<(), SubscriptionError> {
         if let Some(mut entry) = self.subscriptions_secure.get_mut(subscription_id) {
             entry.violations_count += 1;
-            println!(
-                "[SECURITY] Subscription {subscription_id} violation: {reason}"
-            );
+            println!("[SECURITY] Subscription {subscription_id} violation: {reason}");
             Ok(())
         } else {
             Err(SubscriptionError::SubscriptionNotFound)
@@ -725,7 +720,7 @@ impl SubscriptionExecutor {
     ///
     /// # Returns
     /// * Violation count (0 if no violations or subscription not found)
-    #[must_use] 
+    #[must_use]
     pub fn get_violation_count(&self, subscription_id: &str) -> u32 {
         self.subscriptions_secure
             .get(subscription_id)
@@ -740,7 +735,7 @@ impl SubscriptionExecutor {
     /// # Returns
     /// * `Some(ExecutedSubscriptionWithSecurity)` if found
     /// * `None` if not found
-    #[must_use] 
+    #[must_use]
     pub fn get_subscription_with_security(
         &self,
         subscription_id: &str,
@@ -925,10 +920,7 @@ impl SubscriptionExecutor {
                 let event_data = Arc::clone(&event_data);
                 let sub_id = sub_id.clone();
 
-                async move {
-                    executor
-                        .dispatch_to_subscription(&sub_id, &event_type, &event_data)
-                }
+                async move { executor.dispatch_to_subscription(&sub_id, &event_type, &event_data) }
             })
             .collect();
 
@@ -979,8 +971,7 @@ impl SubscriptionExecutor {
         }
 
         // 3. Invoke Python resolver (placeholder for Phase 2)
-        let resolver_result = self
-            .invoke_python_resolver(subscription_id, event_data)?;
+        let resolver_result = self.invoke_python_resolver(subscription_id, event_data)?;
 
         // 4. Serialize response to bytes
         let response_bytes = Self::serialize_response(&resolver_result)?;
@@ -1096,51 +1087,57 @@ impl SubscriptionExecutor {
         // Get resolver callback clone before invoking
         let callback = {
             let callback_lock = self.resolver_callback.try_lock();
-            callback_lock.map_or_else(|_| None, |callback_guard| callback_guard.as_ref().map(Arc::clone))
+            callback_lock.map_or_else(
+                |_| None,
+                |callback_guard| callback_guard.as_ref().map(Arc::clone),
+            )
         };
 
         // If we have a callback, invoke it with error handling (Phase 3.4)
-        callback.map_or_else(|| {
-            // No resolver registered - use default echo resolver
-            Ok(json!({
-                "data": event_data,
-                "type": "next"
-            }))
-        }, |callback| {
-            // Invoke resolver synchronously (Phase 3.4: Error handling & recovery)
-            // Note: Timeout cannot be applied to synchronous Python resolver calls
-            // due to GIL constraints. See Phase 3.5 for async resolver architecture.
-            // Instead, we provide comprehensive error handling:
-            // - Parse errors (malformed response)
-            // - Resolver exceptions (Python errors)
-            // - Graceful fallback to echo resolver with error
+        callback.map_or_else(
+            || {
+                // No resolver registered - use default echo resolver
+                Ok(json!({
+                    "data": event_data,
+                    "type": "next"
+                }))
+            },
+            |callback| {
+                // Invoke resolver synchronously (Phase 3.4: Error handling & recovery)
+                // Note: Timeout cannot be applied to synchronous Python resolver calls
+                // due to GIL constraints. See Phase 3.5 for async resolver architecture.
+                // Instead, we provide comprehensive error handling:
+                // - Parse errors (malformed response)
+                // - Resolver exceptions (Python errors)
+                // - Graceful fallback to echo resolver with error
 
-            let result = callback.invoke(subscription_id, &event_data_json);
+                let result = callback.invoke(subscription_id, &event_data_json);
 
-            match result {
-                Ok(result_json) => {
-                    // Resolver succeeded - parse result (Phase 3.4: Error handling)
-                    match serde_json::from_str::<Value>(&result_json) {
-                        Ok(result_value) => Ok(result_value),
-                        Err(e) => {
-                            // If parsing fails, wrap in error response (Phase 3.4)
-                            Ok(json!({
-                                "error": format!("Failed to parse resolver result: {}", e),
-                                "data": event_data
-                            }))
+                match result {
+                    Ok(result_json) => {
+                        // Resolver succeeded - parse result (Phase 3.4: Error handling)
+                        match serde_json::from_str::<Value>(&result_json) {
+                            Ok(result_value) => Ok(result_value),
+                            Err(e) => {
+                                // If parsing fails, wrap in error response (Phase 3.4)
+                                Ok(json!({
+                                    "error": format!("Failed to parse resolver result: {}", e),
+                                    "data": event_data
+                                }))
+                            }
                         }
                     }
+                    Err(e) => {
+                        // Resolver returned error (Phase 3.4: Convert exception to response)
+                        // This handles both Python exceptions and Rust errors from the callback
+                        Ok(json!({
+                            "error": e.to_string(),
+                            "data": event_data
+                        }))
+                    }
                 }
-                Err(e) => {
-                    // Resolver returned error (Phase 3.4: Convert exception to response)
-                    // This handles both Python exceptions and Rust errors from the callback
-                    Ok(json!({
-                        "error": e.to_string(),
-                        "data": event_data
-                    }))
-                }
-            }
-        })
+            },
+        )
     }
 
     /// Serialize response to pre-serialized bytes (Phase 2/2.2)

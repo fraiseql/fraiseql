@@ -45,7 +45,7 @@ pub struct ConnectionHeartbeat {
 
 impl ConnectionHeartbeat {
     /// Create new heartbeat manager
-    #[must_use] 
+    #[must_use]
     pub fn new(
         connection_id: Uuid,
         config: Arc<WebSocketConfig>,
@@ -65,7 +65,8 @@ impl ConnectionHeartbeat {
     /// Check if it's time to send a ping
     #[must_use]
     pub fn should_ping(&self) -> bool {
-        self.last_ping_sent.is_none_or(|last_ping| last_ping.elapsed() >= self.config.ping_interval)
+        self.last_ping_sent
+            .is_none_or(|last_ping| last_ping.elapsed() >= self.config.ping_interval)
     }
 
     /// Record a ping sent
@@ -81,13 +82,14 @@ impl ConnectionHeartbeat {
     }
 
     /// Check if pong timeout has been exceeded
-    #[must_use] 
+    #[must_use]
     pub fn is_pong_timeout(&self) -> bool {
         if self.state != HeartbeatState::AwaitingPong {
             return false;
         }
 
-        self.last_ping_sent.is_some_and(|last_ping| last_ping.elapsed() > self.config.pong_timeout)
+        self.last_ping_sent
+            .is_some_and(|last_ping| last_ping.elapsed() > self.config.pong_timeout)
     }
 
     /// Detect and record dead connection
@@ -116,20 +118,23 @@ impl ConnectionHeartbeat {
     }
 
     /// Get time remaining before pong timeout
-    #[must_use] 
+    #[must_use]
     pub fn time_until_pong_timeout(&self) -> Option<Duration> {
         if self.state != HeartbeatState::AwaitingPong {
             return None;
         }
 
-        self.last_ping_sent.map_or_else(|| Some(self.config.pong_timeout), |last_ping| {
-            let elapsed = last_ping.elapsed();
-            if elapsed >= self.config.pong_timeout {
-                Some(Duration::ZERO)
-            } else {
-                Some(self.config.pong_timeout - elapsed)
-            }
-        })
+        self.last_ping_sent.map_or_else(
+            || Some(self.config.pong_timeout),
+            |last_ping| {
+                let elapsed = last_ping.elapsed();
+                if elapsed >= self.config.pong_timeout {
+                    Some(Duration::ZERO)
+                } else {
+                    Some(self.config.pong_timeout - elapsed)
+                }
+            },
+        )
     }
 }
 
@@ -145,31 +150,34 @@ pub struct HeartbeatMonitor {
 
 impl HeartbeatMonitor {
     /// Create new heartbeat monitor
-    #[must_use] 
-    pub const fn new(config: Arc<WebSocketConfig>, metrics: Option<Arc<SubscriptionMetrics>>) -> Self {
+    #[must_use]
+    pub const fn new(
+        config: Arc<WebSocketConfig>,
+        metrics: Option<Arc<SubscriptionMetrics>>,
+    ) -> Self {
         Self { config, metrics }
     }
 
     /// Create heartbeat for a connection
-    #[must_use] 
+    #[must_use]
     pub fn create_heartbeat(&self, connection_id: Uuid) -> ConnectionHeartbeat {
         ConnectionHeartbeat::new(connection_id, self.config.clone(), self.metrics.clone())
     }
 
     /// Get ping interval from configuration
-    #[must_use] 
+    #[must_use]
     pub fn ping_interval(&self) -> Duration {
         self.config.ping_interval
     }
 
     /// Get pong timeout from configuration
-    #[must_use] 
+    #[must_use]
     pub fn pong_timeout(&self) -> Duration {
         self.config.pong_timeout
     }
 
     /// Get graceful shutdown timeout from configuration
-    #[must_use] 
+    #[must_use]
     pub fn shutdown_grace_period(&self) -> Duration {
         self.config.shutdown_grace
     }

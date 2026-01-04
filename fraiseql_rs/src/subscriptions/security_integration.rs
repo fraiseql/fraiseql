@@ -56,7 +56,7 @@ pub struct SubscriptionSecurityContext {
 
 impl SubscriptionSecurityContext {
     /// Create new security context from authenticated user
-    #[must_use] 
+    #[must_use]
     pub const fn new(user_id: i64, tenant_id: i64) -> Self {
         Self {
             user_id,
@@ -72,8 +72,12 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with federation context
-    #[must_use] 
-    pub const fn with_federation(user_id: i64, tenant_id: i64, federation: FederationContext) -> Self {
+    #[must_use]
+    pub const fn with_federation(
+        user_id: i64,
+        tenant_id: i64,
+        federation: FederationContext,
+    ) -> Self {
         Self {
             user_id,
             tenant_id,
@@ -88,7 +92,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with RBAC context
-    #[must_use] 
+    #[must_use]
     pub fn with_rbac(user_id: i64, tenant_id: i64, requested_fields: Vec<String>) -> Self {
         Self {
             user_id,
@@ -108,7 +112,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Create security context with all security modules
-    #[must_use] 
+    #[must_use]
     pub fn complete(
         user_id: i64,
         tenant_id: i64,
@@ -174,7 +178,7 @@ impl SubscriptionSecurityContext {
     /// Validate event data before delivery to subscriber
     ///
     /// Applies row-level filtering and tenant isolation.
-    #[must_use] 
+    #[must_use]
     pub fn validate_event_for_delivery(&self, event_data: &Value) -> bool {
         // Check 1: Row-level filtering (user_id and tenant_id)
         if !self.row_filter.matches(event_data) {
@@ -201,11 +205,13 @@ impl SubscriptionSecurityContext {
         &self,
         allowed_fields: &HashMap<String, bool>,
     ) -> Result<(), String> {
-        self.rbac.as_ref().map_or(Ok(()), |rbac| rbac.validate_fields(allowed_fields))
+        self.rbac
+            .as_ref()
+            .map_or(Ok(()), |rbac| rbac.validate_fields(allowed_fields))
     }
 
     /// Get accessible fields from requested set
-    #[must_use] 
+    #[must_use]
     pub fn get_accessible_fields(&self) -> Option<Vec<String>> {
         self.rbac.as_ref().map(|rbac| {
             let allowed = (0..rbac.requested_fields.len())
@@ -216,7 +222,7 @@ impl SubscriptionSecurityContext {
     }
 
     /// Get comprehensive security audit log
-    #[must_use] 
+    #[must_use]
     pub fn audit_log(&self) -> String {
         let mut log = format!(
             "=== Subscription Security Audit ===\n\
@@ -251,13 +257,13 @@ impl SubscriptionSecurityContext {
     }
 
     /// Check if all security checks have passed
-    #[must_use] 
+    #[must_use]
     pub const fn passed_all_checks(&self) -> bool {
         self.all_checks_passed && self.violations.is_empty()
     }
 
     /// Get list of violations (if any)
-    #[must_use] 
+    #[must_use]
     pub fn get_violations(&self) -> Vec<String> {
         self.violations.clone()
     }

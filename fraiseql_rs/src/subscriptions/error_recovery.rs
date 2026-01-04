@@ -76,7 +76,7 @@ pub struct CircuitBreaker {
 
 impl CircuitBreaker {
     /// Create new circuit breaker
-    #[must_use] 
+    #[must_use]
     pub fn new(failure_threshold: u32, timeout: Duration) -> Self {
         Self {
             state: Arc::new(tokio::sync::Mutex::new(CircuitState::Closed)),
@@ -180,7 +180,7 @@ pub struct FallbackRegistry {
 
 impl FallbackRegistry {
     /// Create new fallback registry
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             fallbacks: Arc::new(dashmap::DashMap::new()),
@@ -196,7 +196,7 @@ impl FallbackRegistry {
     }
 
     /// Get fallback for service
-    #[must_use] 
+    #[must_use]
     pub fn get_fallback(&self, service: &str) -> Option<String> {
         self.fallbacks.get(service).map(|entry| entry.clone())
     }
@@ -212,15 +212,13 @@ impl FallbackRegistry {
     }
 
     /// Check if service is available
-    #[must_use] 
+    #[must_use]
     pub fn is_available(&self, service: &str) -> bool {
-        self.availability
-            .get(service)
-            .is_none_or(|entry| *entry) // Default to available if not registered
+        self.availability.get(service).is_none_or(|entry| *entry) // Default to available if not registered
     }
 
     /// Get available fallback
-    #[must_use] 
+    #[must_use]
     pub fn get_available_fallback(&self, service: &str) -> Option<String> {
         if let Some(fallback) = self.get_fallback(service) {
             if self.is_available(&fallback) {
@@ -258,7 +256,7 @@ pub struct RecoveryStrategy {
 
 impl RecoveryStrategy {
     /// Create new recovery strategy
-    #[must_use] 
+    #[must_use]
     pub fn new(retry_config: RetryConfig) -> Self {
         Self {
             retry_config: Arc::new(retry_config),
@@ -270,7 +268,7 @@ impl RecoveryStrategy {
     }
 
     /// Calculate backoff duration for retry
-    #[must_use] 
+    #[must_use]
     pub fn calculate_backoff(&self, attempt: u32) -> Duration {
         let base_backoff = self.retry_config.initial_backoff.as_millis() as f64
             * self.retry_config.backoff_multiplier.powi(attempt as i32);
@@ -285,7 +283,7 @@ impl RecoveryStrategy {
     }
 
     /// Check if should retry
-    #[must_use] 
+    #[must_use]
     pub fn should_retry(&self, attempt: u32) -> bool {
         attempt < self.retry_config.max_retries
     }
@@ -301,19 +299,19 @@ impl RecoveryStrategy {
     }
 
     /// Get circuit breaker
-    #[must_use] 
+    #[must_use]
     pub fn circuit_breaker(&self) -> &CircuitBreaker {
         &self.circuit_breaker
     }
 
     /// Get fallback registry
-    #[must_use] 
+    #[must_use]
     pub fn fallbacks(&self) -> &FallbackRegistry {
         &self.fallbacks
     }
 
     /// Get recovery statistics
-    #[must_use] 
+    #[must_use]
     pub fn stats(&self) -> RecoveryStats {
         RecoveryStats {
             total_attempts: self.recovery_attempts.load(Ordering::Relaxed),

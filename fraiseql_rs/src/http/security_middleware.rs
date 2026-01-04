@@ -71,7 +71,7 @@ pub struct HttpSecurityError {
 
 impl HttpSecurityError {
     /// Convert to GraphQL error response
-    #[must_use] 
+    #[must_use]
     pub fn to_graphql_error(&self) -> GraphQLError {
         let mut extensions = json!({
             "code": self.code,
@@ -89,7 +89,7 @@ impl HttpSecurityError {
     }
 
     /// Get HTTP status code
-    #[must_use] 
+    #[must_use]
     pub const fn status_code(&self) -> StatusCode {
         self.status_code
     }
@@ -190,9 +190,7 @@ fn convert_security_error_to_http(
             window_secs,
         } => HttpSecurityError {
             status_code: StatusCode::TOO_MANY_REQUESTS,
-            message: format!(
-                "Rate limit exceeded: {limit} requests per {window_secs} seconds"
-            ),
+            message: format!("Rate limit exceeded: {limit} requests per {window_secs} seconds"),
             code: "RATE_LIMIT_EXCEEDED".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: Some(*retry_after),
@@ -209,9 +207,7 @@ fn convert_security_error_to_http(
 
         SecurityError::QueryTooDeep { depth, max_depth } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!(
-                "Query nesting ({depth} levels) exceeds maximum ({max_depth})"
-            ),
+            message: format!("Query nesting ({depth} levels) exceeds maximum ({max_depth})"),
             code: "QUERY_TOO_DEEP".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,
@@ -222,9 +218,7 @@ fn convert_security_error_to_http(
             max_complexity,
         } => HttpSecurityError {
             status_code: StatusCode::BAD_REQUEST,
-            message: format!(
-                "Query complexity ({complexity}) exceeds maximum ({max_complexity})"
-            ),
+            message: format!("Query complexity ({complexity}) exceeds maximum ({max_complexity})"),
             code: "QUERY_TOO_COMPLEX".to_string(),
             client_ip: client_ip.to_string(),
             retry_after: None,

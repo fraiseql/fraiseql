@@ -62,7 +62,7 @@ pub struct AuthMiddleware {
 
 impl AuthMiddleware {
     /// Create new auth middleware
-    #[must_use] 
+    #[must_use]
     pub fn new(secret: String) -> Self {
         Self {
             secret: Arc::new(secret),

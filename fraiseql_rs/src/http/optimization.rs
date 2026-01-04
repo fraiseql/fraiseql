@@ -164,7 +164,7 @@ pub struct HealthStatus {
 
 impl HealthStatus {
     /// Determine health status from metrics
-    #[must_use] 
+    #[must_use]
     pub fn from_metrics(
         uptime_secs: u64,
         active_connections: u64,
@@ -255,7 +255,7 @@ pub struct RateLimitInfo {
 
 impl RateLimitInfo {
     /// Create new rate limit info
-    #[must_use] 
+    #[must_use]
     pub const fn new(limit: u32, remaining: u32, reset_at: u64) -> Self {
         Self {
             limit,
@@ -265,7 +265,7 @@ impl RateLimitInfo {
     }
 
     /// Get HTTP headers for rate limit info
-    #[must_use] 
+    #[must_use]
     pub fn to_headers(&self) -> [(String, String); 3] {
         [
             ("X-RateLimit-Limit".to_string(), self.limit.to_string()),
@@ -312,7 +312,7 @@ pub struct CacheStats {
 
 impl CacheStats {
     /// Calculate hit ratio
-    #[must_use] 
+    #[must_use]
     pub fn calculate_hit_ratio(&self) -> f64 {
         let total = self.hits + self.misses;
         if total > 0 {
