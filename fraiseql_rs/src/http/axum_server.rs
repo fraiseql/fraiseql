@@ -165,48 +165,51 @@ async fn graphql_handler(
     // NOTE: This demonstrates the integration point for JWT validation.
     // In production, JWTValidator would be stored in AppState and initialized at startup.
     // See Phase 16 Commit 6 plan for full JWT validator initialization details.
-    let user_context = auth_header.map_or_else(|| {
-        state.http_metrics.record_anonymous_request();
-        // No Authorization header - create anonymous context
-        UserContext {
-            user_id: None,
-            permissions: vec!["public".to_string()],
-            roles: vec![],
-            exp: u64::MAX,
-        }
-    }, |_auth| {
-        state.http_metrics.record_auth_success();
-        // JWT validation would be performed here with:
-        // let jwt_validator = &state.jwt_validator;
-        // match auth_middleware::extract_and_validate_jwt(Some(auth), jwt_validator).await {
-        //     Ok(ctx) => ctx,
-        //     Err(auth_err) => {
-        //         state.http_metrics.record_auth_failure();
-        //         return (
-        //             auth_err.status_code(),
-        //             Json(GraphQLResponse {
-        //                 data: None,
-        //                 errors: Some(vec![GraphQLError {
-        //                     message: auth_err.message,
-        //                     extensions: Some(json!({
-        //                         "code": auth_err.code,
-        //                         "client_ip": addr.to_string(),
-        //                     })),
-        //                 }]),
-        //             }),
-        //         ).into_response();
-        //     }
-        // }
-        // For now, create authenticated context from header presence (placeholder)
-        auth_middleware::claims_to_user_context(crate::auth::Claims {
-            sub: "authenticated-user".to_string(),
-            iss: "system".to_string(),
-            aud: vec!["graphql".to_string()],
-            exp: u64::MAX,
-            iat: 0,
-            custom: std::collections::HashMap::new(),
-        })
-    });
+    let user_context = auth_header.map_or_else(
+        || {
+            state.http_metrics.record_anonymous_request();
+            // No Authorization header - create anonymous context
+            UserContext {
+                user_id: None,
+                permissions: vec!["public".to_string()],
+                roles: vec![],
+                exp: u64::MAX,
+            }
+        },
+        |_auth| {
+            state.http_metrics.record_auth_success();
+            // JWT validation would be performed here with:
+            // let jwt_validator = &state.jwt_validator;
+            // match auth_middleware::extract_and_validate_jwt(Some(auth), jwt_validator).await {
+            //     Ok(ctx) => ctx,
+            //     Err(auth_err) => {
+            //         state.http_metrics.record_auth_failure();
+            //         return (
+            //             auth_err.status_code(),
+            //             Json(GraphQLResponse {
+            //                 data: None,
+            //                 errors: Some(vec![GraphQLError {
+            //                     message: auth_err.message,
+            //                     extensions: Some(json!({
+            //                         "code": auth_err.code,
+            //                         "client_ip": addr.to_string(),
+            //                     })),
+            //                 }]),
+            //             }),
+            //         ).into_response();
+            //     }
+            // }
+            // For now, create authenticated context from header presence (placeholder)
+            auth_middleware::claims_to_user_context(crate::auth::Claims {
+                sub: "authenticated-user".to_string(),
+                iss: "system".to_string(),
+                aud: vec!["graphql".to_string()],
+                exp: u64::MAX,
+                iat: 0,
+                custom: std::collections::HashMap::new(),
+            })
+        },
+    );
 
     // Convert variables from JSON to HashMap<String, JsonValue>
     let variables = request.variables.map_or_else(HashMap::new, |vars| {
@@ -309,7 +312,7 @@ async fn graphql_handler(
 }
 
 /// Detect GraphQL operation type from query string
-fn detect_operation(query: &str) -> String {
+pub fn detect_operation(query: &str) -> String {
     let trimmed = query.trim();
     if trimmed.starts_with("mutation") {
         "mutation".to_string()
@@ -355,7 +358,7 @@ async fn metrics_handler(
 /// Validate metrics admin token
 ///
 /// Expects "Bearer <token>" format
-fn validate_metrics_token(auth_header: &str, expected_token: &str) -> bool {
+pub fn validate_metrics_token(auth_header: &str, expected_token: &str) -> bool {
     if let Some(token) = auth_header.strip_prefix("Bearer ") {
         return token == expected_token;
     }

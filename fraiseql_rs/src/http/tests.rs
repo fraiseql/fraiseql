@@ -437,28 +437,32 @@ mod tests {
 
     #[test]
     fn test_http_error_conversion() {
-        let error =
-            crate::http::middleware::HttpError::CompressionFailed("compression failed".to_string());
+        let error = crate::http::middleware::HttpError::bad_request("compression failed");
 
         // Verify error can be created and converted
-        assert!(true);
+        assert_eq!(error.message, "compression failed");
     }
 
     #[test]
     fn test_auth_error_conversion() {
-        let error = crate::http::HttpAuthError::InvalidToken("invalid".to_string());
+        let error = crate::http::HttpAuthError::unauthorized("invalid token");
 
         // Verify error can be created
-        assert!(true);
+        assert_eq!(error.message, "invalid token");
     }
 
     #[test]
     fn test_security_error_conversion() {
-        let error =
-            crate::http::HttpSecurityError::ValidationFailed("validation failed".to_string());
+        let error = crate::http::HttpSecurityError {
+            status_code: StatusCode::BAD_REQUEST,
+            message: "validation failed".to_string(),
+            code: "VALIDATION_ERROR".to_string(),
+            client_ip: "192.168.1.1".to_string(),
+            retry_after: None,
+        };
 
         // Verify error can be created
-        assert!(true);
+        assert_eq!(error.message, "validation failed");
     }
 
     // =========================================================================

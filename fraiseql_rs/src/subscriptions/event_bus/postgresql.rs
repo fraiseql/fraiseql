@@ -241,8 +241,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgresql_event_bus_creation() {
-        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default()).unwrap();
 
         let stats = bus.stats();
         assert_eq!(stats.mode, "PostgreSQL");
@@ -251,10 +250,7 @@ mod tests {
     #[test]
     fn test_channel_name_building() {
         let config = PostgreSQLConfig::default();
-        let bus = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(PostgreSQLEventBus::with_config(config))
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(config).unwrap();
 
         let channel_name = bus.build_channel_name("chat");
         assert_eq!(channel_name, "fraiseql_chat");
@@ -267,10 +263,7 @@ mod tests {
             channel_prefix: "myapp".to_string(),
         };
 
-        let bus = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(PostgreSQLEventBus::with_config(config))
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(config).unwrap();
 
         let channel_name = bus.build_channel_name("notifications");
         assert_eq!(channel_name, "myapp_notifications");
@@ -278,16 +271,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgresql_event_bus_init() {
-        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default()).unwrap();
 
         assert!(bus.init().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_postgresql_event_bus_health_check() {
-        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default())
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(PostgreSQLConfig::default()).unwrap();
 
         assert!(bus.health_check().await.is_ok());
     }
@@ -328,10 +319,7 @@ mod tests {
     #[test]
     fn test_channel_name_with_special_characters() {
         let config = PostgreSQLConfig::default();
-        let bus = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(PostgreSQLEventBus::with_config(config))
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(config).unwrap();
 
         let channel_name = bus.build_channel_name("user-updates");
         assert_eq!(channel_name, "fraiseql_user-updates");
@@ -340,10 +328,7 @@ mod tests {
     #[test]
     fn test_multiple_channel_names() {
         let config = PostgreSQLConfig::default();
-        let bus = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(PostgreSQLEventBus::with_config(config))
-            .unwrap();
+        let bus = PostgreSQLEventBus::with_config(config).unwrap();
 
         let channels = ["chat", "notifications", "alerts", "system"];
         let channel_names: Vec<String> =
@@ -444,10 +429,7 @@ mod tests {
                 channel_prefix: prefix.to_string(),
             };
 
-            let bus = tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(PostgreSQLEventBus::with_config(config))
-                .unwrap();
+            let bus = PostgreSQLEventBus::with_config(config).unwrap();
 
             let channel_name = bus.build_channel_name("notifications");
             let expected = format!("{}_{}", prefix, "notifications");
