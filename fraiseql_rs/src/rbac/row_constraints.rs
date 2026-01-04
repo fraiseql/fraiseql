@@ -273,7 +273,7 @@ impl RowConstraintResolver {
         Ok(constraint.and_then(|c| c.to_filter(user_id, user_tenant_id)))
     }
 
-    /// Query `row_constraints` table for applicable constraints
+    /// Query `tb_row_constraint` table for applicable constraints
     async fn query_row_constraints(
         &self,
         table_name: &str,
@@ -291,7 +291,7 @@ impl RowConstraintResolver {
                 constraint_type,
                 field_name,
                 expression
-            FROM row_constraints
+            FROM tb_row_constraint
             WHERE table_name = $1
               AND role_id = ANY($2)
             ORDER BY constraint_type DESC

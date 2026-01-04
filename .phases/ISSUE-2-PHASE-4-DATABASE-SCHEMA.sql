@@ -2,10 +2,11 @@
 -- Created for FraiseQL v1.9.1
 -- Issue #2: Row-Level Access Control Middleware
 
--- Create row_constraints table for storing row-level access rules
+-- Create row-level access constraint table for storing row-level access rules
 -- This table defines which rows users with specific roles can access
+-- Named tb_row_constraint following FraiseQL framework table naming conventions
 
-CREATE TABLE IF NOT EXISTS row_constraints (
+CREATE TABLE IF NOT EXISTS tb_row_constraint (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     table_name VARCHAR NOT NULL,
     role_id UUID NOT NULL,
@@ -22,13 +23,13 @@ CREATE TABLE IF NOT EXISTS row_constraints (
     UNIQUE(table_name, role_id, constraint_type),
 
     -- Index for fast lookup by table and role
-    INDEX idx_row_constraints_table_role (table_name, role_id),
-    INDEX idx_row_constraints_role (role_id),
-    INDEX idx_row_constraints_table (table_name)
+    INDEX idx_tb_row_constraint_table_role (table_name, role_id),
+    INDEX idx_tb_row_constraint_role (role_id),
+    INDEX idx_tb_row_constraint_table (table_name)
 );
 
--- Create table for row constraint audit log
-CREATE TABLE IF NOT EXISTS row_constraint_audit (
+-- Create audit table for row constraint changes
+CREATE TABLE IF NOT EXISTS tb_row_constraint_audit (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     constraint_id UUID,
     user_id UUID,
@@ -37,31 +38,31 @@ CREATE TABLE IF NOT EXISTS row_constraint_audit (
     new_values JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
 
-    FOREIGN KEY (constraint_id) REFERENCES row_constraints(id) ON DELETE SET NULL,
-    INDEX idx_row_constraint_audit_user (user_id),
-    INDEX idx_row_constraint_audit_created (created_at)
+    FOREIGN KEY (constraint_id) REFERENCES tb_row_constraint(id) ON DELETE SET NULL,
+    INDEX idx_tb_row_constraint_audit_user (user_id),
+    INDEX idx_tb_row_constraint_audit_created (created_at)
 );
 
 -- Example: Insert sample row constraints for demonstration
 -- NOTE: Only add these if you want to test row-level auth. Remove for production.
 
 -- Example 1: Admin role can see all rows (no constraint = no WHERE filter)
--- INSERT INTO row_constraints (table_name, role_id, constraint_type)
+-- INSERT INTO tb_row_constraint (table_name, role_id, constraint_type)
 -- VALUES ('documents', (SELECT id FROM roles WHERE name = 'admin'), 'ownership')
 -- ON CONFLICT (table_name, role_id, constraint_type) DO NOTHING;
 
 -- Example 2: Manager role can only see tenant's rows
--- INSERT INTO row_constraints (table_name, role_id, constraint_type, field_name)
+-- INSERT INTO tb_row_constraint (table_name, role_id, constraint_type, field_name)
 -- VALUES ('documents', (SELECT id FROM roles WHERE name = 'manager'), 'tenant', 'tenant_id')
 -- ON CONFLICT (table_name, role_id, constraint_type) DO NOTHING;
 
 -- Example 3: User role can only see their own rows
--- INSERT INTO row_constraints (table_name, role_id, constraint_type, field_name)
+-- INSERT INTO tb_row_constraint (table_name, role_id, constraint_type, field_name)
 -- VALUES ('documents', (SELECT id FROM roles WHERE name = 'user'), 'ownership', 'owner_id')
 -- ON CONFLICT (table_name, role_id, constraint_type) DO NOTHING;
 
 -- Example 4: Analyst role can see published docs in their tenant (complex expression)
--- INSERT INTO row_constraints (table_name, role_id, constraint_type, expression)
+-- INSERT INTO tb_row_constraint (table_name, role_id, constraint_type, expression)
 -- VALUES ('documents', (SELECT id FROM roles WHERE name = 'analyst'), 'expression', 'status = ''published'' AND tenant_id = :user_tenant_id')
 -- ON CONFLICT (table_name, role_id, constraint_type) DO NOTHING;
 
