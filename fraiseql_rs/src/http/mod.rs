@@ -48,6 +48,10 @@
 //! - `batch_requests`: Batch request processing and deduplication (Phase 18.3)
 //! - `http2_metrics`: HTTP/2 multiplexing and stream metrics for observability (Phase 18.5)
 //! - `http2_buffer_tuning`: Buffer and flow window tuning for HTTP/2 (Phase 18.4)
+//! - `operation_metrics`: GraphQL operation metrics collection and aggregation (Phase 19, Commit 4.5) ⭐
+//! - `operation_monitor`: Slow operation detection and monitoring (Phase 19, Commit 4.5) ⭐
+//! - `operation_metrics_middleware`: Axum middleware for metrics collection and trace context (Phase 19, Commit 4.5) ⭐
+//! - `graphql_operation_detector`: Operation type detection and field/alias counting (Phase 19, Commit 4.5) ⭐
 //!
 //! # Examples
 //!
@@ -69,12 +73,16 @@ pub mod axum_server;
 pub mod batch_requests;
 pub mod benchmarks;
 pub mod connection_pool;
+pub mod graphql_operation_detector;
 pub mod http2_buffer_tuning;
 pub mod http2_config;
 pub mod http2_metrics;
 pub mod metrics;
 pub mod middleware;
 pub mod observability_middleware;
+pub mod operation_metrics;
+pub mod operation_metrics_middleware;
+pub mod operation_monitor;
 pub mod optimization;
 pub mod security_middleware;
 pub mod websocket;
@@ -101,6 +109,14 @@ pub use optimization::{
     CacheStats, ConnectionPoolStats, HealthStatus, OptimizationConfig, PerformanceStats,
     RateLimitConfig, RateLimitInfo,
 };
+pub use graphql_operation_detector::{GraphQLOperationDetector, OperationInfo};
+pub use operation_metrics::{
+    GraphQLOperationType, OperationMetrics, OperationStatistics, OperationStatus,
+};
+pub use operation_metrics_middleware::{
+    inject_trace_headers, OperationMetricsContext, OperationMetricsMiddleware,
+};
+pub use operation_monitor::{GraphQLOperationMonitor, OperationMonitorConfig};
 pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSecurityError};
 pub use websocket::websocket_handler;
 
