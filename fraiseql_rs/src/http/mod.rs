@@ -105,6 +105,9 @@ pub use security_middleware::{check_rate_limit, validate_graphql_request, HttpSe
 pub use websocket::websocket_handler;
 
 #[cfg(test)]
+mod http2_integration_tests;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]
