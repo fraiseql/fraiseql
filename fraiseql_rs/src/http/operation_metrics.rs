@@ -342,23 +342,22 @@ impl OperationMetrics {
         subscription_threshold_ms: f64,
     ) -> bool {
         let threshold = match self.operation_type {
-            GraphQLOperationType::Query => query_threshold_ms,
+            GraphQLOperationType::Query | GraphQLOperationType::Unknown => query_threshold_ms,
             GraphQLOperationType::Mutation => mutation_threshold_ms,
             GraphQLOperationType::Subscription => subscription_threshold_ms,
-            GraphQLOperationType::Unknown => query_threshold_ms,
         };
         self.duration_ms > threshold
     }
 
     /// Get the total number of operations (hits) for aggregation
     #[must_use]
-    pub fn total_operations(&self) -> u64 {
+    pub const fn total_operations(&self) -> u64 {
         1
     }
 
     /// Get success indicator for aggregation (0 or 1)
     #[must_use]
-    pub fn success_indicator(&self) -> u64 {
+    pub const fn success_indicator(&self) -> u64 {
         match self.status {
             OperationStatus::Success => 1,
             OperationStatus::PartialError | OperationStatus::Error | OperationStatus::Timeout => 0,
@@ -367,7 +366,7 @@ impl OperationMetrics {
 
     /// Get error indicator for aggregation (0 or 1)
     #[must_use]
-    pub fn error_indicator(&self) -> u64 {
+    pub const fn error_indicator(&self) -> u64 {
         match self.status {
             OperationStatus::Error | OperationStatus::Timeout => 1,
             OperationStatus::Success | OperationStatus::PartialError => 0,
@@ -403,7 +402,7 @@ impl OperationMetrics {
 
     /// Check if operation is still executing (no end time set)
     #[must_use]
-    pub fn is_executing(&self) -> bool {
+    pub const fn is_executing(&self) -> bool {
         self.end_time.is_none()
     }
 
@@ -463,7 +462,7 @@ pub struct OperationStatistics {
 impl OperationStatistics {
     /// Create a new empty statistics instance
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             total_operations: 0,
             slow_operations: 0,
