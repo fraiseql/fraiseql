@@ -86,7 +86,7 @@ pub use axum_server::{
 };
 pub use batch_requests::{
     BatchGraphQLRequest, BatchGraphQLResponse, BatchProcessingConfig, BatchProcessor, BatchStats,
-    DeduplicationKey,
+    DeduplicationKey, SingleGraphQLRequest, SingleGraphQLResponse,
 };
 pub use connection_pool::{ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig};
 pub use http2_buffer_tuning::{

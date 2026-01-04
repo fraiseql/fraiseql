@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 mod http2_integration_tests {
+    use crate::http::batch_requests::{SingleGraphQLRequest, SingleGraphQLResponse};
     use crate::http::*;
 
     // ===== Stream Lifecycle Tests =====
@@ -57,7 +58,7 @@ mod http2_integration_tests {
 
     #[test]
     fn test_pool_config_matches_http2_config() {
-        let http2_cfg = Http2Config::balanced();
+        let _http2_cfg = Http2Config::balanced();
         let pool_cfg = ConnectionPoolConfig::balanced();
 
         // Pool should support the max concurrent streams per connection
@@ -75,7 +76,8 @@ mod http2_integration_tests {
         let pool_cfg = ConnectionPoolConfig::high_concurrency();
 
         // High concurrency should support maximum multiplexing
-        let expected_total_streams = pool_cfg.max_total_connections * http2_cfg.max_concurrent_streams.get();
+        let expected_total_streams =
+            pool_cfg.max_total_connections * http2_cfg.max_concurrent_streams.get();
         assert!(expected_total_streams > 10_000);
     }
 
@@ -124,7 +126,7 @@ mod http2_integration_tests {
     #[test]
     fn test_deduplication_saves_streams() {
         let config = BatchProcessingConfig::balanced();
-        let processor = BatchProcessor::new(config);
+        let _processor = BatchProcessor::new(config);
         let metrics = Http2Metrics::new();
 
         // Create identical requests
@@ -192,8 +194,7 @@ mod http2_integration_tests {
 
             // Body streaming threshold should be reasonable
             assert!(
-                profile.buffers.body_streaming_threshold
-                    >= profile.buffers.read_buffer_size * 2
+                profile.buffers.body_streaming_threshold >= profile.buffers.read_buffer_size * 2
             );
         }
     }
@@ -202,7 +203,7 @@ mod http2_integration_tests {
 
     #[test]
     fn test_high_concurrency_scenario() {
-        let http2_cfg = Http2Config::high_throughput();
+        let _http2_cfg = Http2Config::high_throughput();
         let pool_cfg = ConnectionPoolConfig::high_concurrency();
         let metrics = Http2Metrics::new();
 
@@ -347,7 +348,7 @@ mod http2_integration_tests {
         let http2_cfg = Http2Config::balanced();
         let pool_cfg = ConnectionPoolConfig::balanced();
         let batch_cfg = BatchProcessingConfig::balanced();
-        let buffer_cfg = Http2BufferConfig::balanced();
+        let _buffer_cfg = Http2BufferConfig::balanced();
         let metrics = Http2Metrics::new();
         let processor = BatchProcessor::new(batch_cfg);
 

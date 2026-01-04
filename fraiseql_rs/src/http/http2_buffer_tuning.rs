@@ -27,7 +27,7 @@ pub struct Http2FlowControlConfig {
     pub initial_connection_window: u32,
 
     /// Maximum frame size (bytes)
-    /// Standard: 16KB (16384), range: 16KB-16MB in HTTP/2 spec
+    /// Standard: 16KB (16_384), range: 16KB-16MB in HTTP/2 spec
     /// Recommendation: Keep at 16KB (standard), larger frames have diminishing returns
     pub max_frame_size: u32,
 
@@ -53,11 +53,11 @@ impl Http2FlowControlConfig {
     #[must_use]
     pub const fn balanced() -> Self {
         Self {
-            initial_stream_window: 65536,        // 64KB (HTTP/2 default)
-            initial_connection_window: 1048576,  // 1MB
-            max_frame_size: 16384,               // 16KB (standard)
+            initial_stream_window: 65_536,        // 64KB (HTTP/2 default)
+            initial_connection_window: 1_048_576, // 1MB
+            max_frame_size: 16_384,               // 16KB (standard)
             allow_window_growth: false,
-            max_window_size: 1048576,            // 1MB max
+            max_window_size: 1_048_576, // 1MB max
             aggressive_windowing: false,
         }
     }
@@ -69,11 +69,11 @@ impl Http2FlowControlConfig {
     #[must_use]
     pub const fn high_throughput() -> Self {
         Self {
-            initial_stream_window: 262144,       // 256KB
-            initial_connection_window: 10485760, // 10MB
-            max_frame_size: 16384,
+            initial_stream_window: 262_144,        // 256KB
+            initial_connection_window: 10_485_760, // 10MB
+            max_frame_size: 16_384,
             allow_window_growth: true,
-            max_window_size: 10485760,           // 10MB max
+            max_window_size: 10_485_760, // 10MB max
             aggressive_windowing: true,
         }
     }
@@ -85,11 +85,11 @@ impl Http2FlowControlConfig {
     #[must_use]
     pub const fn low_latency() -> Self {
         Self {
-            initial_stream_window: 32768,        // 32KB
-            initial_connection_window: 262144,   // 256KB
-            max_frame_size: 16384,
+            initial_stream_window: 32_768,      // 32KB
+            initial_connection_window: 262_144, // 256KB
+            max_frame_size: 16_384,
             allow_window_growth: false,
-            max_window_size: 262144,
+            max_window_size: 262_144,
             aggressive_windowing: false,
         }
     }
@@ -101,11 +101,11 @@ impl Http2FlowControlConfig {
     #[must_use]
     pub const fn conservative() -> Self {
         Self {
-            initial_stream_window: 16384,        // 16KB
-            initial_connection_window: 131072,   // 128KB
-            max_frame_size: 16384,
+            initial_stream_window: 16_384,      // 16KB
+            initial_connection_window: 131_072, // 128KB
+            max_frame_size: 16_384,
             allow_window_growth: false,
-            max_window_size: 131072,
+            max_window_size: 131_072,
             aggressive_windowing: false,
         }
     }
@@ -164,10 +164,10 @@ impl Http2BufferConfig {
     #[must_use]
     pub const fn balanced() -> Self {
         Self {
-            read_buffer_size: 262144,            // 256KB
-            write_buffer_size: 262144,           // 256KB
-            body_streaming_threshold: 1048576,   // 1MB
-            header_buffer_size: 16384,           // 16KB
+            read_buffer_size: 262_144,           // 256KB
+            write_buffer_size: 262_144,          // 256KB
+            body_streaming_threshold: 1_048_576, // 1MB
+            header_buffer_size: 16_384,          // 16KB
             enable_buffer_pooling: true,
             buffer_pool_size: 100,
             flush_interval_ms: 10,
@@ -178,10 +178,10 @@ impl Http2BufferConfig {
     #[must_use]
     pub const fn high_throughput() -> Self {
         Self {
-            read_buffer_size: 1048576,           // 1MB
-            write_buffer_size: 1048576,          // 1MB
-            body_streaming_threshold: 10485760,  // 10MB
-            header_buffer_size: 32768,           // 32KB
+            read_buffer_size: 1_048_576,          // 1MB
+            write_buffer_size: 1_048_576,         // 1MB
+            body_streaming_threshold: 10_485_760, // 10MB
+            header_buffer_size: 32_768,           // 32KB
             enable_buffer_pooling: true,
             buffer_pool_size: 500,
             flush_interval_ms: 50,
@@ -192,13 +192,13 @@ impl Http2BufferConfig {
     #[must_use]
     pub const fn low_latency() -> Self {
         Self {
-            read_buffer_size: 131072,            // 128KB
-            write_buffer_size: 131072,           // 128KB
-            body_streaming_threshold: 262144,    // 256KB (stream sooner)
-            header_buffer_size: 8192,            // 8KB
-            enable_buffer_pooling: false,        // Allocate fresh for latency
+            read_buffer_size: 131_072,         // 128KB
+            write_buffer_size: 131_072,        // 128KB
+            body_streaming_threshold: 262_144, // 256KB (stream sooner)
+            header_buffer_size: 8_192,         // 8KB
+            enable_buffer_pooling: false,      // Allocate fresh for latency
             buffer_pool_size: 0,
-            flush_interval_ms: 0,                // Flush immediately
+            flush_interval_ms: 0, // Flush immediately
         }
     }
 
@@ -206,10 +206,10 @@ impl Http2BufferConfig {
     #[must_use]
     pub const fn conservative() -> Self {
         Self {
-            read_buffer_size: 65536,             // 64KB
-            write_buffer_size: 65536,            // 64KB
-            body_streaming_threshold: 262144,    // 256KB
-            header_buffer_size: 8192,            // 8KB
+            read_buffer_size: 65_536,          // 64KB
+            write_buffer_size: 65_536,         // 64KB
+            body_streaming_threshold: 262_144, // 256KB
+            header_buffer_size: 8_192,         // 8KB
             enable_buffer_pooling: true,
             buffer_pool_size: 20,
             flush_interval_ms: 100,
@@ -425,16 +425,16 @@ mod tests {
     #[test]
     fn test_flow_control_balanced() {
         let config = Http2FlowControlConfig::balanced();
-        assert_eq!(config.initial_stream_window, 65536);
-        assert_eq!(config.initial_connection_window, 1048576);
+        assert_eq!(config.initial_stream_window, 65_536);
+        assert_eq!(config.initial_connection_window, 1_048_576);
         assert!(!config.allow_window_growth);
     }
 
     #[test]
     fn test_flow_control_high_throughput() {
         let config = Http2FlowControlConfig::high_throughput();
-        assert!(config.initial_stream_window > 65536);
-        assert!(config.initial_connection_window > 1048576);
+        assert!(config.initial_stream_window > 65_536);
+        assert!(config.initial_connection_window > 1_048_576);
         assert!(config.allow_window_growth);
         assert!(config.aggressive_windowing);
     }
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn test_buffer_config_balanced() {
         let config = Http2BufferConfig::balanced();
-        assert_eq!(config.read_buffer_size, 262144);
+        assert_eq!(config.read_buffer_size, 262_144);
         assert!(config.enable_buffer_pooling);
         assert!(config.flush_interval_ms > 0);
     }
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn test_buffer_config_low_latency() {
         let config = Http2BufferConfig::low_latency();
-        assert!(config.read_buffer_size < 262144);
+        assert!(config.read_buffer_size < 262_144);
         assert!(!config.enable_buffer_pooling);
         assert_eq!(config.flush_interval_ms, 0); // Flush immediately
     }
