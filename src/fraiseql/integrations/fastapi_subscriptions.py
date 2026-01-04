@@ -160,12 +160,12 @@ def create_subscription_router_with_auth(
 
             if message.get("type") != "connection_init":
                 # Protocol violation - close connection
-                await adapter.send_json(
-                    {
-                        "type": "connection_error",
-                        "payload": {"message": "First message must be connection_init"},
-                    }
-                )
+                await adapter.send_json({
+                    "type": "connection_error",
+                    "payload": {
+                        "message": "First message must be connection_init"
+                    },
+                })
                 await adapter.close()
                 return
 
@@ -176,12 +176,10 @@ def create_subscription_router_with_auth(
             except Exception as e:
                 # Auth failed - close connection
                 error_msg = str(e) or "Authentication failed"
-                await adapter.send_json(
-                    {
-                        "type": "connection_error",
-                        "payload": {"message": error_msg},
-                    }
-                )
+                await adapter.send_json({
+                    "type": "connection_error",
+                    "payload": {"message": error_msg},
+                })
                 await adapter.close()
                 logger.warning(f"Authentication failed: {error_msg}")
                 return
@@ -190,12 +188,10 @@ def create_subscription_router_with_auth(
             protocol = GraphQLTransportWSProtocol()
 
             # Send connection_ack with auth context
-            await adapter.send_json(
-                {
-                    "type": "connection_ack",
-                    "payload": auth_context,
-                }
-            )
+            await adapter.send_json({
+                "type": "connection_ack",
+                "payload": auth_context,
+            })
 
             # Mark protocol as ready (skip re-accepting connection)
             protocol.state = "ready"

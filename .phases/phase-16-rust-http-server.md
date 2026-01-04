@@ -1730,3 +1730,4 @@ rate(fraiseql_errors_total[1m])
 ```bash
 git checkout -b feature/phase-16-rust-http-server
 ```
+

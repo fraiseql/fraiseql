@@ -275,8 +275,12 @@ class SubscriptionManager:
                         # Store subscription info
                         self.subscriptions[sub_id] = {
                             "adapter": adapter,
-                            "channel": message.get("payload", {}).get("channel", ""),
-                            "variables": message.get("payload", {}).get("variables", {}),
+                            "channel": message.get("payload", {}).get(
+                                "channel", ""
+                            ),
+                            "variables": message.get("payload", {}).get(
+                                "variables", {}
+                            ),
                         }
 
             elif msg_type == "complete":
