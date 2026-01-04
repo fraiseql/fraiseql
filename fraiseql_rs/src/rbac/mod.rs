@@ -5,6 +5,7 @@
 //! - **Hierarchy**: Recursive role inheritance using `PostgreSQL` CTEs (computed in <2ms)
 //! - **Permission Resolution**: Multi-layer caching with LRU eviction and TTL expiry
 //! - **Field Authorization**: Pre-execution permission checks for GraphQL fields
+//! - **Row-Level Filtering**: Automatic WHERE clause injection based on user roles
 //! - **Caching Strategy**: In-process LRU cache + `PostgreSQL` storage for durability
 //! - **Performance**: <0.1ms cached, <1ms uncached, 10-100x faster than Python
 //! - **Multi-Tenant**: Full tenant isolation across all components
@@ -80,6 +81,7 @@ pub mod hierarchy;
 pub mod models;
 pub mod py_bindings;
 pub mod resolver;
+pub mod row_constraints;
 
 pub use cache::{CacheInvalidation, CacheStats, PermissionCache};
 pub use directives::DirectiveExtractor;
@@ -89,3 +91,4 @@ pub use hierarchy::RoleHierarchy;
 pub use models::{Permission, Role, RolePermission, UserRole};
 pub use py_bindings::{PyFieldAuthChecker, PyPermissionResolver};
 pub use resolver::PermissionResolver;
+pub use row_constraints::{ConstraintType, RowConstraint, RowConstraintResolver, RowFilter};
