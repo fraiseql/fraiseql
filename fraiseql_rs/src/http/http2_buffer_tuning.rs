@@ -27,7 +27,7 @@ pub struct Http2FlowControlConfig {
     pub initial_connection_window: u32,
 
     /// Maximum frame size (bytes)
-    /// Standard: 16KB (16_384), range: 16KB-16MB in HTTP/2 spec
+    /// Standard: 16KB (`16_384`), range: 16KB-16MB in HTTP/2 spec
     /// Recommendation: Keep at 16KB (standard), larger frames have diminishing returns
     pub max_frame_size: u32,
 
@@ -150,7 +150,7 @@ pub struct Http2BufferConfig {
     pub enable_buffer_pooling: bool,
 
     /// Buffer pool size (number of buffers to keep)
-    /// Only relevant if enable_buffer_pooling is true
+    /// Only relevant if `enable_buffer_pooling` is true
     pub buffer_pool_size: usize,
 
     /// Flush interval for write buffer (milliseconds)
@@ -243,7 +243,7 @@ pub struct Http2TuningProfile {
 }
 
 impl Http2TuningProfile {
-    /// Balanced profile: recommended for most SaaS
+    /// Balanced profile: recommended for most `SaaS`
     /// - Moderate throughput (50-100K req/sec)
     /// - Moderate latency (5-10ms p99)
     /// - Reasonable memory usage
