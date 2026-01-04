@@ -369,3 +369,27 @@ FraiseQL now features:
 *Last Updated: January 2, 2026*
 *FraiseQL v1.9.1 - Complete Rust Migration*
 *Status: ✅ All Phases Complete*
+
+## Phase 3: Codebase Improvements (2026-01-04)
+
+### Overview
+Comprehensive improvement plan for FraiseQL codebase usability, documentation, and developer experience.
+
+**Status**: 🟢 ACTIVE
+**Quick Wins Completed**: 2/5 ✅
+- Export missing symbols (Priority 10)
+- Rust loading failure warnings (Priority 8)
+
+**Next**: Add Raises documentation (Priority 7, 2-3h)
+
+**File**: [CODEBASE-IMPROVEMENTS-2026-01-04.md](./CODEBASE-IMPROVEMENTS-2026-01-04.md)
+
+**Key Metrics**:
+- 26 issues identified and prioritized
+- 3,209 unit tests passing
+- 23-37 hours estimated for Priority 1-2 improvements
+- 10.6% increase in main module exports
+
+**Related Issues**:
+- Issue #1: WHERE clause filtering (COMPLETED)
+- Issue #2: Row-level authorization (COMPLETED)
