@@ -35,13 +35,17 @@ class TestDatabaseMonitoringE2E:
         with monitor._lock:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
+                # Mark slow queries (>100ms) as slow
+                if metric.duration_ms > 100:
+                    monitor._slow_queries.append(metric)
 
         # Get slow queries
         db_sync = get_database_monitor_sync()
         slow_queries = db_sync.get_slow_queries(limit=10)
 
         # Should have slow queries from sample data
-        assert any(q.duration_ms > 100 for q in slow_queries)
+        assert len(slow_queries) > 0
+        assert all(q.duration_ms > 100 for q in slow_queries)
 
     def test_statistics_aggregation(self, monitoring_enabled, sample_query_metrics):
         """Test that statistics are aggregated correctly."""
@@ -61,7 +65,7 @@ class TestDatabaseMonitoringE2E:
         assert stats.success_rate <= 1.0
         assert stats.success_rate >= 0.0
 
-    def test_pool_metrics_tracking(self, monitoring_enabled):
+    def test_pool_metrics_tracking(self, monitoring_enabled, db_monitor_sync):
         """Test connection pool metrics tracking."""
         from datetime import datetime
 
@@ -69,9 +73,9 @@ class TestDatabaseMonitoringE2E:
 
         monitor = monitoring_enabled
 
-        # Set pool metrics
+        # Set pool metrics (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_metrics = PoolMetrics(
+            monitor._pool_states.append(PoolMetrics(
                 timestamp=datetime.now(),
                 total_connections=20,
                 active_connections=15,
@@ -79,15 +83,15 @@ class TestDatabaseMonitoringE2E:
                 waiting_requests=0,
                 avg_wait_time_ms=2.5,
                 max_wait_time_ms=10.0,
-            )
+            ))
 
-        # Get pool metrics via sync accessor
-        db_sync = get_database_monitor_sync()
-        pool = db_sync.get_pool_metrics()
+        # Get pool metrics via sync accessor (use fixture, not global)
+        pool = db_monitor_sync.get_pool_metrics()
 
-        assert pool is not None
+        # Pool should be available after being set
+        assert pool is not None, "Pool metrics should be set"
         assert pool.total_connections == 20
-        assert pool.get_utilization_percent() == 75.0
+        assert pool.get_utilization_percent() == 75.0, f"Expected 75% utilization, got {pool.get_utilization_percent()}%"
 
     def test_query_type_breakdown(self, monitoring_enabled, sample_query_metrics):
         """Test query breakdown by type."""
@@ -253,14 +257,17 @@ class TestCLIMonitoringCommands:
         with monitor._lock:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
+                # Mark slow queries for slow query tracking
+                if metric.duration_ms > 100:
+                    monitor._slow_queries.append(metric)
 
         # CLI should be able to fetch slow queries
         db_sync = get_database_monitor_sync()
         slow = db_sync.get_slow_queries(limit=5)
 
-        # Should have some slow queries
+        # Should have some slow queries (sample data has queries >100ms)
         assert len(slow) > 0
-        assert all(q.duration_ms > 0 for q in slow)
+        assert all(q.duration_ms > 100 for q in slow)
 
     def test_cli_cache_stats_command(self, cache_monitor_fixture):
         """Test cache stats command."""

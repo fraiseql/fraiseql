@@ -242,31 +242,32 @@ class TestCacheImpactUnderLoad:
 class TestConnectionPoolUnderLoad:
     """Tests for PostgreSQL connection pool behavior."""
 
-    def test_pool_utilization_tracking(self, monitoring_enabled):
+    def test_pool_utilization_tracking(self, monitoring_enabled, db_monitor_sync):
         """Test connection pool utilization is tracked correctly."""
         from fraiseql.monitoring.db_monitor import PoolMetrics
+        from datetime import datetime
 
         monitor = monitoring_enabled
 
-        # Set pool metrics for high utilization
+        # Set pool metrics for high utilization (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_metrics = PoolMetrics(
-                timestamp=monitor._recent_queries[0].timestamp if monitor._recent_queries else __import__("datetime").datetime.now(),
+            monitor._pool_states.append(PoolMetrics(
+                timestamp=datetime.now(),
                 total_connections=20,
                 active_connections=18,
                 idle_connections=2,
                 waiting_requests=5,
                 avg_wait_time_ms=15.0,
                 max_wait_time_ms=50.0,
-            )
+            ))
 
-        db_sync = get_database_monitor_sync()
-        pool = db_sync.get_pool_metrics()
+        pool = db_monitor_sync.get_pool_metrics()
 
+        assert pool is not None
         assert pool.get_utilization_percent() == 90.0
         assert pool.waiting_requests == 5
 
-    def test_pool_stress_recovery(self, monitoring_enabled):
+    def test_pool_stress_recovery(self, monitoring_enabled, db_monitor_sync):
         """Test pool metrics during stress and recovery."""
         from fraiseql.monitoring.db_monitor import PoolMetrics
         from datetime import datetime
@@ -274,9 +275,9 @@ class TestConnectionPoolUnderLoad:
         monitor = monitoring_enabled
         now = datetime.now()
 
-        # Start with normal load
+        # Start with normal load (use _pool_states deque)
         with monitor._lock:
-            monitor._pool_metrics = PoolMetrics(
+            monitor._pool_states.append(PoolMetrics(
                 timestamp=now,
                 total_connections=20,
                 active_connections=10,
@@ -284,15 +285,14 @@ class TestConnectionPoolUnderLoad:
                 waiting_requests=0,
                 avg_wait_time_ms=1.0,
                 max_wait_time_ms=5.0,
-            )
+            ))
 
-        db_sync = get_database_monitor_sync()
-        normal = db_sync.get_pool_metrics()
+        normal = db_monitor_sync.get_pool_metrics()
         assert normal.get_utilization_percent() == 50.0
 
         # Stress the pool
         with monitor._lock:
-            monitor._pool_metrics = PoolMetrics(
+            monitor._pool_states.append(PoolMetrics(
                 timestamp=now,
                 total_connections=20,
                 active_connections=19,
@@ -300,14 +300,14 @@ class TestConnectionPoolUnderLoad:
                 waiting_requests=10,
                 avg_wait_time_ms=50.0,
                 max_wait_time_ms=150.0,
-            )
+            ))
 
-        stressed = db_sync.get_pool_metrics()
+        stressed = db_monitor_sync.get_pool_metrics()
         assert stressed.get_utilization_percent() == 95.0
 
         # Recovery
         with monitor._lock:
-            monitor._pool_metrics = PoolMetrics(
+            monitor._pool_states.append(PoolMetrics(
                 timestamp=now,
                 total_connections=20,
                 active_connections=8,
@@ -315,9 +315,9 @@ class TestConnectionPoolUnderLoad:
                 waiting_requests=0,
                 avg_wait_time_ms=1.5,
                 max_wait_time_ms=8.0,
-            )
+            ))
 
-        recovered = db_sync.get_pool_metrics()
+        recovered = db_monitor_sync.get_pool_metrics()
         assert recovered.get_utilization_percent() == 40.0
 
 

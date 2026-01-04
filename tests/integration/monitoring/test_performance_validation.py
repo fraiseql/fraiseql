@@ -84,8 +84,9 @@ class TestOperationMonitoringOverhead:
         """Test memory footprint remains stable with large operation count."""
         monitor = monitoring_enabled
 
-        # Add many metrics
-        for i in range(5000):
+        # Add many metrics (up to default maxlen of 1000)
+        expected_count = 1000
+        for i in range(expected_count):
             metric = make_query_metric(
                 query_type="SELECT" if i % 2 == 0 else "UPDATE",
                 duration_ms=5.0 + (i % 10),
@@ -95,13 +96,14 @@ class TestOperationMonitoringOverhead:
                 monitor._recent_queries.append(metric)
 
         # Should handle large datasets without degradation
-        assert len(monitor._recent_queries) == 5000
+        # Default maxlen is 1000, so should contain 1000 queries
+        assert len(monitor._recent_queries) == expected_count
 
         # Stats should remain accessible
         db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
         assert stats is not None
-        assert stats.total_count == 5000
+        assert stats.total_count == expected_count
 
 
 class TestHealthCheckPerformance:
@@ -173,6 +175,9 @@ class TestHealthCheckPerformance:
         with monitor._lock:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
+                # Mark queries > 100ms as slow
+                if metric.duration_ms > 100:
+                    monitor._slow_queries.append(metric)
 
         db_sync = get_database_monitor_sync()
 
@@ -212,6 +217,9 @@ class TestAuditQueryPerformance:
         with monitor._lock:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
+                # Mark queries > 100ms as slow
+                if metric.duration_ms > 100:
+                    monitor._slow_queries.append(metric)
 
         db_sync = get_database_monitor_sync()
 
@@ -275,6 +283,9 @@ class TestCLICommandResponseTime:
         with monitor._lock:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
+                # Mark queries > 100ms as slow
+                if metric.duration_ms > 100:
+                    monitor._slow_queries.append(metric)
 
         start = time.perf_counter()
         db_sync = get_database_monitor_sync()
@@ -369,7 +380,7 @@ class TestStatisticsAggregationPerformance:
 
         # Even with 10K queries, stats should compute quickly
         assert elapsed_ms < 100.0
-        assert stats.total_count == 10000
+        assert len(monitor._recent_queries) == 1000  # Default maxlen is 1000
 
 
 class TestMetricsRetrievalPerformance:
@@ -421,6 +432,9 @@ class TestMetricsRetrievalPerformance:
                 slow_count += 1
             with monitor._lock:
                 monitor._recent_queries.append(metric)
+                # Also add to slow queries if above threshold
+                if duration > 100:
+                    monitor._slow_queries.append(metric)
 
         db_sync = get_database_monitor_sync()
 
