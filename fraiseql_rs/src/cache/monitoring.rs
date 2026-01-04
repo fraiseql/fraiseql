@@ -119,7 +119,6 @@ pub struct CacheMonitor {
 
 /// Performance sample at a point in time
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(crate) struct PerformanceSample {
     /// Timestamp (Unix seconds)
     pub(crate) timestamp: u64,

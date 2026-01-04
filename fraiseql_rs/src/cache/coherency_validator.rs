@@ -33,7 +33,6 @@ pub struct CoherencyValidator {
 #[derive(Debug, Clone)]
 struct CachedQueryInfo {
     /// Cache key
-    #[allow(dead_code)]
     key: String,
 
     /// Entities this query accesses
@@ -80,7 +79,7 @@ impl CoherencyValidator {
             let entity_key = format!("{}:{}", entity_type, entity_id);
             self.entity_to_queries
                 .entry(entity_key)
-                .or_default()
+                .or_insert_with(HashSet::new)
                 .insert(cache_key.clone());
         }
 

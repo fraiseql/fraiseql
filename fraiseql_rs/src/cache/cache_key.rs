@@ -95,7 +95,7 @@ impl QueryCacheKey {
         let default_field = "unknown".to_string();
         let root_field = query
             .selections
-            .first()
+            .get(0)
             .map(|s| &s.name)
             .unwrap_or(&default_field);
 
@@ -149,7 +149,7 @@ impl QueryCacheKey {
                 let has_id_field = selection
                     .nested_fields
                     .first()
-                    .is_some_and(|n| n.name == "id");
+                    .map_or(false, |n| n.name == "id");
                 if has_id_field {
                     // This is a single entity query, but we don't have the ID yet
                     // Mark as accessing all entities (conservative)

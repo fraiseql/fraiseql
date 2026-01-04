@@ -80,8 +80,8 @@ fn is_valid_cascade(cascade: &Value) -> bool {
         Some(Value::Object(invalidations)) => {
             // Must have at least "updated" or "deleted"
             (invalidations.contains_key("updated") || invalidations.contains_key("deleted"))
-                && (invalidations.get("updated").is_none_or(|v| v.is_array())
-                    && invalidations.get("deleted").is_none_or(|v| v.is_array()))
+                && (invalidations.get("updated").map_or(true, |v| v.is_array())
+                    && invalidations.get("deleted").map_or(true, |v| v.is_array()))
         }
         _ => false,
     }
