@@ -14,7 +14,7 @@ import time
 
 import pytest
 
-from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor
+from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 from fraiseql.monitoring.runtime.cache_monitor_sync import cache_monitor_sync
 
 
@@ -98,7 +98,7 @@ class TestOperationMonitoringOverhead:
         assert len(monitor._recent_queries) == 5000
 
         # Stats should remain accessible
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
         assert stats is not None
         assert stats.total_count == 5000
@@ -117,7 +117,7 @@ class TestHealthCheckPerformance:
                 monitor._recent_queries.append(metric)
 
         # Time health check operations
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
 
@@ -146,7 +146,7 @@ class TestHealthCheckPerformance:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         stats = db_sync.get_statistics()
@@ -174,7 +174,7 @@ class TestHealthCheckPerformance:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         slow_queries = db_sync.get_slow_queries(limit=10)
@@ -196,7 +196,7 @@ class TestAuditQueryPerformance:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         recent = db_sync.get_recent_queries(limit=5)
@@ -213,7 +213,7 @@ class TestAuditQueryPerformance:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         slow = db_sync.get_slow_queries(limit=10)
@@ -237,7 +237,7 @@ class TestAuditQueryPerformance:
             with monitor._lock:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Query with filter
         start = time.perf_counter()
@@ -261,7 +261,7 @@ class TestCLICommandResponseTime:
 
         # Simulate CLI command
         start = time.perf_counter()
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=10)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -277,7 +277,7 @@ class TestCLICommandResponseTime:
                 monitor._recent_queries.append(metric)
 
         start = time.perf_counter()
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         slow = db_sync.get_slow_queries(limit=20)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -302,7 +302,7 @@ class TestCLICommandResponseTime:
                 monitor._recent_queries.append(metric)
 
         start = time.perf_counter()
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
         cache_metrics = cache_monitor_sync.get_metrics_dict()
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -330,7 +330,7 @@ class TestStatisticsAggregationPerformance:
             with monitor._lock:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Multiple calls should be fast and consistent
         start = time.perf_counter()
@@ -361,7 +361,7 @@ class TestStatisticsAggregationPerformance:
             with monitor._lock:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         stats = db_sync.get_statistics()
@@ -389,7 +389,7 @@ class TestMetricsRetrievalPerformance:
             with monitor._lock:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Retrieve different limits
         start = time.perf_counter()
@@ -422,7 +422,7 @@ class TestMetricsRetrievalPerformance:
             with monitor._lock:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         start = time.perf_counter()
         slow = db_sync.get_slow_queries(limit=100)

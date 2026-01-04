@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor
+from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 from fraiseql.monitoring.db_monitor import QueryMetrics
 
 
@@ -36,7 +36,7 @@ class TestConcurrentQueryOperations:
             t.join()
 
         # Verify all queries were recorded
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=100)
 
         assert len(recent) == len(sample_query_metrics)
@@ -70,7 +70,7 @@ class TestConcurrentQueryOperations:
             t.join()
 
         # Verify all queries recorded
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=100)
 
         assert len(recent) == query_count
@@ -147,7 +147,7 @@ class TestHealthCheckUnderLoad:
         t.start()
 
         # Check stats while thread runs
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         t.join()
@@ -195,7 +195,7 @@ class TestHealthCheckUnderLoad:
         t.start()
 
         # Time the health check
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         start = time.time()
         stats = db_sync.get_statistics()
         elapsed_ms = (time.time() - start) * 1000
@@ -260,7 +260,7 @@ class TestConnectionPoolUnderLoad:
                 max_wait_time_ms=50.0,
             )
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         pool = db_sync.get_pool_metrics()
 
         assert pool.get_utilization_percent() == 90.0
@@ -286,7 +286,7 @@ class TestConnectionPoolUnderLoad:
                 max_wait_time_ms=5.0,
             )
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         normal = db_sync.get_pool_metrics()
         assert normal.get_utilization_percent() == 50.0
 
@@ -352,7 +352,7 @@ class TestMetricsAggregationUnderLoad:
         for t in threads:
             t.join()
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         # Verify statistics are accurate

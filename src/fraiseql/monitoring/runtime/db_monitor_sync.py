@@ -21,8 +21,9 @@ from fraiseql.monitoring.db_monitor import (
 
 logger = logging.getLogger(__name__)
 
-# Global instance holder
+# Global instance holders
 _db_monitor_instance: Optional[DatabaseMonitor] = None
+_db_monitor_sync_instance: Optional[DatabaseMonitorSync] = None
 
 
 def set_database_monitor(monitor: DatabaseMonitor) -> None:
@@ -31,8 +32,10 @@ def set_database_monitor(monitor: DatabaseMonitor) -> None:
     Args:
         monitor: DatabaseMonitor instance to use
     """
-    global _db_monitor_instance
+    global _db_monitor_instance, _db_monitor_sync_instance
     _db_monitor_instance = monitor
+    # Reset sync wrapper so it uses the new monitor
+    _db_monitor_sync_instance = None
 
 
 def get_database_monitor() -> DatabaseMonitor:
@@ -49,6 +52,26 @@ def get_database_monitor() -> DatabaseMonitor:
         # Create a default instance if none exists
         _db_monitor_instance = DatabaseMonitor()
     return _db_monitor_instance
+
+
+def get_database_monitor_sync() -> DatabaseMonitorSync:
+    """Get the global DatabaseMonitor via sync accessor.
+
+    Returns synchronous wrapper for thread-safe access to monitoring metrics.
+
+    Returns:
+        DatabaseMonitorSync instance for synchronous access
+
+    Raises:
+        RuntimeError: If no monitor has been set
+    """
+    global _db_monitor_instance, _db_monitor_sync_instance
+    if _db_monitor_instance is None:
+        # Create a default instance if none exists
+        _db_monitor_instance = DatabaseMonitor()
+    if _db_monitor_sync_instance is None:
+        _db_monitor_sync_instance = DatabaseMonitorSync(monitor=_db_monitor_instance)
+    return _db_monitor_sync_instance
 
 
 class DatabaseMonitorSync:
@@ -193,6 +216,14 @@ class DatabaseMonitorSync:
             stats.slow_rate = stats.slow_count / stats.total_count
 
         return stats
+
+    def get_query_statistics(self) -> QueryStatistics:
+        """Alias for get_statistics for API compatibility.
+
+        Returns:
+            QueryStatistics with aggregated metrics
+        """
+        return self.get_statistics()
 
     def get_query_count(self) -> int:
         """Get total number of queries tracked (synchronous).

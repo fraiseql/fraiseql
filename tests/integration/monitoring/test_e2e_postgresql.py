@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor
+from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 from fraiseql.monitoring.runtime.cache_monitor_sync import cache_monitor_sync
 
 
@@ -21,7 +21,7 @@ class TestDatabaseMonitoringE2E:
                 monitor._recent_queries.append(metric)
 
         # Get recent queries via sync accessor
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=10)
 
         assert len(recent) > 0
@@ -37,7 +37,7 @@ class TestDatabaseMonitoringE2E:
                 monitor._recent_queries.append(metric)
 
         # Get slow queries
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         slow_queries = db_sync.get_slow_queries(limit=10)
 
         # Should have slow queries from sample data
@@ -53,7 +53,7 @@ class TestDatabaseMonitoringE2E:
                 monitor._recent_queries.append(metric)
 
         # Get statistics via sync accessor
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         assert stats is not None
@@ -63,13 +63,16 @@ class TestDatabaseMonitoringE2E:
 
     def test_pool_metrics_tracking(self, monitoring_enabled):
         """Test connection pool metrics tracking."""
+        from datetime import datetime
+
+        from fraiseql.monitoring.db_monitor import PoolMetrics
+
         monitor = monitoring_enabled
 
         # Set pool metrics
-        from fraiseql.monitoring.models import PoolMetrics
-
         with monitor._lock:
             monitor._pool_metrics = PoolMetrics(
+                timestamp=datetime.now(),
                 total_connections=20,
                 active_connections=15,
                 idle_connections=5,
@@ -79,7 +82,7 @@ class TestDatabaseMonitoringE2E:
             )
 
         # Get pool metrics via sync accessor
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         pool = db_sync.get_pool_metrics()
 
         assert pool is not None
@@ -94,7 +97,7 @@ class TestDatabaseMonitoringE2E:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Get queries and verify type breakdown
         all_queries = db_sync.get_recent_queries(limit=100)
@@ -157,10 +160,10 @@ class TestHealthCheckIntegration:
         assert monitor is not None
 
         # Can modify thresholds
-        monitor._slow_query_threshold_ms = 50
+        monitor._slow_query_threshold = 50
 
         # Verify modification
-        assert monitor._slow_query_threshold_ms == 50
+        assert monitor._slow_query_threshold == 50
 
     def test_component_health_dependency(self, monitoring_enabled, sample_query_metrics):
         """Test health status depends on component metrics."""
@@ -172,7 +175,7 @@ class TestHealthCheckIntegration:
                 monitor._recent_queries.append(metric)
 
         # Get statistics to check health implications
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         # Success rate affects health
@@ -192,7 +195,25 @@ class TestTraceContextPropagation:
 
     def test_trace_id_propagation(self):
         """Test trace ID propagates through operations."""
-        from fraiseql.monitoring.models import OperationMetrics, GraphQLOperationType
+        from dataclasses import dataclass
+        from enum import Enum
+
+        @dataclass
+        class GraphQLOperationType(Enum):
+            """GraphQL operation types."""
+            Query = "query"
+            Mutation = "mutation"
+            Subscription = "subscription"
+
+        @dataclass
+        class OperationMetrics:
+            """GraphQL operation metrics."""
+            operation_id: str
+            operation_name: str
+            operation_type: GraphQLOperationType
+            query_length: int
+            duration_ms: float = 0.0
+            trace_id: str | None = None
 
         op = OperationMetrics(
             operation_id="test-op-1",
@@ -219,7 +240,7 @@ class TestCLIMonitoringCommands:
                 monitor._recent_queries.append(metric)
 
         # CLI should be able to fetch recent queries
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=5)
 
         assert len(recent) == 5
@@ -234,7 +255,7 @@ class TestCLIMonitoringCommands:
                 monitor._recent_queries.append(metric)
 
         # CLI should be able to fetch slow queries
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         slow = db_sync.get_slow_queries(limit=5)
 
         # Should have some slow queries
@@ -257,7 +278,7 @@ class TestCLIMonitoringCommands:
         monitor = monitoring_enabled
 
         # Monitor should be in a valid state
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         # Stats structure should be valid

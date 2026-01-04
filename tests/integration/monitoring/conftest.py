@@ -222,6 +222,8 @@ def make_query_metric():
     import uuid
     from datetime import datetime
 
+    from fraiseql.monitoring.db_monitor import QueryMetrics
+
     def _make_metric(query_type="SELECT", duration_ms=5.0, rows_affected=0, error=None):
         sql = f"{query_type} * FROM table"
         return QueryMetrics(

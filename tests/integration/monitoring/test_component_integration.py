@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor
+from fraiseql.monitoring.runtime.db_monitor_sync import get_database_monitor_sync
 
 
 class TestRustPythonDataFlow:
@@ -53,7 +53,7 @@ class TestRustPythonDataFlow:
                 monitor._recent_queries.append(metric)
 
         # Access via Python layer
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         assert stats is not None
@@ -94,7 +94,7 @@ class TestErrorHandlingScenarios:
                 monitor._recent_queries.append(m)
 
         # System should still be operational
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         assert stats is not None
@@ -116,7 +116,7 @@ class TestErrorHandlingScenarios:
         with monitor._lock:
             monitor._recent_queries.append(timeout_query)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         slow = db_sync.get_slow_queries(limit=10)
 
         assert len(slow) > 0
@@ -142,7 +142,7 @@ class TestErrorHandlingScenarios:
             for q in queries:
                 monitor._recent_queries.append(q)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         # Should have both successes and errors
@@ -155,7 +155,7 @@ class TestErrorHandlingScenarios:
         monitor = monitoring_enabled
 
         # No queries recorded yet
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Should not crash
         stats = db_sync.get_statistics()
@@ -173,16 +173,16 @@ class TestRuntimeConfigurationChanges:
         """Test slow query threshold can be adjusted at runtime."""
         monitor = monitoring_enabled
 
-        original_threshold = monitor._slow_query_threshold_ms
+        original_threshold = monitor._slow_query_threshold
 
         # Change threshold
         new_threshold = 50.0
-        monitor._slow_query_threshold_ms = new_threshold
+        monitor._slow_query_threshold = new_threshold
 
-        assert monitor._slow_query_threshold_ms == new_threshold
+        assert monitor._slow_query_threshold == new_threshold
 
         # Restore
-        monitor._slow_query_threshold_ms = original_threshold
+        monitor._slow_query_threshold = original_threshold
 
     def test_sampling_rate_changes(self, monitoring_enabled):
         """Test sampling rate can be adjusted."""
@@ -230,7 +230,7 @@ class TestDataConsistency:
             with monitor._lock:
                 monitor._recent_queries.append(q)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         recent = db_sync.get_recent_queries(limit=query_count)
 
         assert len(recent) == query_count
@@ -243,7 +243,7 @@ class TestDataConsistency:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
 
         # Get stats multiple times
         stats1 = db_sync.get_statistics()
@@ -273,7 +273,7 @@ class TestDataConsistency:
             for metric in sample_query_metrics:
                 monitor._recent_queries.append(metric)
 
-        db_sync = get_database_monitor()
+        db_sync = get_database_monitor_sync()
         stats = db_sync.get_statistics()
 
         # Verify accuracy
