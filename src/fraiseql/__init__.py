@@ -95,13 +95,20 @@ except ImportError:
 
 # Database utilities (optional)
 try:
-    from .db import create_db_pool, create_legacy_pool
+    from .db import (
+        create_db_pool,
+        create_legacy_pool,
+        create_production_pool,
+        create_prototype_pool,
+    )
 
     _db_available = True
 except ImportError:
     _db_available = False
     create_db_pool = None
     create_legacy_pool = None
+    create_production_pool = None
+    create_prototype_pool = None
 
 __version__ = "1.9.1"
 
@@ -215,6 +222,8 @@ __all__ = [
     "create_db_pool",
     "create_fraiseql_app",
     "create_legacy_pool",
+    "create_production_pool",
+    "create_prototype_pool",
     "dataloader_field",
     "enum",
     "error",
