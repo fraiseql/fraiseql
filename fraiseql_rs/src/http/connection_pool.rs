@@ -8,52 +8,52 @@ use std::time::Duration;
 /// TCP Socket Configuration for connection pooling
 ///
 /// Optimizes socket behavior for HTTP/2 multiplexing:
-/// - TCP_NODELAY: Disable Nagle's algorithm (critical for latency)
-/// - SO_KEEPALIVE: Keep idle connections alive
-/// - SO_RCVBUF/SO_SNDBUF: Tuned buffer sizes
+/// - `TCP_NODELAY`: Disable Nagle's algorithm (critical for latency)
+/// - `SO_KEEPALIVE`: Keep idle connections alive
+/// - `SO_RCVBUF/SO_SNDBUF`: Tuned buffer sizes
 #[derive(Debug, Clone)]
 pub struct SocketConfig {
-    /// TCP_NODELAY: Disable Nagle's algorithm
+    /// `TCP_NODELAY`: Disable Nagle's algorithm
     /// When true: Send data immediately (lower latency, larger packet count)
     /// When false: Batch data (higher throughput, higher latency)
     /// Recommended: true for HTTP/2 (multiple small frames)
     pub tcp_nodelay: bool,
 
-    /// SO_KEEPALIVE: Enable TCP keep-alive
+    /// `SO_KEEPALIVE`: Enable TCP keep-alive
     /// When true: Send probe packets to detect dead connections
     /// When false: Don't send probes
     /// Recommended: true for long-lived connections
     pub tcp_keepalive: bool,
 
-    /// TCP_KEEPIDLE: Seconds before first keep-alive probe
+    /// `TCP_KEEPIDLE`: Seconds before first keep-alive probe
     /// Default: 7200 (2 hours) - too long
     /// Recommended: 60-120 seconds
     pub tcp_keepidle_secs: u32,
 
-    /// TCP_KEEPINTVL: Seconds between keep-alive probes
+    /// `TCP_KEEPINTVL`: Seconds between keep-alive probes
     /// Default: 75 - too long
     /// Recommended: 10-30 seconds
     pub tcp_keepintvl_secs: u32,
 
-    /// TCP_KEEPCNT: Number of keep-alive probes before timeout
+    /// `TCP_KEEPCNT`: Number of keep-alive probes before timeout
     /// Default: 9
     /// Recommended: 3-5
     pub tcp_keepcnt: u32,
 
-    /// SO_RCVBUF: Receive buffer size in bytes
+    /// `SO_RCVBUF`: Receive buffer size in bytes
     /// Larger = more buffering, higher memory
     /// Smaller = less latency, potential throughput loss
     pub recv_buffer_bytes: usize,
 
-    /// SO_SNDBUF: Send buffer size in bytes
+    /// `SO_SNDBUF`: Send buffer size in bytes
     pub send_buffer_bytes: usize,
 
-    /// SO_REUSEADDR: Allow reusing TIME_WAIT sockets
+    /// `SO_REUSEADDR`: Allow reusing `TIME_WAIT` sockets
     /// When true: Can reuse local ports immediately after close
     /// Recommended: true for high-churn applications
     pub reuse_addr: bool,
 
-    /// SO_REUSEPORT: Allow multiple sockets to bind to same port
+    /// `SO_REUSEPORT`: Allow multiple sockets to bind to same port
     /// Requires kernel support, enables true port sharing
     pub reuse_port: bool,
 
@@ -74,11 +74,11 @@ impl SocketConfig {
         Self {
             tcp_nodelay: true,
             tcp_keepalive: true,
-            tcp_keepidle_secs: 120,       // 2 minutes
-            tcp_keepintvl_secs: 30,       // 30 seconds between probes
-            tcp_keepcnt: 3,               // 3 probes before giving up
-            recv_buffer_bytes: 512 * 1024,// 512KB
-            send_buffer_bytes: 512 * 1024,// 512KB
+            tcp_keepidle_secs: 120,        // 2 minutes
+            tcp_keepintvl_secs: 30,        // 30 seconds between probes
+            tcp_keepcnt: 3,                // 3 probes before giving up
+            recv_buffer_bytes: 512 * 1024, // 512KB
+            send_buffer_bytes: 512 * 1024, // 512KB
             reuse_addr: true,
             reuse_port: false,
             connect_timeout: Duration::from_secs(30),
@@ -94,11 +94,11 @@ impl SocketConfig {
         Self {
             tcp_nodelay: true,
             tcp_keepalive: true,
-            tcp_keepidle_secs: 300,            // 5 minutes
-            tcp_keepintvl_secs: 60,            // 60 seconds between probes
+            tcp_keepidle_secs: 300, // 5 minutes
+            tcp_keepintvl_secs: 60, // 60 seconds between probes
             tcp_keepcnt: 3,
-            recv_buffer_bytes: 1024 * 1024,    // 1MB
-            send_buffer_bytes: 1024 * 1024,    // 1MB
+            recv_buffer_bytes: 1024 * 1024, // 1MB
+            send_buffer_bytes: 1024 * 1024, // 1MB
             reuse_addr: true,
             reuse_port: true,
             connect_timeout: Duration::from_secs(30),
@@ -114,11 +114,11 @@ impl SocketConfig {
         Self {
             tcp_nodelay: true,
             tcp_keepalive: true,
-            tcp_keepidle_secs: 30,        // 30 seconds
-            tcp_keepintvl_secs: 10,       // 10 seconds between probes
-            tcp_keepcnt: 5,               // More probes for responsiveness
-            recv_buffer_bytes: 256 * 1024,// 256KB
-            send_buffer_bytes: 256 * 1024,// 256KB
+            tcp_keepidle_secs: 30,         // 30 seconds
+            tcp_keepintvl_secs: 10,        // 10 seconds between probes
+            tcp_keepcnt: 5,                // More probes for responsiveness
+            recv_buffer_bytes: 256 * 1024, // 256KB
+            send_buffer_bytes: 256 * 1024, // 256KB
             reuse_addr: true,
             reuse_port: false,
             connect_timeout: Duration::from_secs(10),
@@ -145,7 +145,7 @@ pub struct ConnectionPoolConfig {
     pub max_idle_connections: usize,
 
     /// Maximum total connections (idle + active)
-    /// Should be >= max_idle_connections
+    /// Should be >= `max_idle_connections`
     pub max_total_connections: usize,
 
     /// How long to keep idle connections alive
@@ -173,7 +173,7 @@ impl ConnectionPoolConfig {
         Self {
             max_idle_connections: 100,
             max_total_connections: 500,
-            idle_timeout: Duration::from_secs(300),        // 5 minutes
+            idle_timeout: Duration::from_secs(300), // 5 minutes
             acquire_timeout: Duration::from_secs(30),
             min_idle_connections: 10,
             socket_config: SocketConfig::balanced(),
@@ -187,7 +187,7 @@ impl ConnectionPoolConfig {
         Self {
             max_idle_connections: 1000,
             max_total_connections: 10000,
-            idle_timeout: Duration::from_secs(600),        // 10 minutes
+            idle_timeout: Duration::from_secs(600), // 10 minutes
             acquire_timeout: Duration::from_secs(30),
             min_idle_connections: 100,
             socket_config: SocketConfig::high_throughput(),
@@ -201,7 +201,7 @@ impl ConnectionPoolConfig {
         Self {
             max_idle_connections: 20,
             max_total_connections: 100,
-            idle_timeout: Duration::from_secs(120),        // 2 minutes
+            idle_timeout: Duration::from_secs(120), // 2 minutes
             acquire_timeout: Duration::from_secs(30),
             min_idle_connections: 5,
             socket_config: SocketConfig::low_latency(),

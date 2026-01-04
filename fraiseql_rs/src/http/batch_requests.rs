@@ -160,7 +160,7 @@ impl DeduplicationKey {
 
         let hash_value = hasher.finish();
         Self {
-            hash: format!("{:x}", hash_value),
+            hash: format!("{hash_value:x}"),
         }
     }
 }
@@ -237,7 +237,8 @@ impl Default for BatchProcessingConfig {
 #[derive(Debug)]
 pub struct BatchProcessor {
     config: BatchProcessingConfig,
-    deduplication_cache: Arc<std::sync::Mutex<HashMap<DeduplicationKey, Arc<SingleGraphQLResponse>>>>,
+    deduplication_cache:
+        Arc<std::sync::Mutex<HashMap<DeduplicationKey, Arc<SingleGraphQLResponse>>>>,
 }
 
 impl BatchProcessor {
@@ -251,6 +252,9 @@ impl BatchProcessor {
     }
 
     /// Validate batch request
+    ///
+    /// # Errors
+    /// Returns error if batch validation fails
     pub fn validate_batch(&self, batch: &BatchGraphQLRequest) -> Result<(), String> {
         // Check batch size
         if batch.requests.is_empty() {
@@ -268,11 +272,11 @@ impl BatchProcessor {
         // Validate each request
         for (idx, req) in batch.requests.iter().enumerate() {
             if req.query.is_empty() {
-                return Err(format!("Request {} has empty query", idx));
+                return Err(format!("Request {idx} has empty query"));
             }
 
             if req.query.len() > 1_000_000 {
-                return Err(format!("Request {} query too large", idx));
+                return Err(format!("Request {idx} query too large"));
             }
         }
 
@@ -280,6 +284,7 @@ impl BatchProcessor {
     }
 
     /// Analyze batch for deduplication opportunities
+    #[must_use]
     pub fn analyze_deduplication(&self, batch: &BatchGraphQLRequest) -> DeduplicationAnalysis {
         let mut unique_queries = 0;
         let mut duplicate_count = 0;
@@ -298,16 +303,20 @@ impl BatchProcessor {
             total_requests: batch.requests.len(),
             unique_queries,
             duplicate_requests: duplicate_count,
-            deduplication_potential: if batch.requests.len() > 0 {
-                (duplicate_count as f64 / batch.requests.len() as f64) * 100.0
-            } else {
+            deduplication_potential: if batch.requests.is_empty() {
                 0.0
+            } else {
+                (duplicate_count as f64 / batch.requests.len() as f64) * 100.0
             },
         }
     }
 
     /// Get cached response if available
-    pub fn get_cached_response(&self, key: &DeduplicationKey) -> Option<Arc<SingleGraphQLResponse>> {
+    #[must_use]
+    pub fn get_cached_response(
+        &self,
+        key: &DeduplicationKey,
+    ) -> Option<Arc<SingleGraphQLResponse>> {
         let cache = self.deduplication_cache.lock().ok()?;
         cache.get(key).cloned()
     }
@@ -355,9 +364,7 @@ mod tests {
         let processor = BatchProcessor::new(config);
 
         // Empty batch
-        let empty_batch = BatchGraphQLRequest {
-            requests: vec![],
-        };
+        let empty_batch = BatchGraphQLRequest { requests: vec![] };
         assert!(processor.validate_batch(&empty_batch).is_err());
 
         // Valid batch

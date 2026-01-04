@@ -1,8 +1,8 @@
 //! Query caching module.
 //!
 //! Contains two types of caches:
-//! 1. QueryPlanCache: Caches GraphQL query execution plans (existing)
-//! 2. QueryResultCache: Caches GraphQL query results with entity tracking (Phase 17A)
+//! 1. `QueryPlanCache`: Caches GraphQL query execution plans (existing)
+//! 2. `QueryResultCache`: Caches GraphQL query results with entity tracking (Phase 17A)
 
 pub mod cache_key;
 pub mod coherency_validator;

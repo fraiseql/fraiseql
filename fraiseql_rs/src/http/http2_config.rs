@@ -47,17 +47,17 @@ pub struct Http2Config {
     /// TCP keep-alive: keep idle connections alive
     pub tcp_keepalive: bool,
 
-    /// SO_RCVBUF: Receive buffer size in bytes
+    /// `SO_RCVBUF`: Receive buffer size in bytes
     /// Default: 512KB
     pub recv_buffer_size: usize,
 
-    /// SO_SNDBUF: Send buffer size in bytes
+    /// `SO_SNDBUF`: Send buffer size in bytes
     /// Default: 512KB
     pub send_buffer_size: usize,
 }
 
 impl Http2Config {
-    /// Balanced configuration (recommended for most SaaS)
+    /// Balanced configuration (recommended for most `SaaS`)
     /// - 500 streams per connection
     /// - 128KB initial window
     /// - 1MB connection window
@@ -73,8 +73,8 @@ impl Http2Config {
             enable_push: false,
             tcp_nodelay: true,
             tcp_keepalive: true,
-            recv_buffer_size: 512 * 1024,        // 512KB
-            send_buffer_size: 512 * 1024,        // 512KB
+            recv_buffer_size: 512 * 1024, // 512KB
+            send_buffer_size: 512 * 1024, // 512KB
         }
     }
 
@@ -87,15 +87,15 @@ impl Http2Config {
     pub const fn high_throughput() -> Self {
         Self {
             max_concurrent_streams: unsafe { NonZeroUsize::new_unchecked(1000) },
-            initial_window_size: 256 * 1024,            // 256KB
-            connection_window_size: 10 * 1024 * 1024,   // 10MB
-            max_frame_size: 16 * 1024,                  // 16KB
+            initial_window_size: 256 * 1024,          // 256KB
+            connection_window_size: 10 * 1024 * 1024, // 10MB
+            max_frame_size: 16 * 1024,                // 16KB
             header_table_size: 4096,
             enable_push: false,
             tcp_nodelay: true,
             tcp_keepalive: true,
-            recv_buffer_size: 1024 * 1024,              // 1MB
-            send_buffer_size: 1024 * 1024,              // 1MB
+            recv_buffer_size: 1024 * 1024, // 1MB
+            send_buffer_size: 1024 * 1024, // 1MB
         }
     }
 
@@ -108,15 +108,15 @@ impl Http2Config {
     pub const fn low_latency() -> Self {
         Self {
             max_concurrent_streams: unsafe { NonZeroUsize::new_unchecked(100) },
-            initial_window_size: 64 * 1024,      // 64KB
-            connection_window_size: 256 * 1024,  // 256KB
-            max_frame_size: 16 * 1024,           // 16KB
+            initial_window_size: 64 * 1024,     // 64KB
+            connection_window_size: 256 * 1024, // 256KB
+            max_frame_size: 16 * 1024,          // 16KB
             header_table_size: 4096,
             enable_push: false,
             tcp_nodelay: true,
             tcp_keepalive: true,
-            recv_buffer_size: 256 * 1024,        // 256KB
-            send_buffer_size: 256 * 1024,        // 256KB
+            recv_buffer_size: 256 * 1024, // 256KB
+            send_buffer_size: 256 * 1024, // 256KB
         }
     }
 
@@ -129,15 +129,15 @@ impl Http2Config {
     pub const fn conservative() -> Self {
         Self {
             max_concurrent_streams: unsafe { NonZeroUsize::new_unchecked(50) },
-            initial_window_size: 64 * 1024,       // 64KB
-            connection_window_size: 128 * 1024,   // 128KB
-            max_frame_size: 16 * 1024,            // 16KB
+            initial_window_size: 64 * 1024,     // 64KB
+            connection_window_size: 128 * 1024, // 128KB
+            max_frame_size: 16 * 1024,          // 16KB
             header_table_size: 4096,
             enable_push: false,
             tcp_nodelay: true,
             tcp_keepalive: true,
-            recv_buffer_size: 256 * 1024,         // 256KB
-            send_buffer_size: 256 * 1024,         // 256KB
+            recv_buffer_size: 256 * 1024, // 256KB
+            send_buffer_size: 256 * 1024, // 256KB
         }
     }
 }

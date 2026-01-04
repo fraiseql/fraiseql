@@ -50,17 +50,19 @@ impl CoherencyValidator {
     }
 
     /// Record that a query is now cached
+    ///
+    /// # Errors
+    /// Returns error if recording fails
     pub fn record_cache_put(
         &mut self,
-        cache_key: String,
+        cache_key: &str,
         entities: Vec<(String, String)>,
     ) -> Result<(), String> {
         // Check for duplicate (overwrite is ok)
         let version = self
             .cached_entries
-            .get(&cache_key)
-            .map(|info| info.version + 1)
-            .unwrap_or(0);
+            .get(cache_key)
+            .map_or(0, |info| info.version + 1);
 
         let info = CachedQueryInfo {
             entities: entities.clone(),
@@ -68,26 +70,29 @@ impl CoherencyValidator {
         };
 
         // Update entry mapping
-        self.cached_entries.insert(cache_key.clone(), info);
+        self.cached_entries.insert(cache_key.to_string(), info);
 
         // Update entity->query reverse mapping
         for (entity_type, entity_id) in entities {
-            let entity_key = format!("{}:{}", entity_type, entity_id);
+            let entity_key = format!("{entity_type}:{entity_id}");
             self.entity_to_queries
                 .entry(entity_key)
                 .or_default()
-                .insert(cache_key.clone());
+                .insert(cache_key.to_string());
         }
 
         Ok(())
     }
 
     /// Record that a query was invalidated
+    ///
+    /// # Errors
+    /// Returns error if invalidation fails
     pub fn record_invalidation(&mut self, cache_key: &str) -> Result<(), String> {
         if let Some(info) = self.cached_entries.remove(cache_key) {
             // Remove from entity->query mappings
             for (entity_type, entity_id) in &info.entities {
-                let entity_key = format!("{}:{}", entity_type, entity_id);
+                let entity_key = format!("{entity_type}:{entity_id}");
                 if let Some(queries) = self.entity_to_queries.get_mut(&entity_key) {
                     queries.remove(cache_key);
                 }
@@ -97,6 +102,7 @@ impl CoherencyValidator {
     }
 
     /// Validate that invalidation is correct for a cascade
+    #[must_use]
     pub fn validate_cascade_invalidation(
         &self,
         cascade: &Value,
@@ -114,8 +120,7 @@ impl CoherencyValidator {
         for query in &expected_invalidated {
             if !invalidated_queries.contains(query) {
                 issues.push(format!(
-                    "Expected query to be invalidated but wasn't: {}",
-                    query
+                    "Expected query to be invalidated but wasn't: {query}"
                 ));
             }
         }
@@ -131,7 +136,7 @@ impl CoherencyValidator {
         // Check 3: Entity mappings are consistent
         for query_key in invalidated_queries {
             if self.cached_entries.contains_key(query_key) {
-                issues.push(format!("Invalidated query still in cache: {}", query_key));
+                issues.push(format!("Invalidated query still in cache: {query_key}"));
             }
         }
 
@@ -148,13 +153,13 @@ impl CoherencyValidator {
 
         for (entity_type, entity_id) in entities {
             // Check specific entity
-            let specific_key = format!("{}:{}", entity_type, entity_id);
+            let specific_key = format!("{entity_type}:{entity_id}");
             if let Some(queries) = self.entity_to_queries.get(&specific_key) {
                 affected.extend(queries.iter().cloned());
             }
 
             // Check wildcard (all entities of this type)
-            let wildcard_key = format!("{}:*", entity_type);
+            let wildcard_key = format!("{entity_type}:*");
             if let Some(queries) = self.entity_to_queries.get(&wildcard_key) {
                 affected.extend(queries.iter().cloned());
             }
@@ -164,6 +169,7 @@ impl CoherencyValidator {
     }
 
     /// Validate that all cached entries are consistent
+    #[must_use]
     pub fn validate_consistency(&self) -> CoherencyValidationResult {
         let mut issues = Vec::new();
         issues.extend(self.check_cached_entries_have_mappings());
@@ -181,7 +187,7 @@ impl CoherencyValidator {
         let mut issues = Vec::new();
         for (cache_key, info) in &self.cached_entries {
             for (entity_type, entity_id) in &info.entities {
-                let entity_key = format!("{}:{}", entity_type, entity_id);
+                let entity_key = format!("{entity_type}:{entity_id}");
                 self.check_entity_mapping(&entity_key, cache_key, &mut issues);
             }
         }
@@ -193,14 +199,12 @@ impl CoherencyValidator {
         if let Some(queries) = self.entity_to_queries.get(entity_key) {
             if !queries.contains(cache_key) {
                 issues.push(format!(
-                    "Cache entry {} not in reverse mapping for entity {}",
-                    cache_key, entity_key
+                    "Cache entry {cache_key} not in reverse mapping for entity {entity_key}"
                 ));
             }
         } else {
             issues.push(format!(
-                "Cache entry {} references missing entity {}",
-                cache_key, entity_key
+                "Cache entry {cache_key} references missing entity {entity_key}"
             ));
         }
     }
@@ -212,8 +216,7 @@ impl CoherencyValidator {
             for query_key in queries {
                 if !self.cached_entries.contains_key(query_key) {
                     issues.push(format!(
-                        "Entity mapping {} references missing cache entry {}",
-                        entity_key, query_key
+                        "Entity mapping {entity_key} references missing cache entry {query_key}"
                     ));
                 }
             }
@@ -239,7 +242,7 @@ impl CoherencyValidator {
     /// Get all queries accessing an entity
     #[must_use]
     pub fn entity_queries(&self, entity_type: &str, entity_id: &str) -> HashSet<String> {
-        let entity_key = format!("{}:{}", entity_type, entity_id);
+        let entity_key = format!("{entity_type}:{entity_id}");
         self.entity_to_queries
             .get(&entity_key)
             .cloned()

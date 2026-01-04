@@ -93,7 +93,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Create a new AppState with cache enabled
+    /// Create a new `AppState` with cache enabled
     ///
     /// # Arguments
     ///
@@ -128,7 +128,7 @@ impl AppState {
         }
     }
 
-    /// Create a new AppState with custom cache configuration
+    /// Create a new `AppState` with custom cache configuration
     ///
     /// # Arguments
     ///
@@ -380,6 +380,7 @@ async fn graphql_handler(
 }
 
 /// Detect GraphQL operation type from query string
+#[must_use]
 pub fn detect_operation(query: &str) -> String {
     let trimmed = query.trim();
     if trimmed.starts_with("mutation") {
@@ -463,6 +464,7 @@ async fn cache_metrics_handler(
 /// Validate metrics admin token
 ///
 /// Expects "Bearer <token>" format
+#[must_use]
 pub fn validate_metrics_token(auth_header: &str, expected_token: &str) -> bool {
     if let Some(token) = auth_header.strip_prefix("Bearer ") {
         return token == expected_token;

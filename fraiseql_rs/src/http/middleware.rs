@@ -111,7 +111,8 @@ impl CompressionConfig {
 
     /// Create compression config with Zstd (requires `advanced-compression` feature)
     #[cfg(feature = "advanced-compression")]
-    pub fn zstd() -> Self {
+    #[must_use]
+    pub const fn zstd() -> Self {
         Self {
             algorithm: CompressionAlgorithm::Zstd,
             min_bytes: 256,

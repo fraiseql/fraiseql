@@ -42,9 +42,10 @@ impl QueryCacheKey {
     /// let key = QueryCacheKey::from_query(parsed_query, &vars);
     /// // Returns: key="query:users:all", accessed_entities=[("User", "*")]
     /// ```
-    pub fn from_query(
+    #[must_use]
+    pub fn from_query<S: ::std::hash::BuildHasher>(
         query: &ParsedQuery,
-        variables: &std::collections::HashMap<String, Value>,
+        variables: &std::collections::HashMap<String, Value, S>,
     ) -> Option<Self> {
         // Don't cache mutations (they have side effects)
         if query.operation_type == "mutation" {
@@ -61,7 +62,7 @@ impl QueryCacheKey {
         let accessed_entities = Self::extract_accessed_entities(query);
         let key = Self::generate_cache_key(query, variables);
 
-        Some(QueryCacheKey {
+        Some(Self {
             key,
             accessed_entities,
         })
@@ -87,17 +88,13 @@ impl QueryCacheKey {
     /// Generate stable cache key from query and variables
     ///
     /// Uses query structure + variable values for stable key generation
-    fn generate_cache_key(
+    fn generate_cache_key<S: ::std::hash::BuildHasher>(
         query: &ParsedQuery,
-        variables: &std::collections::HashMap<String, Value>,
+        variables: &std::collections::HashMap<String, Value, S>,
     ) -> String {
         // Build key from root field name and variable values
         let default_field = "unknown".to_string();
-        let root_field = query
-            .selections
-            .first()
-            .map(|s| &s.name)
-            .unwrap_or(&default_field);
+        let root_field = query.selections.first().map_or(&default_field, |s| &s.name);
 
         // Hash variable values if present
         let vars_hash = if variables.is_empty() {
@@ -117,7 +114,7 @@ impl QueryCacheKey {
                         Value::Bool(b) => b.to_string(),
                         _ => serde_json::to_string(val).unwrap_or_default(),
                     };
-                    var_parts.push(format!("{}:{}", key, val_str));
+                    var_parts.push(format!("{key}:{val_str}"));
                 }
             }
             var_parts.join("|")
@@ -125,12 +122,12 @@ impl QueryCacheKey {
 
         // Use sha256 hash for query structure (stable across runs)
         // For now, use simple string key with field + variables
-        format!("query:{}:{}", root_field, vars_hash)
+        format!("query:{root_field}:{vars_hash}")
     }
 
     /// Extract entities accessed by this query
     ///
-    /// Returns list of (entity_type, entity_id/wildcard) tuples
+    /// Returns list of (`entity_type`, `entity_id/wildcard`) tuples
     /// Wildcard "*" means "all entities of this type"
     fn extract_accessed_entities(query: &ParsedQuery) -> Vec<(String, String)> {
         let mut entities = HashSet::new();
@@ -143,7 +140,7 @@ impl QueryCacheKey {
             // or all-entities query (like users, allUsers)
             if selection.name.ends_with('s') || selection.name.starts_with("all") {
                 // Plural or "all" prefix = all entities of this type
-                entities.insert((entity_type, "*".to_string()));
+                entities.insert((entity_type.clone(), "*".to_string()));
             } else {
                 // Singular query - extract ID from nested_fields if available
                 let has_id_field = selection
@@ -155,9 +152,9 @@ impl QueryCacheKey {
                     // Mark as accessing all entities (conservative)
                     entities.insert((entity_type.clone(), "*".to_string()));
                 }
-                // Default to all entities for this type (conservative)
-                entities.insert((entity_type, "*".to_string()));
             }
+            // Default to all entities for this type (conservative)
+            entities.insert((entity_type.clone(), "*".to_string()));
         }
 
         // Convert to sorted vec for consistency
@@ -186,10 +183,10 @@ impl QueryCacheKey {
 
         // Capitalize first letter
         let mut chars = without_prefix.chars();
-        match chars.next() {
-            None => field_name.to_string(),
-            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        }
+        chars.next().map_or_else(
+            || field_name.to_string(),
+            |first| first.to_uppercase().collect::<String>() + chars.as_str(),
+        )
     }
 }
 

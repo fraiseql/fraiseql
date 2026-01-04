@@ -1,6 +1,6 @@
 //! HTTP server integration for query result cache (Phase 17A.4)
 //!
-//! Integrates QueryResultCache into the HTTP server's AppState and provides
+//! Integrates `QueryResultCache` into the HTTP server's `AppState` and provides
 //! hooks for query execution and mutation response handling.
 
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 /// HTTP server application state with query result cache
 ///
-/// This extends the base AppState to include the query result cache.
+/// This extends the base `AppState` to include the query result cache.
 /// The cache is shared across all HTTP handlers via Arc.
 ///
 /// # Example
@@ -78,12 +78,15 @@ impl Default for CacheConfig {
 ///
 /// * `cache` - Shared query result cache
 /// * `query` - Parsed GraphQL query
-/// * `variables` - Query variables as HashMap
+/// * `variables` - Query variables as `HashMap`
 /// * `execute_fn` - Closure that executes the query and returns result
 ///
 /// # Returns
 ///
 /// Query result as JSON value
+///
+/// # Errors
+/// Returns error if query execution fails
 ///
 /// # Example
 ///
@@ -99,14 +102,15 @@ impl Default for CacheConfig {
 ///     }
 /// ).await?;
 /// ```
-pub async fn execute_cached_query<F>(
+#[allow(clippy::future_not_send)]
+pub async fn execute_cached_query<F, S: ::std::hash::BuildHasher>(
     cache: &Arc<QueryResultCache>,
     query: &ParsedQuery,
-    variables: &HashMap<String, Value>,
+    variables: &HashMap<String, Value, S>,
     execute_fn: F,
 ) -> Result<Value>
 where
-    F: Fn(&ParsedQuery, &HashMap<String, Value>) -> Result<Value>,
+    F: Fn(&ParsedQuery, &HashMap<String, Value, S>) -> Result<Value>,
 {
     // Use the cache executor
     execute_query_with_cache(cache, query, variables, execute_fn)
@@ -125,6 +129,9 @@ where
 /// # Returns
 ///
 /// Number of cache entries invalidated
+///
+/// # Errors
+/// Returns error if invalidation fails
 ///
 /// # Example
 ///
@@ -149,6 +156,9 @@ pub fn invalidate_cached_queries(
 /// Returns cache statistics like hit rate, size, memory usage.
 /// Suitable for /metrics endpoint or observability dashboards.
 ///
+/// # Errors
+/// Returns error if metrics retrieval fails
+///
 /// # Example
 ///
 /// ```ignore
@@ -161,6 +171,9 @@ pub fn get_cache_metrics(cache: &Arc<QueryResultCache>) -> Result<crate::cache::
 }
 
 /// Clear all cache entries (for manual invalidation or testing)
+///
+/// # Errors
+/// Returns error if cache clear fails
 ///
 /// # Example
 ///

@@ -97,9 +97,7 @@ impl Http2Metrics {
     /// Record a new HTTP/2 stream opened
     pub fn record_stream_opened(&self) {
         self.streams_opened_total.fetch_add(1, Ordering::Relaxed);
-        let current = self
-            .streams_active_current
-            .fetch_add(1, Ordering::Relaxed) + 1;
+        let current = self.streams_active_current.fetch_add(1, Ordering::Relaxed) + 1;
 
         // Update peak if necessary
         let mut peak = self.streams_peak.load(Ordering::Relaxed);
@@ -119,8 +117,7 @@ impl Http2Metrics {
     /// Record an HTTP/2 stream closed
     pub fn record_stream_closed(&self) {
         self.streams_closed_total.fetch_add(1, Ordering::Relaxed);
-        self.streams_active_current
-            .fetch_sub(1, Ordering::Relaxed);
+        self.streams_active_current.fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Get current active streams
@@ -179,8 +176,7 @@ impl Http2Metrics {
 
     /// Update total flow window bytes in use
     pub fn set_flow_window_bytes(&self, bytes: u64) {
-        self.flow_window_total_bytes
-            .store(bytes, Ordering::Relaxed);
+        self.flow_window_total_bytes.store(bytes, Ordering::Relaxed);
     }
 
     // ===== Frame Metrics =====
@@ -200,7 +196,7 @@ impl Http2Metrics {
         self.frames_sent_settings.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record sent WINDOW_UPDATE frame
+    /// Record sent `WINDOW_UPDATE` frame
     pub fn record_frame_sent_window_update(&self) {
         self.frames_sent_window_update
             .fetch_add(1, Ordering::Relaxed);
@@ -272,16 +268,16 @@ impl Http2Metrics {
             frames_received_data: self.frames_received_data.load(Ordering::Relaxed),
             frames_received_headers: self.frames_received_headers.load(Ordering::Relaxed),
             frames_received_settings: self.frames_received_settings.load(Ordering::Relaxed),
-            frames_received_window_update: self.frames_received_window_update.load(Ordering::Relaxed),
+            frames_received_window_update: self
+                .frames_received_window_update
+                .load(Ordering::Relaxed),
             frames_received_goaway: self.frames_received_goaway.load(Ordering::Relaxed),
             pool_connections_active: self.pool_connections_active.load(Ordering::Relaxed),
             pool_connections_idle: self.pool_connections_idle.load(Ordering::Relaxed),
             pool_wait_events: self.pool_wait_events.load(Ordering::Relaxed),
             avg_pool_wait_ms: self.avg_pool_wait_ms(),
             flow_window_total_bytes: self.flow_window_total_bytes.load(Ordering::Relaxed),
-            flow_window_exhausted_events: self
-                .flow_window_exhausted_events
-                .load(Ordering::Relaxed),
+            flow_window_exhausted_events: self.flow_window_exhausted_events.load(Ordering::Relaxed),
             multiplexing_factor: self.multiplexing_factor(),
         }
     }
@@ -303,7 +299,8 @@ impl Http2Metrics {
         self.frames_received_data.store(0, Ordering::Relaxed);
         self.frames_received_headers.store(0, Ordering::Relaxed);
         self.frames_received_settings.store(0, Ordering::Relaxed);
-        self.frames_received_window_update.store(0, Ordering::Relaxed);
+        self.frames_received_window_update
+            .store(0, Ordering::Relaxed);
         self.frames_received_goaway.store(0, Ordering::Relaxed);
         self.pool_connections_active.store(0, Ordering::Relaxed);
         self.pool_connections_idle.store(0, Ordering::Relaxed);
@@ -324,29 +321,53 @@ impl Default for Http2Metrics {
 /// Snapshot of HTTP/2 metrics for reporting
 #[derive(Debug, Clone)]
 pub struct Http2MetricsSnapshot {
+    /// Total number of HTTP/2 streams opened
     pub streams_opened_total: u64,
+    /// Total number of HTTP/2 streams closed
     pub streams_closed_total: u64,
+    /// Current number of active HTTP/2 streams
     pub streams_active_current: u64,
+    /// Peak number of concurrent streams
     pub streams_peak: u64,
+    /// Total number of HTTP/2 connections established
     pub h2_connections_total: u64,
+    /// Total number of HTTP/1.x connections established
     pub h1_connections_total: u64,
+    /// Total number of flow control events
     pub flow_control_events: u64,
+    /// Total number of DATA frames sent
     pub frames_sent_data: u64,
+    /// Total number of HEADERS frames sent
     pub frames_sent_headers: u64,
+    /// Total number of SETTINGS frames sent
     pub frames_sent_settings: u64,
+    /// Total number of `WINDOW_UPDATE` frames sent
     pub frames_sent_window_update: u64,
+    /// Total number of GOAWAY frames sent
     pub frames_sent_goaway: u64,
+    /// Total number of DATA frames received
     pub frames_received_data: u64,
+    /// Total number of HEADERS frames received
     pub frames_received_headers: u64,
+    /// Total number of SETTINGS frames received
     pub frames_received_settings: u64,
+    /// Total number of `WINDOW_UPDATE` frames received
     pub frames_received_window_update: u64,
+    /// Total number of GOAWAY frames received
     pub frames_received_goaway: u64,
+    /// Current number of active connections in the pool
     pub pool_connections_active: u64,
+    /// Current number of idle connections in the pool
     pub pool_connections_idle: u64,
+    /// Total number of connection pool wait events
     pub pool_wait_events: u64,
+    /// Average wait time in milliseconds for pool connections
     pub avg_pool_wait_ms: f64,
+    /// Total flow control window size in bytes
     pub flow_window_total_bytes: u64,
+    /// Total number of flow window exhaustion events
     pub flow_window_exhausted_events: u64,
+    /// Average multiplexing factor (requests per connection)
     pub multiplexing_factor: f64,
 }
 

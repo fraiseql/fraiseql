@@ -1,6 +1,6 @@
 //! Query execution with result caching (Phase 17A.2)
 //!
-//! Integrates QueryResultCache into the GraphQL pipeline to cache and retrieve
+//! Integrates `QueryResultCache` into the GraphQL pipeline to cache and retrieve
 //! query results based on cascade-driven entity tracking.
 
 use anyhow::Result;
@@ -30,6 +30,9 @@ use crate::graphql::types::ParsedQuery;
 ///
 /// Query result as JSON value
 ///
+/// # Errors
+/// Returns error if query execution fails
+///
 /// # Example
 ///
 /// ```ignore
@@ -44,22 +47,19 @@ use crate::graphql::types::ParsedQuery;
 ///     }
 /// )?;
 /// ```
-pub fn execute_query_with_cache<F>(
+pub fn execute_query_with_cache<F, S: ::std::hash::BuildHasher>(
     cache: &Arc<QueryResultCache>,
     query: &ParsedQuery,
-    variables: &HashMap<String, Value>,
+    variables: &HashMap<String, Value, S>,
     execute_fn: F,
 ) -> Result<Value>
 where
-    F: Fn(&ParsedQuery, &HashMap<String, Value>) -> Result<Value>,
+    F: Fn(&ParsedQuery, &HashMap<String, Value, S>) -> Result<Value>,
 {
     // Generate cache key - skip caching if key generation returns None
-    let cache_key = match QueryCacheKey::from_query(query, variables) {
-        Some(key) => key,
-        None => {
-            // Don't cache (mutation, dynamic directives, etc.)
-            return execute_fn(query, variables);
-        }
+    let Some(cache_key) = QueryCacheKey::from_query(query, variables) else {
+        // Don't cache (mutation, dynamic directives, etc.)
+        return execute_fn(query, variables);
     };
 
     // Check cache first
@@ -72,7 +72,7 @@ where
     let result = execute_fn(query, variables)?;
 
     // Store in cache for next time
-    if let Err(e) = cache.put(cache_key.key, result.clone(), cache_key.accessed_entities) {
+    if let Err(e) = cache.put(&cache_key.key, result.clone(), cache_key.accessed_entities) {
         // Log cache error but don't fail the query
         eprintln!("Cache store error: {e}");
     }
@@ -93,6 +93,9 @@ where
 /// # Returns
 ///
 /// Number of cache entries invalidated
+///
+/// # Errors
+/// Returns error if invalidation fails
 ///
 /// # Example
 ///

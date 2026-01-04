@@ -83,12 +83,10 @@ pub use axum_server::{
     GraphQLResponse,
 };
 pub use batch_requests::{
-    BatchGraphQLRequest, BatchGraphQLResponse, BatchProcessor, BatchProcessingConfig,
-    BatchStats, DeduplicationKey,
+    BatchGraphQLRequest, BatchGraphQLResponse, BatchProcessingConfig, BatchProcessor, BatchStats,
+    DeduplicationKey,
 };
-pub use connection_pool::{
-    ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig,
-};
+pub use connection_pool::{ConnectionPoolConfig, SocketConfig, TokioRuntimeConfig};
 pub use http2_config::{Http2Config, Http2Stats};
 pub use http2_metrics::{Http2Metrics, Http2MetricsSnapshot};
 pub use metrics::HttpMetrics;

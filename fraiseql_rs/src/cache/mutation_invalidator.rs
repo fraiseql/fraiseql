@@ -22,6 +22,9 @@ use crate::cache::QueryResultCache;
 ///
 /// Cascade metadata if present and valid, None if not present
 ///
+/// # Errors
+/// Returns error if response parsing fails
+///
 /// # Example
 ///
 /// ```ignore
@@ -47,29 +50,26 @@ pub fn extract_cascade_from_response(response_json: &Value) -> Result<Option<Val
     // Navigate: response.data.{mutation_field}.cascade
     // Response structure: { "data": { "fieldName": { "cascade": {...} } } }
 
-    let data = match response_json.get("data") {
-        Some(Value::Object(obj)) => obj,
-        _ => return Ok(None),
+    let Some(Value::Object(data)) = response_json.get("data") else {
+        return Ok(None);
     };
 
     // Get the mutation field (first/only key in data object)
-    let mutation_result = match data.values().next() {
-        Some(Value::Object(obj)) => obj,
-        _ => return Ok(None),
+    let Some(Value::Object(mutation_result)) = data.values().next() else {
+        return Ok(None);
     };
 
     // Extract cascade metadata
-    match mutation_result.get("cascade") {
-        Some(cascade_value) => {
-            // Validate cascade structure
+    mutation_result.get("cascade").map_or_else(
+        || Ok(None),
+        |cascade_value| {
             if is_valid_cascade(cascade_value) {
                 Ok(Some(cascade_value.clone()))
             } else {
                 Ok(None)
             }
-        }
-        None => Ok(None),
-    }
+        },
+    )
 }
 
 /// Validate cascade metadata structure
@@ -80,8 +80,12 @@ fn is_valid_cascade(cascade: &Value) -> bool {
         Some(Value::Object(invalidations)) => {
             // Must have at least "updated" or "deleted"
             (invalidations.contains_key("updated") || invalidations.contains_key("deleted"))
-                && (invalidations.get("updated").is_none_or(|v| v.is_array())
-                    && invalidations.get("deleted").is_none_or(|v| v.is_array()))
+                && (invalidations
+                    .get("updated")
+                    .is_none_or(serde_json::Value::is_array)
+                    && invalidations
+                        .get("deleted")
+                        .is_none_or(serde_json::Value::is_array))
         }
         _ => false,
     }
@@ -100,6 +104,9 @@ fn is_valid_cascade(cascade: &Value) -> bool {
 /// # Returns
 ///
 /// Number of cache entries invalidated, or error if cascade extraction fails
+///
+/// # Errors
+/// Returns error if cascade extraction or invalidation fails
 ///
 /// # Example
 ///
@@ -128,17 +135,8 @@ pub fn invalidate_cache_on_mutation(
     mutation_response: &Value,
 ) -> Result<u64> {
     // Extract cascade from response
-    match extract_cascade_from_response(mutation_response)? {
-        Some(cascade) => {
-            // Invalidate cache using cascade metadata
-            cache.invalidate_from_cascade(&cascade)
-        }
-        None => {
-            // No cascade metadata - no invalidation
-            // This is OK for mutations that don't return cascade
-            Ok(0)
-        }
-    }
+    (extract_cascade_from_response(mutation_response)?)
+        .map_or_else(|| Ok(0), |cascade| cache.invalidate_from_cascade(&cascade))
 }
 
 #[cfg(test)]

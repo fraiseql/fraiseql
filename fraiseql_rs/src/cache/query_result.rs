@@ -1,7 +1,7 @@
 //! Query Result Cache for Phase 17A
 //!
 //! Caches GraphQL query results and tracks accessed entities for cascade-driven invalidation.
-//! This is distinct from the QueryPlanCache which caches query execution plans.
+//! This is distinct from the `QueryPlanCache` which caches query execution plans.
 
 use anyhow::{anyhow, Result};
 use lru::LruCache;
@@ -29,7 +29,7 @@ pub struct CachedResult {
 }
 
 /// Configuration for query result cache
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct QueryResultCacheConfig {
     /// Maximum number of entries in cache (LRU eviction above this)
     pub max_entries: usize,
@@ -60,7 +60,7 @@ pub struct QueryResultCache {
 
     /// Dependency tracking: entity key -> list of cache entry keys
     /// Used for efficient invalidation based on cascade
-    /// Format: "User:123" -> ["query:user:123:posts", "query:user:123:email"]
+    /// Format: `"User:123" -> ["query:user:123:posts", "query:user:123:email"]`
     dependencies: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
 
     /// Metrics
@@ -91,6 +91,9 @@ pub struct CacheMetrics {
 
 impl QueryResultCache {
     /// Create a new query result cache with default config
+    ///
+    /// # Panics
+    /// Panics if `config.max_entries` is 0
     #[must_use]
     pub fn new(config: QueryResultCacheConfig) -> Self {
         let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
@@ -148,7 +151,7 @@ impl QueryResultCache {
     /// Returns an error if cache mutex is poisoned
     pub fn put(
         &self,
-        cache_key: String,
+        cache_key: &str,
         result: Value,
         accessed_entities: Vec<(String, String)>,
     ) -> Result<()> {
@@ -172,7 +175,7 @@ impl QueryResultCache {
             .cache
             .lock()
             .map_err(|e| anyhow!("Cache lock poisoned: {e}"))?;
-        cache.put(cache_key.clone(), cached);
+        cache.put(cache_key.to_string(), cached);
 
         // Update dependency tracking
         let mut deps = self
@@ -181,10 +184,10 @@ impl QueryResultCache {
             .map_err(|e| anyhow!("Dependencies lock poisoned: {e}"))?;
 
         for (entity_type, entity_id) in accessed_entities {
-            let dep_key = format!("{}:{}", entity_type, entity_id);
+            let dep_key = format!("{entity_type}:{entity_id}");
             deps.entry(dep_key)
                 .or_insert_with(Vec::new)
-                .push(cache_key.clone());
+                .push(cache_key.to_string());
         }
 
         // Update metrics
@@ -260,7 +263,7 @@ impl QueryResultCache {
             .map_err(|e| anyhow!("Dependencies lock poisoned: {e}"))?;
 
         for (entity_type, entity_id) in entities_to_invalidate {
-            let dep_key = format!("{}:{}", entity_type, entity_id);
+            let dep_key = format!("{entity_type}:{entity_id}");
 
             if let Some(cache_keys) = deps.remove(&dep_key) {
                 for key in cache_keys {
@@ -270,7 +273,7 @@ impl QueryResultCache {
             }
 
             // Also invalidate wildcard entries for this entity type
-            let wildcard_key = format!("{}:*", entity_type);
+            let wildcard_key = format!("{entity_type}:*");
             if let Some(wildcard_keys) = deps.remove(&wildcard_key) {
                 for key in wildcard_keys {
                     cache.pop(&key);

@@ -4,6 +4,7 @@
 //! health checks, performance thresholds, and alerting capabilities.
 
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -64,7 +65,7 @@ pub struct HealthReport {
     /// Current miss rate (0.0 to 1.0)
     pub miss_rate: f64,
 
-    /// Invalidation rate (invalidations / total_cached)
+    /// Invalidation rate (invalidations / `total_cached`)
     pub invalidation_rate: f64,
 
     /// Memory usage percentage (0.0 to 100.0)
@@ -188,9 +189,7 @@ impl CacheMonitor {
             .unwrap_or_default()
             .as_secs();
 
-        let sample = PerformanceSample {
-            timestamp: now,
-        };
+        let sample = PerformanceSample { timestamp: now };
 
         if let Ok(mut samples) = self.samples.lock() {
             samples.push(sample);
@@ -213,6 +212,7 @@ impl CacheMonitor {
     /// Get current health status
     ///
     /// Evaluates cache against health thresholds and returns status.
+    #[allow(clippy::useless_let_if_seq)]
     pub fn get_health(
         &self,
         _current_size: usize,
@@ -362,40 +362,31 @@ impl CacheMonitor {
         // Cache hits/misses
         output.push_str("# HELP fraiseql_cache_hits_total Total cache hits\n");
         output.push_str("# TYPE fraiseql_cache_hits_total counter\n");
-        output.push_str(&format!("fraiseql_cache_hits_total {}\n", hits));
+        let _ = writeln!(output, "fraiseql_cache_hits_total {hits}");
 
         output.push_str("# HELP fraiseql_cache_misses_total Total cache misses\n");
         output.push_str("# TYPE fraiseql_cache_misses_total counter\n");
-        output.push_str(&format!("fraiseql_cache_misses_total {}\n", misses));
+        let _ = writeln!(output, "fraiseql_cache_misses_total {misses}");
 
         // Hit rate
         output.push_str("# HELP fraiseql_cache_hit_rate Cache hit rate (0-1)\n");
         output.push_str("# TYPE fraiseql_cache_hit_rate gauge\n");
-        output.push_str(&format!("fraiseql_cache_hit_rate {:.4}\n", hit_rate));
+        let _ = writeln!(output, "fraiseql_cache_hit_rate {hit_rate:.4}");
 
         // Invalidations
         output.push_str("# HELP fraiseql_cache_invalidations_total Total cache invalidations\n");
         output.push_str("# TYPE fraiseql_cache_invalidations_total counter\n");
-        output.push_str(&format!(
-            "fraiseql_cache_invalidations_total {}\n",
-            invalidations
-        ));
+        let _ = writeln!(output, "fraiseql_cache_invalidations_total {invalidations}");
 
         // Total cached entries
         output.push_str("# HELP fraiseql_cache_total_entries_total Total entries ever cached\n");
         output.push_str("# TYPE fraiseql_cache_total_entries_total counter\n");
-        output.push_str(&format!(
-            "fraiseql_cache_total_entries_total {}\n",
-            total_cached
-        ));
+        let _ = writeln!(output, "fraiseql_cache_total_entries_total {total_cached}");
 
         // Peak memory
         output.push_str("# HELP fraiseql_cache_peak_memory_bytes Peak memory usage in bytes\n");
         output.push_str("# TYPE fraiseql_cache_peak_memory_bytes gauge\n");
-        output.push_str(&format!(
-            "fraiseql_cache_peak_memory_bytes {}\n",
-            peak_memory
-        ));
+        let _ = writeln!(output, "fraiseql_cache_peak_memory_bytes {peak_memory}");
 
         output
     }
