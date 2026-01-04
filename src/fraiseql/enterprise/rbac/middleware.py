@@ -1,7 +1,8 @@
 """GraphQL middleware for FraiseQL Enterprise RBAC (Role-Based Access Control).
 
 This middleware integrates the PostgreSQL-cached PermissionResolver with GraphQL
-execution, providing context-aware permission checking and automatic cache management.
+execution, providing context-aware permission checking, row-level filtering, and
+automatic cache management.
 """
 
 import logging
@@ -10,6 +11,7 @@ from uuid import UUID
 
 from .cache import PermissionCache
 from .resolver import PermissionResolver
+from .rust_row_constraints import RustRowConstraintResolver
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,10 @@ class RbacMiddleware:
     This middleware:
     1. Extracts user/tenant context from GraphQL request
     2. Provides PermissionResolver instance in context
-    3. Manages request-level cache lifecycle
-    4. Logs authorization events
+    3. Resolves row-level access constraints (when configured)
+    4. Injects row-level filters into GraphQL context
+    5. Manages request-level cache lifecycle
+    6. Logs authorization events
 
     Usage:
         from fraiseql.enterprise.rbac.middleware import RbacMiddleware
@@ -33,14 +37,21 @@ class RbacMiddleware:
         )
     """
 
-    def __init__(self, permission_resolver: Optional[PermissionResolver] = None) -> None:
+    def __init__(
+        self,
+        permission_resolver: Optional[PermissionResolver] = None,
+        row_constraint_resolver: Optional[RustRowConstraintResolver] = None,
+    ) -> None:
         """Initialize RBAC middleware.
 
         Args:
-            permission_resolver: Optional pre-configured resolver.
+            permission_resolver: Optional pre-configured permission resolver.
                                  If None, will be created from context.
+            row_constraint_resolver: Optional pre-configured row constraint resolver.
+                                     If None, row-level filtering is disabled.
         """
         self.permission_resolver = permission_resolver
+        self.row_constraint_resolver = row_constraint_resolver
 
     def resolve(
         self, next_: Callable[..., Awaitable[Any]], root: Any, info: Any, **kwargs: Any
@@ -68,6 +79,12 @@ class RbacMiddleware:
             resolver = self._get_permission_resolver(context)
             if resolver:
                 context["permission_resolver"] = resolver
+
+        # Add row-level filters to context if resolver configured
+        if "row_filters" not in context and self.row_constraint_resolver:
+            row_filters = await self._get_row_filters(context, info)
+            if row_filters:
+                context["row_filters"] = row_filters
 
         # Execute the query/mutation
         try:
@@ -204,6 +221,79 @@ class RbacMiddleware:
             logger.error(f"Failed to create PermissionResolver: {e}")
             return None
 
+    async def _get_row_filters(
+        self, context: dict[str, Any], info: Any
+    ) -> Optional[dict[str, Any]]:
+        """Resolve row-level filters for a request.
+
+        This method queries the row constraint resolver to get any row-level
+        access restrictions for the user on the queried table.
+
+        Args:
+            context: GraphQL context dictionary
+            info: GraphQL execution info
+
+        Returns:
+            WHERE clause fragment for row filtering, or None if no constraints
+        """
+        resolver = self.row_constraint_resolver
+        if not resolver:
+            return None
+
+        # Extract required context
+        user_id = context.get("user_id")
+        tenant_id = context.get("tenant_id")
+
+        if not user_id:
+            return None
+
+        try:
+            # Extract table name from GraphQL field name (best effort)
+            table_name = self._extract_table_name(info)
+            if not table_name:
+                # If we can't determine table name, skip row filtering
+                return None
+
+            # Get row filters from Rust resolver
+            row_filter = await resolver.get_row_filters(
+                user_id,
+                table_name,
+                context.get("user_roles", []),
+                tenant_id,
+            )
+
+            if not row_filter:
+                return None
+
+            # Convert RowFilter to WHERE clause fragment
+            return {row_filter.field: {row_filter.operator: row_filter.value}}
+
+        except Exception as e:
+            logger.warning(f"Failed to resolve row constraints: {e}")
+            return None
+
+    def _extract_table_name(self, info: Any) -> Optional[str]:
+        """Extract table name from GraphQL query field name.
+
+        This is a heuristic approach to map GraphQL field names to table names.
+        Can be customized based on your schema naming conventions.
+
+        Args:
+            info: GraphQL execution info
+
+        Returns:
+            Table name if determinable, None otherwise
+        """
+        # Get field name from GraphQL info
+        field_name = getattr(info, "field_name", None)
+        if not field_name:
+            return None
+
+        # For now, assume field name matches table name
+        # In a real implementation, you might have a mapping dictionary:
+        # FIELD_TO_TABLE = {"documents": "documents", "users": "users", ...}
+        return field_name
+
     def _clear_request_cache(self, context: dict[str, Any]) -> None:
         """Clear request-level permission cache.
 
@@ -225,11 +315,14 @@ class RbacMiddleware:
 # Convenience function for easy middleware setup
 def create_rbac_middleware(
     permission_resolver: Optional[PermissionResolver] = None,
+    row_constraint_resolver: Optional[RustRowConstraintResolver] = None,
 ) -> RbacMiddleware:
     """Create RBAC middleware instance.
 
     Args:
-        permission_resolver: Optional pre-configured resolver
+        permission_resolver: Optional pre-configured permission resolver
+        row_constraint_resolver: Optional pre-configured row constraint resolver
+                                 for row-level access filtering
 
     Returns:
         Configured RbacMiddleware instance
@@ -237,10 +330,21 @@ def create_rbac_middleware(
     Usage:
         from fraiseql.enterprise.rbac.middleware import create_rbac_middleware
 
+        # Basic RBAC (field-level only)
         schema = strawberry.Schema(
             query=Query,
             mutation=Mutation,
             extensions=[create_rbac_middleware()]
         )
+
+        # With row-level filtering
+        from fraiseql.enterprise.rbac.rust_row_constraints import RustRowConstraintResolver
+
+        row_resolver = RustRowConstraintResolver(pool)
+        schema = strawberry.Schema(
+            query=Query,
+            mutation=Mutation,
+            extensions=[create_rbac_middleware(row_constraint_resolver=row_resolver)]
+        )
     """
-    return RbacMiddleware(permission_resolver)
+    return RbacMiddleware(permission_resolver, row_constraint_resolver)

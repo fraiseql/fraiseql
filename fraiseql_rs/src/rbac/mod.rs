@@ -90,7 +90,9 @@ pub use errors::{RbacError, Result};
 pub use field_auth::{FieldAuthChecker, FieldPermissions};
 pub use hierarchy::RoleHierarchy;
 pub use models::{Permission, Role, RolePermission, UserRole};
-pub use py_bindings::{PyFieldAuthChecker, PyPermissionResolver, PyRowConstraintResolver, PyWhereMerger};
+pub use py_bindings::{
+    PyFieldAuthChecker, PyPermissionResolver, PyRowConstraintResolver, PyWhereMerger,
+};
 pub use resolver::PermissionResolver;
 pub use row_constraints::{ConstraintType, RowConstraint, RowConstraintResolver, RowFilter};
 pub use where_merger::{ConflictStrategy, WhereMergeError, WhereMerger};

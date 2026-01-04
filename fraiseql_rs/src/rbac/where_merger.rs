@@ -230,8 +230,7 @@ impl WhereMerger {
     fn compose_and(clause1: &Value, clause2: &Value) -> Result<Option<Value>> {
         // If clause1 is already AND, extend it
         if clause1.get("AND").is_some() {
-            if let Some(mut and_parts) = clause1.get("AND").and_then(|v| v.as_array().cloned())
-            {
+            if let Some(mut and_parts) = clause1.get("AND").and_then(|v| v.as_array().cloned()) {
                 and_parts.push(clause2.clone());
                 return Ok(Some(json!({"AND": and_parts})));
             }
@@ -269,9 +268,10 @@ impl WhereMerger {
                     "AND" | "OR" => {
                         // Should be array of objects
                         if !value.is_array() {
-                            return Err(WhereMergeError::InvalidStructure(
-                                format!("{} must contain an array", key),
-                            ));
+                            return Err(WhereMergeError::InvalidStructure(format!(
+                                "{} must contain an array",
+                                key
+                            )));
                         }
                         if let Some(arr) = value.as_array() {
                             for item in arr {
@@ -341,7 +341,8 @@ mod tests {
     fn test_merge_both_no_conflict() {
         let explicit = json!({"status": {"eq": "active"}});
         let auth = json!({"tenant_id": {"eq": "tenant-123"}});
-        let result = WhereMerger::merge_where(Some(&explicit), Some(&auth), ConflictStrategy::Error);
+        let result =
+            WhereMerger::merge_where(Some(&explicit), Some(&auth), ConflictStrategy::Error);
 
         assert!(result.is_ok());
         let merged = result.unwrap().unwrap();
@@ -362,7 +363,8 @@ mod tests {
             ]
         });
         let auth = json!({"tenant_id": {"eq": "tenant-123"}});
-        let result = WhereMerger::merge_where(Some(&explicit), Some(&auth), ConflictStrategy::Error);
+        let result =
+            WhereMerger::merge_where(Some(&explicit), Some(&auth), ConflictStrategy::Error);
 
         assert!(result.is_ok());
         let merged = result.unwrap().unwrap();

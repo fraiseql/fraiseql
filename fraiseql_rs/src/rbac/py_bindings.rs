@@ -275,9 +275,10 @@ impl PyWhereMerger {
             "override" => super::where_merger::ConflictStrategy::Override,
             "log" => super::where_merger::ConflictStrategy::Log,
             other => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Invalid strategy: {}. Must be 'error', 'override', or 'log'", other),
-                ))
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid strategy: {}. Must be 'error', 'override', or 'log'",
+                    other
+                )))
             }
         };
 
@@ -350,15 +351,11 @@ impl PyWhereMerger {
     #[staticmethod]
     pub fn validate_where(where_clause: &str) -> PyResult<()> {
         let value = serde_json::from_str::<Value>(where_clause).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Invalid WHERE JSON: {}",
-                e
-            ))
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid WHERE JSON: {}", e))
         })?;
 
-        WhereMerger::validate_where(&value).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
-        })?;
+        WhereMerger::validate_where(&value)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
         Ok(())
     }
