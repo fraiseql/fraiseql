@@ -47,14 +47,9 @@ def parse_id_literal(ast: ValueNode, variables: dict[str, object] | None = None)
     raise GraphQLError(msg)
 
 
-# GraphQL Scalar
-IDScalar = GraphQLScalarType(
-    name="ID",
-    description="A globally unique identifier in UUID format.",
-    serialize=serialize_id,
-    parse_value=parse_id_value,
-    parse_literal=parse_id_literal,
-)
+# NOTE: We do NOT create a custom IDScalar here because "ID" is a reserved type name
+# in graphql-core and cannot be redefined. Use GraphQLID (the built-in scalar) instead.
+# This module only exports IDField for Python type compatibility.
 
 
 # Python Type Marker

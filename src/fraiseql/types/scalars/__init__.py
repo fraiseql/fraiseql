@@ -57,7 +57,7 @@ from .hash_sha256 import HashSHA256Scalar
 from .hostname import HostnameScalar
 from .html import HTMLScalar
 from .iban import IBANScalar
-from .id_scalar import IDScalar
+from .id_scalar import IDField  # noqa: F401 - imported for type compatibility
 from .image import ImageScalar
 from .ip_address import IpAddressScalar, SubnetMaskScalar
 from .isin import ISINScalar
@@ -113,7 +113,6 @@ __all__ = [
     "HashSHA256Scalar",
     "HostnameScalar",
     "IBANScalar",
-    "IDScalar",
     "ISINScalar",
     "ImageScalar",
     "IpAddressScalar",
