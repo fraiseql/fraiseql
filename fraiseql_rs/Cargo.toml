@@ -150,6 +150,9 @@ hyper = "1.1"               # HTTP client and server library
 zstd = { version = "0.13", optional = true } # Zstandard compression (superior compression ratio)
 async-compression = { version = "0.4", features = ["tokio", "zstd"], optional = true }
 
+# Phase 18: HTTP/2 & Protocol Optimization
+num_cpus = "1.16"              # Detect CPU core count for runtime tuning
+
 [dev-dependencies]
 # Testing framework
 tokio-test = "0.4"                    # Async runtime for tests
