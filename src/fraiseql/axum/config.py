@@ -52,6 +52,14 @@ class AxumFraiseQLConfig(BaseModel):
         enable_compression: Enable response compression (default: True)
         compression_algorithm: Compression algorithm "brotli" or "zstd" (default: "brotli")
         compression_min_bytes: Minimum bytes to compress (default: 256)
+
+        # Phase 3E: Advanced Configuration
+        max_request_body_size: Maximum request body size in bytes (default: 1000000 / 1MB)
+        request_timeout: Request timeout in seconds (default: 30)
+        log_requests: Log all GraphQL requests (default: True)
+        log_level: Logging level (default: "INFO")
+        enable_introspection_in_production: Allow introspection in production (default: False)
+        require_https: Redirect HTTP to HTTPS (default: False)
     """
 
     # Database configuration (from FastAPI)
@@ -103,6 +111,29 @@ class AxumFraiseQLConfig(BaseModel):
     compression_algorithm: str = Field("brotli", pattern="^(brotli|zstd)$")
     compression_min_bytes: int = Field(256, ge=0, le=10000, description="Minimum bytes to compress")
 
+    # Phase 3E: Advanced Configuration
+    # Request/Response configuration
+    max_request_body_size: int = Field(
+        1000000, ge=1, le=104857600, description="Maximum request body size in bytes (1B-100MB)"
+    )
+    request_timeout: int = Field(
+        30, ge=1, le=3600, description="Request timeout in seconds (1-3600)"
+    )
+
+    # Logging configuration
+    log_requests: bool = Field(True, description="Log all GraphQL requests and responses")
+    log_level: str = Field(
+        "INFO",
+        pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$",
+        description="Logging level for application",
+    )
+
+    # Security configuration
+    enable_introspection_in_production: bool = Field(
+        False, description="Allow GraphQL introspection queries in production"
+    )
+    require_https: bool = Field(False, description="Require HTTPS and redirect HTTP to HTTPS")
+
     class Config:
         """Pydantic configuration."""
 
@@ -141,6 +172,26 @@ class AxumFraiseQLConfig(BaseModel):
                 )
         return v
 
+    @field_validator("max_request_body_size")
+    @classmethod
+    def validate_max_request_body_size(cls, v: int) -> int:
+        """Validate request body size is reasonable."""
+        if v < 1:
+            raise ValueError("max_request_body_size must be at least 1 byte")
+        if v > 104857600:  # 100MB
+            raise ValueError("max_request_body_size cannot exceed 100MB")
+        return v
+
+    @field_validator("request_timeout")
+    @classmethod
+    def validate_request_timeout(cls, v: int) -> int:
+        """Validate request timeout is reasonable."""
+        if v < 1:
+            raise ValueError("request_timeout must be at least 1 second")
+        if v > 3600:
+            raise ValueError("request_timeout cannot exceed 1 hour")
+        return v
+
     @property
     def effective_workers(self) -> int:
         """Get effective number of workers, auto-detecting if not configured."""
@@ -166,6 +217,12 @@ class AxumFraiseQLConfig(BaseModel):
             FRAISEQL_AUTH_ENABLED: Enable auth (default: "false")
             FRAISEQL_JWT_SECRET: JWT secret key
             FRAISEQL_PRODUCTION: Enable production mode (default: "false")
+            FRAISEQL_MAX_REQUEST_SIZE: Max request body size in bytes (default: "1000000")
+            FRAISEQL_REQUEST_TIMEOUT: Request timeout in seconds (default: "30")
+            FRAISEQL_LOG_REQUESTS: Log requests (default: "true")
+            FRAISEQL_LOG_LEVEL: Logging level (default: "INFO")
+            FRAISEQL_INTROSPECTION_PROD: Allow introspection in production (default: "false")
+            FRAISEQL_REQUIRE_HTTPS: Require HTTPS (default: "false")
 
         Returns:
             AxumFraiseQLConfig instance
@@ -186,6 +243,15 @@ class AxumFraiseQLConfig(BaseModel):
             auth_enabled=os.getenv("FRAISEQL_AUTH_ENABLED", "false").lower() == "true",
             jwt_secret=os.getenv("FRAISEQL_JWT_SECRET"),
             production_mode=os.getenv("FRAISEQL_PRODUCTION", "false").lower() == "true",
+            max_request_body_size=int(os.getenv("FRAISEQL_MAX_REQUEST_SIZE", "1000000")),
+            request_timeout=int(os.getenv("FRAISEQL_REQUEST_TIMEOUT", "30")),
+            log_requests=os.getenv("FRAISEQL_LOG_REQUESTS", "true").lower() == "true",
+            log_level=os.getenv("FRAISEQL_LOG_LEVEL", "INFO"),
+            enable_introspection_in_production=os.getenv(
+                "FRAISEQL_INTROSPECTION_PROD", "false"
+            ).lower()
+            == "true",
+            require_https=os.getenv("FRAISEQL_REQUIRE_HTTPS", "false").lower() == "true",
         )
 
     def to_dict(self) -> dict[str, Any]:

@@ -401,3 +401,275 @@ class TestAxumFraiseQLConfigIntegration:
         assert config.enable_playground is False
         assert config.enable_query_caching is True
         assert config.enable_compression is True
+
+
+class TestPhase3EAdvancedConfiguration:
+    """Test Phase 3E: Advanced Configuration features."""
+
+    def test_default_advanced_config_values(self) -> None:
+        """Test that Phase 3E defaults are set correctly."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test"
+        )
+
+        # Request/Response
+        assert config.max_request_body_size == 1000000  # 1MB
+        assert config.request_timeout == 30
+
+        # Logging
+        assert config.log_requests is True
+        assert config.log_level == "INFO"
+
+        # Security
+        assert config.enable_introspection_in_production is False
+        assert config.require_https is False
+
+    def test_custom_request_body_size(self) -> None:
+        """Test setting custom max request body size."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            max_request_body_size=5000000  # 5MB
+        )
+
+        assert config.max_request_body_size == 5000000
+
+    def test_custom_request_timeout(self) -> None:
+        """Test setting custom request timeout."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            request_timeout=60
+        )
+
+        assert config.request_timeout == 60
+
+    def test_disable_request_logging(self) -> None:
+        """Test disabling request logging."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            log_requests=False
+        )
+
+        assert config.log_requests is False
+
+    def test_custom_log_levels(self) -> None:
+        """Test setting different log levels."""
+        for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            config = AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                log_level=level
+            )
+
+            assert config.log_level == level
+
+    def test_invalid_log_level(self) -> None:
+        """Test that invalid log level is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                log_level="INVALID"
+            )
+
+        assert "String should match pattern" in str(exc_info.value)
+
+    def test_enable_introspection_in_production(self) -> None:
+        """Test enabling introspection in production."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            environment="production",
+            enable_introspection_in_production=True
+        )
+
+        assert config.enable_introspection_in_production is True
+        assert config.environment == "production"
+
+    def test_require_https(self) -> None:
+        """Test requiring HTTPS."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            require_https=True
+        )
+
+        assert config.require_https is True
+
+    def test_min_request_body_size(self) -> None:
+        """Test minimum request body size validation."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            max_request_body_size=1
+        )
+
+        assert config.max_request_body_size == 1
+
+    def test_max_request_body_size(self) -> None:
+        """Test maximum request body size validation."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            max_request_body_size=104857600  # 100MB
+        )
+
+        assert config.max_request_body_size == 104857600
+
+    def test_invalid_request_body_size_zero(self) -> None:
+        """Test that zero request body size is rejected."""
+        with pytest.raises(ValidationError):
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                max_request_body_size=0
+            )
+
+    def test_invalid_request_body_size_too_large(self) -> None:
+        """Test that request body size > 100MB is rejected."""
+        with pytest.raises(ValidationError):
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                max_request_body_size=104857601  # > 100MB
+            )
+
+    def test_min_request_timeout(self) -> None:
+        """Test minimum request timeout validation."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            request_timeout=1
+        )
+
+        assert config.request_timeout == 1
+
+    def test_max_request_timeout(self) -> None:
+        """Test maximum request timeout validation."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            request_timeout=3600  # 1 hour
+        )
+
+        assert config.request_timeout == 3600
+
+    def test_invalid_request_timeout_zero(self) -> None:
+        """Test that zero timeout is rejected."""
+        with pytest.raises(ValidationError):
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                request_timeout=0
+            )
+
+    def test_invalid_request_timeout_negative(self) -> None:
+        """Test that negative timeout is rejected."""
+        with pytest.raises(ValidationError):
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                request_timeout=-1
+            )
+
+    def test_invalid_request_timeout_too_large(self) -> None:
+        """Test that timeout > 1 hour is rejected."""
+        with pytest.raises(ValidationError):
+            AxumFraiseQLConfig(
+                database_url="postgresql://localhost/test",
+                request_timeout=3601  # > 1 hour
+            )
+
+    def test_phase_3e_development_config(self) -> None:
+        """Test Phase 3E configuration for development."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/dev",
+            environment="development",
+            max_request_body_size=10000000,  # 10MB
+            request_timeout=60,
+            log_requests=True,
+            log_level="DEBUG",
+            enable_introspection_in_production=False,
+            require_https=False,
+        )
+
+        assert config.environment == "development"
+        assert config.max_request_body_size == 10000000
+        assert config.request_timeout == 60
+        assert config.log_requests is True
+        assert config.log_level == "DEBUG"
+        assert config.enable_introspection_in_production is False
+        assert config.require_https is False
+
+    def test_phase_3e_production_config(self) -> None:
+        """Test Phase 3E configuration for production."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://prod-host/prod",
+            environment="production",
+            max_request_body_size=5000000,  # 5MB
+            request_timeout=30,
+            log_requests=True,
+            log_level="WARNING",
+            enable_introspection_in_production=False,
+            require_https=True,
+        )
+
+        assert config.environment == "production"
+        assert config.max_request_body_size == 5000000
+        assert config.request_timeout == 30
+        assert config.log_requests is True
+        assert config.log_level == "WARNING"
+        assert config.enable_introspection_in_production is False
+        assert config.require_https is True
+
+    def test_phase_3e_from_env(self) -> None:
+        """Test loading Phase 3E config from environment variables."""
+        env_vars = {
+            "FRAISEQL_DATABASE_URL": "postgresql://localhost/test",
+            "FRAISEQL_MAX_REQUEST_SIZE": "5000000",
+            "FRAISEQL_REQUEST_TIMEOUT": "45",
+            "FRAISEQL_LOG_REQUESTS": "false",
+            "FRAISEQL_LOG_LEVEL": "ERROR",
+            "FRAISEQL_INTROSPECTION_PROD": "true",
+            "FRAISEQL_REQUIRE_HTTPS": "true",
+        }
+
+        for key, value in env_vars.items():
+            os.environ[key] = value
+
+        try:
+            config = AxumFraiseQLConfig.from_env()
+            assert config.database_url == "postgresql://localhost/test"
+            assert config.max_request_body_size == 5000000
+            assert config.request_timeout == 45
+            assert config.log_requests is False
+            assert config.log_level == "ERROR"
+            assert config.enable_introspection_in_production is True
+            assert config.require_https is True
+        finally:
+            for key in env_vars:
+                if key in os.environ:
+                    del os.environ[key]
+
+    def test_phase_3e_in_to_dict(self) -> None:
+        """Test that Phase 3E config is included in to_dict()."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            max_request_body_size=5000000,
+            request_timeout=45,
+            log_requests=False,
+            log_level="ERROR",
+            enable_introspection_in_production=True,
+            require_https=True,
+        )
+
+        config_dict = config.to_dict()
+
+        assert config_dict["max_request_body_size"] == 5000000
+        assert config_dict["request_timeout"] == 45
+        assert config_dict["log_requests"] is False
+        assert config_dict["log_level"] == "ERROR"
+        assert config_dict["enable_introspection_in_production"] is True
+        assert config_dict["require_https"] is True
+
+    def test_phase_3e_in_str_representation(self) -> None:
+        """Test that Phase 3E fields work with string representation."""
+        config = AxumFraiseQLConfig(
+            database_url="postgresql://localhost/test",
+            max_request_body_size=5000000,
+            require_https=True,
+        )
+
+        str_repr = str(config)
+
+        assert "AxumFraiseQLConfig" in str_repr
+        # Verify basic representation still works with Phase 3E fields present
+        assert config.max_request_body_size == 5000000
+        assert config.require_https is True
