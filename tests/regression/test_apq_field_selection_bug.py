@@ -28,9 +28,7 @@ from unittest.mock import Mock
 import pytest
 
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.routers import GraphQLRequest
 from fraiseql.storage.backends.memory import MemoryAPQBackend
-
 
 pytestmark = pytest.mark.integration
 
@@ -39,7 +37,7 @@ class TestAPQFieldSelectionBug:
     """Test suite for APQ field selection bug."""
 
     @pytest.fixture
-    def config_with_caching(self):
+    def config_with_caching(self) -> FraiseQLConfig:
         """Create config with APQ caching enabled."""
         return FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
@@ -49,7 +47,7 @@ class TestAPQFieldSelectionBug:
         )
 
     @pytest.fixture
-    def backend(self):
+    def backend(self) -> MemoryAPQBackend:
         """Create a fresh memory backend."""
         return MemoryAPQBackend()
 
@@ -59,7 +57,7 @@ class TestAPQFieldSelectionBug:
     )
     def test_cached_response_respects_field_selection(
         self, config_with_caching, backend
-    ):
+    ) -> None:
         """Cached response should only include requested fields."""
         # Setup: Store a query that selects ALL fields
         query_all_fields = """
@@ -120,7 +118,7 @@ class TestAPQFieldSelectionBug:
 
     def test_different_field_selections_should_have_different_cache_keys(
         self, config_with_caching, backend
-    ):
+    ) -> None:
         """Test that different field selections should produce different cache keys."""
         # These two queries select different fields but same operation
         query_minimal = """
@@ -153,11 +151,7 @@ class TestAPQFieldSelectionBug:
         # This is correct behavior - but the bug is about CACHED responses
         assert hash_minimal != hash_full
 
-    @pytest.mark.xfail(
-        reason="Bug: Variables not included in cache key, returns wrong user's data",
-        strict=True,
-    )
-    def test_variables_included_in_cache_key(self, config_with_caching, backend):
+    def test_variables_included_in_cache_key(self, config_with_caching, backend) -> None:
         """Cache key should include variables to prevent returning wrong data."""
         # Same query, different variables
         query = """
@@ -198,7 +192,7 @@ class TestAPQFieldSelectionBug:
 
     def test_apq_cache_returns_stale_data_for_same_hash(
         self, config_with_caching, backend
-    ):
+    ) -> None:
         """Document: APQ cache returns stale data when data changes but query doesn't.
 
         This is expected behavior for response caching - TTL controls staleness.
@@ -250,7 +244,7 @@ class TestAPQFieldSelectionBug:
     )
     def test_partial_response_stored_when_partial_fields_requested(
         self, config_with_caching, backend
-    ):
+    ) -> None:
         """Response cache should only store fields that were actually requested."""
         query_hash = "test_hash_123"
 
@@ -288,7 +282,7 @@ class TestAPQFieldSelectionExpectedBehavior:
     """Tests documenting expected (correct) behavior for field selection."""
 
     @pytest.fixture
-    def config_with_caching(self):
+    def config_with_caching(self) -> FraiseQLConfig:
         """Create config with APQ caching enabled."""
         return FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
@@ -297,13 +291,13 @@ class TestAPQFieldSelectionExpectedBehavior:
         )
 
     @pytest.fixture
-    def backend(self):
+    def backend(self) -> MemoryAPQBackend:
         """Create a fresh memory backend."""
         return MemoryAPQBackend()
 
     def test_expected_field_selection_only_returns_requested_fields(
         self, config_with_caching, backend
-    ):
+    ) -> None:
         """Document expected behavior: only requested fields should be returned."""
         # This test documents what SHOULD happen (currently fails due to bug)
 
@@ -339,16 +333,8 @@ class TestAPQFieldSelectionExpectedBehavior:
         assert result == expected_response
         assert list(result["data"]["user"].keys()) == ["name"]
 
-    def test_expected_cache_key_includes_variables(self):
+    def test_expected_cache_key_includes_variables(self) -> None:
         """Document expected behavior: cache key should include variables."""
-        query = """
-            query GetUser($id: ID!) {
-                user(id: $id) {
-                    name
-                }
-            }
-        """
-
         # Expected: cache key should be hash of query + normalized variables
         # This would prevent returning wrong user's data
 
@@ -374,19 +360,13 @@ class TestAPQFieldSelectionExpectedBehavior:
 class TestAPQCacheKeyGeneration:
     """Tests for cache key generation with field selection awareness."""
 
-    def test_cache_key_should_include_operation_name(self):
+    def test_cache_key_should_include_operation_name(self) -> None:
         """Test that cache key includes operation name."""
         # Same query, different operation names
-        query = """
-            query GetUser {
-                user(id: 1) { name }
-            }
-        """
-
         # If multiple operations in document, operation_name matters
         assert True  # Placeholder for implementation
 
-    def test_cache_key_generation_consistency(self):
+    def test_cache_key_generation_consistency(self) -> None:
         """Test that cache key generation is consistent."""
         query = "query { user { id name } }"
         hash1 = hashlib.sha256(query.encode()).hexdigest()
@@ -394,7 +374,7 @@ class TestAPQCacheKeyGeneration:
 
         assert hash1 == hash2
 
-    def test_whitespace_affects_cache_key(self):
+    def test_whitespace_affects_cache_key(self) -> None:
         """Test that whitespace differences create different cache keys."""
         query1 = "query { user { id name } }"
         query2 = "query {\n  user {\n    id\n    name\n  }\n}"
@@ -411,10 +391,10 @@ class TestAPQResponseFiltering:
     """Tests for response filtering in APQ."""
 
     @pytest.fixture
-    def backend(self):
+    def backend(self) -> MemoryAPQBackend:
         return MemoryAPQBackend()
 
-    def test_is_cacheable_response_with_errors(self):
+    def test_is_cacheable_response_with_errors(self) -> None:
         """Test that responses with errors are not cacheable."""
         from fraiseql.middleware.apq_caching import is_cacheable_response
 
@@ -425,7 +405,7 @@ class TestAPQResponseFiltering:
         }
         assert is_cacheable_response(error_response) is False
 
-    def test_is_cacheable_response_without_data(self):
+    def test_is_cacheable_response_without_data(self) -> None:
         """Test that responses without data are not cacheable."""
         from fraiseql.middleware.apq_caching import is_cacheable_response
 
@@ -433,7 +413,7 @@ class TestAPQResponseFiltering:
         no_data_response = {"extensions": {"timing": 100}}
         assert is_cacheable_response(no_data_response) is False
 
-    def test_is_cacheable_response_partial_error(self):
+    def test_is_cacheable_response_partial_error(self) -> None:
         """Test that partial error responses are not cacheable."""
         from fraiseql.middleware.apq_caching import is_cacheable_response
 
@@ -444,7 +424,7 @@ class TestAPQResponseFiltering:
         }
         assert is_cacheable_response(partial_response) is False
 
-    def test_is_cacheable_response_valid(self):
+    def test_is_cacheable_response_valid(self) -> None:
         """Test that valid responses are cacheable."""
         from fraiseql.middleware.apq_caching import is_cacheable_response
 
