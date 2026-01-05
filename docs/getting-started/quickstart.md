@@ -19,6 +19,14 @@ Get started with FraiseQL in 5 minutes! This guide will walk you through creatin
 - **Python 3.13+** (required for FraiseQL's Rust pipeline and advanced features)
 - **PostgreSQL 13+**
 
+## Framework Choice
+
+This guide uses **Starlette** (recommended for new projects in v2.0.0). Both Starlette and FastAPI now use the same high-performance **Rust Axum HTTP server** internally, so performance is identical.
+
+**Why Starlette**: Modern, lightweight, same features as FastAPI but simpler codebase.
+
+**Existing FastAPI Code**: No performance penalty - both frameworks use the same Rust backend. Migrate at your own pace (see [Migration Guide](../STARLETTE-MIGRATION-GUIDE.md)).
+
 ## Step 1: Install FraiseQL
 
 ```bash
@@ -95,7 +103,7 @@ Create a file called `app.py` with this complete code:
 from datetime import datetime
 import uvicorn
 import fraiseql
-from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.starlette.app import create_starlette_app  # v2.0.0: Starlette recommended
 from fraiseql.types import ID  # Use ID for entity identifiers
 
 # Define GraphQL types
@@ -188,14 +196,14 @@ if __name__ == "__main__":
     # Database URL (override with DATABASE_URL environment variable)
     database_url = os.getenv("DATABASE_URL", "postgresql://localhost/quickstart_notes")
 
-    app = create_fraiseql_app(
+    app = create_starlette_app(  # v2.0.0: Starlette server
         database_url=database_url,
         types=QUICKSTART_TYPES,
         queries=QUICKSTART_QUERIES,
         mutations=QUICKSTART_MUTATIONS,
         title="Notes API",
         description="Simple note-taking GraphQL API",
-        production=False,  # Enable GraphQL playground
+        enable_playground=True,  # Enable GraphQL playground (Starlette parameter)
     )
 
     print("🚀 Notes API running at http://localhost:8000/graphql")
@@ -269,9 +277,25 @@ mutation {
 - **GraphQL Types**: Note type with proper typing
 - **Queries**: Get all notes and get note by ID
 - **Mutations**: Create new notes with success/failure handling
-- **FastAPI Integration**: Ready-to-deploy web server
+- **Starlette Integration**: Lightweight, production-ready web server
 
 ## 💡 Best Practices
+
+### Framework Choice
+
+**For new projects (v2.0.0):**
+
+```python
+# ✅ RECOMMENDED: Starlette (v2.0.0 default)
+from fraiseql.starlette.app import create_starlette_app
+```
+
+**For existing FastAPI projects:**
+
+```python
+# ✅ SUPPORTED: FastAPI (deprecated, supported until v3.0)
+from fraiseql.fastapi import create_fraiseql_app
+```
 
 ### Import Style
 

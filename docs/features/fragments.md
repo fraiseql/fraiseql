@@ -18,7 +18,7 @@ query {
   posts {
     id
     title
-    author { ...UserFields }  # ✅ Works in v1.8.6+
+    author { ...UserFields }  # ✅ Full support in v2.0.0+
   }
 }
 ```

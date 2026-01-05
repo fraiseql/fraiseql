@@ -18,13 +18,17 @@ The Starlette HTTP server is a lightweight, production-ready GraphQL server buil
 - **Well-Tested**: Proven in production deployments
 - **Easy Migration**: If you used FastAPI, migration takes 30 minutes
 
-### Server Recommendations
+### Framework Architecture (v2.0.0)
 
-| Use Case | Recommendation | Why |
-|----------|---|---|
-| Maximum Performance | **Axum** (Rust) | 5-10x faster, production-proven |
-| Python Preference | **Starlette** | Lightweight, same features as FastAPI |
-| Legacy Code | FastAPI | Works fine, but deprecated (v2.0 only) |
+**All Python frameworks now use the same high-performance Rust Axum HTTP server internally**:
+
+| Python API | Internal Server | Performance | Use Case |
+|------------|-----------------|-------------|----------|
+| **Starlette** ⭐ | Rust Axum | 5-10x faster | New projects, modern Python |
+| **FastAPI** | Rust Axum | 5-10x faster | Existing code, familiar API |
+| **Direct Rust** | Native Axum | Maximum | Advanced users, peak performance |
+
+**Key Insight**: The performance difference is negligible between Starlette/FastAPI - both use the same optimized Rust backend. Choose based on your Python preferences.
 
 ---
 

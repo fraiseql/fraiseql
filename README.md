@@ -2,11 +2,11 @@
 
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
+[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/tag/v2.0.0)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.1** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v2.0.0** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -61,6 +61,30 @@ npm install @graphql-cascade/client-apollo
 
 ---
 
+## 🎉 What's New in v2.0.0
+
+### Major Features
+- **Starlette HTTP Server**: Lightweight, production-ready GraphQL server (recommended for new projects)
+- **Framework Abstraction Layer**: Pluggable architecture supporting multiple HTTP frameworks
+- **Critical Security Fixes**: APQ field selection vulnerability patched
+- **Easy Migration**: Seamless FastAPI → Starlette migration guides
+
+### Framework Architecture
+
+**All frameworks use the same high-performance Rust Axum HTTP server internally** - the choice is about your Python API preferences:
+
+| Python API Layer | Performance | Use Case |
+|------------------|-------------|----------|
+| **Starlette** ⭐ | Maximum (Rust Axum backend) | New projects, modern Python |
+| **FastAPI** | Maximum (Rust Axum backend) | Existing FastAPI code, familiar API |
+| **Direct Rust** | Maximum (Native Axum) | Maximum performance, advanced users |
+
+**Why Axum by Default**: All options use the Rust Axum HTTP server (Phase 16) for 5-10x better performance than traditional Python HTTP servers.
+
+**Migration**: FastAPI users can migrate in 30 minutes - see [Migration Guide](docs/STARLETTE-MIGRATION-GUIDE.md)
+
+---
+
 ## GraphQL for the LLM era. Simple. Powerful. Rust-fast.
 
 PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
@@ -68,7 +92,7 @@ PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 ```python
 # Complete GraphQL API in 15 lines
 import fraiseql
-from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.starlette.app import create_starlette_app  # v2.0.0: Starlette recommended
 
 @fraiseql.type(sql_source="v_user", jsonb_column="data")
 class User:
@@ -89,7 +113,7 @@ async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("v_user")
 
-app = create_fraiseql_app(
+app = create_starlette_app(  # v2.0.0: Starlette server
     database_url="postgresql://localhost/mydb",
     types=[User],
     queries=[users]
@@ -127,6 +151,7 @@ app = create_fraiseql_app(
 - You need multi-database support (PostgreSQL-only)
 - Building your first GraphQL API (use simpler frameworks)
 - Don't use JSONB columns in PostgreSQL
+- Prefer FastAPI over Starlette (FastAPI supported until v3.0)
 
 ---
 
@@ -157,7 +182,7 @@ PostgreSQL → JSONB → Rust field selection → HTTP Response
 ## Quick Start
 
 ```bash
-pip install fraiseql
+pip install fraiseql>=2.0.0  # v2.0.0 required for Starlette
 fraiseql init my-api
 cd my-api
 fraiseql dev
@@ -165,8 +190,10 @@ fraiseql dev
 
 **Your GraphQL API is live at `http://localhost:8000/graphql`** 🎉
 
+**Framework Note**: v2.0.0 uses Starlette by default (recommended). For FastAPI migration, see [Migration Guide](docs/STARLETTE-MIGRATION-GUIDE.md).
+
 **Next steps:**
-- [5-Minute Quickstart](docs/getting-started/quickstart.md)
+- [5-Minute Quickstart](docs/getting-started/quickstart.md) - Uses Starlette
 - [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
 - [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
 
