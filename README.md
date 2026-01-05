@@ -25,7 +25,7 @@
 | **[pgGit](https://pggit.dev)** | Database version control | Stable | Git for databases |
 | **[confiture](https://github.com/fraiseql/confiture)** | PostgreSQL migrations | Stable | **300-600× faster** |
 | **[fraiseql](https://fraiseql.dev)** | GraphQL framework | **Stable** ⭐ | **7-10× faster** |
-| **[fraiseql-data](https://github.com/fraiseql/fraiseql-seed)** | Seed data generation | Phase 6 | Auto-dependency resolution |
+| **[fraiseql-data](https://github.com/fraiseql/fraiseql-seed)** | Seed data generation | Beta | Auto-dependency resolution |
 
 ### **Client Libraries (TypeScript/JavaScript)**
 
@@ -238,7 +238,20 @@ fraiseql dev
 **Next steps:**
 - [5-Minute Quickstart](docs/getting-started/quickstart.md) - Uses Starlette
 - [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
-- [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
+- [Architecture Overview](docs/architecture/overview.md) - Complete system overview
+
+### 📚 Documentation
+
+FraiseQL features comprehensive, professionally organized documentation:
+
+- **[📖 Complete Documentation](docs/README.md)** - Clean navigation with 10 categories
+- **[🚀 Getting Started](docs/getting-started/README.md)** - Installation to first API in minutes
+- **[🛠️ API Reference](docs/api/)** - HTTP servers, authentication, federation
+- **[📚 Guides](docs/guides/)** - Authentication, caching, performance, testing
+- **[🏗️ Architecture](docs/architecture/)** - System design and design decisions
+- **[👥 Contributing](docs/contributing/)** - Development setup and testing
+
+**Documentation Transformation**: Recently restructured from 738 scattered files to 75 organized guides with single sources of truth for all major topics.
 
 ---
 
