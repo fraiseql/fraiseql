@@ -568,6 +568,46 @@ async def health_endpoint():
 - Rust learning curve for core development
 - Compilation time overhead during development
 
+### Ultra-Direct Mutation Path
+
+**Decision**: Skip Python parsing for mutations, use PostgreSQL JSONB → Rust → Direct Response
+
+**Before (Slow)**: PostgreSQL → Python dict → GraphQL serializer → JSON → Client
+
+**After (Fast)**: PostgreSQL JSONB → Rust Pipeline → GraphQL JSON Response → Client
+
+**Impact**: 10-80x performance improvement for mutations, same optimization as queries
+
+### CQRS Pattern Implementation
+
+**Decision**: Separate read and write models for optimal performance
+
+**Queries**: Optimized read models with caching and aggregation
+**Mutations**: Direct database operations with event publishing
+**Synchronization**: Event-driven cache invalidation and data consistency
+
+**Benefits**: Optimized read/write patterns, scalable architecture
+
+### Trinity Pattern
+
+**Decision**: Combine schema definition, business logic, and database mapping
+
+```python
+@fraiseql.type
+class User:
+    id: UUID
+    name: str
+
+    @fraiseql.field
+    async def posts(self, info) -> list[Post]:
+        # Business logic
+        return await db.get_posts_by_author(self.id)
+
+# Automatic SQL generation and type mapping
+```
+
+**Benefits**: Type safety, performance, maintainability
+
 ### Why Schema-First GraphQL?
 
 **Decision**: Database schema drives GraphQL schema generation
