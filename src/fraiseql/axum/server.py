@@ -48,14 +48,8 @@ class AxumServer:
             config: AxumFraiseQLConfig instance
 
         Raises:
-            ImportError: If PyAxumServer FFI binding not available
+            ImportError: If PyAxumServer FFI binding not available (raised on start)
         """
-        if PyAxumServer is None:
-            raise ImportError(
-                "PyAxumServer FFI binding not available. "
-                "Ensure fraiseql_rs is compiled and installed."
-            )
-
         self._config = config
         self._py_server: PyAxumServer | None = None
         self._is_running = False
@@ -154,6 +148,12 @@ class AxumServer:
         if self._is_running:
             raise RuntimeError("Server is already running")
 
+        if PyAxumServer is None:
+            raise ImportError(
+                "PyAxumServer FFI binding not available. "
+                "Ensure fraiseql_rs is compiled and installed."
+            )
+
         host = host or self._config.axum_host
         port = port or self._config.axum_port
 
@@ -210,6 +210,12 @@ class AxumServer:
         """
         if self._is_running:
             raise RuntimeError("Server is already running")
+
+        if PyAxumServer is None:
+            raise ImportError(
+                "PyAxumServer FFI binding not available. "
+                "Ensure fraiseql_rs is compiled and installed."
+            )
 
         host = host or self._config.axum_host
         port = port or self._config.axum_port
