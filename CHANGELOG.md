@@ -46,7 +46,7 @@ SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
 - Added `SchemaConfig` section to `docs/core/configuration.md`
 - Updated `docs/getting-started/quickstart.md` to use `ID` type
 
-## [1.9.2] - 2025-01-05
+## [1.10.0] - 2025-01-05
 
 **Security & Bug Fix Release - APQ Response Caching Vulnerabilities**
 

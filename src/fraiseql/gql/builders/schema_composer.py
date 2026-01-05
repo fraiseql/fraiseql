@@ -83,8 +83,7 @@ class SchemaComposer:
                     all_types.append(gql_type)
 
         # Add registered scalar types
-        for scalar in self.registry.scalars.values():
-            all_types.append(scalar)
+        all_types.extend(self.registry.scalars.values())
 
         logger.debug(
             "Collected %d types for schema (including %d scalars)",
