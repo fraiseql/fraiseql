@@ -214,13 +214,14 @@ def test_dataloader_error_handling() -> None:
     )
 
     with TestClient(app) as client:
-        # Query with invalid post ID - should handle gracefully
+        # Query with non-existent post ID - should handle gracefully
+        # Note: FraiseQL enforces ID = UUID, so we use a valid UUID format
         response = client.post(
             "/graphql",
             json={
                 "query": """
                     query {
-                        getPost(id: "invalid-id") {
+                        getPost(id: "00000000-0000-0000-0000-000000000000") {
                             id
                             author {
                                 name

@@ -19,7 +19,6 @@ import uuid
 from graphql import (
     GraphQLBoolean,
     GraphQLFloat,
-    GraphQLID,
     GraphQLInt,
     GraphQLScalarType,
     GraphQLString,
@@ -50,9 +49,11 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         bool: GraphQLBoolean,
         JSONField: JSONScalar,
         dict: JSONScalar,
-        uuid.UUID: GraphQLID,
-        UUIDField: UUIDScalar,
-        ID: IDScalar,  # Custom ID scalar: named "ID" for cache, enforces UUID
+        # FraiseQL is opinionated: IDs must be UUIDs
+        # Use our custom IDScalar instead of GraphQL's built-in ID to avoid conflicts
+        uuid.UUID: IDScalar,  # uuid.UUID → "ID" scalar (enforces UUID, backward compatible)
+        UUIDField: UUIDScalar,  # Explicit UUID field → "UUID" scalar
+        ID: IDScalar,  # ID type annotation → "ID" scalar (enforces UUID format)
         datetime.date: DateScalar,
         datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,

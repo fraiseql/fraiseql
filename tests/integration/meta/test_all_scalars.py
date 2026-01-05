@@ -37,6 +37,7 @@ from fraiseql.types.scalars import (
     HostnameScalar,
     HTMLScalar,
     IBANScalar,
+    IDScalar,
     ImageScalar,
     IpAddressScalar,
     ISINScalar,
@@ -121,11 +122,6 @@ def scalar_test_schema(meta_test_schema):
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should be registrable in a GraphQL schema."""
-    # Skip ID scalar - it conflicts with GraphQL's built-in ID type
-    # GraphQL-core provides a built-in ID scalar that we use instead
-    if scalar_class.name == "ID":
-        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
-
     # Build the schema using the prepared registry from the fixture
     schema = scalar_test_schema.build_schema()
 
@@ -144,11 +140,6 @@ def test_scalar_in_schema_registration(scalar_name, scalar_class, scalar_test_sc
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should work as a query argument without validation errors."""
-    # Skip ID scalar - it conflicts with GraphQL's built-in ID type
-    # GraphQL-core provides a built-in ID scalar that we use instead
-    if scalar_class.name == "ID":
-        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
-
     from graphql import graphql
 
     # Get test value for this scalar
@@ -364,10 +355,6 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_database_roundtrip(scalar_name, scalar_class, meta_test_pool):
     """Every scalar should persist/retrieve correctly from database."""
-    # Skip ID scalar - it uses GraphQL's built-in ID type
-    if scalar_class.name == "ID":
-        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
-
     # Create a temporary table for this scalar
     table_name = f"test_{scalar_name.lower()}_roundtrip"
     column_name = f"{scalar_name.lower()}_col"
@@ -438,6 +425,7 @@ def get_test_value_for_scalar(scalar_class):
         IpAddressScalar: "192.168.1.1",
         JSONScalar: {"key": "value", "number": 42},
         UUIDScalar: "550e8400-e29b-41d4-a716-446655440000",
+        IDScalar: "550e8400-e29b-41d4-a716-446655440001",  # ID enforces UUID format
         # Network & Infrastructure
         MacAddressScalar: "00:1B:63:84:45:E6",
         SubnetMaskScalar: "255.255.255.0",
@@ -517,6 +505,7 @@ def get_postgres_type_for_scalar(scalar_class):
         IpAddressScalar: "INET",
         JSONScalar: "JSONB",
         UUIDScalar: "UUID",
+        IDScalar: "UUID",  # ID enforces UUID format
     }
 
     return type_mapping.get(scalar_class, "TEXT")

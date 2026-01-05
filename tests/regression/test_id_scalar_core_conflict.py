@@ -292,11 +292,17 @@ class TestIDTypeImports:
         assert CoreID is not None
         assert FraiseqlID is not None
 
-    def test_uuid_uuid_maps_to_graphql_id(self):
-        """Test that uuid.UUID maps to GraphQL's built-in ID."""
-        # uuid.UUID still maps to GraphQL's built-in ID for compatibility
+    def test_uuid_uuid_maps_to_id_scalar(self):
+        """Test that uuid.UUID maps to IDScalar (not GraphQL's built-in ID).
+
+        FraiseQL is opinionated: IDs must be UUIDs. Both uuid.UUID and ID
+        type annotations map to IDScalar (named "ID") to enforce UUID format
+        and maintain backward compatibility. This avoids conflicts with
+        GraphQL's built-in ID type.
+        """
         result = convert_scalar_to_graphql(uuid.UUID)
-        assert result is GraphQLID
+        assert result is IDScalar
+        assert result.name == "ID"
 
     def test_id_maps_to_id_scalar(self):
         """Test that ID (NewType) maps to IDScalar (named 'ID', enforces UUID)."""

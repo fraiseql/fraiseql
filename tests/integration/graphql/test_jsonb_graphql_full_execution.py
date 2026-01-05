@@ -162,9 +162,9 @@ class TestJSONBFullGraphQLExecution:
                 f"""
                 INSERT INTO {test_schema}.test_products_graphql_jsonb (id, name, data)
                 VALUES
-                    ('gql-prod-001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
-                    ('gql-prod-002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
-                    ('gql-prod-003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
+                    ('10000000-0000-0000-0000-000000000001', 'GraphQL Laptop', '{{"brand": "Dell", "category": "Electronics", "price": 999.99}}'),
+                    ('10000000-0000-0000-0000-000000000002', 'GraphQL Phone', '{{"brand": "Apple", "category": "Electronics", "price": 799.99}}'),
+                    ('10000000-0000-0000-0000-000000000003', 'GraphQL Tablet', '{{"brand": "Samsung", "category": "Electronics", "price": 499.99}}')
                 ON CONFLICT (id) DO NOTHING
             """
             )
@@ -299,7 +299,7 @@ class TestJSONBFullGraphQLExecution:
             schema,
             query_str,
             context_value={"pool": class_db_pool, "test_schema": test_schema},
-            variable_values={"id": "gql-prod-001"},
+            variable_values={"id": "10000000-0000-0000-0000-000000000001"},
         )
 
         # 🚀 RUST RESPONSE BYTES PATH:
@@ -347,7 +347,7 @@ class TestJSONBFullGraphQLExecution:
             # ASSERTION 4: Should return product object
             product = result.data["productWithJsonb"]
         assert product is not None, "Expected product object, got None"
-        assert product["id"] == "gql-prod-001"
+        assert product["id"] == "10000000-0000-0000-0000-000000000001"
         assert product["name"] == "GraphQL Laptop"
         assert product["brand"] == "Dell"
 

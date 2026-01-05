@@ -178,11 +178,6 @@ class SchemaRegistry:
 
         scalar_name = scalar_class.name
 
-        # Skip "ID" scalar - GraphQL has a built-in ID type that we use instead
-        if scalar_name == "ID":
-            logger.debug("Skipping ID scalar registration - using GraphQL built-in ID type")
-            return
-
         if scalar_name in self._scalars:
             logger.debug("Scalar '%s' is already registered in the schema.", scalar_name)
         else:
