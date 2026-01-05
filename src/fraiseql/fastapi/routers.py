@@ -1386,7 +1386,10 @@ def create_graphql_router(
 
                 apq_hash = get_apq_hash_from_request(request)
                 if apq_hash:
-                    # Store the response in cache for future requests
+                    # Get query text for field selection filtering
+                    query_text = apq_backend.get_persisted_query(apq_hash)
+
+                    # Store the filtered response in cache for future requests
                     store_response_in_cache(
                         apq_hash,
                         response,
@@ -1394,16 +1397,9 @@ def create_graphql_router(
                         config,
                         variables=request.variables,
                         context=context,
+                        query_text=query_text,
+                        operation_name=request.operationName,
                     )
-
-                    # Also store the cached response in the backend with variable-aware key
-                    import json
-
-                    from fraiseql.middleware.apq_caching import compute_response_cache_key
-
-                    response_json = json.dumps(response, separators=(",", ":"))
-                    cache_key = compute_response_cache_key(apq_hash, request.variables)
-                    apq_backend.store_cached_response(cache_key, response_json, context=context)
 
             return response
 

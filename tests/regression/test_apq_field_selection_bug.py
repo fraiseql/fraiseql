@@ -51,48 +51,59 @@ class TestAPQFieldSelectionBug:
         """Create a fresh memory backend."""
         return MemoryAPQBackend()
 
-    @pytest.mark.xfail(
-        reason="Bug: APQ cached response ignores field selection, returns full payload",
-        strict=True,
-    )
     def test_cached_response_respects_field_selection(
         self, config_with_caching, backend
     ) -> None:
-        """Cached response should only include requested fields."""
-        # Setup: Store a query that selects ALL fields
-        query_all_fields = """
+        """Cached response should only include requested fields.
+
+        This test verifies that when a query requests only specific fields,
+        the cached response only contains those fields, even if the resolver
+        returned more fields.
+        """
+        # Query that only requests id and name (NOT email, createdAt, metadata)
+        query = """
             query GetUser {
                 user(id: 1) {
                     id
                     name
-                    email
-                    createdAt
-                    metadata
                 }
             }
         """
-        query_hash = hashlib.sha256(query_all_fields.encode()).hexdigest()
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
 
-        # Store the full response with all fields
+        # Store the query
+        backend.store_persisted_query(query_hash, query)
+
+        # Simulate resolver returning MORE fields than requested
+        # (this happens with ORMs that fetch full objects)
         full_response = {
             "data": {
                 "user": {
                     "id": 1,
                     "name": "John Doe",
-                    "email": "john@example.com",
-                    "createdAt": "2024-01-01T00:00:00Z",
-                    "metadata": {"role": "admin", "active": True},
+                    "email": "john@example.com",  # NOT requested
+                    "createdAt": "2024-01-01T00:00:00Z",  # NOT requested
+                    "metadata": {"role": "admin", "active": True},  # NOT requested
                 }
             }
         }
 
-        backend.store_persisted_query(query_hash, query_all_fields)
-        backend.store_cached_response(query_hash, full_response)
+        # Store via middleware (should filter before storing)
+        from fraiseql.middleware.apq_caching import store_response_in_cache
 
-        # Create APQ request
+        store_response_in_cache(
+            query_hash,
+            full_response,
+            backend,
+            config_with_caching,
+            query_text=query,
+            operation_name="GetUser",
+        )
+
+        # Create APQ request to retrieve
         request = Mock(
             query=None,  # Hash-only request
-            variables={"id": 1},
+            variables=None,
             operationName="GetUser",
             extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
         )
@@ -105,16 +116,14 @@ class TestAPQFieldSelectionBug:
         )
 
         assert result is not None
-
-        # EXPECTED: Response should only contain fields from the original query's selection
-        # Currently FAILS: Returns full cached response regardless of field selection
         user_data = result["data"]["user"]
 
-        # When fixed, cached responses should match the query's field selection
-        # or cache key should include field selection info
-        assert "email" not in user_data or "createdAt" not in user_data, (
-            "Cached response should respect field selection or use selection-aware cache keys"
-        )
+        # Should only have requested fields
+        assert user_data["id"] == 1
+        assert user_data["name"] == "John Doe"
+        assert "email" not in user_data, "email was not requested but was returned"
+        assert "createdAt" not in user_data, "createdAt was not requested but was returned"
+        assert "metadata" not in user_data, "metadata was not requested but was returned"
 
     def test_different_field_selections_should_have_different_cache_keys(
         self, config_with_caching, backend
@@ -238,44 +247,61 @@ class TestAPQFieldSelectionBug:
         assert result is not None
         assert result == initial_response
 
-    @pytest.mark.xfail(
-        reason="Bug: Full response stored even when partial fields requested",
-        strict=True,
-    )
     def test_partial_response_stored_when_partial_fields_requested(
         self, config_with_caching, backend
     ) -> None:
-        """Response cache should only store fields that were actually requested."""
-        query_hash = "test_hash_123"
+        """Response cache should only store fields that were actually requested.
 
-        # The response that gets stored should match the query's field selection
-        # When fixed, the caching layer should filter the response before storing
-        actual_stored_response = {
+        When the resolver returns more fields than requested, the caching layer
+        should filter the response before storing to ensure only requested
+        fields are cached.
+        """
+        # Query only requests id and name
+        query = """
+            query GetUser {
+                user(id: 1) {
+                    id
+                    name
+                }
+            }
+        """
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+
+        # Store the query
+        backend.store_persisted_query(query_hash, query)
+
+        # Resolver returns MORE fields than requested
+        full_response = {
             "data": {
                 "user": {
                     "id": 1,
                     "name": "John",
-                    "email": "john@test.com",
-                    "phone": "555-1234",
+                    "email": "john@test.com",  # NOT requested
+                    "phone": "555-1234",  # NOT requested
                 }
             }
         }
 
         from fraiseql.middleware.apq_caching import store_response_in_cache
 
+        # Store with query_text so filtering can happen
         store_response_in_cache(
-            query_hash, actual_stored_response, backend, config_with_caching
+            query_hash,
+            full_response,
+            backend,
+            config_with_caching,
+            query_text=query,
+            operation_name="GetUser",
         )
 
-        # Verify what was stored
+        # Verify what was stored - should be filtered
         cached = backend.get_cached_response(query_hash)
 
-        # EXPECTED: Only requested fields should be cached
-        # Currently FAILS: Full response is cached regardless of selection
         assert cached is not None
-        assert "email" not in cached["data"]["user"] or "phone" not in cached["data"]["user"], (
-            "Cache should only store fields that were requested in the query"
-        )
+        assert cached["data"]["user"]["id"] == 1
+        assert cached["data"]["user"]["name"] == "John"
+        assert "email" not in cached["data"]["user"], "email should not be cached"
+        assert "phone" not in cached["data"]["user"], "phone should not be cached"
 
 
 class TestAPQFieldSelectionExpectedBehavior:

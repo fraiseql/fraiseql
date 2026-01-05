@@ -12,6 +12,11 @@ from typing import Any, Optional
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
+from fraiseql.middleware.apq_selection import (
+    extract_fragments,
+    extract_selection_set,
+    filter_response_by_selection,
+)
 from fraiseql.monitoring import get_global_metrics
 from fraiseql.storage.backends.base import APQStorageBackend
 from fraiseql.storage.backends.factory import create_apq_backend
@@ -114,6 +119,18 @@ def handle_apq_request_with_cache(
         if cached_response:
             logger.debug(f"APQ cache hit: {response_cache_key[:8]}...")
             metrics.record_response_cache_hit(response_cache_key)
+
+            # Filter cached response by field selection (defense in depth)
+            query_text = backend.get_persisted_query(sha256_hash)
+            if query_text:
+                operation_name = getattr(request, "operationName", None)
+                selection_set = extract_selection_set(query_text, operation_name)
+                if selection_set:
+                    fragments = extract_fragments(query_text)
+                    cached_response = filter_response_by_selection(
+                        cached_response, selection_set, fragments
+                    )
+
             return cached_response
         logger.debug(f"APQ cache miss: {response_cache_key[:8]}...")
         metrics.record_response_cache_miss(response_cache_key)
@@ -130,11 +147,16 @@ def store_response_in_cache(
     config: FraiseQLConfig,
     variables: dict[str, Any] | None = None,
     context: Optional[dict[str, Any]] = None,
+    query_text: str | None = None,
+    operation_name: str | None = None,
 ) -> None:
     """Store GraphQL response in cache for future APQ requests.
 
     Only stores successful responses (no errors). Responses with errors
     are not cached to avoid serving stale error responses.
+
+    The response is filtered based on the query's field selection before
+    storing, ensuring only requested fields are cached.
 
     Args:
         hash_value: SHA256 hash of the persisted query
@@ -143,6 +165,8 @@ def store_response_in_cache(
         config: FraiseQL configuration
         variables: GraphQL variables from the request (for cache key)
         context: Optional request context containing user/tenant information
+        query_text: Original query text (for field selection filtering)
+        operation_name: Operation name (for multi-operation documents)
     """
     if not config.apq_cache_responses:
         return
@@ -158,12 +182,22 @@ def store_response_in_cache(
         return
 
     try:
+        # Filter response by field selection before storing
+        filtered_response = response
+        if query_text:
+            selection_set = extract_selection_set(query_text, operation_name)
+            if selection_set:
+                fragments = extract_fragments(query_text)
+                filtered_response = filter_response_by_selection(
+                    response, selection_set, fragments
+                )
+
         # Compute cache key including variables to prevent data leakage
         cache_key = compute_response_cache_key(hash_value, variables)
-        backend.store_cached_response(cache_key, response, context=context)
+        backend.store_cached_response(cache_key, filtered_response, context=context)
         metrics = get_global_metrics()
         metrics.record_response_cache_store(cache_key)
-        logger.debug(f"Stored response in cache: {cache_key[:8]}...")
+        logger.debug(f"Stored filtered response in cache: {cache_key[:8]}...")
     except Exception as e:
         logger.warning(f"Failed to store response in cache: {e}")
 
