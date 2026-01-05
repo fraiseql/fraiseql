@@ -92,11 +92,11 @@ psql quickstart_notes < schema.sql
 Create a file called `app.py` with this complete code:
 
 ```python
-import uuid
 from datetime import datetime
 import uvicorn
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.types import ID  # Use ID for entity identifiers
 
 # Define GraphQL types
 @fraiseql.type(sql_source="v_note", jsonb_column="data")
@@ -109,7 +109,7 @@ class Note:
         content: Note content in plain text
         created_at: When the note was created
     """
-    id: uuid.UUID
+    id: ID  # External UUID identifier (Trinity pattern)
     title: str
     content: str | None
     created_at: datetime
@@ -143,7 +143,7 @@ async def notes(info) -> list[Note]:
     return await db.find("v_note", order_by=[("created_at", "DESC")])
 
 @fraiseql.query
-async def note(info, id: uuid.UUID) -> Note | None:
+async def note(info, id: ID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
     # field_name auto-inferred from function name "note"

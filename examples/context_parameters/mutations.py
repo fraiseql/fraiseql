@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fraiseql.mutations import mutation
+from fraiseql.types import ID
 
 
 class CreateLocationInput:
@@ -25,7 +26,7 @@ class CreateLocationInput:
 class CreateLocationSuccess:
     """Success response for location creation."""
 
-    def __init__(self, location_id: UUID, message: str = "Location created successfully"):
+    def __init__(self, location_id: ID, message: str = "Location created successfully"):
         self.location_id = location_id
         self.message = message
 
@@ -57,7 +58,7 @@ class CreateLocation:
 class UpdateLocationInput:
     """Input for updating a location."""
 
-    id: UUID
+    id: ID
     name: str | None = None
     address: str | None = None
     latitude: float | None = None
@@ -81,7 +82,7 @@ class UpdateLocationSuccess:
 
     def __init__(
         self,
-        location_id: UUID,
+        location_id: ID,
         updated_fields: list[str],
         message: str = "Location updated successfully",
     ):
@@ -114,7 +115,7 @@ class UpdateLocation:
 class DeleteLocationInput:
     """Input for deleting a location."""
 
-    id: UUID
+    id: ID
 
     def to_dict(self):
         return {"id": str(self.id)}
@@ -123,7 +124,7 @@ class DeleteLocationInput:
 class DeleteLocationSuccess:
     """Success response for location deletion."""
 
-    def __init__(self, location_id: UUID, message: str = "Location deleted successfully"):
+    def __init__(self, location_id: ID, message: str = "Location deleted successfully"):
         self.location_id = location_id
         self.message = message
 
@@ -155,7 +156,7 @@ class CreateCategoryInput:
 
     name: str
     description: str
-    tenant_id: UUID  # Included in business data (not ideal)
+    tenant_id: ID  # Included in business data (not ideal)
     created_by: UUID
 
     def to_dict(self):
@@ -170,7 +171,7 @@ class CreateCategoryInput:
 class CreateCategorySuccess:
     """Success response for category creation."""
 
-    def __init__(self, category_id: UUID, message: str = "Category created successfully"):
+    def __init__(self, category_id: ID, message: str = "Category created successfully"):
         self.category_id = category_id
         self.message = message
 

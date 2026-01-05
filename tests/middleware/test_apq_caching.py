@@ -56,7 +56,7 @@ def mock_context() -> None:
 
 def test_apq_cache_hit_returns_cached_response(
     mock_config, mock_backend, mock_request, mock_http_request, mock_context
-):
+) -> None:
     """Test that cached responses are returned on cache hit."""
     # Setup: Store both query and cached response
     hash_value = "abc123hash"
@@ -66,7 +66,12 @@ def test_apq_cache_hit_returns_cached_response(
     }
 
     mock_backend.store_persisted_query(hash_value, query)
-    mock_backend.store_cached_response(hash_value, cached_response)
+
+    # Compute the same cache key that handle_apq_request_with_cache will use
+    from fraiseql.middleware.apq_caching import compute_response_cache_key
+
+    cache_key = compute_response_cache_key(hash_value, mock_request.variables)
+    mock_backend.store_cached_response(cache_key, cached_response)
 
     # Test: Should return cached response directly
     from fraiseql.middleware.apq_caching import handle_apq_request_with_cache

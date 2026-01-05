@@ -10,8 +10,25 @@ from typing import Optional
 import pytest
 
 from fraiseql import query
-from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 from fraiseql.types import fraise_type
+
+
+@pytest.fixture(autouse=True)
+def clear_registry():
+    """Clear the schema registry and type cache before and after each test."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+
+    # Also clear the GraphQL type cache
+    from fraiseql.core.graphql_type import _graphql_type_cache
+
+    _graphql_type_cache.clear()
+
+    yield
+
+    registry.clear()
+    _graphql_type_cache.clear()
 
 
 class TestSchemaSerializer:
@@ -58,9 +75,10 @@ class TestSchemaSerializer:
         assert "name" in user_type["fields"]
 
         # Check field metadata
-        # Note: GraphQL converts UUID to ID scalar type
+        # Note: uuid.UUID maps to UUID scalar (not ID)
+        # Use ID type annotation for identifier fields
         id_field = user_type["fields"]["id"]
-        assert id_field["type_name"] == "ID"
+        assert id_field["type_name"] == "UUID"
         assert id_field["is_nested_object"] is False
         assert id_field["is_list"] is False
 

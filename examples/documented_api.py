@@ -8,6 +8,7 @@ from datetime import datetime
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 
 
@@ -17,7 +18,7 @@ class User:
 
     Users can have posts, comments, and interact with other users.
     """
-    id: UUID
+    id: ID
     email: str
     name: str
     created_at: datetime
@@ -30,10 +31,10 @@ class Post:
 
     Posts can have multiple comments and tags.
     """
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     created_at: datetime
     published: bool = False
 
@@ -41,7 +42,7 @@ class Post:
 @fraiseql.query
 def get_user(
     info: Info,
-    id: UUID
+    id: ID
 ) -> User | None:
     """Get a single user by ID.
 
@@ -170,7 +171,7 @@ async def create_user(
 @fraiseql.mutation
 async def update_user(
     info: Info,
-    id: UUID,
+    id: ID,
     name: str | None = None,
     email: str | None = None
 ) -> User:

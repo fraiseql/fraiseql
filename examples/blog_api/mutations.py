@@ -35,6 +35,7 @@ from models import (
 )
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.auth import requires_auth, requires_permission
 
 if TYPE_CHECKING:
@@ -136,7 +137,7 @@ async def create_post(
 @requires_auth
 async def update_post(
     info,
-    id: UUID,
+    id: ID,
     input: UpdatePostInput,
 ) -> UpdatePostSuccess | UpdatePostError:
     """Update an existing blog post using CQRS SQL function."""
@@ -248,7 +249,7 @@ async def create_comment(info, input: CreateCommentInput) -> Comment:
 
 
 @requires_permission("admin")
-async def delete_post(info, id: UUID) -> bool:
+async def delete_post(info, id: ID) -> bool:
     """Delete a post (admin only) using CQRS SQL function."""
     db: BlogRepository = info.context["db"]
 

@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import fraise_field
 
 
@@ -16,7 +17,7 @@ from fraiseql import fraise_field
 class Organization:
     """Organization/tenant entity."""
 
-    id: UUID = fraise_field(description="Organization unique identifier")
+    id: ID = fraise_field(description="Organization unique identifier")
     name: str = fraise_field(description="Organization name")
     slug: str = fraise_field(description="URL-friendly slug")
     plan: str = fraise_field(description="Subscription plan")
@@ -31,7 +32,7 @@ class Organization:
 class User:
     """User entity - belongs to an organization."""
 
-    id: UUID = fraise_field(description="User unique identifier")
+    id: ID = fraise_field(description="User unique identifier")
     fk_organization: int = fraise_field(description="Parent organization")
     email: str = fraise_field(description="User email address")
     name: str = fraise_field(description="User full name")
@@ -46,7 +47,7 @@ class User:
 class Subscription:
     """Subscription/billing information."""
 
-    id: UUID = fraise_field(description="Subscription unique identifier")
+    id: ID = fraise_field(description="Subscription unique identifier")
     fk_organization: int = fraise_field(description="Organization ID")
     plan: str = fraise_field(description="Plan name")
     status: str = fraise_field(description="Subscription status")
@@ -87,7 +88,7 @@ class UsageLimits:
 class TeamInvitation:
     """Team member invitation."""
 
-    id: UUID = fraise_field(description="Invitation unique identifier")
+    id: ID = fraise_field(description="Invitation unique identifier")
     fk_organization: int = fraise_field(description="Organization ID")
     email: str = fraise_field(description="Invitee email")
     role: str = fraise_field(description="Invited role")
@@ -102,12 +103,12 @@ class TeamInvitation:
 class ActivityLogEntry:
     """Activity log entry for audit trail."""
 
-    id: UUID = fraise_field(description="Log entry unique identifier")
+    id: ID = fraise_field(description="Log entry unique identifier")
     fk_organization: int = fraise_field(description="Organization ID")
     fk_user: int = fraise_field(description="User who performed action")
     action: str = fraise_field(description="Action type")
     resource: str = fraise_field(description="Resource type")
-    resource_id: UUID | None = fraise_field(description="Resource ID")
+    resource_id: ID | None = fraise_field(description="Resource ID")
     details: dict = fraise_field(description="Action details (JSONB)")
     ip_address: str | None = fraise_field(description="User IP address")
     user_agent: str | None = fraise_field(description="User agent string")
@@ -118,7 +119,7 @@ class ActivityLogEntry:
 class Project:
     """Example resource - tenant-aware project."""
 
-    id: UUID = fraise_field(description="Project unique identifier")
+    id: ID = fraise_field(description="Project unique identifier")
     fk_organization: int = fraise_field(description="Parent organization")
     name: str = fraise_field(description="Project name")
     description: str | None = fraise_field(description="Project description")

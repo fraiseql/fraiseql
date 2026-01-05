@@ -8,13 +8,14 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.fastapi import create_fraiseql_app
 
 
 # Define your domain types
 @fraiseql.type
 class Author:
-    id: UUID
+    id: ID
     name: str
     email: str
     bio: str | None = None
@@ -22,7 +23,7 @@ class Author:
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
     author: Author
@@ -33,7 +34,7 @@ class Post:
 # Define queries using @fraiseql.query decorator
 # These are automatically registered!
 @fraiseql.query
-async def get_post(info, id: UUID) -> Post | None:
+async def get_post(info, id: ID) -> Post | None:
     """Get a blog post by ID."""
     # In production, fetch from database using info.context["db"]
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
@@ -111,7 +112,7 @@ async def search_posts(info, query: str) -> list[Post]:
 
 
 @fraiseql.query
-async def get_author(info, id: UUID) -> Author | None:
+async def get_author(info, id: ID) -> Author | None:
     """Get an author by ID."""
     if str(id) == "223e4567-e89b-12d3-a456-426614174001":
         return Author(

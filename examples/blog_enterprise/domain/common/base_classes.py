@@ -37,7 +37,7 @@ class Entity(ABC):
     """Base class for all domain entities."""
 
     id: EntityId
-    organization_id: UUID  # Multi-tenant support
+    organization_id: ID  # Multi-tenant support
     created_at: datetime = field(default_factory=datetime.utcnow, init=False)
     updated_at: datetime = field(default_factory=datetime.utcnow, init=False)
     created_by: UUID | None = None

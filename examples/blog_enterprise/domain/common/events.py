@@ -16,9 +16,9 @@ from .base_classes import DomainEvent
 class PostCreatedEvent(DomainEvent):
     """Event emitted when a post is created."""
 
-    post_id: UUID
-    organization_id: UUID
-    author_id: UUID
+    post_id: ID
+    organization_id: ID
+    author_id: ID
     title: str
     status: str
 
@@ -27,9 +27,9 @@ class PostCreatedEvent(DomainEvent):
 class PostPublishedEvent(DomainEvent):
     """Event emitted when a post is published."""
 
-    post_id: UUID
-    organization_id: UUID
-    author_id: UUID
+    post_id: ID
+    organization_id: ID
+    author_id: ID
     title: str
     published_at: datetime
 
@@ -38,8 +38,8 @@ class PostPublishedEvent(DomainEvent):
 class PostUnpublishedEvent(DomainEvent):
     """Event emitted when a post is unpublished."""
 
-    post_id: UUID
-    organization_id: UUID
+    post_id: ID
+    organization_id: ID
     reason: str | None = None
 
 
@@ -47,8 +47,8 @@ class PostUnpublishedEvent(DomainEvent):
 class PostDeletedEvent(DomainEvent):
     """Event emitted when a post is deleted."""
 
-    post_id: UUID
-    organization_id: UUID
+    post_id: ID
+    organization_id: ID
     deleted_by: UUID
     reason: str | None = None
 
@@ -57,21 +57,21 @@ class PostDeletedEvent(DomainEvent):
 class CommentAddedEvent(DomainEvent):
     """Event emitted when a comment is added to a post."""
 
-    comment_id: UUID
-    post_id: UUID
-    organization_id: UUID
-    author_id: UUID
+    comment_id: ID
+    post_id: ID
+    organization_id: ID
+    author_id: ID
     content: str
-    parent_id: UUID | None = None
+    parent_id: ID | None = None
 
 
 @dataclass
 class CommentApprovedEvent(DomainEvent):
     """Event emitted when a comment is approved."""
 
-    comment_id: UUID
-    post_id: UUID
-    organization_id: UUID
+    comment_id: ID
+    post_id: ID
+    organization_id: ID
     approved_by: UUID
 
 
@@ -79,9 +79,9 @@ class CommentApprovedEvent(DomainEvent):
 class CommentRejectedEvent(DomainEvent):
     """Event emitted when a comment is rejected."""
 
-    comment_id: UUID
-    post_id: UUID
-    organization_id: UUID
+    comment_id: ID
+    post_id: ID
+    organization_id: ID
     rejected_by: UUID
     reason: str | None = None
 
@@ -91,8 +91,8 @@ class CommentRejectedEvent(DomainEvent):
 class UserRegisteredEvent(DomainEvent):
     """Event emitted when a new user registers."""
 
-    user_id: UUID
-    organization_id: UUID
+    user_id: ID
+    organization_id: ID
     username: str
     email: str
     role: str
@@ -102,8 +102,8 @@ class UserRegisteredEvent(DomainEvent):
 class UserActivatedEvent(DomainEvent):
     """Event emitted when a user is activated."""
 
-    user_id: UUID
-    organization_id: UUID
+    user_id: ID
+    organization_id: ID
     activated_by: UUID | None = None
 
 
@@ -111,8 +111,8 @@ class UserActivatedEvent(DomainEvent):
 class UserDeactivatedEvent(DomainEvent):
     """Event emitted when a user is deactivated."""
 
-    user_id: UUID
-    organization_id: UUID
+    user_id: ID
+    organization_id: ID
     deactivated_by: UUID
     reason: str | None = None
 
@@ -121,8 +121,8 @@ class UserDeactivatedEvent(DomainEvent):
 class UserRoleChangedEvent(DomainEvent):
     """Event emitted when a user's role is changed."""
 
-    user_id: UUID
-    organization_id: UUID
+    user_id: ID
+    organization_id: ID
     old_role: str
     new_role: str
     changed_by: UUID
@@ -133,7 +133,7 @@ class UserRoleChangedEvent(DomainEvent):
 class OrganizationCreatedEvent(DomainEvent):
     """Event emitted when an organization is created."""
 
-    organization_id: UUID
+    organization_id: ID
     name: str
     slug: str
     created_by: UUID
@@ -143,7 +143,7 @@ class OrganizationCreatedEvent(DomainEvent):
 class OrganizationSubscriptionChangedEvent(DomainEvent):
     """Event emitted when organization subscription changes."""
 
-    organization_id: UUID
+    organization_id: ID
     old_tier: str
     new_tier: str
     changed_by: UUID
@@ -154,8 +154,8 @@ class OrganizationSubscriptionChangedEvent(DomainEvent):
 class TagCreatedEvent(DomainEvent):
     """Event emitted when a tag is created."""
 
-    tag_id: UUID
-    organization_id: UUID
+    tag_id: ID
+    organization_id: ID
     name: str
     created_by: UUID
 
@@ -164,10 +164,10 @@ class TagCreatedEvent(DomainEvent):
 class CategoryCreatedEvent(DomainEvent):
     """Event emitted when a category is created."""
 
-    category_id: UUID
-    organization_id: UUID
+    category_id: ID
+    organization_id: ID
     name: str
-    parent_id: UUID | None = None
+    parent_id: ID | None = None
     created_by: UUID | None = None
 
 
@@ -176,9 +176,9 @@ class CategoryCreatedEvent(DomainEvent):
 class PostViewedEvent(DomainEvent):
     """Event emitted when a post is viewed."""
 
-    post_id: UUID
-    organization_id: UUID
-    viewer_id: UUID | None = None
+    post_id: ID
+    organization_id: ID
+    viewer_id: ID | None = None
     ip_address: str | None = None
     user_agent: str | None = None
 
@@ -187,17 +187,17 @@ class PostViewedEvent(DomainEvent):
 class PostLikedEvent(DomainEvent):
     """Event emitted when a post is liked."""
 
-    post_id: UUID
-    organization_id: UUID
-    user_id: UUID
+    post_id: ID
+    organization_id: ID
+    user_id: ID
 
 
 @dataclass
 class PostSharedEvent(DomainEvent):
     """Event emitted when a post is shared."""
 
-    post_id: UUID
-    organization_id: UUID
+    post_id: ID
+    organization_id: ID
     platform: str  # social media platform or method
-    user_id: UUID | None = None
+    user_id: ID | None = None
     referrer: str | None = None

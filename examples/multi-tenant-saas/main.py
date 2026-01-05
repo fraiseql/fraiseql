@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 
 from fraiseql import FraiseQL, create_fraiseql_app
 from fraiseql.security import SecurityProfile
+from fraiseql.types import ID
 
 # ============================================================================
 # CONFIGURATION
@@ -45,7 +46,7 @@ fraiseql = FraiseQL()
 class Organization:
     """Organization (tenant) - represents a customer/company."""
 
-    id: UUID
+    id: ID
     name: str
     slug: str
     plan: str  # free, starter, professional, enterprise
@@ -59,8 +60,8 @@ class Organization:
 class User:
     """User within an organization."""
 
-    id: UUID
-    organization_id: UUID
+    id: ID
+    organization_id: ID
     email: str
     name: str
     role: str  # owner, admin, member, readonly
@@ -80,9 +81,9 @@ class User:
 class Project:
     """Project within an organization."""
 
-    id: UUID
-    organization_id: UUID
-    owner_id: UUID
+    id: ID
+    organization_id: ID
+    owner_id: ID
     name: str
     description: str | None
     status: str  # active, archived, deleted
@@ -110,9 +111,9 @@ class Project:
 class Task:
     """Task within a project."""
 
-    id: UUID
-    organization_id: UUID
-    project_id: UUID
+    id: ID
+    organization_id: ID
+    project_id: ID
     assigned_to: UUID | None
     title: str
     description: str | None
@@ -142,12 +143,12 @@ class Task:
 class AuditLog:
     """Audit log entry for compliance."""
 
-    id: UUID
-    organization_id: UUID
-    user_id: UUID | None
+    id: ID
+    organization_id: ID
+    user_id: ID | None
     action: str  # created, updated, deleted, accessed
     resource_type: str  # project, task, user, etc.
-    resource_id: UUID | None
+    resource_id: ID | None
     changes: dict | None
     ip_address: str | None
     user_agent: str | None
@@ -158,7 +159,7 @@ class AuditLog:
 class OrganizationStats:
     """Organization statistics (computed view tv_organization)."""
 
-    id: UUID
+    id: ID
     name: str
     slug: str
     plan: str
@@ -234,7 +235,7 @@ class Query:
         return await db.find("v_project", where=where, limit=limit, offset=offset)
 
     @fraiseql.field
-    async def project(self, info, id: UUID) -> Project | None:
+    async def project(self, info, id: ID) -> Project | None:
         """Get single project by ID (RLS ensures it belongs to current org)."""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_project", where={"id": id})
@@ -243,7 +244,7 @@ class Query:
     async def tasks(
         self,
         info,
-        project_id: UUID | None = None,
+        project_id: ID | None = None,
         assigned_to: UUID | None = None,
         status: str | None = None,
         priority: str | None = None,
@@ -271,7 +272,7 @@ class Query:
         return await db.find("v_task", where=where, limit=limit, offset=offset)
 
     @fraiseql.field
-    async def task(self, info, id: UUID) -> Task | None:
+    async def task(self, info, id: ID) -> Task | None:
         """Get single task by ID (RLS ensures it belongs to current org)."""
         db = fraiseql.get_db(info.context)
         return await db.find_one("v_task", where={"id": id})
@@ -318,8 +319,8 @@ class CreateProject:
     CASCADE enabled: Returns updated organization statistics.
     """
 
-    organization_id: UUID
-    owner_id: UUID
+    organization_id: ID
+    owner_id: ID
     name: str
     description: str | None
 
@@ -331,8 +332,8 @@ class CreateTask:
     CASCADE enabled: Returns updated project with new task.
     """
 
-    organization_id: UUID
-    project_id: UUID
+    organization_id: ID
+    project_id: ID
     title: str
     description: str | None
     assigned_to: UUID | None
@@ -347,7 +348,7 @@ class UpdateTaskStatus:
     CASCADE enabled: Returns updated task and project statistics.
     """
 
-    task_id: UUID
+    task_id: ID
     status: str
 
 
@@ -355,7 +356,7 @@ class UpdateTaskStatus:
 class InviteUser:
     """Invite a new user to the organization."""
 
-    organization_id: UUID
+    organization_id: ID
     email: str
     name: str
     role: str

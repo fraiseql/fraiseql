@@ -304,6 +304,16 @@ def convert_type_to_graphql_input(
     if isinstance(typ, GraphQLScalarType):
         return typ
 
+    # Handle NewType (e.g., ID = NewType("ID", str))
+    # NewType instances have __supertype__ attribute
+    if hasattr(typ, "__supertype__"):
+        # Try to convert the NewType itself first
+        try:
+            return convert_scalar_to_graphql(typ)
+        except TypeError:
+            # If that fails, convert the supertype
+            return convert_type_to_graphql_input(typ.__supertype__)
+
     # Handle scalar types using the existing scalar mapping utility
     if isinstance(typ, type):
         try:

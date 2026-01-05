@@ -3,6 +3,7 @@
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 
 from .models import (
@@ -103,13 +104,13 @@ class Query:
         return None  # Placeholder
 
     @fraiseql.field
-    async def user(self, info: Info, id: UUID) -> User | None:
+    async def user(self, info: Info, id: ID) -> User | None:
         """Get user by ID (admin only)."""
         return None  # Placeholder
 
     # Product queries
     @fraiseql.field
-    async def product(self, info: Info, id: UUID) -> Product | None:
+    async def product(self, info: Info, id: ID) -> Product | None:
         """Get product by ID."""
         return None  # Placeholder
 
@@ -155,7 +156,7 @@ class Query:
     async def product_with_reviews(
         self,
         info: Info,
-        id: UUID,
+        id: ID,
         review_limit: int = 10,
         review_offset: int = 0,
     ) -> ProductWithReviews | None:
@@ -169,7 +170,7 @@ class Query:
         return None  # Placeholder
 
     @fraiseql.field
-    async def cart(self, info: Info, id: UUID) -> Cart | None:
+    async def cart(self, info: Info, id: ID) -> Cart | None:
         """Get cart by ID."""
         return None  # Placeholder
 
@@ -191,7 +192,7 @@ class Query:
         )
 
     @fraiseql.field
-    async def order(self, info: Info, id: UUID) -> OrderWithDetails | None:
+    async def order(self, info: Info, id: ID) -> OrderWithDetails | None:
         """Get order by ID with full details."""
         return None  # Placeholder
 
@@ -207,7 +208,7 @@ class Query:
         return []
 
     @fraiseql.field
-    async def address(self, info: Info, id: UUID) -> Address | None:
+    async def address(self, info: Info, id: ID) -> Address | None:
         """Get address by ID."""
         return None  # Placeholder
 
@@ -216,7 +217,7 @@ class Query:
     async def product_reviews(
         self,
         info: Info,
-        product_id: UUID,
+        product_id: ID,
         limit: int = 20,
         offset: int = 0,
         sort_by: str = "created_at",
@@ -310,7 +311,7 @@ fragment OrderDetails on Order {
 
 EXAMPLE_QUERIES = """
 # Get product with reviews
-query GetProduct($id: UUID!) {
+query GetProduct($id: ID!) {
     productWithReviews(id: $id) {
         product {
             ...ProductDetails

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 # FraiseQL imports - CORRECTED
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import fraise_field, fraise_type
 from fraiseql.types.scalars import UUID as FraiseUUID
 
@@ -39,7 +40,7 @@ class DocumentCreate(BaseModel):
 
 
 class DocumentResponse(BaseModel):
-    id: UUID
+    id: ID
     title: str
     content: str
     source: Optional[str]
@@ -68,7 +69,7 @@ class RAGQuery(BaseModel):
 class TBDocument:
     """Document table type following trinity pattern."""
 
-    id: UUID
+    id: ID
     title: str
     content: str
     source: Optional[str]
@@ -81,8 +82,8 @@ class TBDocument:
 class TVDocumentEmbedding:
     """Document embedding table view type."""
 
-    id: UUID
-    document_id: UUID
+    id: ID
+    document_id: ID
     embedding: List[float]
     embedding_model: str
     created_at: str
@@ -156,7 +157,7 @@ class MutationRoot:
     async def resolve_update_document_embedding(
         self,
         info,
-        document_id: UUID,
+        document_id: ID,
         embedding: List[float],
         embedding_model: str = "text-embedding-ada-002",
     ) -> bool:

@@ -55,6 +55,7 @@ FilterFieldSpec = tuple[type, Any, str | None]  # (field_type, default_value, gr
 from fraiseql import fraise_input
 from fraiseql.fields import fraise_field
 from fraiseql.sql.where_generator import safe_create_where_type
+from fraiseql.types import ID
 from fraiseql.types.scalars.vector import HalfVectorField, QuantizedVectorField, SparseVectorField
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,22 @@ class StringFilter:
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
     notin: list[str] | None = None  # Alias for nin
+    isnull: bool | None = None
+
+
+@fraise_input
+class IDFilter:
+    """GraphQL ID field filter operations.
+
+    Used for filtering on ID fields in where clauses. The ID type
+    accepts any string value (UUIDs, integers, slugs, etc.) as per
+    GraphQL specification.
+    """
+
+    eq: ID | None = None
+    neq: ID | None = None
+    in_: list[ID] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[ID] | None = None
     isnull: bool | None = None
 
 
@@ -742,6 +759,7 @@ def _get_filter_type_for_field(
         float: FloatFilter,
         Decimal: DecimalFilter,
         bool: BooleanFilter,
+        ID: IDFilter,  # GraphQL ID type uses IDFilter
         UUID: UUIDFilter,
         date: DateFilter,
         datetime: DateTimeFilter,

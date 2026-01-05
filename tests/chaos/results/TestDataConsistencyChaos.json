@@ -1,11 +1,11 @@
 {
   "test_class": "TestDataConsistencyChaos",
-  "timestamp": 1767443916.4581645,
+  "timestamp": 1767597892.138309,
   "metrics": {
-    "duration_ms": 379.53925132751465,
+    "duration_ms": 381.3738822937012,
     "query_count": 32,
-    "avg_query_time_ms": 11.81747019290924,
-    "p95_query_time_ms": 12.011206150054932,
+    "avg_query_time_ms": 11.870115995407104,
+    "p95_query_time_ms": 12.106871604919434,
     "error_count": 10,
     "retry_count": 0,
     "chaos_active_duration_ms": null

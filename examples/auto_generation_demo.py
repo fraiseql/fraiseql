@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import fraiseql
+from fraiseql.types import ID
 
 # Phase 1: Basic Auto-Generation
 print("=== Phase 1: Basic Auto-Generation ===\n")
@@ -19,7 +20,7 @@ print("=== Phase 1: Basic Auto-Generation ===\n")
 class Customer:
     """Customer type with auto-generated WhereInput and OrderBy."""
 
-    id: UUID
+    id: ID
     name: str
     email: str
 
@@ -48,9 +49,9 @@ print("\n\n=== Phase 2: Nested Type Auto-Generation ===\n")
 class Order:
     """Order type with nested Customer reference."""
 
-    id: UUID
+    id: ID
     order_number: str
-    customer_id: UUID
+    customer_id: ID
     customer: Customer | None  # Nested type
 
 
@@ -73,7 +74,7 @@ print("\n\n=== Usage Example ===\n")
 @fraiseql.type(sql_source="v_product")
 @dataclass
 class Product:
-    id: UUID
+    id: ID
     name: str
     price: float
 

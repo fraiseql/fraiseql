@@ -28,7 +28,7 @@ class EntitySync:
         self,
         conn: asyncpg.Connection,
         entity_type: str,
-        entity_id: UUID,
+        entity_id: ID,
         operation: str,
         duration_ms: int,
         success: bool = True,

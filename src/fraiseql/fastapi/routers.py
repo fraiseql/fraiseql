@@ -1136,24 +1136,28 @@ def create_graphql_router(
                     apq_backend.store_persisted_query(sha256_hash, request.query)
 
                 # Continue with normal execution using the provided query
-                # The response will be cached after execution (see lines 361-370)
+                # Store operation name for later response filtering
+                context["apq_operation_name"] = (
+                    request.operation_name if hasattr(request, "operation_name") else None
+                )
 
             else:
                 # This is a hash-only request - retrieve and execute the query
 
-                # NOTE: APQ response caching is intentionally NOT implemented.
+                # NOTE: APQ caching now includes response filtering by field selection.
                 #
-                # APQ should only cache query strings (persisted queries), not responses.
-                # Caching responses breaks field selection because the same persisted query
-                # with different field selections would return identical cached data.
+                # APQ caches both query strings AND responses, but responses are filtered
+                # to include only the fields requested by the client.
                 #
                 # Correct behavior:
                 # 1. Store query by hash (in ApqStorage)
-                # 2. On hash-only request, retrieve query by hash
-                # 3. Execute query normally with client's field selection
-                # 4. Return only the requested fields
+                # 2. On hash-only request, try cached response (filtered by field selection)
+                # 3. If cache miss, retrieve query by hash and execute normally
+                # 4. Filter response by field selection before storing in cache
+                # 5. Return only the requested fields
                 #
-                # See: fraiseql_rs/src/apq/mod.rs for canonical Rust implementation.
+                # See: src/fraiseql/middleware/apq_selection.py for response filtering
+                # and fraiseql_rs/src/apq/mod.rs for canonical Rust implementation.
 
                 # Fallback to query resolution from backend
                 persisted_query_text = None
@@ -1178,6 +1182,9 @@ def create_graphql_router(
                     f"query length {len(persisted_query_text)}"
                 )
                 request.query = persisted_query_text
+                context["apq_operation_name"] = (
+                    request.operation_name if hasattr(request, "operation_name") else None
+                )
 
         try:
             # Determine execution mode from headers and config
@@ -1380,9 +1387,30 @@ def create_graphql_router(
                             media_type="application/json",
                         )
 
-            # NOTE: Response caching for APQ is intentionally NOT implemented.
-            # See architectural comment in APQ request handling (hash-only request section)
-            # for detailed explanation of why field selection requires query execution.
+            # Store response in APQ cache if enabled (with field selection filtering)
+            if is_apq_request and request.extensions and "persistedQuery" in request.extensions:
+                from fraiseql.middleware.apq_caching import store_response_in_cache
+
+                persisted_query = request.extensions.get("persistedQuery", {})
+                apq_hash = persisted_query.get("sha256Hash")
+
+                if apq_hash and apq_backend:
+                    # Pass query text and operation name for response filtering
+                    query_text = request.query if hasattr(request, "query") else None
+                    operation_name = context.get("apq_operation_name")
+
+                    try:
+                        store_response_in_cache(
+                            apq_hash,
+                            response,
+                            apq_backend,
+                            config,
+                            context=context,
+                            query_text=query_text,
+                            operation_name=operation_name,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to cache APQ response: {e}")
 
             return response
 
