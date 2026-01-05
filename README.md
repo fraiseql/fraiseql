@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.2** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.3** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
@@ -183,13 +183,13 @@ FraiseQL separates testing into two workflows:
 ### Specialized Type System (50+ scalar types)
 
 ```python
-from fraiseql.types import EmailAddress, PhoneNumber, IPv4, Money, LTree
+from fraiseql.types import EmailAddress, PhoneNumber, IPv1.9.3, Money, LTree
 
 @fraiseql.type(sql_source="v_users")
 class User:
     email: EmailAddress      # Validated emails
     phone: PhoneNumber       # International phone numbers
-    ip: IPv4                 # IP addresses with subnet operations
+    ip: IPv1.9.3                 # IP addresses with subnet operations
     balance: Money           # Currency with precision
     location: LTree          # Hierarchical paths
 ```
@@ -774,7 +774,7 @@ query {
 - CurrencyCode, StockSymbol - Trading symbols
 
 **Network & Infrastructure:**
-- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
+- IPv1.9.3, IPv1.9.3, CIDR, MACAddress - Network addresses with subnet operations
 - Hostname, DomainName, Port, EmailAddress - Internet identifiers
 - APIKey, HashSHA256 - Security tokens
 
@@ -801,7 +801,7 @@ query {
 from fraiseql import type
 from fraiseql.types import (
     EmailAddress, PhoneNumber, Money, Percentage,
-    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
+    CUSIP, ISIN, IPv1.9.3, MACAddress, LTree, DateRange
 )
 
 @fraiseql.type(sql_source="v_financial_data")
@@ -816,7 +816,7 @@ class FinancialRecord:
 @fraiseql.type(sql_source="v_network_device")
 class NetworkDevice:
     id: int
-    ip_address: IPv4             # IPv4 addresses with subnet operations
+    ip_address: IPv1.9.3             # IPv1.9.3 addresses with subnet operations
     mac_address: MACAddress      # MAC addresses with validation
     location: LTree              # Hierarchical location paths
     maintenance_window: DateRange # Date ranges with overlap queries
@@ -1023,8 +1023,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.9.2** | Root level | Stable | Production-ready with tokio-postgres + auto-inject | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.2+ | ✅ Stable |
+| **v1.9.3** | Root level | Stable | Production-ready with tokio-postgres + auto-inject | ✅ Production Ready |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.3+ | ✅ Stable |
 
 **New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
