@@ -364,6 +364,10 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_database_roundtrip(scalar_name, scalar_class, meta_test_pool):
     """Every scalar should persist/retrieve correctly from database."""
+    # Skip ID scalar - it uses GraphQL's built-in ID type
+    if scalar_class.name == "ID":
+        pytest.skip("ID scalar uses GraphQL's built-in ID type to avoid conflicts")
+
     # Create a temporary table for this scalar
     table_name = f"test_{scalar_name.lower()}_roundtrip"
     column_name = f"{scalar_name.lower()}_col"
