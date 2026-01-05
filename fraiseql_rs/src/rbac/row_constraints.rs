@@ -46,9 +46,9 @@ use uuid::Uuid;
 /// Row constraint types
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstraintType {
-    /// User can only see rows where field_name = user_id
+    /// User can only see rows where `field_name` = `user_id`
     Ownership,
-    /// User can only see rows where field_name = user_tenant_id
+    /// User can only see rows where `field_name` = `user_tenant_id`
     Tenant,
     /// Custom SQL expression (future implementation)
     Expression,
@@ -56,14 +56,17 @@ pub enum ConstraintType {
 
 impl ConstraintType {
     /// Parse constraint type from string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string is not a valid constraint type.
     pub fn parse(s: &str) -> Result<Self> {
         match s {
             "ownership" => Ok(Self::Ownership),
             "tenant" => Ok(Self::Tenant),
             "expression" => Ok(Self::Expression),
             other => Err(super::errors::RbacError::ConfigError(format!(
-                "Unknown constraint type: {}",
-                other
+                "Unknown constraint type: {other}"
             ))),
         }
     }
@@ -86,6 +89,7 @@ pub struct RowConstraint {
 
 impl RowConstraint {
     /// Build WHERE clause filter from this constraint and user context
+    #[must_use]
     pub fn to_filter(&self, user_id: Uuid, user_tenant_id: Option<Uuid>) -> Option<RowFilter> {
         match self.constraint_type {
             ConstraintType::Ownership => {
@@ -119,7 +123,7 @@ impl RowConstraint {
 /// Row filter for WHERE clause injection
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowFilter {
-    /// Field name (e.g., "tenant_id", "owner_id")
+    /// Field name (e.g., `"tenant_id"`, `"owner_id"`)
     pub field: String,
     /// Operator (e.g., "eq", "neq", "in")
     pub operator: String,
@@ -156,14 +160,18 @@ impl ConstraintCache {
     }
 
     /// Get constraint from cache if available and not expired
+    #[allow(clippy::option_option)]
     fn get(
         &self,
         user_id: Uuid,
         table_name: &str,
         tenant_id: Option<Uuid>,
     ) -> Option<Option<RowConstraint>> {
-        let key = self.cache_key(user_id, table_name, tenant_id);
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        let key = Self::cache_key(user_id, table_name, tenant_id);
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         if let Some(entry) = cache.get(&key) {
             // Check if entry has expired
@@ -184,8 +192,11 @@ impl ConstraintCache {
         tenant_id: Option<Uuid>,
         constraint: Option<RowConstraint>,
     ) {
-        let key = self.cache_key(user_id, table_name, tenant_id);
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        let key = Self::cache_key(user_id, table_name, tenant_id);
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         cache.put(
             key,
@@ -198,7 +209,10 @@ impl ConstraintCache {
 
     /// Invalidate all entries for a user
     fn invalidate_user(&self, _user_id: Uuid) {
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Since cache keys include user_id, we can't efficiently invalidate a single user
         // For now, we clear the entire cache on user role changes
         // TODO: Implement reverse index for user_id → cache keys
@@ -207,16 +221,19 @@ impl ConstraintCache {
 
     /// Clear entire cache
     fn clear(&self) {
-        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         cache.clear();
     }
 
     /// Build cache key
-    fn cache_key(&self, user_id: Uuid, table_name: &str, tenant_id: Option<Uuid>) -> String {
-        match tenant_id {
-            Some(tid) => format!("{}:{}:{}", user_id, table_name, tid),
-            None => format!("{}:{}", user_id, table_name),
-        }
+    fn cache_key(user_id: Uuid, table_name: &str, tenant_id: Option<Uuid>) -> String {
+        tenant_id.map_or_else(
+            || format!("{user_id}:{table_name}"),
+            |tid| format!("{user_id}:{table_name}:{tid}"),
+        )
     }
 }
 
@@ -395,12 +412,9 @@ mod tests {
         let table = "documents";
         let tenant_id = Uuid::new_v4();
 
-        let key1 = cache.cache_key(user_id, table, Some(tenant_id));
-        let key2 = cache.cache_key(user_id, table, Some(tenant_id));
-
-        assert_eq!(key1, key2);
-
-        let key3 = cache.cache_key(user_id, table, None);
+        let key1 = ConstraintCache::cache_key(user_id, table, Some(tenant_id));
+        let key2 = ConstraintCache::cache_key(user_id, table, Some(tenant_id));
+        let key3 = ConstraintCache::cache_key(user_id, table, None);
         assert_ne!(key1, key3);
     }
 }

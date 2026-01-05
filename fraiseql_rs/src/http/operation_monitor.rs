@@ -106,7 +106,7 @@ struct MetricsStorage {
 
 impl MetricsStorage {
     /// Create a new empty metrics storage
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             recent_operations: VecDeque::new(),
             slow_operations: VecDeque::new(),
@@ -193,6 +193,10 @@ impl GraphQLOperationMonitor {
     /// # Returns
     ///
     /// `Ok(())` if recorded, `Err` if sampling skipped
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation is skipped due to sampling configuration.
     pub fn record(&self, mut metrics: OperationMetrics) -> Result<(), &'static str> {
         // Apply sampling
         if self.config.sampling_rate < 1.0 {
@@ -205,10 +209,11 @@ impl GraphQLOperationMonitor {
 
         // Determine slow threshold based on operation type
         let threshold = match metrics.operation_type {
-            GraphQLOperationType::Query => self.config.slow_query_threshold_ms,
             GraphQLOperationType::Mutation => self.config.slow_mutation_threshold_ms,
             GraphQLOperationType::Subscription => self.config.slow_subscription_threshold_ms,
-            GraphQLOperationType::Unknown => self.config.slow_query_threshold_ms,
+            GraphQLOperationType::Query | GraphQLOperationType::Unknown => {
+                self.config.slow_query_threshold_ms
+            }
         };
 
         // Set slow threshold and detect if slow
@@ -224,19 +229,20 @@ impl GraphQLOperationMonitor {
 
     /// Get recent operations
     ///
-    /// Returns the most recent operations recorded (up to max_recent_operations).
+    /// Returns the most recent operations recorded (up to `max_recent_operations`).
     #[must_use]
     pub fn get_recent_operations(&self, limit: Option<usize>) -> Vec<OperationMetrics> {
-        if let Ok(storage) = self.storage.lock() {
-            let recent = storage.get_recent_operations();
-            if let Some(lim) = limit {
-                recent.into_iter().rev().take(lim).collect()
-            } else {
-                recent
-            }
-        } else {
-            Vec::new()
-        }
+        self.storage.lock().map_or_else(
+            |_| Vec::new(),
+            |storage| {
+                let recent = storage.get_recent_operations();
+                if let Some(lim) = limit {
+                    recent.into_iter().rev().take(lim).collect()
+                } else {
+                    recent
+                }
+            },
+        )
     }
 
     /// Get slow operations
@@ -253,19 +259,20 @@ impl GraphQLOperationMonitor {
         operation_type: Option<GraphQLOperationType>,
         limit: Option<usize>,
     ) -> Vec<OperationMetrics> {
-        if let Ok(storage) = self.storage.lock() {
-            let slow_ops = operation_type
-                .map(|op_type| storage.get_slow_operations_by_type(op_type))
-                .unwrap_or_else(|| storage.get_slow_operations());
+        self.storage.lock().map_or_else(
+            |_| Vec::new(),
+            |storage| {
+                let slow_ops = operation_type
+                    .map(|op_type| storage.get_slow_operations_by_type(op_type))
+                    .unwrap_or_else(|| storage.get_slow_operations());
 
-            if let Some(lim) = limit {
-                slow_ops.into_iter().rev().take(lim).collect()
-            } else {
-                slow_ops
-            }
-        } else {
-            Vec::new()
-        }
+                if let Some(lim) = limit {
+                    slow_ops.into_iter().rev().take(lim).collect()
+                } else {
+                    slow_ops
+                }
+            },
+        )
     }
 
     /// Get operation statistics
@@ -273,27 +280,29 @@ impl GraphQLOperationMonitor {
     /// Calculates aggregate statistics from all recent operations.
     #[must_use]
     pub fn get_statistics(&self) -> OperationStatistics {
-        if let Ok(storage) = self.storage.lock() {
-            let recent = storage.get_recent_operations();
-            OperationStatistics::from_metrics(&recent)
-        } else {
-            OperationStatistics::new()
-        }
+        self.storage.lock().map_or_else(
+            |_| OperationStatistics::new(),
+            |storage| {
+                let recent = storage.get_recent_operations();
+                OperationStatistics::from_metrics(&recent)
+            },
+        )
     }
 
     /// Get statistics for a specific operation type
     #[must_use]
     pub fn get_statistics_by_type(&self, op_type: GraphQLOperationType) -> OperationStatistics {
-        if let Ok(storage) = self.storage.lock() {
-            let recent: Vec<OperationMetrics> = storage
-                .get_recent_operations()
-                .into_iter()
-                .filter(|m| m.operation_type == op_type)
-                .collect();
-            OperationStatistics::from_metrics(&recent)
-        } else {
-            OperationStatistics::new()
-        }
+        self.storage.lock().map_or_else(
+            |_| OperationStatistics::new(),
+            |storage| {
+                let recent: Vec<OperationMetrics> = storage
+                    .get_recent_operations()
+                    .into_iter()
+                    .filter(|m| m.operation_type == op_type)
+                    .collect();
+                OperationStatistics::from_metrics(&recent)
+            },
+        )
     }
 
     /// Count of slow operations of a specific type
@@ -305,21 +314,15 @@ impl GraphQLOperationMonitor {
     /// Total count of all operations recorded
     #[must_use]
     pub fn total_operations_recorded(&self) -> u64 {
-        if let Ok(storage) = self.storage.lock() {
-            storage.total_recorded
-        } else {
-            0
-        }
+        self.storage
+            .lock()
+            .map_or(0, |storage| storage.total_recorded)
     }
 
     /// Total count of all slow operations recorded
     #[must_use]
     pub fn total_slow_operations_recorded(&self) -> u64 {
-        if let Ok(storage) = self.storage.lock() {
-            storage.total_slow
-        } else {
-            0
-        }
+        self.storage.lock().map_or(0, |storage| storage.total_slow)
     }
 
     /// Clear all stored metrics
@@ -331,7 +334,7 @@ impl GraphQLOperationMonitor {
 
     /// Get the slow operation threshold for a given operation type
     #[must_use]
-    pub fn get_slow_threshold(&self, op_type: GraphQLOperationType) -> f64 {
+    pub const fn get_slow_threshold(&self, op_type: GraphQLOperationType) -> f64 {
         match op_type {
             GraphQLOperationType::Query | GraphQLOperationType::Unknown => {
                 self.config.slow_query_threshold_ms
@@ -343,7 +346,7 @@ impl GraphQLOperationMonitor {
 
     /// Get the current configuration
     #[must_use]
-    pub fn config(&self) -> &OperationMonitorConfig {
+    pub const fn config(&self) -> &OperationMonitorConfig {
         &self.config
     }
 }

@@ -35,7 +35,7 @@
 //!
 //! This module is stateless and thread-safe:
 //! - All methods are pure functions (no mutable state)
-//! - No external dependencies except serde_json
+//! - No external dependencies except `serde_json`
 //! - Safe to use in concurrent contexts
 
 use serde_json::{json, Value};
@@ -72,12 +72,11 @@ impl std::fmt::Display for WhereMergeError {
             } => {
                 write!(
                     f,
-                    "WHERE clause conflict: field '{}' uses {} in explicit WHERE but {} in auth filter",
-                    field, explicit_op, auth_op
+                    "WHERE clause conflict: field '{field}' uses {explicit_op} in explicit WHERE but {auth_op} in auth filter"
                 )
             }
-            Self::InvalidStructure(msg) => write!(f, "Invalid WHERE clause structure: {}", msg),
-            Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
+            Self::InvalidStructure(msg) => write!(f, "Invalid WHERE clause structure: {msg}"),
+            Self::SerializationError(msg) => write!(f, "Serialization error: {msg}"),
         }
     }
 }
@@ -106,6 +105,10 @@ impl WhereMerger {
     /// Returns error if:
     /// - Conflicting fields detected (strategy = error)
     /// - Invalid WHERE clause structure
+    ///
+    /// # Panics
+    ///
+    /// Panics if conflicts are detected but the conflicts vector is empty (internal logic error).
     pub fn merge_where(
         explicit_where: Option<&Value>,
         auth_filter: Option<&Value>,
@@ -139,7 +142,7 @@ impl WhereMerger {
                 }
 
                 // Merge using AND composition
-                Self::compose_and(explicit, auth)
+                Ok(Self::compose_and(explicit, auth))
             }
         }
     }
@@ -213,7 +216,10 @@ impl WhereMerger {
         Ok(fields)
     }
 
-    fn extract_logical_operators(value: &Value, fields: &mut HashMap<String, String>) -> Result<()> {
+    fn extract_logical_operators(
+        value: &Value,
+        fields: &mut HashMap<String, String>,
+    ) -> Result<()> {
         let Some(arr) = value.as_array() else {
             return Ok(());
         };
@@ -242,12 +248,12 @@ impl WhereMerger {
     /// - Flattening existing AND clauses
     /// - Creating new AND for non-AND clauses
     /// - Avoiding nested AND structures
-    fn compose_and(clause1: &Value, clause2: &Value) -> Result<Option<Value>> {
+    fn compose_and(clause1: &Value, clause2: &Value) -> Option<Value> {
         // If clause1 is already AND, extend it
         if clause1.get("AND").is_some() {
             if let Some(mut and_parts) = clause1.get("AND").and_then(|v| v.as_array().cloned()) {
                 and_parts.push(clause2.clone());
-                return Ok(Some(json!({"AND": and_parts})));
+                return Some(json!({"AND": and_parts}));
             }
         }
 
@@ -256,12 +262,12 @@ impl WhereMerger {
             if let Some(and_parts) = clause2.get("AND").and_then(|v| v.as_array().cloned()) {
                 let mut result = vec![clause1.clone()];
                 result.extend(and_parts);
-                return Ok(Some(json!({"AND": result})));
+                return Some(json!({"AND": result}));
             }
         }
 
         // Create new AND composition
-        Ok(Some(json!({"AND": [clause1.clone(), clause2.clone()]})))
+        Some(json!({"AND": [clause1.clone(), clause2.clone()]}))
     }
 
     /// Validate WHERE clause structure
@@ -270,6 +276,10 @@ impl WhereMerger {
     /// - Valid object type
     /// - Proper field structure (field: {operator: value})
     /// - Valid AND/OR compositions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the WHERE clause has invalid structure or unsupported operators.
     pub fn validate_where(where_clause: &Value) -> Result<()> {
         if !where_clause.is_object() {
             return Err(WhereMergeError::InvalidStructure(

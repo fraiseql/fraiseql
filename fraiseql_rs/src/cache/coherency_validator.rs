@@ -310,10 +310,7 @@ mod tests {
         let mut validator = CoherencyValidator::new();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         assert!(validator.cached_queries().contains("query:user:1"));
@@ -327,10 +324,7 @@ mod tests {
         let mut validator = CoherencyValidator::new();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         assert!(validator.cached_queries().contains("query:user:1"));
@@ -348,10 +342,7 @@ mod tests {
         let mut validator = CoherencyValidator::new();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         let cascade = serde_json::json!({
@@ -372,10 +363,7 @@ mod tests {
         let mut validator = CoherencyValidator::new();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         let cascade = serde_json::json!({
@@ -396,10 +384,7 @@ mod tests {
         let mut validator = CoherencyValidator::new();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         let result = validator.validate_consistency();
@@ -418,10 +403,7 @@ mod tests {
             .unwrap();
 
         validator
-            .record_cache_put(
-                "query:user:1",
-                vec![("User".to_string(), "1".to_string())],
-            )
+            .record_cache_put("query:user:1", vec![("User".to_string(), "1".to_string())])
             .unwrap();
 
         let _cascade = serde_json::json!({

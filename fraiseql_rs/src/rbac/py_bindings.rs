@@ -1,10 +1,10 @@
 //! Python bindings for RBAC components.
 //!
 //! Provides Python wrappers for:
-//! - PermissionResolver: Field-level authorization checking
-//! - FieldAuthChecker: Per-field permission validation
-//! - RowConstraintResolver: Row-level access filtering
-//! - WhereMerger: Safe WHERE clause composition
+//! - `PermissionResolver`: Field-level authorization checking
+//! - `FieldAuthChecker`: Per-field permission validation
+//! - `RowConstraintResolver`: Row-level access filtering
+//! - `WhereMerger`: Safe WHERE clause composition
 
 use super::resolver::PermissionResolver;
 use super::row_constraints::RowConstraintResolver;
@@ -265,8 +265,8 @@ impl PyWhereMerger {
     /// - Conflicting fields detected (strategy = "error")
     #[staticmethod]
     pub fn merge_where(
-        explicit_where: Option<String>,
-        auth_filter: Option<String>,
+        explicit_where: Option<&str>,
+        auth_filter: Option<&str>,
         strategy: &str,
     ) -> PyResult<Option<String>> {
         // Parse strategy
@@ -276,32 +276,27 @@ impl PyWhereMerger {
             "log" => super::where_merger::ConflictStrategy::Log,
             other => {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Invalid strategy: {}. Must be 'error', 'override', or 'log'",
-                    other
+                    "Invalid strategy: {other}. Must be 'error', 'override', or 'log'"
                 )))
             }
         };
 
         // Parse JSON values
         let explicit_value = explicit_where
-            .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Invalid explicit WHERE JSON: {}",
-                    e
+                    "Invalid explicit WHERE JSON: {e}"
                 ))
             })?;
 
         let auth_value = auth_filter
-            .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Invalid auth filter JSON: {}",
-                    e
+                    "Invalid auth filter JSON: {e}"
                 ))
             })?;
 
@@ -316,20 +311,17 @@ impl PyWhereMerger {
                         auth_op,
                     } => {
                         PyErr::new::<pyo3::exceptions::PyPermissionError, _>(format!(
-                            "WHERE clause conflict: field '{}' uses {} in explicit WHERE but {} in auth filter",
-                            field, explicit_op, auth_op
+                            "WHERE clause conflict: field '{field}' uses {explicit_op} in explicit WHERE but {auth_op} in auth filter"
                         ))
                     }
                     super::where_merger::WhereMergeError::InvalidStructure(msg) => {
                         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                            "Invalid WHERE clause structure: {}",
-                            msg
+                            "Invalid WHERE clause structure: {msg}"
                         ))
                     }
                     super::where_merger::WhereMergeError::SerializationError(msg) => {
                         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                            "Serialization error: {}",
-                            msg
+                            "Serialization error: {msg}"
                         ))
                     }
                 }
@@ -351,7 +343,7 @@ impl PyWhereMerger {
     #[staticmethod]
     pub fn validate_where(where_clause: &str) -> PyResult<()> {
         let value = serde_json::from_str::<Value>(where_clause).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid WHERE JSON: {}", e))
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid WHERE JSON: {e}"))
         })?;
 
         WhereMerger::validate_where(&value)

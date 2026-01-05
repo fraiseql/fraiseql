@@ -108,18 +108,18 @@ impl OperationMetricsContext {
             .map(ToString::to_string);
 
         // Extract trace IDs from traceparent or fallback to custom headers
-        let (trace_id, parent_span_id) = if let Some(tp) = &traceparent {
-            Self::parse_traceparent(tp)
-        } else {
-            // Fallback to custom headers
-            let trace_id = headers
-                .get("x-trace-id")
-                .and_then(|v| v.to_str().ok())
-                .map(ToString::to_string)
-                .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let (trace_id, parent_span_id) = traceparent.as_ref().map_or_else(
+            || {
+                // Fallback to custom headers
+                let trace_id = headers
+                    .get("x-trace-id")
+                    .and_then(|v| v.to_str().ok())
+                    .map_or_else(|| Uuid::new_v4().to_string(), ToString::to_string);
 
-            (trace_id, None)
-        };
+                (trace_id, None)
+            },
+            |tp| Self::parse_traceparent(tp),
+        );
 
         // Generate span ID for this operation
         let span_id = Uuid::new_v4().to_string()[..16].to_string();
@@ -200,7 +200,7 @@ pub struct OperationMetricsMiddleware {
 impl OperationMetricsMiddleware {
     /// Create a new metrics middleware with a monitor instance
     #[must_use]
-    pub fn new(monitor: Arc<GraphQLOperationMonitor>) -> Self {
+    pub const fn new(monitor: Arc<GraphQLOperationMonitor>) -> Self {
         Self { monitor }
     }
 
@@ -234,6 +234,8 @@ impl OperationMetricsMiddleware {
         response_body: &JsonValue,
         had_errors: bool,
     ) {
+        use crate::http::operation_metrics::OperationStatus;
+
         // Get mutable reference via Arc (this requires special handling)
         // For now, we'll use a different approach: record after collecting all data
 
@@ -245,8 +247,7 @@ impl OperationMetricsMiddleware {
             response_body
                 .get("errors")
                 .and_then(|e| e.as_array())
-                .map(|arr| arr.len())
-                .unwrap_or(1)
+                .map_or(1, Vec::len)
         } else {
             0
         };
@@ -261,9 +262,7 @@ impl OperationMetricsMiddleware {
         final_metrics.set_field_count(field_count);
 
         // Set status based on response and HTTP status
-        use crate::http::operation_metrics::OperationStatus;
         let status = match (had_errors, status_code) {
-            (false, StatusCode::OK) => OperationStatus::Success,
             (true, StatusCode::OK) => OperationStatus::PartialError,
             (true, _) => OperationStatus::Error,
             (false, StatusCode::GATEWAY_TIMEOUT) => OperationStatus::Timeout,
@@ -284,13 +283,17 @@ impl OperationMetricsMiddleware {
         response
             .get("data")
             .and_then(|data| data.as_object())
-            .map_or(0, |obj| obj.len())
+            .map_or(0, serde_json::Map::len)
     }
 }
 
 /// Helper function to inject operation metrics into response headers
 ///
 /// Adds trace context headers so clients can correlate requests
+///
+/// # Errors
+///
+/// This function currently does not return any errors and always succeeds.
 pub fn inject_trace_headers(
     headers: &mut HeaderMap,
     metrics_context: &OperationMetricsContext,

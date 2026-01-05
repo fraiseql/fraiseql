@@ -351,7 +351,7 @@ impl PyAxumServer {
     ///     print("Server is active")
     /// ```
     #[must_use]
-    pub fn is_running(&self) -> bool {
+    pub const fn is_running(&self) -> bool {
         self.is_running
     }
 
