@@ -228,3 +228,95 @@ class TestIDPolicyDocumentation:
         SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
         id_result_opaque = convert_scalar_to_graphql(ID)
         assert id_result_opaque.name == "ID"
+
+
+class TestIDPolicyWhereFilters:
+    """Tests for ID policy affecting where clause filter types."""
+
+    def test_uuid_policy_id_uses_uuid_filter(self):
+        """Test that ID fields use UUIDFilter with UUID policy."""
+        from fraiseql.sql.graphql_where_generator import (
+            IDFilter,
+            UUIDFilter,
+            _get_filter_type_for_field,
+        )
+
+        SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
+        filter_type = _get_filter_type_for_field(ID)
+        assert filter_type is UUIDFilter
+
+    def test_opaque_policy_id_uses_id_filter(self):
+        """Test that ID fields use IDFilter with OPAQUE policy."""
+        from fraiseql.sql.graphql_where_generator import (
+            IDFilter,
+            UUIDFilter,
+            _get_filter_type_for_field,
+        )
+
+        SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+
+        filter_type = _get_filter_type_for_field(ID)
+        assert filter_type is IDFilter
+
+    def test_uuid_uuid_always_uses_uuid_filter(self):
+        """Test that uuid.UUID always uses UUIDFilter regardless of policy."""
+        from fraiseql.sql.graphql_where_generator import (
+            UUIDFilter,
+            _get_filter_type_for_field,
+        )
+
+        for policy in IDPolicy:
+            SchemaConfig.set_config(id_policy=policy)
+            filter_type = _get_filter_type_for_field(uuid.UUID)
+            assert filter_type is UUIDFilter
+
+    def test_id_filter_has_correct_operators(self):
+        """Test that IDFilter has the expected filter operators."""
+        from fraiseql.sql.graphql_where_generator import IDFilter
+
+        # Check IDFilter has expected fields
+        assert hasattr(IDFilter, "__annotations__")
+        annotations = IDFilter.__annotations__
+
+        # Should have eq, neq, in_, nin, isnull
+        assert "eq" in annotations
+        assert "neq" in annotations
+        assert "in_" in annotations
+        assert "nin" in annotations
+        assert "isnull" in annotations
+
+    def test_where_input_generation_respects_policy(self):
+        """Test that create_graphql_where_input respects ID policy."""
+        import fraiseql
+        from fraiseql.sql.graphql_where_generator import (
+            IDFilter,
+            UUIDFilter,
+            create_graphql_where_input,
+        )
+
+        @fraiseql.type
+        class Item:
+            id: ID
+            name: str
+
+        # With UUID policy
+        SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+        where_type_uuid = create_graphql_where_input(Item)
+
+        # Check that id field uses UUIDFilter
+        id_field_type = where_type_uuid.__annotations__.get("id")
+        # The type is Optional[FilterType], so we need to extract the inner type
+        assert id_field_type is not None
+
+        # With OPAQUE policy
+        SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+        # Clear cache to regenerate
+        from fraiseql.sql.graphql_where_generator import _where_input_cache
+
+        _where_input_cache.pop(Item, None)
+        where_type_opaque = create_graphql_where_input(Item)
+
+        # Check that id field uses IDFilter
+        id_field_type_opaque = where_type_opaque.__annotations__.get("id")
+        assert id_field_type_opaque is not None

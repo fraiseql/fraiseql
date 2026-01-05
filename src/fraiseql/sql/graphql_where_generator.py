@@ -211,6 +211,26 @@ class UUIDFilter:
     isnull: bool | None = None
 
 
+# Import ID type for IDFilter
+from fraiseql.types import ID
+
+
+@fraise_input
+class IDFilter:
+    """GraphQL ID field filter operations.
+
+    Used for filtering on ID fields in where clauses. The ID type
+    accepts any string value (UUIDs, integers, slugs, etc.) as per
+    GraphQL specification.
+    """
+
+    eq: ID | None = None
+    neq: ID | None = None
+    in_: list[ID] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[ID] | None = None
+    isnull: bool | None = None
+
+
 @fraise_input
 class DateFilter:
     """Date field filter operations."""
@@ -736,6 +756,18 @@ def _get_filter_type_for_field(
         pass
 
     # Map Python types to filter types
+    # Determine ID filter type based on IDPolicy
+    # - UUID policy: IDs must be valid UUIDs, use UUIDFilter for stricter typing
+    # - OPAQUE policy: IDs accept any string, use IDFilter (GraphQL ID scalar)
+    try:
+        from fraiseql.config.schema_config import SchemaConfig
+
+        config = SchemaConfig.get_instance()
+        id_filter_type = UUIDFilter if config.id_policy.enforces_uuid() else IDFilter
+    except Exception:
+        # Fallback to IDFilter if config not available
+        id_filter_type = IDFilter
+
     type_mapping = {
         str: StringFilter,
         int: IntFilter,
@@ -743,6 +775,7 @@ def _get_filter_type_for_field(
         Decimal: DecimalFilter,
         bool: BooleanFilter,
         UUID: UUIDFilter,
+        ID: id_filter_type,  # Policy-aware: UUIDFilter or IDFilter
         date: DateFilter,
         datetime: DateTimeFilter,
         dict: JSONBFilter,  # JSONB fields are typically dict type in Python
