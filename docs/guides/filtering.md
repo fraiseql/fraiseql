@@ -16,6 +16,8 @@ tags:
 
 FraiseQL provides powerful, flexible filtering capabilities for both GraphQL queries and programmatic data access. This guide helps you choose the right approach and get started quickly.
 
+> **For comprehensive filter operators reference**, see the [Advanced Filter Operators Guide](../advanced/filter-operators.md) which covers all operators, syntax patterns, and advanced filtering techniques.
+
 ## Quick Start - Complete Example
 
 ```python

@@ -1,5 +1,7 @@
 # Nested Array Where Filtering in FraiseQL v1.0+
 
+> **For comprehensive filter operators reference**, see the [Advanced Filter Operators Guide](../advanced/filter-operators.md) which covers all operators, syntax patterns, and advanced filtering techniques.
+
 ## Overview
 
 FraiseQL provides comprehensive nested array where filtering with complete AND/OR/NOT logical operator support. This feature enables sophisticated GraphQL queries to filter nested array elements based on their properties using intuitive WhereInput types.
