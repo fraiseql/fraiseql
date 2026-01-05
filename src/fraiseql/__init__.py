@@ -57,6 +57,17 @@ except ImportError:
     create_fraiseql_app = None
     FraiseQLConfig = None
 
+# Axum HTTP server integration (optional - Phase 2)
+try:
+    from .axum import AxumFraiseQLConfig, AxumServer, create_axum_fraiseql_app
+
+    _axum_available = True
+except ImportError:
+    _axum_available = False
+    AxumFraiseQLConfig = None
+    AxumServer = None
+    create_axum_fraiseql_app = None
+
 # Auth integration (optional)
 try:
     from .auth import (
@@ -202,6 +213,8 @@ __all__ = [
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
+    "AxumFraiseQLConfig",
+    "AxumServer",
     "CQRSExecutor",
     "CQRSRepository",
     "CachedRepository",
@@ -221,6 +234,7 @@ __all__ = [
     "build_context",
     "build_fraiseql_schema",
     "connection",
+    "create_axum_fraiseql_app",
     "create_connection",
     "create_db_pool",
     "create_fraiseql_app",
