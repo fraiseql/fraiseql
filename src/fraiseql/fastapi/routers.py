@@ -1386,16 +1386,20 @@ def create_graphql_router(
 
                 apq_hash = get_apq_hash_from_request(request)
                 if apq_hash:
-                    # Store the response in cache for future requests
+                    # Get query text for field selection filtering
+                    query_text = apq_backend.get_persisted_query(apq_hash)
+
+                    # Store the filtered response in cache for future requests
                     store_response_in_cache(
-                        apq_hash, response, apq_backend, config, context=context
+                        apq_hash,
+                        response,
+                        apq_backend,
+                        config,
+                        variables=request.variables,
+                        context=context,
+                        query_text=query_text,
+                        operation_name=request.operationName,
                     )
-
-                    # Also store the cached response in the backend
-                    import json
-
-                    response_json = json.dumps(response, separators=(",", ":"))
-                    apq_backend.store_cached_response(apq_hash, response_json, context=context)
 
             return response
 

@@ -38,12 +38,13 @@ from fraiseql.caching import (
 )
 from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.types import ID
 
 
 # Define your types
 @fraise_type
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     status: str
@@ -51,7 +52,7 @@ class User:
 
 @fraise_type
 class Product:
-    id: UUID
+    id: ID
     name: str
     price: float
     category: str
@@ -95,7 +96,7 @@ async def get_active_users(info) -> list[User]:
     return await db.find("users", status="active")
 
 
-async def get_user_by_id(info, user_id: UUID) -> User | None:
+async def get_user_by_id(info, user_id: ID) -> User | None:
     """Get user by ID (cached for 5 minutes)."""
     db: CachedRepository = info.context["db"]
     return await db.find_one("users", id=user_id)
@@ -118,7 +119,7 @@ async def get_products_by_category(
     )
 
 
-async def get_fresh_user_data(info, user_id: UUID) -> User | None:
+async def get_fresh_user_data(info, user_id: ID) -> User | None:
     """Get user data bypassing cache."""
     db: CachedRepository = info.context["db"]
     return await db.find_one("users", id=user_id, skip_cache=True)
@@ -134,7 +135,7 @@ async def create_user(info, name: str, email: str) -> dict:
     )
 
 
-async def update_product_price(info, product_id: UUID, new_price: float) -> dict:
+async def update_product_price(info, product_id: ID, new_price: float) -> dict:
     """Update product price (invalidates product cache)."""
     db: CachedRepository = info.context["db"]
     return await db.execute_function(

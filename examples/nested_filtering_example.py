@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.sql import create_graphql_where_input
 
 
@@ -17,7 +18,7 @@ from fraiseql.sql import create_graphql_where_input
 class Machine:
     """Machine type for nested filtering examples."""
 
-    id: uuid.UUID
+    id: ID
     name: str
     type: str
     power_watts: int
@@ -27,7 +28,7 @@ class Machine:
 class Location:
     """Location type with nested address."""
 
-    id: uuid.UUID
+    id: ID
     name: str
     address: dict  # Nested object in JSONB
 
@@ -36,7 +37,7 @@ class Location:
 class Allocation:
     """Allocation with nested machine and location objects."""
 
-    id: uuid.UUID
+    id: ID
     machine: Machine | None
     location: Location | None
     status: str

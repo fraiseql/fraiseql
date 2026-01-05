@@ -33,6 +33,57 @@ type User {
 }
 ```
 
+## ID Policy (v1.9.2+)
+
+FraiseQL provides configurable ID behavior via `SchemaConfig.id_policy`:
+
+| Policy | Description | Use Case |
+|--------|-------------|----------|
+| `IDPolicy.UUID` | IDs must be valid UUIDs (default) | FraiseQL opinionated apps |
+| `IDPolicy.OPAQUE` | IDs accept any string | GraphQL spec compliance |
+
+### Configuration
+
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# Default: UUID enforcement (recommended)
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
+# GraphQL spec-compliant: accepts any string
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+```
+
+### Type Mapping by Policy
+
+| Python Type | `UUID` Policy | `OPAQUE` Policy |
+|-------------|---------------|-----------------|
+| `ID` | `IDScalar` (enforces UUID) | `GraphQLID` (any string) |
+| `uuid.UUID` | `UUIDScalar` (name="UUID") | `UUIDScalar` (name="UUID") |
+
+**Important**: `uuid.UUID` always maps to `UUIDScalar` (name="UUID"), regardless of policy. Only the `ID` type annotation is affected by the policy.
+
+## ID vs uuid.UUID
+
+Use the correct type for your use case:
+
+| Type | GraphQL Scalar | Description |
+|------|---------------|-------------|
+| `ID` | `ID` | Entity identifiers (primary keys, foreign keys) |
+| `uuid.UUID` | `UUID` | Generic UUID values (correlation IDs, external refs) |
+
+```python
+from fraiseql.types import ID
+from uuid import UUID
+
+@fraiseql.type
+class Order:
+    id: ID                    # Primary key → "ID" scalar
+    customer_id: ID           # Foreign key → "ID" scalar
+    correlation_id: UUID      # Tracing ID → "UUID" scalar
+    external_ref: UUID        # External reference → "UUID" scalar
+```
+
 ## Why UUID?
 
 FraiseQL makes the opinionated choice to use UUIDs for all IDs because:
@@ -49,13 +100,15 @@ from fraiseql.types import ID
 
 @fraiseql.type
 class User:
-    id: ID  # Primary key
+    id: ID  # External UUID identifier (Trinity pattern)
 
 @fraiseql.type
 class Post:
-    id: ID          # Primary key
-    author_id: ID   # Foreign key reference
+    id: ID          # External UUID identifier
+    author_id: ID   # Reference to another entity's external ID
 ```
+
+**Note**: In the Trinity pattern, `id` is the external UUID for API consumption, not the internal primary key (`pk_*`). See [Trinity Pattern](trinity-pattern.md) for details.
 
 ## Implementation Details
 
@@ -148,6 +201,6 @@ Currently, `ID` is backed by UUID. Support for other identifier types (ULID, KSU
 
 ## Related
 
-- [Scalars](scalars.md)
-- [Trinity Pattern](../patterns/trinity.md)
-- [Database Integration](database-integration.md)
+- [Types and Schema](types-and-schema.md)
+- [Trinity Pattern](trinity-pattern.md)
+- [Database API](database-api.md)

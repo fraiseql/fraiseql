@@ -32,17 +32,26 @@ from .daterange import DateRangeField, DateRangeScalar
 from .datetime import DateTimeScalar
 from .email_address import EmailAddressField, EmailAddressScalar
 from .hostname import HostnameField, HostnameScalar
-from .id_scalar import IDField, IDScalar
+from .id_scalar import ID
 from .ip_address import IpAddressField, IpAddressScalar, SubnetMaskScalar
 from .json import JSONField, JSONScalar
 from .ltree import LTreeField, LTreeScalar
 from .mac_address import MacAddressField, MacAddressScalar
 from .port import PortField, PortScalar
-from .uuid import UUIDField
+from .uuid import UUIDField, UUIDScalar
 
 
 def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
-    """Convert a Python type to a corresponding GraphQL scalar type."""
+    """Convert a Python type to a corresponding GraphQL scalar type.
+
+    Type mapping:
+    - ID (NewType): Maps to GraphQL's built-in ID scalar
+    - uuid.UUID: Maps to UUIDScalar (name="UUID") for semantic correctness
+
+    Note: UUID validation for ID fields is handled at the input validation layer,
+    controlled by SchemaConfig.id_policy. The scalar itself uses GraphQL's built-in
+    ID to avoid "Redefinition of reserved type 'ID'" errors from graphql-core.
+    """
     scalar_map: dict[type, GraphQLScalarType] = {
         str: GraphQLString,
         int: GraphQLInt,
@@ -50,9 +59,12 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         bool: GraphQLBoolean,
         JSONField: JSONScalar,
         dict: JSONScalar,
-        uuid.UUID: GraphQLID,
-        UUIDField: GraphQLID,
-        IDField: IDScalar,
+        # uuid.UUID always maps to UUIDScalar (semantic correctness)
+        # UUID is a specific format, not necessarily an identifier
+        uuid.UUID: UUIDScalar,  # uuid.UUID → "UUID" scalar
+        UUIDField: UUIDScalar,  # Explicit UUID field → "UUID" scalar
+        # ID type annotation uses GraphQL's built-in ID scalar
+        ID: GraphQLID,  # ID → GraphQL's built-in "ID" scalar
         datetime.date: DateScalar,
         datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,

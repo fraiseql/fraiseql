@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import Field
 
 import fraiseql
+from fraiseql.types import ID
 
 
 @fraiseql.type
@@ -25,7 +26,7 @@ class User:
         roles: List of roles assigned to the user
     """
 
-    id: UUID
+    id: ID
     identifier: str  # Human-readable username (from JSONB)
     email: str
     name: str
@@ -57,12 +58,12 @@ class Post:
         comments: List of comments on this post
     """
 
-    id: UUID
+    id: ID
     title: str
     slug: str
     content: str
     excerpt: str | None
-    author_id: UUID
+    author_id: ID
     published_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -87,14 +88,14 @@ class Comment:
         parent_comment_id: ID of parent comment (for nested replies)
     """
 
-    id: UUID
-    post_id: UUID
-    author_id: UUID
+    id: ID
+    post_id: ID
+    author_id: ID
     content: str
     created_at: datetime
     updated_at: datetime
     is_approved: bool = True
-    parent_comment_id: UUID | None = None  # For nested comments
+    parent_comment_id: ID | None = None  # For nested comments
 
 
 # Enterprise Pattern Types
@@ -120,7 +121,7 @@ class AuditTrail:
 class PostEnterprise:
     """Blog post with audit trail - enterprise pattern example."""
 
-    id: UUID
+    id: ID
     title: str
     content: str
     is_published: bool
@@ -130,7 +131,7 @@ class PostEnterprise:
     identifier: str | None = None  # Business identifier
     slug: str
     excerpt: str | None = None
-    author_id: UUID
+    author_id: ID
     published_at: datetime | None = None
     tags: list[str] = []
     view_count: int = 0
@@ -140,7 +141,7 @@ class PostEnterprise:
 class UserEnterprise:
     """User with comprehensive audit trail."""
 
-    id: UUID
+    id: ID
     email: str
     name: str
     bio: str | None = None
@@ -270,9 +271,9 @@ class CreateCommentInput:
         parent_comment_id: ID of parent comment (for replies)
     """
 
-    post_id: UUID
+    post_id: ID
     content: str
-    parent_comment_id: UUID | None = None
+    parent_comment_id: ID | None = None
 
 
 @fraiseql.input
@@ -288,7 +289,7 @@ class PostFilters:
         search: Search in post title and content
     """
 
-    author_id: UUID | None = None
+    author_id: ID | None = None
     is_published: bool | None = None
     tags_contain: list[str] | None = None
     created_after: datetime | None = None

@@ -9,6 +9,7 @@ from typing import Annotated
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 
 
 # Example 1: Docstring-based field descriptions
@@ -24,7 +25,7 @@ class User:
         full_name: Complete display name
         is_active: Whether the account is currently active
     """
-    id: UUID
+    id: ID
     username: str
     email: str
     full_name: str
@@ -42,7 +43,7 @@ class Product:
         name: Product display name
         price: Price in USD
     """
-    id: UUID
+    id: ID
     name: str
     price: float
     description: str = fraiseql.fraise_field(description="Detailed product description")
@@ -109,7 +110,7 @@ class Customer:
         shipping_address: Primary shipping address
         billing_address: Billing address (if different from shipping)
     """
-    id: UUID
+    id: ID
     personal_info: User
     shipping_address: Address
     billing_address: Address | None = None
@@ -117,7 +118,7 @@ class Customer:
 
 # GraphQL queries using the types with auto-generated descriptions
 @fraiseql.query
-async def get_user(id: UUID) -> User | None:
+async def get_user(id: ID) -> User | None:
     """Retrieve a user by their unique identifier."""
     # In a real app, this would query your database
     return User(

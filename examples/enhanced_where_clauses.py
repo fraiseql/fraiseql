@@ -11,6 +11,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 
 
 @fraiseql.fraise_type(sql_source="users")
@@ -28,7 +29,7 @@ class User:
         is_active: Whether account is enabled
         created_at: Account creation timestamp
     """
-    id: UUID
+    id: ID
     username: str
     email: str
     full_name: str
@@ -52,7 +53,7 @@ class Product:
         category: Product category
         created_at: Product creation date
     """
-    id: UUID
+    id: ID
     name: str
     description: str
     price: Decimal

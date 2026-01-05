@@ -1,71 +1,35 @@
-"""GraphQL ID scalar backed by UUID."""
+"""GraphQL ID scalar type with UUID validation.
 
-from __future__ import annotations
+This module provides:
+- ID: NewType for Python type annotations (Strawberry-style syntax)
+- IDScalar: Alias for GraphQL's built-in ID scalar
 
-import uuid
-from typing import Any
+FraiseQL follows GraphQL spec: ID is the standard identifier type.
+UUID validation happens at the resolver/input level, not at the scalar level.
 
-from graphql import GraphQLError, GraphQLScalarType
-from graphql.language import StringValueNode, ValueNode
+Note: We use GraphQL's built-in ID scalar to avoid "Redefinition of reserved type 'ID'"
+error from graphql-core. Custom UUID enforcement is done via input validation.
+"""
 
-from fraiseql.types.definitions import ScalarMarker
+from typing import NewType
 
+from graphql import GraphQLID
 
-# Serialization functions (reuse UUID logic since ID = UUID)
-def serialize_id(value: Any) -> str:
-    """Serialize an ID (UUID) to string."""
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, str):
-        try:
-            uuid.UUID(value)
-            return value
-        except ValueError:
-            pass
-    msg = f"ID cannot represent non-UUID value: {value!r}"
-    raise GraphQLError(msg)
+# Use GraphQL's built-in ID scalar (avoids reserved type conflict)
+# UUID validation is handled at input/resolver level via SchemaConfig.id_policy
+IDScalar = GraphQLID
 
+# Python type annotation (Strawberry-style)
+ID = NewType("ID", str)
+"""GraphQL ID type annotation.
 
-def parse_id_value(value: Any) -> uuid.UUID:
-    """Parse an ID string into a UUID object."""
-    if isinstance(value, str):
-        try:
-            return uuid.UUID(value)
-        except ValueError:
-            msg = f"Invalid ID string provided: {value!r}"
-            raise GraphQLError(msg) from None
-    msg = f"ID cannot represent non-string value: {value!r}"
-    raise GraphQLError(msg)
+Usage:
+    @fraiseql.type
+    class User:
+        id: ID  # Standard GraphQL ID
+        name: str
 
-
-def parse_id_literal(ast: ValueNode, variables: dict[str, object] | None = None) -> uuid.UUID:
-    """Parse an ID literal from GraphQL AST."""
-    _ = variables
-    if isinstance(ast, StringValueNode):
-        return parse_id_value(ast.value)
-    msg = f"ID cannot represent non-string literal: {getattr(ast, 'value', None)!r}"
-    raise GraphQLError(msg)
-
-
-# GraphQL Scalar
-IDScalar = GraphQLScalarType(
-    name="ID",
-    description="A globally unique identifier in UUID format.",
-    serialize=serialize_id,
-    parse_value=parse_id_value,
-    parse_literal=parse_id_literal,
-)
-
-
-# Python Type Marker
-class IDField(str, ScalarMarker):
-    """FraiseQL ID marker used for Python-side typing and introspection.
-
-    Represents opaque identifiers, backed by UUID in PostgreSQL.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:
-        """Return a user-friendly type name for introspection and debugging."""
-        return "ID"
+When SchemaConfig.id_policy is IDPolicy.UUID (default), IDs are validated
+as UUIDs at the input validation layer. When IDPolicy.OPAQUE, any string
+is accepted.
+"""

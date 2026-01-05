@@ -6,6 +6,7 @@ from enum import Enum
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import fraise_field
 
 
@@ -50,7 +51,7 @@ class ProductCategory(Enum):
 class User:
     """E-commerce user account."""
 
-    id: UUID
+    id: ID
     email: str = fraise_field(description="User's email address")
     name: str = fraise_field(description="Full name")
     phone: str | None = fraise_field(description="Phone number")
@@ -64,8 +65,8 @@ class User:
 class Address:
     """Shipping/billing address."""
 
-    id: UUID
-    user_id: UUID = fraise_field(description="User who owns this address")
+    id: ID
+    user_id: ID = fraise_field(description="User who owns this address")
     label: str = fraise_field(description="Address label (Home, Work, etc)")
     street1: str = fraise_field(description="Street address line 1")
     street2: str | None = fraise_field(description="Street address line 2")
@@ -81,7 +82,7 @@ class Address:
 class Product:
     """Product in the catalog."""
 
-    id: UUID
+    id: ID
     sku: str = fraise_field(description="Stock keeping unit")
     name: str = fraise_field(description="Product name")
     description: str = fraise_field(description="Product description")
@@ -102,8 +103,8 @@ class Product:
 class Cart:
     """Shopping cart."""
 
-    id: UUID
-    user_id: UUID | None = fraise_field(description="User ID if logged in")
+    id: ID
+    user_id: ID | None = fraise_field(description="User ID if logged in")
     session_id: str | None = fraise_field(description="Session ID for guests")
     items_count: int = fraise_field(default=0, description="Number of items")
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
@@ -116,9 +117,9 @@ class Cart:
 class CartItem:
     """Item in shopping cart."""
 
-    id: UUID
-    cart_id: UUID = fraise_field(description="Cart this item belongs to")
-    product_id: UUID = fraise_field(description="Product being purchased")
+    id: ID
+    cart_id: ID = fraise_field(description="Cart this item belongs to")
+    product_id: ID = fraise_field(description="Product being purchased")
     quantity: int = fraise_field(description="Quantity to purchase")
     price: Decimal = fraise_field(description="Price at time of adding")
     created_at: datetime
@@ -129,15 +130,15 @@ class CartItem:
 class Order:
     """Customer order."""
 
-    id: UUID
+    id: ID
     order_number: str = fraise_field(description="Human-readable order number")
-    user_id: UUID = fraise_field(description="Customer who placed order")
+    user_id: ID = fraise_field(description="Customer who placed order")
     status: OrderStatus = fraise_field(description="Current order status")
     payment_status: PaymentStatus = fraise_field(description="Payment status")
 
     # Addresses
-    shipping_address_id: UUID = fraise_field(description="Shipping address")
-    billing_address_id: UUID = fraise_field(description="Billing address")
+    shipping_address_id: ID = fraise_field(description="Shipping address")
+    billing_address_id: ID = fraise_field(description="Billing address")
 
     # Amounts
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
@@ -161,9 +162,9 @@ class Order:
 class OrderItem:
     """Item in an order."""
 
-    id: UUID
-    order_id: UUID = fraise_field(description="Order this item belongs to")
-    product_id: UUID = fraise_field(description="Product ordered")
+    id: ID
+    order_id: ID = fraise_field(description="Order this item belongs to")
+    product_id: ID = fraise_field(description="Product ordered")
     quantity: int = fraise_field(description="Quantity ordered")
     price: Decimal = fraise_field(description="Price per unit at order time")
     total: Decimal = fraise_field(description="Line total (price * quantity)")
@@ -174,10 +175,10 @@ class OrderItem:
 class Review:
     """Product review."""
 
-    id: UUID
-    product_id: UUID = fraise_field(description="Product being reviewed")
-    user_id: UUID = fraise_field(description="User who wrote review")
-    order_id: UUID | None = fraise_field(description="Associated order")
+    id: ID
+    product_id: ID = fraise_field(description="Product being reviewed")
+    user_id: ID = fraise_field(description="User who wrote review")
+    order_id: ID | None = fraise_field(description="Associated order")
     rating: int = fraise_field(description="Rating 1-5")
     title: str = fraise_field(description="Review title")
     comment: str = fraise_field(description="Review text")
@@ -191,7 +192,7 @@ class Review:
 class Coupon:
     """Discount coupon."""
 
-    id: UUID
+    id: ID
     code: str = fraise_field(description="Coupon code")
     description: str = fraise_field(description="Coupon description")
     discount_type: str = fraise_field(description="percentage or fixed")
@@ -209,9 +210,9 @@ class Coupon:
 class WishlistItem:
     """User's wishlist item."""
 
-    id: UUID
-    user_id: UUID = fraise_field(description="User who added item")
-    product_id: UUID = fraise_field(description="Product in wishlist")
+    id: ID
+    user_id: ID = fraise_field(description="User who added item")
+    product_id: ID = fraise_field(description="Product in wishlist")
     added_at: datetime = fraise_field(description="When added to wishlist")
 
 
@@ -240,7 +241,7 @@ class LoginInput:
 class AddToCartInput:
     """Add item to cart input."""
 
-    product_id: UUID
+    product_id: ID
     quantity: int = 1
 
 
@@ -248,7 +249,7 @@ class AddToCartInput:
 class UpdateCartItemInput:
     """Update cart item input."""
 
-    cart_item_id: UUID
+    cart_item_id: ID
     quantity: int
 
 
@@ -256,8 +257,8 @@ class UpdateCartItemInput:
 class CheckoutInput:
     """Checkout input."""
 
-    shipping_address_id: UUID
-    billing_address_id: UUID | None = None  # Use shipping if not provided
+    shipping_address_id: ID
+    billing_address_id: ID | None = None  # Use shipping if not provided
     coupon_code: str | None = None
     notes: str | None = None
 
@@ -280,7 +281,7 @@ class CreateAddressInput:
 class CreateReviewInput:
     """Create review input."""
 
-    product_id: UUID
+    product_id: ID
     rating: int  # 1-5
     title: str
     comment: str

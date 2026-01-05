@@ -15,6 +15,7 @@ from uuid import UUID
 from graphql import GraphQLResolveInfo
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.db import DatabaseQuery
 from fraiseql.patterns import TrinityMixin, get_pk_column_name
 
@@ -59,7 +60,7 @@ class User(TrinityMixin):
     """
 
     # Public Trinity IDs (exposed in GraphQL)
-    id: UUID
+    id: ID
     identifier: str | None  # @username
 
     # User data
@@ -100,7 +101,7 @@ class Post(TrinityMixin):
     """
 
     # Public Trinity IDs (exposed in GraphQL)
-    id: UUID
+    id: ID
     identifier: str | None  # post-slug
 
     # Post data
@@ -112,7 +113,7 @@ class Post(TrinityMixin):
     published_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    author_id: UUID  # ✅ UUID relationship from view
+    author_id: ID  # ✅ UUID relationship from view
 
     @fraiseql.field
     async def author(self, info: GraphQLResolveInfo) -> User:
@@ -159,16 +160,16 @@ class Comment(TrinityMixin):
     """
 
     # Public Trinity IDs (exposed in GraphQL)
-    id: UUID
+    id: ID
 
     # Comment data
     content: str
     status: CommentStatus
     created_at: datetime
     updated_at: datetime
-    post_id: UUID  # ✅ UUID relationship from view
-    author_id: UUID  # ✅ UUID relationship from view
-    parent_id: UUID | None  # ✅ UUID relationship from view
+    post_id: ID  # ✅ UUID relationship from view
+    author_id: ID  # ✅ UUID relationship from view
+    parent_id: ID | None  # ✅ UUID relationship from view
 
     @fraiseql.field
     async def author(self, info: GraphQLResolveInfo) -> User:
@@ -196,7 +197,7 @@ class Tag(TrinityMixin):
     """
 
     # Public Trinity IDs (exposed in GraphQL)
-    id: UUID
+    id: ID
     identifier: str | None  # tag-slug
 
     # Tag data
@@ -255,9 +256,9 @@ class UpdatePostInput:
 class CreateCommentInput:
     """Input for creating a comment."""
 
-    post_id: UUID  # Public UUID (will be converted to fk_post)
+    post_id: ID  # Public UUID (will be converted to fk_post)
     content: str
-    parent_id: UUID | None = None  # Public UUID (will be converted to fk_parent)
+    parent_id: ID | None = None  # Public UUID (will be converted to fk_parent)
 
 
 @fraiseql.input
@@ -339,7 +340,7 @@ class NotFoundError:
     message: str
     code: str = "NOT_FOUND"
     entity_type: str | None = None
-    entity_id: UUID | None = None
+    entity_id: ID | None = None
 
 
 @fraiseql.error
@@ -440,7 +441,7 @@ async def posts(
 @fraiseql.query
 async def post(
     info: GraphQLResolveInfo,
-    id: UUID | None = None,
+    id: ID | None = None,
     identifier: str | None = None,
 ) -> Post | None:
     """Get a single post by UUID id or text identifier."""
@@ -459,7 +460,7 @@ async def post(
 @fraiseql.query
 async def user(
     info: GraphQLResolveInfo,
-    id: UUID | None = None,
+    id: ID | None = None,
     identifier: str | None = None,
 ) -> User | None:
     """Get a single user by UUID id or text identifier."""
@@ -478,7 +479,7 @@ async def user(
 @fraiseql.query
 async def tag(
     info: GraphQLResolveInfo,
-    id: UUID | None = None,
+    id: ID | None = None,
     identifier: str | None = None,
 ) -> Tag | None:
     """Get a single tag by UUID id or text identifier."""

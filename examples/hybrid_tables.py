@@ -8,6 +8,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 from fraiseql.db import FraiseQLRepository
 
@@ -15,7 +16,7 @@ from fraiseql.db import FraiseQLRepository
 @fraiseql.type
 class Product:
     """Product with CQRS pattern - writes to table, reads from view."""
-    id: UUID
+    id: ID
     name: str
     description: str
     price: float
@@ -91,7 +92,7 @@ def get_products(
 @fraiseql.query
 def get_product(
     info: Info,
-    id: UUID
+    id: ID
 ) -> Product | None:
     """Get a single product by ID from the read view."""
     return info.context.repo.find_one("products_view", id=id)
@@ -134,7 +135,7 @@ async def create_product(
 @fraiseql.mutation
 async def update_product_stock(
     info: Info,
-    id: UUID,
+    id: ID,
     quantity_delta: int
 ) -> Product:
     """Update product stock - uses a transaction for ACID guarantees.

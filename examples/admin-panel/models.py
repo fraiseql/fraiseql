@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import fraise_field
 
 
@@ -16,7 +17,7 @@ from fraiseql import fraise_field
 class CustomerInfo:
     """Customer information for support dashboard."""
 
-    id: UUID = fraise_field(description="Customer unique identifier")
+    id: ID = fraise_field(description="Customer unique identifier")
     email: str = fraise_field(description="Customer email address")
     name: str = fraise_field(description="Customer full name")
     created_at: datetime = fraise_field(description="Account creation date")
@@ -29,12 +30,12 @@ class CustomerInfo:
 class SupportTicket:
     """Customer support ticket."""
 
-    id: UUID = fraise_field(description="Ticket unique identifier")
-    customer_id: UUID = fraise_field(description="Customer who created ticket")
+    id: ID = fraise_field(description="Ticket unique identifier")
+    customer_id: ID = fraise_field(description="Customer who created ticket")
     subject: str = fraise_field(description="Ticket subject")
     status: str = fraise_field(description="Ticket status")
     priority: str = fraise_field(description="Ticket priority")
-    assigned_to_id: UUID | None = fraise_field(description="Assigned support agent")
+    assigned_to_id: ID | None = fraise_field(description="Assigned support agent")
     created_at: datetime = fraise_field(description="Ticket creation date")
     updated_at: datetime = fraise_field(description="Last update timestamp")
 
@@ -43,9 +44,9 @@ class SupportTicket:
 class Order:
     """Customer order information."""
 
-    id: UUID = fraise_field(description="Order unique identifier")
+    id: ID = fraise_field(description="Order unique identifier")
     order_number: str = fraise_field(description="Human-readable order number")
-    customer_id: UUID = fraise_field(description="Customer who placed order")
+    customer_id: ID = fraise_field(description="Customer who placed order")
     total: Decimal = fraise_field(description="Order total amount")
     status: str = fraise_field(description="Order fulfillment status")
     created_at: datetime = fraise_field(description="Order creation date")
@@ -57,8 +58,8 @@ class Order:
 class OrderItem:
     """Individual item in an order."""
 
-    id: UUID = fraise_field(description="Order item unique identifier")
-    order_id: UUID = fraise_field(description="Parent order ID")
+    id: ID = fraise_field(description="Order item unique identifier")
+    order_id: ID = fraise_field(description="Parent order ID")
     product_name: str = fraise_field(description="Product name")
     product_sku: str = fraise_field(description="Product SKU")
     quantity: int = fraise_field(description="Quantity ordered")
@@ -86,7 +87,7 @@ class OperationsMetrics:
 class SalesMetrics:
     """Sales team performance metrics."""
 
-    rep_id: UUID = fraise_field(description="Sales representative ID")
+    rep_id: ID = fraise_field(description="Sales representative ID")
     rep_name: str = fraise_field(description="Sales representative name")
     current_month_revenue: Decimal = fraise_field(description="Revenue this month")
     quota_attainment: float = fraise_field(description="Quota attainment percentage")
@@ -99,7 +100,7 @@ class SalesMetrics:
 class Deal:
     """Sales deal/opportunity."""
 
-    id: UUID = fraise_field(description="Deal unique identifier")
+    id: ID = fraise_field(description="Deal unique identifier")
     company_name: str = fraise_field(description="Company name")
     contact_name: str = fraise_field(description="Primary contact name")
     contact_email: str = fraise_field(description="Primary contact email")
@@ -107,7 +108,7 @@ class Deal:
     amount: Decimal = fraise_field(description="Deal value")
     probability: int = fraise_field(description="Win probability percentage")
     expected_close_date: datetime = fraise_field(description="Expected close date")
-    assigned_to_id: UUID = fraise_field(description="Sales rep ID")
+    assigned_to_id: ID = fraise_field(description="Sales rep ID")
     created_at: datetime = fraise_field(description="Deal creation date")
     updated_at: datetime = fraise_field(description="Last update timestamp")
     notes: str | None = fraise_field(description="Deal notes")
@@ -117,7 +118,7 @@ class Deal:
 class AdminUser:
     """Admin panel user."""
 
-    id: UUID = fraise_field(description="Admin user unique identifier")
+    id: ID = fraise_field(description="Admin user unique identifier")
     email: str = fraise_field(description="Admin email address")
     name: str = fraise_field(description="Admin full name")
     role: str = fraise_field(description="Admin role")
@@ -129,11 +130,11 @@ class AdminUser:
 class AuditLogEntry:
     """Audit log entry for admin actions."""
 
-    id: UUID = fraise_field(description="Log entry unique identifier")
-    admin_user_id: UUID = fraise_field(description="Admin who performed action")
+    id: ID = fraise_field(description="Log entry unique identifier")
+    admin_user_id: ID = fraise_field(description="Admin who performed action")
     action: str = fraise_field(description="Action type")
     target_type: str | None = fraise_field(description="Target entity type")
-    target_id: UUID | None = fraise_field(description="Target entity ID")
+    target_id: ID | None = fraise_field(description="Target entity ID")
     details: dict = fraise_field(description="Action details")
     ip_address: str | None = fraise_field(description="Admin IP address")
     created_at: datetime = fraise_field(description="Action timestamp")
@@ -152,7 +153,7 @@ class CustomerUpdateInput:
 class OrderStatusUpdateInput:
     """Input for updating order status."""
 
-    order_id: UUID = fraise_field(description="Order to update")
+    order_id: ID = fraise_field(description="Order to update")
     new_status: str = fraise_field(description="New order status")
     notes: str | None = fraise_field(description="Status change notes")
 
@@ -161,7 +162,7 @@ class OrderStatusUpdateInput:
 class DealUpdateInput:
     """Input for updating deal information."""
 
-    deal_id: UUID = fraise_field(description="Deal to update")
+    deal_id: ID = fraise_field(description="Deal to update")
     stage: str | None = fraise_field(description="New deal stage")
     amount: Decimal | None = fraise_field(description="Updated deal value")
     probability: int | None = fraise_field(description="Win probability (0-100)")

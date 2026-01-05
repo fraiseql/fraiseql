@@ -11,15 +11,16 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from fraiseql import QueryType, register_type
+from fraiseql.types import ID
 
 
 # Base Types
 class Category(BaseModel):
-    id: UUID
+    id: ID
     name: str
     slug: str
     description: str | None = None
-    parent_id: UUID | None = None
+    parent_id: ID | None = None
     image_url: str | None = None
     is_active: bool = True
     created_at: datetime
@@ -27,7 +28,7 @@ class Category(BaseModel):
 
 
 class ProductImage(BaseModel):
-    id: UUID
+    id: ID
     url: str
     alt_text: str | None = None
     position: int = 0
@@ -35,7 +36,7 @@ class ProductImage(BaseModel):
 
 
 class ProductVariant(BaseModel):
-    id: UUID
+    id: ID
     sku: str
     name: str
     price: Decimal
@@ -45,13 +46,13 @@ class ProductVariant(BaseModel):
 
 
 class Product(BaseModel):
-    id: UUID
+    id: ID
     sku: str
     name: str
     slug: str
     description: str | None = None
     short_description: str | None = None
-    category_id: UUID | None = None
+    category_id: ID | None = None
     brand: str | None = None
     tags: list[str] = Field(default_factory=list)
     is_active: bool = True
@@ -91,7 +92,7 @@ class CategoryTree(Category):
 
 # Customer Types
 class Customer(BaseModel):
-    id: UUID
+    id: ID
     email: str
     first_name: str | None = None
     last_name: str | None = None
@@ -105,8 +106,8 @@ class Customer(BaseModel):
 
 
 class Address(BaseModel):
-    id: UUID
-    customer_id: UUID
+    id: ID
+    customer_id: ID
     type: str  # billing, shipping, both
     first_name: str
     last_name: str
@@ -125,8 +126,8 @@ class Address(BaseModel):
 
 # Cart Types
 class Cart(BaseModel):
-    id: UUID
-    customer_id: UUID | None = None
+    id: ID
+    customer_id: ID | None = None
     session_id: str | None = None
     status: str = "active"
     expires_at: datetime
@@ -136,9 +137,9 @@ class Cart(BaseModel):
 
 
 class CartItem(BaseModel):
-    id: UUID
-    cart_id: UUID
-    variant_id: UUID
+    id: ID
+    cart_id: ID
+    variant_id: ID
     quantity: int
     price_at_time: Decimal
     created_at: datetime
@@ -157,9 +158,9 @@ class ShoppingCart(Cart):
 
 # Order Types
 class Order(BaseModel):
-    id: UUID
+    id: ID
     order_number: str
-    customer_id: UUID
+    customer_id: ID
     status: str = "pending"
     subtotal: Decimal
     tax_amount: Decimal = Decimal("0.00")
@@ -169,8 +170,8 @@ class Order(BaseModel):
     currency_code: str = "USD"
     payment_status: str = "pending"
     fulfillment_status: str = "unfulfilled"
-    shipping_address_id: UUID | None = None
-    billing_address_id: UUID | None = None
+    shipping_address_id: ID | None = None
+    billing_address_id: ID | None = None
     notes: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
@@ -178,9 +179,9 @@ class Order(BaseModel):
 
 
 class OrderItem(BaseModel):
-    id: UUID
-    order_id: UUID
-    variant_id: UUID
+    id: ID
+    order_id: ID
+    variant_id: ID
     quantity: int
     unit_price: Decimal
     total_price: Decimal
@@ -199,10 +200,10 @@ class OrderDetail(Order):
 
 # Review Types
 class Review(BaseModel):
-    id: UUID
-    product_id: UUID
-    customer_id: UUID
-    order_id: UUID | None = None
+    id: ID
+    product_id: ID
+    customer_id: ID
+    order_id: ID | None = None
     rating: int
     title: str | None = None
     comment: str | None = None
@@ -223,8 +224,8 @@ class ProductReview(Review):
 
 # Wishlist Types
 class Wishlist(BaseModel):
-    id: UUID
-    customer_id: UUID
+    id: ID
+    customer_id: ID
     name: str = "My Wishlist"
     is_public: bool = False
     created_at: datetime
@@ -232,10 +233,10 @@ class Wishlist(BaseModel):
 
 
 class WishlistItem(BaseModel):
-    id: UUID
-    wishlist_id: UUID
-    product_id: UUID
-    variant_id: UUID | None = None
+    id: ID
+    wishlist_id: ID
+    product_id: ID
+    variant_id: ID | None = None
     priority: int = 0
     notes: str | None = None
     created_at: datetime
@@ -264,8 +265,8 @@ class OrderAnalytics(BaseModel):
 
 # Inventory Types
 class InventoryAlert(BaseModel):
-    id: UUID
-    variant_id: UUID
+    id: ID
+    variant_id: ID
     quantity: int
     reserved_quantity: int
     warehouse_location: str | None = None
@@ -273,7 +274,7 @@ class InventoryAlert(BaseModel):
     updated_at: datetime
     variant_sku: str
     variant_name: str
-    product_id: UUID
+    product_id: ID
     product_name: str
     product_sku: str
     available_quantity: int
@@ -282,7 +283,7 @@ class InventoryAlert(BaseModel):
 
 # Coupon Types
 class Coupon(BaseModel):
-    id: UUID
+    id: ID
     code: str
     description: str | None = None
     discount_type: str  # percentage, fixed_amount
@@ -321,29 +322,29 @@ class MutationResult(BaseModel):
 
 
 class CartMutationResult(MutationResult):
-    cart_id: UUID | None = None
-    cart_item_id: UUID | None = None
+    cart_id: ID | None = None
+    cart_item_id: ID | None = None
     cart: dict[str, Any] | None = None
 
 
 class OrderMutationResult(MutationResult):
-    order_id: UUID | None = None
+    order_id: ID | None = None
     order_number: str | None = None
     total_amount: Decimal | None = None
     order: dict[str, Any] | None = None
 
 
 class CustomerMutationResult(MutationResult):
-    customer_id: UUID | None = None
+    customer_id: ID | None = None
     customer: dict[str, Any] | None = None
 
 
 class AddressMutationResult(MutationResult):
-    address_id: UUID | None = None
+    address_id: ID | None = None
 
 
 class ReviewMutationResult(MutationResult):
-    review_id: UUID | None = None
+    review_id: ID | None = None
     is_verified_purchase: bool | None = None
 
 

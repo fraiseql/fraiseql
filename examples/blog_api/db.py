@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fraiseql.cqrs import CQRSRepository as BaseCQRSRepository
+from fraiseql.types import ID
 
 
 def to_camel_case(snake_str: str) -> str:
@@ -21,7 +22,7 @@ class BlogRepository(BaseCQRSRepository):
 
     # Query operations (using new generic pattern)
 
-    async def get_user_by_id(self, user_id: UUID) -> dict[str, Any | None]:
+    async def get_user_by_id(self, user_id: ID) -> dict[str, Any | None]:
         """Get user by ID."""
         return await self.get_by_id("v_users", user_id)
 
@@ -29,7 +30,7 @@ class BlogRepository(BaseCQRSRepository):
         """Get user by email."""
         return await self.select_one_from_json_view("v_users", where={"email": email})
 
-    async def get_post_by_id(self, post_id: UUID) -> dict[str, Any | None]:
+    async def get_post_by_id(self, post_id: ID) -> dict[str, Any | None]:
         """Get post by ID with comments."""
         post_data = await self.get_by_id("v_posts", post_id)
         if post_data:
@@ -87,7 +88,7 @@ class BlogRepository(BaseCQRSRepository):
 
         return posts_data
 
-    async def get_comments_by_post(self, post_id: UUID) -> list[dict[str, Any]]:
+    async def get_comments_by_post(self, post_id: ID) -> list[dict[str, Any]]:
         """Get comments for a post."""
         return await self.select_from_json_view(
             "v_comments",
@@ -113,11 +114,11 @@ class BlogRepository(BaseCQRSRepository):
         """Create a new comment."""
         return await self.create("comment", input_data)
 
-    async def delete_post(self, post_id: UUID) -> dict[str, Any]:
+    async def delete_post(self, post_id: ID) -> dict[str, Any]:
         """Delete a post."""
         return await self.delete("post", post_id)
 
-    async def increment_view_count(self, post_id: UUID) -> dict[str, Any]:
+    async def increment_view_count(self, post_id: ID) -> dict[str, Any]:
         """Increment post view count."""
         return await self.call_function(
             "fn_increment_view_count",

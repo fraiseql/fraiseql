@@ -6,6 +6,7 @@ from uuid import UUID
 from models import Comment, Post, PostFilters, PostOrderBy, User
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.auth import requires_auth
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 
 
 @fraiseql.query
-async def user(info, id: UUID) -> User | None:
+async def user(info, id: ID) -> User | None:
     """Get a user by ID."""
     db: BlogRepository = info.context["db"]
     user_data = await db.get_user_by_id(id)
@@ -31,7 +32,7 @@ async def me(info) -> User | None:
 
 
 @fraiseql.query
-async def post(info, id: UUID) -> Post | None:
+async def post(info, id: ID) -> Post | None:
     """Get a post by ID."""
     db: BlogRepository = info.context["db"]
 
@@ -84,7 +85,7 @@ async def posts(
 
 
 @fraiseql.query
-async def comments(info, post_id: UUID) -> list[Comment]:
+async def comments(info, post_id: ID) -> list[Comment]:
     """Get all comments for a post."""
     db: BlogRepository = info.context["db"]
     comments_data = await db.get_comments_by_post(post_id)

@@ -7,6 +7,7 @@ import pytest
 import fraiseql
 from fraiseql import query
 from fraiseql.gql.builders import SchemaComposer, SchemaRegistry
+from fraiseql.types import ID
 
 
 @fraiseql.type
@@ -18,21 +19,23 @@ class Allocation:
 
 # Test query with id parameter
 @query
-async def allocation(info, id: UUID) -> Allocation | None:
+async def allocation(info, id: ID) -> Allocation | None:
     """Get allocation by ID."""
     # Simulate database lookup
+    # IDScalar parses the id to uuid.UUID, so compare as string
     if str(id) == "12345678-1234-5678-1234-567812345678":
-        return Allocation(id=id, identifier="TEST-001", machine_id=None)
+        return Allocation(id=id if isinstance(id, UUID) else UUID(id), identifier="TEST-001", machine_id=None)
     return None
 
 
 # Test query with id_ parameter (workaround)
 @query
-async def allocation_workaround(info, id_: UUID) -> Allocation | None:
+async def allocation_workaround(info, id_: ID) -> Allocation | None:
     """Get allocation by ID using id_ parameter."""
     # Simulate database lookup
+    # IDScalar parses the id to uuid.UUID, so compare as string
     if str(id_) == "12345678-1234-5678-1234-567812345678":
-        return Allocation(id=id_, identifier="TEST-001", machine_id=None)
+        return Allocation(id=id_ if isinstance(id_, UUID) else UUID(id_), identifier="TEST-001", machine_id=None)
     return None
 
 
