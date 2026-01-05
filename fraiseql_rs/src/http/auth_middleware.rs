@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_claims_to_user_context_with_permissions() {
-        let mut custom: std::collections::HashMap<String, serde_json::Value> = Default::default();
+        let _custom: std::collections::HashMap<String, serde_json::Value> = Default::default();
         let permissions_json = serde_json::json!(["read", "write"]);
         // We need to manually construct this since Claims has HashMap<String, Value>
         let claims = Claims {

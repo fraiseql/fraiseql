@@ -26,7 +26,7 @@ mod tests {
         let cache_key = "query:user:1";
         let result1 = json!({"user": {"id": "1", "name": "Alice"}});
 
-        assert!(cache.get(&cache_key).unwrap().is_none());
+        assert!(cache.get(cache_key).unwrap().is_none());
         monitor.record_miss();
 
         // Store in cache
@@ -40,7 +40,7 @@ mod tests {
         monitor.record_cache_entry();
 
         // Step 2: Second query - cache hit
-        let cached = cache.get(&cache_key).unwrap();
+        let cached = cache.get(cache_key).unwrap();
         assert!(cached.is_some());
         assert_eq!(cached.unwrap(), Arc::new(result1.clone()));
         monitor.record_hit();

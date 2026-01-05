@@ -79,7 +79,7 @@ pub struct FailureInjector {
 impl FailureInjector {
     /// Create a failure injector with given failure rate
     pub fn new(failure_rate: f64) -> Self {
-        let rate = failure_rate.max(0.0).min(1.0);
+        let rate = failure_rate.clamp(0.0, 1.0);
         Self { failure_rate: rate }
     }
 
@@ -145,17 +145,9 @@ impl ResourceMonitor {
         let peak = self.peak_memory.load(Ordering::Relaxed);
         let operations = self.operation_count.load(Ordering::Relaxed);
 
-        let memory_delta = if current >= self.start_memory {
-            current - self.start_memory
-        } else {
-            0
-        };
+        let memory_delta = current.saturating_sub(self.start_memory);
 
-        let peak_delta = if peak >= self.start_memory {
-            peak - self.start_memory
-        } else {
-            0
-        };
+        let peak_delta = peak.saturating_sub(self.start_memory);
 
         let ops_per_sec = if elapsed.as_secs_f64() > 0.0 {
             operations as f64 / elapsed.as_secs_f64()

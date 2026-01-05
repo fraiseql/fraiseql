@@ -394,19 +394,17 @@ pub fn init_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
+    #[ignore = "Test not yet implemented - requires PostgreSQL instance"]
     fn test_py_axum_server_new() {
         // Test that server creation works with valid connection string
         // Note: This requires a running PostgreSQL instance
         // For CI/CD, this would use test fixtures
-        assert!(true); // Placeholder
     }
 
     #[test]
+    #[ignore = "Test not yet implemented - requires running server"]
     fn test_py_axum_server_lifecycle() {
         // Test that is_running flag works correctly
-        assert!(true); // Placeholder
     }
 }

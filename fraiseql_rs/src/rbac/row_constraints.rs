@@ -56,7 +56,7 @@ pub enum ConstraintType {
 
 impl ConstraintType {
     /// Parse constraint type from string
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         match s {
             "ownership" => Ok(Self::Ownership),
             "tenant" => Ok(Self::Tenant),
@@ -311,7 +311,7 @@ impl RowConstraintResolver {
         let constraint = RowConstraint {
             table_name: row.get(0),
             role_id: Uuid::parse_str(&row.get::<_, String>(1))?,
-            constraint_type: ConstraintType::from_str(&row.get::<_, String>(2))?,
+            constraint_type: ConstraintType::parse(&row.get::<_, String>(2))?,
             field_name: row.get(3),
             expression: row.get(4),
         };
@@ -337,18 +337,18 @@ mod tests {
     #[test]
     fn test_constraint_type_parsing() {
         assert_eq!(
-            ConstraintType::from_str("ownership").unwrap(),
+            ConstraintType::parse("ownership").unwrap(),
             ConstraintType::Ownership
         );
         assert_eq!(
-            ConstraintType::from_str("tenant").unwrap(),
+            ConstraintType::parse("tenant").unwrap(),
             ConstraintType::Tenant
         );
         assert_eq!(
-            ConstraintType::from_str("expression").unwrap(),
+            ConstraintType::parse("expression").unwrap(),
             ConstraintType::Expression
         );
-        assert!(ConstraintType::from_str("invalid").is_err());
+        assert!(ConstraintType::parse("invalid").is_err());
     }
 
     #[test]

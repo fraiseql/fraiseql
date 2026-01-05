@@ -364,8 +364,10 @@ mod tests {
 
     #[test]
     fn test_lru_eviction_when_full() {
-        let mut config = QueryResultCacheConfig::default();
-        config.max_entries = 3;
+        let config = QueryResultCacheConfig {
+            max_entries: 3,
+            ..QueryResultCacheConfig::default()
+        };
 
         let cache = QueryResultCache::new(config);
 

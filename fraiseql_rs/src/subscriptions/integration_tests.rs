@@ -869,6 +869,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[allow(clippy::excessive_nesting)]
     async fn test_event_bus_throughput_with_rapid_events() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
@@ -1382,6 +1383,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[allow(clippy::excessive_nesting)]
     async fn test_load_large_event_payload() {
         use crate::subscriptions::event_bus::{Event, EventBus, InMemoryEventBus};
 
@@ -2040,10 +2042,8 @@ mod tests {
         // Wait for all subscriptions
         let mut streams = vec![];
         for handle in handles {
-            if let Ok(stream) = handle.await {
-                if let Ok(s) = stream {
-                    streams.push(s);
-                }
+            if let Ok(Ok(s)) = handle.await {
+                streams.push(s);
             }
         }
 
@@ -3075,7 +3075,7 @@ mod tests {
         let standalone = FederationContext::standalone();
         assert!(
             standalone.matches(&same_subgraph).to_string() != "true"
-                || standalone.matches(&same_subgraph) == false,
+                || !standalone.matches(&same_subgraph),
             "Non-federated environment should reject federation context"
         );
 
@@ -4553,6 +4553,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::excessive_nesting)]
     async fn test_perf_concurrent_filtering_scale() {
         println!("\n=== test_perf_concurrent_filtering_scale ===");
         println!("Testing: Concurrent filtering at scale");
@@ -4655,6 +4656,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::excessive_nesting)]
     async fn test_perf_rejection_categorization_cost() {
         println!("\n=== test_perf_rejection_categorization_cost ===");
         println!("Testing: Rejection categorization overhead");

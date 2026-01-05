@@ -4,7 +4,7 @@
 //! connection pooling work together correctly in production scenarios.
 
 #[cfg(test)]
-mod http2_integration_tests {
+mod tests {
     use crate::http::batch_requests::{SingleGraphQLRequest, SingleGraphQLResponse};
     use crate::http::*;
 

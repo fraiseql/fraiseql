@@ -10,8 +10,7 @@
 //! - Observability (metrics, audit logging)
 
 #[cfg(test)]
-mod tests {
-    use super::super::*;
+mod integration_tests {
     use axum::http::StatusCode;
     use serde_json::json;
 
@@ -357,6 +356,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[allow(clippy::excessive_nesting)]
     fn test_concurrent_metrics_recording() {
         let metrics = std::sync::Arc::new(crate::http::HttpMetrics::new());
         use std::time::Duration;
@@ -399,9 +399,8 @@ mod tests {
 
     #[test]
     fn test_compression_config_default() {
-        let config = crate::http::middleware::CompressionConfig::default();
-        // Verify default compression is configured
-        assert!(true); // Config creation successful
+        let _config = crate::http::middleware::CompressionConfig::default();
+        // Config creation successful - test passes if no panic
     }
 
     #[test]
@@ -418,17 +417,17 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[ignore = "Test not yet implemented - requires rate limiter integration"]
     fn test_rate_limit_checking() {
         // Rate limiter should track per-IP limits
         // This is a structural test - verify the module compiles
-        assert!(true);
     }
 
     #[test]
+    #[ignore = "Test not yet implemented - requires GraphQL validator integration"]
     fn test_graphql_validation() {
         // Query validation should reject invalid queries
         // This is a structural test - verify the module compiles
-        assert!(true);
     }
 
     // =========================================================================
@@ -470,16 +469,16 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[ignore = "Test not yet implemented - requires GraphQL pipeline"]
     fn test_app_state_creation() {
         // Verify AppState can be created with all required fields
         // This test would require a GraphQL pipeline, so we do structural check
-        assert!(true);
     }
 
     #[test]
+    #[ignore = "Test not yet implemented - requires GraphQL pipeline setup"]
     fn test_router_creation() {
         // Verify router can be created with all routes
         // This test would require GraphQL pipeline setup
-        assert!(true);
     }
 }

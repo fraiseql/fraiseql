@@ -8,15 +8,7 @@ mod benches {
     use super::super::optimization::*;
     use std::time::Instant;
 
-    /// Simulated request metadata for benchmarking
-    #[derive(Debug, Clone)]
-    struct MockRequest {
-        name: &'static str,
-        query_complexity: QueryComplexity,
-        is_cached: bool,
-    }
-
-    /// Query complexity classification
+    /// Query complexity classification for benchmark simulations
     #[derive(Debug, Clone, Copy, PartialEq)]
     enum QueryComplexity {
         Simple,

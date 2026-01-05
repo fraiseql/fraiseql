@@ -424,7 +424,7 @@ mod tests {
             )
             .unwrap();
 
-        let cascade = serde_json::json!({
+        let _cascade = serde_json::json!({
             "invalidations": {
                 "updated": [{"type": "User", "id": "2"}],
                 "deleted": []

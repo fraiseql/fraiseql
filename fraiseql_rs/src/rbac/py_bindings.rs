@@ -285,7 +285,7 @@ impl PyWhereMerger {
         // Parse JSON values
         let explicit_value = explicit_where
             .as_deref()
-            .map(|s| serde_json::from_str::<Value>(s))
+            .map(serde_json::from_str::<Value>)
             .transpose()
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
@@ -296,7 +296,7 @@ impl PyWhereMerger {
 
         let auth_value = auth_filter
             .as_deref()
-            .map(|s| serde_json::from_str::<Value>(s))
+            .map(serde_json::from_str::<Value>)
             .transpose()
             .map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(

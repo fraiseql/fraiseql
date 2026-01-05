@@ -252,8 +252,10 @@ mod tests {
 
     #[test]
     fn test_subscription_limit() {
-        let mut limits = SubscriptionLimits::default();
-        limits.max_subscriptions_per_connection = 2;
+        let limits = SubscriptionLimits {
+            max_subscriptions_per_connection: 2,
+            ..SubscriptionLimits::default()
+        };
 
         let manager = ConnectionManager::new(limits);
         let conn = manager.register_connection(Some(123), Some(456)).unwrap();

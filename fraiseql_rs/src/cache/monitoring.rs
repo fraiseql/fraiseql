@@ -610,7 +610,7 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(100));
 
-        let health = monitor.get_health(10, 100, 10 * 1024 * 1024);
+        let _health = monitor.get_health(10, 100, 10 * 1024 * 1024);
         // uptime_seconds is always >= 0 since it's u64
     }
 }
