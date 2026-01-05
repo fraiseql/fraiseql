@@ -10,11 +10,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from fraiseql import QueryType, register_type
+from fraiseql.types import ID
 
 
 # Base Types
 class User(BaseModel):
-    id: UUID
+    id: ID
     username: str
     email: str
     display_name: str | None = None
@@ -28,12 +29,12 @@ class User(BaseModel):
 
 
 class Room(BaseModel):
-    id: UUID
+    id: ID
     name: str
     slug: str
     description: str | None = None
     type: str  # public, private, direct
-    owner_id: UUID
+    owner_id: ID
     max_members: int = 1000
     is_active: bool = True
     settings: dict[str, Any] = Field(default_factory=dict)
@@ -42,9 +43,9 @@ class Room(BaseModel):
 
 
 class RoomMember(BaseModel):
-    id: UUID
-    room_id: UUID
-    user_id: UUID
+    id: ID
+    room_id: ID
+    user_id: ID
     role: str = "member"  # owner, admin, moderator, member
     joined_at: datetime
     last_read_at: datetime
@@ -54,12 +55,12 @@ class RoomMember(BaseModel):
 
 
 class Message(BaseModel):
-    id: UUID
-    room_id: UUID
-    user_id: UUID
+    id: ID
+    room_id: ID
+    user_id: ID
     content: str
     message_type: str = "text"  # text, image, file, system
-    parent_message_id: UUID | None = None
+    parent_message_id: ID | None = None
     edited_at: datetime | None = None
     is_deleted: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -67,8 +68,8 @@ class Message(BaseModel):
 
 
 class MessageAttachment(BaseModel):
-    id: UUID
-    message_id: UUID
+    id: ID
+    message_id: ID
     filename: str
     original_filename: str
     file_size: int
@@ -82,17 +83,17 @@ class MessageAttachment(BaseModel):
 
 
 class MessageReaction(BaseModel):
-    id: UUID
-    message_id: UUID
-    user_id: UUID
+    id: ID
+    message_id: ID
+    user_id: ID
     emoji: str
     created_at: datetime
 
 
 class UserPresence(BaseModel):
-    id: UUID
-    user_id: UUID
-    room_id: UUID | None = None
+    id: ID
+    user_id: ID
+    room_id: ID | None = None
     status: str  # online, away, typing
     last_activity: datetime
     session_id: str | None = None
@@ -100,18 +101,18 @@ class UserPresence(BaseModel):
 
 
 class TypingIndicator(BaseModel):
-    id: UUID
-    room_id: UUID
-    user_id: UUID
+    id: ID
+    room_id: ID
+    user_id: ID
     started_at: datetime
     expires_at: datetime
 
 
 class DirectConversation(BaseModel):
-    id: UUID
-    room_id: UUID
-    user1_id: UUID
-    user2_id: UUID
+    id: ID
+    room_id: ID
+    user1_id: ID
+    user2_id: ID
     created_at: datetime
 
 
@@ -140,8 +141,8 @@ class MessageThread(Message):
 
 
 class UserConversation(BaseModel):
-    user_id: UUID
-    room_id: UUID
+    user_id: ID
+    room_id: ID
     name: str
     slug: str
     type: str
@@ -160,7 +161,7 @@ class OnlineUser(User):
 
 
 class ActiveTyping(BaseModel):
-    room_id: UUID
+    room_id: ID
     typing_users: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -171,7 +172,7 @@ class MessageSearch(Message):
 
 
 class RoomAnalytics(BaseModel):
-    room_id: UUID
+    room_id: ID
     name: str
     type: str
     created_date: datetime
@@ -193,40 +194,40 @@ class MutationResult(BaseModel):
 
 
 class RoomMutationResult(MutationResult):
-    room_id: UUID | None = None
+    room_id: ID | None = None
 
 
 class MessageMutationResult(MutationResult):
-    message_id: UUID | None = None
+    message_id: ID | None = None
 
 
 class ConversationMutationResult(MutationResult):
-    room_id: UUID | None = None
-    conversation_id: UUID | None = None
+    room_id: ID | None = None
+    conversation_id: ID | None = None
 
 
 # Subscription Event Types
 class MessageEvent(BaseModel):
     event: str  # INSERT, UPDATE, DELETE
-    room_id: UUID
-    message_id: UUID
-    user_id: UUID
+    room_id: ID
+    message_id: ID
+    user_id: ID
     timestamp: datetime
     message: MessageThread | None = None
 
 
 class TypingEvent(BaseModel):
     event: str  # INSERT, UPDATE, DELETE
-    room_id: UUID
-    user_id: UUID
+    room_id: ID
+    user_id: ID
     timestamp: datetime
     user: dict[str, Any | None] = None
 
 
 class PresenceEvent(BaseModel):
     event: str  # INSERT, UPDATE, DELETE
-    user_id: UUID
-    room_id: UUID | None = None
+    user_id: ID
+    room_id: ID | None = None
     status: str
     timestamp: datetime
     user: dict[str, Any | None] = None
@@ -240,14 +241,14 @@ class WebSocketMessage(BaseModel):
 
 
 class RoomSubscription(BaseModel):
-    room_id: UUID
-    user_id: UUID
+    room_id: ID
+    user_id: ID
     session_id: str
 
 
 class PushSubscription(BaseModel):
-    id: UUID
-    user_id: UUID
+    id: ID
+    user_id: ID
     endpoint: str
     keys: dict[str, str]
     user_agent: str | None = None
@@ -257,11 +258,11 @@ class PushSubscription(BaseModel):
 
 
 class ModerationLog(BaseModel):
-    id: UUID
-    room_id: UUID
-    moderator_id: UUID
-    target_user_id: UUID | None = None
-    target_message_id: UUID | None = None
+    id: ID
+    room_id: ID
+    moderator_id: ID
+    target_user_id: ID | None = None
+    target_message_id: ID | None = None
     action: str  # ban, unban, kick, delete_message, etc.
     reason: str | None = None
     duration: str | None = None  # For temporary actions

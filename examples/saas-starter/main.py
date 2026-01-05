@@ -29,6 +29,7 @@ from models import (
 )
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import Info
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
@@ -121,7 +122,7 @@ async def projects(info: Info, limit: int = 50) -> list[Project]:
 
 
 @fraiseql.query
-async def project(info: Info, project_id: UUID) -> Project:
+async def project(info: Info, project_id: ID) -> Project:
     """Get project by ID (tenant-aware)."""
     org_id = info.context["organization_id"]
     db = info.context["db"]
@@ -228,7 +229,7 @@ async def create_project(info: Info, input: ProjectCreateInput) -> Project:
 
 
 @fraiseql.mutation
-async def update_project(info: Info, project_id: UUID, input: ProjectUpdateInput) -> Project:
+async def update_project(info: Info, project_id: ID, input: ProjectUpdateInput) -> Project:
     """Update project (tenant-aware)."""
     org_id = info.context["organization_id"]
     user_id = info.context["user_id"]
@@ -267,7 +268,7 @@ async def update_project(info: Info, project_id: UUID, input: ProjectUpdateInput
 
 
 @fraiseql.mutation
-async def delete_project(info: Info, project_id: UUID) -> bool:
+async def delete_project(info: Info, project_id: ID) -> bool:
     """Delete project (tenant-aware)."""
     org_id = info.context["organization_id"]
     user_id = info.context["user_id"]

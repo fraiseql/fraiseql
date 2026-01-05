@@ -6,6 +6,7 @@ Demonstrates FraiseQL's mutation system with real-time features
 from uuid import UUID
 
 import fraiseql
+from fraiseql.types import ID
 
 from .models import (
     ConversationMutationResult,
@@ -24,7 +25,7 @@ from .models import (
 async def create_room(
     name: str,
     slug: str,
-    owner_id: UUID,
+    owner_id: ID,
     description: str | None = None,
     type: str = "public",
     max_members: int = 1000,
@@ -35,8 +36,8 @@ async def create_room(
 
 @fraiseql.mutation(name="joinRoom", function="join_room", description="Join a chat room")
 async def join_room(
-    room_id: UUID,
-    user_id: UUID,
+    room_id: ID,
+    user_id: ID,
     role: str = "member",
 ) -> MutationResult:
     """Join an existing chat room"""
@@ -49,11 +50,11 @@ async def join_room(
     description="Send a message to a room",
 )
 async def send_message(
-    room_id: UUID,
-    user_id: UUID,
+    room_id: ID,
+    user_id: ID,
     content: str,
     message_type: str = "text",
-    parent_message_id: UUID | None = None,
+    parent_message_id: ID | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> MessageMutationResult:
     """Send a message to a chat room"""
@@ -65,8 +66,8 @@ async def send_message(
     description="Edit an existing message",
 )
 async def edit_message(
-    message_id: UUID,
-    user_id: UUID,
+    message_id: ID,
+    user_id: ID,
     new_content: str,
 ) -> MutationResult:
     """Edit a message (within time limit)"""
@@ -78,8 +79,8 @@ async def edit_message(
     description="Delete a message",
 )
 async def delete_message(
-    message_id: UUID,
-    user_id: UUID,
+    message_id: ID,
+    user_id: ID,
     is_moderator: bool = False,
 ) -> MutationResult:
     """Delete a message (soft delete)"""
@@ -92,8 +93,8 @@ async def delete_message(
     description="Add an emoji reaction to a message",
 )
 async def add_message_reaction(
-    message_id: UUID,
-    user_id: UUID,
+    message_id: ID,
+    user_id: ID,
     emoji: str,
 ) -> MutationResult:
     """Add emoji reaction to a message"""
@@ -105,8 +106,8 @@ async def add_message_reaction(
     description="Remove an emoji reaction from a message",
 )
 async def remove_message_reaction(
-    message_id: UUID,
-    user_id: UUID,
+    message_id: ID,
+    user_id: ID,
     emoji: str,
 ) -> MutationResult:
     """Remove emoji reaction from a message"""
@@ -119,9 +120,9 @@ async def remove_message_reaction(
     description="Update user presence status",
 )
 async def update_user_presence(
-    user_id: UUID,
+    user_id: ID,
     status: str = "online",
-    room_id: UUID | None = None,
+    room_id: ID | None = None,
     session_id: str | None = None,
 ) -> MutationResult:
     """Update user online presence"""
@@ -133,8 +134,8 @@ async def update_user_presence(
     description="Set or clear typing indicator",
 )
 async def set_typing_indicator(
-    room_id: UUID,
-    user_id: UUID,
+    room_id: ID,
+    user_id: ID,
     is_typing: bool = True,
 ) -> MutationResult:
     """Set or clear typing indicator"""
@@ -147,9 +148,9 @@ async def set_typing_indicator(
     description="Mark messages as read up to a certain point",
 )
 async def mark_messages_read(
-    room_id: UUID,
-    user_id: UUID,
-    up_to_message_id: UUID | None = None,
+    room_id: ID,
+    user_id: ID,
+    up_to_message_id: ID | None = None,
 ) -> MutationResult:
     """Mark messages as read in a room"""
 
@@ -161,7 +162,7 @@ async def mark_messages_read(
     description="Create or get a direct message conversation",
 )
 async def create_direct_conversation(
-    user1_id: UUID,
-    user2_id: UUID,
+    user1_id: ID,
+    user2_id: ID,
 ) -> ConversationMutationResult:
     """Create or retrieve a direct message conversation"""

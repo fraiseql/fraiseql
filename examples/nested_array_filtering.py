@@ -22,6 +22,7 @@ from fraiseql.nested_array_filters import (
     register_nested_array_filter,
 )
 from fraiseql.types import fraise_type
+from fraiseql.types import ID
 
 
 # Step 1: Define your types normally (no verbose fraise_field)
@@ -29,7 +30,7 @@ from fraiseql.types import fraise_type
 class PrintServer:
     """A print server in a network configuration."""
 
-    id: uuid.UUID
+    id: ID
     hostname: str
     ip_address: str | None = None
     operating_system: str
@@ -42,7 +43,7 @@ class PrintServer:
 class NetworkConfiguration:
     """Network configuration with automatically filterable nested arrays."""
 
-    id: uuid.UUID
+    id: ID
     identifier: str
     name: str
     # Simple, clean field definition - filtering enabled automatically!
@@ -55,7 +56,7 @@ class NetworkConfiguration:
 class OtherNetworkConfig:
     """Network configuration with selectively filterable arrays."""
 
-    id: uuid.UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(default_factory=list)
     # This field won't have filtering unless explicitly registered
@@ -67,7 +68,7 @@ class OtherNetworkConfig:
 class ManualNetworkConfig:
     """Network configuration with manually registered filtering."""
 
-    id: uuid.UUID
+    id: ID
     name: str
     print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
@@ -228,7 +229,7 @@ async def main():
     print("✨ GraphQL Schema Generated:")
     print("""
     type NetworkConfiguration {
-      id: UUID!
+      id: ID!
       identifier: String!
       name: String!
       printServers(where: PrintServerWhereInput): [PrintServer!]!  # ← Clean with full logical operator support!

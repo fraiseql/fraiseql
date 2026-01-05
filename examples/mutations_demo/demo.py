@@ -12,6 +12,7 @@ from uuid import UUID
 import psycopg
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql import CQRSRepository
 
 # Database connection settings
@@ -34,7 +35,7 @@ class CreateUserInput:
 
 @fraiseql.input
 class UpdateUserInput:
-    id: UUID
+    id: ID
     name: str | None = None
     email: str | None = None
     role: str | None = None
@@ -42,13 +43,13 @@ class UpdateUserInput:
 
 @fraiseql.input
 class DeleteUserInput:
-    id: UUID
+    id: ID
 
 
 # Define the User type
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     name: str
     email: str
     role: str

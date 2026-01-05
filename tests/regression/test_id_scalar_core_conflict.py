@@ -10,10 +10,16 @@ The fix:
 - GraphQL schema shows type as "ID" (for cache management)
 - Serialization/parsing enforces UUID format
 
+SEMANTIC IMPROVEMENT (v1.9.x):
+- uuid.UUID now maps to UUIDScalar (name="UUID") - semantically correct
+- ID type maps to IDScalar (name="ID") - for identifier fields
+- ID behavior is configurable via SchemaConfig.id_policy
+
 These tests verify that:
 - FraiseQL's ID type maps to custom IDScalar
+- uuid.UUID maps to UUIDScalar (separate from ID)
 - Schema building works without redefinition errors
-- UUID format is enforced
+- UUID format is enforced for ID fields
 - Apollo/Relay cache compatibility maintained
 """
 
@@ -29,20 +35,23 @@ from graphql import (
 )
 
 import fraiseql
+from fraiseql.config.schema_config import IDPolicy, SchemaConfig
 from fraiseql.types import ID
-from fraiseql.types.scalars import IDScalar
+from fraiseql.types.scalars import IDScalar, UUIDScalar
 from fraiseql.types.scalars.graphql_utils import convert_scalar_to_graphql
 
 
 @pytest.fixture(autouse=True)
 def clear_registry():
-    """Clear the schema registry before and after each test."""
+    """Clear the schema registry and reset config before and after each test."""
     from fraiseql.gql.builders.registry import SchemaRegistry
 
     registry = SchemaRegistry.get_instance()
     registry.clear()
+    SchemaConfig.reset()  # Reset ID policy to default
     yield
     registry.clear()
+    SchemaConfig.reset()
 
 
 class TestIDTypeFixed:
@@ -112,9 +121,7 @@ class TestIDTypeFixed:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(
-            graphql(schema, introspection_query)
-        )
+        result = asyncio.run(graphql(schema, introspection_query))
 
         assert result.errors is None
 
@@ -223,7 +230,7 @@ class TestIDTypeFixed:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(graphql(schema, query))
+        result = asyncio.run(graphql(schema, query))
 
         # Should not have serialization errors
         assert result.errors is None or not any(
@@ -292,21 +299,39 @@ class TestIDTypeImports:
         assert CoreID is not None
         assert FraiseqlID is not None
 
-    def test_uuid_uuid_maps_to_id_scalar(self):
-        """Test that uuid.UUID maps to IDScalar (not GraphQL's built-in ID).
+    def test_uuid_uuid_maps_to_uuid_scalar(self):
+        """Test that uuid.UUID maps to UUIDScalar (not IDScalar).
 
-        FraiseQL is opinionated: IDs must be UUIDs. Both uuid.UUID and ID
-        type annotations map to IDScalar (named "ID") to enforce UUID format
-        and maintain backward compatibility. This avoids conflicts with
-        GraphQL's built-in ID type.
+        SEMANTIC FIX: uuid.UUID is a generic UUID type, not specifically an identifier.
+        Only explicit ID annotations should use the ID scalar. This is more semantically
+        correct and allows using uuid.UUID for non-ID fields (like correlation IDs,
+        external references, etc.).
         """
         result = convert_scalar_to_graphql(uuid.UUID)
-        assert result is IDScalar
-        assert result.name == "ID"
+        assert result is UUIDScalar
+        assert result.name == "UUID"
 
-    def test_id_maps_to_id_scalar(self):
-        """Test that ID (NewType) maps to IDScalar (named 'ID', enforces UUID)."""
-        # ID maps to custom IDScalar (named "ID" for cache, enforces UUID)
+    def test_id_maps_to_id_scalar_with_uuid_policy(self):
+        """Test that ID (NewType) maps to IDScalar when using UUID policy (default)."""
+        # Ensure UUID policy is active (default)
+        SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
         result = convert_scalar_to_graphql(ID)
         assert result is IDScalar
         assert result.name == "ID"
+
+    def test_id_maps_to_graphql_id_with_opaque_policy(self):
+        """Test that ID maps to GraphQL's built-in ID with OPAQUE policy."""
+        SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+
+        result = convert_scalar_to_graphql(ID)
+        assert result is GraphQLID
+        assert result.name == "ID"
+
+    def test_uuid_uuid_unchanged_by_policy(self):
+        """Test that uuid.UUID always maps to UUIDScalar regardless of policy."""
+        for policy in IDPolicy:
+            SchemaConfig.set_config(id_policy=policy)
+            result = convert_scalar_to_graphql(uuid.UUID)
+            assert result is UUIDScalar
+            assert result.name == "UUID"

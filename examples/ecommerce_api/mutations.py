@@ -18,6 +18,7 @@ from uuid import UUID
 
 # Import enterprise pattern types (would be defined in models.py)
 import fraiseql
+from fraiseql.types import ID
 
 from .models import (
     AddressMutationResult,
@@ -35,10 +36,10 @@ from .models import (
     description="Add a product variant to the shopping cart",
 )
 async def add_to_cart(
-    variant_id: UUID,
+    variant_id: ID,
     quantity: int,
-    cart_id: UUID | None = None,
-    customer_id: UUID | None = None,
+    cart_id: ID | None = None,
+    customer_id: ID | None = None,
     session_id: str | None = None,
 ) -> CartMutationResult:
     """Add item to cart with inventory checking"""
@@ -50,9 +51,9 @@ async def add_to_cart(
     description="Update quantity of an item in the cart",
 )
 async def update_cart_item(
-    cart_item_id: UUID,
+    cart_item_id: ID,
     quantity: int,
-    customer_id: UUID | None = None,
+    customer_id: ID | None = None,
     session_id: str | None = None,
 ) -> CartMutationResult:
     """Update cart item quantity or remove if quantity is 0"""
@@ -64,8 +65,8 @@ async def update_cart_item(
     description="Remove all items from the cart",
 )
 async def clear_cart(
-    cart_id: UUID,
-    customer_id: UUID | None = None,
+    cart_id: ID,
+    customer_id: ID | None = None,
     session_id: str | None = None,
 ) -> CartMutationResult:
     """Clear all items from cart"""
@@ -77,9 +78,9 @@ async def clear_cart(
     description="Apply a discount coupon to the cart",
 )
 async def apply_coupon_to_cart(
-    cart_id: UUID,
+    cart_id: ID,
     coupon_code: str,
-    customer_id: UUID | None = None,
+    customer_id: ID | None = None,
     session_id: str | None = None,
 ) -> CartMutationResult:
     """Apply coupon code to cart"""
@@ -92,10 +93,10 @@ async def apply_coupon_to_cart(
     description="Create an order from the current cart",
 )
 async def create_order(
-    cart_id: UUID,
-    customer_id: UUID,
-    shipping_address_id: UUID,
-    billing_address_id: UUID | None = None,
+    cart_id: ID,
+    customer_id: ID,
+    shipping_address_id: ID,
+    billing_address_id: ID | None = None,
     payment_method: dict | None = None,
     notes: str | None = None,
 ) -> OrderMutationResult:
@@ -108,7 +109,7 @@ async def create_order(
     description="Update the status of an order",
 )
 async def update_order_status(
-    order_id: UUID,
+    order_id: ID,
     status: str,
     notes: str | None = None,
 ) -> OrderMutationResult:
@@ -121,7 +122,7 @@ async def update_order_status(
     description="Process payment for an order",
 )
 async def process_order_payment(
-    order_id: UUID,
+    order_id: ID,
     payment_details: dict,
 ) -> OrderMutationResult:
     """Process payment and update order status"""
@@ -129,8 +130,8 @@ async def process_order_payment(
 
 @fraiseql.mutation(name="cancelOrder", function="cancel_order", description="Cancel an order")
 async def cancel_order(
-    order_id: UUID,
-    customer_id: UUID,
+    order_id: ID,
+    customer_id: ID,
     reason: str,
 ) -> OrderMutationResult:
     """Cancel order and release inventory"""
@@ -158,7 +159,7 @@ async def register_customer(
     description="Update customer profile information",
 )
 async def update_customer_profile(
-    customer_id: UUID,
+    customer_id: ID,
     first_name: str | None = None,
     last_name: str | None = None,
     phone: str | None = None,
@@ -173,7 +174,7 @@ async def update_customer_profile(
     description="Add a new address to customer profile",
 )
 async def add_customer_address(
-    customer_id: UUID,
+    customer_id: ID,
     type: str,  # billing, shipping, both
     first_name: str,
     last_name: str,
@@ -197,10 +198,10 @@ async def add_customer_address(
     description="Add a product to customer's wishlist",
 )
 async def add_to_wishlist(
-    customer_id: UUID,
-    product_id: UUID,
-    variant_id: UUID | None = None,
-    wishlist_id: UUID | None = None,
+    customer_id: ID,
+    product_id: ID,
+    variant_id: ID | None = None,
+    wishlist_id: ID | None = None,
     priority: int = 0,
     notes: str | None = None,
 ) -> dict:
@@ -214,12 +215,12 @@ async def add_to_wishlist(
     description="Submit a product review",
 )
 async def submit_review(
-    customer_id: UUID,
-    product_id: UUID,
+    customer_id: ID,
+    product_id: ID,
     rating: int,
     title: str | None = None,
     comment: str | None = None,
-    order_id: UUID | None = None,
+    order_id: ID | None = None,
 ) -> ReviewMutationResult:
     """Submit product review with optional order verification"""
 
@@ -230,9 +231,9 @@ async def submit_review(
     description="Mark a review as helpful or not helpful",
 )
 async def mark_review_helpful(
-    review_id: UUID,
+    review_id: ID,
     is_helpful: bool,
-    customer_id: UUID | None = None,
+    customer_id: ID | None = None,
     session_id: str | None = None,
 ) -> dict:
     """Mark review helpfulness"""
@@ -305,7 +306,7 @@ class ApplyDiscountEnterprise:
 
 
 async def process_order_legacy(
-    info, cart_id: UUID, customer_id: UUID, payment_details: dict
+    info, cart_id: ID, customer_id: ID, payment_details: dict
 ) -> OrderMutationResult:
     """Legacy pattern - for comparison only.
 
@@ -328,10 +329,10 @@ async def process_order_legacy(
 class ProcessOrderInput:
     """Order processing with comprehensive validation."""
 
-    cart_id: UUID
-    customer_id: UUID
-    shipping_address_id: UUID
-    billing_address_id: UUID | None = None
+    cart_id: ID
+    customer_id: ID
+    shipping_address_id: ID
+    billing_address_id: ID | None = None
     payment_details: dict[str, Any]
     coupon_codes: list[str] | None = None
     special_instructions: str | None = None
@@ -345,7 +346,7 @@ class ProcessOrderInput:
 class ProcessOrderSuccess:
     """Order processed successfully."""
 
-    order_id: UUID
+    order_id: ID
     order_number: str
     total_amount: Decimal
     payment_status: str
@@ -363,7 +364,7 @@ class ProcessOrderNoop:
     """Order processing was a no-op."""
 
     reason: str
-    order_id: UUID | None = None
+    order_id: ID | None = None
     blocking_issues: list[dict[str, Any]]
 
     # Context for NOOP scenarios
@@ -390,7 +391,7 @@ class ProcessOrderError:
 class UpdateInventoryInput:
     """Inventory update with business rules."""
 
-    product_variant_id: UUID
+    product_variant_id: ID
     quantity_change: int  # Can be negative
     reason_code: str  # 'restock', 'sale', 'damage', 'adjustment'
     reference_id: UUID | None = None  # Order ID, return ID, etc.
@@ -405,7 +406,7 @@ class UpdateInventoryInput:
 class UpdateInventorySuccess:
     """Inventory updated successfully."""
 
-    product_variant_id: UUID
+    product_variant_id: ID
     previous_quantity: int
     new_quantity: int
     quantity_change: int
@@ -421,7 +422,7 @@ class UpdateInventoryNoop:
     """Inventory update was a no-op."""
 
     reason: str
-    product_variant_id: UUID
+    product_variant_id: ID
     current_quantity: int
     attempted_change: int
 
@@ -436,7 +437,7 @@ class UpdateInventoryError:
 
     message: str
     error_code: str
-    product_variant_id: UUID
+    product_variant_id: ID
 
     # Detailed error context
     validation_failures: list[str]
@@ -448,10 +449,10 @@ class UpdateInventoryError:
 class ApplyDiscountInput:
     """Discount application with eligibility rules."""
 
-    cart_id: UUID
+    cart_id: ID
     discount_code: str | None = None
-    discount_id: UUID | None = None
-    customer_id: UUID
+    discount_id: ID | None = None
+    customer_id: ID
 
     # Validation context
     _cart_total_for_validation: Decimal | None = None
@@ -462,7 +463,7 @@ class ApplyDiscountInput:
 class ApplyDiscountSuccess:
     """Discount applied successfully."""
 
-    discount_id: UUID
+    discount_id: ID
     discount_amount: Decimal
     discount_percentage: Decimal | None = None
     cart_total_before: Decimal
@@ -479,7 +480,7 @@ class ApplyDiscountNoop:
 
     reason: str
     discount_code: str | None = None
-    customer_id: UUID
+    customer_id: ID
 
     # Eligibility context
     customer_ineligible_reasons: list[str]

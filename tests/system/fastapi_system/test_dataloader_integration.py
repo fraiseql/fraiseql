@@ -10,6 +10,7 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
+from fraiseql.types import ID
 
 pytestmark = pytest.mark.integration
 
@@ -86,12 +87,13 @@ class UserDataLoader(DataLoader[UUID, dict]):
 
 # Test queries
 @fraiseql.query
-async def get_post(info, id: UUID) -> Post | None:
+async def get_post(info, id: ID) -> Post | None:
     """Get a post by ID."""
     # Mock post data
+    # IDScalar parses the id to uuid.UUID, so compare as string
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
         return Post(
-            id=id,
+            id=id if isinstance(id, UUID) else UUID(id),
             title="Test Post",
             content="Test content",
             authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),

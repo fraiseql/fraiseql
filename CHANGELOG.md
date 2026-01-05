@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Configurable ID Policy
+
+New `IDPolicy` configuration for GraphQL ID scalar behavior:
+
+- **`IDPolicy.UUID`** (default): IDs must be valid UUIDs - FraiseQL's opinionated approach
+- **`IDPolicy.OPAQUE`**: IDs accept any string - GraphQL spec-compliant mode
+
+```python
+from fraiseql.config.schema_config import SchemaConfig, IDPolicy
+
+# Default: UUID enforcement (recommended)
+SchemaConfig.set_config(id_policy=IDPolicy.UUID)
+
+# GraphQL spec-compliant: accepts any string
+SchemaConfig.set_config(id_policy=IDPolicy.OPAQUE)
+```
+
+#### Semantic Type Mapping Fix
+
+- `uuid.UUID` now always maps to `UUIDScalar` (GraphQL name: "UUID")
+- Only the `ID` type annotation is affected by the ID policy
+- Clearer distinction between entity identifiers (`ID`) and generic UUIDs (`uuid.UUID`)
+
+### Changed
+
+#### Examples Updated to Use ID Type
+
+- 44 example files updated to use `ID` type for entity identifiers
+- Consistent with Trinity pattern: `id: ID` for external identifiers
+- Added `from fraiseql.types import ID` imports
+
+### Documentation
+
+- Updated `docs/core/id-type.md` with ID Policy documentation
+- Added `SchemaConfig` section to `docs/core/configuration.md`
+- Updated `docs/getting-started/quickstart.md` to use `ID` type
+
 ## [1.9.2] - 2025-01-05
 
 **Security & Bug Fix Release - APQ Response Caching Vulnerabilities**

@@ -24,6 +24,7 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.types import ID
 
 
 # Test type with JSONB data
@@ -48,16 +49,16 @@ async def products_with_jsonb(info, limit: int = 10) -> list[ProductWithJSONB]:
 
 
 @fraiseql.query
-async def product_with_jsonb(info, id: UUID) -> ProductWithJSONB | None:
+async def product_with_jsonb(info, id: ID) -> ProductWithJSONB | None:
     """Single query with typed return value."""
     pool = info.context.get("pool")
     repo = FraiseQLRepository(pool, context={"mode": "development"})
-    return await repo.find_one("test_products_fastapi_jsonb_view", id=str(id))
+    return await repo.find_one("test_products_fastapi_jsonb_view", id=id)
 
 
 @fraiseql.mutation
 async def create_product_with_jsonb(
-    info, id: str, name: str, brand: str, category: str, price: float
+    info, id: ID, name: str, brand: str, category: str, price: float
 ) -> ProductWithJSONB:
     """Mutation that creates a JSONB entity and returns it."""
     pool = info.context.get("pool")
@@ -108,7 +109,7 @@ class TestFastAPIJSONBIntegration:
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS test_products_fastapi_jsonb (
-                    id TEXT PRIMARY KEY,
+                    id UUID PRIMARY KEY,
                     name TEXT NOT NULL,
                     data JSONB NOT NULL
                 )
@@ -363,7 +364,7 @@ class TestFastAPIJSONBIntegration:
 
         mutation_str = """
             mutation CreateProduct(
-                $id: String!,
+                $id: ID!,
                 $name: String!,
                 $brand: String!,
                 $category: String!,
@@ -391,7 +392,7 @@ class TestFastAPIJSONBIntegration:
             json={
                 "query": mutation_str,
                 "variables": {
-                    "id": "fastapi-prod-new-001",
+                    "id": "00000000-0000-0000-0000-000000000099",
                     "name": "FastAPI Mutation Product",
                     "brand": "TestBrand",
                     "category": "TestCategory",
@@ -419,7 +420,7 @@ class TestFastAPIJSONBIntegration:
 
         # ASSERTION 3: Verify created product
         assert product is not None, "Expected product object, got None"
-        assert product["id"] == "fastapi-prod-new-001"
+        assert product["id"] == "00000000-0000-0000-0000-000000000099"
         assert product["name"] == "FastAPI Mutation Product"
         assert product["brand"] == "TestBrand"
         assert product["category"] == "TestCategory"

@@ -19,10 +19,13 @@ import uuid
 from graphql import (
     GraphQLBoolean,
     GraphQLFloat,
+    GraphQLID,
     GraphQLInt,
     GraphQLScalarType,
     GraphQLString,
 )
+
+from fraiseql.config.schema_config import SchemaConfig
 
 from .cidr import CIDRField, CIDRScalar
 from .coordinates import CoordinateField, CoordinateScalar
@@ -41,7 +44,20 @@ from .uuid import UUIDField, UUIDScalar
 
 
 def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
-    """Convert a Python type to a corresponding GraphQL scalar type."""
+    """Convert a Python type to a corresponding GraphQL scalar type.
+
+    The ID scalar behavior is controlled by SchemaConfig.id_policy:
+    - IDPolicy.UUID (default): ID type uses IDScalar (enforces UUID format)
+    - IDPolicy.OPAQUE: ID type uses GraphQL's built-in ID (accepts any string)
+
+    Note: uuid.UUID always maps to UUIDScalar (name="UUID"), regardless of policy.
+    Only the ID type annotation is affected by the policy.
+    """
+    config = SchemaConfig.get_instance()
+
+    # Determine which scalar to use for ID based on policy
+    id_scalar = IDScalar if config.id_policy.enforces_uuid() else GraphQLID
+
     scalar_map: dict[type, GraphQLScalarType] = {
         str: GraphQLString,
         int: GraphQLInt,
@@ -49,11 +65,12 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         bool: GraphQLBoolean,
         JSONField: JSONScalar,
         dict: JSONScalar,
-        # FraiseQL is opinionated: IDs must be UUIDs
-        # Use our custom IDScalar instead of GraphQL's built-in ID to avoid conflicts
-        uuid.UUID: IDScalar,  # uuid.UUID → "ID" scalar (enforces UUID, backward compatible)
+        # uuid.UUID always maps to UUIDScalar (semantic correctness)
+        # UUID is a specific format, not necessarily an identifier
+        uuid.UUID: UUIDScalar,  # uuid.UUID → "UUID" scalar
         UUIDField: UUIDScalar,  # Explicit UUID field → "UUID" scalar
-        ID: IDScalar,  # ID type annotation → "ID" scalar (enforces UUID format)
+        # ID type annotation uses policy-dependent scalar
+        ID: id_scalar,  # ID → "ID" scalar (policy determines enforcement)
         datetime.date: DateScalar,
         datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,

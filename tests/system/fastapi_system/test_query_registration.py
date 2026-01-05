@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
+from fraiseql.types import ID
 
 pytestmark = pytest.mark.integration
 
@@ -31,9 +32,10 @@ class Post:
 
 # Define queries using @query decorator
 @fraiseql.query
-async def getUser(info, id: UUID) -> User:
+async def getUser(info, id: ID) -> User:
     """Get user by ID."""
-    return User(id=id, name="Test User", email="test@example.com")
+    # IDScalar parses the id to uuid.UUID, so use it directly or convert if string
+    return User(id=id if isinstance(id, UUID) else UUID(id), name="Test User", email="test@example.com")
 
 
 @fraiseql.query
@@ -54,9 +56,10 @@ async def listUsers(info) -> list[User]:
 
 
 # Define a query without decorator for explicit registration
-async def getPost(info, id: UUID) -> Post:
+async def getPost(info, id: ID) -> Post:
     """Get post by ID."""
-    return Post(id=id, title="Test Post", authorId=UUID("123e4567-e89b-12d3-a456-426614174000"))
+    # IDScalar parses the id to uuid.UUID, so use it directly or convert if string
+    return Post(id=id if isinstance(id, UUID) else UUID(id), title="Test Post", authorId=UUID("123e4567-e89b-12d3-a456-426614174000"))
 
 
 # Define queries using QueryRoot pattern with @field

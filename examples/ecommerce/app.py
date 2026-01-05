@@ -10,6 +10,7 @@ from fraiseql import create_fraiseql_app
 from fraiseql.auth import Auth0Config
 from fraiseql.monitoring import MetricsConfig, setup_metrics
 from fraiseql.tracing import TracingConfig, setup_tracing
+from fraiseql.types import ID
 
 # Import models and operations
 from .models import (
@@ -231,7 +232,7 @@ query SearchProducts($filters: ProductFilterInput!) {
 }
 
 # Get product with reviews
-query GetProductDetails($id: UUID!) {
+query GetProductDetails($id: ID!) {
     productWithReviews(id: $id) {
         product {
             id

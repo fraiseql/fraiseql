@@ -19,6 +19,7 @@ from uuid import UUID
 from fastapi import FastAPI, Request
 
 import fraiseql
+from fraiseql.types import ID
 from fraiseql.security import (
     create_security_config_for_graphql,
     setup_development_security,
@@ -42,7 +43,7 @@ REDIS_URL = os.getenv("REDIS_URL")
 # GraphQL Types
 @fraiseql.type
 class User:
-    id: UUID
+    id: ID
     username: str
     email: str
     is_active: bool
@@ -51,10 +52,10 @@ class User:
 
 @fraiseql.type
 class Post:
-    id: UUID
+    id: ID
     title: str
     content: str
-    author_id: UUID
+    author_id: ID
     published: bool
     created_at: datetime
     updated_at: datetime
@@ -62,10 +63,10 @@ class Post:
 
 @fraiseql.type
 class Comment:
-    id: UUID
+    id: ID
     content: str
-    post_id: UUID
-    author_id: UUID
+    post_id: ID
+    author_id: ID
     created_at: datetime
 
 
@@ -79,7 +80,7 @@ class CreatePostInput:
 
 @fraiseql.type
 class UpdatePostInput:
-    id: UUID
+    id: ID
     title: str | None = None
     content: str | None = None
     published: bool | None = None
@@ -87,7 +88,7 @@ class UpdatePostInput:
 
 @fraiseql.type
 class CreateCommentInput:
-    post_id: UUID
+    post_id: ID
     content: str
 
 
@@ -125,12 +126,12 @@ class Query:
         return []
 
     @fraiseql.field
-    async def post(self, info: fraiseql.Info, id: UUID) -> Post | None:
+    async def post(self, info: fraiseql.Info, id: ID) -> Post | None:
         """Get a specific post by ID."""
         return None
 
     @fraiseql.field
-    async def user(self, info: fraiseql.Info, id: UUID) -> User | None:
+    async def user(self, info: fraiseql.Info, id: ID) -> User | None:
         """Get user by ID."""
         return None
 
